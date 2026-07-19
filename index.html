@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebBand - Kalradya</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Character Creation / Start Screen -->
+        <div id="start-screen" class="screen active">
+            <div class="title-container">
+                <div class="ornament top-ornament"></div>
+                <h1>WebBand</h1>
+                <div class="ornament bottom-ornament"></div>
+                <p>Kalradya'ya Hoşgeldiniz</p>
+            </div>
+            <div class="form-group">
+                <label>Karakter Adı:</label>
+                <div class="input-container">
+                    <input type="text" id="char-name" value="Maceracı" placeholder="İsmini gir...">
+                </div>
+                <button id="start-btn" class="btn primary">Maceraya Başla</button>
+            </div>
+            
+            <div style="position: absolute; bottom: 40px; display:flex; gap: 2rem; justify-content:center; width:100%;">
+                <button class="btn hex-btn-small" onclick="Game.showLore('lords')">🏇 Lordlar</button>
+                <button class="btn hex-btn-small" onclick="Game.showLore('kingdoms')">🏰 Krallıklar</button>
+            </div>
+        </div>
+
+        <!-- Main Game UI -->
+        <div id="main-ui" class="screen">
+            <header id="top-bar" class="glass-panel">
+                <div class="stat"><span class="icon">📅</span> Gün: <span id="ui-day">1</span></div>
+                <div class="stat"><span class="icon">💰</span> Dinar: <span id="ui-money">500</span></div>
+                <div class="stat"><span class="icon">⭐</span> Nam: <span id="ui-renown">0</span></div>
+                <div class="stat"><span class="icon">👥</span> Grup: <span id="ui-party">1/50</span></div>
+                <div class="stat"><span class="icon">❤️</span> Can: <span id="ui-hp">50/50</span></div>
+                <div class="stat tooltip-container">
+                    <span class="icon">🐎</span> Hız: <span id="ui-speed">50</span>
+                    <div class="tooltip-content" id="ui-speed-breakdown">
+                        Temel: 50<br>At Bonusu: Yok
+                    </div>
+                </div>
+                <div class="stat"><span class="icon">⬆️</span> Lvl: <span id="ui-level">1</span></div>
+            </header>
+
+            <div class="content-area">
+                <!-- Sidebar Menus -->
+                <aside id="sidebar" class="glass-panel">
+                    <button class="menu-btn active" onclick="Game.showScreen('map')">Harita</button>
+                    <button class="menu-btn" onclick="Game.showScreen('character')">Karakter</button>
+                    <button class="menu-btn" onclick="Game.showScreen('party')">Grup</button>
+                    <button class="menu-btn" onclick="Game.showScreen('inventory')">Envanter</button>
+                </aside>
+
+                <!-- Views Container -->
+                <main id="view-container">
+                    <!-- Map View -->
+                    <div id="map-view" class="view active">
+                        <canvas id="map-canvas"></canvas>
+                        <div id="map-tooltip" class="glass-panel hidden"></div>
+                    </div>
+
+                    <!-- Settlement View (City/Castle/Village) -->
+                    <div id="settlement-view" class="view glass-panel">
+                        <h2 id="settlement-name">Şehir Adı</h2>
+                        <div id="settlement-actions" class="action-list">
+                        </div>
+                    </div>
+
+                    <!-- Character View -->
+                    <div id="character-view" class="view glass-panel">
+                        <h2>Karakter Ekranı</h2>
+                        <div id="char-stats"></div>
+                    </div>
+
+                    <!-- Party View -->
+                    <div id="party-view" class="view glass-panel">
+                        <h2>Grup Yönetimi</h2>
+                        <div id="party-list"></div>
+                    </div>
+
+                    <!-- Inventory View -->
+                    <div id="inventory-view" class="view glass-panel">
+                        <h2>Envanter</h2>
+                        <div id="inventory-content"></div>
+                    </div>
+
+                    <!-- Battle View -->
+                    <div id="battle-view" class="view">
+                        <canvas id="battle-canvas"></canvas>
+                        <div id="battle-ui">
+                            <div id="battle-log-left" class="battle-logs" style="position:absolute; bottom:60px; left:20px; width:350px; display:flex; flex-direction:column-reverse; gap:5px; pointer-events:none; z-index:10; text-align:left;"></div>
+                            <div id="battle-log-right" class="battle-logs" style="position:absolute; bottom:60px; right:20px; width:350px; display:flex; flex-direction:column-reverse; gap:5px; pointer-events:none; z-index:10; text-align:right;"></div>
+                            <button class="btn" style="border-color:#cc8800;color:#cc8800; position:absolute; top:20px; right:20px; z-index:20;" onclick="Battle.surrender()">🏳️ Teslim Ol</button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Esir Pranga İkonu -->
+    <div id="prisoner-icon" style="display:none; position:fixed; bottom:20px; left:20px; font-size:4rem; pointer-events:none; z-index:50;">⛓️</div>
+
+    <!-- Esaret Yönetim Arayüzü -->
+    <div id="prisoner-ui" class="glass-panel hidden" style="position:fixed; bottom:20px; right:20px; z-index:60; text-align:center; min-width: 250px;">
+        <h3 style="color:#ff6666; margin-top:0; margin-bottom: 0.5rem;">⛓️ Esaret Altındasın</h3>
+        <div style="font-size: 0.9rem; margin-bottom: 1rem;">
+            Kaçma Olasılığı: <strong id="ui-escape-chance" style="color:var(--primary); font-size:1.2rem;">0%</strong>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+            <button id="btn-escape-plan" class="btn" onclick="Game.toggleEscapePlan()">Kaçış Planı Yap</button>
+            <button id="btn-escape-attempt" class="btn" style="border-color:#ff6666; color:#ff6666;" onclick="Game.attemptEscape()">Kaçmaya Çalış</button>
+        </div>
+    </div>
+    <!-- Modals -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal-content" class="glass-panel">
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
