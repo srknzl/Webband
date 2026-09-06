@@ -119,7 +119,7 @@ En fazla 4 kez girilebilir, her girişte boss seviyesi +5. Kazanınca lvl 51 ni�
 Yeni özellik eklerken bunlara dikkat:
 
 1. `Game.payRansom()` ve `Game.refuseRansom()` **tanımlı değil** — `dailyUpdate()` içindeki fidye modalinin butonları çalışmaz (app.js:894-895).
-2. `TournamentMinigame` `getElementById('battle-log')` kullanıyor ama DOM'da `battle-log-left`/`battle-log-right` var → turnuva başlarken hata verir (app.js:2921, 2994).
+2. **SOFTLOCK:** `TournamentMinigame` `getElementById('battle-log')` kullanıyor ama DOM'da `battle-log-left`/`battle-log-right` var. `start()` bu satırda patlar (app.js:2921) — tık dinleyicisi bağlanmadan ve döngü başlamadan. Sonuç: oyuncu boş yeşil savaş ekranında kalır, tek çıkış `Battle.surrender()` (grubu siler). Turnuva sistemi tamamen oynanamaz durumda. Tarayıcıda doğrulandı.
 3. `showLore()` iki kez tanımlı (app.js:481 ve 1599) — ikincisi geçerli. `toggleEscapePlan`/`attemptEscape` de iki kez (app.js:1031/1962).
 4. `LORDS[].portrait` mutlak Windows yollarına işaret ediyor (`C:/Users/Administrator/...`) — portreler yüklenmiyor. Yerel `lord_portraits.jpg` sprite sheet kullanılmalı.
 5. `state.player.proficiencies` başlangıcında tanımlı anahtarlar (`horse`, `foot`, `crossbow`, `blunt`, `javelin`, `lance`) karakter ekranındakilerle (`riding`, `athletics`, `polearm`, `leadership`) uyuşmuyor; ekran eksik olanları lazily oluşturuyor.
