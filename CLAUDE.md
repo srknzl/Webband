@@ -8,7 +8,10 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | Dosya | İçerik |
 |---|---|
 | `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli) |
-| `app.js` | Oyunun tamamı — ~3000 satır, 4 global obje: `Input`, `Game`, `Battle`, `TournamentMinigame` + `state` |
+| `app.js` | Çekirdek — harita, zaman, yerleşim, savaş, turnuva, kayıt. Global objeler: `Input`, `Game`, `Battle`, `TournamentMinigame`, `Save` + `state` |
+| `nobles.js` | `LORDS` (23), `LADIES` (12), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
+| `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
+| `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
 | `style.css` | Cam panel (glassmorphism) teması, CSS değişkenleri (`--primary`, `--danger`, `--success`, `--panel-border`, `--text-muted`) |
 | `bg.jpg`, `bg_hdr.jpg` | Arkaplan görselleri |
 | `lord_portraits.jpg` | 3x3 sprite sheet — lord portreleri (`background-position` ile kırpılır) |
@@ -22,10 +25,15 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 `Battle.active || TournamentMinigame.active` iken kendini durdurur; savaş/turnuva kendi
 döngüsünü işletir.
 
-Tüm veri tek bir `state` objesinde. **Kayıt/yükleme yok** — sayfa yenilenince oyun sıfırlanır.
+Script yükleme sırası: `app.js` → `nobles.js` → `quests.js`. Aralarındaki tüm referanslar
+fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için önemli.
 
-Global veri sabitleri (app.js başı): `FACTIONS`, `LORDS`, `LOCATIONS`, `RIVERS`, `FORESTS`,
-`ITEMS`, `TROOP_UPGRADES`, `TROOP_TYPES`.
+Tüm veri tek bir `state` objesinde. `Save.save()` / `Save.load()` bunu localStorage'a
+(`webband_save_v1`) JSON olarak yazar. **Keşfedilen harita (sis) kaydedilmez**, yüklemede sıfırlanır.
+
+Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
+`TROOP_UPGRADES`, `TROOP_TYPES`; nobles.js'te `LORDS`, `LADIES`, `PERSONALITIES`,
+`LADY_TRAITS`, `COMPLIMENTS`, `POEMS`; quests.js'te `QUESTS`.
 
 `window.alert` override edilmiştir → modal olarak gösterilir.
 
@@ -51,6 +59,9 @@ Her gün:
 - Krallar/vezirler zamanla güçlenir (kral 90 günde lvl 20 / 110 asker, vezir lvl 10 / 50 asker)
 - %25 ihtimalle rastgele şehirde turnuva açılır, açık turnuvalar %30 ihtimalle kapanır
 - Çapulcu sayısı 5'in altına düşerse yenisi doğar
+- `Nobles.dailyTick()` — konum işaretlerini eskitir, rakip taliplerin ilgisini artırır, evlilik geliri, düğün günü kontrolü
+- `Feast.dailyTick()` — süresi dolan şöleni kapatır, planlanmış/kendiliğinden şöleni başlatır
+- `Quests.dailyTick()` — görevlerin `day()` kancası ve süre kontrolü
 
 ### Karakter
 - Nitelikler: **Güç** (yakın dövüş hasarı, turnuvada hedef süresi), **Çeviklik** (harita hızı +1.5, savaş hızı +0.5, turnuvada hedef boyutu), **Zeka** (görüş +30), **Karizma** (grup kapasitesi +2). Seviye başına 2 puan.
@@ -68,21 +79,88 @@ Silah / zırh / at slotları. Zırh max HP'ye, silah saldırıya, at harita hız
 Ticaret malları pazarda alınıp satılır (satış fiyatı ×0.7). Pazar çarpanı şehir girişinde rastgele 0.8–1.2.
 
 ### Yerleşimler
-- **Şehir**: pazar, han (10 dinar — tam iyileşme), turnuva (varsa), lordlar salonu, gönüllü toplama
-- **Kale**: lordlar salonu
+- **Şehir**: pazar, han (dinlenme + ozandan şiir öğrenme), turnuva (varsa), lordlar salonu,
+  şölen (varsa katıl; kendi krallığındaysa ver), gönüllü toplama
+- **Kale**: lordlar salonu, şölen (varsa)
+- Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
 - **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı
 - Düşman fraksiyon şehri/kalesi ise sadece **kuşatma** seçeneği çıkar.
 
-### Soylular (mevcut hali — çok sığ)
-`openLordsHall()` yalnızca iki buton sunar:
-- **Krala yemin et** (50 nam) → `vassalOf` atanır, +5 idare hakkı
-- **Soylularla görüş ve evlen** (100 nam) → rastgele leydi ismi seçilir, gruba katılır
+### Soylular (`nobles.js`)
+23 lord + 12 leydi. Her lordun haritada gezen kendi partisi var (`npc.lordId`); parti kendi
+yerleşiminin etrafında dolaşır, böylece salonunda bulunabilir. `Nobles.isAt()` "evinde mi"
+kontrolünü 420 birim yarıçapla yapar.
 
-`LORDS` dizisi (8 lord, portre + lore metni) **sadece açılış ekranındaki lore modalinde** kullanılır;
-haritada NPC olarak yaşamaz, konuşulamaz, görev vermez.
+- **İlişki** `state.relations[lordId]` (−100..100). `Nobles.relLabel()` etiketler:
+  Kan Davalı / Düşman / Kırgın / Kayıtsız / Hoşnut / Dost / Sadık Dost.
+- **Mizaç** (`PERSONALITIES`): `martial`, `cunning`, `debauched`, `goodnatured`, `quarrelsome`.
+  Selamlama replikleri, hangi hediyeyi sevdikleri, hangi görevi verdikleri ve drahoma çarpanı buna bağlı.
+- **Diyalog** (`Nobles.talk`): hâl hatır sor (günde 1, +1/+2), görev iste, birinin yerini sor,
+  hediye ver, şiir oku (görev varsa), kızıyla ilgili konuş, hakaret et (−15 ilişki, +2 nam,
+  rakip krallık lordlarıyla +5), bağlılık yemini.
+- **Hediye**: mizaca uyan eşya +6..+10, uymayan +1, huysuza her şey +3. Günde bir kez.
+- **"… nerede?"** (`Nobles.askWhere`): doğruluk ilişkiye bağlı.
+  rel<0 → yalan (gerçek konumdan 800–1500 birim uzağa işaret), 0–19 → sadece yön,
+  20–49 → 600 birimlik belirsizlik çemberi, 50+ → 200 birim + 3 gün canlı takip.
+  Başka krallıktan birini sormak bir kademe düşürür. İşaretler haritaya altın kesikli
+  çember olarak çizilir (`Nobles.drawMarkers`, `renderMap` içinden çağrılır), 3 gün sonra silinir.
+- **Karşılaşma**: düşman olmayan bir soylunun partisine çarpmak savaş değil, diyalog açar
+  (`Game.triggerEncounter` içindeki `npc.lordId` dalı).
+
+### Flört ve evlilik
+- Salonun leydi bölümüne girmek **80 nam**, şölene girmek **150 nam** ister.
+- **İlgi** `state.affection[ladyId]` (0..100). Artırma yolları: sohbet +3 (3 gün bekleme),
+  iltifat (huya uyarsa +5, ters düşerse −8, nötr +1), şiir +12 (her leydiye her şiir bir kez),
+  turnuva zaferini ithaf +18 (`state.pendingDedication`), düello galibiyeti +15.
+- **Huylar** (`LADY_TRAITS`): `romantic`/`ambitious`/`pious`/`wild` — her biri bir iltifat
+  konusunu sever, bir tanesinden nefret eder. Ekranda ipucu verilir.
+- **Rakip talip**: oyun başında %60 ihtimalle atanır (`state.rivals`), günde +1.5 ilerler.
+  100'e ilk ulaşan nişanlanır. Karşı hamle: şeref düellosu (`Battle.startDuel`, 1v1, grup
+  sahneye girmez) ya da itibar lekeleme (%30 geri teper).
+- **İsteme** (`Nobles.askForHand`): ilgi ≥60, nam ≥120, vasiyle ilişki ≥25 şartı.
+  Drahoma: `8000 + kale/şehir×400 − nam×20 − ilişki×60`, mevki çarpanı (kendi krallığın 0.6 /
+  derebeyi 0.8 / bağımsız 1.0) ve mizaç çarpanı (cunning 1.3 … goodnatured 0.8), alt sınır 1500.
+  Kalemi kalemine gösterilir. Seçenekler: öde / pazarlık (ikna seviyesine bağlı, %20 indirim,
+  günde bir) / "param yok ama kılıcım var" (200 nam, görev alınca drahoma yarıya iner) /
+  kaçırma (−60 vasi, −20 krallık, −30 nam).
+- **Nişan → düğün**: `Feast.schedule()` ile 5–10 gün sonrasına bir şölen kurulur.
+  O gün orada olman gerekir; iki gün geçerse rezil olursun (−25 ilişki, −25 ilgi).
+- **Evlilik**: +15 idare hakkı, eşin krallığının lordlarıyla +20, günlük +50 dinar,
+  eş gruba katılır.
+
+### Şölenler (`Feast`)
+10–20 günde bir rastgele şehirde 4 gün sürer. O krallığın bütün soyluları orada sayılır
+(`Nobles.isAt` şöleni de kabul eder). "Salonu dolaş" herkesle bir kez +2 ilişki verir.
+Kendi krallığının şehrinde 3000 dinar + 30 et/peynir ile şölen verebilirsin (+5 ilişki, +15 nam).
+
+### Görevler (`quests.js`)
+Görev motoru olay tabanlı. `Quests.emit(ev, data)` çağrıları: `entered_location`, `bought_item`,
+`battle_won`, `escaped_captivity`, `tournament_end`, `chickens_caught`, `talked_to`,
+`poem_recited_lord`. Ayrıca `Quests.dailyTick()` her gün `day(q)` kancasını çağırır ve
+süre dolmasını kontrol eder.
+
+Görevler Warband'ın görev listesinin kopyası değil; **WebBand'ın kendi mekaniklerini** hedefler:
+
+| Görev | Hangi mekanik |
+|---|---|
+| Tereyağı Ablukası | Pazardan belirli şehirde 15 peynir alımı |
+| Sisteki Nokta | Sis + sıcak/soğuk ipucu (500/1200 birim) ile gizli nokta avı |
+| Çavuşluk Sınavı | Terfi ağacı — 20+ seviye 5 asker ile lordun kapısına gitmek |
+| Aç Ordu | Günlük yemek tüketimi — kendi ordun yükü yerken 20 yemek taşımak |
+| Zincirdeki Kardeş | **İki çözüm**: çeteyi yen, ya da bilerek esir düşüp kaçış planı mekaniğiyle çık (ekstra ödül) |
+| Şike | Turnuvada 5–8 arası skorla elenmek (−15 nam, +2500 dinar) |
+| Yalan Haber | "Nerede?" mekaniği — 2+ lorda yalan söyle; sonra 5 gün onlar da sana yalan söyler |
+| Deli Hüsnü'nün Tavukları | Turnuva minigame'inin 15 saniyelik / 8 hedeflik tavuk varyantı |
+| Hasat Nöbeti | Köy yakınında bekle, 2 çapulcu dalgası püskürt |
+| Kayıp Mektup | Köyden al, başka bir lorda götür |
+| Bir Şiir Getir | Meyhane ozanından şiir öğren, lorda oku |
+
+Kabul edilen görevler `state.player.quests`; **Görevler** sekmesi (`#quests-view`) listeler.
+Reddedilen lord 7–15 gün yeni görev vermez (`state.questCooldown`).
+Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
 
 ### Karşılaşma & savaş
-- Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir. Lordlar sadece oyuncu düşman fraksiyonun vassalı ise saldırır.
+- Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
 - Karşılaşma modali: savaş / teslim ol. (İlk 14 günde çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.)
 - **Savaş**: 2D top-down canvas arena, prosedürel arazi (tepe / çukur / orman / nehir).
   - Arazi etkileri: ormanda okçu ×0.7 hasar & süvari ×0.6 hız, tepede okçu ×1.3 hasar, çukurda ×0.8 hız, nehirde ×0.7 hız.
@@ -107,8 +185,11 @@ Kazanılırsa yerleşim vassalı olunan fraksiyona geçer; bağımsızsan **kend
 (`FACTIONS.player_kingdom` runtime'da oluşturulur).
 
 ### Turnuva
-`TournamentMinigame` — 25 saniyede 12 hedefe tıklama. Hedef boyutu çevikliğe, ekranda kalma
-süresi güce bağlı. Kazanınca +500 dinar, +20 nam.
+`TournamentMinigame.start(opts)` — varsayılan 25 saniyede 12 hedefe tıklama. Hedef boyutu
+çevikliğe, ekranda kalma süresi güce bağlı. Kazanınca +500 dinar, +20 nam ve
+`state.pendingDedication` açılır (zaferi bir leydiye ithaf edebilirsin).
+`opts = { mode:'chicken', goal:8, time:15 }` ile tavuk görevi varyantı olarak çalışır.
+Bitişte `tournament_end` / `chickens_caught` olayı yayınlanır.
 
 ### Boss
 `boss_map` eşyası (pazardan 5000 dinar) kullanılınca **Savaş Tanrısı** savaşı açılır.
@@ -116,21 +197,27 @@ En fazla 4 kez girilebilir, her girişte boss seviyesi +5. Kazanınca lvl 51 ni�
 
 ## Bilinen eksikler / bozukluklar
 
-Yeni özellik eklerken bunlara dikkat:
+Faz 0'da düzeltilenler (artık sorun değil): fidye butonları, turnuva softlock'u
+(`battle-log` → `battle-log-left`), çift tanımlı `showLore`/`toggleEscapePlan`/`attemptEscape`,
+Windows mutlak portre yolları, yeterlilik anahtarı uyuşmazlığı, `renderPartyScreen` kapasitesi,
+kayıt/yükleme.
 
-1. `Game.payRansom()` ve `Game.refuseRansom()` **tanımlı değil** — `dailyUpdate()` içindeki fidye modalinin butonları çalışmaz (app.js:894-895).
-2. **SOFTLOCK:** `TournamentMinigame` `getElementById('battle-log')` kullanıyor ama DOM'da `battle-log-left`/`battle-log-right` var. `start()` bu satırda patlar (app.js:2921) — tık dinleyicisi bağlanmadan ve döngü başlamadan. Sonuç: oyuncu boş yeşil savaş ekranında kalır, tek çıkış `Battle.surrender()` (grubu siler). Turnuva sistemi tamamen oynanamaz durumda. Tarayıcıda doğrulandı.
-3. `showLore()` iki kez tanımlı (app.js:481 ve 1599) — ikincisi geçerli. `toggleEscapePlan`/`attemptEscape` de iki kez (app.js:1031/1962).
-4. `LORDS[].portrait` mutlak Windows yollarına işaret ediyor (`C:/Users/Administrator/...`) — portreler yüklenmiyor. Yerel `lord_portraits.jpg` sprite sheet kullanılmalı.
-5. `state.player.proficiencies` başlangıcında tanımlı anahtarlar (`horse`, `foot`, `crossbow`, `blunt`, `javelin`, `lance`) karakter ekranındakilerle (`riding`, `athletics`, `polearm`, `leadership`) uyuşmuyor; ekran eksik olanları lazily oluşturuyor.
-6. `renderPartyScreen()` sabit `state.player.partyCapacity` gösteriyor, gerçek limit `getPartyCapacity()`.
-7. Kayıt/yükleme yok.
-8. Sadece Svadya asker ağacı var (`TROOP_UPGRADES`); diğer fraksiyonların askerleri yok.
+Kalanlar:
+
+1. Sadece Svadya asker ağacı var (`TROOP_UPGRADES`); diğer fraksiyonların askerleri yok.
+2. Kaydedilen oyunda **keşfedilen harita (sis) korunmaz** — yüklemede sis yeniden çöker.
+3. Ekonomi dengesizliği: bir savaş ~80 dinar getirirken drahoma 1500–8000 dinar. Görev
+   ödülleri (600–2500) bunu bir miktar kapatıyor ama savaş ganimeti hâlâ düşük.
+4. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
+   baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
+5. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
+6. `app.js` ~3100 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 
 - Türkçe yorum ve arayüz metni, İngilizce değişken/fonksiyon isimleri.
 - Arayüz `innerHTML` şablon dizeleriyle üretilir, inline `style` yaygın. Buton eylemleri
-  `onclick="Game.xxx()"` ile globallere bağlanır — bu yüzden `Game`/`Battle` global kalmalı.
+  `onclick="Game.xxx()"` ile globallere bağlanır — bu yüzden `Game`/`Battle`/`Nobles`/`Quests`/
+  `Feast`/`Save` global kalmalı.
 - Modal açmak: `Game.showModal(html, width?, bgImage?)`, kapatmak `Game.closeModal()`.
 - Bildirim için `alert()` yeterli (modala yönlendirilmiş durumda).

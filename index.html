@@ -28,6 +28,7 @@
             <div style="position: absolute; bottom: 40px; display:flex; gap: 2rem; justify-content:center; width:100%;">
                 <button class="btn hex-btn-small" onclick="Game.showLore('lords')">🏇 Lordlar</button>
                 <button class="btn hex-btn-small" onclick="Game.showLore('kingdoms')">🏰 Krallıklar</button>
+                <button class="btn hex-btn-small" onclick="Save.load()">📂 Kayıttan Devam</button>
             </div>
         </div>
 
@@ -55,6 +56,10 @@
                     <button class="menu-btn" onclick="Game.showScreen('character')">Karakter</button>
                     <button class="menu-btn" onclick="Game.showScreen('party')">Grup</button>
                     <button class="menu-btn" onclick="Game.showScreen('inventory')">Envanter</button>
+                    <button class="menu-btn" onclick="Game.showScreen('quests')">Görevler</button>
+                    <div style="flex:1"></div>
+                    <button class="menu-btn" onclick="Save.save()">💾 Kaydet</button>
+                    <button class="menu-btn" onclick="Save.load()">📂 Yükle</button>
                 </aside>
 
                 <!-- Views Container -->
@@ -88,6 +93,12 @@
                     <div id="inventory-view" class="view glass-panel">
                         <h2>Envanter</h2>
                         <div id="inventory-content"></div>
+                    </div>
+
+                    <!-- Quest View -->
+                    <div id="quests-view" class="view glass-panel">
+                        <h2>📜 Görevler</h2>
+                        <div id="quest-list"></div>
                     </div>
 
                     <!-- Battle View -->
@@ -126,5 +137,7 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="nobles.js"></script>
+    <script src="quests.js"></script>
 </body>
 </html>

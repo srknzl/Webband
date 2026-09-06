@@ -11,16 +11,8 @@ const FACTIONS = {
     khergit: { id: 'khergit', name: 'Kergit Hanlığı',   color: '#cc66ff', ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
 };
 
-const LORDS = [
-    { id: 'harlaus', name: 'Kral Harlaus', faction: 'swadia', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/lord_portraits_1784496496881.jpg', lore: 'Tereyağına olan düşkünlüğü ile bilinir. Ülkesi elden giderken bile ziyafet vermekten geri durmayan, ağır zırhlı geleneksel bir hükümdardır.', bgOffsetX: 0, bgOffsetY: 0 },
-    { id: 'graveth', name: 'Kral Graveth', faction: 'rhodok', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/lord_portraits_1784496496881.jpg', lore: 'Sert mizaçlı ve dağlıların lideri. Konseyi devirerek zorla başa geçtiği söylenir.', bgOffsetX: -150, bgOffsetY: 0 },
-    { id: 'yaroglek', name: 'Kral Yaroglek', faction: 'vaegir', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/lord_portraits_1784496496881.jpg', lore: 'Kuzeyin karlı steplerinin hükümdarı. Sert bir mizacı olsa da halkı tarafından benimsenmiştir.', bgOffsetX: -300, bgOffsetY: 0 },
-    { id: 'ragnar', name: 'Kral Ragnar', faction: 'nord', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/lord_portraits_1784496496881.jpg', lore: 'Nordların tartışmasız lideri. Oğlu için kıtayı fethetmek isteyen bir denizci savaş ağası.', bgOffsetX: 0, bgOffsetY: -150 },
-    { id: 'sancar', name: 'Sancar Han', faction: 'khergit', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/lord_portraits_1784496496881.jpg', lore: 'Kardeşinin hakkını gasp ederek başa geçtiği için hep tartışılan, at üstünde uyuyup uyanan kurnaz bozkır hanı.', bgOffsetX: -150, bgOffsetY: -150 },
-    { id: 'mustafa_abi', name: 'Lord Mustafa', faction: 'swadia', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/portrait_mustafa_1784497890732.jpg', lore: 'Kalradya\'nın en eski ve bilge lordlarından biridir. Hakkında pek bir şey bilinmez, sadece gerektiğinde kralların bile ona akıl danıştığı söylenir.', bgOffsetX: 0, bgOffsetY: 0, isDirectImage: true },
-    { id: 'serkan_abi', name: 'Lord Serkan', faction: 'rhodok', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/portrait_serkan_1784497905313.jpg', lore: 'Orta yaşlı, sert mizaçlı ve taviz vermeyen bir savaş beyi. Söylentilere göre geçmişte büyük bir ihanete uğramış ve bu yüzden kimseye tam olarak güvenmez.', bgOffsetX: 0, bgOffsetY: 0, isDirectImage: true },
-    { id: 'furkan', name: 'Lord Furkan', faction: 'vaegir', portrait: 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/portrait_furkan_1784497919869.jpg', lore: 'Genç, hırslı ve bir o kadar da yetenekli bir lord. Ailesinin kökenleri tam olarak bilinmese de kılıç kullanmaktaki ustalığı sayesinde hızla yükselmiştir.', bgOffsetX: 0, bgOffsetY: 0, isDirectImage: true }
-];
+// LORDS, LADIES, PERSONALITIES -> nobles.js
+
 
 const LOCATIONS = [
     // Swadia
@@ -87,7 +79,7 @@ const ITEMS = {
     salt:   { id:'salt',   name:'Tuz',           type:'trade', basePrice:100, icon:'🧂' },
     sword:  { id:'sword',  name:'Kılıç',         type:'weapon', weaponType:'oneHanded', basePrice:250, attack:15, icon:'⚔️' },
     axe:    { id:'axe',    name:'Savaş Baltası', type:'weapon', weaponType:'twoHanded', basePrice:300, attack:20, icon:'🪓' },
-    lance:  { id:'lance',  name:'Mızrak',        type:'weapon', weaponType:'lance', basePrice:200, attack:12, icon:'🔱' },
+    lance:  { id:'lance',  name:'Mızrak',        type:'weapon', weaponType:'polearm', basePrice:200, attack:12, icon:'🔱' },
     bow:    { id:'bow',    name:'Yay',           type:'weapon', weaponType:'bow', basePrice:220, attack:10, icon:'🏹' },
     shield: { id:'shield', name:'Kalkan',        type:'armor',  basePrice:150, defense:10, icon:'🛡️' },
     mail:   { id:'mail',   name:'Zincir Zırh',   type:'armor',  basePrice:500, defense:25, icon:'🦺' },
@@ -148,11 +140,14 @@ const state = {
         visibility: 500,
         stats: { level:1, xp:0, xpNext:100, hp:50, maxHp:50, str:10, agi:10, int:10, cha:10, attributePoints: 5 },
         proficiencies: {
-            horse: { level: 1, xp: 0, next: 100 }, foot: { level: 1, xp: 0, next: 100 },
-            bow: { level: 1, xp: 0, next: 100 }, crossbow: { level: 1, xp: 0, next: 100 },
-            oneHanded: { level: 1, xp: 0, next: 100 }, twoHanded: { level: 1, xp: 0, next: 100 },
-            blunt: { level: 1, xp: 0, next: 100 }, javelin: { level: 1, xp: 0, next: 100 },
-            lance: { level: 1, xp: 0, next: 100 }
+            oneHanded: { level: 1, xp: 0, next: 100, focus: 0 },
+            twoHanded: { level: 1, xp: 0, next: 100, focus: 0 },
+            polearm:   { level: 1, xp: 0, next: 100, focus: 0 },
+            bow:       { level: 1, xp: 0, next: 100, focus: 0 },
+            riding:    { level: 1, xp: 0, next: 100, focus: 0 },
+            athletics: { level: 1, xp: 0, next: 100, focus: 0 },
+            leadership:{ level: 1, xp: 0, next: 100, focus: 0 },
+            persuasion:{ level: 1, xp: 0, next: 100, focus: 0 }
         },
         skills: { fastRun: 0, wideSwing: 0, fastArrow: 0, homingArrow: 0 },
         attackAngle: 30, // Base 30 degrees
@@ -161,9 +156,22 @@ const state = {
         currentSiege: null,
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
+        quests: [],
+        poems: [],
     },
     time: { day:1, hour:8 },
     loopInterval: null,
+
+    // --- Soylu / görev sistemi ---
+    relations: {},        // lordId -> -100..100
+    affection: {},        // ladyId -> 0..100
+    rivals: {},           // ladyId -> { lordId, affection }
+    knownLocations: {},   // lordId -> { x, y, radius, day, name, live }
+    questCooldown: {},    // lordId -> gün
+    smallTalkDay: {}, giftDay: {}, visitDay: {}, poemsRead: {}, dedicatedTo: [],
+    pendingQuest: null, dowryOffer: null, betrothed: null, pendingWedding: null,
+    pendingDedication: false, duel: null,
+    feast: null, scheduledFeasts: [], nextFeastDay: 8,
 };
 
 // --- INPUT ---
@@ -313,11 +321,16 @@ const Game = {
             let size = 5 + Math.floor(Math.random()*10);
             state.npcParties.push(this.createNPC('Çapulcular', 'bandit', size, '#8b0000', null, 1));
         }
-        for(let fid in FACTIONS) {
-            let f = FACTIONS[fid];
-            state.npcParties.push(this.createNPC(f.ruler, 'king', 100, f.color, fid, 1)); // Kral 100 asker
-            state.npcParties.push(this.createNPC(f.vizier, 'vizier', 50, f.color, fid, 1)); // Vezir 50 asker
-        }
+        // Her soylunun haritada gezen kendi partisi var
+        LORDS.forEach(l => {
+            let size = l.rank === 'king' ? 100 : l.rank === 'vizier' ? 50 : 35;
+            let npc = this.createNPC(l.name, l.rank, size, FACTIONS[l.faction].color, l.faction, 1);
+            npc.lordId = l.id;
+            let home = LOCATIONS.find(x => x.id === l.homeLocId);
+            if(home) { npc.x = home.x; npc.y = home.y; npc.targetX = home.x; npc.targetY = home.y; }
+            state.npcParties.push(npc);
+        });
+        Nobles.initRivals();
     },
 
     createNPC(name, type, size, color, faction = null, level = 1) {
@@ -475,100 +488,6 @@ const Game = {
                 Grup Bonusu: <span style="color:var(--success)">+%${(spdData.partyMult * 100).toFixed(0)}</span>
                 ${terrainText}
             `;
-        }
-    },
-
-    showLore(type) {
-        let content = '';
-        if(type === 'lords') {
-            content = `
-                <div class="lore-timeline">
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: 0 0;"></div>
-                        <div class="lore-content">
-                            <h4>Kral Harlaus</h4>
-                            <p>Tereyağına olan tutkusu krallığından bile büyüktür. Savaşın en sıcak anında bile ziyafet vermesiyle tanınır. Bir keresinde bir köyü sadece inekleri iyi tereyağı veriyor diye fethetmiştir.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: -80px 0;"></div>
-                        <div class="lore-content">
-                            <h4>Vezir Klargus</h4>
-                            <p>Her şeye sinirlenen ama hiçbir şey yapamayan tipik bir bürokrat. Kılıç tutmayı bilmez ama vergileri artırma konusunda bir ustadır.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: -160px 0;"></div>
-                        <div class="lore-content">
-                            <h4>Sancar Han</h4>
-                            <p>Atıyla evli olduğu dedikoduları tüm bozkıra yayılmış durumda. Kendisini bir at eti ziyafetinde ağlarken görenler olmuştur.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: 0 -80px;"></div>
-                        <div class="lore-content">
-                            <h4>Lord Kastor</h4>
-                            <p>Eski metinleri okuyup büyü yapabildiğini iddia eder ancak savaşta sadece taş atabildiği gözlemlenmiştir. Tuhaf iksirleri askerlerini daha da güçsüzleştirir.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: -80px -80px;"></div>
-                        <div class="lore-content">
-                            <h4>Mustafa Abi</h4>
-                            <p>Kalradya'da onun hakkında pek bir şey bilinmez, ancak meyhanelerde anlatılanlara göre tek başına bir çapulcu ordusunu sadece bakışlarıyla dağıtmıştır. Geceleri gizlice köy çocuklarına tahta kılıç yonttuğu söylenir.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: -160px -80px;"></div>
-                        <div class="lore-content">
-                            <h4>Serkan</h4>
-                            <p>Gizemli bir figür. Ne zaman büyük bir savaş kopsa o savaşın ortasında atıyla durduğu ve notlar aldığı görülmüştür. Kimilerine göre o aslında bir tarihçi, kimilerine göre ise ölümsüz bir savaş gözlemcisi.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="background-image:url('lord_portraits.jpg'); background-position: 0 -160px;"></div>
-                        <div class="lore-content">
-                            <h4>Furkan</h4>
-                            <p>Rivayete göre Kalradya'ya başka bir boyuttan gelmiştir. Kılıç tutmayı bilmez ama elindeki garip metal parçasından ateş saçtığını iddia eden köylüler yüzünden kimse ona yaklaşmaya cesaret edemez.</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            this.showModal(`<h3>Kalradya'nın Unutulmaz Lordları</h3>${content}<button class="btn" onclick="Game.closeModal()">Kapat</button>`);
-        } else if(type === 'kingdoms') {
-            content = `
-                <div class="lore-timeline">
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="border-color:#ffcc00; background-image:url('kingdom_crests.jpg'); background-position: 0 0; background-size: 160px 160px;"></div>
-                        <div class="lore-content">
-                            <h4>Swadia Krallığı</h4>
-                            <p>Ağır zırhları, bitmek bilmeyen ziyafetleri ve "Her sorunu şövalyelerle çözeriz" mantaliteleriyle bilinirler. En büyük zaafları ormanlar ve tereyağı kıtlığıdır.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="border-color:#55cc55; background-image:url('kingdom_crests.jpg'); background-position: -80px 0; background-size: 160px 160px;"></div>
-                        <div class="lore-content">
-                            <h4>Rodok Krallığı</h4>
-                            <p>Atları sevmeyen, sadece arbalet ve mızrakla dağlarda pusu kuran asabi köylüler ordusu. Tepelerde onlara saldırmak tam bir deliliktir.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="border-color:#cc5555; background-image:url('kingdom_crests.jpg'); background-position: 0 -80px; background-size: 160px 160px;"></div>
-                        <div class="lore-content">
-                            <h4>Khergit Hanlığı</h4>
-                            <p>Bebekken yürümek yerine ata binmeyi öğrenirler. Savaş alanında sinir bozucu şekilde etrafınızda döner, ok atar ve siz onlara ulaşamadan kaçarlar.</p>
-                        </div>
-                    </div>
-                    <div class="lore-item">
-                        <div class="lore-portrait" style="border-color:#5555ff; background-image:url('kingdom_crests.jpg'); background-position: -80px -80px; background-size: 160px 160px;"></div>
-                        <div class="lore-content">
-                            <h4>Nord Krallığı</h4>
-                            <p>Gemilerle gelip Kalradya'ya yerleşen devasa adamlar. O kadar kaslıdırlar ki zırha ihtiyaç duymazlar. Baltalarını fırlatıp kalkanınızı kırdıklarında onlarla konuşmayı deneyebilirsiniz.</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            this.showModal(`<h3>Kalradya Krallıkları</h3>${content}<button class="btn" onclick="Game.closeModal()">Kapat</button>`);
         }
     },
 
@@ -731,7 +650,8 @@ const Game = {
         // NPC -> player collision
         if(timeFlows && state.encounterCooldown <= 0) {
             for(let npc of state.npcParties) {
-                if(!this.isHostile(npc)) continue;
+                // Dost soylulara çarpmak da bir karşılaşmadır — savaş değil, sohbet
+                if(!npc.lordId && !this.isHostile(npc)) continue;
                 let d = this.dist(npc, state.player);
                 if(d < 24) {
                     state.player.status = 'idle';
@@ -756,6 +676,13 @@ const Game = {
                 let aggroThreshold = (state.time.day / 14) * 100;
                 if (hash > aggroThreshold) return false;
             }
+            return true;
+        }
+        // Soylular artık konuşulacak kişiler; kavga sadece düşman krallıktaysak.
+        if(npc.lordId) {
+            if(Nobles.rel(npc.lordId) <= -50) return true;
+            if(!state.player.vassalOf || state.player.vassalOf === npc.faction ||
+               state.player.vassalOf === 'player_kingdom' || npc.faction === 'player_kingdom') return false;
             return true;
         }
         if(npc.type === 'king' || npc.type === 'vizier' || npc.type === 'lord') {
@@ -786,9 +713,22 @@ const Game = {
                 let dtx = npc.targetX - npc.x, dty = npc.targetY - npc.y;
                 if(Math.sqrt(dtx*dtx + dty*dty) < 15) {
                     let a = Math.random() * Math.PI * 2;
-                    let r = Math.random() * 3800;
-                    npc.targetX = 4500 + Math.cos(a)*r;
-                    npc.targetY = 4500 + Math.sin(a)*r;
+                    // Soylular kendi yerleşimlerinin etrafında döner; başkalarını
+                    // salonlarında bulabilmek için bu şart.
+                    let lord = npc.lordId ? Nobles.lord(npc.lordId) : null;
+                    let home = lord ? LOCATIONS.find(x => x.id === lord.homeLocId) : null;
+                    if(state.feast && lord && lord.faction === state.feast.faction) {
+                        home = LOCATIONS.find(x => x.id === state.feast.locId) || home;
+                    }
+                    if(home) {
+                        let r = Math.random() < 0.45 ? Math.random() * 200 : 300 + Math.random() * 900;
+                        npc.targetX = home.x + Math.cos(a)*r;
+                        npc.targetY = home.y + Math.sin(a)*r;
+                    } else {
+                        let r = Math.random() * 3800;
+                        npc.targetX = 4500 + Math.cos(a)*r;
+                        npc.targetY = 4500 + Math.sin(a)*r;
+                    }
                 }
             }
 
@@ -806,6 +746,14 @@ const Game = {
     triggerEncounter(npc) {
         state.encounterCooldown = 2;
         state.player.currentEncounterNpcId = npc.id;
+
+        // Düşman olmayan bir soyluya rastladıysak bu bir sohbet fırsatı, savaş değil
+        if(npc.lordId && !this.isHostile(npc)) {
+            state.player.currentEncounterNpcId = null;
+            state.encounterCooldown = 8;
+            return Nobles.talk(npc.lordId);
+        }
+
         let dialog = this.getHumorousDialog(npc.type, npc);
 
         let html = `<h3>⚔️ Karşılaşma: ${npc.name}</h3>
@@ -852,6 +800,50 @@ const Game = {
         this.renderPrisonerUI();
     },
 
+    payRansom(amount) {
+        if(!state.player.prisoner) return this.closeModal();
+        if(state.player.money < amount) {
+            // Parası yetmiyorsa elindeki her şeyi alıp salıverirler
+            state.player.money = 0;
+            this.releaseFromCaptivity('Kesenin dibi göründü. Ellerindeki son dinarı da alıp seni yol kenarına attılar.');
+            return;
+        }
+        state.player.money -= amount;
+        this.releaseFromCaptivity(`${amount} Dinar ödedin. Zincirlerin çözüldü.`);
+    },
+
+    refuseRansom(ratio) {
+        if(!state.player.prisoner) return this.closeModal();
+        let p = state.player.prisoner;
+        p.ransomRefusals = (p.ransomRefusals || 0) + 1;
+        this.closeModal();
+
+        if(p.ransomRefusals >= 3) {
+            // Üçüncü retten sonra ellerinde tutmanın anlamı kalmaz
+            state.player.money = Math.floor(state.player.money * 0.5);
+            this.releaseFromCaptivity('"Bu adamı beslemek fidyesinden pahalıya geliyor." Yarı paranı alıp seni kovdular.');
+            return;
+        }
+
+        // Ceza: birkaç gün daha + kaçış planı sıfırlanır
+        p.daysLeft = 2 + Math.floor(Math.random() * 4);
+        p.ransomRequired = Math.min(0.95, (p.ransomRequired || 0.75) + 0.05);
+        p.escapeChance = Math.max(0, (p.escapeChance || 0) - 25);
+        p.isPlanning = false;
+        this.renderPrisonerUI();
+        alert(`Reddettin. Bir güzel dayak yedin ve zindana geri atıldın. (${p.daysLeft} gün daha)`);
+    },
+
+    releaseFromCaptivity(msg) {
+        state.player.prisoner = null;
+        state.player.status = 'idle';
+        state.encounterCooldown = 5;
+        this.closeModal();
+        this.renderPrisonerUI();
+        this.updateTopBar();
+        alert(msg);
+    },
+
     dist(a, b) { return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); },
 
     advanceTime(hours) {
@@ -881,6 +873,7 @@ const Game = {
             if(state.player.prisoner.daysLeft <= 0) {
                 let escapeChance = Math.random();
                 if(escapeChance <= 0.40) {
+                    Quests.emit('escaped_captivity', { npcId: state.player.prisoner.npcId });
                     state.player.prisoner = null; state.player.status = 'idle'; state.encounterCooldown = 5;
                     this.renderPrisonerUI();
                     alert('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!');
@@ -983,6 +976,10 @@ const Game = {
             if(Math.random() < 0.3) delete state.activeTournaments[cid];
         }
 
+        Nobles.dailyTick();
+        Feast.dailyTick();
+        Quests.dailyTick();
+
         // Çapulcu yeniden doğma
         if(state.npcParties.filter(n=>n.type==='bandit').length < 5) {
             state.npcParties.push(this.createNPC('Çapulcular','bandit', 5+Math.floor(Math.random()*10), '#8b0000'));
@@ -1047,6 +1044,7 @@ const Game = {
         
         if(Math.random() * 100 <= p.escapeChance) {
             alert('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!');
+            Quests.emit('escaped_captivity', { npcId: p.npcId });
             state.player.prisoner = null;
             state.player.status = 'idle';
         } else {
@@ -1064,7 +1062,8 @@ const Game = {
         let view = document.getElementById(screenId + '-view');
         if(view) view.classList.add('active');
 
-        if(screenId === 'character') this.renderCharacterScreen();
+        if(screenId === 'quests') Quests.render();
+        else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
         else if(screenId === 'inventory') this.renderInventoryScreen();
         else if(screenId === 'battle') {
@@ -1318,6 +1317,10 @@ const Game = {
             ctx.lineWidth = 12;
             ctx.setLineDash([12,12]); ctx.stroke(); ctx.setLineDash([]);
         }
+
+        // Lordlardan öğrenilen konum işaretleri
+        Nobles.drawMarkers(ctx);
+
         ctx.restore();
     },
 
@@ -1385,6 +1388,11 @@ const Game = {
 
         let isEnemy = state.player.vassalOf && state.player.vassalOf !== loc.faction && state.player.vassalOf !== 'player_kingdom';
 
+        Quests.emit('entered_location', { locId: loc.id, loc });
+
+        let chickenQ = state.player.quests.find(q => q.id === 'crazy_chickens' && q.data.locId === loc.id);
+        if(chickenQ) this.addBtn(ac, '🐔 Tavukları Kovala (15 sn)', () => TournamentMinigame.start({ mode:'chicken', goal:8, time:15 }));
+
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
             this.addBtn(ac, '⚔️ Kuşat ve Saldır!', () => this.besiegeLocation(loc));
         } else {
@@ -1394,12 +1402,20 @@ const Game = {
                 if(state.activeTournaments[loc.id]) {
                     this.addBtn(ac, '🏆 Turnuvaya Katıl', () => this.joinTournament(loc));
                 }
-                this.addBtn(ac, '👑 Lordlar Salonuna Git', () => this.openLordsHall(loc));
+                this.addBtn(ac, '👑 Lordlar Salonuna Git', () => Nobles.openHall(loc));
+                if(state.feast && state.feast.locId === loc.id) {
+                    this.addBtn(ac, '🍷 Şölene Katıl', () => Feast.open(loc));
+                } else if(state.player.vassalOf && loc.faction === state.player.vassalOf) {
+                    this.addBtn(ac, '🍷 Şölen Ver (3000 Dinar + 30 et/peynir)', () => Feast.host(loc));
+                }
                 if(loc.volunteersAvailable > 0) {
                     this.addBtn(ac, '🪖 Gönüllü Topla', () => this.recruitVolunteers(loc));
                 }
             } else if(loc.type === 'castle') {
-                this.addBtn(ac, '👑 Lordlar Salonuna Git', () => this.openLordsHall(loc));
+                this.addBtn(ac, '👑 Lordlar Salonuna Git', () => Nobles.openHall(loc));
+                if(state.feast && state.feast.locId === loc.id) {
+                    this.addBtn(ac, '🍷 Şölene Katıl', () => Feast.open(loc));
+                }
             } else if(loc.type === 'village') {
                 this.addBtn(ac, '🧓 Köy Yaşlısıyla Konuş', () => this.talkToElder(loc));
                 if(loc.volunteersAvailable > 0) {
@@ -1445,6 +1461,7 @@ const Game = {
         <div style="flex:1;"><h4>Sat</h4><ul id="market-sell" style="list-style:none;"></ul></div>
         </div>`;
         this.showModal(html);
+        this._marketLoc = loc;
         this._marketMult = 0.8 + Math.random()*0.4;
         this.refreshMarket();
     },
@@ -1472,6 +1489,7 @@ const Game = {
         state.player.money -= price;
         let ex = state.player.inventory.find(i=>i.id===id);
         if(ex) ex.qty++; else state.player.inventory.push({...ITEMS[id], qty:1});
+        Quests.emit('bought_item', { itemId: id, qty: 1, locId: this._marketLoc ? this._marketLoc.id : null });
         this.updateTopBar(); this.refreshMarket();
     },
     sellItem(idx, price) {
@@ -1484,9 +1502,31 @@ const Game = {
 
     // --- TAVERN ---
     openTavern(loc) {
-        this.showModal(`<h3>🍺 Han - ${loc.name}</h3><p>Hancı sana gülümsüyor. "Hoşgeldin yolcu!"</p>
+        let html = `<h3>🍺 Han - ${loc.name}</h3><p>Hancı sana gülümsüyor. "Hoşgeldin yolcu!"</p>
         <p>Burada dinlenip canını yenileyebilirsin. (10 Dinar)</p>
-        <button class="btn primary" onclick="Game.restAtTavern()">Dinlen</button>`);
+        <button class="btn primary" onclick="Game.restAtTavern()">Dinlen</button>
+        <hr style="border-color:var(--panel-border);margin:1.2rem 0">
+        <h4 style="color:var(--primary)">🎵 Köşedeki Ozan</h4>
+        <p style="font-size:0.9rem;color:var(--text-muted)">"Bir kadeh ve biraz gümüş, sana bir dize öğretirim. Kime okuyacağın seni ilgilendirir."</p>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.6rem">`;
+        POEMS.forEach(p => {
+            html += state.player.poems.includes(p.id)
+                ? `<button class="btn" disabled style="opacity:0.4;font-size:0.85rem">${p.name} (ezberinde)</button>`
+                : `<button class="btn" style="font-size:0.85rem" onclick="Game.learnPoem('${p.id}')">${p.name} — ${p.cost} Dinar</button>`;
+        });
+        html += `</div>`;
+        this.showModal(html);
+        this._tavernLoc = loc;
+    },
+    learnPoem(pid) {
+        let p = POEMS.find(x => x.id === pid);
+        if(state.player.poems.includes(pid)) return;
+        if(state.player.money < p.cost) return alert('Ozan kadehini kaldırmadı. Paran yetmiyor.');
+        state.player.money -= p.cost;
+        state.player.poems.push(pid);
+        this.updateTopBar();
+        alert(`${p.text}\n\nOzan üç kez tekrarlattı. Artık ezberinde.`);
+        if(this._tavernLoc) this.openTavern(this._tavernLoc);
     },
     restAtTavern() {
         if(state.player.money >= 10) {
@@ -1512,37 +1552,6 @@ const Game = {
         this.closeModal();
         delete state.activeTournaments[locId];
         TournamentMinigame.start();
-    },
-
-    // --- LORDS HALL ---
-    openLordsHall(loc) {
-        let f = FACTIONS[loc.faction] || {name:'?',ruler:'?'};
-        let html = `<h3>👑 Lordlar Salonu - ${loc.name}</h3><p>${f.ruler} ve soylular burada.</p>
-        <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem;">`;
-        if(!state.player.vassalOf) {
-            html += `<button class="btn" onclick="Game.swearFealty('${loc.faction}')">Krala Yemin Et (Derebeyi Ol) — 50 Nam gerekir</button>`;
-        }
-        if(!state.player.spouse) {
-            html += `<button class="btn" onclick="Game.courtNoble()">Soylularla Görüş ve Evlen — 100 Nam gerekir</button>`;
-        }
-        html += `</div>`;
-        this.showModal(html);
-    },
-    swearFealty(fid) {
-        if(state.player.renown < 50) return alert('Derebeyi olmak için en az 50 Nam gerekli.');
-        state.player.vassalOf = fid;
-        state.player.rightToRule += 5;
-        alert(`Artık ${FACTIONS[fid].name} derebeyisin!`);
-        this.closeModal(); this.updateTopBar();
-    },
-    courtNoble() {
-        if(state.player.renown < 100) return alert('Evlenmek için en az 100 Nam gerekli.');
-        let names = ['Leydi Isolla','Leydi Sonadel','Leydi Nelda','Leydi Safiya','Leydi Aesa'];
-        let sp = names[Math.floor(Math.random()*names.length)];
-        state.player.spouse = sp;
-        state.player.party.push({name: sp+' (Eş)', level:10, type:'noble'});
-        alert(`${sp} ile evlendin! Eşin grubuna katıldı.`);
-        this.closeModal(); this.updateTopBar();
     },
 
     // --- SIEGE ---
@@ -1598,64 +1607,51 @@ const Game = {
     // --- LORE ---
     showLore(type) {
         let title = type === 'lords' ? 'Kalradya Lordları' : 'Kalradya Krallıkları';
-        let basePath = 'C:/Users/Administrator/.gemini/antigravity/brain/123fc75a-27dc-41ef-a9e9-1c9cabe9fc06/';
-        let bgImage = type === 'lords' ? basePath + 'lore_bg_lords_1784497086865.jpg' : basePath + 'lore_bg_kingdoms_1784497095972.jpg';
         let modalHtml = `<div style="text-align:center;">
-            <h2 style="font-family: 'Cinzel', serif; color: #ffcc00; font-size: 2.5rem; margin-bottom: 2rem; text-shadow: 0 0 10px rgba(255,204,0,0.5);">${title}</h2>
-            <div style="display:flex; flex-direction:column; gap: 2rem; text-align:left; max-height: 65vh; overflow-y:auto; padding-right:1rem; scrollbar-width: thin; scrollbar-color: var(--primary) #111;">`;
-            
+            <h2 style="font-family:'Cinzel',serif;color:#ffcc00;font-size:2.5rem;margin-bottom:2rem;text-shadow:0 0 10px rgba(255,204,0,0.5);">${title}</h2>
+            <div style="display:flex;flex-direction:column;gap:1.5rem;text-align:left;max-height:65vh;overflow-y:auto;padding-right:1rem;">`;
+
+        const frame = inner => `<div style="padding:12px;background:linear-gradient(135deg,#5c3a21,#2a160b);
+            box-shadow:inset 0 0 15px #000,0 10px 20px rgba(0,0,0,0.9);border:2px solid #111;display:inline-block;">
+            <div style="border:6px ridge #dca243;padding:4px;background:#1a0b02;box-shadow:inset 0 0 10px #000;">${inner}</div></div>`;
+
+        const row = (imgHtml, color, name, sub, text) => `
+            <div style="display:flex;gap:2rem;align-items:center;background:rgba(0,0,0,0.6);padding:1.2rem 2rem;border-radius:8px;">
+                ${imgHtml}
+                <div>
+                    <h3 style="color:${color};font-size:1.6rem;margin-bottom:0.2rem;font-family:'Cinzel',serif;">${name}</h3>
+                    <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem">${sub}</div>
+                    <p style="color:#eee;line-height:1.4;font-size:1.2rem;font-family:'Cormorant Garamond','Georgia',serif;font-style:italic;">${text}</p>
+                </div>
+            </div>`;
+
         if(type === 'lords') {
             LORDS.forEach(l => {
-                let factionName = FACTIONS[l.faction] ? FACTIONS[l.faction].name : 'Bilinmiyor';
-                let factionColor = FACTIONS[l.faction] ? FACTIONS[l.faction].color : '#fff';
-                let imgHtml = l.isDirectImage 
-                    ? `<div style="padding: 12px; background: linear-gradient(135deg, #5c3a21, #2a160b); box-shadow: inset 0 0 15px #000, 0 10px 20px rgba(0,0,0,0.9); border: 2px solid #111; border-radius: 2px; display: inline-block;">
-                           <div style="border: 6px ridge #dca243; padding: 4px; background: #1a0b02; box-shadow: inset 0 0 10px #000;">
-                               <img src="${l.portrait}" style="display:block; width: 140px; height: 140px; object-fit: cover; filter: sepia(0.2) contrast(1.1);">
-                           </div>
-                       </div>`
-                    : `<div style="padding: 12px; background: linear-gradient(135deg, #5c3a21, #2a160b); box-shadow: inset 0 0 15px #000, 0 10px 20px rgba(0,0,0,0.9); border: 2px solid #111; border-radius: 2px; display: inline-block;">
-                           <div style="border: 6px ridge #dca243; padding: 4px; background: #1a0b02; box-shadow: inset 0 0 10px #000;">
-                               <div style="width: 140px; height: 140px; background-image: url('${l.portrait}'); background-position: ${l.bgOffsetX}px ${l.bgOffsetY}px; background-size: 450px auto; filter: sepia(0.2) contrast(1.1);"></div>
-                           </div>
-                       </div>`;
-                
-                modalHtml += `<div style="display:flex; gap: 3rem; align-items: center; background: rgba(0,0,0,0.6); padding: 1.5rem 3rem; border-radius: 8px;">
-                    ${imgHtml}
-                    <div>
-                        <h3 style="color:${factionColor}; font-size: 1.8rem; margin-bottom: 0.5rem; font-family: 'Cinzel', serif;">${l.name}</h3>
-                        <p style="color: #eee; line-height: 1.4; font-size: 1.5rem; font-family: 'Gabriola', 'Cormorant Garamond', 'Georgia', serif; font-style: italic;">${l.lore}</p>
-                    </div>
-                </div>`;
+                let f = FACTIONS[l.faction] || { name:'Bilinmiyor', color:'#fff' };
+                let home = LOCATIONS.find(x => x.id === l.homeLocId);
+                modalHtml += row(frame(Nobles.portraitCss(l, 140)), f.color, l.name,
+                    `${f.name} · ${PERSONALITIES[l.personality].name}${home ? ' · ' + home.name : ''}`, l.lore);
+            });
+            LADIES.forEach(L => {
+                let f = FACTIONS[L.faction] || { name:'Bilinmiyor', color:'#fff' };
+                modalHtml += row(frame(Nobles.portraitCss(L, 140)), '#ff9ec4', L.name,
+                    `${f.name} · ${LADY_TRAITS[L.trait].name} · Vasisi: ${(Nobles.lord(L.guardianId)||{name:'?'}).name}`, L.lore);
             });
         } else {
             let i = 0;
-            let crestBg = basePath + 'kingdom_crests_1784496504882.jpg';
             Object.values(FACTIONS).forEach(f => {
-                if(f.id === 'player') return;
-                let bgX = (i % 3) * -150;
-                let bgY = Math.floor(i / 3) * -150;
+                if(f.id === 'player' || f.id === 'player_kingdom') return;
+                let crest = `<div style="width:140px;height:140px;background-image:url('kingdom_crests.jpg');
+                    background-size:300% 300%;background-position:${(i%3)*50}% ${Math.floor(i/3)*50}%;filter:sepia(0.2) contrast(1.1);"></div>`;
                 i++;
-                let imgHtml = `<div style="padding: 12px; background: linear-gradient(135deg, #5c3a21, #2a160b); box-shadow: inset 0 0 15px #000, 0 10px 20px rgba(0,0,0,0.9); border: 2px solid #111; border-radius: 2px; display: inline-block;">
-                           <div style="border: 6px ridge #dca243; padding: 4px; background: #1a0b02; box-shadow: inset 0 0 10px #000;">
-                               <div style="width: 140px; height: 140px; background-image: url('${crestBg}'); background-position: ${bgX}px ${bgY}px; background-size: 450px auto; filter: sepia(0.2) contrast(1.1);"></div>
-                           </div>
-                       </div>`;
-                
-                modalHtml += `<div style="display:flex; gap: 3rem; align-items: center; background: rgba(0,0,0,0.6); padding: 1.5rem 3rem; border-radius: 8px;">
-                    ${imgHtml}
-                    <div>
-                        <h3 style="color:${f.color}; font-size: 1.8rem; margin-bottom: 0.5rem; font-family: 'Cinzel', serif;">${f.name}</h3>
-                        <p style="color: #eee; line-height: 1.4; font-size: 1.5rem; font-family: 'Gabriola', 'Cormorant Garamond', 'Georgia', serif; font-style: italic;">${f.lore}</p>
-                    </div>
-                </div>`;
+                modalHtml += row(frame(crest), f.color, f.name, `${f.ruler} · ${f.vizier}`, f.lore);
             });
         }
 
         modalHtml += `</div>
-            <button class="btn primary" style="margin-top:2rem; width:200px; align-self:center;" onclick="Game.closeModal()">Kapat</button>
+            <button class="btn primary" style="margin-top:2rem;width:200px;" onclick="Game.closeModal()">Kapat</button>
         </div>`;
-        this.showModal(modalHtml, '1000px', bgImage);
+        this.showModal(modalHtml, '1000px', 'bg_hdr.jpg');
     },
 
     // --- CHARACTER ---
@@ -1712,7 +1708,8 @@ const Game = {
             { id: 'bow', name: 'Okçuluk' },
             { id: 'riding', name: 'Binicilik' },
             { id: 'athletics', name: 'Atletizm' },
-            { id: 'leadership', name: 'Liderlik' }
+            { id: 'leadership', name: 'Liderlik' },
+            { id: 'persuasion', name: 'İkna Kabiliyeti' }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${fp} Odak Puanı Dağıtılabilir)</span>` : ''}</h3>
@@ -1782,7 +1779,7 @@ const Game = {
 
     // --- PARTY ---
     renderPartyScreen() {
-        let html = `<p>Kapasite: ${state.player.party.length}/${state.player.partyCapacity}</p><hr style="margin:0.8rem 0;border-color:var(--panel-border)">`;
+        let html = `<p>Kapasite: ${state.player.party.length}/${this.getPartyCapacity()}</p><hr style="margin:0.8rem 0;border-color:var(--panel-border)">`;
         if(state.player.party.length === 0) html += '<p>Grubunda hiç asker yok.</p>';
         else {
             let groups = {};
@@ -1959,39 +1956,27 @@ const Game = {
         this.updateTopBar();
     },
 
-    toggleEscapePlan() {
-        if(!state.player.prisoner) return;
-        state.player.prisoner.isPlanning = !state.player.prisoner.isPlanning;
-        this.renderPrisonerUI();
-    },
-
-    attemptEscape() {
-        if(!state.player.prisoner) return;
-        let p = state.player.prisoner;
-        
-        if(p.lastAttemptDay === state.time.day) {
-            alert('Günde sadece 1 kez kaçmayı deneyebilirsin! Plan yapmaya devam et veya yarını bekle.');
-            return;
-        }
-        
-        p.lastAttemptDay = state.time.day;
-        
-        if(Math.random() * 100 <= (p.escapeChance || 0)) {
-            alert('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!');
-            state.player.prisoner = null;
-            state.player.status = 'idle';
-        } else {
-            alert('Kahretsin! Kaçış girişimin fark edildi. Tüm planların suya düştü ve ceza aldın!');
-            p.escapeChance = Math.max(0, (p.escapeChance || 0) - 60);
-            p.isPlanning = false;
-        }
-        this.renderPrisonerUI();
-    }
 };
 
 // --- BATTLE ---
 const Battle = {
     canvas: null, ctx: null, units: [], projectiles: [], bloodStains: [], floatingTexts: [], active: false, loopId: null, clickHandler: null, commandListener: null, currentCommand: 'charge',
+
+    // Rakip talip düellosu: 1'e 1, grup yok, ganimet yok
+    startDuel(lord) {
+        this._duelParty = state.player.party;
+        state.player.party = [];
+        this.isDuel = true;
+        this.start(lord.name, 1);
+        let e = this.units.find(u => !u.isPlayerTeam);
+        if(e) {
+            let lv = state.player.stats.level;
+            e.hp = e.maxHp = 60 + lv * 6;
+            e.attack = 12 + lv;
+            e.defense = 8; e.speed = 70; e.radius = 9; e.color = '#ff8800';
+        }
+        document.getElementById('battle-log-left').innerHTML = `<b>🗡️ Şeref Düellosu:</b> ${lord.name}`;
+    },
 
     start(enemyName, enemyCount, bossLevel = null) {
         Input.keys = {}; // Tuşları temizle
@@ -2776,6 +2761,17 @@ const Battle = {
         window.removeEventListener('keydown', this.commandListener);
         cancelAnimationFrame(this.loopId);
 
+        if(this.isDuel) {
+            this.isDuel = false;
+            state.player.party = this._duelParty || [];
+            this._duelParty = null;
+            let pUnit = this.units[0];
+            state.player.stats.hp = Math.max(5, pUnit ? Math.floor(pUnit.hp) : 5);
+            Game.showScreen('map');
+            Nobles.resolveDuel(won);
+            return;
+        }
+
         if(won) {
             let xpGain = 30 + state.player.party.length * 5;
             let moneyGain = 50 + Math.floor(Math.random()*100);
@@ -2820,6 +2816,12 @@ const Battle = {
 
             // Yenilen NPC'yi haritadan kaldır
             if(state.player.currentEncounterNpcId) {
+                let beaten = state.npcParties.find(n => n.id === state.player.currentEncounterNpcId);
+                Quests.emit('battle_won', {
+                    npcId: state.player.currentEncounterNpcId,
+                    questWave: beaten ? beaten.questWave : null,
+                    lordId: beaten ? beaten.lordId : null
+                });
                 state.npcParties = state.npcParties.filter(n => n.id !== state.player.currentEncounterNpcId);
                 state.player.currentEncounterNpcId = null;
             }
@@ -2906,7 +2908,9 @@ const Battle = {
 const TournamentMinigame = {
     canvas:null, ctx:null, active:false, score:0, targets:[], spawnTimer:0, timeLeft:0, loopId:null, clickHandler:null,
 
-    start() {
+    start(opts = {}) {
+        this.mode = opts.mode || 'tournament';
+        this.goal = opts.goal || 12;
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = this.canvas.getContext('2d');
         Game.showScreen('battle');
@@ -2915,10 +2919,12 @@ const TournamentMinigame = {
         this.active = true;
         this.score = 0;
         this.targets = [];
-        this.timeLeft = 25;
+        this.timeLeft = opts.time || 25;
         this.spawnTimer = 0;
 
-        document.getElementById('battle-log').innerHTML = '<b>🏆 Turnuva!</b> Hedeflere tıkla! 12 hedef vurursan kazanırsın.';
+        document.getElementById('battle-log-left').innerHTML = this.mode === 'chicken'
+            ? `<b>🐔 Tavuk Avı!</b> ${this.goal} tavuk yakala. Kimseye anlatma.`
+            : `<b>🏆 Turnuva!</b> Hedeflere tıkla! ${this.goal} hedef vurursan kazanırsın.`;
 
         this.clickHandler = (e) => this.onClick(e);
         this.canvas.addEventListener('mousedown', this.clickHandler);
@@ -2958,7 +2964,7 @@ const TournamentMinigame = {
             if(this.targets[i].timeLeft <= 0) this.targets.splice(i,1);
         }
 
-        if(this.score >= 12) this.end(true);
+        if(this.score >= this.goal) this.end(true);
     },
 
     render() {
@@ -2968,7 +2974,7 @@ const TournamentMinigame = {
         ctx.fillRect(0,0,W,H);
 
         ctx.fillStyle = '#fff'; ctx.font = '18px Inter';
-        ctx.fillText(`Skor: ${this.score}/12`, 15, 25);
+        ctx.fillText(`Skor: ${this.score}/${this.goal}`, 15, 25);
         ctx.fillText(`Süre: ${Math.ceil(this.timeLeft)}`, 15, 50);
 
         this.targets.forEach(t => {
@@ -2991,7 +2997,7 @@ const TournamentMinigame = {
             if(Math.sqrt(Math.pow(t.x-mx,2)+Math.pow(t.y-my,2)) <= t.radius) {
                 this.score++;
                 this.targets.splice(i,1);
-                document.getElementById('battle-log').innerHTML = `İsabet! (${this.score}/12)`;
+                document.getElementById('battle-log-left').innerHTML = `${this.mode === 'chicken' ? 'Yakaladın!' : 'İsabet!'} (${this.score}/${this.goal})`;
                 break;
             }
         }
@@ -3001,14 +3007,81 @@ const TournamentMinigame = {
         this.active = false;
         this.canvas.removeEventListener('mousedown', this.clickHandler);
         cancelAnimationFrame(this.loopId);
+        Game.showScreen('map');
+
+        if(this.mode === 'chicken') {
+            Quests.emit('chickens_caught', { won, score: this.score });
+            if(won) alert(`Son tavuğu ahırın arkasında kıstırdın. ${this.score}/${this.goal}.`);
+            Game.updateTopBar();
+            return;
+        }
+
         if(won) {
             state.player.money += 500; state.player.renown += 20;
-            alert('Turnuvayı kazandın! +500 Dinar, +20 Nam');
+            state.pendingDedication = true;
+            alert('Turnuvayı kazandın! +500 Dinar, +20 Nam\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.');
         } else {
-            alert(`Elendin! Skor: ${this.score}/12`);
+            alert(`Elendin! Skor: ${this.score}/${this.goal}`);
         }
+        Quests.emit('tournament_end', { won, score: this.score });
         Game.updateTopBar();
+    }
+};
+
+// --- KAYIT / YÜKLEME ---
+// ponytail: tüm state'i JSON'a atıyoruz. npcParties ve görev data'sı düz veri
+// olduğu için bu yeterli; kaydedilemeyen tek şey canvas/loop referansları.
+const Save = {
+    KEY: 'webband_save_v1',
+
+    save() {
+        try {
+            localStorage.setItem(this.KEY, JSON.stringify({
+                v: 1, savedAt: Date.now(),
+                state: { ...state, loopInterval: null },
+                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay })),
+                playerKingdom: FACTIONS['player_kingdom'] || null
+            }));
+            alert('Oyun kaydedildi.');
+        } catch(e) {
+            alert('Kayıt başarısız: ' + e.message);
+        }
+    },
+
+    hasSave() { return !!localStorage.getItem(this.KEY); },
+
+    load() {
+        let raw = localStorage.getItem(this.KEY);
+        if(!raw) return alert('Kayıtlı oyun yok.');
+        let d;
+        try { d = JSON.parse(raw); } catch(e) { return alert('Kayıt bozuk.'); }
+
+        if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
+        Object.keys(state).forEach(k => { if(!(k in d.state)) delete state[k]; });
+        Object.assign(state, d.state);
+        state.loopInterval = null;
+
+        (d.locations || []).forEach(sl => {
+            let l = LOCATIONS.find(x => x.id === sl.id);
+            if(l) Object.assign(l, sl);
+        });
+
+        document.getElementById('start-screen').classList.remove('active');
+        document.getElementById('main-ui').classList.add('active');
+        Game.resizeCanvases();   // sis tuvalini de kurar
+        Game.camera.x = state.player.x; Game.camera.y = state.player.y;
+        Game.camera.offsetX = 0; Game.camera.offsetY = 0;
         Game.showScreen('map');
+        Game.updateTopBar();
+        Game.renderPrisonerUI();
+        if(state.loopInterval) cancelAnimationFrame(state.loopInterval);
+        Game.startGameLoop();
+        alert(`Kayıt yüklendi. Gün ${state.time.day}. (Keşfedilen harita sıfırlandı — sis yeniden çöktü.)`);
+    },
+
+    wipe() {
+        localStorage.removeItem(this.KEY);
+        alert('Kayıt silindi.');
     }
 };
 
