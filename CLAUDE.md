@@ -146,8 +146,9 @@ kontrolünü 420 birim yarıçapla yapar.
   100'e ilk ulaşan nişanlanır. Karşı hamle: şeref düellosu (`Battle.startDuel`, 1v1, grup
   sahneye girmez) ya da itibar lekeleme (%30 geri teper).
 - **İsteme** (`Nobles.askForHand`): ilgi ≥60, nam ≥120, vasiyle ilişki ≥25 şartı.
-  Drahoma: `8000 + kale/şehir×400 − nam×20 − ilişki×60`, mevki çarpanı (kendi krallığın 0.6 /
-  derebeyi 0.8 / bağımsız 1.0) ve mizaç çarpanı (cunning 1.3 … goodnatured 0.8), alt sınır 1500.
+  Drahoma: `8000 + kale/şehir×400 − 2200·log10(1+nam/60) − ilişki×25`, mevki çarpanı (kendi krallığın 0.6 /
+  derebeyi 0.8 / bağımsız 1.0) ve mizaç çarpanı (cunning 1.3 … goodnatured 0.8), alt sınır 2500.
+  Ölçüldü: nam 120/ilişki 25 → ~10500, nam 300/ilişki 80 → ~8000, nam 1000/ilişki 100 + kendi krallığın → ~3700.
   Kalemi kalemine gösterilir. Seçenekler: öde / pazarlık (ikna seviyesine bağlı, %20 indirim,
   günde bir) / "param yok ama kılıcım var" (200 nam, görev alınca drahoma yarıya iner) /
   kaçırma (−60 vasi, −20 krallık, −30 nam).
@@ -214,7 +215,7 @@ Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
   - Kan lekeleri, cesetler (max 60), kıvılcımlar, uçan hasar yazıları, iki taraflı öldürme logu,
     düşman komutanından rastgele hakaret repliği + ping animasyonu.
   - Teslim ol butonu her an açık.
-- **Zafer**: dinar + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
+- **Zafer**: ganimet (düşman başına `10 + seviye×5`, ×0.85–1.15) + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
   NPC haritadan kaldırılır, oyuncunun savaş sonu canı `state`'e geri yazılır.
 - **Yenilgi**: tüm grup dağılır, paranın %60–90'ı gider, HP %30'a düşer, **esir düşülür**.
 - **Denge** (ölçülmüş, oyuncu göğüs göğüse dalarken): 5 acemi vs 5 çapulcu → 2–4 kayıpla zafer;
@@ -309,12 +310,10 @@ anında bitmesi.
 Kalanlar:
 
 1. Sadece Svadya asker ağacı var (`TROOP_UPGRADES`); diğer fraksiyonların askerleri yok.
-2. Ekonomi dengesizliği: bir savaş ~80 dinar getirirken drahoma 1500–8000 dinar. Görev
-   ödülleri (600–2500) bunu bir miktar kapatıyor ama savaş ganimeti hâlâ düşük.
-3. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
+2. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
-4. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
-5. `app.js` ~3700 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+3. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
+4. `app.js` ~3900 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 

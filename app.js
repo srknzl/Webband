@@ -3619,7 +3619,11 @@ const Battle = {
 
         if(won) {
             let xpGain = 30 + state.player.party.length * 5;
-            let moneyGain = 50 + Math.floor(Math.random()*100);
+            // Ganimet düşmanın sayısı ve seviyesiyle ölçeklenir — eskiden
+            // 5 çapulcu ile 100 kişilik ordu aynı parayı getiriyordu.
+            let loot = this.units.filter(u => !u.isPlayerTeam)
+                .reduce((a, u) => a + 10 + (u.level || 1) * 5, 0);
+            let moneyGain = Math.floor(loot * (0.85 + Math.random()*0.3));
 
             // Bayılıp adamlarının sırtından kazanılan zafer yarım zaferdir
             if(this.knockedOut) {

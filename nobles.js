@@ -693,13 +693,15 @@ const Nobles = {
 
         let base = 8000;
         let fiefAdd = fiefs * 400;
-        let renownCut = p.renown * 20;
-        let relCut = Math.max(0, this.rel(g.id)) * 60;
+        // Nam indirimi logaritmik: doğrusalken 300 nam tek başına −6000 ediyor,
+        // drahoma hep 1500 tabanına çakılıyordu.
+        let renownCut = Math.round(2200 * Math.log10(1 + p.renown / 60));
+        let relCut = Math.max(0, this.rel(g.id)) * 25;
         let statusMult = p.vassalOf === 'player_kingdom' ? 0.6 : (p.vassalOf ? 0.8 : 1.0);
         let persMult = PERSONALITIES[g.personality].dowry;
 
         let raw = (base + fiefAdd - renownCut - relCut) * statusMult * persMult;
-        let total = Math.max(1500, Math.round(raw / 50) * 50);
+        let total = Math.max(2500, Math.round(raw / 50) * 50);
         return { base, fiefAdd, renownCut, relCut, statusMult, persMult, total, fiefs, guardian: g };
     },
 
