@@ -2193,7 +2193,7 @@ const Game = {
                 ? `<input type="range" id="merc-n-${i}" min="1" max="${max}" value="${max}" style="width:100%;margin:0.5rem 0"
                         oninput="Game.updateMercLabel(${i}, ${price})">
                    <button class="btn primary" id="merc-btn-${i}" style="font-size:0.85rem"
-                        onclick="Game.hireMercs('${loc.id}', ${i}, +document.getElementById('merc-n-${i}').value)"></button>`
+                        onclick="Game.hireMercs('${loc.id}', ${i}, +document.getElementById('merc-n-${i}').value)">Tut: ${max} kişi (${max * price} Dinar)</button>`
                 : `<div style="font-size:0.85rem;color:var(--danger);margin-top:0.4rem">${space <= 0 ? 'Grubunda yer yok.' : 'Kesen yetmiyor.'}</div>`;
             html += `</div>`;
         });
