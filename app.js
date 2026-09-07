@@ -1808,26 +1808,34 @@ const Game = {
         this._marketMult = 0.8 + Math.random()*0.4;
         this.refreshMarket();
     },
+    // Fiyat butonun HTML'inden parametre olarak gelmemeli: DOM'dan değiştirilerek
+    // bedavaya alışveriş yapılabiliyor, eksik parametrede para NaN oluyordu.
+    marketPrice(id, selling = false) {
+        let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
+        if(!it) return null;
+        return Math.max(1, Math.floor(it.basePrice * (this._marketMult || 1) * (selling ? 0.7 : 1)));
+    },
     refreshMarket() {
-        let m = this._marketMult;
         let buy = document.getElementById('market-buy'); buy.innerHTML = '';
         Object.values(ITEMS).forEach(item => {
-            let price = Math.floor(item.basePrice * m);
+            let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',${price})">Al</button>`;
+            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button>`;
             buy.appendChild(li);
         });
         let sell = document.getElementById('market-sell'); sell.innerHTML = '';
-        state.player.inventory.forEach((item,i) => {
+        state.player.inventory.forEach(item => {
             if(item.type === 'trade') {
-                let price = Math.floor(item.basePrice * m * 0.7);
+                let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-                li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem(${i},${price})">Sat</button>`;
+                li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">Sat</button>`;
                 sell.appendChild(li);
             }
         });
     },
-    buyItem(id, price) {
+    buyItem(id) {
+        let price = this.marketPrice(id);
+        if(price === null) return alert('Bu eşya pazarda yok.');
         if(state.player.money < price) return alert('Yeterli dinarın yok!');
         state.player.money -= price;
         let ex = state.player.inventory.find(i=>i.id===id);
@@ -1835,9 +1843,12 @@ const Game = {
         Quests.emit('bought_item', { itemId: id, qty: 1, locId: this._marketLoc ? this._marketLoc.id : null });
         this.updateTopBar(); this.refreshMarket();
     },
-    sellItem(idx, price) {
+    sellItem(id) {
+        let idx = state.player.inventory.findIndex(i => i.id === id);
+        if(idx === -1) return;
         let item = state.player.inventory[idx];
-        state.player.money += price;
+        if(item.type !== 'trade') return alert('Bu eşya pazarda satılmıyor.');
+        state.player.money += this.marketPrice(id, true);
         item.qty--;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
         this.updateTopBar(); this.refreshMarket();
