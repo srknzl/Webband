@@ -147,7 +147,8 @@ const state = {
             riding:    { level: 1, xp: 0, next: 100, focus: 0 },
             athletics: { level: 1, xp: 0, next: 100, focus: 0 },
             leadership:{ level: 1, xp: 0, next: 100, focus: 0 },
-            persuasion:{ level: 1, xp: 0, next: 100, focus: 0 }
+            persuasion:{ level: 1, xp: 0, next: 100, focus: 0 },
+            surgery:   { level: 1, xp: 0, next: 100, focus: 0 }
         },
         skills: { fastRun: 0, wideSwing: 0, fastArrow: 0, homingArrow: 0 },
         attackAngle: 30, // Base 30 degrees
@@ -1056,6 +1057,13 @@ const Game = {
 
             let p = state.player.stats;
             p.hp = Math.min(p.maxHp, p.hp + 5);
+
+            // Yaralılar gün gün iyileşir
+            state.player.party.forEach(t => {
+                if(!t.wounded) return;
+                t.wounded--;
+                if(t.wounded <= 0) delete t.wounded;
+            });
         }
 
         // Gönüllü yenileme (her gün köylerde +1-2 gönüllü artar, max 5)
@@ -2128,7 +2136,8 @@ const Game = {
             { id: 'riding', name: 'Binicilik' },
             { id: 'athletics', name: 'Atletizm' },
             { id: 'leadership', name: 'Liderlik' },
-            { id: 'persuasion', name: 'İkna Kabiliyeti' }
+            { id: 'persuasion', name: 'İkna Kabiliyeti' },
+            { id: 'surgery', name: 'Cerrahlık' }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${fp} Odak Puanı Dağıtılabilir)</span>` : ''}</h3>
@@ -2198,16 +2207,20 @@ const Game = {
 
     // --- PARTY ---
     renderPartyScreen() {
-        let html = `<p>Kapasite: ${state.player.party.length}/${this.getPartyCapacity()}</p><hr style="margin:0.8rem 0;border-color:var(--panel-border)">`;
+        let wounded = state.player.party.filter(t => t.wounded).length;
+        let html = `<p>Kapasite: ${state.player.party.length}/${this.getPartyCapacity()}` +
+            (wounded ? ` · <span style="color:#ffaa00">🩹 ${wounded} yaralı</span> (savaşa giremez)` : '') + `</p><hr style="margin:0.8rem 0;border-color:var(--panel-border)">`;
         if(state.player.party.length === 0) html += '<p>Grubunda hiç asker yok.</p>';
         else {
             let groups = {};
             state.player.party.forEach(t => {
-                let key = this.troopLabel(t);   // efsaneviler ayrı satırda listelenir
+                // efsaneviler ve yaralılar ayrı satırda listelenir
+                let key = this.troopLabel(t) + (t.wounded ? ' 🩹 (yaralı)' : '');
                 if(!groups[key]) {
-                    groups[key] = { base: t.name, count: 0, ready: [], normal: [] };
+                    groups[key] = { base: t.name, count: 0, ready: [], normal: [], wounded: 0 };
                 }
-                if(!t.legendary && t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
+                if(t.wounded) groups[key].wounded = Math.max(groups[key].wounded, t.wounded);
+                if(!t.legendary && !t.wounded && t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
                     groups[key].ready.push(t);
                 } else {
                     groups[key].normal.push(t);
@@ -2223,7 +2236,7 @@ const Game = {
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
                 </div>`;
                 
                 if(g.ready.length > 0) {
@@ -2479,8 +2492,8 @@ const Battle = {
             isAttacking: false, attackTimer: 0, swingCd: 0, angleToMouse: 0, currentWeaponAngle: 0
         });
 
-        // Troops (Player's party)
-        state.player.party.forEach((p, i) => {
+        // Troops (Player's party) — yaralılar savaşa katılmaz, kampta iyileşir
+        state.player.party.filter(p => !p.wounded).forEach((p, i) => {
             let typeInfo = TROOP_TYPES[p.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
             let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
             let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
@@ -3422,6 +3435,24 @@ const Battle = {
             return;
         }
 
+        // Canı biten asker doğrudan ölmez: Cerrahlık yeteneği onu yaralı olarak
+        // kurtarabilir. Yaralı grupta kalır, savaşamaz, birkaç günde iyileşir.
+        // Eşleştirme sıra yerine id ile yapılır: savaşa girmeyen yaralılar sırayı kaydırıyordu.
+        let surgery = (state.player.proficiencies.surgery || { level: 1 }).level;
+        let saveChance = Math.min(0.75, 0.35 + surgery * 0.03);
+        let saved = 0, killed = 0;
+        state.player.party.forEach(t => {
+            let u = this.units.find(x => x.id === t.id);
+            if(!u || u.hp > 0) return;
+            if(Math.random() < saveChance) {
+                t.wounded = Math.max(1, 3 + Math.floor(Math.random()*2) - Math.floor(surgery / 4));
+                saved++;
+            } else { t._dead = true; killed++; }
+        });
+        state.player.party = state.player.party.filter(t => !t._dead);
+        if(saved) Game.addProficiencyXp('surgery', 30 * saved);
+        this.lastCasualties = { saved, killed };
+
         if(won) {
             let xpGain = 30 + state.player.party.length * 5;
             let moneyGain = 50 + Math.floor(Math.random()*100);
@@ -3489,7 +3520,8 @@ const Battle = {
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Dinar:</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Şan/Nam:</b> <span style="color:#3498db">+3</span> 👑</p>
-                    <p><b>Kazanılan Tecrübe:</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
+                    <p style="margin-bottom:0.8rem"><b>Kazanılan Tecrübe:</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
+                    <p><b>Kayıplar:</b> <span style="color:#e74c3c">${killed} ölü</span> · <span style="color:#ffaa00">${saved} yaralı</span> 🩹</p>
                 </div>
                 <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:8px" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">Kazanımları Al ve İlerle</button>
             </div>`;
@@ -3529,13 +3561,6 @@ const Battle = {
         // Sync HP — yenilgide yukarıdaki %30 canı ezmesin
         let pUnit = this.units[0];
         if(won) state.player.stats.hp = Math.max(1, Math.floor(pUnit ? pUnit.hp : 1));
-
-        // Remove dead troops
-        let ti = 1;
-        state.player.party = state.player.party.filter(() => {
-            let u = this.units[ti++];
-            return u && u.hp > 0;
-        });
 
         Game.updateTopBar();
         Game.showScreen('map');
