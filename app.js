@@ -3362,6 +3362,7 @@ const Battle = {
         this.knockedOut = false;
         this.grass = null;
         this.currentCommand = 'charge';
+        this.cmdSlots = []; this.battleTime = 0;
         this.active = true;
 
         let startPlayerX = enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80;
@@ -3561,17 +3562,23 @@ const Battle = {
         this.menuHandler = (e) => e.preventDefault();
         this.canvas.addEventListener('contextmenu', this.menuHandler);
 
+        // Emirler savaşın başında hazır beklemez: her biri kendi rastgele anında
+        // "fırsat" olarak doğar. Boru sesi savaşın içinden gelir, menüden değil.
+        this.cmdSlots = [
+            { key: '2', cmd: 'charge', name: 'Hücum Edin',      at: 1.0 + Math.random() * 1.5 },
+            { key: '1', cmd: 'follow', name: 'Beni Takip Edin', at: 2.5 + Math.random() * 2.5 },
+            { key: '3', cmd: 'hold',   name: 'Mevzi Koruyun',   at: 4.0 + Math.random() * 3.5 }
+        ];
+        this.battleTime = 0;
+
         this.commandListener = (e) => {
-            if(e.key === '1') {
-                this.currentCommand = 'follow';
-                this.log('🔊 Emir: <b>Beni Takip Edin!</b>');
-            } else if(e.key === '2') {
-                this.currentCommand = 'charge';
-                this.log('🔊 Emir: <b>Hücum Edin!</b>');
-            } else if(e.key === '3') {
-                this.currentCommand = 'hold';
-                this.log('🔊 Emir: <b>Mevzi Koruyun!</b>');
-            }
+            let slot = this.cmdSlots.find(c => c.key === e.key);
+            if(!slot) return;
+            if(!slot.open) return this.log(`<span style="opacity:0.7">Şu an "${slot.name}" emrini verecek durumda değilsin.</span>`);
+            // Aynı emri üst üste bağırmak anlamsız
+            if(this.currentCommand === slot.cmd) return;
+            this.currentCommand = slot.cmd;
+            this.log(`🔊 Emir: <b>${slot.name}!</b>`);
         };
         window.addEventListener('keydown', this.commandListener);
 
@@ -3768,6 +3775,19 @@ const Battle = {
 
     update(dt) {
         if(dt <= 0) return; // FIX NaN POISONING
+
+        // Emir fırsatları: her biri kendi anında açılır, hepsi bir arada değil.
+        this.battleTime += dt;
+        (this.cmdSlots || []).forEach(c => {
+            if(c.open || this.battleTime < c.at) return;
+            c.open = true;
+            this.log(`<span style="color:#ffd479">⚑ Fırsat: <b>[${c.key}] ${c.name}</b></span>`);
+            // Log 5 satırla sınırlı ve öldürme mesajları onu süpürüyor; fırsat
+            // oyuncunun kendi başının üstünde de belirsin.
+            let pl = this._byId ? this._byId['player'] : null;
+            if(pl) this.floatingTexts.push({ x: pl.x, y: pl.y - 34, text: `⚑ [${c.key}] ${c.name}`, color: '#ffd479', life: 2.2 });
+        });
+
         // Hem Tıklama Hem Boşluk saldırı tetikler
         if(Input.keys[' ']) {
             this.playerAttack();
@@ -4459,8 +4479,16 @@ const Battle = {
         ctx.strokeRect(12, H - 40, hudW, 28);
         ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
         ctx.fillText(`⚑ ${cmdName}`, 22, H - 26);
-        ctx.fillStyle = 'rgba(233,217,168,0.55)'; ctx.font = '11px Inter, sans-serif';
-        ctx.fillText('[1] Takip [2] Hücum [3] Bekle', 22 + hudW*0.42, H - 26);
+        // Henüz açılmamış emirler soluk: oyuncu neyin ne zaman geleceğini görür
+        ctx.font = '11px Inter, sans-serif';
+        let lbl = { '1': 'Takip', '2': 'Hücum', '3': 'Bekle' };
+        let x = 22 + hudW*0.42;
+        (this.cmdSlots || []).forEach(c => {
+            ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
+            let t = `[${c.key}] ${lbl[c.key]} `;
+            ctx.fillText(t, x, H - 26);
+            x += ctx.measureText(t).width + 4;
+        });
 
         // Oyuncu künyesi: binek, ok, blok
         let pl = this._byId ? this._byId['player'] : null;

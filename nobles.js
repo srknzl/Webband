@@ -291,6 +291,8 @@ const Nobles = {
                 <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
                 <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem">
                     ${FACTIONS[n.faction].name} · ${p.name} · İlişki: ${this.relLabel(r)} (${r})
+                    <br>Gözünde ağırlığın: <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
+                    <span style="opacity:0.7">(nam + ilişki + kapıya getirdiğin ordu)</span>
                 </div>
                 <p style="font-style:italic;color:#eee;line-height:1.5">${line}</p>
             </div>
@@ -330,13 +332,64 @@ const Nobles = {
         alert(`${p.text}\n\n${this.lord(id).name} kadehini masaya bıraktı. "Fena değil. Ziyafette bunu okuyacaksın."`);
     },
 
+    // Oyuncunun soylu gözündeki ağırlığı: nam + ilişki + kapıya getirdiği ordu.
+    // -1 küçümsenen ... 4 çekinilen. Replikler ve sohbetin karşılığı buna bağlı.
+    standing(id) {
+        let p = state.player, r = this.rel(id);
+        let theirs = (state.npcParties.find(x => x.lordId === id) || {}).size || 20;
+        let power = p.party.length / Math.max(1, theirs);
+        let sc = Math.min(3, Math.floor(p.renown / 130))
+               + (r >= 40 ? 1 : r <= -15 ? -1 : 0)
+               + (power >= 1.2 ? 1 : power < 0.4 ? -1 : 0)
+               - (this.lord(id).personality === 'quarrelsome' ? 1 : 0);
+        return Math.max(-1, Math.min(4, sc));
+    },
+    standingLabel(sc) {
+        return ['Bir hiç', 'Tanınmayan', 'Adı duyulmuş', 'Saygı gören', 'Ünlü', 'Çekinilen'][sc + 1];
+    },
+
+    // Selamlama: önce husumet, sonra dostluk, sonra oyuncunun ağırlığı.
+    // Sabit tek cevap yok — her kademenin kendi havuzu var.
+    GREETS: {
+        '-1': [
+            'Sen de kimsin? Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil.',
+            'Adını duymadım, ordunu görmedim, vaktimi de alma.',
+            'Şu üstündekine kılık mı denir? Konuş bakalım, kısa tut.'
+        ],
+        '0': [
+            'Seni bir yerden hatırlar gibiyim. Neyse, derdini söyle.',
+            "Bir yolcu daha. Kalradya'da bunlardan bol var.",
+            'Konuş. Ama ağzından çıkanı kulağın duysun.'
+        ],
+        '1': [
+            'Adını duydum. Küçük işler, ama iş sonuçta.',
+            'Otur bakalım. Bir kadeh içimlik vaktim var.',
+            'Yollarda gezen çok, iş bitiren az. Sen hangisisin?'
+        ],
+        '2': [
+            'Hoş geldin. Senin adın bu salonda birkaç kez geçti — kötüsünden değil.',
+            'Gel şöyle. Kılıcını duvara as, sohbet uzun sürebilir.',
+            'Seni beklemiyordum ama yerim var. Anlat.'
+        ],
+        '3': [
+            'Buyur, baş köşe senin. Böylesi her gün kapımı çalmıyor.',
+            'Namın önünden yürüyor. Umarım söyledikleri abartıdır — abartı değilse pahalıya patlar.',
+            'Hizmetkâr! İyi şarabı getir. Bu adam ayakta karşılanmaz.'
+        ],
+        '4': [
+            'Ordunu kapımın önünde gördüm. Dostça geldiğini varsayıyorum... değil mi?',
+            'Sen artık bir maceracı değilsin, bir mesele oldun. Otur, konuşalım.',
+            'Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?'
+        ]
+    },
     greetLine(n, r) {
-        let p = PERSONALITIES[n.personality];
         if(r <= -50) return `"Sen hâlâ nefes alıyor musun? Bir gün bu hatayı düzelteceğim."`;
         if(r <= -15) return `"Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini."`;
         if(r >= 60)  return `"Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya."`;
-        if(r >= 25)  return `"Seni görmek güzel. Kalradya'da güvenilecek adam az kaldı."`;
-        return `"${p.greet}"`;
+        let pool = this.GREETS[String(this.standing(n.id))] || this.GREETS['0'];
+        // Aynı lordda aynı gün aynı repliği tekrarlama
+        let seed = (state.time.day * 7 + (n.id || '').length * 3) % pool.length;
+        return `"${pool[seed]}"`;
     },
 
     smallTalk(id) {
@@ -346,8 +399,25 @@ const Nobles = {
         state.smallTalkDay[id] = today;
 
         let n = this.lord(id);
-        let gain = 1 + (state.player.renown >= 200 ? 1 : 0);
-        this.addRel(id, gain);
+        // Sohbet artık otomatik +1 değil: seni ciddiye almayan lord hiçbir şey
+        // vermez, hatta tersler. Ağırlığın arttıkça sohbetin de karşılığı artar.
+        let sc = this.standing(id);
+        let gain = sc <= -1 ? -1 : sc === 0 ? 0 : sc <= 2 ? 1 : 2;
+        if(gain) this.addRel(id, gain);
+        Game.trainAttr('int', 0.3);
+
+        if(sc <= 0) {
+            let brush = [
+                `"Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz."`,
+                `"Bak evlat, ben her gelene ahbap olsam bu salonda oturacak yer kalmazdı."`,
+                `"Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle."`,
+                `"Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma."`
+            ];
+            alert(`${n.name}: ${brush[Math.floor(Math.random()*brush.length)]}\n\n` +
+                  `(Gözünde ağırlığın: ${this.standingLabel(sc)}${gain ? ` · ${gain} ilişki` : ' · ilişki değişmedi'})\n` +
+                  `Nam kazan, kalabalık bir orduyla gel — kapılar o zaman açılır.`);
+            return this.talk(id);
+        }
 
         let topics = [
             `"${FACTIONS[n.faction].name}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor."`,
@@ -356,7 +426,11 @@ const Nobles = {
             `"Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak."`,
             `"Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor."`
         ];
-        alert(`${n.name}: ${topics[Math.floor(Math.random()*topics.length)]}\n\n(+${gain} ilişki)`);
+        if(sc >= 3) topics.push(
+            `"Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz."`,
+            `"Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın."`);
+        alert(`${n.name}: ${topics[Math.floor(Math.random()*topics.length)]}\n\n` +
+              `(Gözünde ağırlığın: ${this.standingLabel(sc)} · +${gain} ilişki)`);
         this.talk(id);
     },
 

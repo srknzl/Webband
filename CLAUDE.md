@@ -239,7 +239,11 @@ kontrolünü 420 birim yarıçapla yapar.
   Kan Davalı / Düşman / Kırgın / Kayıtsız / Hoşnut / Dost / Sadık Dost.
 - **Mizaç** (`PERSONALITIES`): `martial`, `cunning`, `debauched`, `goodnatured`, `quarrelsome`.
   Selamlama replikleri, hangi hediyeyi sevdikleri, hangi görevi verdikleri ve drahoma çarpanı buna bağlı.
-- **Diyalog** (`Nobles.talk`): hâl hatır sor (günde 1, +1/+2), görev iste, birinin yerini sor,
+- **Ağırlık** (`Nobles.standing(id)`, −1..4): nam/130 + ilişki + kapıya getirdiğin ordunun
+  lordunkine oranı, huysuz mizaçta −1. Selamlama havuzunu (`Nobles.GREETS`) ve sohbetin
+  karşılığını belirler: ağırlık ≤ −1 → **−1 ilişki ve tersleme**, 0 → ilişki değişmez,
+  1–2 → +1, 3–4 → +2. Diyalog başlığında etiket olarak yazar (`standingLabel`).
+- **Diyalog** (`Nobles.talk`): hâl hatır sor (günde 1, ağırlığa bağlı), görev iste, birinin yerini sor,
   hediye ver, şiir oku (görev varsa), kızıyla ilgili konuş, hakaret et (−15 ilişki, +2 nam,
   rakip krallık lordlarıyla +5), bağlılık yemini.
 - **Hediye**: mizaca uyan eşya +6..+10, uymayan +1, huysuza her şey +3. Günde bir kez.
@@ -385,7 +389,12 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     ölçeklenir** (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per seviye.
   - **Geçilemez kayalar** (`terrain.rocks`, 2–4 adet): birim içine giremez, sınır kontrolüyle
     aynı yerde dışarı itilir. Doğum şeritlerine konmaz. *(Oklar kayanın üstünden geçer — siper değil.)*
-  - Taktik emirleri: **1** takip, **2** hücum, **3** mevzi koru.
+  - Taktik emirleri **savaşın başında hazır beklemez**: her biri kendi rastgele anında
+    "fırsat" olarak doğar (`Battle.cmdSlots`; hücum 1–2.5 sn, takip 2.5–5 sn, mevzi 4–7.5 sn).
+    Kapalı emre basmak uyarı verir, aynı emri tekrar bağırmak yok sayılır. HUD'da kapalı
+    emirler soluk çizilir, açılan emir logda ve oyuncunun başında uçan yazı olarak belirir.
+    Pencereler ölçülerek daraltıldı: 21'e 25 savaş 6.9 sn sürüyor, ilk deneme (8–22 sn)
+    üçüncü emri hiç açmıyordu.
   - Okçu AI: 250 birim menzil, %50 ihtimalle hedefin hızına göre öndeleme yapar.
     **Kite dengesi**: geri çekilirken hızı ×0.55, menzile yürürken ×0.8; yakın dövüş birimleri
     hedef 220 birimden yakınken **hücuma kalkar** (×1.3, kurtlar ×1.6). Eskiden okçu takipçisiyle
