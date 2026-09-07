@@ -347,12 +347,20 @@ input[type="text"]:focus {
 }
 #map-tooltip {
     position: absolute;
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.9rem;
     pointer-events: none;
     z-index: 10;
     white-space: nowrap;
-    font-size: 1rem;
+    font-size: 0.88rem;
+    line-height: 1.45;
     border: 1px solid var(--primary);
+}
+#map-tooltip strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    color: var(--primary);
 }
 
 /* Battle */

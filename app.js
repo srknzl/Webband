@@ -176,21 +176,21 @@ TROOP_UPGRADES['Acemi Asker'] = TROOP_UPGRADES['Svadya Köylüsü'];
 // Düşman çeteleri: haritadaki parti + savaştaki birim karışımı.
 // battle: [ad, tür, hp, hız, saldırı, savunma, pay] — pay = çıkma ağırlığı
 const BAND_KINDS = {
-    bandit:   { name: 'Çapulcular', color: '#8b0000', min: 5, max: 14, speedMult: 1,
+    bandit:   { name: 'Çapulcular', color: '#d0483a', icon: 'foot', min: 5, max: 14, speedMult: 1,
                 lore: '"Ya paranı, ya canını!"',
                 battle: [['Çapulcu','infantry',24,52,6,0,6], ['Çapulcu Okçu','archer',20,50,6,0,2],
                          ['Atlı Çapulcu','cavalry',32,88,9,2,1]],
                 leader: ['Çapulcu Reisi','infantry',52,60,13,4] },
-    forest:   { name: 'Orman Haydutları', color: '#2f6d3a', min: 6, max: 12, speedMult: 1.05,
+    forest:   { name: 'Orman Haydutları', color: '#8bd15a', icon: 'archer', min: 6, max: 12, speedMult: 1.05,
                 lore: '"Ağaçların arasından bakan gözleri ancak ok uçarken fark edersin."',
                 battle: [['Haydut Okçusu','archer',24,54,8,1,6], ['Orman Haydudu','infantry',28,58,8,1,4]],
                 leader: ['Haydut Başı','archer',48,58,14,3] },
-    mountain: { name: 'Dağ Eşkıyaları', color: '#8a6a2f', min: 8, max: 16, speedMult: 0.95,
+    mountain: { name: 'Dağ Eşkıyaları', color: '#d4a03a', icon: 'foot', min: 8, max: 16, speedMult: 0.95,
                 lore: '"Bu geçit bizim. Geçiş ücreti: her şeyin."',
                 battle: [['Dağ Eşkıyası','infantry',36,56,11,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
                          ['Atlı Eşkıya','cavalry',44,92,13,5,2]],
                 leader: ['Eşkıya Reisi','infantry',75,62,18,7] },
-    wolf:     { name: 'Kurt Sürüsü', color: '#6b7280', min: 6, max: 14, speedMult: 1.25, beast: true,
+    wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
                 lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
                 battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
                 leader: ['Alfa Kurt','infantry',55,112,15,2] }
@@ -365,6 +365,9 @@ const Game = {
 
         // Köy gönüllülerini ilklendir
         LOCATIONS.forEach(loc => {
+            // Refah tek sayıdır: garnizonu, gönüllü havuzunu ve pazar fiyatını besler
+            loc.prosperity = 35 + Math.floor(Math.random()*40)
+                           + (loc.type === 'city' ? 15 : loc.type === 'castle' ? 5 : 0);
             if(loc.type === 'village' || loc.type === 'city') {
                 loc.volunteersAvailable = 1 + Math.floor(Math.random()*4);
                 if(loc.type === 'city') loc.volunteersAvailable += 3; // Cities have more
@@ -1125,6 +1128,10 @@ const Game = {
 
     surrender(npcId, npcName) {
         state.player.lastDefeatDay = state.time.day;
+        // Teslim olmak da yenilgidir: karşındaki ne kadar zayıfsa o kadar nam yakar
+        let foe = state.npcParties.find(n => n.id === npcId);
+        let renownLost = this.defeatRenown(foe ? foe.size * ((foe.level || 1) + 1) : 0);
+        state.player.renown = Math.max(0, state.player.renown - renownLost);
         let daysLost = 3 + Math.floor(Math.random() * 5); // 3-7 gün esir
         let ratio = 0.60 + Math.random() * 0.30; // %60-90 para kaybı
         let moneyLost = Math.floor(state.player.money * ratio);
@@ -1141,7 +1148,8 @@ const Game = {
         state.player.currentEncounterNpcId = null;
         state.player.currentSiege = null;
 
-        alert(`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.\n-${moneyLost} Dinar`);
+        alert(`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-${moneyLost} Dinar`
+            + (renownLost ? `<br>-${renownLost} nam` : ''));
         this.updateTopBar();
         this.renderPrisonerUI();
     },
@@ -1218,7 +1226,8 @@ const Game = {
                 // eskiden yalnızca tam boşalınca yenileniyordu.
                 let full = loc.type === 'city' ? 7 : 5;
                 if(loc.volunteersAvailable < full && (state.time.day - (loc.lastRecruitDay || 0) >= 2)) {
-                    let fresh = 1 + Math.floor(Math.random()*4) + (loc.type === 'city' ? 3 : 0);
+                    let fresh = 1 + Math.floor(Math.random()*4) + (loc.type === 'city' ? 3 : 0)
+                             + Math.floor((loc.prosperity || 50) / 40);   // zengin yerleşim daha çok gönüllü besler
                     loc.volunteersAvailable = Math.max(loc.volunteersAvailable, fresh);
                 }
             }
@@ -1682,11 +1691,18 @@ const Game = {
     // yayaysan mızraklı piyade, kalabalıksan arkanda kolon görünür.
 
     // Yaya asker silüeti (0,0 = ayak basma noktası)
-    drawFootman(ctx, col, cloak) {
+    drawFootman(ctx, col, cloak, bow) {
+        if(bow) {                                                      // yay (haydut okçusu)
+            ctx.strokeStyle = '#6b5535'; ctx.lineWidth = 2.4;
+            ctx.beginPath(); ctx.arc(9, -16, 14, -Math.PI*0.45, Math.PI*0.45); ctx.stroke();
+            ctx.strokeStyle = 'rgba(240,240,230,0.75)'; ctx.lineWidth = 1.1;
+            ctx.beginPath(); ctx.moveTo(11, -28.6); ctx.lineTo(11, -3.4); ctx.stroke();
+        } else {
         ctx.strokeStyle = '#6b5535'; ctx.lineWidth = 2.2;             // mızrak sapı
         ctx.beginPath(); ctx.moveTo(7, -36); ctx.lineTo(10, 8); ctx.stroke();
         ctx.fillStyle = '#cfd6dc';                                     // mızrak ucu
         ctx.beginPath(); ctx.moveTo(7, -36); ctx.lineTo(4, -44); ctx.lineTo(11, -40); ctx.closePath(); ctx.fill();
+        }
 
         ctx.strokeStyle = cloak; ctx.lineWidth = 3.6; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(-3, 2); ctx.lineTo(-5, 12); ctx.moveTo(3, 2); ctx.lineTo(5, 12); ctx.stroke();
@@ -1758,6 +1774,43 @@ const Game = {
         ctx.lineCap = 'butt';
     },
 
+    // Kurt silüeti (0,0 = pençe hizası, sağa bakar) — sürü insan ikonu taşımaz
+    drawWolf(ctx, col) {
+        let fur = '#5b6068', dark = '#33373d';
+
+        ctx.strokeStyle = dark; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath();                                               // bacaklar
+        ctx.moveTo(-8, -8); ctx.lineTo(-10, 6);
+        ctx.moveTo(-3, -8); ctx.lineTo(-1, 6);
+        ctx.moveTo(7, -8);  ctx.lineTo(6, 6);
+        ctx.moveTo(11, -9); ctx.lineTo(13, 5);
+        ctx.stroke();
+        ctx.beginPath(); ctx.lineWidth = 4.2;                          // kuyruk
+        ctx.moveTo(-11, -13); ctx.quadraticCurveTo(-23, -15, -21, -26); ctx.stroke();
+
+        ctx.fillStyle = fur;
+        ctx.beginPath(); ctx.ellipse(0, -13, 13, 6.5, 0, 0, Math.PI*2); ctx.fill();   // gövde
+        ctx.beginPath();                                               // boyun + kafa
+        ctx.moveTo(6, -18); ctx.lineTo(15, -25); ctx.lineTo(25, -23);
+        ctx.lineTo(25, -18); ctx.lineTo(13, -12); ctx.closePath(); ctx.fill();
+        ctx.beginPath();                                               // kulaklar
+        ctx.moveTo(14, -25); ctx.lineTo(14, -32); ctx.lineTo(18, -25); ctx.closePath();
+        ctx.moveTo(19, -24); ctx.lineTo(21, -30); ctx.lineTo(24, -23); ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = col;                                           // sürü rengi: ense tüyü
+        ctx.beginPath(); ctx.moveTo(-3, -19); ctx.lineTo(3, -26); ctx.lineTo(9, -18); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffd479';                                     // göz
+        ctx.beginPath(); ctx.arc(21, -21, 1.6, 0, Math.PI*2); ctx.fill();
+        ctx.lineCap = 'butt';
+    },
+
+    // Grup neye benziyorsa o çizilir: atlı / mızraklı yaya / okçu / kurt
+    drawFigure(ctx, kind, col, cloak) {
+        if(kind === 'wolf')  return this.drawWolf(ctx, col);
+        if(kind === 'rider') return this.drawRider(ctx, col, cloak);
+        this.drawFootman(ctx, col, cloak, kind === 'archer');
+    },
+
     /**
      * Tam grup ikonu: gölge + arkadaki kolon + ön figür + sancak.
      * o = { mounted, size, color, scale, bob, dim }
@@ -1767,6 +1820,7 @@ const Game = {
 
     drawPartyIcon(ctx, x, y, o) {
         let sc = o.scale || 1;
+        let kind = o.kind || (o.mounted ? 'rider' : 'foot');
         let cloak = o.dim ? '#3a3a42' : '#26262e';
 
         ctx.save();
@@ -1787,15 +1841,16 @@ const Game = {
             ctx.save();
             ctx.translate(offsets[i][0], offsets[i][1]);
             ctx.scale(0.78, 0.78);
-            if(o.mounted) this.drawRider(ctx, o.color, cloak); else this.drawFootman(ctx, o.color, cloak);
+            this.drawFigure(ctx, kind, o.color, cloak);
             ctx.restore();
         }
         ctx.globalAlpha = 1;
 
-        if(o.mounted) this.drawRider(ctx, o.color, cloak); else this.drawFootman(ctx, o.color, cloak);
+        this.drawFigure(ctx, kind, o.color, cloak);
 
-        // Sancak direği
-        let top = o.mounted ? -62 : -48;
+        // Sancak direği (kurt sürüsü sancak taşımaz)
+        if(kind === 'wolf') { ctx.restore(); return; }
+        let top = kind === 'rider' ? -62 : -48;
         ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
         ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
         ctx.fillStyle = o.color;
@@ -2026,7 +2081,9 @@ const Game = {
             if(dist > vis + 45) return; // Görüş dışıysa çizme
 
             let nf = FACTIONS[npc.faction] || {};
-            let nCol = npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc');
+            let band = BAND_KINDS[npc.band] || null;
+            // Çete kendi rengiyle ve kendi silüetiyle gezer: kurt sürüsü çapulcuya benzemez
+            let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
 
             // Fraksiyon halkası
             ctx.beginPath();
@@ -2036,6 +2093,7 @@ const Game = {
             // Çapulcular yayadır, soylular atlı — ikondan hemen anlaşılsın
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
             this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
+                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' ? 'foot' : 'rider'),
                 mounted: npc.type !== 'bandit',
                 size: npc.size || 1,
                 color: nCol,
@@ -2134,18 +2192,22 @@ const Game = {
 
     handleMapHover(e) {
         let rect = this.mapCanvas.getBoundingClientRect();
-        let mx = ((e.clientX - rect.left) / this.camera.zoom) + this.camera.x;
-        let my = ((e.clientY - rect.top) / this.camera.zoom) + this.camera.y;
+        // Ekran -> dünya: tıklamayla aynı dönüşüm. Ortalama payı (rect/2) eksikti,
+        // künye imlecin yarım ekran uzağındaki yerleşimi buluyordu — yani hiç çıkmıyordu.
+        let mx = ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x;
+        let my = ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y;
         let tooltip = document.getElementById('map-tooltip');
         let found = null;
 
         for(let loc of LOCATIONS) {
-            if(this.dist(loc, {x:mx,y:my}) < 36) { found = {name:loc.name, sub: (FACTIONS[loc.faction]||{name:''}).name + (loc.type==='city'?' (Şehir)':loc.type==='castle'?' (Kale)':' (Köy)')}; break; }
+            if(this.dist(loc, {x:mx,y:my}) < 36) { found = { name: loc.name, sub: this.locTipHtml(loc) }; break; }
         }
         if(!found) {
             for(let npc of state.npcParties) {
                 if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= this.getVisibility()) {
-                    found = {name:npc.name, sub:`Asker: ${npc.size}`}; break;
+                    let bk = BAND_KINDS[npc.band];
+                    found = { name: npc.name, sub: `${bk ? (bk.beast ? 'Yaratık sürüsü' : 'Haydut çetesi') : (FACTIONS[npc.faction]||{name:'Bağımsız'}).name}<br>Asker: ${npc.size}` };
+                    break;
                 }
             }
         }
@@ -2276,7 +2338,7 @@ const Game = {
         <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:0.9rem"></div>`;
         this.showModal(html);
         this._marketLoc = loc;
-        this._marketMult = 0.8 + Math.random()*0.4;
+        this._marketMult = (0.8 + Math.random()*0.4) * (1.15 - (loc.prosperity || 50) / 400);  // bolluk fiyatı düşürür
         this.refreshMarket();
     },
     // Fiyat butonun HTML'inden parametre olarak gelmemeli: DOM'dan değiştirilerek
@@ -2529,9 +2591,51 @@ const Game = {
         TournamentMinigame.start();
     },
 
+    // Garnizon refahla büyür — kuşatma ekranı da harita künyesi de aynı sayıyı kullanır
+    garrisonOf(loc) {
+        let base = loc.type === 'city' ? 30 : loc.type === 'castle' ? 15 : 0;
+        return Math.round(base * (0.6 + (loc.prosperity || 50) / 125));
+    },
+    // Yerleşimin sahibi lord; köylerin kendi lordu yok, en yakın kale/şehre bağlıdırlar
+    ownerLord(loc) {
+        if(typeof LORDS === 'undefined') return null;
+        let own = LORDS.find(x => x.homeLocId === loc.id);
+        if(own) return own;
+        let seats = LOCATIONS.filter(x => x.faction === loc.faction && LORDS.some(y => y.homeLocId === x.id));
+        let near = seats.sort((a, b) => this.dist(a, loc) - this.dist(b, loc))[0];
+        return near ? LORDS.find(y => y.homeLocId === near.id) : null;
+    },
+    // Harita künyesi: kimin toprağı, kim yönetiyor, ne kadar zengin, kaç asker bekliyor
+    locTipHtml(loc) {
+        let f = FACTIONS[loc.faction] || { name: '?' };
+        let type = loc.type === 'city' ? 'Şehir' : loc.type === 'castle' ? 'Kale' : 'Köy';
+        let pr = Math.round(loc.prosperity || 50);
+        let prLbl = pr >= 75 ? 'Zengin' : pr >= 58 ? 'Müreffeh' : pr >= 42 ? 'İdare eder' : 'Yoksul';
+        let g = this.garrisonOf(loc);
+        let lord = this.ownerLord(loc);
+        let rel = lord && typeof Nobles !== 'undefined' ? Nobles.rel(lord.id) : 0;
+        let hostile = state.player.vassalOf && state.player.vassalOf !== loc.faction;
+        return `${f.name} · ${type}<br>`
+            + (lord ? `Sahibi: ${lord.name} (${Nobles.relLabel(rel)})<br>` : '')
+            + `Refah: ${prLbl} <span style="color:var(--text-muted)">(${pr})</span><br>`
+            + (g ? `Garnizon: ~${g} asker<br>` : '')
+            + (loc.volunteersAvailable !== undefined ? `Gönüllü: ${loc.volunteersAvailable} kişi<br>` : '')
+            + (hostile ? `<span style="color:#e0463a">⚔️ Düşman toprağı — sadece kuşatma</span>`
+                       : `<span style="color:#2ecc71">Kapılar sana açık</span>`);
+    },
+    // Yenilgide nam kaybı: düşman senden ne kadar zayıfsa rezillik o kadar büyük.
+    // pow = düşmanın güç puanı (asker başına seviye+1)
+    defeatRenown(pow) {
+        let mine = state.player.stats.level +
+                   state.player.party.reduce((a, t) => a + (t.level || 1) + 1, 0);
+        let r = Math.min(1, pow / Math.max(1, mine));
+        let loss = 2 + Math.round(18 * (1 - r)) + Math.floor((state.player.renown || 0) * 0.02 * (1 - r));
+        return Math.min(state.player.renown || 0, loss);
+    },
+
     // --- SIEGE ---
     besiegeLocation(loc, founding = false) {
-        let garrison = loc.type === 'city' ? 30 : 15;
+        let garrison = this.garrisonOf(loc);
         this.showModal(`<h3>🏰 Kuşatma - ${loc.name}</h3>
         <p>Garnizonda tahmini <b>${garrison}</b> asker var.</p>
         <button class="btn primary" onclick="Game.closeModal(); Game.startSiege('${loc.id}',${garrison},${founding})">⚔️ Saldırıya Geç!</button>
@@ -4768,7 +4872,12 @@ const Battle = {
             </div>`;
             Game.showModal(resultHtml);
         } else {
-            // Savaşı kaybettik — esir düştük
+            // Savaşı kaybettik — esir düştük.
+            // Nam kaybı parti dağılmadan hesaplanmalı: güç oranı ondan çıkıyor.
+            let epow = this.units.filter(u => !u.isPlayerTeam).reduce((a, u) => a + (u.level || 1) + 1, 0);
+            let renownLost = this.isBossFight ? 0 : Game.defeatRenown(epow);
+            state.player.renown = Math.max(0, state.player.renown - renownLost);
+
             let daysLost = 3 + Math.floor(Math.random() * 5);
             let ratio = 0.60 + Math.random() * 0.30;
             let moneyLost = Math.floor(state.player.money * ratio);
@@ -4800,7 +4909,8 @@ const Battle = {
             state.player.currentEncounterNpcId = null;
             state.player.currentSiege = null;
 
-            if(captor) alert(`Yenildin! Esir düştün! Tüm birliğin dağıldı.\n-${moneyLost} Dinar`);
+            if(captor) alert(`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`
+                + (renownLost ? `<br>-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.</i>` : ''));
         }
 
         // Sync HP — yenilgide yukarıdaki %30 canı ezmesin
@@ -4984,7 +5094,7 @@ const Save = {
                 state: { ...state },
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
-                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay })),
+                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity })),
                 playerKingdom: FACTIONS['player_kingdom'] || null
             }));
             alert('Oyun kaydedildi.');

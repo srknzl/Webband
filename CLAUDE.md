@@ -54,13 +54,23 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
   atın varsa **atlı** silüeti (`drawRider`: at + eyer örtüsü + kalkık kılıç), yoksa mızraklı
   yaya (`drawFootman`: mızrak + kalkan + miğfer). Fraksiyon rengi eyer örtüsünde/kalkanda ve
   sancakta. Grup 10+ kişiyse arkada 1, 30+ kişiyse 2 figür daha çizilir — kalabalık uzaktan belli olur.
-  Çapulcular her zaman yaya, soylular atlı; krala 👑, vezire 🎖️ eklenir.
+  Soylular atlı; krala 👑, vezire 🎖️ eklenir.
   İkon boyutu ordunun büyüklüğünü de yansıtır (`Game.partyIconScale`: 5 kişiden sonra kişi başı
   +%0.7, tavan +%35).
+  **Çeteler kendi silüetiyle gezer** (`BAND_KINDS[].icon` → `Game.drawFigure`): çapulcu/eşkıya
+  mızraklı yaya, orman haydudu **yaylı** yaya (`drawFootman(..., bow)`), kurt sürüsü **kurt**
+  silüeti (`Game.drawWolf`, sancak taşımaz). Halka ve sancak rengi de çetenin kendi rengidir —
+  hepsi aynı kırmızıyla çizilmez.
 - **Günün vakti** (`Game.getDayPart()`): gece mavi tonlama + yerleşimlerde ocak ışığı,
   şafak/gün batımı sıcak ton, gündüz tonlamasız. Saat `state.time.hour`'dan gelir.
 - İsim etiketleri (`Game.mapLabel`) **zoom'dan bağımsız ekran boyutunda** çizilir ve
   üst üste binenler yukarı kaydırılır (`_labelRects` çakışma testi).
+- **Harita künyesi** (`handleMapHover` → `#map-tooltip`): yerleşimin üstüne gelince
+  `Game.locTipHtml(loc)` — fraksiyon + tür, sahibi lord ve onunla ilişkin, refah,
+  garnizon (`Game.garrisonOf`), bekleyen gönüllü, düşman toprağıysa "sadece kuşatma" uyarısı.
+  Çete/partinin üstünde tür (yaratık sürüsü / haydut çetesi / fraksiyon) + asker sayısı.
+  *(Ekran→dünya dönüşümünde `rect/2` ortalama payı eksikti; künye imlecin yarım ekran
+  uzağındaki şeyi arıyor, yani hiç açılmıyordu.)*
 
 ### Zaman & günlük döngü (`advanceTime` / `dailyUpdate`)
 Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken (veya esirken) akar
@@ -229,6 +239,9 @@ Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ü
 - Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
 - **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı
 - Düşman fraksiyon şehri/kalesi ise sadece **kuşatma** seçeneği çıkar.
+- **Refah** (`loc.prosperity`, 35–90; `init()`'te atanır, kayda yazılır) tek sayıdır ve üç yeri
+  besler: garnizon (`Game.garrisonOf` = temel × (0.6 + refah/125)), gönüllü tazelenmesi
+  (+refah/40) ve pazar çarpanı (× (1.15 − refah/400) — bolluk fiyatı düşürür).
 
 ### Soylular (`nobles.js`)
 23 lord + 12 leydi. Her lordun haritada gezen kendi partisi var (`npc.lordId`); parti kendi
@@ -326,12 +339,12 @@ Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
 Çapulcunun ötesinde çeşit var; her tür haritada kendi adı/rengiyle gezer (`npc.band`) ve savaşta
 kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** çıkar.
 
-| Çete | Savaş birimleri | Karakter |
-|---|---|---|
-| Çapulcular | Çapulcu / Çapulcu Okçu / Atlı Çapulcu + Çapulcu Reisi | dengeli, en zayıf |
-| Orman Haydutları | Haydut Okçusu (ağırlıklı) / Orman Haydudu + Haydut Başı | okçu ağırlıklı, hızlı |
-| Dağ Eşkıyaları | Dağ Eşkıyası / Eşkıya Nişancısı / Atlı Eşkıya + Eşkıya Reisi | zırhlı ve sert, 20. günden sonra doğar |
-| Kurt Sürüsü | Kurt / Yaşlı Kurt + Alfa Kurt | çok hızlı (104–112), `beast`: hücum ×1.6, esir düşmez, ganimeti az |
+| Çete | Harita ikonu | Savaş birimleri | Karakter |
+|---|---|---|---|
+| Çapulcular | mızraklı yaya, kırmızı | Çapulcu / Çapulcu Okçu / Atlı Çapulcu + Çapulcu Reisi | dengeli, en zayıf |
+| Orman Haydutları | yaylı yaya, açık yeşil | Haydut Okçusu (ağırlıklı) / Orman Haydudu + Haydut Başı | okçu ağırlıklı, hızlı |
+| Dağ Eşkıyaları | mızraklı yaya, altın | Dağ Eşkıyası / Eşkıya Nişancısı / Atlı Eşkıya + Eşkıya Reisi | zırhlı ve sert, 20. günden sonra doğar |
+| Kurt Sürüsü | kurt silüeti, çelik grisi | Kurt / Yaşlı Kurt + Alfa Kurt | çok hızlı (104–112), `beast`: hücum ×1.6, esir düşmez, ganimeti az |
 - **Savaş**: 2D top-down canvas arena, prosedürel arazi (tepe / çukur / orman / nehir).
   - Arazi etkileri: ormanda okçu ×0.7 hasar & süvari ×0.6 hız, tepede okçu ×1.3 hasar, çukurda ×0.8 hız, nehirde ×0.7 hız.
   - Oyuncu: WASD hareket, sol tık/boşluk ile yay şeklinde kılıç savurma (300 ms).
@@ -419,7 +432,10 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
   `clamp(0.2, 1, (düşman gücü / kendi gücün) × 1.6)` — çapulcu avı sonsuza dek kârlı değil,
   zafer modalinde "Kolay av: ödüller %X'e indi" satırı çıkar. Boss savaşı muaf. silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
   NPC haritadan kaldırılır, oyuncunun savaş sonu canı `state`'e geri yazılır.
-- **Yenilgi**: tüm grup dağılır, paranın %60–90'ı gider, HP %30'a düşer, **esir düşülür**.
+- **Yenilgi**: tüm grup dağılır, paranın %60–90'ı gider, HP %30'a düşer, **esir düşülür** ve
+  **nam yanar** (`Game.defeatRenown(düşman gücü)`): `2 + 18×(1 − güç oranı) + nam×2%×(1 − oran)`,
+  eldeki namla sınırlı. Dengine yenilmek −2, beş kişilik çapulcu çetesine yenilmek −22 (nam 200,
+  20×lvl15 ordu ile ölçüldü). Teslim olmak da (`Game.surrender`) aynı cezayı yer; boss muaf.
 - **Denge** (ölçülmüş, oyuncu göğüs göğüse dalarken): 5 acemi vs 5 çapulcu → 2–4 kayıpla zafer;
   10 vs 15 → yenilgi; 20 acemi vs 20 çapulcu → kıl payı (yazı-tura); seviyeli askerlerle
   (20×L10 vs 20) rahat zafer. Savaşlar 8–30 sn sürer.
@@ -443,7 +459,8 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
 - Süre dolunca %40 bedava kaçış, aksi halde fidye modali (paranın %75–90'ı).
 
 ### Kuşatma & krallık kurma
-Şehir/kale kuşatması normal savaş olarak oynanır (garnizon: şehir 30, kale 15).
+Şehir/kale kuşatması normal savaş olarak oynanır (garnizon `Game.garrisonOf(loc)`: şehir 30,
+kale 15 temel, refahla ±%30).
 Kazanılırsa yerleşim vassalı olunan fraksiyona geçer; bağımsızsan **kendi krallığını** kurarsın
 (`FACTIONS.player_kingdom` runtime'da oluşturulur).
 
