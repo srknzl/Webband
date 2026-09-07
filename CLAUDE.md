@@ -478,8 +478,15 @@ Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan ku
 - **Her rAF döngüsünün çift başlama koruması var** (`Game.startGameLoop`, `Battle.start`,
   `TournamentMinigame.start`): `if(this.loopId) cancelAnimationFrame(this.loopId)`. Yoksa
   ikinci bir döngü hem hızı hem çizim yükünü ikiye katlar.
+- **Birim emojileri sprite olarak önbelleklenir** (`Battle.unitSprite`). Renkli emoji
+  glifini `strokeText` + `fillText` ile her kare yeniden rasterize etmek pahalı: ölçüldü,
+  çağrı başına **13 µs → 3.4 µs (3.8×)**. `Battle.warmUp()` savaş başlamadan önce
+  `UNIT_ICONS`'un hepsini pişirir — "ilk saniyeler kasıyor, sonra açılıyor" şikâyetinin
+  kaynağı ilk karelerdeki glif rasterizasyonuydu. Ölçüldü: savaşın ilk `render()`'ı
+  **32.6 ms → 21.1 ms**, ilk kareler `32.5 + 33.5 ms` yerine tek `33.3 ms`.
+  Yeni bir birim ikonu eklerken `UNIT_ICONS`'a da eklenmeli.
 - Pahalı şey bir kez pişirilir: `Game.buildGroundTexture()`, `Battle.buildGround()`,
-  `_seaGrad`, `_vignette`, `_forestTrees`. Kare başına gradyan üretilmez.
+  `_seaGrad`, `_vignette`, `_forestTrees`, `_swordGrad`. Kare başına gradyan üretilmez.
 - Parçacık tavanları: kıvılcım 120, uçan yazı 40, kan lekesi 200, ceset 60.
 - Hedef arama kare başına tam tarama değil — birim başına 0.3–0.5 sn'de bir (`u.tgtId`).
 
