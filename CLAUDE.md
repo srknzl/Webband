@@ -77,6 +77,10 @@ Gece (saat <6 veya ≥20) ×0.85.
 Her gün:
 - Asker maaşı (lvl 10–19: 2, lvl 20+: `level/2`, lvl 51: bedava)
 - Yemek tüketimi — düşük kalite (tahıl/ekmek) ve yüksek kalite (et/peynir). Lvl 30+ askerler yüksek kalite alamazsa `debuff` yer (savaşta ×0.7).
+  Durum tek yerden okunur: `Game.foodStock()` → `{low, high, total, need, needHigh, days, kinds}`.
+  Üst çubuktaki 🍞 rozeti kaç gün yettiğini yazar (3 günün altında kırmızıya döner), künyesinde kalem kalem döküm var.
+  Açlık başlayınca/bitince ve seçkin asker et bulamayınca **geçişte bir kez** uyarı çıkar
+  (`state.player.wasHungry` / `wasLowQuality`) — kalite eksiği açlıkla karıştırılmasın diye ayrı metin.
 - Moral yeniden hesaplanır (`Game.updateMorale`)
 - Oyuncu +5 HP
 - Köy gönüllüleri yenilenir (köy max 5; şehirler 2 günde bir 4–8)
@@ -102,6 +106,10 @@ zafer +5, yenilgi −15.
   **çubuklu** rozetler — can, grup/kapasite, moral, seviye/XP. Son rozet hızdır; üstüne gelince
   `#ui-speed-breakdown` kalem kalem döküm gösterir (temel / çeviklik / grup / atlı oranı /
   arazi / gece). Rozet ikonu atlıysan 🐎, yayaysan 🥾.
+- **Künye taşması** `Game.initTooltipClamp()` ile tek yerden çözülür: künye göründüğü anda
+  ölçülüp ekran içine kaydırılır (eskiden `#chip-speed`/`#chip-time` için CSS'te elle istisna vardı,
+  yeni rozet eklenince yine kesiliyordu). `.tooltip-content` **transform'u animasyonlamaz**
+  (`transition: opacity/visibility`) — yoksa ölçüm animasyonun ara değerini okuyup yanlış düzeltir.
 - **Her rozette künye** (`Game.updateTips`, `.tooltip-container`): rozetin üstüne gelince o
   değerin ne olduğu, neyden geldiği ve neyi etkilediği kalem kalem çıkar — takvim (akış hızı),
   hazine (günlük maaş/yemek gideri, `Game.upkeep()`), nam (hangi kapı kaç namda açılır),

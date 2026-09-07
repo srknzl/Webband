@@ -342,6 +342,7 @@ const Game = {
 
     init() {
         Input.init();
+        this.initTooltipClamp();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         this.mapCanvas = document.getElementById('map-canvas');
         // Opak tuval: deniz her kareyi baştan sona dolduruyor, alfa kanalına gerek yok.
@@ -1203,6 +1204,29 @@ const Game = {
             // Maaş ve açlığın karşılığı artık moralde
             this.updateMorale(paid, missingLow > 0);
 
+            // Oyuncu neden aç kaldığını görmeli. Warband'da da erzak biterken uyarı gelir;
+            // burada hiç gelmiyordu, oyuncu moral çöküşünün sebebini anlamıyordu.
+            let hungry = missingLow > 0;
+            if(hungry && !state.player.wasHungry) {
+                alert(`🍽️ <b>Ordu aç kaldı!</b><br>Günlük ihtiyaç <b>${Math.ceil(foodRequiredLow)} birim</b> yemekti, ` +
+                      `<b>${Math.ceil(foodRequiredLow) - missingLow} birim</b> bulundu.<br>` +
+                      `Moral <b>−30</b> — moral 25'in altına inerse asker firar etmeye başlar.<br>` +
+                      `<i>Köylerin erzak pazarı en ucuz kaynaktır.</i>`);
+            } else if(!hungry && state.player.wasHungry) {
+                alert('🍞 Ordu doydu, açlık cezası kalktı.');
+            }
+            state.player.wasHungry = hungry;
+
+            // Kalite eksiği açlıktan ayrı bir şey: karnı tok ama seçkin asker homurdanıyor.
+            // Oyuncu "envanterde ekmek var, neden debuff yiyorum" diye haklı olarak şaşırıyordu.
+            let elite = state.player.party.filter(t => t.level >= 30 && t.level < 51).length;
+            if(missingHighQuality > 0 && elite && !state.player.wasLowQuality) {
+                alert(`🥩 <b>${elite} seçkin askerin</b> et/peynir bulamadı.<br>` +
+                      `Ekmek ve tahıl karınlarını doyurur ama <b>savaşta ×0.7</b> güçle dövüşürler.<br>` +
+                      `Bu açlık değil, <b>kalite</b> meselesi: günde ${Math.ceil(foodRequiredHigh)} birim et ya da peynir gerekiyor.`);
+            }
+            state.player.wasLowQuality = missingHighQuality > 0 && elite > 0;
+
             // Eğitim yeteneği: her gün en tecrübesiz birkaç askeri çalıştırır
             let trained = state.player.party.filter(t => !t.wounded)
                 .sort((a, b) => a.level - b.level)
@@ -1282,6 +1306,11 @@ const Game = {
         set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
         set('ui-daypart', dp.icon);
         set('ui-money', Math.floor(p.money));
+        let fs = this.foodStock();
+        set('ui-food', fs.need ? (fs.days === Infinity ? '∞' : fs.days) : '—');
+        set('ui-food-sub', fs.need ? (fs.total ? 'gün erzak' : 'erzak yok') : 'erzak');
+        let fe = document.getElementById('chip-food');
+        if(fe) fe.classList.toggle('warn', fs.need > 0 && fs.days < 3);
         set('ui-renown', p.renown);
         set('ui-party', `${p.party.length}/${cap}`);
         set('ui-hp', `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`);
@@ -1328,6 +1357,15 @@ const Game = {
             R('Günlük yemek', `-${Math.ceil(up.foodLow)} birim${up.foodHigh ? ` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
             (p.spouse ? R('Evlilik geliri', '+50', true) : ''),
             'Maaş ödenmezse moral −25 düşer ve firar başlar. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.'));
+
+        let fs = this.foodStock();
+        this.setHtml('tip-food', this.tipBox('Erzak',
+            R('Elde', `${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
+            R('Günlük tüketim', `-${fs.need} birim`, false) +
+            R('Yeter', fs.need ? `${fs.days} gün` : 'ordu yok', fs.days >= 3) +
+            (fs.needHigh ? R('Seçkin asker payı', `${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
+            R('Yemek çeşidi', `${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
+            'Erzak biterse moral −30 ve firar başlar. Çeşit başına +5 moral: tek tür taşımak yerine karışık taşı.'));
 
         this.setHtml('tip-renown', this.tipBox('Nam',
             R('Namın', p.renown, null) +
@@ -2734,6 +2772,40 @@ const Game = {
         p.moraleInfo = parts;
         let t = Object.keys(parts).reduce((a, k) => a + parts[k], 0);
         return Math.max(0, Math.min(100, t));
+    },
+
+    // Künyeler ekranın dışına taşmasın. Eskiden her taşan rozete elle
+    // 'left/right' veriliyordu (#chip-speed, #chip-time) — yeni bir rozet
+    // eklenince yine kesiliyordu. Tek yerde, göründüğü anda kaydırılıyor.
+    initTooltipClamp() {
+        document.addEventListener('mouseover', e => {
+            let c = e.target.closest && e.target.closest('.tooltip-container');
+            if(!c) return;
+            let t = c.querySelector('.tooltip-content');
+            if(!t) return;
+            t.style.transform = 'translateX(-50%)';
+            let r = t.getBoundingClientRect(), pad = 10;
+            let over = r.right - (window.innerWidth - pad), under = pad - r.left;
+            if(over > 0) t.style.transform = `translateX(calc(-50% - ${Math.ceil(over)}px))`;
+            else if(under > 0) t.style.transform = `translateX(calc(-50% + ${Math.ceil(under)}px))`;
+        });
+    },
+
+    // Erzak durumu: elde ne var, günde ne gidiyor, kaç gün yeter.
+    // Künye, uyarı ve envanter aynı hesabı kullansın diye tek yerde.
+    foodStock() {
+        let inv = state.player.inventory;
+        let sum = q => inv.filter(i => q.includes(i.id)).reduce((a, i) => a + i.qty, 0);
+        let low = sum(['wheat','bread']), high = sum(['meat','cheese']);
+        let up = this.upkeep();
+        let need = Math.ceil(up.foodLow);
+        return {
+            low, high, total: low + high,
+            need, needHigh: Math.ceil(up.foodHigh),
+            // Karışık stokta bile doğru: yüksek kalite hem kendi payını hem genel payı kapatır
+            days: need > 0 ? Math.floor((low + high) / need) : Infinity,
+            kinds: ['wheat','bread','meat','cheese'].filter(id => inv.some(i => i.id === id && i.qty > 0)).length
+        };
     },
 
     // Günlük gider: maaş + yemek. dailyUpdate ve üst çubuk künyesi aynı hesabı kullanır.

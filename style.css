@@ -264,7 +264,7 @@ input[type="text"]:focus {
     box-shadow: 0 4px 15px rgba(0,0,0,0.8);
     width: max-content;
     z-index: 200;
-    transition: all 0.2s;
+    transition: opacity 0.2s, visibility 0.2s;
     font-size: 0.9rem;
     font-weight: normal;
     color: #fff;
@@ -555,8 +555,9 @@ body {
 /* Üst çubuk kendi yığın bağlamını kuruyor; ipucu içeriğin altında kalmasın */
 #top-bar { position: relative; z-index: 60; }
 .tooltip-container .tooltip-content { top: 118%; }
-/* Son rozetin ipucu ekranın sağından taşmasın */
-#chip-speed .tooltip-content { left: auto; right: 0; transform: none; }
+/* Taşma Game.initTooltipClamp() ile tek yerden hallediliyor — rozet rozet
+   elle hizalama (eski #chip-speed / #chip-time istisnaları) kaldırıldı. */
+.tooltip-container .tooltip-content { white-space: normal; overflow-wrap: anywhere; }
 
 /* ============ KENAR MENÜSÜ ============ */
 #sidebar {
@@ -714,8 +715,7 @@ body {
 /* --- Geri bildirim #33: üst çubuk künyeleri (her rozetin ne olduğu ve etkisi) --- */
 #top-bar .hud-chip.tooltip-container { cursor: help; }
 #top-bar #chip-time { cursor: pointer; }
-#top-bar .tooltip-content { max-width: 320px; }
-#chip-time .tooltip-content { left: 0; transform: none; }
+#top-bar .tooltip-content { max-width: min(340px, calc(100vw - 24px)); }
 
 /* Harita künyesindeki "Beni Bul" düğmesi — künye pointer-events:none olduğu için geri açılır */
 #btn-center {
@@ -744,3 +744,7 @@ body {
     -webkit-backdrop-filter: none;
 }
 #map-tooltip, #prisoner-ui { background: rgba(12,14,18,0.93); }
+
+/* Erzak rozeti: 3 günden az kaldıysa kırmızıya döner */
+#chip-food.warn { border-color: rgba(224,70,58,0.65); background: rgba(90,20,16,0.35); }
+#chip-food.warn .hud-val, #chip-food.warn .hud-sub { color: #ff8f82; }
