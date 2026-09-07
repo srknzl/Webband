@@ -109,10 +109,13 @@ zafer +5, yenilgi −15.
   seviye (XP, bekleyen puanlar). Takvim rozeti aynı zamanda tıklanabilir (zaman akışı).
 - Karakter ekranındaki her yetenek satırı **şu anki etkisini sayıyla** yazar
   (ör. "Görüş 615 birim", "Esir kapasitesi 8", "Savaş ganimeti +%12").
-- **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q` (`Input.init` içinde,
-  modal veya savaş açıkken çalışmaz). `showScreen()` tıklanan butonu `data-view` ile aktifler.
+- **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q`, **Esc** her ekrandan
+  haritaya döner, **Boşluk** haritada kamerayı oyuncuya geri kilitler (`Game.centerOnPlayer()`)
+  — hepsi `Input.init` içinde, modal veya savaş açıkken çalışmaz.
+  `showScreen()` tıklanan butonu `data-view` ile aktifler.
 - **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
-  (🪖 piyade / 🏹 okçu / 🐎 süvari). `Game.updateMapHud()` doldurur.
+  (🪖 piyade / 🏹 okçu / 🐎 süvari) ve **🎯 Beni Bul** düğmesi. `Game.updateMapHud()` doldurur.
+  Künye `pointer-events:none` olduğu için düğmeye CSS'te `pointer-events:auto` verilmiştir.
 - `Game.setHtml(id, html)` innerHTML'i sadece metin değiştiyse yazar — `updateTopBar` her
   karede çağrıldığı için gereksiz DOM yazımını önler.
 

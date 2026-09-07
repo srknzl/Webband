@@ -266,6 +266,10 @@ const Input = {
                document.getElementById('main-ui').classList.contains('active')) {
                 let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[e.key.toLowerCase()];
                 if(scr) Game.showScreen(scr);
+                // Esc her ekrandan haritaya döner
+                else if(e.key === 'Escape') Game.showScreen('map');
+                // Boşluk kamerayı oyuncuya geri getirir (harita kenardan kaydırılmışsa)
+                else if(e.key === ' ' && document.getElementById('map-view').classList.contains('active')) Game.centerOnPlayer();
             }
         });
         window.addEventListener('keyup', e => { 
@@ -1378,7 +1382,8 @@ const Game = {
 
         let c = this.getPartyComposition();
         this.setHtml('map-comp',
-            `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`);
+            `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="Kamerayı bana getir (Boşluk)">🎯 Beni Bul <kbd>Boşluk</kbd></button>`);
     },
 
     renderPrisonerUI() {
@@ -1436,6 +1441,12 @@ const Game = {
     },
 
     // --- SCREENS ---
+    // Kamerayı oyuncuya geri kilitle (kenardan kaydırma offset'ini sıfırlar)
+    centerOnPlayer() {
+        this.camera.offsetX = 0;
+        this.camera.offsetY = 0;
+    },
+
     showScreen(screenId) {
         document.querySelectorAll('.menu-btn').forEach(b => b.classList.toggle('active', b.dataset.view === screenId));
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));

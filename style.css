@@ -718,3 +718,20 @@ body {
 #top-bar #chip-time { cursor: pointer; }
 #top-bar .tooltip-content { max-width: 320px; }
 #chip-time .tooltip-content { left: 0; transform: none; }
+
+/* Harita künyesindeki "Beni Bul" düğmesi — künye pointer-events:none olduğu için geri açılır */
+#btn-center {
+    pointer-events: auto;
+    margin-left: 0.4rem;
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(212,175,55,0.12);
+    border: 1px solid rgba(212,175,55,0.35);
+    color: #f0e3c0;
+    font-family: inherit; font-size: 0.72rem;
+    padding: 1px 7px; border-radius: 5px; cursor: pointer;
+}
+#btn-center:hover { background: rgba(212,175,55,0.25); }
+#btn-center kbd {
+    font-size: 0.62rem; padding: 0 4px; border-radius: 3px;
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted);
+}
