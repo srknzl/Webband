@@ -40,6 +40,31 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
 
 ## Mevcut Özellikler
 
+### Karakter yaratma
+`start-btn` → `Game.startGame()` artık doğrudan dünyaya sokmaz, modal üstünde dönen
+6 adımlık bir sihirbaz açar (`Game.creation = { step, sel }`): cinsiyet + 4 geçmiş sorusu
+(`BACKGROUND`) + sancak (`BANNERS`), sonra özet. Onaylanınca `applyCreation()` seçimleri
+tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
+
+- Seçim etkileri veri olarak durur: `attr{}`, `prof{}`, `money`, `renown`, `item` (kuşanılır),
+  `relAll`, `relFaction{id,n}`. `Game.bonusText(o)` bunu insan diline çevirir — hem seçenek
+  kartı hem özet aynı fonksiyondan okur.
+- Cevaplar `state.player.background`'da saklanır; karakter ekranı `Game.backgroundLine()` ile yazar.
+
+| Soru | Seçenekler (özet) |
+|---|---|
+| Kimsin? | Erkek (nötr) / Kadın (bütün lordlarla **−5** ilişki, evlilik yolu değişir) |
+| Nerede doğdun? | 5 fraksiyon yurdu — biri nitelik/yetenek + **o krallığın lordlarıyla +5 ilişki** |
+| Baban ne iş yapardı? | Soylu (+200 dinar, +10 nam, Liderlik+1) / Tüccar / Demirci / Asker / Çoban |
+| Gençliğinde ne yaptın? | Uşaklık / Avcılık / Sokak / Manastır / Ahır — yetenek puanları |
+| İlk mesleğin? | Paralı asker (kılıç) / Kervan muhafızı (kalkan) / Şövalye adayı (**at**, −100 dinar) / Kaçakçı (+300 dinar, −2 ilişki) / Haydut (balta, −4 ilişki) |
+
+- **Sancak** (`BANNERS`, 9 arma): `kingdom_crests.jpg` 3×3 sprite sheet'inden `Game.bannerCss(i)`
+  ile kırpılır. Rengi (`Game.bannerColor()`) haritadaki grup ikonunun ve kendi krallığını
+  kurduğunda `FACTIONS.player_kingdom`'ın rengidir (eskiden sabit `#ffcc00`).
+- `Nobles.initRivals()` artık `spawnNPCs()`'te değil `enterWorld()`'de çağrılır — rakip
+  taliplerin kimi hedeflediği cinsiyete bağlı. Eski kayıtta rakip yoksa `Save.load()` kurar.
+
 ### Dünya haritası
 - Prosedürel kıta sınırı: `getMapRadius()` açıya bağlı sinüs toplamı ile düzensiz kıyı üretir; `clampToMap()` herkesi içeride tutar.
 - Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
@@ -197,7 +222,7 @@ zafer +5, yenilgi −15.
 ordu nitelik, yetenek ve namla birlikte büyür (temel 50 → 24 → 12).
 
 ### Başlangıç dengesi
-Başlangıç: **250 dinar**, grup kapasitesi 12, 1 kişilik grup. Erken oyunda her dinar bir karar;
+Başlangıç: **250 dinar** (geçmiş seçimleri ±300 oynatır), grup kapasitesi 12, 1 kişilik grup. Erken oyunda her dinar bir karar;
 ordu liderlik/karizma ile büyür. Düşük seviyeli düşmandan alınan ödül `Battle.rewardScale` ile kısılır.
 
 ### Paralı asker
@@ -281,6 +306,14 @@ kontrolünü 420 birim yarıçapla yapar.
   (`Game.triggerEncounter` içindeki `npc.lordId` dalı).
 
 ### Flört ve evlilik
+- **Kadın oyuncuda hedef leydiler değil bekâr lordlardır** (`SUITORS`): her kral olmayan lord
+  `suitor_<lordId>` kimliğiyle "leydi şeklinde" sarılır — vasisi kendi kralı, huyu mizacından
+  türer (`SUITOR_TRAIT`). Böylece bütün flört makinesi (ilgi, iltifat, şiir, rakip, drahoma,
+  nişan, düğün) tek kod yolundan çalışır; `Nobles.courtables()` cinsiyete göre listeyi seçer,
+  `Nobles.lady()` her iki kimliği de çözer. Liste erkek oyuncuda hiç üretilmez (`SUITORS` boş kalır).
+  Kadın oyuncuda salonda ayrı konuk bölümü yoktur: kur, lordun kendi diyaloğundaki
+  **💘 Ona kur yap** düğmesinden yürür (80 nam kapısı orada) ve rakip talip bir leydidir —
+  şeref düellosuna onun yerine **vasisi** çıkar (`Nobles.duelTarget`).
 - Salonun leydi bölümüne girmek **80 nam**, şölene girmek **150 nam** ister.
 - **İlgi** `state.affection[ladyId]` (0..100). Artırma yolları: sohbet +3 (3 gün bekleme),
   iltifat (huya uyarsa +5, ters düşerse −8, nötr +1), şiir +12 (her leydiye her şiir bir kez),

@@ -100,6 +100,14 @@ const LADIES = [
     { id:'gokce',   name:'Leydi Gökçe',   faction:'khergit', guardianId:'arslan',   homeLocId:'narra',     trait:'romantic',  lore:'Bozkırda söylenen bütün ağıtları ezbere bilir; hiçbirini sonuna kadar söylemez.' }
 ];
 
+// --- TALİPLER (kadın oyuncu) ---
+// Kadın karakterin evlilik yolu leydilerden değil bekâr lordlardan geçer.
+// Flört makinesini ikiye ayırmamak için lord "leydi şeklinde" sarılır:
+// vasisi kendi kralı, huyu mizacından türer. SUITORS ilk istendiğinde dolar.
+const SUITOR_TRAIT = { martial:'ambitious', cunning:'pious', debauched:'wild',
+                       goodnatured:'romantic', quarrelsome:'wild' };
+const SUITORS = [];
+
 // --- YOLDAŞLAR ---
 // Handa bulunan isimli NPC kahramanlar. Sıradan askerden farkları: savaşta
 // ölmezler (yaralanırlar), seviye atlarlar ve uzmanlık yeteneklerini gruba
@@ -133,7 +141,27 @@ const Nobles = {
 
     // ---------- Yardımcılar ----------
     lord(id)  { return LORDS.find(l => l.id === id); },
-    lady(id)  { return LADIES.find(l => l.id === id); },
+    lady(id)  {
+        if(id && id.indexOf('suitor_') === 0) return this.suitors().find(l => l.id === id);
+        return LADIES.find(l => l.id === id);
+    },
+
+    isFemale() { return state.player.gender === 'female'; },
+
+    // Kur yapılabilecekler: erkek oyuncuda leydiler, kadın oyuncuda bekâr lordlar.
+    courtables() { return this.isFemale() ? this.suitors() : LADIES; },
+
+    suitors() {
+        if(!SUITORS.length) {
+            LORDS.filter(l => l.rank !== 'king').forEach(l => {
+                let king = LORDS.find(k => k.faction === l.faction && k.rank === 'king');
+                SUITORS.push({ id: 'suitor_' + l.id, lordId: l.id, suitor: true, name: l.name,
+                    faction: l.faction, homeLocId: l.homeLocId, portraitIndex: l.portraitIndex,
+                    guardianId: king ? king.id : l.id, trait: SUITOR_TRAIT[l.personality], lore: l.lore });
+            });
+        }
+        return SUITORS;
+    },
     any(id)   { return this.lord(id) || this.lady(id); },
 
     rel(id)   { return state.relations[id] || 0; },
@@ -166,7 +194,7 @@ const Nobles = {
                 background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
                 display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
         }
-        if(n.guardianId !== undefined) {
+        if(n.guardianId !== undefined && !n.suitor) {
             // Leydiler için portre yok — kamea tarzı baş harf madalyonu
             let letter = n.name.replace(/^Leydi\s+/, '').charAt(0);
             let hue = (n.id.charCodeAt(0) * 37) % 360;
@@ -203,8 +231,10 @@ const Nobles = {
     lordsAt(locId) { return LORDS.filter(l => this.isAt(l.id, locId)); },
 
     // Leydiler seyahat etmez; evlerindedirler (şölendeyse şölen şehrinde).
+    // Talip lordlar ise gezer: ancak kendi salonundayken (ya da şölende) bulunur.
     ladiesAt(locId) {
-        return LADIES.filter(l => {
+        return this.courtables().filter(l => {
+            if(l.suitor) return this.isAt(l.lordId, locId);
             if(state.feast && state.feast.locId === locId && l.faction === state.feast.faction) return true;
             return l.homeLocId === locId;
         });
@@ -231,10 +261,17 @@ const Nobles = {
             html += `</div>`;
         }
 
+        // Kadın oyuncuda kur hedefi lordların kendisidir; ayrı bir konuk listesi
+        // aynı kartları ikinci kez basardı — kur yapma lordun diyaloğundan yürür.
+        if(this.isFemale()) {
+            html += `<p style="margin-top:1.2rem;font-size:0.85rem;color:var(--text-muted)">
+                Salonun leydileri seninle ilgilenmiyor. Bekâr bir lorda kur yapmak istersen
+                onunla konuş (gereken nam: ${this.HALL_RENOWN}, sende ${renown}).</p>`;
+        } else {
         html += `<h4 style="margin-top:1.5rem;color:var(--primary)">Salonun Konukları</h4>`;
         if(renown < this.HALL_RENOWN) {
             html += `<p style="color:var(--danger);font-size:0.9rem">Kapıdaki muhafız yolunu kesiyor:
-                <i>"Kim bu üstü başı toz içindeki adam? Leydilerin bulunduğu salona her önüne gelen giremez."</i><br>
+                <i>"Kim bu üstü başı toz içindeki? Soyluların oturduğu salona her önüne gelen giremez."</i><br>
                 <span style="color:var(--text-muted)">Gereken nam: ${this.HALL_RENOWN} (sende ${renown})</span></p>`;
         } else if(ladies.length === 0) {
             html += `<p style="color:var(--text-muted);font-size:0.9rem">Bugün konuk yok.</p>`;
@@ -242,6 +279,7 @@ const Nobles = {
             html += `<div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.6rem">`;
             ladies.forEach(l => html += this.nobleCard(l));
             html += `</div>`;
+        }
         }
 
         if(!state.player.vassalOf && loc.faction && FACTIONS[loc.faction]) {
@@ -313,7 +351,15 @@ const Nobles = {
         if(state.player.poems.length && state.player.quests.some(q => q.id === 'bring_poem' && q.giverId === id))
             html += `<button class="btn" onclick="Nobles.recitePoemToLord('${id}')">🎵 Öğrendiğin şiiri oku</button>`;
 
-        let wards = LADIES.filter(l => l.guardianId === id);
+        // Kadın oyuncunun kur yolu: lordun kendi diyaloğundan (salon nam kapısı burada)
+        let suitor = this.isFemale() ? this.suitors().find(x => x.lordId === id) : null;
+        if(suitor) {
+            html += state.player.renown >= this.HALL_RENOWN
+                ? `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.courtMenu('${suitor.id}')">💘 Ona kur yap (ilgi ${this.aff(suitor.id)})</button>`
+                : `<button class="btn" disabled style="opacity:0.4">💘 Kur yapmak için ${this.HALL_RENOWN} nam gerekir (sende ${state.player.renown})</button>`;
+        }
+
+        let wards = this.courtables().filter(l => l.guardianId === id);
         if(wards.length) {
             wards.forEach(w => {
                 html += `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.askForHand('${w.id}')">💍 ${w.name} ile ilgili konuşmak istiyorum</button>`;
@@ -605,7 +651,7 @@ const Nobles = {
             <div style="flex:1">
                 <h3 style="margin:0;color:#ff9ec4">${L.name}</h3>
                 <div style="font-size:0.8rem;color:var(--text-muted)">
-                    ${FACTIONS[L.faction].name} · ${t.name} · Vasisi: ${g ? g.name : '—'}
+                    ${FACTIONS[L.faction].name} · ${t.name} · ${L.suitor ? 'Efendisi' : 'Vasisi'}: ${g ? g.name : '—'}
                 </div>
                 <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.4rem;font-style:italic">${L.lore}</p>
                 <div style="margin-top:0.8rem">
@@ -614,7 +660,7 @@ const Nobles = {
                         <div style="background:#ff9ec4;height:100%;width:${a}%;border-radius:4px"></div>
                     </div>`;
         if(rival) {
-            html += `<div style="font-size:0.8rem;margin-top:0.6rem">Rakip <b>${this.lord(rival.lordId).name}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
+            html += `<div style="font-size:0.8rem;margin-top:0.6rem">Rakip <b>${this.any(rival.lordId).name}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
                      <div style="background:rgba(0,0,0,0.4);height:6px;border-radius:3px;margin-top:3px">
                         <div style="background:#e74c3c;height:100%;width:${Math.floor(rival.affection)}%;border-radius:3px"></div>
                      </div>`;
@@ -638,10 +684,10 @@ const Nobles = {
             html += `<button class="btn primary" onclick="Nobles.dedicate('${ladyId}')">🏆 Turnuva zaferini ona ithaf et (+18)</button>`;
 
         if(rival)
-            html += `<button class="btn" style="border-color:#e74c3c;color:#e74c3c" onclick="Nobles.rivalMenu('${ladyId}')">⚔️ Rakibin: ${this.lord(rival.lordId).name}</button>`;
+            html += `<button class="btn" style="border-color:#e74c3c;color:#e74c3c" onclick="Nobles.rivalMenu('${ladyId}')">⚔️ Rakibin: ${this.any(rival.lordId).name}</button>`;
 
         if(a >= 60)
-            html += `<button class="btn primary" onclick="Nobles.askForHand('${ladyId}')">💍 Babandan seni isteyeceğim</button>`;
+            html += `<button class="btn primary" onclick="Nobles.askForHand('${ladyId}')">💍 ${L.suitor ? 'Kralından elini isteyeceğim' : 'Babandan seni isteyeceğim'}</button>`;
         else
             html += `<button class="btn" disabled style="opacity:0.4">💍 Evlilikten söz etmek için ilgisi 60 olmalı (${a})</button>`;
 
@@ -697,7 +743,7 @@ const Nobles = {
         let L = this.lady(ladyId);
         let used = (state.poemsRead || {})[ladyId] || [];
         let html = `<h3>📜 ${L.name}'a Şiir</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted)">Her şiiri her leydiye yalnızca bir kez okuyabilirsin.</p>
+            <p style="font-size:0.85rem;color:var(--text-muted)">Her şiiri aynı kişiye yalnızca bir kez okuyabilirsin.</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         state.player.poems.forEach(pid => {
             let p = POEMS.find(x => x.id === pid);
@@ -725,7 +771,7 @@ const Nobles = {
         state.pendingDedication = false;
         state.dedicatedTo = state.dedicatedTo || [];
         if(state.dedicatedTo.includes(ladyId)) {
-            alert('Bu leydiye zaten bir zafer ithaf etmiştin. İkincisi aynı etkiyi yapmaz.');
+            alert('Ona zaten bir zafer ithaf etmiştin. İkincisi aynı etkiyi yapmaz.');
             this.addAff(ladyId, 4);
         } else {
             state.dedicatedTo.push(ladyId);
@@ -736,14 +782,20 @@ const Nobles = {
     },
 
     // ---------- Rakip talip ----------
+    // Rakip leydiyse kılıcı kendisi çekmez: şerefini vasisi savunur.
+    duelTarget(rival) {
+        return (rival.guardianId !== undefined && !rival.suitor) ? this.lord(rival.guardianId) : rival;
+    },
+
     rivalMenu(ladyId) {
         let r = state.rivals[ladyId];
-        let rl = this.lord(r.lordId);
+        let rl = this.any(r.lordId);
+        let opp = this.duelTarget(rl);
         let html = `<h3>⚔️ Rakip: ${rl.name}</h3>
             <p>Aynı kapıyı o da çalıyor. İlgisi her gün artıyor (şu an <b>${Math.floor(r.affection)}</b>).
             100'e ilk ulaşan ${this.lady(ladyId).name} ile nişanlanır.</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
-            <button class="btn" onclick="Nobles.duelRival('${ladyId}')">🗡️ Şeref düellosuna çağır</button>
+            <button class="btn" onclick="Nobles.duelRival('${ladyId}')">🗡️ Şeref düellosuna çağır${opp.id !== rl.id ? ` (vasisi ${opp.name} çıkacak)` : ''}</button>
             <button class="btn" style="border-color:#aa8800;color:#aa8800" onclick="Nobles.smearRival('${ladyId}')">🐍 İtibarını lekele</button>
             <button class="btn" onclick="Nobles.courtMenu('${ladyId}')">Geri</button></div>`;
         Game.showModal(html);
@@ -751,10 +803,10 @@ const Nobles = {
 
     duelRival(ladyId) {
         let r = state.rivals[ladyId];
-        let rl = this.lord(r.lordId);
+        let opp = this.duelTarget(this.any(r.lordId));
         Game.closeModal();
-        state.duel = { ladyId, lordId: r.lordId };
-        Battle.startDuel(rl);
+        state.duel = { ladyId, lordId: opp.id };
+        Battle.startDuel(opp);
     },
 
     resolveDuel(won) {
@@ -779,7 +831,7 @@ const Nobles = {
 
     smearRival(ladyId) {
         let r = state.rivals[ladyId];
-        let rl = this.lord(r.lordId);
+        let rl = this.any(r.lordId);
         Game.closeModal();
         if(Math.random() < 0.30) {
             LORDS.filter(l => l.faction === rl.faction).forEach(l => this.addRel(l.id, -25));
@@ -826,14 +878,15 @@ const Nobles = {
 
         if(a < 60) return alert(`${L.name} seni henüz o gözle görmüyor. (İlgi ${a}/60)\nÖnce onunla vakit geçir.`);
 
+        let ward = L.suitor ? 'vassalımı' : 'kızımı';
         let html = `<h3>💍 ${g.name} ile Görüşme</h3>
-            <p style="font-style:italic">"${L.name} mi? Demek öyle." Seni tepeden tırnağa süzdü. "Üç şeye bakarım evlat: adına, sözüne ve kesene."</p>
+            <p style="font-style:italic">"${L.name}, öyle mi?" Seni tepeden tırnağa süzdü. "Üç şeye bakarım: adına, sözüne ve kesene."</p>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;margin-top:1rem">`;
 
         let okRenown = p.renown >= this.MIN_RENOWN;
         let okRel = this.rel(g.id) >= this.MIN_REL;
         html += `<div style="margin-bottom:0.5rem">${okRenown?'✅':'❌'} <b>Nam:</b> ${p.renown} / ${this.MIN_RENOWN}
-                 ${okRenown?'':'<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Adını duyan yok. Kızımı bir hiçe vermem."</div>'}</div>`;
+                 ${okRenown?'':`<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Adını duyan yok. ${ward} bir hiçe vermem."</div>`}</div>`;
         html += `<div style="margin-bottom:0.5rem">${okRel?'✅':'❌'} <b>İlişki:</b> ${this.rel(g.id)} / ${this.MIN_REL}
                  ${okRel?'':'<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Seni tanımıyorum bile. Önce bir işime yara."</div>'}</div>`;
         html += `</div>`;
@@ -853,7 +906,8 @@ const Nobles = {
         let d = this.dowryFor(ladyId);
         let o = state.dowryOffer;
         let p = state.player;
-        let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">Drahoma Hesabı</h4>
+        let dLabel = this.lady(ladyId).suitor ? 'Başlık' : 'Drahoma';
+        let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${dLabel} Hesabı</h4>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.9rem;line-height:1.7">
             <div>Temel bedel: <b>${d.base}</b> dinar</div>
             <div>${FACTIONS[this.lady(ladyId).faction].name}'nın ${d.fiefs} kalesi/şehri var: <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
@@ -895,11 +949,11 @@ const Nobles = {
         if(Math.random() < chance) {
             o.amount = Math.max(1000, Math.round(o.amount * 0.8 / 50) * 50);
             Game.addProficiencyXp('persuasion', 60);
-            alert(`"...Peki. Ama bir kuruş daha aşağı inmem."\n\nDrahoma %20 düştü → ${o.amount} dinar.`);
+            alert(`"...Peki. Ama bir kuruş daha aşağı inmem."\n\nBedel %20 düştü → ${o.amount} dinar.`);
         } else {
             this.addRel(g.id, -5);
             Game.addProficiencyXp('persuasion', 20);
-            alert(`"Kızımı pazarda mı satıyorum sanıyorsun?"\n\nPazarlık tuttu tutmadı, −5 ilişki. Yarın tekrar dene.`);
+            alert(`"Burası pazar yeri mi sanıyorsun?"\n\nPazarlık tutmadı, −5 ilişki. Yarın tekrar dene.`);
         }
         Game.showModal(`<h3>💍 ${g.name} ile Pazarlık</h3>` + this.dowryBreakdown(ladyId), '680px');
     },
@@ -993,7 +1047,7 @@ const Nobles = {
             r.affection += this.aff(ladyId) > 0 ? 1.2 : 0.15;
             if(r.affection >= 100 && state.player.spouse !== ladyId && state.betrothed !== ladyId) {
                 let L = this.lady(ladyId);
-                alert(`Geç kaldın. ${L.name}, ${this.lord(r.lordId).name} ile nişanlandı.`);
+                alert(`Geç kaldın. ${L.name}, ${this.any(r.lordId).name} ile nişanlandı.`);
                 state.affection[ladyId] = 0;
                 delete state.rivals[ladyId];
                 state.lostLadies = state.lostLadies || [];
@@ -1021,9 +1075,12 @@ const Nobles = {
 
     // Oyun başında rakip talipleri kur
     initRivals() {
-        LADIES.forEach(L => {
+        state.rivals = {};
+        this.courtables().forEach(L => {
             if(Math.random() < 0.60) {
-                let pool = LORDS.filter(l => l.faction === L.faction && l.id !== L.guardianId && l.rank !== 'king');
+                // Erkek oyuncunun rakibi bir lord, kadın oyuncununki aynı lorda talip bir leydi
+                let pool = (this.isFemale() ? LADIES : LORDS)
+                    .filter(l => l.faction === L.faction && l.id !== L.guardianId && l.id !== L.id && l.rank !== 'king');
                 if(pool.length) {
                     state.rivals[L.id] = {
                         lordId: pool[Math.floor(Math.random()*pool.length)].id,
@@ -1074,7 +1131,7 @@ const Feast = {
         }
         let f = state.feast;
         let guests = LORDS.filter(l => l.faction === f.faction);
-        let ladies = LADIES.filter(l => l.faction === f.faction);
+        let ladies = Nobles.courtables().filter(l => l.faction === f.faction);
 
         let html = `<h3>🍷 Şölen — ${loc.name}</h3>
             <p style="color:var(--text-muted);font-size:0.9rem">${FACTIONS[f.faction].name}'nın bütün soyluları burada.
@@ -1086,9 +1143,14 @@ const Feast = {
 
         html += `<h4 style="color:var(--primary);margin-top:1rem">Lordlar</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
         guests.forEach(l => html += Nobles.nobleCard(l));
-        html += `</div><h4 style="color:var(--primary);margin-top:1rem">Leydiler</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
-        ladies.forEach(l => html += Nobles.nobleCard(l));
-        html += `</div><button class="btn" style="margin-top:1.2rem" onclick="Feast.greetAll()">🥂 Salonu dolaş ve herkesi selamla</button>
+        html += `</div>`;
+        // Kadın oyuncuda kur hedefi lordların kendisi; ayrı leydi listesi basılmaz.
+        if(!Nobles.isFemale()) {
+            html += `<h4 style="color:var(--primary);margin-top:1rem">Leydiler</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
+            ladies.forEach(l => html += Nobles.nobleCard(l));
+            html += `</div>`;
+        }
+        html += `<button class="btn" style="margin-top:1.2rem" onclick="Feast.greetAll()">🥂 Salonu dolaş ve herkesi selamla</button>
                  <button class="btn" onclick="Game.closeModal()">Ayrıl</button>`;
         Game.showModal(html, '820px');
     },

@@ -11,6 +11,59 @@ const FACTIONS = {
     khergit: { id: 'khergit', name: 'Kergit Hanlığı',   color: '#cc66ff', ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
 };
 
+// --- KARAKTER YARATMA ---
+// Warband'ın geçmiş soruları: cinsiyet + 4 soru. Her cevap nitelik/yetenek/kese
+// üzerinde küçük ama kalıcı bir fark yapar; seçimler state.player.background'da durur.
+// Etki formatı: attr{}, prof{}, money, renown, item (kuşanılır), relAll, relFaction{id,n}
+const BACKGROUND = [
+{ key:'gender', q:'Kimsin?', hint:'Kalradya ordu toplayan bir kadına alışkın değil.', opts:[
+  { id:'male',   label:'👨 Erkek', desc:'Kılıç kuşanmış bir erkek kimsenin dikkatini çekmez.' },
+  { id:'female', label:'👩 Kadın', desc:'Lordlar sana kuşkuyla bakar; evlilik yolun leydilerden değil bekâr lordlardan geçer.', relAll:-5 }
+]},
+{ key:'birth', q:'Nerede doğdun?', hint:'Doğduğun toprağın lordları seni kendilerinden sayar.', opts:[
+  { id:'swadia',  label:'🌾 Svadya ovasında bir köyde',   desc:'Sabanın arkasında büyüdün, sırtın erken sertleşti.', attr:{str:1}, relFaction:{id:'swadia',  n:5} },
+  { id:'rhodok',  label:'⛰️ Rodok dağlarında bir kasabada', desc:'Taşlık yamaçta yürümek adamı dayanıklı yapar.',     attr:{vit:1}, relFaction:{id:'rhodok',  n:5} },
+  { id:'vaegir',  label:'❄️ Veagir şehrinde',             desc:'Uzun kışlar okumaya vakit bırakır.',                 attr:{int:1}, relFaction:{id:'vaegir',  n:5} },
+  { id:'nord',    label:'🌊 Nord kıyısında',              desc:'Kürek çekerek büyüdün, ayakların yorulmaz.',          prof:{athletics:2}, relFaction:{id:'nord', n:5} },
+  { id:'khergit', label:'🐎 Kergit bozkırında',           desc:'Yürümeyi öğrenmeden ata bindin.',                     attr:{agi:1}, prof:{riding:1}, relFaction:{id:'khergit', n:5} }
+]},
+{ key:'father', q:'Baban ne iş yapardı?', hint:'Baba mesleği hem kese hem el alışkanlığı bırakır.', opts:[
+  { id:'noble',    label:'🏰 Küçük bir soyluydu',   desc:'Adınız sofralarda anılırdı; kesen de boş değildi.', attr:{cha:1}, money:200, renown:10 },
+  { id:'merchant', label:'💰 Tüccardı',             desc:'Terazinin hilesini de dürüstlüğünü de gördün.',      prof:{trade:2}, money:250 },
+  { id:'smith',    label:'🔨 Demirciydi',           desc:'Örsün başında kol kuvveti ve çelik bilgisi.',        attr:{str:1}, prof:{oneHanded:2} },
+  { id:'soldier',  label:'🛡️ Askerdi',              desc:'Mızrak dizilişini yürümeden önce öğrendin.',         attr:{vit:1}, prof:{polearm:2} },
+  { id:'herder',   label:'🐑 Çobandı',              desc:'Sürüyü ararken kıtanın yarısını çiğnedin.',          attr:{agi:1}, prof:{pathfinding:2} }
+]},
+{ key:'youth', q:'Gençliğinde ne yaptın?', hint:'Bu yıllar yeteneklerinin temelini attı.', opts:[
+  { id:'page',    label:'👑 Bir kalede uşaklık',   desc:'Salonda kimin kimi neden dinlediğini öğrendin.', attr:{cha:1}, prof:{leadership:1, persuasion:1} },
+  { id:'hunter',  label:'🏹 Ormanda avcılık',      desc:'Yayı da izi de sürmeyi bilirsin.',               prof:{bow:2, spotting:1} },
+  { id:'street',  label:'🗝️ Sokakta kendi başına',  desc:'Cebi dolu olanı uzaktan tanırsın.',              prof:{looting:2}, money:100 },
+  { id:'cloister',label:'📖 Manastırda okudun',    desc:'Harf de tanırsın, yara da dikersin.',            attr:{int:1}, prof:{surgery:2} },
+  { id:'groom',   label:'🐴 Ahırda seyislik',      desc:'At seni tanır, sen atı.',                        attr:{agi:1}, prof:{riding:2} }
+]},
+{ key:'job', q:'Maceraya atılmadan önceki mesleğin?', hint:'İlk mesleğin sırtındaki teçhizatı da belirler.', opts:[
+  { id:'merc',     label:'⚔️ Paralı asker',      desc:'Kılıcını kiraladın; adın birkaç kalede geçti.',      item:'sword',  prof:{oneHanded:2}, renown:5 },
+  { id:'caravan',  label:'🛡️ Kervan muhafızı',   desc:'Yolları ve kalkan tutmayı öğrendin.',               item:'shield', prof:{trade:1, spotting:1}, money:150 },
+  { id:'squire',   label:'🐎 Şövalye adayı',     desc:'Efendinin atı sana kaldı; kesen ona gitti.',        item:'horse',  attr:{cha:1}, money:-100 },
+  { id:'smuggler', label:'🚬 Kaçakçı',           desc:'Kese doldu ama adın kötüye çıktı.',                 money:300, prof:{pathfinding:1}, relAll:-2 },
+  { id:'outlaw',   label:'🪓 Haydut',            desc:'Baltan da huyun da senden önce tanınır.',           item:'axe', prof:{twoHanded:2, looting:1}, relAll:-4 }
+]}
+];
+
+// Sancak: kingdom_crests.jpg 3x3 armaları + kendi rengin. Krallık kurunca
+// krallığının rengi ve haritadaki grup renginin kaynağı budur.
+const BANNERS = [
+  { crest:0, color:'#c0392b', name:'Kızıl Aslan' },
+  { crest:1, color:'#2e86c1', name:'Mavi Şahin' },
+  { crest:2, color:'#27ae60', name:'Yeşil Meşe' },
+  { crest:3, color:'#8e44ad', name:'Mor Kartal' },
+  { crest:4, color:'#e67e22', name:'Turuncu Güneş' },
+  { crest:5, color:'#ffcc00', name:'Altın Boğa' },
+  { crest:6, color:'#95a5a6', name:'Gümüş Kurt' },
+  { crest:7, color:'#16a085', name:'Deniz Yılanı' },
+  { crest:8, color:'#d35400', name:'Bakır Çekiç' }
+];
+
 // LORDS, LADIES, PERSONALITIES -> nobles.js
 
 
@@ -205,6 +258,9 @@ const state = {
     encounterCooldown: 0,
     player: {
         name: 'Maceracı',
+        gender: 'male',        // 'female' -> lordlarla ilişki −5 başlar, evlilik yolu lordlardan geçer
+        banner: 5,             // BANNERS dizini: arma + krallık rengi
+        background: {},        // karakter yaratmada verilen cevaplar { birth, father, youth, job }
         money: 250,
         renown: 0,
         rightToRule: 0,
@@ -466,7 +522,6 @@ const Game = {
             if(home) { npc.x = home.x; npc.y = home.y; npc.targetX = home.x; npc.targetY = home.y; }
             state.npcParties.push(npc);
         });
-        Nobles.initRivals();
     },
 
     createNPC(name, type, size, color, faction = null, level = 1) {
@@ -482,9 +537,164 @@ const Game = {
         };
     },
 
+    // --- KARAKTER YARATMA ---
+    // Sihirbaz modal üstünde döner: BACKGROUND'daki her soru bir adım, sonra
+    // sancak, sonra özet. Seçimler applyCreation()'da tek yerden uygulanır.
+    creation: { step: 0, sel: {} },
+
     startGame() {
         const n = document.getElementById('char-name').value.trim();
         if(n) state.player.name = n;
+        this.creation = { step: 0, sel: {} };
+        this.renderCreation();
+    },
+
+    // Bir seçeneğin etkisini insan diline çevirir (hem sihirbazda hem özette).
+    bonusText(o) {
+        let out = [];
+        for(let k in (o.attr || {}))  out.push(`${this.ATTRS[k].icon} ${this.ATTRS[k].name} +${o.attr[k]}`);
+        for(let k in (o.prof || {}))  out.push(`${this.profName(k)} +${o.prof[k]}`);
+        if(o.money)   out.push(`${o.money > 0 ? '+' : ''}${o.money} dinar`);
+        if(o.renown)  out.push(`${o.renown > 0 ? '+' : ''}${o.renown} nam`);
+        if(o.item)    out.push(`${ITEMS[o.item].icon} ${ITEMS[o.item].name} (kuşanılmış)`);
+        if(o.relAll)  out.push(`bütün lordlarla ${o.relAll} ilişki`);
+        if(o.relFaction) out.push(`${FACTIONS[o.relFaction.id].name} lordlarıyla +${o.relFaction.n} ilişki`);
+        return out.join(' · ');
+    },
+
+    renderCreation() {
+        let step = this.creation.step;
+        if(step > BACKGROUND.length) return this.renderCreationSummary();
+        if(step === BACKGROUND.length) return this.renderBannerStep();
+
+        let q = BACKGROUND[step], sel = this.creation.sel[q.key];
+        let html = `<h3>${q.q}</h3>
+            <p style="color:var(--text-muted);font-size:0.85rem">Adım ${step+1}/${BACKGROUND.length+1} — ${q.hint}</p>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
+        q.opts.forEach(o => {
+            html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
+                onclick="Game.pickCreation('${q.key}','${o.id}')">
+                <b>${o.label}</b>
+                <div style="font-size:0.8rem;color:var(--text-muted);font-style:italic">${o.desc}</div>
+                <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || 'ek bir getirisi yok'}</div>
+            </button>`;
+        });
+        html += `</div>`;
+        if(step > 0) html += `<button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">← Geri</button>`;
+        this.showModal(html, '660px');
+    },
+
+    pickCreation(key, id) {
+        this.creation.sel[key] = id;
+        this.creation.step++;
+        this.renderCreation();
+    },
+
+    creationBack() {
+        this.creation.step = Math.max(0, this.creation.step - 1);
+        this.renderCreation();
+    },
+
+    // Sancak seçimi: krallık kurunca bu arma ve renk senin olur.
+    bannerColor() { return (BANNERS[state.player.banner] || BANNERS[0]).color; },
+
+    bannerCss(i, size = 72) {
+        let b = BANNERS[i] || BANNERS[0];
+        return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border:3px ridge ${b.color};border-radius:6px;
+            background-image:url('kingdom_crests.jpg');background-size:300% 300%;
+            background-position:${(b.crest % 3) * 50}% ${Math.floor(b.crest / 3) * 50}%;
+            box-shadow:inset 0 0 18px #000;"></div>`;
+    },
+
+    renderBannerStep() {
+        let html = `<h3>Sancağını seç</h3>
+            <p style="color:var(--text-muted);font-size:0.85rem">Adım ${BACKGROUND.length+1}/${BACKGROUND.length+1} —
+            Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
+        BANNERS.forEach((b, i) => {
+            let on = this.creation.sel.banner === i;
+            html += `<div onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
+                border-radius:8px;border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
+                <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
+                <div style="font-size:0.8rem;margin-top:0.4rem;color:${b.color}">${b.name}</div>
+            </div>`;
+        });
+        html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">← Geri</button>`;
+        this.showModal(html, '660px');
+    },
+
+    pickBanner(i) {
+        this.creation.sel.banner = i;
+        this.creation.step = BACKGROUND.length + 1;
+        this.renderCreation();
+    },
+
+    renderCreationSummary() {
+        let sel = this.creation.sel;
+        let rows = BACKGROUND.map(q => {
+            let o = q.opts.find(x => x.id === sel[q.key]);
+            return `<div style="margin-bottom:0.4rem"><b>${q.q}</b> ${o.label}
+                <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || '—'}</div></div>`;
+        }).join('');
+        let b = BANNERS[sel.banner || 0];
+        let html = `<h3>${state.player.name}</h3>
+            <div style="display:flex;gap:1.2rem;align-items:flex-start;margin-top:0.6rem">
+                ${this.bannerCss(sel.banner || 0, 96)}
+                <div style="flex:1;font-size:0.9rem;line-height:1.5">
+                    <div style="color:${b.color};font-weight:bold">${b.name} sancağı</div>
+                    ${rows}
+                </div>
+            </div>
+            <div style="display:flex;gap:0.6rem;margin-top:1.2rem">
+                <button class="btn primary" style="flex:1" onclick="Game.finishCreation()">⚔️ Maceraya Başla</button>
+                <button class="btn" onclick="Game.creationBack()">← Geri</button>
+            </div>`;
+        this.showModal(html, '660px');
+    },
+
+    // Seçilen geçmişi karaktere işler. Tek uygulama noktası — özet ekranı da
+    // buradaki bonusText ile aynı kaynaktan okur.
+    applyCreation() {
+        let p = state.player, sel = this.creation.sel;
+        p.gender = sel.gender || 'male';
+        p.banner = sel.banner || 0;
+        p.background = { ...sel };
+
+        BACKGROUND.forEach(q => {
+            let o = q.opts.find(x => x.id === sel[q.key]);
+            if(!o) return;
+            for(let k in (o.attr || {})) { p.stats[k] += o.attr[k]; p.stats.eff[k] += o.attr[k]; }
+            for(let k in (o.prof || {})) p.proficiencies[k].level += o.prof[k];
+            p.money = Math.max(0, p.money + (o.money || 0));
+            p.renown = Math.max(0, p.renown + (o.renown || 0));
+            if(o.item) {
+                let it = ITEMS[o.item];
+                p.equipment[it.type] = { ...it, qty: 1 };
+            }
+            if(o.relAll) LORDS.forEach(l => Nobles.addRel(l.id, o.relAll));
+            if(o.relFaction) LORDS.filter(l => l.faction === o.relFaction.id)
+                                  .forEach(l => Nobles.addRel(l.id, o.relFaction.n));
+        });
+        this.updateStatsFromEquip();
+        p.stats.hp = p.stats.maxHp;
+    },
+
+    finishCreation() {
+        this.applyCreation();
+        this.closeModal();
+        this.enterWorld();
+    },
+
+    backgroundLine() {
+        let bg = state.player.background || {};
+        return BACKGROUND.filter(q => q.key !== 'gender')
+            .map(q => (q.opts.find(o => o.id === bg[q.key]) || {}).label)
+            .filter(Boolean).join(' · ') || 'Bilinmeyen bir geçmiş';
+    },
+
+    enterWorld() {
+        // Rakip talipler cinsiyete göre kurulur (kadın oyuncuda hedef lordlardır)
+        Nobles.initRivals();
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
         this.resizeCanvases();
@@ -1598,7 +1808,7 @@ const Game = {
 
         this.setHtml('tip-renown', this.tipBox('Nam',
             R('Namın', p.renown, null) +
-            R('Leydi salonu', '80 nam', p.renown >= 80) +
+            R('Salon konukları', '80 nam', p.renown >= 80) +
             R('Kız isteme', '120 nam', p.renown >= 120) +
             R('Şölen daveti', '150 nam', p.renown >= 150),
             'Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.'));
@@ -2255,7 +2465,7 @@ const Game = {
             this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
                 mounted: !!state.player.equipment.horse,
                 size: state.player.party.length + 1,
-                color: '#ffcc00',
+                color: this.bannerColor(),
                 scale: 1.35 * this.partyIconScale(state.player.party.length + 1),
                 bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
             });
@@ -2643,7 +2853,9 @@ const Game = {
 
     profName(id) {
         let m = { surgery:'Cerrahlık', spotting:'Gözcülük', pathfinding:'Yol Bulma', trade:'Ticaret',
-                  looting:'Yağma', trainer:'Eğitim', prisonerMgmt:'Esir Yönetimi' };
+                  looting:'Yağma', trainer:'Eğitim', prisonerMgmt:'Esir Yönetimi',
+                  oneHanded:'Tek El', twoHanded:'Çift El', polearm:'Mızrak', bow:'Okçuluk',
+                  riding:'Binicilik', athletics:'Atletizm', leadership:'İdare', persuasion:'İkna' };
         return m[id] || id;
     },
 
@@ -2928,7 +3140,14 @@ const Game = {
             <p>Can: ${Math.round(s.hp)}/${Math.round(s.maxHp)}</p>
             <p>Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}</p>
             <p>Bağlılık: ${p.vassalOf ? (FACTIONS[p.vassalOf]||{name:p.vassalOf}).name : 'Bağımsız'}</p>
-            <p>Eş: ${p.spouse || 'Yok'}</p>
+            <p>Eş: ${p.spouse ? (Nobles.any(p.spouse) || {name:p.spouse}).name : 'Yok'}</p>
+            <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.8rem">
+                ${this.bannerCss(p.banner || 0, 64)}
+                <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5">
+                    <b style="color:${this.bannerColor()}">${(BANNERS[p.banner] || BANNERS[0]).name}</b> sancağı<br>
+                    ${p.gender === 'female' ? '👩 Kadın' : '👨 Erkek'}<br>${this.backgroundLine()}
+                </div>
+            </div>
         </div>
         <div style="flex:1;">
             <h3 style="color:var(--primary)">Nitelikler ${pts > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${pts} Puan Dağıtılabilir)</span>` : ''}</h3>
@@ -4953,7 +5172,7 @@ const Battle = {
                 let loc = LOCATIONS.find(l=>l.id===s.locId);
                 if(loc) {
                     if(s.foundingKingdom) {
-                        FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+' Krallığı', color:'#ffcc00', ruler:state.player.name};
+                        FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+' Krallığı', color:Game.bannerColor(), ruler:state.player.name};
                         state.player.vassalOf = 'player_kingdom';
                         loc.faction = 'player_kingdom';
                         alert(`${loc.name} fethedildi! Kendi krallığını ilan ettin!`);
@@ -5268,6 +5487,8 @@ const Save = {
         Game.showScreen('map');
         Game.updateTopBar();
         Game.renderPrisonerUI();
+        // initRivals artık dünyaya girişte çalışıyor; rakipsiz eski kayıtta burada kurulur
+        if(!Object.keys(state.rivals || {}).length) Nobles.initRivals();
         Game.startGameLoop();
         alert(`Kayıt yüklendi. Gün ${state.time.day}.`);
     },
