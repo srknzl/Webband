@@ -374,12 +374,14 @@ const Game = {
     },
 
     resizeCanvases() {
-        let mc = this.mapCanvas;
-        mc.width = mc.parentElement.clientWidth;
-        mc.height = mc.parentElement.clientHeight;
-        let bc = document.getElementById('battle-canvas');
-        bc.width = bc.parentElement.clientWidth;
-        bc.height = bc.parentElement.clientHeight;
+        // Gizli bir tuvalin ebeveyni 0 ölçü verir; o değeri yazmak tuvali
+        // kalıcı olarak 0x0 bırakır. Sadece gerçek bir ölçü varken yaz.
+        let fit = (canvas) => {
+            let w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight;
+            if(w > 0 && h > 0) { canvas.width = w; canvas.height = h; }
+        };
+        fit(this.mapCanvas);
+        fit(document.getElementById('battle-canvas'));
 
         if(!this.exploredCanvas) {
             this.exploredCanvas = document.createElement('canvas');
@@ -1157,15 +1159,14 @@ const Game = {
         let view = document.getElementById(screenId + '-view');
         if(view) view.classList.add('active');
 
+        // Görünür hale gelen tuvali ölçüsüne kavuştur: gizliyken yapılan bir
+        // resize onu 0x0 bırakmış olabilir (harita bomboş kalıyordu).
+        this.resizeCanvases();
+
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
         else if(screenId === 'inventory') this.renderInventoryScreen();
-        else if(screenId === 'battle') {
-            let bc = document.getElementById('battle-canvas');
-            bc.width = bc.parentElement.clientWidth;
-            bc.height = bc.parentElement.clientHeight;
-        }
     },
 
     // --- MAP RENDER ---
