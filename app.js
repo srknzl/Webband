@@ -2485,8 +2485,10 @@ const Battle = {
 
             let enemyLvl = 1;
             if(bossLevel) {
+                // Alt sınır şart: muhafız seviyesi negatife düşerse (bossLevel < 10)
+                // ölçekleme uygulandığı an eksi can/saldırıyla doğarlar.
                 if(i===0) enemyLvl = bossLevel;
-                else enemyLvl = bossLevel - 10;
+                else enemyLvl = Math.max(1, bossLevel - 10);
             } else if(!isBandit) {
                 enemyLvl = 5 + Math.floor(state.time.day / 15);
             } else {
