@@ -382,12 +382,20 @@ const Quests = {
                 <p style="font-style:italic">"Şu an sana verecek bir işim yok. Bir süre sonra uğra."</p>
                 <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${giverId}')">Geri</button>`);
         }
-        let q = this.pick(giverId);
+        // Teklif lord başına sabitlenir. Eskiden her açılışta yeni zar
+        // atılıyordu; modalı kapatmak ceza da doğurmadığı için oyuncu
+        // istediği görev çıkana kadar menüyü açıp kapatabiliyordu.
+        state.questOffers = state.questOffers || {};
+        let q = state.questOffers[giverId] || this.pick(giverId);
         if(!q) {
             return Game.showModal(`<h3>📜 ${giver.name}</h3>
                 <p style="font-style:italic">"Yok. Git başımdan."</p>
                 <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${giverId}')">Geri</button>`);
         }
+        // Bekleyen teklif tazelenir: eski bir teklif kısalmış süreyle başlamasın
+        q.startDay = state.time.day;
+        q.deadline = state.time.day + QUESTS[q.id].days;
+        state.questOffers[giverId] = q;
         state.pendingQuest = q;
         let def = QUESTS[q.id];
         Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
@@ -438,6 +446,7 @@ const Quests = {
         let q = state.pendingQuest;
         if(!q) return;
         state.pendingQuest = null;
+        if(state.questOffers) delete state.questOffers[q.giverId];
         state.player.quests.push(q);
         Game.closeModal();
         alert(`Görev kabul edildi: ${QUESTS[q.id].title}\nSüre: ${QUESTS[q.id].days} gün.`);
@@ -445,6 +454,7 @@ const Quests = {
 
     decline(giverId) {
         state.pendingQuest = null;
+        if(state.questOffers) delete state.questOffers[giverId];
         state.questCooldown = state.questCooldown || {};
         state.questCooldown[giverId] = state.time.day + 7 + Math.floor(Math.random() * 9);
         Nobles.addRel(giverId, -2);

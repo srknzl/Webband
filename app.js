@@ -168,7 +168,7 @@ const state = {
     knownLocations: {},   // lordId -> { x, y, radius, day, name, live }
     questCooldown: {},    // lordId -> gün
     smallTalkDay: {}, giftDay: {}, visitDay: {}, poemsRead: {}, dedicatedTo: [],
-    pendingQuest: null, dowryOffer: null, betrothed: null, pendingWedding: null,
+    pendingQuest: null, questOffers: {}, dowryOffer: null, betrothed: null, pendingWedding: null,
     pendingDedication: false, duel: null,
     feast: null, scheduledFeasts: [], nextFeastDay: 8,
 };
