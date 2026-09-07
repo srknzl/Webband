@@ -29,7 +29,8 @@ Script yükleme sırası: `app.js` → `nobles.js` → `quests.js`. Aralarındak
 fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için önemli.
 
 Tüm veri tek bir `state` objesinde. `Save.save()` / `Save.load()` bunu localStorage'a
-(`webband_save_v1`) JSON olarak yazar. **Keşfedilen harita (sis) kaydedilmez**, yüklemede sıfırlanır.
+(`webband_save_v1`) JSON olarak yazar. Keşfedilen harita 100 birimlik kaba bir ızgarada
+(`state.explored`, 90×90 '0'/'1' dizesi) saklanır; yüklemede sis tuvali bu ızgaradan yeniden boyanır.
 
 Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
 `TROOP_UPGRADES`, `TROOP_TYPES`; nobles.js'te `LORDS`, `LADIES`, `PERSONALITIES`,
@@ -44,7 +45,7 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
 - Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
 - Yollar: tüm yerleşimleri bağlayan minimum spanning tree (`state.roads`).
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
-- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş = `500 + (int-10)*30`, **gece ×0.7**.
+- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş = `500 + (int-10)*30`, **gece ×0.7**. Aynı keşif `Game.markExplored()` ile 90×90 ızgaraya da işlenir (kayıt için); `Game.repaintFog()` / `loadExplored()` tuvali ızgaradan üretir.
 - Kamera: fare tekerleği zoom (0.4–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
 - Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket. WASD/ok tuşları kamerayı oyuncuya kilitler.
 - **Grup ikonları** (Warband'daki gibi grubun neye benzediğini gösterir, `Game.drawPartyIcon`):
@@ -296,13 +297,12 @@ anında bitmesi.
 Kalanlar:
 
 1. Sadece Svadya asker ağacı var (`TROOP_UPGRADES`); diğer fraksiyonların askerleri yok.
-2. Kaydedilen oyunda **keşfedilen harita (sis) korunmaz** — yüklemede sis yeniden çöker.
-3. Ekonomi dengesizliği: bir savaş ~80 dinar getirirken drahoma 1500–8000 dinar. Görev
+2. Ekonomi dengesizliği: bir savaş ~80 dinar getirirken drahoma 1500–8000 dinar. Görev
    ödülleri (600–2500) bunu bir miktar kapatıyor ama savaş ganimeti hâlâ düşük.
-4. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
+3. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
-5. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
-6. `app.js` ~3400 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+4. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
+5. `app.js` ~3700 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 

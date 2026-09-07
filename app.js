@@ -171,6 +171,7 @@ const state = {
     pendingQuest: null, questOffers: {}, dowryOffer: null, betrothed: null, pendingWedding: null,
     pendingDedication: false, duel: null,
     feast: null, scheduledFeasts: [], nextFeastDay: 8,
+    explored: '',        // keşfedilen harita: 90x90 kaba ızgara, '0'/'1' dizesi
 };
 
 // --- INPUT ---
@@ -223,6 +224,11 @@ const Game = {
     ctx: null,
     exploredCanvas: null,
     exploredCtx: null,
+    // Sis 9000x9000 tuvalde tutuluyor; kaydedilebilmesi için aynı bilgi
+    // 100 birimlik kaba bir ızgarada da tutulur (90x90 = 8100 hücre).
+    FOG_CELL: 100,
+    FOG_N: 90,
+    exploredGrid: null,
     camera: { x: 0, y: 0, zoom: 0.8, targetZoom: 0.8, offsetX: 0, offsetY: 0 },
 
     getMapRadius(x, y) {
@@ -388,8 +394,43 @@ const Game = {
             this.exploredCanvas.width = 9000;
             this.exploredCanvas.height = 9000;
             this.exploredCtx = this.exploredCanvas.getContext('2d');
-            this.exploredCtx.fillStyle = 'black';
-            this.exploredCtx.fillRect(0,0, 9000, 9000);
+            this.exploredGrid = new Uint8Array(this.FOG_N * this.FOG_N);
+            this.repaintFog();
+        }
+    },
+
+    // Kayıttan gelen ızgarayı tuvale uygular
+    loadExplored() {
+        let n = this.FOG_N, want = n * n, str = state.explored || '';
+        this.exploredGrid = new Uint8Array(want);
+        if(str.length === want) {
+            for(let i = 0; i < want; i++) if(str[i] === '1') this.exploredGrid[i] = 1;
+        }
+        this.repaintFog();
+    },
+
+    // Sis tuvalini ızgaradan yeniden üretir (yeni oyunda ızgara boş = her yer sisli)
+    repaintFog() {
+        let c = this.FOG_CELL, n = this.FOG_N, g = this.exploredGrid;
+        this.exploredCtx.globalCompositeOperation = 'source-over';
+        this.exploredCtx.fillStyle = 'black';
+        this.exploredCtx.fillRect(0, 0, 9000, 9000);
+        this.exploredCtx.globalCompositeOperation = 'destination-out';
+        for(let gy = 0; gy < n; gy++) for(let gx = 0; gx < n; gx++) {
+            if(g[gy*n + gx]) this.exploredCtx.fillRect(gx*c, gy*c, c, c);
+        }
+        this.exploredCtx.globalCompositeOperation = 'source-over';
+    },
+
+    // Görüş çemberinin içinde kalan ızgara hücrelerini keşfedilmiş işaretle
+    markExplored(x, y, r) {
+        let c = this.FOG_CELL, n = this.FOG_N, g = this.exploredGrid;
+        if(!g) return;
+        let gx0 = Math.max(0, Math.floor((x - r) / c)), gx1 = Math.min(n-1, Math.floor((x + r) / c));
+        let gy0 = Math.max(0, Math.floor((y - r) / c)), gy1 = Math.min(n-1, Math.floor((y + r) / c));
+        for(let gy = gy0; gy <= gy1; gy++) for(let gx = gx0; gx <= gx1; gx++) {
+            let dx = (gx + 0.5) * c - x, dy = (gy + 0.5) * c - y;
+            if(dx*dx + dy*dy <= r*r) g[gy*n + gx] = 1;
         }
     },
 
@@ -707,6 +748,7 @@ const Game = {
             this.exploredCtx.closePath();
             this.exploredCtx.fill();
             this.exploredCtx.globalCompositeOperation = 'source-over';
+            this.markExplored(state.player.x, state.player.y, vis);
         }
 
         // NPC -> player collision
@@ -3659,6 +3701,8 @@ const Save = {
 
     save() {
         try {
+            // Keşfedilen harita kaba ızgarada saklanır (8100 karakter)
+            if(Game.exploredGrid) state.explored = Game.exploredGrid.join('');
             localStorage.setItem(this.KEY, JSON.stringify({
                 v: this.V, savedAt: Date.now(),
                 state: { ...state },
@@ -3705,13 +3749,14 @@ const Save = {
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
         Game.resizeCanvases();   // sis tuvalini de kurar
+        Game.loadExplored();     // keşfedilen harita ızgaradan geri gelir
         Game.camera.x = state.player.x; Game.camera.y = state.player.y;
         Game.camera.offsetX = 0; Game.camera.offsetY = 0;
         Game.showScreen('map');
         Game.updateTopBar();
         Game.renderPrisonerUI();
         Game.startGameLoop();
-        alert(`Kayıt yüklendi. Gün ${state.time.day}. (Keşfedilen harita sıfırlandı — sis yeniden çöktü.)`);
+        alert(`Kayıt yüklendi. Gün ${state.time.day}.`);
     },
 
     // Kayıtta olmayan anahtar varsayılan değerinde kalır. Eskiden state'te olup
