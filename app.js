@@ -544,12 +544,31 @@ const Game = {
         }
     },
 
+    // 144/180 Hz ekranda rAF kare başına 5-7 ms bütçe verir; oyun 60 fps'te de
+    // aynı görünür ama GPU'ya 2-3 kat iş çıkar ve kaçan kareler takılma olarak
+    // hissedilir. Fazla kareler atlanır.
+    //
+    // Sabit ms eşiği olmaz: 90 Hz'te her ikinci kareyi atlamak 45 fps eder.
+    // Onun yerine tazeleme hızı ölçülüp 60'ın altına düşürmeyen en büyük tam
+    // bölen seçilir -> 60:60, 75:75, 90:90, 120:60, 144:72, 165:82, 180:60, 240:60.
+    _prevT: 0, _minStep: Infinity, _frameNo: 0,
+    skipFrame(t) {
+        let d = t - this._prevT;
+        this._prevT = t;
+        // d > 1: iki döngü aynı karede çağırırsa delta ~0 olur ve bölen patlar.
+        // Gerçek hiçbir ekran 1000 Hz'in üstünde değil, alt sınır güvenli.
+        if(d > 1 && d < this._minStep) this._minStep = d;   // min: tek tük takılmayı eler
+        let n = Math.max(1, Math.floor(1000 / 60 / this._minStep + 0.01));
+        return (++this._frameNo % n) !== 0;
+    },
+
     startGameLoop() {
         // Çift döngü koruması: yükleme/yeniden başlatma her seferinde bir rAF
         // döngüsü daha eklerse zaman ve hareket kat kat hızlanır.
         if(this._loopId) cancelAnimationFrame(this._loopId);
         let lastTime = performance.now();
         const loop = (t) => {
+            if(this.skipFrame(t)) { this._loopId = requestAnimationFrame(loop); return; }
             let dt = (t - lastTime) / 1000;
             if(dt > 0.1) dt = 0.1;
             lastTime = t;
@@ -3413,6 +3432,7 @@ const Battle = {
         let last = performance.now();
         const loop = (t) => {
             if(!this.active) return;
+            if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
             this.update(dt);
@@ -4672,6 +4692,7 @@ const TournamentMinigame = {
         let last = performance.now();
         const loop = (t) => {
             if(!this.active) return;
+            if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
             this.update(dt);

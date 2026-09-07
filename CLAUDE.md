@@ -466,6 +466,15 @@ Darboğaz JS değil, **compositor**. Ölçüldü (1920×1080 tuval, 81 canlı bi
 ~1.2 ms. Yani kare bütçesinin (16.7 ms) ancak %7'si JS'te geçiyor; kalan her şey çizim
 ve birleştirme.
 
+**Kare bütçesi ekranın tazeleme hızına bağlıdır**: 180 Hz'lik bir monitörde `requestAnimationFrame`
+kare başına 16.7 ms değil **5.5 ms** verir — aynı çizim işi 3 kat sıkışık bir bütçeye girer ve
+kaçan kareler takılma olarak hissedilir. Bu yüzden `Game.skipFrame(t)` üç döngünün de başında
+fazla kareleri atar. Sabit ms eşiği kullanılmaz (90 Hz'te her ikinci kareyi atlamak 45 fps eder);
+tazeleme hızı ilk karelerden ölçülüp 60'ın altına düşürmeyen en büyük tam bölen seçilir.
+Ölçüldü (`node` ile kapı simülasyonu): 60→60, 75→75, 90→90, 120→60, 144→72, 165→82, 180→60, 240→60.
+`_minStep` yalnızca 1 ms'den büyük deltalarla güncellenir — iki döngü aynı karede çağırırsa
+delta ~0 olup bölen patlıyordu.
+
 Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan kurallar:
 
 - **Hareketli tuvalin üstünde `backdrop-filter` yok.** Blur, altındaki piksel her değiştiğinde
