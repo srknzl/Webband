@@ -3454,9 +3454,16 @@ const Battle = {
 
         let captorId = state.player.currentEncounterNpcId;
         let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
+        // Kuşatma/boss gibi esir alacak kimsenin olmadığı savaşlarda da devam eden
+        // durum temizlenmeli; yoksa açık kalan currentSiege bir sonraki kazanılan
+        // savaşta o şehri fethetmiş sayıyordu.
+        let wasSiege = state.player.currentSiege;
+        state.player.currentSiege = null;
+        state.player.currentEncounterNpcId = null;
+
         if(captor) Game.surrender(captor.id, captor.name);
         else {
-            alert('Teslim oldun! Birliğini kaybettin.');
+            alert(wasSiege ? 'Kuşatmadan çekildin. Birliğin dağıldı.' : 'Teslim oldun! Birliğini kaybettin.');
             state.player.party = [];
             state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
         }
