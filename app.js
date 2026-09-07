@@ -2264,10 +2264,14 @@ const Game = {
         this.updateStatsFromEquip();
         if(reRender) this.renderInventoryScreen();
     },
+    // Maksimum can tek bir formülden türetilir: taban + seviye + zırh.
+    // Eskiden yalnızca zırha bakıyordu, bu yüzden nitelik puanı harcamak ya da
+    // zırh giymek seviyeden gelen tüm canı siliyordu.
     updateStatsFromEquip() {
+        let s = state.player.stats;
         let e = state.player.equipment;
-        state.player.stats.maxHp = 50 + (e.armor ? (e.armor.defense||0) : 0);
-        if(state.player.stats.hp > state.player.stats.maxHp) state.player.stats.hp = state.player.stats.maxHp;
+        s.maxHp = 50 + (s.level - 1) * 10 + (e.armor ? (e.armor.defense||0) : 0);
+        if(s.hp > s.maxHp) s.hp = s.maxHp;
     },
 
     // --- LEVEL UP ---
@@ -2279,7 +2283,7 @@ const Game = {
             s.xpNext = Math.floor(s.xpNext * 1.5);
             s.attributePoints = (s.attributePoints || 0) + 2; // Seviye başına 2 puan
             s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord tarzı seviye başına 3 odak puanı
-            s.maxHp += 10;
+            this.updateStatsFromEquip(); // seviye +10 max can — tek formülden
             s.hp = s.maxHp;
             alert(`Seviye atladın! Artık Lvl ${s.level}. 2 Nitelik, 3 Odak Puanı kazandın. Niteliklerini karakter ekranından dağıtabilirsin.`);
         }
