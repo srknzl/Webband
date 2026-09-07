@@ -1717,7 +1717,11 @@ const Game = {
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
-        let isEnemy = state.player.vassalOf && state.player.vassalOf !== loc.faction && state.player.vassalOf !== 'player_kingdom';
+        // Kendi krallığını kuran oyuncu da bir fraksiyona bağlıdır: kendi
+        // yerleşimi olmayan her şehir/kale ona da düşmandır. Eskiden
+        // 'player_kingdom' istisna tutulduğu için krallık kurduktan sonra
+        // hiçbir yer kuşatılamıyordu.
+        let isEnemy = state.player.vassalOf && state.player.vassalOf !== loc.faction;
 
         Quests.emit('entered_location', { locId: loc.id, loc });
 
