@@ -45,7 +45,7 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
 - Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
 - Yollar: tüm yerleşimleri bağlayan minimum spanning tree (`state.roads`).
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
-- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş = `500 + (int-10)*30`, **gece ×0.7**. Aynı keşif `Game.markExplored()` ile 90×90 ızgaraya da işlenir (kayıt için); `Game.repaintFog()` / `loadExplored()` tuvali ızgaradan üretir.
+- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş `Game.getVisibility()` = `500 + (int−10)×30 + (Gözcülük−1)×25`, **gece ×0.7**. Aynı keşif `Game.markExplored()` ile 90×90 ızgaraya da işlenir (kayıt için); `Game.repaintFog()` / `loadExplored()` tuvali ızgaradan üretir.
 - Kamera: fare tekerleği zoom (0.4–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
 - Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket. WASD/ok tuşları kamerayı oyuncuya kilitler.
 - **Grup ikonları** (Warband'daki gibi grubun neye benzediğini gösterir, `Game.drawPartyIcon`):
@@ -104,7 +104,21 @@ zafer +5, yenilgi −15.
 
 ### Karakter
 - Nitelikler: **Güç** (yakın dövüş hasarı, turnuvada hedef süresi), **Çeviklik** (harita hızı +1.5, savaş hızı +0.5, turnuvada hedef boyutu), **Zeka** (görüş +30), **Karizma** (grup kapasitesi +2). Seviye başına 2 puan.
-- Yetenekler (Bannerlord tarzı odak sistemi): `oneHanded`, `twoHanded`, `polearm`, `bow`, `riding`, `athletics`, `leadership`, `persuasion`, `surgery`, `prisonerMgmt`. Her seviyede 3 odak puanı; odak XP çarpanını `0.5 + focus` yapar (max 5 odak).
+- Yetenekler (Bannerlord tarzı odak sistemi). Her seviyede 3 odak puanı; odak XP çarpanını `0.5 + focus` yapar (max 5 odak).
+
+| Yetenek | Etkisi |
+|---|---|
+| `oneHanded`/`twoHanded`/`polearm`/`bow` | savaşta hasar çarpanı |
+| `riding`/`athletics` | savaş hareketi |
+| `leadership` | grup kapasitesi +3/seviye, moral +3/seviye |
+| `persuasion` | drahoma pazarlığı |
+| `surgery` | ölen askerin yaralı kurtulma şansı |
+| `prisonerMgmt` | esir kapasitesi, esir kaçışını azaltır |
+| `pathfinding` | harita hızı ×(1 + (lvl−1)×0.02) |
+| `spotting` | görüş +25/seviye (`Game.getVisibility`) |
+| `trade` | alışta indirim / satışta prim, en fazla %25 |
+| `looting` | savaş ganimeti +%4/seviye |
+| `trainer` | her gün en tecrübesiz `lvl−1` askere +1 XP |
 - Seviye atlama: `xpNext *= 1.5`, +10 max HP, tam iyileşme.
 - Grup kapasitesi: `50 + (cha-10)*2 + (leadership-1)*3`.
 
@@ -226,7 +240,7 @@ Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
   - Kan lekeleri, cesetler (max 60), kıvılcımlar, uçan hasar yazıları, iki taraflı öldürme logu,
     düşman komutanından rastgele hakaret repliği + ping animasyonu.
   - Teslim ol butonu her an açık.
-- **Zafer**: ganimet (düşman başına `10 + seviye×5`, ×0.85–1.15) + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
+- **Zafer**: ganimet (düşman başına `10 + seviye×5`, ×0.85–1.15, Yağma yeteneğiyle çarpılır) + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
   NPC haritadan kaldırılır, oyuncunun savaş sonu canı `state`'e geri yazılır.
 - **Yenilgi**: tüm grup dağılır, paranın %60–90'ı gider, HP %30'a düşer, **esir düşülür**.
 - **Denge** (ölçülmüş, oyuncu göğüs göğüse dalarken): 5 acemi vs 5 çapulcu → 2–4 kayıpla zafer;

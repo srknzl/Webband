@@ -137,7 +137,6 @@ const state = {
         targetLocation: null,
         status: 'idle',
         speed: 50,
-        visibility: 500,
         stats: { level:1, xp:0, xpNext:100, hp:50, maxHp:50, str:10, agi:10, int:10, cha:10, attributePoints: 5 },
         proficiencies: {
             oneHanded: { level: 1, xp: 0, next: 100, focus: 0 },
@@ -149,7 +148,12 @@ const state = {
             leadership:{ level: 1, xp: 0, next: 100, focus: 0 },
             persuasion:{ level: 1, xp: 0, next: 100, focus: 0 },
             surgery:   { level: 1, xp: 0, next: 100, focus: 0 },
-            prisonerMgmt:{ level: 1, xp: 0, next: 100, focus: 0 }
+            prisonerMgmt:{ level: 1, xp: 0, next: 100, focus: 0 },
+            pathfinding:{ level: 1, xp: 0, next: 100, focus: 0 },
+            spotting:  { level: 1, xp: 0, next: 100, focus: 0 },
+            trade:     { level: 1, xp: 0, next: 100, focus: 0 },
+            looting:   { level: 1, xp: 0, next: 100, focus: 0 },
+            trainer:   { level: 1, xp: 0, next: 100, focus: 0 }
         },
         skills: { fastRun: 0, wideSwing: 0, fastArrow: 0, homingArrow: 0 },
         attackAngle: 30, // Base 30 degrees
@@ -556,13 +560,15 @@ const Game = {
         let mountBonus = this.getMountedRatio() * 0.35; // atlı oranı
         let nightMult = this.isNight() ? 0.85 : 1;      // gece yavaş yol alınır
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
+        let pathMult = 1 + (this.profLvl('pathfinding') - 1) * 0.02;  // Yol Bulma yeteneği
 
         return {
-            value: (base + agiBonus) * (1 + speedBonus + mountBonus) * terrain.mult * nightMult,
+            value: (base + agiBonus) * (1 + speedBonus + mountBonus) * terrain.mult * nightMult * pathMult,
             base, agiBonus,
             partyMult: speedBonus,
             mountBonus,
             nightMult,
+            pathMult,
             terrainMult: terrain.mult,
             terrain
         };
@@ -594,6 +600,7 @@ const Game = {
             ${row('Atlı oranı', '+%' + (spdData.mountBonus*100).toFixed(0), true)}
             ${row(`Arazi (${spdData.terrain.name})`, (spdData.terrainMult >= 1 ? '+' : '') + '%' + ((spdData.terrainMult-1)*100).toFixed(0), spdData.terrainMult >= 1)}
             ${spdData.nightMult < 1 ? row('Gece yürüyüşü', '-%15', false) : ''}
+            ${spdData.pathMult > 1 ? row('Yol Bulma', '+%' + ((spdData.pathMult-1)*100).toFixed(0), true) : ''}
             <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
             ${row('<b>Toplam</b>', '<b>' + spdData.value.toFixed(1) + '</b>', true)}
         `);
@@ -741,7 +748,7 @@ const Game = {
             this.exploredCtx.globalCompositeOperation = 'destination-out';
             this.exploredCtx.fillStyle = 'rgba(0,0,0,1)';
             this.exploredCtx.beginPath();
-            let vis = state.player.visibility;
+            let vis = this.getVisibility();
             let time = performance.now() / 2000;
             for (let a = 0; a < Math.PI * 2; a += 0.1) {
                 let r = vis + Math.sin(a * 6 + time) * 24;
@@ -1060,6 +1067,16 @@ const Game = {
 
             // Maaş ve açlığın karşılığı artık moralde
             this.updateMorale(paid, missingLow > 0);
+
+            // Eğitim yeteneği: her gün en tecrübesiz birkaç askeri çalıştırır
+            let trained = state.player.party.filter(t => !t.wounded)
+                .sort((a, b) => a.level - b.level)
+                .slice(0, this.profLvl('trainer') - 1);
+            trained.forEach(t => this.giveTroopXp(t, 1));
+            if(trained.length) this.addProficiencyXp('trainer', 4 * trained.length);
+
+            this.addProficiencyXp('pathfinding', 12);
+            this.addProficiencyXp('spotting', 8);
 
             let p = state.player.stats;
             p.hp = Math.min(p.maxHp, p.hp + 5);
@@ -1611,7 +1628,7 @@ const Game = {
         // Ancak o anki dalgalı görüş alanını karartmadan Bırakacağız (evenodd taktiği)
         ctx.beginPath();
         ctx.rect(-1000,-1000, 11000, 11000); // Tüm ekranı kapsayan dikdörtgen
-        let vis = state.player.visibility * (this.isNight() ? 0.7 : 1);
+        let vis = this.getVisibility() * (this.isNight() ? 0.7 : 1);
         let time = performance.now() / 2000;
         for (let a = 0; a < Math.PI * 2; a += 0.1) {
             let r = vis + Math.sin(a * 6 + time) * 24;
@@ -1739,7 +1756,7 @@ const Game = {
         }
         if(!found) {
             for(let npc of state.npcParties) {
-                if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= state.player.visibility) {
+                if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= this.getVisibility()) {
                     found = {name:npc.name, sub:`Asker: ${npc.size}`}; break;
                 }
             }
@@ -1770,7 +1787,7 @@ const Game = {
             }
         }
         for(let npc of state.npcParties) {
-            if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= state.player.visibility) {
+            if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= this.getVisibility()) {
                 state.player.targetLocation = { ...npc, isNpc: true };
                 state.player.status = 'moving';
                 return;
@@ -1878,7 +1895,10 @@ const Game = {
     marketPrice(id, selling = false) {
         let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
         if(!it) return null;
-        return Math.max(1, Math.floor(it.basePrice * (this._marketMult || 1) * (selling ? 0.7 : 1)));
+        // Ticaret yeteneği: alışta indirim, satışta prim (en fazla %25)
+        let edge = Math.min(0.25, (this.profLvl('trade') - 1) * 0.02);
+        let mult = (this._marketMult || 1) * (selling ? 0.7 * (1 + edge) : 1 - edge);
+        return Math.max(1, Math.floor(it.basePrice * mult));
     },
     refreshMarket() {
         let buy = document.getElementById('market-buy'); buy.innerHTML = '';
@@ -1905,6 +1925,7 @@ const Game = {
         state.player.money -= price;
         let ex = state.player.inventory.find(i=>i.id===id);
         if(ex) ex.qty++; else state.player.inventory.push({...ITEMS[id], qty:1});
+        this.addProficiencyXp('trade', 4);
         Quests.emit('bought_item', { itemId: id, qty: 1, locId: this._marketLoc ? this._marketLoc.id : null });
         this.updateTopBar(); this.refreshMarket();
     },
@@ -1914,6 +1935,7 @@ const Game = {
         let item = state.player.inventory[idx];
         if(item.type !== 'trade') return alert('Bu eşya pazarda satılmıyor.');
         state.player.money += this.marketPrice(id, true);
+        this.addProficiencyXp('trade', 4);
         item.qty--;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
         this.updateTopBar(); this.refreshMarket();
@@ -2153,7 +2175,12 @@ const Game = {
             { id: 'leadership', name: 'Liderlik' },
             { id: 'persuasion', name: 'İkna Kabiliyeti' },
             { id: 'surgery', name: 'Cerrahlık' },
-            { id: 'prisonerMgmt', name: 'Esir Yönetimi' }
+            { id: 'prisonerMgmt', name: 'Esir Yönetimi' },
+            { id: 'pathfinding', name: 'Yol Bulma' },
+            { id: 'spotting', name: 'Gözcülük' },
+            { id: 'trade', name: 'Ticaret' },
+            { id: 'looting', name: 'Yağma' },
+            { id: 'trainer', name: 'Eğitim' }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${fp} Odak Puanı Dağıtılabilir)</span>` : ''}</h3>
@@ -2194,6 +2221,21 @@ const Game = {
             }
         }
     },
+    // Asker tecrübesi tek yerden geçer: savaşta öldürme de, Eğitim yeteneği de.
+    giveTroopXp(t, n = 1) {
+        if(!t || t.level >= 50) return null;                             // 50 üstü sadece Boss Nişanı ile
+        if(TROOP_UPGRADES[t.name] && t.xp >= t.xpNext) return null;      // Terfiye hazır, XP almaz
+        t.xp += n;
+        if(t.xp < t.xpNext) return null;
+        if(TROOP_UPGRADES[t.name]) return 'ready';
+        t.level++;
+        t.xp = 0;
+        t.xpNext = t.level < 30 ? 3 + t.level : 5 + t.level * 2;
+        return 'levelup';
+    },
+
+    profLvl(id) { return (state.player.proficiencies[id] || { level: 1 }).level; },
+
     addProficiencyXp(id, amount) {
         let pData = state.player.proficiencies[id];
         if(!pData) return;
@@ -2207,14 +2249,17 @@ const Game = {
             console.log(`Yeteneğin gelişti: ${id} (Lvl ${pData.level})`);
         }
     },
+    // Görüş tek kaynaktan: zeka + Gözcülük yeteneği. Eskiden state.player.visibility
+    // yalnızca zeka puanı harcandığında güncelleniyordu.
+    getVisibility() {
+        return 500 + (state.player.stats.int - 10) * 30 + (this.profLvl('spotting') - 1) * 25;
+    },
+
     addStat(type) {
         let s = state.player.stats;
         if(s.attributePoints && s.attributePoints > 0) {
             s[type]++;
             s.attributePoints--;
-            if(type === 'int') {
-                state.player.visibility = 500 + (s.int - 10) * 30;
-            }
             this.updateStatsFromEquip();
             this.renderCharacterScreen();
             this.updateTopBar();
@@ -2958,22 +3003,10 @@ const Battle = {
     awardTroopXp(id) {
         if(!id || id === 'player') return;
         let t = state.player.party.find(x => x.id === id);
-        if(t) {
-            if(t.level >= 50) return; // 50'den sonrası sadece Boss Nişanı ile
-            if(TROOP_UPGRADES[t.name] && t.xp >= t.xpNext) return; // Terfiye hazır, XP alamaz
-
-            t.xp++;
-            if(t.xp >= t.xpNext) {
-                if(TROOP_UPGRADES[t.name]) {
-                    this.log(`🔥 <b>${t.name}</b> Terfiye Hazır! (Grup ekranından sınıf atlatın)`);
-                } else {
-                    t.level++;
-                    t.xp = 0;
-                    t.xpNext = t.level < 30 ? 3 + t.level : 5 + t.level * 2;
-                    this.log(`🔥 <b>${t.name}</b> Seviye Atladı! (Lvl ${t.level})`);
-                }
-            }
-        }
+        if(!t) return;
+        let r = Game.giveTroopXp(t, 1);
+        if(r === 'ready') this.log(`🔥 <b>${t.name}</b> Terfiye Hazır! (Grup ekranından sınıf atlatın)`);
+        else if(r === 'levelup') this.log(`🔥 <b>${t.name}</b> Seviye Atladı! (Lvl ${t.level})`);
     },
 
     update(dt) {
@@ -3691,7 +3724,7 @@ const Battle = {
             // 5 çapulcu ile 100 kişilik ordu aynı parayı getiriyordu.
             let loot = this.units.filter(u => !u.isPlayerTeam)
                 .reduce((a, u) => a + 10 + (u.level || 1) * 5, 0);
-            let moneyGain = Math.floor(loot * (0.85 + Math.random()*0.3));
+            let moneyGain = Math.floor(loot * (0.85 + Math.random()*0.3) * (1 + (Game.profLvl('looting') - 1) * 0.04));
 
             // Bayılıp adamlarının sırtından kazanılan zafer yarım zaferdir
             if(this.knockedOut) {
@@ -3714,6 +3747,7 @@ const Battle = {
             state.player.stats.xp += xpGain;
 
             let enemyCount = this.units.filter(u => !u.isPlayerTeam).length;
+            Game.addProficiencyXp('looting', 10 * enemyCount);
             let wpType = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
             if(!state.player.proficiencies[wpType]) wpType = 'oneHanded';
             Game.addProficiencyXp(wpType, 50 * enemyCount);
