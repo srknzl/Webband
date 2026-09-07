@@ -319,6 +319,28 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     Torba savaş başına `24 + Okçuluk×2` ok; bitince "ok bitti" yazısı çıkar. Sapma sabitken
     ±0.04 rad, yürürken +0.10, at üstünde +0.08 — yeterlilikle azalır. Ölçüldü (Okçuluk 20):
     sabit 2.1° → yürüyüş 7.2° → at üstünde 11.2°; ok hızı 320, hasar `saldırı × (0.5+…)`.
+  - **Hasar türleri** (`DMG_TYPES`, Warband'ın kesici/delici/ezici'si): hasar tek kapıdan
+    geçer — `Battle.afterArmor(tür, ham, savunma)` = `ham × mult − savunma × armor`, taban 1.
+
+    | Tür | Savunma etkisi | Hasar çarpanı | Silah |
+    |---|---|---|---|
+    | kesici (`cut`) | %100 | ×1.0 | Kılıç, Savaş Baltası |
+    | delici (`pierce`) | %50 | ×0.9 | Mızrak, ok |
+    | ezici (`blunt`) | %65 | ×0.8 | Topuz — **öldürmez, bayıltır** |
+
+    30 ham hasar için ölçüldü: savunma 0'da kesici 30 / delici 27 / ezici 24, savunma 12'de
+    18 / 21 / 16, savunma 25'te **5 / 15 / 8** — zırh arttıkça delici öne geçer.
+    Oyuncu 120 canlı, savunma 18'lik hedefi kılıçla 60 sn'de indiremiyor, mızrakla 18.8 sn,
+    topuzla 44 sn (ve bayıltarak). Ezici ile düşen düşmanın esir düşme şansı %45 yerine %90 —
+    ölçüldü: 64 düşenden kılıçta 24 esir (%38), topuzda 59 esir (%92).
+    Silahın türü envanterde ve pazarda künye olarak yazar (`Game.itemNote`).
+  - **Düşman blok yapar**: yakın dövüşteki (hayvan olmayan) birimler vuruşlar arasında
+    kalkan kaldırır — blok isteği `min(0.45, savunma/40)` ile 0.6–1.4 sn'de bir yenilenir,
+    savuracakken (`atkCd ≤ 0.2`) kalkan iner. Oyuncuyla **aynı `blockFactor` kapısından**
+    geçer, yani yalnız önden gelen kesilir; yandan/arkadan dolaşmak sayar. Düşmanda kalkan
+    eşyası olmadığı için tam blok değil, %60 azaltma. Ölçüldü (12v12, simetrik): savunma 8'de
+    savaş 11.0 → 12.8 sn, savunma 18'de 37.6 → 45.3 sn — zırhlı birlik belirgin şekilde sert,
+    savaş kilitlenmiyor.
   - Savaş künyesi (HUD, sol alt): binek durumu, kalan ok, blok göstergesi.
   - Tüm saldırı bekleme sayaçları **dt tabanlı** (`u.atkCd`), `performance.now()` değil — kare hızından bağımsız.
     Piyade `0.85–1.25` sn, okçu `1.4–1.7` sn.
@@ -449,8 +471,9 @@ Kalanlar:
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
 2. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
 3. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
-4. Silah türü (kesici/delici/ezici) ayrımı yok — `defense` hâlâ düz çıkarma. Düşman AI blok
-   yapmıyor; blok yalnızca oyuncuda.
+4. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
+   ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
+   silahı tür seçiyor.
 
 ## Kod tarzı
 

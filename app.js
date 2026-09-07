@@ -68,6 +68,14 @@ window.alert = function(msg) {
     }
 };
 
+// Hasar türleri (Warband): zırh her türe farklı direnir.
+// armor = savunmanın kaçta kaçı işler, mult = ham hasar çarpanı.
+const DMG_TYPES = {
+    cut:    { name: 'kesici', armor: 1.0,  mult: 1.0 },
+    pierce: { name: 'delici', armor: 0.5,  mult: 0.9 },
+    blunt:  { name: 'ezici',  armor: 0.65, mult: 0.8, knock: true }   // öldürmez, bayıltır: esir düşürür
+};
+
 const ITEMS = {
     wheat:  { id:'wheat',  name:'Tahıl',         type:'food',  quality:'low', basePrice:20,  icon:'🌾' },
     bread:  { id:'bread',  name:'Ekmek',         type:'food',  quality:'low', basePrice:30,  icon:'🍞' },
@@ -77,10 +85,11 @@ const ITEMS = {
     velvet: { id:'velvet', name:'Kadife',        type:'trade', basePrice:400, icon:'🧵' },
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺' },
     salt:   { id:'salt',   name:'Tuz',           type:'trade', basePrice:100, icon:'🧂' },
-    sword:  { id:'sword',  name:'Kılıç',         type:'weapon', weaponType:'oneHanded', basePrice:250, attack:15, icon:'⚔️' },
-    axe:    { id:'axe',    name:'Savaş Baltası', type:'weapon', weaponType:'twoHanded', basePrice:300, attack:20, icon:'🪓' },
-    lance:  { id:'lance',  name:'Mızrak',        type:'weapon', weaponType:'polearm', basePrice:200, attack:12, icon:'🔱' },
-    bow:    { id:'bow',    name:'Yay',           type:'weapon', weaponType:'bow', basePrice:220, attack:10, icon:'🏹' },
+    sword:  { id:'sword',  name:'Kılıç',         type:'weapon', weaponType:'oneHanded', dmgType:'cut',    basePrice:250, attack:15, icon:'⚔️' },
+    axe:    { id:'axe',    name:'Savaş Baltası', type:'weapon', weaponType:'twoHanded', dmgType:'cut',    basePrice:300, attack:20, icon:'🪓' },
+    mace:   { id:'mace',   name:'Topuz',         type:'weapon', weaponType:'oneHanded', dmgType:'blunt',  basePrice:220, attack:16, icon:'🔨' },
+    lance:  { id:'lance',  name:'Mızrak',        type:'weapon', weaponType:'polearm',   dmgType:'pierce', basePrice:200, attack:12, icon:'🔱' },
+    bow:    { id:'bow',    name:'Yay',           type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:220, attack:10, icon:'🏹' },
     shield: { id:'shield', name:'Kalkan',        type:'armor',  basePrice:150, defense:10, icon:'🛡️' },
     mail:   { id:'mail',   name:'Zincir Zırh',   type:'armor',  basePrice:500, defense:25, icon:'🦺' },
     horse:  { id:'horse',  name:'Savaş Atı',     type:'horse',  basePrice:600, icon:'🐴' },
@@ -2135,7 +2144,9 @@ const Game = {
         Object.values(ITEMS).forEach(item => {
             let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button>`;
+            let note = this.itemNote(item);
+            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button>`
+                + (note ? `<div style="font-size:0.7rem;color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
         });
         let sell = document.getElementById('market-sell'); sell.innerHTML = '';
@@ -2969,6 +2980,7 @@ const Game = {
                 <div style="font-size:1.5rem">${item.icon||'📦'}</div>
                 <div style="font-weight:bold;font-size:0.9rem;margin-top:0.3rem">${item.name}</div>
                 <div style="color:var(--text-muted);font-size:0.8rem">x${item.qty}</div>
+                ${this.itemNote(item) ? `<div style="font-size:0.68rem;color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
                 ${canEquip ? `<button class="btn primary" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">Kuşan</button>` : ''}
                 ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">Kullan</button>` : ''}
                 </div>`;
@@ -2978,10 +2990,22 @@ const Game = {
         html += '</div></div>';
         document.getElementById('inventory-content').innerHTML = html;
     },
+    // Silahın hasar türü künyesi — zırha karşı davranışı burada görünür
+    itemNote(item) {
+        if(!item) return '';
+        let bits = [];
+        if(item.attack) bits.push(`+${item.attack} saldırı`);
+        if(item.defense) bits.push(`+${item.defense} savunma`);
+        let t = DMG_TYPES[item.dmgType];
+        if(t) bits.push(`${t.name} — düşman savunması %${Math.round(t.armor*100)} etkili, hasar ×${t.mult}${t.knock ? ', bayıltır (esir)' : ''}`);
+        return bits.join(' · ');
+    },
+
     _eqSlot(label, slot, item) {
         return `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
         <div><div style="font-size:0.75rem;color:var(--text-muted)">${label}</div>
-        <div style="font-weight:bold">${item ? (item.icon||'')+' '+item.name : 'Yok'}</div></div>
+        <div style="font-weight:bold">${item ? (item.icon||'')+' '+item.name : 'Yok'}</div>
+        ${item ? `<div style="font-size:0.72rem;color:#cbb26b">${this.itemNote(item)}</div>` : ''}</div>
         ${item ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.4rem" onclick="Game.unequipItem('${slot}')">Çıkar</button>` : ''}
         </div>`;
     },
@@ -3151,6 +3175,7 @@ const Battle = {
                            : 50 + state.player.stats.agi * 0.5 + (this.prof('athletics') - 1) * 1.5,
             attack: 10 + state.player.stats.str + weaponAtk,
             defense: armorDef, type: mounted ? 'cavalry' : 'infantry',
+            dmgType: this.playerDmgType(),
             hasShield: this.playerHasShield(),
             color: '#ffcc00', radius: mounted ? 9 : 8, atkCd: 0,
             isAttacking: false, attackTimer: 0, swingCd: 0, angleToMouse: 0, currentWeaponAngle: 0
@@ -3347,6 +3372,7 @@ const Battle = {
     },
     playerWeaponProf() { return this.prof(this.playerWeaponType()); },
     playerHasBow() { return this.playerWeaponType() === 'bow'; },
+    playerDmgType() { let w = state.player.equipment.weapon; return (w && w.dmgType) || 'cut'; },
     // Kalkan zırh slotunu işgal eder: blok mu, zırh mı — seçim oyuncunun
     playerHasShield() { let a = state.player.equipment.armor; return !!a && a.id === 'shield'; },
 
@@ -3367,11 +3393,17 @@ const Battle = {
         this.projectiles.push({
             x: p.x + Math.cos(a) * 12, y: p.y + Math.sin(a) * 12,
             vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-            damage: p.attack * (0.5 + Math.min(0.5, lv * 0.005)),
+            damage: p.attack * (0.5 + Math.min(0.5, lv * 0.005)), dmgType: 'pierce',
             isPlayerTeam: true, sourceId: 'player'
         });
         p.angleToMouse = a;
         p.bowTimer = 0.25;
+    },
+
+    // Zırh hasar türüne göre işler: kesici tam yer, delici yarısını, ezici üçte ikisini
+    afterArmor(dmgType, raw, def) {
+        let t = DMG_TYPES[dmgType] || DMG_TYPES.cut;
+        return Math.max(1, Math.round(raw * t.mult - (def || 0) * t.armor));
     },
 
     // Blok: saldırı kalkanın baktığı yaya denk gelirse kesilir (0 = tam blok)
@@ -3407,7 +3439,7 @@ const Battle = {
     dealMelee(src, tgt, raw) {
         let bf = this.blockFactor(tgt, src.x, src.y);
         if(bf === 0) return this.blockedFx(tgt, src.x, src.y);
-        let dmg = Math.max(1, Math.round(raw * bf) - (tgt.defense || 0));
+        let dmg = this.afterArmor(src.dmgType, raw * bf, tgt.defense);
         tgt.hp -= dmg;
         tgt.hitFlash = 0.18;
         let a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
@@ -3416,6 +3448,8 @@ const Battle = {
         this.spark(tgt.x, tgt.y, a, src.isPlayerTeam ? '#ffdd66' : '#ff8866');
         this.floatingTexts.push({ x: tgt.x, y: tgt.y - 12, text: `-${dmg}`, color: src.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8, big: src.id === 'player' });
         if(tgt.hp <= 0) {
+            // Ezici silah öldürmez, bayıltır — esir düşme şansı yükselir
+            if((DMG_TYPES[src.dmgType] || {}).knock) tgt.stunned = true;
             this.logKill(tgt, src);
             this.awardTroopXp(src.id);
         }
@@ -3510,7 +3544,7 @@ const Battle = {
                 if(d < u.radius + 2) {
                     let bf = this.blockFactor(u, proj.x - proj.vx, proj.y - proj.vy);
                     if(bf === 0) { this.blockedFx(u, proj.x - proj.vx, proj.y - proj.vy); hit = true; break; }
-                    let dmg = Math.max(1, Math.round(proj.damage * bf) - u.defense);
+                    let dmg = this.afterArmor(proj.dmgType, proj.damage * bf, u.defense);
                     u.hp -= dmg;
                     hit = true;
                     u.hitFlash = 0.15;
@@ -3712,7 +3746,8 @@ const Battle = {
                                 this.projectiles.push({
                                     x: u.x, y: u.y,
                                     vx: (dx/len) * arrowSpeed, vy: (dy/len) * arrowSpeed,
-                                    damage: uAttack, isPlayerTeam: u.isPlayerTeam, sourceId: u.id
+                                    damage: uAttack, dmgType: 'pierce',
+                                    isPlayerTeam: u.isPlayerTeam, sourceId: u.id
                                 });
                             }
                         }
@@ -3730,6 +3765,17 @@ const Battle = {
             if(closest) {
                 let meleeRange = 35;
                 let currentTargetDist = Math.sqrt(Math.pow(targetX - u.x, 2) + Math.pow(targetY - u.y, 2));
+                // Kalkanlı düşman vuruşlar arasında blok tutar (blok yeteneği savunmadan gelir).
+                // Aynı Battle.blockFactor kapısından geçer: yalnız önden gelen kesilir, oyuncu yandan dolaşabilir.
+                if(!u.beast && finalDist <= meleeRange + 15) {
+                    u.blockCd = (u.blockCd || 0) - dt;
+                    if(u.blockCd <= 0) {
+                        u.blockCd = 0.6 + Math.random() * 0.8;
+                        u.wantsBlock = Math.random() < Math.min(0.45, (u.defense || 0) / 40);
+                    }
+                    u.blocking = !!u.wantsBlock && u.atkCd > 0.2;   // savuracakken kalkanı indirir
+                    if(u.blocking) u.blockAngle = Math.atan2(closest.y - u.y, closest.x - u.x);
+                } else u.blocking = false;
                 if(currentTargetDist > meleeRange) {
                     // Hücum: hedefe yaklaşırken hızlanır, okçu kaçışını kapatır
                     let charge = currentTargetDist < 220 ? (u.charge || 1.3) : 1;
@@ -4303,7 +4349,9 @@ const Battle = {
         if(won && !this.isBossFight) {
             let free = Game.prisonerCapacity() - state.player.prisoners.length;
             this.units.forEach(u => {
-                if(u.isPlayerTeam || u.hp > 0 || u.beast || free <= 0 || Math.random() > 0.45) return;  // hayvan esir düşmez
+                // Hayvan esir düşmez; ezici silahla bayıltılan neredeyse kesin düşer
+                if(u.isPlayerTeam || u.hp > 0 || u.beast || free <= 0) return;
+                if(Math.random() > (u.stunned ? 0.9 : 0.45)) return;
                 state.player.prisoners.push({
                     id: 'pr_' + Math.random().toString(36).substr(2,7),
                     name: u.name || 'Çapulcu', level: u.level || 1, type: u.type
