@@ -47,23 +47,30 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
 - Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş `Game.getVisibility()` = `500 + (int−10)×30 + (Gözcülük−1)×25`, **gece ×0.7**. Aynı keşif `Game.markExplored()` ile 90×90 ızgaraya da işlenir (kayıt için); `Game.repaintFog()` / `loadExplored()` tuvali ızgaradan üretir.
 - Kamera: fare tekerleği zoom (0.4–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
+- **Rota çizgisi**: kalın sarı kesik yerine akan ince kesikli çizgi (gölge + altın kat),
+  hedefte nabız atan halka ve yön oku.
 - Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket. WASD/ok tuşları kamerayı oyuncuya kilitler.
 - **Grup ikonları** (Warband'daki gibi grubun neye benzediğini gösterir, `Game.drawPartyIcon`):
   atın varsa **atlı** silüeti (`drawRider`: at + eyer örtüsü + kalkık kılıç), yoksa mızraklı
   yaya (`drawFootman`: mızrak + kalkan + miğfer). Fraksiyon rengi eyer örtüsünde/kalkanda ve
   sancakta. Grup 10+ kişiyse arkada 1, 30+ kişiyse 2 figür daha çizilir — kalabalık uzaktan belli olur.
   Çapulcular her zaman yaya, soylular atlı; krala 👑, vezire 🎖️ eklenir.
+  İkon boyutu ordunun büyüklüğünü de yansıtır (`Game.partyIconScale`: 5 kişiden sonra kişi başı
+  +%0.7, tavan +%35).
 - **Günün vakti** (`Game.getDayPart()`): gece mavi tonlama + yerleşimlerde ocak ışığı,
   şafak/gün batımı sıcak ton, gündüz tonlamasız. Saat `state.time.hour`'dan gelir.
 - İsim etiketleri (`Game.mapLabel`) **zoom'dan bağımsız ekran boyutunda** çizilir ve
   üst üste binenler yukarı kaydırılır (`_labelRects` çakışma testi).
 
 ### Zaman & günlük döngü (`advanceTime` / `dailyUpdate`)
-Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken (veya esirken) akar (`dt * 2`).
+Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken (veya esirken) akar
+(`dt * Game.timeScale()`). Akış hızı oyuncuya bırakıldı: üst çubuktaki takvim rozetine tıklamak
+`state.timeScale`'i 0.5 → 1 → 2 arasında döndürür (varsayılan 1; eskiden sabit 2 idi, gün çok hızlı geçiyordu).
 
 **Harita hızı** (`getPlayerSpeed`, Warband'ın modeline yakın):
 `(temel + çeviklik×1.5) × (1 + grup bonusu + atlı oranı×0.35) × arazi × gece`.
-Temel atlıyken 105, yayayken 66. Atlı oranı = (süvari sayısı + atın varsa 1) / grup.
+Temel atlıyken 105, yayayken 66. **Grup bonusu**: tek başına +%50, 10 kişide +%20, 20 kişide 0,
+sonrası kişi başı −%1 (taban −%45) — kalabalık ordu ağır ilerler, atlı oranı bu cezayı hafifletir. Atlı oranı = (süvari sayısı + atın varsa 1) / grup.
 Arazi `getTerrainInfo()`'dan gelir (orman ×0.8, nehir ×0.5, yol ×1.1) ve künyede adıyla yazar.
 Gece (saat <6 veya ≥20) ×0.85.
 
@@ -92,9 +99,16 @@ zafer +5, yenilgi −15.
 
 ### Arayüz
 - **Sefer çubuğu** (`#top-bar`): gün + saat + günün vakti ikonu, dinar, nam, ardından
-  **çubuklu** rozetler — can, grup/kapasite, seviye/XP. Son rozet hızdır; üstüne gelince
+  **çubuklu** rozetler — can, grup/kapasite, moral, seviye/XP. Son rozet hızdır; üstüne gelince
   `#ui-speed-breakdown` kalem kalem döküm gösterir (temel / çeviklik / grup / atlı oranı /
   arazi / gece). Rozet ikonu atlıysan 🐎, yayaysan 🥾.
+- **Her rozette künye** (`Game.updateTips`, `.tooltip-container`): rozetin üstüne gelince o
+  değerin ne olduğu, neyden geldiği ve neyi etkilediği kalem kalem çıkar — takvim (akış hızı),
+  hazine (günlük maaş/yemek gideri, `Game.upkeep()`), nam (hangi kapı kaç namda açılır),
+  can (seviye + zırh payı), grup (kapasite dökümü + birlik dağılımı), moral (`Game.moraleTip`),
+  seviye (XP, bekleyen puanlar). Takvim rozeti aynı zamanda tıklanabilir (zaman akışı).
+- Karakter ekranındaki her yetenek satırı **şu anki etkisini sayıyla** yazar
+  (ör. "Görüş 615 birim", "Esir kapasitesi 8", "Savaş ganimeti +%12").
 - **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q` (`Input.init` içinde,
   modal veya savaş açıkken çalışmaz). `showScreen()` tıklanan butonu `data-view` ile aktifler.
 - **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
@@ -120,7 +134,11 @@ zafer +5, yenilgi −15.
 | `looting` | savaş ganimeti +%4/seviye |
 | `trainer` | her gün en tecrübesiz `lvl−1` askere +1 XP |
 - Seviye atlama: `xpNext *= 1.5`, +10 max HP, tam iyileşme.
-- Grup kapasitesi: `50 + (cha-10)*2 + (leadership-1)*3`.
+- Grup kapasitesi: `24 + (cha-10)*2 + (leadership-1)*3` (temel 50'den 24'e indi: ordu artık liderlikle büyür).
+
+### Başlangıç dengesi
+Başlangıç: **250 dinar**, grup kapasitesi 24, 1 kişilik grup. Erken oyunda her dinar bir karar;
+ordu liderlik/karizma ile büyür. Düşük seviyeli düşmandan alınan ödül `Battle.rewardScale` ile kısılır.
 
 ### Paralı asker
 Handa şehir başına 2 kalem, 3 günde bir tazelenen havuz (`state.mercPools`): hazır
@@ -253,8 +271,23 @@ Reddedilen lord 7–15 gün yeni görev vermez (`state.questCooldown`).
 Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
 
 ### Karşılaşma & savaş
-- Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
+- Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir.
+- **Kaçış menzili güç farkına bağlı** (`updateNPCs`): zayıf çete `360 + min(640, (bizim güç/onun gücü)×240)`
+  birimden seni fark edip kaçar. Eskiden `isHostile` false dönünce hiç kaçmıyor, dibine girene kadar dolaşıyordu. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
 - Karşılaşma modali: savaş / teslim ol. (İlk 14 günde çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.)
+  Hayvan sürüsüne teslim olunmaz: kurtlarda buton **"🏃 Kaçmayı Dene"** olur
+  (`Game.fleeEncounter`, şans = harita hızın/160, %15–85 arası).
+
+#### Düşman çeteleri (`BAND_KINDS`)
+Çapulcunun ötesinde çeşit var; her tür haritada kendi adı/rengiyle gezer (`npc.band`) ve savaşta
+kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** çıkar.
+
+| Çete | Savaş birimleri | Karakter |
+|---|---|---|
+| Çapulcular | Çapulcu / Çapulcu Okçu / Atlı Çapulcu + Çapulcu Reisi | dengeli, en zayıf |
+| Orman Haydutları | Haydut Okçusu (ağırlıklı) / Orman Haydudu + Haydut Başı | okçu ağırlıklı, hızlı |
+| Dağ Eşkıyaları | Dağ Eşkıyası / Eşkıya Nişancısı / Atlı Eşkıya + Eşkıya Reisi | zırhlı ve sert, 20. günden sonra doğar |
+| Kurt Sürüsü | Kurt / Yaşlı Kurt + Alfa Kurt | çok hızlı (104–112), `beast`: hücum ×1.6, esir düşmez, ganimeti az |
 - **Savaş**: 2D top-down canvas arena, prosedürel arazi (tepe / çukur / orman / nehir).
   - Arazi etkileri: ormanda okçu ×0.7 hasar & süvari ×0.6 hız, tepede okçu ×1.3 hasar, çukurda ×0.8 hız, nehirde ×0.7 hız.
   - Oyuncu: WASD hareket, sol tık/boşluk ile yay şeklinde kılıç savurma (300 ms).
@@ -266,20 +299,34 @@ Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
     Piyade `0.85–1.25` sn, okçu `1.4–1.7` sn.
   - Yakın dövüş hasarı tek yerden geçer: `Battle.dealMelee(src, tgt, raw)` — savunma düşer,
     geri tepme + kan + kıvılcım + uçan yazı üretir, öldürürse `logKill` + XP.
-  - Çapulcu çeşitliliği: %25 Çapulcu Okçu (hp20/atk6, archer), %10 Atlı Çapulcu (hp32/atk9/def2, cavalry),
-    kalanı düz Çapulcu (hp24/atk6/def0). Düşmanlar **gün sayısına göre ölçeklenir**
-    (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per seviye.
+  - Düşman karışımı çeteye göre (`BAND_KINDS`, yukarıdaki tablo). Düşmanlar **gün sayısına göre
+    ölçeklenir** (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per seviye.
+  - **Geçilemez kayalar** (`terrain.rocks`, 2–4 adet): birim içine giremez, sınır kontrolüyle
+    aynı yerde dışarı itilir. Doğum şeritlerine konmaz. *(Oklar kayanın üstünden geçer — siper değil.)*
   - Taktik emirleri: **1** takip, **2** hücum, **3** mevzi koru.
-  - Okçu AI: 250 birim menzil, çok yaklaşırsa geri çekilir, %50 ihtimalle hedefin hızına göre öndeleme yapar.
+  - Okçu AI: 250 birim menzil, %50 ihtimalle hedefin hızına göre öndeleme yapar.
+    **Kite dengesi**: geri çekilirken hızı ×0.55, menzile yürürken ×0.8; yakın dövüş birimleri
+    hedef 220 birimden yakınken **hücuma kalkar** (×1.3, kurtlar ×1.6). Eskiden okçu takipçisiyle
+    aynı hızda kaçtığı için risksiz vuruyordu — ölçüldü: 1v1'de kovalama 28.6 sn → 12 sn,
+    piyadenin kalan canı 24 → 31.
   - Süvari HP'si yarıya inince attan düşer (piyadeye döner, hız −30).
   - **Herkes arenaya kilitli** (12 birim kenar payı) — geri çekilen okçular haritadan kaçıp savaşı
     sonsuza kilitliyordu.
   - Oyuncu ölürse savaş bitmez: **bayılırsın** (`Battle.knockedOut`), adamların dövüşmeye devam eder.
     Böyle kazanılan savaşta dinar ve XP **yarıya iner**.
+  - **Performans**: hedef arama her karede tam tarama değil, birim başına 0.3–0.5 sn'de bir
+    (`u.tgtId` + kare başına bir kez kurulan `_byId` tablosu); parçacık tavanları
+    (kıvılcım 120, uçan yazı 40, kan lekesi 200). Ölçüldü: 121 birimlik savaşta
+    update 0.31 ms + render 1.25 ms (kare başına).
+  - **Görünürlük**: birimin emojisi koyu konturla, takım halkası dolgulu ve tam opak çizilir;
+    zemin pişirilirken üstüne `rgba(6,10,6,0.16)` karartma konur — birlikler çimin üstünde kayboluyordu.
   - Kan lekeleri, cesetler (max 60), kıvılcımlar, uçan hasar yazıları, iki taraflı öldürme logu,
     düşman komutanından rastgele hakaret repliği + ping animasyonu.
   - Teslim ol butonu her an açık.
-- **Zafer**: ganimet (düşman başına `10 + seviye×5`, ×0.85–1.15, Yağma yeteneğiyle çarpılır) + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
+- **Zafer**: ganimet (düşman başına `10 + seviye×5`, hayvanda `6 + seviye×3`, ×0.85–1.15, Yağma
+  yeteneğiyle çarpılır) + 3 nam + XP. **Ödül güç oranına göre kısılır** (`Battle.rewardScale`):
+  `clamp(0.2, 1, (düşman gücü / kendi gücün) × 1.6)` — çapulcu avı sonsuza dek kârlı değil,
+  zafer modalinde "Kolay av: ödüller %X'e indi" satırı çıkar. Boss savaşı muaf. silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
   NPC haritadan kaldırılır, oyuncunun savaş sonu canı `state`'e geri yazılır.
 - **Yenilgi**: tüm grup dağılır, paranın %60–90'ı gider, HP %30'a düşer, **esir düşülür**.
 - **Denge** (ölçülmüş, oyuncu göğüs göğüse dalarken): 5 acemi vs 5 çapulcu → 2–4 kayıpla zafer;

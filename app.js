@@ -162,15 +162,39 @@ const TROOP_TYPES = {};
 TROOP_TYPES['Acemi Asker'] = TROOP_TYPES['Svadya Köylüsü'];
 TROOP_UPGRADES['Acemi Asker'] = TROOP_UPGRADES['Svadya Köylüsü'];
 
+// Düşman çeteleri: haritadaki parti + savaştaki birim karışımı.
+// battle: [ad, tür, hp, hız, saldırı, savunma, pay] — pay = çıkma ağırlığı
+const BAND_KINDS = {
+    bandit:   { name: 'Çapulcular', color: '#8b0000', min: 5, max: 14, speedMult: 1,
+                lore: '"Ya paranı, ya canını!"',
+                battle: [['Çapulcu','infantry',24,52,6,0,6], ['Çapulcu Okçu','archer',20,50,6,0,2],
+                         ['Atlı Çapulcu','cavalry',32,88,9,2,1]],
+                leader: ['Çapulcu Reisi','infantry',52,60,13,4] },
+    forest:   { name: 'Orman Haydutları', color: '#2f6d3a', min: 6, max: 12, speedMult: 1.05,
+                lore: '"Ağaçların arasından bakan gözleri ancak ok uçarken fark edersin."',
+                battle: [['Haydut Okçusu','archer',24,54,8,1,6], ['Orman Haydudu','infantry',28,58,8,1,4]],
+                leader: ['Haydut Başı','archer',48,58,14,3] },
+    mountain: { name: 'Dağ Eşkıyaları', color: '#8a6a2f', min: 8, max: 16, speedMult: 0.95,
+                lore: '"Bu geçit bizim. Geçiş ücreti: her şeyin."',
+                battle: [['Dağ Eşkıyası','infantry',36,56,11,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
+                         ['Atlı Eşkıya','cavalry',44,92,13,5,2]],
+                leader: ['Eşkıya Reisi','infantry',75,62,18,7] },
+    wolf:     { name: 'Kurt Sürüsü', color: '#6b7280', min: 6, max: 14, speedMult: 1.25, beast: true,
+                lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
+                battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
+                leader: ['Alfa Kurt','infantry',55,112,15,2] }
+};
+
 // --- STATE ---
 const state = {
     npcParties: [],
+    timeScale: 1,            // zaman akışı çarpanı (üst çubuktaki takvim rozetinden 0.5/1/2)
     activeTournaments: {},   // { cityId: true }
     mercPools: {},           // { locId: { day, list:[{name, level, count}] } }
     encounterCooldown: 0,
     player: {
         name: 'Maceracı',
-        money: 500,
+        money: 250,
         renown: 0,
         rightToRule: 0,
         partyCapacity: 50,
@@ -385,11 +409,28 @@ const Game = {
         }
     },
 
+    // Haritadaki düşman çeşitleri: her biri savaşta farklı birim karışımı ve davranış
+    // (BAND_KINDS.battle -> Battle.start içindeki birim üretimi)
+    spawnBand(kind) {
+        let k = BAND_KINDS[kind];
+        let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
+        let npc = this.createNPC(k.name, 'bandit', size, k.color, null, 1);
+        npc.band = kind;
+        npc.speed = Math.round(npc.speed * (k.speedMult || 1));
+        state.npcParties.push(npc);
+        return npc;
+    },
+    // Gün ilerledikçe daha zorlu çeteler ortaya çıkar
+    randomBandKind() {
+        let pool = ['bandit', 'bandit', 'wolf', 'forest'];
+        if(state.time.day >= 20) pool.push('mountain');
+        return pool[Math.floor(Math.random() * pool.length)];
+    },
+
     spawnNPCs() {
-        for(let i = 0; i < 8; i++) {
-            let size = 5 + Math.floor(Math.random()*10);
-            state.npcParties.push(this.createNPC('Çapulcular', 'bandit', size, '#8b0000', null, 1));
-        }
+        for(let i = 0; i < 8; i++) this.spawnBand('bandit');
+        for(let i = 0; i < 3; i++) this.spawnBand('wolf');
+        for(let i = 0; i < 2; i++) this.spawnBand('forest');
         // Her soylunun haritada gezen kendi partisi var
         LORDS.forEach(l => {
             let size = l.rank === 'king' ? 100 : l.rank === 'vizier' ? 50 : 35;
@@ -507,7 +548,7 @@ const Game = {
     getPartyCapacity() {
         let cha = state.player.stats.cha || 10;
         let leadership = state.player.proficiencies.leadership ? state.player.proficiencies.leadership.level : 1;
-        return 50 + (cha - 10) * 2 + (leadership - 1) * 3;
+        return 24 + (cha - 10) * 2 + (leadership - 1) * 3;   // temel 24: ordu liderlikle büyür
     },
 
     getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
@@ -602,11 +643,13 @@ const Game = {
     },
 
     getPlayerSpeed() {
+        // Küçük grup çevik, kalabalık ordu ağır ilerler (atlı oranı cezayı hafifletir)
         let size = state.player.party.length + 1;
         let speedBonus = 0;
         if(size <= 1) speedBonus = 0.5;
         else if(size <= 10) speedBonus = 0.5 - ((size - 1) / 9) * 0.3;
-        else if(size <= 50) speedBonus = 0.2 - ((size - 10) / 40) * 0.2;
+        else if(size <= 20) speedBonus = 0.2 - ((size - 10) / 10) * 0.2;
+        else speedBonus = -Math.min(0.45, (size - 20) * 0.01);
 
         let base = state.player.equipment.horse ? 105 : 66;
         let agiBonus = state.player.stats.agi * 1.5;
@@ -674,7 +717,10 @@ const Game = {
             if(lastDefeatDaysAgo < 3) return `"Daha dünün dayak yemiş eziği gelmiş kafa tutuyor... Askerler, şunların işini bitirin!"`;
             return `"Kılıcımın tadına bakma vakti geldi. Teslim ol ya da öl!"`;
         } else if(type === 'bandit') {
+            let band = npc && npc.band ? BAND_KINDS[npc.band] : null;
+            if(band && band.beast) return band.lore;
             if(p.party.length > 50) return `"Aman abi, biz kendi halimizde garip çapulcularız... (Ama yine de saldırırlar!)"`;
+            if(band && band.lore && npc.band !== 'bandit') return band.lore;
             return `"Ya paranı, ya canını! Gerçi üstündekiler beş para etmez ama..."`;
         }
         return `"Sana nasıl yardım edebilirim?"`;
@@ -739,7 +785,7 @@ const Game = {
         }
 
         if (timeFlows) {
-            this.advanceTime(dt * 2);
+            this.advanceTime(dt * this.timeScale());
             this.updateNPCs(dt);
             if(state.encounterCooldown > 0) state.encounterCooldown -= dt;
         }
@@ -832,6 +878,21 @@ const Game = {
         }
     },
 
+    // Hayvan sürüsüne teslim olunmaz — hızın yeterse sıyrılırsın
+    fleeEncounter(npcId) {
+        let npc = state.npcParties.find(n => n.id === npcId);
+        this.closeModal();
+        let chance = Math.max(0.15, Math.min(0.85, this.getPlayerSpeed().value / 160));
+        if(Math.random() < chance) {
+            state.encounterCooldown = 6;
+            state.player.status = 'idle'; state.player.targetLocation = null;
+            alert(`Sürüyü geride bıraktın. (Kaçış şansı %${Math.round(chance*100)})`);
+        } else {
+            alert(`Kaçamadın, sürü yolunu kesti! (Kaçış şansı %${Math.round(chance*100)})`);
+            Battle.start(npc ? npc.name : 'Kurt Sürüsü', npc ? npc.size : 6);
+        }
+    },
+
     isHostile(npc) {
         let ps = state.player.party.length + 1;
         let dx = state.player.x - npc.x, dy = state.player.y - npc.y;
@@ -872,7 +933,12 @@ const Game = {
             // Esirken NPC'ler oyuncuyu hedef alıp kilitlenmez (böylece esir alan serbestçe dolaşır)
             let hostile = this.isHostile(npc) && state.player.status !== 'prisoner';
 
-            if(hostile && dp < 360) {
+            // Zayıf çete, güçlü orduyu uzaktan görüp kaçar; kovalayan yakından fark eder
+            let sense = npc.size > ps ? 360 : 360 + Math.min(640, (ps / Math.max(1, npc.size)) * 240);
+            // Kaçış artık düşmanlıktan bağımsız: çete zaten sana saldırmayacak kadar
+            // zayıfsa (isHostile false) eskiden hiç kaçmıyor, dolaşmaya devam ediyordu.
+            let notices = dp < sense && (hostile || npc.type === 'bandit');
+            if(notices && (npc.size > ps ? hostile : true)) {
                 if(npc.size > ps) {
                     npc.targetX = state.player.x; npc.targetY = state.player.y;
                 } else {
@@ -942,7 +1008,9 @@ const Game = {
             <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">Kaçış yok — savaş ya da teslim ol!</p>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
             <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Savaş!</button>
-            <button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">🏳️ Teslim Ol</button>
+            ${(BAND_KINDS[npc.band] || {}).beast
+                ? `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.fleeEncounter('${npc.id}')">🏃 Kaçmayı Dene</button>`
+                : `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">🏳️ Teslim Ol</button>`}
             </div>`;
         }
         this.showModal(html);
@@ -1017,6 +1085,15 @@ const Game = {
 
     dist(a, b) { return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); },
 
+    // Bir gün eskiden ~12 sn'de geçiyordu; varsayılan yarıya indi, oyuncu rozetten değiştirebilir
+    timeScale() { return state.timeScale || 1; },
+    cycleTimeScale() {
+        let steps = [0.5, 1, 2];
+        let i = steps.indexOf(this.timeScale());
+        state.timeScale = steps[(i + 1) % steps.length];
+        this.updateTopBar();
+    },
+
     advanceTime(hours) {
         state.time.hour += hours;
         while(state.time.hour >= 24) {
@@ -1072,21 +1149,10 @@ const Game = {
         // esaret sırasında da dönmeli. Eskiden esaret bloğu return ediyordu ve
         // nişanlıyken esir düşenin düğünü hiç kurulmuyordu.
         if(!state.player.prisoner) {
-            let totalWage = 0;
-            let foodRequiredLow = 0;
-            let foodRequiredHigh = 0;
-
-            state.player.party.forEach(t => {
-                if(t.isCompanion) { totalWage += 20; foodRequiredLow += 1; return; } // yoldaş pahalıdır
-                if(t.level >= 51) return; // Seviye 51 maaş ve yemek istemez
-                if(t.level >= 20 && t.level < 51) totalWage += Math.floor(t.level / 2);
-                else if(t.level < 20 && t.level >= 10) totalWage += 2;
-
-                if(t.level >= 20) foodRequiredLow += 1.5;
-                else foodRequiredLow += 1;
-
-                if(t.level >= 30) foodRequiredHigh += 1;
-            });
+            let up = this.upkeep();
+            let totalWage = up.wage;
+            let foodRequiredLow = up.foodLow;
+            let foodRequiredHigh = up.foodHigh;
 
             let paid = state.player.money >= totalWage;
             if(paid) state.player.money -= totalWage;
@@ -1184,8 +1250,8 @@ const Game = {
         Quests.dailyTick();
 
         // Çapulcu yeniden doğma
-        if(state.npcParties.filter(n=>n.type==='bandit').length < 5) {
-            state.npcParties.push(this.createNPC('Çapulcular','bandit', 5+Math.floor(Math.random()*10), '#8b0000'));
+        if(state.npcParties.filter(n=>n.type==='bandit').length < 10) {
+            this.spawnBand(this.randomBandKind());
         }
     },
 
@@ -1213,10 +1279,84 @@ const Game = {
         bar('bar-morale', this.morale());
 
         this.updateSpeedUI(this.getPlayerSpeed());
+        this.updateTips(cap);
         this.updateMapHud();
 
         let pi = document.getElementById('prisoner-icon');
         if(pi) pi.style.display = p.status === 'prisoner' ? 'block' : 'none';
+    },
+
+    // Üst çubuk künyeleri: her rozet neyi, ne kadar etkiliyor (setHtml sayesinde
+    // yalnızca metin değişince DOM'a yazılır)
+    tipRow(label, val, good) {
+        return `<div style="display:flex;justify-content:space-between;gap:1.2rem">
+            <span>${label}</span><span style="color:${good === null ? '#ddd' : good ? 'var(--success)' : 'var(--danger)'}">${val}</span></div>`;
+    },
+    tipBox(title, rows, note) {
+        return `<b style="font-family:Cinzel,serif">${title}</b>
+            <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">${rows}
+            ${note ? `<div style="color:var(--text-muted);font-size:0.8rem;margin-top:5px;max-width:270px">${note}</div>` : ''}`;
+    },
+    updateTips(cap) {
+        let p = state.player, R = (l, v, g) => this.tipRow(l, v, g);
+
+        this.setHtml('tip-time', this.tipBox('Sefer Takvimi',
+            R('Gün', p.quests && p.quests.length ? `${state.time.day}. gün` : state.time.day, null) +
+            R('Saat', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${this.getDayPart().name}`, null) +
+            R('Zaman akışı', '×' + this.timeScale(), null),
+            'Zaman yalnızca haritada, sen yol alırken işler. Gece yol alma hızı −%15, görüş ×0.7. Rozete tıkla → akış hızını değiştir.'));
+
+        let up = this.upkeep();
+        this.setHtml('tip-money', this.tipBox('Hazine',
+            R('Kesede', Math.floor(p.money) + ' dinar', null) +
+            R('Günlük asker maaşı', '-' + up.wage, false) +
+            R('Günlük yemek', `-${Math.ceil(up.foodLow)} birim${up.foodHigh ? ` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
+            (p.spouse ? R('Evlilik geliri', '+50', true) : ''),
+            'Maaş ödenmezse moral −25 düşer ve firar başlar. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.'));
+
+        this.setHtml('tip-renown', this.tipBox('Nam',
+            R('Namın', p.renown, null) +
+            R('Leydi salonu', '80 nam', p.renown >= 80) +
+            R('Kız isteme', '120 nam', p.renown >= 120) +
+            R('Şölen daveti', '150 nam', p.renown >= 150),
+            'Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.'));
+
+        this.setHtml('tip-hp', this.tipBox('Can',
+            R('Şu an', `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`, p.stats.hp > p.stats.maxHp * 0.4) +
+            R('Seviyeden', 50 + (p.stats.level - 1) * 10, true) +
+            (p.equipment.armor ? R(`Zırh (${p.equipment.armor.name})`, '+' + p.equipment.armor.armor, true) : R('Zırh', 'yok', false)),
+            'Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.'));
+
+        let comp = this.getPartyComposition();
+        let lead = this.profLvl('leadership');
+        this.setHtml('tip-party', this.tipBox('Grup',
+            R('Mevcut', `${p.party.length}/${cap}`, p.party.length <= cap) +
+            R('Temel kapasite', 24, null) +
+            R('Karizma', `+${(p.stats.cha - 10) * 2}`, p.stats.cha >= 10) +
+            R('İdare yeteneği', `+${(lead - 1) * 3}`, true) +
+            R('Dağılım', `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +
+            R('Atlı oranı', '%' + Math.round(this.getMountedRatio() * 100), null),
+            'Kapasiteyi aşarsan moral düşer. Kalabalık ordu haritada yavaş yol alır; atlı oranı bu cezayı hafifletir.'));
+
+        this.setHtml('tip-morale', this.moraleTip());
+
+        this.setHtml('tip-level', this.tipBox('Seviye',
+            R('Seviye', p.stats.level, null) +
+            R('Tecrübe', `${Math.floor(p.stats.xp)}/${p.stats.xpNext}`, null) +
+            R('Bekleyen nitelik puanı', p.stats.attributePoints || 0, (p.stats.attributePoints || 0) > 0) +
+            R('Bekleyen odak puanı', p.stats.focusPoints || 0, (p.stats.focusPoints || 0) > 0),
+            'Her seviye: +10 can, tam iyileşme, 2 nitelik + 3 odak puanı. Seninle boy ölçüşemeyecek düşmandan alınan tecrübe ve ganimet azalır.'));
+    },
+    // Moral künyesi: moraleHtml ile aynı kalemler, rozete sığan biçimde
+    moraleTip() {
+        let m = Math.round(this.morale());
+        let info = state.player.moraleInfo || {};
+        let rows = Object.keys(info).filter(k => info[k] !== 0)
+            .map(k => this.tipRow(k, (info[k] > 0 ? '+' : '') + info[k], info[k] > 0)).join('');
+        return this.tipBox(`Moral ${m}/100 — ${this.moraleLabel(m)}`,
+            (rows || '<i>Henüz hesaplanmadı (bir gün geçmeli).</i>') +
+            this.tipRow('Savaş gücü çarpanı', '×' + this.moraleMult().toFixed(2), this.moraleMult() >= 1),
+            'Moral tüm askerlerinin canını ve saldırısını ölçekler. 25\'in altında her gece asker firar eder. Hızlı düşer, yavaş toparlanır.');
     },
 
     // innerHTML her karede yeniden yazılmasın — sadece metin değiştiyse
@@ -1456,6 +1596,9 @@ const Game = {
      * Tam grup ikonu: gölge + arkadaki kolon + ön figür + sancak.
      * o = { mounted, size, color, scale, bob, dim }
      */
+    // Kalabalık ordu haritada da iri görünür (30 kişide ~+%20, 100'de tavan +%35)
+    partyIconScale(size) { return 1 + Math.min(0.35, Math.max(0, size - 5) * 0.007); },
+
     drawPartyIcon(ctx, x, y, o) {
         let sc = o.scale || 1;
         let cloak = o.dim ? '#3a3a42' : '#26262e';
@@ -1727,7 +1870,7 @@ const Game = {
                 mounted: npc.type !== 'bandit',
                 size: npc.size || 1,
                 color: nCol,
-                scale: npc.type === 'king' ? 1.15 : 1,
+                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1),
                 bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
                 dim: npc.type === 'bandit'
             });
@@ -1766,7 +1909,7 @@ const Game = {
                 mounted: !!state.player.equipment.horse,
                 size: state.player.party.length + 1,
                 color: '#ffcc00',
-                scale: 1.35,
+                scale: 1.35 * this.partyIconScale(state.player.party.length + 1),
                 bob: pIsMoving ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
             });
         }
@@ -1782,14 +1925,36 @@ const Game = {
             ctx.fillText(`⛓️ Esir (${state.player.prisoner.daysLeft}g)`, state.player.x, state.player.y + 54);
         }
 
-        // Target line
+        // Rota: hedefe akan ince kesikli çizgi + varış halkası + ok başı
         if(state.player.targetLocation && state.player.status === 'moving') {
-            ctx.beginPath();
-            ctx.moveTo(state.player.x, state.player.y);
-            ctx.lineTo(state.player.targetLocation.x, state.player.targetLocation.y);
-            ctx.strokeStyle = 'rgba(255,204,0,0.4)';
-            ctx.lineWidth = 12;
-            ctx.setLineDash([12,12]); ctx.stroke(); ctx.setLineDash([]);
+            let t = state.player.targetLocation;
+            let dx = t.x - state.player.x, dy = t.y - state.player.y;
+            let len = Math.sqrt(dx*dx + dy*dy) || 1;
+            let ang = Math.atan2(dy, dx);
+            let flow = (performance.now() / 60) % 26;
+
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 6;
+            ctx.setLineDash([16, 10]); ctx.lineDashOffset = -flow;
+            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(255,214,102,0.85)'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Varış noktası: nabız atan halka + yön oku
+            let pr = 14 + Math.sin(performance.now()/300) * 3;
+            ctx.strokeStyle = 'rgba(255,214,102,0.9)'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.arc(t.x, t.y, pr, 0, Math.PI*2); ctx.stroke();
+
+            if(len > 60) {
+                ctx.translate(t.x - Math.cos(ang)*26, t.y - Math.sin(ang)*26);
+                ctx.rotate(ang);
+                ctx.fillStyle = 'rgba(255,214,102,0.95)';
+                ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-8,-8); ctx.lineTo(-8,8); ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
         }
 
         // Lordlardan öğrenilen konum işaretleri
@@ -2346,22 +2511,24 @@ const Game = {
         </div>`;
 
         let fp = s.focusPoints || 0;
+        // Her yetenek ne yapıyor + şu anki değeri (geri bildirim: etkiler görünmüyordu)
+        const L = id => this.profLvl(id);
         let profs = [
-            { id: 'oneHanded', name: 'Tek Elli Silahlar' },
-            { id: 'twoHanded', name: 'Çift Elli Silahlar' },
-            { id: 'polearm', name: 'Göndergeli Silahlar' },
-            { id: 'bow', name: 'Okçuluk' },
-            { id: 'riding', name: 'Binicilik' },
-            { id: 'athletics', name: 'Atletizm' },
-            { id: 'leadership', name: 'Liderlik' },
-            { id: 'persuasion', name: 'İkna Kabiliyeti' },
-            { id: 'surgery', name: 'Cerrahlık' },
-            { id: 'prisonerMgmt', name: 'Esir Yönetimi' },
-            { id: 'pathfinding', name: 'Yol Bulma' },
-            { id: 'spotting', name: 'Gözcülük' },
-            { id: 'trade', name: 'Ticaret' },
-            { id: 'looting', name: 'Yağma' },
-            { id: 'trainer', name: 'Eğitim' }
+            { id: 'oneHanded', name: 'Tek Elli Silahlar', d: l => `Kılıç hasarı ×${(0.35 + Math.min(0.4, l*4*0.004)).toFixed(2)}` },
+            { id: 'twoHanded', name: 'Çift Elli Silahlar', d: l => `Çift elli silah hasarı ×${(0.35 + Math.min(0.4, l*4*0.004)).toFixed(2)}` },
+            { id: 'polearm', name: 'Göndergeli Silahlar', d: l => `Mızrak/balta hasarı ×${(0.35 + Math.min(0.4, l*4*0.004)).toFixed(2)}` },
+            { id: 'bow', name: 'Okçuluk', d: () => 'Yay hasarını artırır' },
+            { id: 'riding', name: 'Binicilik', d: () => 'Atlıyken savaş alanı hızın' },
+            { id: 'athletics', name: 'Atletizm', d: () => 'Yayayken savaş alanı hızın' },
+            { id: 'leadership', name: 'Liderlik', d: l => `Grup kapasitesi +${(L('leadership')-1)*3}, moral +${(L('leadership')-1)*3}` },
+            { id: 'persuasion', name: 'İkna Kabiliyeti', d: () => 'Drahoma pazarlığı ve diyalog seçenekleri' },
+            { id: 'surgery', name: 'Cerrahlık', d: () => `Ölen askerin yaralı kurtulma şansı %${Math.round(Math.min(0.75, 0.35 + L('surgery')*0.03)*100)}` },
+            { id: 'prisonerMgmt', name: 'Esir Yönetimi', d: () => `Esir kapasitesi ${this.prisonerCapacity()}, kaçış şansı %${Math.max(1, 6 - L('prisonerMgmt')*0.5).toFixed(1)}` },
+            { id: 'pathfinding', name: 'Yol Bulma', d: () => `Harita hızı +%${((L('pathfinding')-1)*2).toFixed(0)}` },
+            { id: 'spotting', name: 'Gözcülük', d: () => `Görüş ${Math.round(this.getVisibility())} birim` },
+            { id: 'trade', name: 'Ticaret', d: () => `Alışta indirim / satışta prim %${Math.round(Math.min(0.25, (L('trade')-1)*0.02)*100)}` },
+            { id: 'looting', name: 'Yağma', d: () => `Savaş ganimeti +%${((L('looting')-1)*4).toFixed(0)}` },
+            { id: 'trainer', name: 'Eğitim', d: () => `Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${fp} Odak Puanı Dağıtılabilir)</span>` : ''}</h3>
@@ -2376,6 +2543,7 @@ const Game = {
             profHtml += `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;width:48%;display:flex;justify-content:space-between;align-items:center;">
                 <div style="flex:1">
                     <div style="font-weight:bold">${pr.name} (Seviye ${pData.level})</div>
+                    <div style="font-size:0.75rem;color:#cbb26b">${pr.d(pData.level)}</div>
                     <div style="font-size:0.75rem;color:var(--text-muted)">Öğrenme Hızı: x${mult} | Odak: ${pData.focus||0}/5</div>
                     <div style="background:rgba(0,0,0,0.5);border-radius:2px;height:4px;margin-top:4px;width:90%;">
                         <div style="background:var(--primary);height:100%;width:${fill}%;"></div>
@@ -2539,6 +2707,20 @@ const Game = {
         p.moraleInfo = parts;
         let t = Object.keys(parts).reduce((a, k) => a + parts[k], 0);
         return Math.max(0, Math.min(100, t));
+    },
+
+    // Günlük gider: maaş + yemek. dailyUpdate ve üst çubuk künyesi aynı hesabı kullanır.
+    upkeep() {
+        let wage = 0, foodLow = 0, foodHigh = 0;
+        state.player.party.forEach(t => {
+            if(t.isCompanion) { wage += 20; foodLow += 1; return; } // yoldaş pahalıdır
+            if(t.level >= 51) return;                               // efsanevi bedava
+            if(t.level >= 20) wage += Math.floor(t.level / 2);
+            else if(t.level >= 10) wage += 2;
+            foodLow += t.level >= 20 ? 1.5 : 1;
+            if(t.level >= 30) foodHigh += 1;
+        });
+        return { wage, foodLow, foodHigh };
     },
 
     // 0 morali de doğru okumak için: (p.morale || 50) sıfırı 50 sayıyordu
@@ -2917,6 +3099,16 @@ const Battle = {
         for(let i=0; i<2+Math.random()*3; i++) {
             this.terrain.forests.push({ x: Math.random()*W, y: Math.random()*H, r: 60+Math.random()*60 });
         }
+        // Geçilemez kayalar — mevzi almayı ve taktik çeşitliliğini artırır.
+        // Doğum şeritlerine (kenarlardan 150 birim) konmaz.
+        this.terrain.rocks = [];
+        for(let i=0; i<2+Math.random()*3; i++) {
+            this.terrain.rocks.push({
+                x: 150 + Math.random()*Math.max(1, W-300),
+                y: 40 + Math.random()*Math.max(1, H-80),
+                r: 18 + Math.random()*20
+            });
+        }
         
         // 50% ihtimalle nehir olsun (rastgele dikey veya yatay kesen şerit)
         if(Math.random() > 0.5) {
@@ -2961,17 +3153,28 @@ const Battle = {
             });
         });
 
-        // Enemies (Bandits vs Faction Lords vs Boss)
-        let isBandit = enemyName.toLowerCase().includes('çapulcu');
+        // Enemies (Bands vs Faction Lords vs Boss)
+        let npc = state.npcParties.find(n => n.id === state.player.currentEncounterNpcId);
+        let bandKey = (npc && npc.band) || (Object.keys(BAND_KINDS).find(k => BAND_KINDS[k].name === enemyName));
+        let band = BAND_KINDS[bandKey];
+        let isBandit = !!band;
         for(let i=0; i<enemyCount; i++) {
             let name = 'Çapulcu';
             let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
 
             if(!bossLevel && isBandit) {
-                // Çapulcu çeşitliliği — düz piyade duvarı yerine okçu/atlı karışımı
-                let br = Math.random();
-                if(br < 0.25) { name = 'Çapulcu Okçu'; hp = 20; speed = 50; attack = 6; defense = 0; type = 'archer'; color = '#ff7744'; }
-                else if(br < 0.35) { name = 'Atlı Çapulcu'; hp = 32; speed = 88; attack = 9; defense = 2; type = 'cavalry'; color = '#ff5522'; radius = 7; }
+                // Çete karışımı: her türün kendi birimleri; kalabalık çetenin başında reis olur
+                let row;
+                if(i === 0 && enemyCount >= 6 && band.leader) {
+                    row = band.leader;
+                } else {
+                    let total = band.battle.reduce((a2, r) => a2 + r[6], 0);
+                    let roll = Math.random() * total;
+                    row = band.battle.find(r => (roll -= r[6]) <= 0) || band.battle[0];
+                }
+                name = row[0]; type = row[1]; hp = row[2]; speed = row[3]; attack = row[4]; defense = row[5];
+                radius = type === 'cavalry' ? 7 : 5;
+                color = band.beast ? '#c9b6a0' : type === 'archer' ? '#ff7744' : type === 'cavalry' ? '#ff5522' : '#ff4444';
             }
             
             if(bossLevel) {
@@ -3016,6 +3219,8 @@ const Battle = {
 
             this.units.push({
                 id: 'enemy_'+i, isPlayerTeam: false, name: name,
+                beast: !!(band && band.beast),
+                charge: (band && band.beast) ? 1.6 : 1.3,   // kurtlar atılarak saldırır
                 hp: hp, maxHp: hp,
                 x: startEnemyX + Math.random()*80, y: 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense,
@@ -3258,6 +3463,10 @@ const Battle = {
             sp.vy += 120 * dt; sp.life -= dt;
         });
         this.sparks = this.sparks.filter(sp => sp.life > 0);
+        // Kalabalık savaşta parçacık seli FPS'i düşürüyordu
+        if(this.sparks.length > 120) this.sparks.splice(0, this.sparks.length - 120);
+        if(this.floatingTexts.length > 40) this.floatingTexts.splice(0, this.floatingTexts.length - 40);
+        if(this.bloodStains.length > 200) this.bloodStains.splice(0, this.bloodStains.length - 200);
         this.units.forEach(u => { if(u.hitFlash > 0) u.hitFlash -= dt; });
 
         // Battle pings
@@ -3265,6 +3474,10 @@ const Battle = {
             this.battlePings.forEach(p => p.life -= dt);
             this.battlePings = this.battlePings.filter(p => p.life > 0);
         }
+
+        // id -> birim tablosu (hedef aramaları bunun üstünden çalışır)
+        this._byId = {};
+        this.units.forEach(u => { this._byId[u.id] = u; });
 
         // Units movement & action update
         this.units.forEach(u => {
@@ -3338,13 +3551,22 @@ const Battle = {
 
             // Terrain effects already calculated above
 
-            // Find closest enemy
-            let closest = null, minD = Infinity;
-            this.units.forEach(e => {
-                if(e.hp<=0 || e.isPlayerTeam === u.isPlayerTeam) return;
-                let d = Math.sqrt(Math.pow(e.x-u.x,2)+Math.pow(e.y-u.y,2));
-                if(d < minD) { minD = d; closest = e; }
-            });
+            // Hedef arama eskiden her karede tam taramaydı (kalabalıkta O(n²) ve FPS düşüşü).
+            // Hedef 0.3 sn'de bir yenilenir, aradaki karelerde mesafe id ile bulunan hedeften ölçülür.
+            u.retargetCd = (u.retargetCd || 0) - dt;
+            let closest = u.tgtId ? this._byId[u.tgtId] : null;
+            if(closest && closest.hp <= 0) closest = null;
+            if(!closest || u.retargetCd <= 0) {
+                let minD2 = Infinity;
+                this.units.forEach(e => {
+                    if(e.hp<=0 || e.isPlayerTeam === u.isPlayerTeam) return;
+                    let dx = e.x-u.x, dy = e.y-u.y, d2 = dx*dx + dy*dy;
+                    if(d2 < minD2) { minD2 = d2; closest = e; }
+                });
+                u.tgtId = closest ? closest.id : null;
+                u.retargetCd = 0.3 + Math.random()*0.2;
+            }
+            let minD = closest ? Math.sqrt(Math.pow(closest.x-u.x,2)+Math.pow(closest.y-u.y,2)) : Infinity;
 
             // Target coordinates based on command
             let targetX = closest ? closest.x : u.x;
@@ -3369,10 +3591,13 @@ const Battle = {
             if(u.type === 'archer') {
                 if(closest) {
                     if(finalDist < 250) {
-                        if(finalDist < 40) {
+                        if(finalDist < 55) {
+                            // Yayı bırakıp geri çekilirken ağırlaşır — eskiden yakın dövüşçüyle
+                            // aynı hızda kaçtığı için sonsuza dek risksiz vuruyordu
                             let dx = u.x - closest.x, dy = u.y - closest.y;
-                            let len = Math.sqrt(dx*dx + dy*dy);
-                            u.vx = (dx/len)*uSpeed; u.vy = (dy/len)*uSpeed;
+                            let len = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+                            let rs = uSpeed * 0.55;
+                            u.vx = (dx/len)*rs; u.vy = (dy/len)*rs;
                             u.x += u.vx*dt; u.y += u.vy*dt;
                         } else {
                             if(u.atkCd <= 0) {
@@ -3395,7 +3620,7 @@ const Battle = {
                         }
                     } else {
                         let dx = closest.x-u.x, dy = closest.y-u.y;
-                        let r = Math.min(uSpeed*dt/finalDist, 1);
+                        let r = Math.min(uSpeed*0.8*dt/finalDist, 1);   // okçu yürüyerek yaklaşır
                         u.vx = dx*r/dt; u.vy = dy*r/dt;
                         u.x += dx*r; u.y += dy*r;
                     }
@@ -3408,8 +3633,10 @@ const Battle = {
                 let meleeRange = 35;
                 let currentTargetDist = Math.sqrt(Math.pow(targetX - u.x, 2) + Math.pow(targetY - u.y, 2));
                 if(currentTargetDist > meleeRange) {
+                    // Hücum: hedefe yaklaşırken hızlanır, okçu kaçışını kapatır
+                    let charge = currentTargetDist < 220 ? (u.charge || 1.3) : 1;
                     let dx = targetX-u.x, dy = targetY-u.y;
-                    let r = Math.min(uSpeed*dt/Math.max(1, currentTargetDist), 1);
+                    let r = Math.min(uSpeed*charge*dt/Math.max(1, currentTargetDist), 1);
                     u.vx = dx*r/dt; u.vy = dy*r/dt;
                     u.x += dx*r; u.y += dy*r;
                 } else if(finalDist <= meleeRange) {
@@ -3423,10 +3650,18 @@ const Battle = {
 
         // Kimse arenadan çıkamaz — geri çekilen okçular haritadan kaçıp savaşı kilitliyordu
         let bw = this.canvas.width, bh = this.canvas.height;
+        let rocks = (this.terrain && this.terrain.rocks) || [];
         this.units.forEach(u => {
             if(u.hp <= 0) return;
             u.x = Math.max(12, Math.min(bw - 12, u.x));
             u.y = Math.max(12, Math.min(bh - 12, u.y));
+            // Kayalar geçilmez: içine giren dışarı itilir.
+            // ponytail: oklar kayanın üstünden geçer — engel siperi yok, sadece hareket engeli.
+            rocks.forEach(k => {
+                let dx = u.x - k.x, dy = u.y - k.y;
+                let d = Math.sqrt(dx*dx + dy*dy), min = k.r + u.radius;
+                if(d < min && d > 0.01) { u.x = k.x + dx/d*min; u.y = k.y + dy/d*min; }
+            });
         });
 
         this.checkEnd();
@@ -3508,7 +3743,29 @@ const Battle = {
             trees.sort((a,b) => a.y - b.y).forEach(t => this.drawTree(c, t.x, t.y, t.r));
         });
 
+        (T.rocks||[]).forEach(k => this.drawRock(c, k.x, k.y, k.r));
+
+        // Hafif karartma: birimler zeminin üstünde daha okunur dursun
+        c.fillStyle = 'rgba(6,10,6,0.16)';
+        c.fillRect(0, 0, W, H);
+
         this.ground = g;
+    },
+
+    drawRock(c, x, y, r) {
+        c.fillStyle = 'rgba(0,0,0,0.45)';
+        c.beginPath(); c.ellipse(x + r*0.2, y + r*0.5, r*1.05, r*0.45, 0, 0, Math.PI*2); c.fill();
+        let rg = c.createRadialGradient(x - r*0.4, y - r*0.5, r*0.15, x, y, r*1.1);
+        rg.addColorStop(0, '#9aa0a6'); rg.addColorStop(0.6, '#5e646a'); rg.addColorStop(1, '#33383d');
+        c.fillStyle = rg;
+        c.beginPath();
+        for(let i = 0; i < 8; i++) {
+            let a2 = i / 8 * Math.PI * 2, rr = r * (0.82 + ((i * 37) % 11) / 40);
+            let px = x + Math.cos(a2)*rr, py = y + Math.sin(a2)*rr*0.8;
+            i ? c.lineTo(px, py) : c.moveTo(px, py);
+        }
+        c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(20,22,24,0.8)'; c.lineWidth = 2; c.stroke();
     },
 
     drawTree(c, x, y, r) {
@@ -3651,6 +3908,7 @@ const Battle = {
         let isPlayer = u.id === 'player';
         let icon = '💂';
         if(isPlayer) icon = state.player.equipment.horse ? '🐴' : '🧑‍🌾';
+        else if(u.beast) icon = '🐺';
         else if(u.type === 'archer') icon = '🏹';
         else if(u.type === 'cavalry') icon = '🐎';
 
@@ -3660,15 +3918,16 @@ const Battle = {
         let sway = isMoving ? Math.sin(now/150 + offset) * 0.15 : 0;
         let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
 
-        // Yer gölgesi + takım halkası
+        // Yer gölgesi + takım halkası (zeminde silik kalmasın diye dolgulu ve tam opak)
         ctx.beginPath();
-        ctx.ellipse(u.x, u.y + 9, 11, 5, 0, 0, Math.PI*2);
-        ctx.fillStyle = `rgba(0,0,0,${0.35 - hop*0.03})`; ctx.fill();
+        ctx.ellipse(u.x, u.y + 9, 12, 5.5, 0, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(0,0,0,${0.5 - hop*0.03})`; ctx.fill();
 
         ctx.beginPath();
         ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
-        ctx.strokeStyle = ring; ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
+        ctx.fill();
+        ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
 
         if(isPlayer) {
             let pulse = 1 + Math.sin(now/300)*0.12;
@@ -3687,6 +3946,9 @@ const Battle = {
         ctx.rotate(sway);
         ctx.font = '22px Arial';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        // Koyu kontur: emoji zeminin üstünde kaybolmasın
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+        ctx.strokeText(icon, 0, 0);
         ctx.fillText(icon, 0, 0);
 
         if(u.level >= 5) {
@@ -3853,6 +4115,14 @@ const Battle = {
         else if(!eAlive) { this.active=false; this.endBattle(true); }
     },
 
+    // Seninle boy ölçüşemeyecek düşman doyurmaz: ganimet ve tecrübe güç oranına göre kısılır
+    rewardScale() {
+        let ep = this.units.filter(u => !u.isPlayerTeam).reduce((a, u) => a + (u.level || 1) + 1, 0);
+        let pp = state.player.stats.level +
+                 state.player.party.reduce((a, t) => a + (t.level || 1) + 1, 0);
+        return Math.max(0.2, Math.min(1, (ep / Math.max(1, pp)) * 1.6));
+    },
+
     endBattle(won) {
         this.canvas.removeEventListener('mousedown', this.clickHandler);
         window.removeEventListener('keydown', this.commandListener);
@@ -3894,7 +4164,7 @@ const Battle = {
         if(won && !this.isBossFight) {
             let free = Game.prisonerCapacity() - state.player.prisoners.length;
             this.units.forEach(u => {
-                if(u.isPlayerTeam || u.hp > 0 || free <= 0 || Math.random() > 0.45) return;
+                if(u.isPlayerTeam || u.hp > 0 || u.beast || free <= 0 || Math.random() > 0.45) return;  // hayvan esir düşmez
                 state.player.prisoners.push({
                     id: 'pr_' + Math.random().toString(36).substr(2,7),
                     name: u.name || 'Çapulcu', level: u.level || 1, type: u.type
@@ -3909,8 +4179,13 @@ const Battle = {
             // Ganimet düşmanın sayısı ve seviyesiyle ölçeklenir — eskiden
             // 5 çapulcu ile 100 kişilik ordu aynı parayı getiriyordu.
             let loot = this.units.filter(u => !u.isPlayerTeam)
-                .reduce((a, u) => a + 10 + (u.level || 1) * 5, 0);
+                .reduce((a, u) => a + (u.beast ? 6 : 10) + (u.level || 1) * (u.beast ? 3 : 5), 0);  // post yağması daha az eder
             let moneyGain = Math.floor(loot * (0.85 + Math.random()*0.3) * (1 + (Game.profLvl('looting') - 1) * 0.04));
+
+            // Çapulcu avı sonsuza dek kârlı olmasın
+            let rScale = this.isBossFight ? 1 : this.rewardScale();
+            moneyGain = Math.max(1, Math.floor(moneyGain * rScale));
+            xpGain = Math.max(1, Math.floor(xpGain * rScale));
 
             // Bayılıp adamlarının sırtından kazanılan zafer yarım zaferdir
             if(this.knockedOut) {
@@ -3986,6 +4261,7 @@ const Battle = {
             <div style="text-align:center;">
                 <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.knockedOut ? '🩸 Pahalı Zafer' : '⚔️ Mükemmel Zafer! ⚔️'}</h2>
                 ${this.knockedOut ? '<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>' : ''}
+                ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.</p>` : ''}
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Dinar:</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Şan/Nam:</b> <span style="color:#3498db">+3</span> 👑</p>

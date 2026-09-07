@@ -712,3 +712,9 @@ body {
     min-width: min(450px, 88vw);
     padding: 2rem;
 }
+
+/* --- Geri bildirim #33: üst çubuk künyeleri (her rozetin ne olduğu ve etkisi) --- */
+#top-bar .hud-chip.tooltip-container { cursor: help; }
+#top-bar #chip-time { cursor: pointer; }
+#top-bar .tooltip-content { max-width: 320px; }
+#chip-time .tooltip-content { left: 0; transform: none; }
