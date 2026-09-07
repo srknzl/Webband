@@ -3606,11 +3606,12 @@ const TournamentMinigame = {
 // olduğu için bu yeterli; kaydedilemeyen tek şey canvas/loop referansları.
 const Save = {
     KEY: 'webband_save_v1',
+    V: 1,
 
     save() {
         try {
             localStorage.setItem(this.KEY, JSON.stringify({
-                v: 1, savedAt: Date.now(),
+                v: this.V, savedAt: Date.now(),
                 state: { ...state },
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
@@ -3631,9 +3632,10 @@ const Save = {
         let d;
         try { d = JSON.parse(raw); } catch(e) { return alert('Kayıt bozuk.'); }
 
+        if(d.v > this.V) return alert('Bu kayıt oyunun daha yeni bir sürümünden; yüklenemiyor.');
+
         if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
-        Object.keys(state).forEach(k => { if(!(k in d.state)) delete state[k]; });
-        Object.assign(state, d.state);
+        this.mergeInto(state, d.state);
 
         let legacyLocs = false;
         (d.locations || []).forEach(sl => {
@@ -3656,6 +3658,20 @@ const Save = {
         Game.renderPrisonerUI();
         Game.startGameLoop();
         alert(`Kayıt yüklendi. Gün ${state.time.day}. (Keşfedilen harita sıfırlandı — sis yeniden çöktü.)`);
+    },
+
+    // Kayıtta olmayan anahtar varsayılan değerinde kalır. Eskiden state'te olup
+    // kayıtta olmayan her anahtar siliniyordu: sürüm ilerledikçe eklenen alanlar
+    // (örneğin state.rivals) eski kayıt yüklenince yok oluyor, o alanları okuyan
+    // sistemler undefined üzerinde patlıyordu. Düz objeler anahtar anahtar
+    // birleşir, diziler ve ilkel değerler kayıttan olduğu gibi gelir.
+    mergeInto(target, src) {
+        for(let k in src) {
+            let sv = src[k], tv = target[k];
+            let plain = (o) => o && typeof o === 'object' && !Array.isArray(o);
+            if(plain(sv) && plain(tv)) this.mergeInto(tv, sv);
+            else target[k] = sv;
+        }
     },
 
     wipe() {
