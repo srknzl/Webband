@@ -158,6 +158,8 @@ const state = {
         currentSiege: null,
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
+        morale: 60,      // parti morali 0-100
+        moraleInfo: {},  // son moral hesabının kalemleri (grup ekranında gösterilir)
         prisoners: [],   // ele geçirilen esirler: { id, name, level, type } | soylu: { id, name, noble, lordId, faction, ransom }
         quests: [],
         poems: [],
@@ -1025,11 +1027,8 @@ const Game = {
                 if(t.level >= 30) foodRequiredHigh += 1;
             });
 
-            if(state.player.money >= totalWage) state.player.money -= totalWage;
-            else {
-                alert("Maaşları ödeyemedin! Askerlerin morali çok düşük.");
-                // İleride firar eklenebilir
-            }
+            let paid = state.player.money >= totalWage;
+            if(paid) state.player.money -= totalWage;
 
             // Yemek Tüketimi
             let lowQualityFoods = ['wheat', 'bread'];
@@ -1057,7 +1056,10 @@ const Game = {
             }
 
             // Kalan yemek ihtiyacı düşük kalite ile de karşılanabilir
-            consumeFood([...lowQualityFoods, ...highQualityFoods], Math.ceil(foodRequiredLow - foodRequiredHigh + missingHighQuality));
+            let missingLow = consumeFood([...lowQualityFoods, ...highQualityFoods], Math.ceil(foodRequiredLow - foodRequiredHigh + missingHighQuality));
+
+            // Maaş ve açlığın karşılığı artık moralde
+            this.updateMorale(paid, missingLow > 0);
 
             let p = state.player.stats;
             p.hp = Math.min(p.maxHp, p.hp + 5);
@@ -1136,6 +1138,8 @@ const Game = {
         bar('bar-hp', p.stats.hp / p.stats.maxHp * 100);
         bar('bar-party', p.party.length / cap * 100);
         bar('bar-xp', p.stats.xp / p.stats.xpNext * 100);
+        set('ui-morale', Math.round(this.morale()));
+        bar('bar-morale', this.morale());
 
         this.updateSpeedUI(this.getPlayerSpeed());
         this.updateMapHud();
@@ -2272,11 +2276,75 @@ const Game = {
             }
             html += '</ul>';
         }
+        html += this.moraleHtml();
         html += this.prisonersHtml();
         document.getElementById('party-list').innerHTML = html;
     },
     // Efsanevi öneki yalnızca ekranda görünür, veride ad temiz kalır
     troopLabel(t) { return (t.legendary ? 'Efsanevi ' : '') + t.name; },
+
+    // --- MORAL ---
+    // Warband'ın moral sistemi: yemek çeşidi, maaş, idare ve kalabalık grubun
+    // bir arada durmasını belirler. Moral düşünce asker firar eder, savaşta
+    // bütün birlik zayıflar.
+    moraleTarget(paid, hungry) {
+        let p = state.player;
+        let foods = ['wheat','bread','meat','cheese'].filter(id => p.inventory.some(i => i.id === id && i.qty > 0)).length;
+        let over = Math.max(0, p.party.length - this.getPartyCapacity());
+        let lead = (p.proficiencies.leadership || { level: 1 }).level;
+        let parts = {
+            'Temel': 50,
+            'İdare yeteneği': (lead - 1) * 3,
+            'Yemek çeşidi': foods * 5,
+            'Açlık': hungry ? -30 : 0,
+            'Ödenmeyen maaş': paid ? 0 : -25,
+            'Kapasite aşımı': -over * 2
+        };
+        p.moraleInfo = parts;
+        let t = Object.keys(parts).reduce((a, k) => a + parts[k], 0);
+        return Math.max(0, Math.min(100, t));
+    },
+
+    // 0 morali de doğru okumak için: (p.morale || 50) sıfırı 50 sayıyordu
+    morale() { return typeof state.player.morale === 'number' ? state.player.morale : 60; },
+
+    updateMorale(paid, hungry) {
+        let p = state.player;
+        p.morale = this.morale();
+        let t = this.moraleTarget(paid, hungry);
+        // Moral hızlı düşer, yavaş toparlanır
+        p.morale = Math.max(0, Math.min(100, p.morale + Math.max(-10, Math.min(4, t - p.morale))));
+
+        if(p.morale < 25 && p.party.length > 0) {
+            let n = Math.min(p.party.length, 1 + Math.floor((25 - p.morale) / 8));
+            // ponytail: en son katılanlar ilk firar eder; rastgele seçim bir şey katmıyor
+            let gone = p.party.splice(p.party.length - n, n);
+            alert(`Moral çöktü! ${gone.length} asker gece kamptan kaçtı. (Moral ${Math.round(p.morale)})`);
+        }
+    },
+
+    moraleLabel(m) {
+        if(m >= 80) return '<span style="color:#2ecc71">Coşkulu</span>';
+        if(m >= 60) return '<span style="color:#8ecf5a">Yüksek</span>';
+        if(m >= 40) return '<span style="color:#ccc">Normal</span>';
+        if(m >= 25) return '<span style="color:#e59b3d">Düşük</span>';
+        return '<span style="color:#e74c3c">Çökmüş</span>';
+    },
+
+    // Moral savaşta bütün birliğin gücünü ölçekler (0 -> x0.8, 50 -> x1.0, 100 -> x1.2)
+    moraleMult() { return 0.8 + this.morale() / 250; },
+
+    moraleHtml() {
+        let m = Math.round(this.morale());
+        let info = state.player.moraleInfo || {};
+        let rows = Object.keys(info).filter(k => info[k] !== 0)
+            .map(k => `<div style="display:flex;justify-content:space-between"><span>${k}</span><span style="color:${info[k] > 0 ? '#2ecc71' : '#e74c3c'}">${info[k] > 0 ? '+' : ''}${info[k]}</span></div>`).join('');
+        return `<h3 style="color:var(--primary);margin-top:1.5rem">🎺 Moral ${m}/100 — ${this.moraleLabel(m)}</h3>
+            <div style="background:rgba(0,0,0,0.25);padding:0.8rem;border-radius:6px;font-size:0.85rem;line-height:1.6">
+            ${rows || '<i>Henüz hesaplanmadı (bir gün geçmeli).</i>'}
+            <div style="color:var(--text-muted);margin-top:0.4rem">Savaş gücü çarpanı: ×${this.moraleMult().toFixed(2)}${m < 25 ? ' · <span style="color:#e74c3c">firar başladı!</span>' : ''}</div>
+            </div>`;
+    },
 
     // --- ESİRLER ---
     // Kapasite Esir Yönetimi yeteneğine bağlı; soylu esirler de yer kaplar.
@@ -2645,7 +2713,7 @@ const Battle = {
             let typeInfo = TROOP_TYPES[p.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
             let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
             let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
-            let debuff = p.debuff ? 0.7 : 1;
+            let debuff = (p.debuff ? 0.7 : 1) * Game.moraleMult();
 
             this.units.push({
                 id: p.id, isPlayerTeam: true,
@@ -3642,6 +3710,7 @@ const Battle = {
             
             state.player.money += moneyGain;
             state.player.renown += 3;
+            state.player.morale = Math.min(100, Game.morale() + 5);
             state.player.stats.xp += xpGain;
 
             let enemyCount = this.units.filter(u => !u.isPlayerTeam).length;
@@ -3714,6 +3783,8 @@ const Battle = {
             let ratio = 0.60 + Math.random() * 0.30;
             let moneyLost = Math.floor(state.player.money * ratio);
             state.player.money = Math.max(0, state.player.money - moneyLost);
+
+            state.player.morale = Math.max(0, Game.morale() - 15);
 
             // Askerler dağılır, esirler zincirlerinden kurtulur
             state.player.party = [];

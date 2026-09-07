@@ -70,6 +70,7 @@ Gece (saat <6 veya ≥20) ×0.85.
 Her gün:
 - Asker maaşı (lvl 10–19: 2, lvl 20+: `level/2`, lvl 51: bedava)
 - Yemek tüketimi — düşük kalite (tahıl/ekmek) ve yüksek kalite (et/peynir). Lvl 30+ askerler yüksek kalite alamazsa `debuff` yer (savaşta ×0.7).
+- Moral yeniden hesaplanır (`Game.updateMorale`)
 - Oyuncu +5 HP
 - Köy gönüllüleri yenilenir (köy max 5; şehirler 2 günde bir 4–8)
 - Krallar/vezirler zamanla güçlenir (kral 90 günde lvl 20 / 110 asker, vezir lvl 10 / 50 asker)
@@ -78,6 +79,16 @@ Her gün:
 - `Nobles.dailyTick()` — konum işaretlerini eskitir, rakip taliplerin ilgisini artırır, evlilik geliri, düğün günü kontrolü
 - `Feast.dailyTick()` — süresi dolan şöleni kapatır, planlanmış/kendiliğinden şöleni başlatır
 - `Quests.dailyTick()` — görevlerin `day()` kancası ve süre kontrolü
+
+### Moral
+`state.player.morale` (0–100, başlangıç 60). Günlük hedef `Game.moraleTarget()`:
+`50 + (idare−1)×3 + yemek çeşidi×5 − açlık 30 − ödenmeyen maaş 25 − kapasite aşımı×2`.
+Moral hedefe doğru gider ama **hızlı düşer, yavaş toparlanır** (−10 / +4 gün başına);
+zafer +5, yenilgi −15.
+- Moral < 25 → her gün `1 + (25−moral)/8` asker **firar eder** (en son katılanlar).
+- Savaşta bütün oyuncu askerlerinin can ve saldırısı `Game.moraleMult()` = `0.8 + moral/250`
+  ile çarpılır (moral 0 → ×0.8, 50 → ×1.0, 100 → ×1.2).
+- Üst çubukta 🎺 rozeti, grup ekranında kalem kalem döküm (`Game.moraleHtml`).
 
 ### Arayüz
 - **Sefer çubuğu** (`#top-bar`): gün + saat + günün vakti ikonu, dinar, nam, ardından

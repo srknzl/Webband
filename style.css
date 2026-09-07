@@ -548,6 +548,7 @@ body {
 .fill-hp    { background: linear-gradient(90deg, #7d2020, #e05353); }
 .fill-party { background: linear-gradient(90deg, #2b5f7a, #59b6e0); }
 .fill-xp    { background: linear-gradient(90deg, #8a6a1c, #f0cd5c); }
+.fill-morale{ background: linear-gradient(90deg, #7a4a12, #e59b3d); }
 .hud-sep { width: 1px; align-self: stretch; margin: 0 0.2rem; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.35), transparent); }
 #chip-time .hud-col { min-width: 62px; }
 #chip-speed { cursor: help; }
