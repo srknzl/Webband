@@ -45,6 +45,15 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
 - Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
 - Yollar: tüm yerleşimleri bağlayan minimum spanning tree (`state.roads`).
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
+- **Orman oynanışa etki eder**: ormandaki düşman normal görüşle görünmez
+  (`Game.spotRange(npc)` = görüş × `min(0.9, 0.25 + Gözcülük×3% + Yol Bulma×2%)`; temel
+  yeteneklerle 500 → 125 birim). Render, künye ve tıklama tek `Game.canSee(npc)` kontrolünden
+  geçer. Kurt sürüsü ormandayken 700 birimden oyuncuya kilitlenip **×1.6 hızla fırlar**.
+- **Pusu** (`Game.checkAmbush`, saniyede bir zar): ormanda ilerlerken 240 birim içindeki
+  gizli çete üstüne atlar. Fark etme şansı `min(0.9, 0.2 + Gözcülük×6% + Yol Bulma×4%)` —
+  fark edersen normal karşılaşma (yeşil uyarı), fark edemezsen `state.ambush` açılır:
+  `Battle.start` oyuncuyu arenanın ortasına koyar ve düşmanı 130–240 birimlik **çember**
+  hâlinde doğurur (normalde 470–530 birim uzakta, tek şeritte).
 - Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş `Game.getVisibility()` = `500 + (int−10)×30 + (Gözcülük−1)×25`, **gece ×0.7**. Aynı keşif `Game.markExplored()` ile 90×90 ızgaraya da işlenir (kayıt için); `Game.repaintFog()` / `loadExplored()` tuvali ızgaradan üretir.
 - Kamera: fare tekerleği zoom (0.4–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
 - **Rota çizgisi**: kalın sarı kesik yerine akan ince kesikli çizgi (gölge + altın kat),
@@ -61,8 +70,11 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
   mızraklı yaya, orman haydudu **yaylı** yaya (`drawFootman(..., bow)`), kurt sürüsü **kurt**
   silüeti (`Game.drawWolf`, sancak taşımaz). Halka ve sancak rengi de çetenin kendi rengidir —
   hepsi aynı kırmızıyla çizilmez.
-- **Günün vakti** (`Game.getDayPart()`): gece mavi tonlama + yerleşimlerde ocak ışığı,
-  şafak/gün batımı sıcak ton, gündüz tonlamasız. Saat `state.time.hour`'dan gelir.
+- **Günün vakti**: `Game.getDayPart()` yalnızca ad/ikon verir (Gece / Şafak / Sabah / Öğle /
+  İkindi / Gün Batımı). Harita tonu **kademelidir**: `Game.dayTint()` `DAY_TINTS` anahtar
+  saatleri arasında rgba'yı lineer geçirir, `Game.nightGlow()` yerleşimlerdeki ocak ışığını
+  akşam 19–21 arası açar, şafakta 5–7 arası kapatır. *(Eskiden ton saat 5/8/17/20'de
+  bir karede sıçrıyordu.)*
 - İsim etiketleri (`Game.mapLabel`) **zoom'dan bağımsız ekran boyutunda** çizilir ve
   üst üste binenler yukarı kaydırılır (`_labelRects` çakışma testi).
 - **Harita künyesi** (`handleMapHover` → `#map-tooltip`): yerleşimin üstüne gelince

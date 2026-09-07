@@ -660,6 +660,16 @@ const Game = {
         p.morale = Math.max(0, this.morale() - 1);
     },
 
+    // Ormandaki av gözden kaçar: ağaçların arasındaki çete normal görüşle değil,
+    // ancak yakınına sokulunca ya da iz sürerek (Gözcülük / Yol Bulma) fark edilir.
+    spotRange(npc) {
+        let vis = this.getVisibility();
+        if(this.getTerrainInfo(npc.x, npc.y).name !== 'Orman') return vis;
+        let track = (this.profLvl('spotting') - 1) * 0.03 + (this.profLvl('pathfinding') - 1) * 0.02;
+        return vis * Math.min(0.9, 0.25 + track);
+    },
+    canSee(npc) { return this.dist(npc, state.player) <= this.spotRange(npc); },
+
     getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
 
     // Arazi hem hız çarpanını hem de künyede yazacak adı verir — tek kaynak
@@ -741,14 +751,49 @@ const Game = {
 
     isNight() { let h = state.time.hour; return h < 6 || h >= 20; },
 
-    // Günün vakti: harita tonlaması + saat rozeti
+    // Günün vakti: yalnızca ad/ikon (saat rozeti). Harita tonu ayrı ve kademeli
+    // hesaplanır — bkz. dayTint()/nightGlow().
     getDayPart() {
         let h = state.time.hour;
-        if(h < 5)  return { key: 'night', name: 'Gece',       icon: '🌙', tint: 'rgba(12,20,52,0.44)' };
-        if(h < 8)  return { key: 'dawn',  name: 'Şafak',      icon: '🌅', tint: 'rgba(90,52,30,0.26)' };
-        if(h < 17) return { key: 'day',   name: 'Gündüz',     icon: '🌞', tint: null };
-        if(h < 20) return { key: 'dusk',  name: 'Gün Batımı', icon: '🌇', tint: 'rgba(112,54,22,0.30)' };
-        return { key: 'night', name: 'Gece', icon: '🌙', tint: 'rgba(12,20,52,0.44)' };
+        if(h < 5)  return { key: 'night',   name: 'Gece',       icon: '🌙' };
+        if(h < 8)  return { key: 'dawn',    name: 'Şafak',      icon: '🌅' };
+        if(h < 11) return { key: 'morning', name: 'Sabah',      icon: '🌄' };
+        if(h < 15) return { key: 'day',     name: 'Öğle',       icon: '🌞' };
+        if(h < 18) return { key: 'noon',    name: 'İkindi',     icon: '🌇' };
+        if(h < 20) return { key: 'dusk',    name: 'Gün Batımı', icon: '🌆' };
+        return { key: 'night', name: 'Gece', icon: '🌙' };
+    },
+
+    // Harita tonu saat başında sıçramaz: anahtar saatler arasında lineer geçer.
+    // [saat, r, g, b, alfa]
+    DAY_TINTS: [
+        [0,   12, 20, 52, 0.46],
+        [4,   12, 20, 52, 0.42],
+        [6,   74, 44, 34, 0.30],   // şafak sökerken sıcak ton
+        [9,    0,  0,  0, 0.00],   // sabah aydınlığı
+        [16,   0,  0,  0, 0.00],   // ikindiye kadar tonsuz
+        [19, 112, 54, 22, 0.30],   // gün batımı
+        [21,  30, 34, 70, 0.38],   // akşam karanlığı
+        [24,  12, 20, 52, 0.46]
+    ],
+    dayTint() {
+        let h = ((state.time.hour % 24) + 24) % 24, k = this.DAY_TINTS;
+        let i = 0;
+        while(i < k.length - 2 && h >= k[i + 1][0]) i++;
+        let a = k[i], b = k[i + 1];
+        let t = (h - a[0]) / (b[0] - a[0]);
+        let v = j => a[j] + (b[j] - a[j]) * t;
+        let alpha = v(4);
+        if(alpha < 0.015) return null;
+        return `rgba(${Math.round(v(1))},${Math.round(v(2))},${Math.round(v(3))},${alpha.toFixed(3)})`;
+    },
+    // Yerleşimlerdeki ocak ışığı da anahtarla yanıp sönmez, akşam yavaşça güçlenir
+    nightGlow() {
+        let h = ((state.time.hour % 24) + 24) % 24;
+        if(h >= 21 || h < 5) return 1;
+        if(h < 7)  return (7 - h) / 2;
+        if(h > 19) return (h - 19) / 2;
+        return 0;
     },
 
     getPlayerSpeed() {
@@ -972,6 +1017,8 @@ const Game = {
             this.markExplored(state.player.x, state.player.y, vis);
         }
 
+        if(timeFlows) this.checkAmbush(dt);
+
         // NPC -> player collision
         if(timeFlows && state.encounterCooldown <= 0) {
             for(let npc of state.npcParties) {
@@ -986,6 +1033,30 @@ const Game = {
                 }
             }
         }
+    },
+
+    // Ormanda pusu: ağaçların arasında gizlenmiş çete/sürü sen yaklaşınca üstüne atlar.
+    // Fark etme şansı Gözcülük + Yol Bulma'ya bağlı; fark edersen normal karşılaşma olur,
+    // fark edemezsen savaşa etrafın sarılmış hâlde başlarsın.
+    checkAmbush(dt) {
+        if(state.player.prisoner || state.encounterCooldown > 0) return;
+        if(this.getTerrainInfo(state.player.x, state.player.y).name !== 'Orman') return;
+        this._ambushCd = (this._ambushCd || 0) - dt;
+        if(this._ambushCd > 0) return;
+        this._ambushCd = 1;   // saniyede bir zar atmak yeter
+
+        let lurker = state.npcParties.find(n => n.type === 'bandit'
+            && this.dist(n, state.player) < 240
+            && this.getTerrainInfo(n.x, n.y).name === 'Orman');
+        if(!lurker) return;
+
+        let notice = Math.min(0.9, 0.2 + (this.profLvl('spotting') - 1) * 0.06
+                                       + (this.profLvl('pathfinding') - 1) * 0.04);
+        let spotted = Math.random() < notice;
+        this.addProficiencyXp('spotting', 25);
+        state.player.status = 'idle';
+        state.player.targetLocation = null;
+        this.triggerEncounter(lurker, spotted ? 'spotted' : 'ambush');
     },
 
     // Hayvan sürüsüne teslim olunmaz — hızın yeterse sıyrılırsın
@@ -1077,10 +1148,19 @@ const Game = {
                 }
             }
 
+            // Kurtlar ağaçların arasından fırlar: ormandaki sürü seni uzaktan sezer
+            // ve üstüne atılır (gizlendiği için sen onu ancak dibinde görürsün).
+            let burst = 1;
+            if((BAND_KINDS[npc.band] || {}).beast && dp < 700 && state.player.status !== 'prisoner'
+               && this.getTerrainInfo(npc.x, npc.y).name === 'Orman') {
+                npc.targetX = state.player.x; npc.targetY = state.player.y;
+                burst = 1.6;
+            }
+
             let dx = npc.targetX - npc.x, dy = npc.targetY - npc.y;
             let d = Math.sqrt(dx*dx+dy*dy);
             if(d > 3) {
-                let spd = npc.speed * this.getTerrainMultiplier(npc.x, npc.y);
+                let spd = npc.speed * this.getTerrainMultiplier(npc.x, npc.y) * burst;
                 let r = Math.min(spd * dt / d, 1);
                 npc.x += dx*r; npc.y += dy*r;
             }
@@ -1088,8 +1168,9 @@ const Game = {
         });
     },
 
-    triggerEncounter(npc) {
+    triggerEncounter(npc, ambush) {
         state.encounterCooldown = 2;
+        state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
         state.player.currentEncounterNpcId = npc.id;
 
         // Düşman olmayan bir soyluya rastladıysak bu bir sohbet fırsatı, savaş değil
@@ -1101,11 +1182,21 @@ const Game = {
 
         let dialog = this.getHumorousDialog(npc.type, npc);
 
-        let html = `<h3>⚔️ Karşılaşma: ${npc.name}</h3>
+        let html = `<h3>${ambush === 'ambush' ? '🌲 Pusu!' : '⚔️ Karşılaşma:'} ${npc.name}</h3>
         <p style="margin-top:0.5rem;">Düşman grup büyüklüğü: <b>${npc.size}</b> kişi</p>
         <p>Senin grubun: <b>${state.player.party.length + 1}</b> kişi</p>`;
 
-        if(npc.type === 'bandit' && state.time.day <= 14 && Math.random() < 0.25) {
+        if(ambush === 'ambush') {
+            // Fark edemedin: savaş etrafın sarılmış hâlde başlar (Battle.start okur)
+            state.ambush = true;
+            html += `<p style="color:#e0463a;margin-top:0.5rem">Ağaçların arasından üstünüze
+                     atladılar — kaçacak yer yok, adamların dağılmış durumda!</p>`;
+        } else if(ambush === 'spotted') {
+            html += `<p style="color:#2ecc71;margin-top:0.5rem">Kırılan dalı duydun: pusuyu
+                     zamanında fark ettin, seni saramadılar.</p>`;
+        }
+
+        if(!ambush && npc.type === 'bandit' && state.time.day <= 14 && Math.random() < 0.25) {
             dialog = `"Şu çaylağa bak patron, kılıcımızı kirletmeye değmez. Yürü git buradan çömez!"`;
             html += `<p><i>${dialog}</i></p>
             <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">Çapulcular seninle savaşmaya değmeyeceğini düşünüyor.</p>
@@ -2050,21 +2141,22 @@ const Game = {
 
         // --- GÜNÜN VAKTİ ---
         // Gece mavi, şafak/gün batımı sıcak ton. Gece yerleşimlerde ocak ışığı yanar.
-        let dayPart = this.getDayPart();
-        if(dayPart.tint) {
-            ctx.fillStyle = dayPart.tint;
+        let tint = this.dayTint();
+        if(tint) {
+            ctx.fillStyle = tint;
             ctx.fillRect(-1000, -1000, 11000, 11000);
-            if(dayPart.key === 'night') {
-                ctx.globalCompositeOperation = 'lighter';
-                LOCATIONS.forEach(loc => {
-                    let g = ctx.createRadialGradient(loc.x, loc.y, 0, loc.x, loc.y, 110);
-                    g.addColorStop(0, 'rgba(255,170,70,0.30)');
-                    g.addColorStop(1, 'rgba(255,140,50,0)');
-                    ctx.fillStyle = g;
-                    ctx.beginPath(); ctx.arc(loc.x, loc.y, 110, 0, Math.PI*2); ctx.fill();
-                });
-                ctx.globalCompositeOperation = 'source-over';
-            }
+        }
+        let glow = this.nightGlow();
+        if(glow > 0.02) {
+            ctx.globalCompositeOperation = 'lighter';
+            LOCATIONS.forEach(loc => {
+                let g = ctx.createRadialGradient(loc.x, loc.y, 0, loc.x, loc.y, 110);
+                g.addColorStop(0, `rgba(255,170,70,${(0.30 * glow).toFixed(3)})`);
+                g.addColorStop(1, 'rgba(255,140,50,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath(); ctx.arc(loc.x, loc.y, 110, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.globalCompositeOperation = 'source-over';
         }
 
         // FOG OF WAR çizimi
@@ -2105,7 +2197,7 @@ const Game = {
             let dx = npc.x - state.player.x;
             let dy = npc.y - state.player.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > vis + 45) return; // Görüş dışıysa çizme
+            if(dist > this.spotRange(npc) + 45) return; // Görüş dışıysa (ya da ormanda gizliyse) çizme
 
             let nf = FACTIONS[npc.faction] || {};
             let band = BAND_KINDS[npc.band] || null;
@@ -2224,7 +2316,7 @@ const Game = {
         }
         if(!found) {
             for(let npc of state.npcParties) {
-                if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= this.getVisibility()) {
+                if(this.dist(npc,{x:mx,y:my}) < 30 && this.canSee(npc)) {
                     found = { name: npc.name, sub: this.npcTipHtml(npc) };
                     break;
                 }
@@ -2256,7 +2348,7 @@ const Game = {
             }
         }
         for(let npc of state.npcParties) {
-            if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= this.getVisibility()) {
+            if(this.dist(npc,{x:mx,y:my}) < 30 && this.canSee(npc)) {
                 state.player.targetLocation = { ...npc, isNpc: true };
                 state.player.status = 'moving';
                 return;
@@ -3500,9 +3592,12 @@ const Battle = {
         this.grass = null;
         this.currentCommand = 'charge';
         this.cmdSlots = []; this.battleTime = 0;
+        // Pusu (Game.checkAmbush): fark edemediğin çete seni ortada yakalar
+        this.ambushed = !!state.ambush; state.ambush = false;
         this.active = true;
 
-        let startPlayerX = enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80;
+        // Pusuda oyuncu kenarda değil, arenanın ortasında yakalanır (çember için şart)
+        let startPlayerX = this.ambushed ? W/2 : (enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80);
         let startEnemyX = enemyCount < 30 ? W/2 + 100 + Math.random()*100 : W - 160;
 
         // Procedural Terrain Generation
@@ -3649,13 +3744,19 @@ const Battle = {
                 beast: !!(band && band.beast),
                 charge: (band && band.beast) ? 1.6 : 1.3,   // kurtlar atılarak saldırır
                 hp: hp, maxHp: hp,
-                x: startEnemyX + Math.random()*80, y: 50 + Math.random()*(H-100),
+                // Pusuda düşman tek şeritten değil, oyuncunun etrafındaki çemberden doğar
+                x: this.ambushed ? Math.max(20, Math.min(W-20, startPlayerX + Math.cos(i*2.4)*(130+Math.random()*110)))
+                                 : startEnemyX + Math.random()*80,
+                y: this.ambushed ? Math.max(20, Math.min(H-20, H/2 + Math.sin(i*2.4)*(130+Math.random()*110)))
+                                 : 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense,
                 type: type, color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
             });
         }
 
-        document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>Savaş Başladı!</b><br>WASD hareket · Sol tık saldırı<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
+        document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
+            + (this.ambushed ? 'Pusuya Düştün! Etrafın sarıldı.' : 'Savaş Başladı!')
+            + '</b><br>WASD hareket · Sol tık saldırı<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
         document.getElementById('battle-log-right').innerHTML = '';
 
         setTimeout(() => {
