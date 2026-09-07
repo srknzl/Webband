@@ -133,7 +133,26 @@ zafer +5, yenilgi −15.
   karede çağrıldığı için gereksiz DOM yazımını önler.
 
 ### Karakter
-- Nitelikler: **Güç** (yakın dövüş hasarı, turnuvada hedef süresi), **Çeviklik** (harita hızı +1.5, savaş hızı +0.5, turnuvada hedef boyutu), **Zeka** (görüş +30), **Karizma** (grup kapasitesi +2). Seviye başına 2 puan.
+- Nitelikler **hedef/efektif** çalışır (`Game.ATTRS`). Puan vermek `stats.<k>` **hedefini** yükseltir;
+  gerçekten işleyen değer `stats.eff.<k>`'dir ve o niteliğe uygun oynadıkça hedefe yaklaşır.
+  Okuma her yerde `Game.attr(k)` üzerinden — `stats.str` doğrudan okunmaz.
+  `Game.trainAttr(k, w)`: kazanç `w × ATTR_RATE × (0.25 + fark)` — fark büyükken hızlı, hedefe
+  yaklaşırken yavaş; 0.25 tabanı olmasa hedefe hiç ulaşılmazdı. Seviye başına **1** puan.
+
+| Nitelik | Etkisi | Neyle gelişir (`w`) |
+|---|---|---|
+| 💪 Güç | yakın dövüş saldırısı, turnuvada hedef süresi | isabetli vuruş (0.15) |
+| 🏃 Çeviklik | harita hızı +1.5, savaş hızı +0.5, turnuva hedef boyutu | yol katetmek (mesafe/1500) |
+| 🧠 Zekâ | görüş +30 | görev almak (1) / bitirmek (2) |
+| 👑 Liderlik *(eski Karizma)* | grup kapasitesi +3 | kalabalık yönetmek (günlük grup/20) |
+| 🫀 Dirayet | max can +5, can yenilenme hızı | savaşta hasar yemek (hasar/60) + günlük 0.1 |
+
+  Ölçüldü (`ATTR_RATE = 0.08`): 5 puanlık farkı kapatmak ~37 eylem — çeviklikte ~11 harita
+  geçişi, güçte ~8 savaş, liderlikte ~37 gün, zekâda ~12 görev.
+- **Can yenilenmesi** günde +5 sıçraması değil, `Game.regenTick()` ile **saatte 1 can**;
+  aralık Dirayet'e bağlı (`hpRegenHours()` = `max(1, 8 − (vit−10)/2)`; vit 10 → 8 saat, vit 20 → 3 saat).
+  Üst sınır maxHp. Esarette de işler.
+- Yetenek adı çakışmasın diye `leadership` **yeteneği** artık "İdare", nitelik "Liderlik".
 - Yetenekler (Bannerlord tarzı odak sistemi). Her seviyede 3 odak puanı; odak XP çarpanını `0.5 + focus` yapar (max 5 odak).
 
 | Yetenek | Etkisi |

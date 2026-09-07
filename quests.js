@@ -525,6 +525,7 @@ const Quests = {
         state.pendingQuest = null;
         if(state.questOffers) delete state.questOffers[q.giverId];
         state.player.quests.push(q);
+        Game.trainAttr('int', 1);   // görev almak zekâyı geliştirir
         Game.closeModal();
         alert(`Görev kabul edildi: ${QUESTS[q.id].title}\nSüre: ${QUESTS[q.id].days} gün.`);
     },
@@ -574,6 +575,7 @@ const Quests = {
         let g = this.giver(q.giverId);
         if(!g.isGuild) Nobles.addRel(q.giverId, def.reward.rel);
         if(def.onDone) def.onDone(q);
+        Game.trainAttr('int', 2);   // görev bitirmek zekâyı geliştirir
 
         if(q.dowryFor && state.dowryOffer && state.dowryOffer.ladyId === q.dowryFor) {
             state.dowryOffer.amount = Math.max(500, Math.round(state.dowryOffer.amount * 0.5 / 50) * 50);

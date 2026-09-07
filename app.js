@@ -218,7 +218,10 @@ const state = {
         targetLocation: null,
         status: 'idle',
         speed: 50,
-        stats: { level:1, xp:0, xpNext:100, hp:50, maxHp:50, str:10, agi:10, int:10, cha:10, attributePoints: 5 },
+        // str/agi/int/cha/vit HEDEF değerdir; puan dağıtınca hedef büyür.
+        // eff.* efektif (gerçekten işleyen) değerdir, ilgili eylemi yaptıkça hedefe yaklaşır.
+        stats: { level:1, xp:0, xpNext:100, hp:50, maxHp:50, str:10, agi:10, int:10, cha:10, vit:10,
+                 eff: { str:10, agi:10, int:10, cha:10, vit:10 }, attributePoints: 5 },
         proficiencies: {
             oneHanded: { level: 1, xp: 0, next: 100, focus: 0 },
             twoHanded: { level: 1, xp: 0, next: 100, focus: 0 },
@@ -584,16 +587,63 @@ const Game = {
     },
 
     // --- UPDATE ---
+    // --- NİTELİKLER: hedef / efektif ---
+    // Puan vermek niteliği anında açmaz; bir HEDEF koyar. Efektif değer o
+    // niteliğe uygun oynadıkça hedefe yaklaşır: çeviklik yol katederek, güç
+    // kılıç sallayarak, zekâ konuşarak, liderlik kalabalık yöneterek,
+    // dirayet dayak yiyerek. Fark büyükken hızlı, hedefe yaklaşırken yavaş.
+    ATTRS: {
+        str: { name: 'Güç',      icon: '💪', how: 'Yakın dövüşte isabetli vuruş' },
+        agi: { name: 'Çeviklik', icon: '🏃', how: 'Haritada yol katetmek' },
+        int: { name: 'Zekâ',     icon: '🧠', how: 'Soylularla konuşmak, görev almak' },
+        cha: { name: 'Liderlik', icon: '👑', how: 'Kalabalık bir grubu yönetmek' },
+        vit: { name: 'Dirayet',  icon: '🫀', how: 'Savaşta hasar yemek ve ayakta kalmak' }
+    },
+    // Ölçüldü: 5 puanlık farkı kapatmak ~38 "kayda değer eylem" alıyor —
+    // çeviklikte ~11 harita geçişi, güçte ~8 savaş, liderlikte ~38 gün.
+    ATTR_RATE: 0.08,
+
+    // Efektif değer. Eski kayıtta eff yoksa hedefe eşitlenir (geriye dönük).
+    attr(k) {
+        let s = state.player.stats;
+        if(!s.eff) s.eff = {};
+        if(s.eff[k] === undefined) s.eff[k] = s[k] || 10;
+        return s.eff[k];
+    },
+    attrInt(k) { return Math.floor(this.attr(k)); },
+
+    // w: eylemin ağırlığı (1 ≈ "kayda değer bir eylem").
+    trainAttr(k, w) {
+        let s = state.player.stats;
+        let cur = this.attr(k), gap = (s[k] || 10) - cur;
+        if(gap <= 0) { s.eff[k] = s[k] || 10; return; }
+        // 0.25 tabanı olmasa hedefe asla ulaşılmazdı (fark küçüldükçe kazanç 0'a giderdi).
+        s.eff[k] = Math.min(s[k], cur + w * this.ATTR_RATE * (0.25 + gap));
+    },
+
+    // Dirayet: can yenilenmesi 5'lik sıçramalarla değil, saatte 1 can adımlarıyla.
+    hpRegenHours() { return Math.max(1, 8 - Math.floor((this.attr('vit') - 10) / 2)); },
+
     // Yeni karakter 12 kişiyle sınırlı; ordu nitelik, yetenek VE namla büyür.
     // Nam da sayılır çünkü kalabalık asker tanınmış bir komutanın peşinden gider.
     getPartyCapacity() {
-        let cha = state.player.stats.cha || 10;
+        let cha = this.attr('cha');
         let leadership = state.player.proficiencies.leadership ? state.player.proficiencies.leadership.level : 1;
         return 12 + (cha - 10) * 3 + (leadership - 1) * 4 + Math.floor((state.player.renown || 0) / 40);
     },
 
     // Ödenmemiş maaş her saat 1 moral götürür ve borç birikir. Para geldiği anda
     // otomatik ödenir; sayaç ancak borç tamamen kapanınca sıfırlanır.
+    // Can 5'lik sıçramalarla değil, Dirayet'in belirlediği aralıkta 1'er dolar.
+    // Üst sınır açık: maxHp. Esaretteyken de işler, hücrede de iyileşirsin.
+    regenTick() {
+        let s2 = state.player.stats;
+        s2.regenAcc = (s2.regenAcc || 0) + 1;
+        if(s2.regenAcc < this.hpRegenHours()) return;
+        s2.regenAcc = 0;
+        if(s2.hp < s2.maxHp) s2.hp = Math.min(s2.maxHp, s2.hp + 1);
+    },
+
     wageDebtTick() {
         let p = state.player;
         if(!(p.wageDebt > 0)) { p.wageLateHours = 0; return; }
@@ -708,7 +758,7 @@ const Game = {
         else speedBonus = -Math.min(0.45, (size - 20) * 0.01);
 
         let base = state.player.equipment.horse ? 105 : 66;
-        let agiBonus = state.player.stats.agi * 1.5;
+        let agiBonus = this.attr('agi') * 1.5;
         let mountBonus = this.getMountedRatio() * 0.35; // atlı oranı
         let nightMult = this.isNight() ? 0.85 : 1;      // gece yavaş yol alınır
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
@@ -891,6 +941,7 @@ const Game = {
                 let r = Math.min(spd * dt / dist, 1);
                 state.player.x += dx * r; state.player.y += dy * r;
                 this.clampToMap(state.player); // Doğal sınırlardan taşmayı engelle
+                this.trainAttr('agi', (dist * r) / 1500);   // çeviklik yolda gelişir
                 
                 // Araziye göre hızın anlık değişebilmesi için UI'ı güncelle
                 if(Math.random() < 0.1) { // 60 FPS'te sürekli DOM güncellememek için
@@ -1156,7 +1207,7 @@ const Game = {
         // Maaş borcu saat saat işler: tek seferlik sabit ceza yerine büyüyen bir
         // baskı. Tam saat sınırlarını sayıyoruz, dt kesirli geldiği için.
         let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
-        for(let i = 0; i < passed; i++) this.wageDebtTick();
+        for(let i = 0; i < passed; i++) { this.wageDebtTick(); this.regenTick(); }
         while(state.time.hour >= 24) {
             state.time.day++;
 
@@ -1285,8 +1336,9 @@ const Game = {
             this.addProficiencyXp('pathfinding', 12);
             this.addProficiencyXp('spotting', 8);
 
-            let p = state.player.stats;
-            p.hp = Math.min(p.maxHp, p.hp + 5);
+            // Can artık günde +5 sıçramıyor; saat saat 1'er doluyor (Game.regenTick).
+            this.trainAttr('cha', state.player.party.length / 20);   // kalabalık yönetmek liderliği geliştirir
+            this.trainAttr('vit', 0.1);
 
             // Yaralılar gün gün iyileşir
             state.player.party.forEach(t => {
@@ -1436,7 +1488,7 @@ const Game = {
         this.setHtml('tip-party', this.tipBox('Grup',
             R('Mevcut', `${p.party.length}/${cap}`, p.party.length <= cap) +
             R('Temel kapasite', 12, null) +
-            R('Karizma', `+${(p.stats.cha - 10) * 3}`, p.stats.cha >= 10) +
+            R('Liderlik (efektif)', `+${Math.round((this.attr('cha') - 10) * 3)}`, this.attr('cha') >= 10) +
             R('İdare yeteneği', `+${(lead - 1) * 4}`, true) +
             R('Nam', `+${Math.floor(p.renown / 40)}`, p.renown >= 40) +
             R('Dağılım', `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +
@@ -2602,6 +2654,35 @@ const Game = {
     },
 
     // --- CHARACTER ---
+    // Niteliğin şu an ne yaptığını efektif değere göre yazar (hedefe göre değil —
+    // oyuncu neyi kazandığını değil, neyin işlediğini görmeli).
+    attrEffect(k) {
+        let v = this.attr(k);
+        switch(k) {
+            case 'str': return `Yakın dövüş saldırısı +${v.toFixed(1)}`;
+            case 'agi': return `Harita hızı +${(v * 1.5).toFixed(1)} · savaş hızı +${(v * 0.5).toFixed(1)}`;
+            case 'int': return `Görüş ${Math.round(this.getVisibility())} birim`;
+            case 'cha': return `Grup kapasitesi +${Math.round((v - 10) * 3)}`;
+            case 'vit': return `Max can +${Math.round((v - 10) * 5)} · ${this.hpRegenHours()} saatte 1 can`;
+        }
+        return '';
+    },
+    attrRowHtml(k, pts) {
+        let a = this.ATTRS[k], s = state.player.stats;
+        let eff = this.attr(k), tgt = s[k] || 10;
+        let pct = tgt > 10 ? Math.max(0, Math.min(100, (eff - 10) / (tgt - 10) * 100)) : 100;
+        let done = eff >= tgt - 0.001;
+        return `<li>
+            ${a.icon} <strong>${a.name}:</strong>
+            <span style="color:${done ? '#fff' : 'var(--primary)'};font-size:1.05rem">${eff.toFixed(1)}</span>
+            <span style="color:var(--text-muted)"> / ${tgt} hedef</span>
+            ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
+            ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:3px;height:5px;margin:0.3rem 0;max-width:220px">
+                <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:3px"></div></div>`}
+            <div style="font-size:0.75rem;color:var(--text-muted)">${this.attrEffect(k)}</div>
+            ${done ? '' : `<div style="font-size:0.72rem;color:#cbb26b">Gelişimi: ${a.how}</div>`}
+        </li>`;
+    },
     renderCharacterScreen() {
         let p = state.player, s = p.stats;
         let xpBar = Math.floor(s.xp / s.xpNext * 100);
@@ -2622,27 +2703,11 @@ const Game = {
         </div>
         <div style="flex:1;">
             <h3 style="color:var(--primary)">Nitelikler ${pts > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${pts} Puan Dağıtılabilir)</span>` : ''}</h3>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin:-0.4rem 0 0.6rem">
+                Puan vermek <b>hedefi</b> yükseltir. Sayının solundaki <b>efektif</b> değer, o niteliğe
+                uygun oynadıkça hedefe yaklaşır — beklemek işe yaramaz.</p>
             <ul style="list-style:none;display:flex;flex-direction:column;gap:0.8rem;">
-                <li>
-                    💪 <strong>Güç:</strong> ${s.str} 
-                    ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('str')">+</button>` : ''}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Hasarınızı artırır (+1 yakın dövüş hasarı) ve turnuvalardaki hedeflerin kalma süresini uzatır.</div>
-                </li>
-                <li>
-                    🏃 <strong>Çeviklik:</strong> ${s.agi} 
-                    ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('agi')">+</button>` : ''}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Haritadaki seyahat hızınızı (+1.5) ve savaş alanındaki yürüme/koşma hızınızı (+0.5) artırır. Turnuva hedefleri büyür.</div>
-                </li>
-                <li>
-                    🧠 <strong>Zeka:</strong> ${s.int} 
-                    ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('int')">+</button>` : ''}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Harita görüş yarıçapını genişletir (+30 birim).</div>
-                </li>
-                <li>
-                    ✨ <strong>Karizma:</strong> ${s.cha} 
-                    ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('cha')">+</button>` : ''}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Maksimum grup kapasitenizi artırır (+2 asker).</div>
-                </li>
+                ${Object.keys(this.ATTRS).map(k => this.attrRowHtml(k, pts)).join('')}
             </ul>
         </div>
         </div>`;
@@ -2655,9 +2720,9 @@ const Game = {
             { id: 'twoHanded', name: 'Çift Elli Silahlar', d: l => `Çift elli silah hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
             { id: 'polearm', name: 'Göndergeli Silahlar', d: l => `Mızrak hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)} (atlı şarjda ×2.6'ya kadar)` },
             { id: 'bow', name: 'Okçuluk', d: l => `Ok hasarı ×${(0.5 + Math.min(0.5, l*0.005)).toFixed(2)}, savaş başına ${24 + l*2} ok` },
-            { id: 'riding', name: 'Binicilik', d: l => `Atlı savaş hızı ${Math.round(95 + p.stats.agi*0.5 + (l-1)*3)}` },
-            { id: 'athletics', name: 'Atletizm', d: l => `Yaya savaş hızı ${Math.round(50 + p.stats.agi*0.5 + (l-1)*1.5)}` },
-            { id: 'leadership', name: 'Liderlik', d: l => `Grup kapasitesi +${(L('leadership')-1)*3}, moral +${(L('leadership')-1)*3}` },
+            { id: 'riding', name: 'Binicilik', d: l => `Atlı savaş hızı ${Math.round(95 + this.attr('agi')*0.5 + (l-1)*3)}` },
+            { id: 'athletics', name: 'Atletizm', d: l => `Yaya savaş hızı ${Math.round(50 + this.attr('agi')*0.5 + (l-1)*1.5)}` },
+            { id: 'leadership', name: 'İdare', d: l => `Grup kapasitesi +${(L('leadership')-1)*4}, moral +${(L('leadership')-1)*3}` },
             { id: 'persuasion', name: 'İkna Kabiliyeti', d: () => 'Drahoma pazarlığı ve diyalog seçenekleri' },
             { id: 'surgery', name: 'Cerrahlık', d: () => `Ölen askerin yaralı kurtulma şansı %${Math.round(Math.min(0.75, 0.35 + L('surgery')*0.03)*100)}` },
             { id: 'prisonerMgmt', name: 'Esir Yönetimi', d: () => `Esir kapasitesi ${this.prisonerCapacity()}, kaçış şansı %${Math.max(1, 6 - L('prisonerMgmt')*0.5).toFixed(1)}` },
@@ -2748,7 +2813,7 @@ const Game = {
     // Görüş tek kaynaktan: zeka + Gözcülük yeteneği. Eskiden state.player.visibility
     // yalnızca zeka puanı harcandığında güncelleniyordu.
     getVisibility() {
-        return 500 + (state.player.stats.int - 10) * 30 + (this.profLvl('spotting') - 1) * 25;
+        return 500 + (this.attr('int') - 10) * 30 + (this.profLvl('spotting') - 1) * 25;
     },
 
     addStat(type) {
@@ -3225,7 +3290,7 @@ const Game = {
     updateStatsFromEquip() {
         let s = state.player.stats;
         let e = state.player.equipment;
-        s.maxHp = 50 + (s.level - 1) * 10 + (e.armor ? (e.armor.defense||0) : 0);
+        s.maxHp = 50 + (s.level - 1) * 10 + Math.round((this.attr('vit') - 10) * 5) + (e.armor ? (e.armor.defense||0) : 0);
         if(s.hp > s.maxHp) s.hp = s.maxHp;
     },
 
@@ -3236,11 +3301,12 @@ const Game = {
             s.xp -= s.xpNext;
             s.level++;
             s.xpNext = Math.floor(s.xpNext * 1.5);
-            s.attributePoints = (s.attributePoints || 0) + 2; // Seviye başına 2 puan
+            s.attributePoints = (s.attributePoints || 0) + 1; // Seviye başına 1 puan (hedef sistemi geldi, puan seyrekleşti)
             s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord tarzı seviye başına 3 odak puanı
             this.updateStatsFromEquip(); // seviye +10 max can — tek formülden
             s.hp = s.maxHp;
-            alert(`Seviye atladın! Artık Lvl ${s.level}. 2 Nitelik, 3 Odak Puanı kazandın. Niteliklerini karakter ekranından dağıtabilirsin.`);
+            alert(`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.<br>` +
+                  `Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`);
         }
         this.updateTopBar();
     },
@@ -3349,9 +3415,9 @@ const Battle = {
             id: 'player', isPlayerTeam: true,
             hp: state.player.stats.hp, maxHp: state.player.stats.maxHp,
             x: startPlayerX, y: H/2,
-            speed: mounted ? 95 + state.player.stats.agi * 0.5 + (this.prof('riding') - 1) * 3
-                           : 50 + state.player.stats.agi * 0.5 + (this.prof('athletics') - 1) * 1.5,
-            attack: 10 + state.player.stats.str + weaponAtk,
+            speed: mounted ? 95 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 3
+                           : 50 + Game.attr('agi') * 0.5 + (this.prof('athletics') - 1) * 1.5,
+            attack: 10 + Game.attr('str') + weaponAtk,
             defense: armorDef, type: mounted ? 'cavalry' : 'infantry',
             dmgType: this.playerDmgType(),
             hasShield: this.playerHasShield(),
@@ -3622,6 +3688,9 @@ const Battle = {
         if(bf === 0) return this.blockedFx(tgt, src.x, src.y);
         let dmg = this.afterArmor(src.dmgType, raw * bf, tgt.defense);
         tgt.hp -= dmg;
+        // Nitelikler oynanışla gelişir: vuran oyuncuysa güç, yiyen oyuncuysa dirayet.
+        if(src.id === 'player') Game.trainAttr('str', 0.15);
+        if(tgt.id === 'player') Game.trainAttr('vit', dmg / 60);
         tgt.hitFlash = 0.18;
         let a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
         tgt.x += Math.cos(a) * 4; tgt.y += Math.sin(a) * 4; // geri tepme
@@ -4788,8 +4857,8 @@ const TournamentMinigame = {
         this.timeLeft -= dt;
         if(this.timeLeft <= 0) { this.end(false); return; }
 
-        let agiBonus = state.player.stats.agi;
-        let strBonus = state.player.stats.str;
+        let agiBonus = Game.attr('agi');
+        let strBonus = Game.attr('str');
 
         this.spawnTimer -= dt;
         if(this.spawnTimer <= 0) {
