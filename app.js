@@ -474,7 +474,7 @@ const Game = {
     getPartyComposition() {
         let c = { infantry: 0, archer: 0, cavalry: 0 };
         state.player.party.forEach(t => {
-            let ti = TROOP_TYPES[t.name.replace('Efsanevi ', '')];
+            let ti = TROOP_TYPES[t.name];
             c[(ti && ti.type) || 'infantry']++;
         });
         return c;
@@ -2124,21 +2124,22 @@ const Game = {
         else {
             let groups = {};
             state.player.party.forEach(t => {
-                if(!groups[t.name]) {
-                    groups[t.name] = { count: 0, ready: [], normal: [] };
+                let key = this.troopLabel(t);   // efsaneviler ayrı satırda listelenir
+                if(!groups[key]) {
+                    groups[key] = { base: t.name, count: 0, ready: [], normal: [] };
                 }
-                if(t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
-                    groups[t.name].ready.push(t);
+                if(!t.legendary && t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
+                    groups[key].ready.push(t);
                 } else {
-                    groups[t.name].normal.push(t);
+                    groups[key].normal.push(t);
                 }
-                groups[t.name].count++;
+                groups[key].count++;
             });
 
             html += '<ul style="list-style:none;">';
             for(let name in groups) {
                 let g = groups[name];
-                let typeInfo = TROOP_TYPES[name] || { type: 'infantry', icon: '🪖' };
+                let typeInfo = TROOP_TYPES[g.base] || { type: 'infantry', icon: '🪖' };
                 html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.2);margin-bottom:0.5rem;border-radius:6px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--panel-border);">
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
@@ -2147,10 +2148,10 @@ const Game = {
                 </div>`;
                 
                 if(g.ready.length > 0) {
-                    let upgradeChoices = TROOP_UPGRADES[name];
+                    let upgradeChoices = TROOP_UPGRADES[g.base];
                     html += `<div style="display:flex;gap:0.4rem;margin-top:0.4rem;">`;
                     upgradeChoices.forEach(choice => {
-                        html += `<button class="btn primary" style="font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${name.replace(/'/g,"\\'")}', '${choice.name.replace(/'/g,"\\'")}', ${choice.cost})">
+                        html += `<button class="btn primary" style="font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${choice.name.replace(/'/g,"\\'")}', ${choice.cost})">
                             Sınıf Terfisi: ${choice.name} (${choice.cost} Dinar)
                         </button>`;
                     });
@@ -2169,6 +2170,9 @@ const Game = {
         }
         document.getElementById('party-list').innerHTML = html;
     },
+    // Efsanevi öneki yalnızca ekranda görünür, veride ad temiz kalır
+    troopLabel(t) { return (t.legendary ? 'Efsanevi ' : '') + t.name; },
+
     promoteTo51(id) {
         let t = state.player.party.find(x => x.id === id);
         let tokenIdx = state.player.inventory.findIndex(i => i.id === 'lvl51_token');
@@ -2178,9 +2182,11 @@ const Game = {
             if(token.qty <= 0) state.player.inventory.splice(tokenIdx, 1);
             
             t.level = 51;
-            t.name = 'Efsanevi ' + t.name;
-            
-            alert(`${t.name} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!`);
+            // Adın başına 'Efsanevi ' eklemek TROOP_TYPES / TROOP_UPGRADES
+            // anahtarını bozuyordu; önek artık yalnızca gösterimde.
+            t.legendary = true;
+
+            alert(`${this.troopLabel(t)} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!`);
             this.renderPartyScreen();
             this.updateTopBar();
         }
@@ -2396,8 +2402,7 @@ const Battle = {
 
         // Troops (Player's party)
         state.player.party.forEach((p, i) => {
-            let baseName = p.name.replace('Efsanevi ', '');
-            let typeInfo = TROOP_TYPES[baseName] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
+            let typeInfo = TROOP_TYPES[p.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
             let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
             let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
             let debuff = p.debuff ? 0.7 : 1;
@@ -3641,6 +3646,11 @@ const Save = {
 
         if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
         this.mergeInto(state, d.state);
+
+        // Eski kayıtlarda efsanevi askerin adı 'Efsanevi ' önekiyle saklanıyordu
+        state.player.party.forEach(t => {
+            if(t.name.startsWith('Efsanevi ')) { t.name = t.name.slice(9); t.legendary = true; }
+        });
 
         let legacyLocs = false;
         (d.locations || []).forEach(sl => {
