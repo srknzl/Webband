@@ -453,7 +453,19 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
 - Oyuncu yenilir/teslim olursa elindeki bütün esirler serbest kalır.
 
 ### Esaret (oyuncunun esareti)
+- **Tek veri modeli**: nerede esir düşersen düş (savaş yenilgisi, teslim olma) esaret
+  `Game.beginCaptivity(npc, gün)`'den geçer ve tamamı `state.player.prisoner`'da durur:
+  `{npcId, npcName, troops, fellows[], daysLeft, ransomRequired, ransomRefusals,
+  escapeChance, isPlanning, lastAttemptDay}`. Kurtuluş/kaçış/salıverilme bu objeyi null yapar.
+  `fellows` seninle sürüklenen diğer esirlerdir (`Game.rollFellows`; hayvan sürüsü esir tutmaz).
 - Esirken oyuncu esir alanın konumuna kilitlenir, başka hiçbir şey yapılamaz.
+- **Haritada hareket eden tek taraf esir alan partidir**: oyuncunun grup ikonu ve adı
+  çizilmez, yalnızca esir alanın yanında ⛓️ işareti durur. *(Eskiden oyuncu ikonu + adı +
+  "Esir (Ng)" yazısı esir alanın ikonu/etiketiyle aynı noktaya biniyordu.)*
+- Esir alan partinin künyesinde kendi askerleri, sen ve diğer esirler görünür (`Game.npcTipHtml`).
+- `#prisoner-ui` (sağ alt) seni tutan, muhafız sayısı, kalan gün, diğer esirler ve kaçış
+  şansını tek panelde gösterir. Ayrı duran dev ⛓️ ikonu kaldırıldı — sol alttaki
+  `#map-hud`'un üstüne biniyordu.
 - "Kaçış planı yap" toggle'ı kaçış şansını 0'dan 80'e kadar giderek yavaşlayan bir ivmeyle doldurur.
 - "Kaçmaya çalış" günde bir kez; başarısızlıkta şans −60 ve plan sıfırlanır.
 - Süre dolunca %40 bedava kaçış, aksi halde fidye modali (paranın %75–90'ı).

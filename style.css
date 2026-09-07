@@ -753,6 +753,24 @@ body {
 }
 #map-tooltip, #prisoner-ui { background: rgba(12,14,18,0.93); }
 
+/* Esaret paneli */
+#prisoner-ui {
+    position: fixed; right: 20px; bottom: 20px; z-index: 60;
+    width: 250px; padding: 0.8rem 0.9rem;
+    font-size: 0.82rem; line-height: 1.5;
+}
+#prisoner-ui h3 { margin: 0 0 0.5rem; color: #ff8f82; font-size: 1rem; text-align: center; }
+#prisoner-info { color: var(--text-muted); }
+#prisoner-info b { color: #e8e2d4; }
+#prisoner-ui .pr-chance {
+    margin: 0.6rem 0; text-align: center;
+    border-top: 1px solid var(--panel-border); padding-top: 0.6rem;
+}
+#prisoner-ui .pr-chance strong { color: var(--primary); font-size: 1.15rem; }
+#prisoner-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+#prisoner-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
+#btn-escape-attempt { border-color: #ff6666; color: #ff6666; }
+
 /* Erzak rozeti: 3 günden az kaldıysa kırmızıya döner */
 #chip-food.warn { border-color: rgba(224,70,58,0.65); background: rgba(90,20,16,0.35); }
 #chip-food.warn .hud-val, #chip-food.warn .hud-sub { color: #ff8f82; }

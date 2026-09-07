@@ -1143,15 +1143,43 @@ const Game = {
         state.player.prisoners = [];
         state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
 
-        state.player.prisoner = { npcId, npcName, daysLeft: daysLost, ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0, escapeChance: 10, isPlanning: false };
-        state.player.status = 'prisoner';
+        this.beginCaptivity(foe || { id: npcId, name: npcName, size: 0 }, daysLost);
         state.player.currentEncounterNpcId = null;
         state.player.currentSiege = null;
 
         alert(`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-${moneyLost} Dinar`
             + (renownLost ? `<br>-${renownLost} nam` : ''));
         this.updateTopBar();
+    },
+
+    // --- ESARET (tek veri modeli) ---
+    // Nerede esir düşersen düş buradan geçer: esir alan parti (haritada hareket eden
+    // tek taraf), yanındaki diğer esirler ve kaçış durumu hep burada durur.
+    // Kurtuluşa kadar başka hiçbir yerde esaret alanı tutulmaz.
+    beginCaptivity(npc, days) {
+        let band = npc ? BAND_KINDS[npc.band] : null;
+        state.player.prisoner = {
+            npcId: npc ? npc.id : null,
+            npcName: npc ? npc.name : 'Bilinmeyen',
+            troops: npc ? npc.size : 0,          // esir alanın kendi askerleri
+            fellows: this.rollFellows(band),     // seninle beraber sürüklenenler
+            daysLeft: days,
+            ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0,
+            escapeChance: 0, isPlanning: false, lastAttemptDay: 0
+        };
+        state.player.status = 'prisoner';
+        state.player.targetLocation = null;   // esirin gideceği yer yok
         this.renderPrisonerUI();
+    },
+    // Hayvan sürüsü esir tutmaz; çete birkaç talihsizi daha sürüklüyor olabilir
+    rollFellows(band) {
+        if(band && band.beast) return [];
+        let pool = ['Köylü', 'Kervancı', 'Gezgin Tüccar', 'Yaralı Asker', 'Değirmenci', 'Ozan', 'Çırak'];
+        let out = [];
+        for(let i = Math.floor(Math.random()*4); i > 0; i--) {
+            out.push(pool[Math.floor(Math.random()*pool.length)]);
+        }
+        return out;
     },
 
     payRansom(amount) {
@@ -1435,8 +1463,6 @@ const Game = {
         this.updateTips(cap);
         this.updateMapHud();
 
-        let pi = document.getElementById('prisoner-icon');
-        if(pi) pi.style.display = p.status === 'prisoner' ? 'block' : 'none';
     },
 
     // Üst çubuk künyeleri: her rozet neyi, ne kadar etkiliyor (setHtml sayesinde
@@ -1552,17 +1578,18 @@ const Game = {
 
     renderPrisonerUI() {
         let ui = document.getElementById('prisoner-ui');
-        let icon = document.getElementById('prisoner-icon');
-        if(!state.player.prisoner) {
-            ui.classList.add('hidden');
-            icon.style.display = 'none';
-            return;
-        }
+        if(!state.player.prisoner) { ui.classList.add('hidden'); return; }
         ui.classList.remove('hidden');
-        icon.style.display = 'block';
 
         let p = state.player.prisoner;
-        document.getElementById('ui-escape-chance').innerText = `${p.escapeChance}%`;
+        this.setHtml('prisoner-info',
+              `Seni tutan: <b>${p.npcName}</b><br>`
+            + `Muhafız: <b>${p.troops || '?'}</b> kişi<br>`
+            + `Kalan süre: <b>${Math.max(0, p.daysLeft)}</b> gün<br>`
+            + (p.fellows && p.fellows.length
+                ? `Diğer esirler: <b>${p.fellows.join(', ')}</b>`
+                : `Zincirdeki tek esir sensin.`));
+        document.getElementById('ui-escape-chance').innerText = `${Math.round(p.escapeChance)}%`;
         
         let btn = document.getElementById('btn-escape-plan');
         if(p.isPlanning) {
@@ -2116,40 +2143,33 @@ const Game = {
             this.mapLabel(ctx, `${shortName} (${npc.size})`, npc.x, npc.y + 50, '#ffffff', nCol);
         });
 
-        // Player (always visible)
+        // Player
+        // Esirken haritada hareket eden tek taraf seni tutan partidir; senin ayrı bir
+        // grubun yoktur. Eskiden oyuncu ikonu + adı + "Esir" yazısı esir alanın ikonu
+        // ve etiketiyle aynı noktaya çiziliyordu (üst üste binen metinler).
         let isPrisoner = !!state.player.prisoner;
-
-        // Oyuncu tabanı — nabız atan altın halka
-        let pp = 1 + Math.sin(performance.now()/450) * 0.1;
-        ctx.beginPath();
-        ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
-        ctx.strokeStyle = isPrisoner ? 'rgba(255,90,90,0.9)' : 'rgba(255,204,0,0.9)';
-        ctx.lineWidth = 4; ctx.stroke();
-
-        let pIsMoving = state.player.status === 'moving';
         if(isPrisoner) {
-            ctx.font = '54px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('⛓️', state.player.x, state.player.y);
+            ctx.font = '30px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('⛓️', state.player.x - 30, state.player.y - 40);
         } else {
+            // Oyuncu tabanı — nabız atan altın halka
+            let pp = 1 + Math.sin(performance.now()/450) * 0.1;
+            ctx.beginPath();
+            ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(255,204,0,0.9)';
+            ctx.lineWidth = 4; ctx.stroke();
+
             // Atımız varsa haritada atlı görünürüz (Warband'daki gibi)
             this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
                 mounted: !!state.player.equipment.horse,
                 size: state.player.party.length + 1,
                 color: '#ffcc00',
                 scale: 1.35 * this.partyIconScale(state.player.party.length + 1),
-                bob: pIsMoving ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
+                bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
             });
-        }
 
-        // Name and Troop Count
-        let troopCount = state.player.party.length + 1;
-        this.mapLabel(ctx, `${state.player.name} (${troopCount})`, state.player.x, state.player.y - 72,
-                      isPrisoner ? '#ff8888' : '#ffcc00', isPrisoner ? '#ff4444' : '#ffcc00');
-
-        // Esir durumu ikonu
-        if(isPrisoner) {
-            ctx.font = '33px Arial';
-            ctx.fillText(`⛓️ Esir (${state.player.prisoner.daysLeft}g)`, state.player.x, state.player.y + 54);
+            this.mapLabel(ctx, `${state.player.name} (${state.player.party.length + 1})`,
+                          state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
         }
 
         // Rota: hedefe akan ince kesikli çizgi + varış halkası + ok başı
@@ -2205,8 +2225,7 @@ const Game = {
         if(!found) {
             for(let npc of state.npcParties) {
                 if(this.dist(npc,{x:mx,y:my}) < 30 && this.dist(npc, state.player) <= this.getVisibility()) {
-                    let bk = BAND_KINDS[npc.band];
-                    found = { name: npc.name, sub: `${bk ? (bk.beast ? 'Yaratık sürüsü' : 'Haydut çetesi') : (FACTIONS[npc.faction]||{name:'Bağımsız'}).name}<br>Asker: ${npc.size}` };
+                    found = { name: npc.name, sub: this.npcTipHtml(npc) };
                     break;
                 }
             }
@@ -2604,6 +2623,20 @@ const Game = {
         let seats = LOCATIONS.filter(x => x.faction === loc.faction && LORDS.some(y => y.homeLocId === x.id));
         let near = seats.sort((a, b) => this.dist(a, loc) - this.dist(b, loc))[0];
         return near ? LORDS.find(y => y.homeLocId === near.id) : null;
+    },
+    // Parti künyesi. Seni tutan partide kendi askerlerinin yanında sen ve
+    // yanındaki diğer esirler de görünür (esaret modeli: state.player.prisoner).
+    npcTipHtml(npc) {
+        let bk = BAND_KINDS[npc.band];
+        let what = bk ? (bk.beast ? 'Yaratık sürüsü' : 'Haydut çetesi')
+                      : (FACTIONS[npc.faction] || { name: 'Bağımsız' }).name;
+        let html = `${what}<br>Asker: ${npc.size}`;
+        let pr = state.player.prisoner;
+        if(pr && pr.npcId === npc.id) {
+            html += `<br><span style="color:#ff8f82">⛓️ Esirleri:</span> ${state.player.name} (sen)`
+                  + (pr.fellows && pr.fellows.length ? `, ${pr.fellows.join(', ')}` : '');
+        }
+        return html;
     },
     // Harita künyesi: kimin toprağı, kim yönetiyor, ne kadar zengin, kaç asker bekliyor
     locTipHtml(loc) {
@@ -4895,14 +4928,7 @@ const Battle = {
             let captorId = state.player.currentEncounterNpcId;
             let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
             if(captor) {
-                state.player.prisoner = { 
-                    npcId: captor.id, npcName: captor.name, 
-                    daysLeft: daysLost, 
-                    ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0,
-                    escapeChance: 0, isPlanning: false, lastAttemptDay: 0 
-                };
-                state.player.status = 'prisoner';
-                Game.renderPrisonerUI();
+                Game.beginCaptivity(captor, daysLost);
             } else if(this.isBossFight) {
                 alert('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.');
             }
