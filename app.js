@@ -2514,12 +2514,12 @@ const Game = {
         // Her yetenek ne yapıyor + şu anki değeri (geri bildirim: etkiler görünmüyordu)
         const L = id => this.profLvl(id);
         let profs = [
-            { id: 'oneHanded', name: 'Tek Elli Silahlar', d: l => `Kılıç hasarı ×${(0.35 + Math.min(0.4, l*4*0.004)).toFixed(2)}` },
-            { id: 'twoHanded', name: 'Çift Elli Silahlar', d: l => `Çift elli silah hasarı ×${(0.35 + Math.min(0.4, l*4*0.004)).toFixed(2)}` },
-            { id: 'polearm', name: 'Göndergeli Silahlar', d: l => `Mızrak/balta hasarı ×${(0.35 + Math.min(0.4, l*4*0.004)).toFixed(2)}` },
-            { id: 'bow', name: 'Okçuluk', d: () => 'Yay hasarını artırır' },
-            { id: 'riding', name: 'Binicilik', d: () => 'Atlıyken savaş alanı hızın' },
-            { id: 'athletics', name: 'Atletizm', d: () => 'Yayayken savaş alanı hızın' },
+            { id: 'oneHanded', name: 'Tek Elli Silahlar', d: l => `Kılıç hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
+            { id: 'twoHanded', name: 'Çift Elli Silahlar', d: l => `Çift elli silah hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
+            { id: 'polearm', name: 'Göndergeli Silahlar', d: l => `Mızrak hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)} (atlı şarjda ×2.6'ya kadar)` },
+            { id: 'bow', name: 'Okçuluk', d: l => `Ok hasarı ×${(0.5 + Math.min(0.5, l*0.005)).toFixed(2)}, savaş başına ${24 + l*2} ok` },
+            { id: 'riding', name: 'Binicilik', d: l => `Atlı savaş hızı ${Math.round(95 + p.stats.agi*0.5 + (l-1)*3)}` },
+            { id: 'athletics', name: 'Atletizm', d: l => `Yaya savaş hızı ${Math.round(50 + p.stats.agi*0.5 + (l-1)*1.5)}` },
             { id: 'leadership', name: 'Liderlik', d: l => `Grup kapasitesi +${(L('leadership')-1)*3}, moral +${(L('leadership')-1)*3}` },
             { id: 'persuasion', name: 'İkna Kabiliyeti', d: () => 'Drahoma pazarlığı ve diyalog seçenekleri' },
             { id: 'surgery', name: 'Cerrahlık', d: () => `Ölen askerin yaralı kurtulma şansı %${Math.round(Math.min(0.75, 0.35 + L('surgery')*0.03)*100)}` },
@@ -3125,14 +3125,23 @@ const Battle = {
         let weaponAtk = state.player.equipment.weapon ? state.player.equipment.weapon.attack : 0;
         let armorDef = state.player.equipment.armor ? state.player.equipment.armor.defense : 0;
 
+        // Binek: at varsa oyuncu süvari olarak girer — motor süvariyi (ve attan düşmeyi) zaten biliyor
+        let mounted = !!state.player.equipment.horse;
+        // Ok torbası savaş başına dolar; yay yoksa sıfır
+        this.arrows = this.playerHasBow() ? 24 + this.prof('bow') * 2 : 0;
+        this.blockHeld = false;
+
         // Player
         this.units.push({
             id: 'player', isPlayerTeam: true,
             hp: state.player.stats.hp, maxHp: state.player.stats.maxHp,
-            x: startPlayerX, y: H/2, speed: 50 + state.player.stats.agi * 0.5, // Yarı hız
+            x: startPlayerX, y: H/2,
+            speed: mounted ? 95 + state.player.stats.agi * 0.5 + (this.prof('riding') - 1) * 3
+                           : 50 + state.player.stats.agi * 0.5 + (this.prof('athletics') - 1) * 1.5,
             attack: 10 + state.player.stats.str + weaponAtk,
-            defense: armorDef, type: 'infantry',
-            color: '#ffcc00', radius: 8, atkCd: 0,
+            defense: armorDef, type: mounted ? 'cavalry' : 'infantry',
+            hasShield: this.playerHasShield(),
+            color: '#ffcc00', radius: mounted ? 9 : 8, atkCd: 0,
             isAttacking: false, attackTimer: 0, swingCd: 0, angleToMouse: 0, currentWeaponAngle: 0
         });
 
@@ -3261,8 +3270,16 @@ const Battle = {
             }
         }, 1000);
 
-        this.clickHandler = (e) => this.playerAttack(e);
+        // Sol tık savurur/atar, sağ tık blok tutar (Shift de blok)
+        this.clickHandler = (e) => {
+            if(e.button === 2) { e.preventDefault(); this.blockHeld = true; }
+            else this.playerAttack(e);
+        };
         this.canvas.addEventListener('mousedown', this.clickHandler);
+        this.upHandler = () => { this.blockHeld = false; };
+        window.addEventListener('mouseup', this.upHandler);
+        this.menuHandler = (e) => e.preventDefault();
+        this.canvas.addEventListener('contextmenu', this.menuHandler);
 
         this.commandListener = (e) => {
             if(e.key === '1') {
@@ -3294,7 +3311,8 @@ const Battle = {
         if(e) e.preventDefault();
         let p = this.units.find(u => u.id === 'player');
         // Toparlanma bitmeden yeni savurma yok — hızlı tıklama artık hasarı katlamıyor
-        if(!p || p.hp <= 0 || p.isAttacking || p.swingCd > 0) return;
+        if(!p || p.hp <= 0 || p.blocking || p.isAttacking || p.swingCd > 0) return;
+        if(this.playerHasBow()) return this.playerShoot(p);
 
         p.isAttacking = true;
         p.attackTimer = 0.3; // 300ms saldırı süresi
@@ -3310,10 +3328,62 @@ const Battle = {
         return Math.max(0.45, 0.75 - lv * 0.005);
     },
 
-    playerWeaponProf() {
-        let wp = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
-        let pd = state.player.proficiencies[wp] || state.player.proficiencies.oneHanded;
-        return pd ? pd.level : 1;
+    prof(id) { let d = state.player.proficiencies[id]; return d ? d.level : 1; },
+    playerWeaponType() {
+        let w = state.player.equipment.weapon;
+        let t = w ? w.weaponType : 'oneHanded';
+        return state.player.proficiencies[t] ? t : 'oneHanded';
+    },
+    playerWeaponProf() { return this.prof(this.playerWeaponType()); },
+    playerHasBow() { return this.playerWeaponType() === 'bow'; },
+    // Kalkan zırh slotunu işgal eder: blok mu, zırh mı — seçim oyuncunun
+    playerHasShield() { let a = state.player.equipment.armor; return !!a && a.id === 'shield'; },
+
+    // Yay: ok torbası sınırlı, hareket ve at üstü isabeti bozar
+    playerShoot(p) {
+        let lv = this.prof('bow');
+        p.swingCd = Math.max(0.5, 1.15 - lv * 0.006);
+        if(this.arrows <= 0) {
+            this.floatingTexts.push({ x: p.x, y: p.y - 20, text: 'ok bitti', color: '#999', life: 0.6 });
+            return;
+        }
+        this.arrows--;
+        let a = Math.atan2(Input.mouse.y - p.y, Input.mouse.x - p.x);
+        let moving = Math.abs(p.lastVx || 0) > 0.1 || Math.abs(p.lastVy || 0) > 0.1;
+        let spread = (0.04 + (moving ? 0.10 : 0) + (p.type === 'cavalry' ? 0.08 : 0)) * (1 - Math.min(0.6, lv * 0.005));
+        a += (Math.random() - 0.5) * spread * 2;
+        let speed = 320;
+        this.projectiles.push({
+            x: p.x + Math.cos(a) * 12, y: p.y + Math.sin(a) * 12,
+            vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+            damage: p.attack * (0.5 + Math.min(0.5, lv * 0.005)),
+            isPlayerTeam: true, sourceId: 'player'
+        });
+        p.angleToMouse = a;
+        p.bowTimer = 0.25;
+    },
+
+    // Blok: saldırı kalkanın baktığı yaya denk gelirse kesilir (0 = tam blok)
+    blockFactor(tgt, sx, sy) {
+        if(!tgt.blocking) return 1;
+        let a = Math.atan2(sy - tgt.y, sx - tgt.x);
+        let diff = Math.abs(a - (tgt.blockAngle || 0));
+        while(diff > Math.PI) diff = 2 * Math.PI - diff;
+        if(diff > Math.PI / 3) return 1;              // arkadan/yandan gelen geçer
+        return tgt.hasShield ? 0 : 0.4;               // kalkanla tam, çıplak kolla %60 azaltma
+    },
+    blockedFx(tgt, sx, sy) {
+        this.spark(tgt.x, tgt.y, Math.atan2(sy - tgt.y, sx - tgt.x), '#dfe6ef');
+        this.floatingTexts.push({ x: tgt.x, y: tgt.y - 14, text: '🛡 blok', color: '#cfe3ff', life: 0.6 });
+        tgt.blockFlash = 0.2;
+    },
+
+    // Şarj: at üstünde hızlıyken hasar artar, mızrakla katlanır (couched lance)
+    chargeMult(u) {
+        if(u.type !== 'cavalry') return 1;
+        let sp = Math.sqrt((u.lastVx || 0) ** 2 + (u.lastVy || 0) ** 2) / Math.max(1, u.speed);
+        let lance = this.playerWeaponType() === 'polearm';
+        return 1 + Math.min(1, sp) * (lance ? 1.6 : 0.6);
     },
 
     // Kılıç yayının yarı açısı — attackAngle + Geniş Savurma yeteneği
@@ -3324,7 +3394,9 @@ const Battle = {
 
     // Tek yerden yakın dövüş hasarı: kan, sarsıntı, hasar yazısı, ölüm kaydı
     dealMelee(src, tgt, raw) {
-        let dmg = Math.max(1, Math.round(raw) - (tgt.defense || 0));
+        let bf = this.blockFactor(tgt, src.x, src.y);
+        if(bf === 0) return this.blockedFx(tgt, src.x, src.y);
+        let dmg = Math.max(1, Math.round(raw * bf) - (tgt.defense || 0));
         tgt.hp -= dmg;
         tgt.hitFlash = 0.18;
         let a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
@@ -3425,7 +3497,9 @@ const Battle = {
                 if(u.hp <= 0 || u.isPlayerTeam === proj.isPlayerTeam) continue;
                 let d = Math.sqrt(Math.pow(u.x - proj.x, 2) + Math.pow(u.y - proj.y, 2));
                 if(d < u.radius + 2) {
-                    let dmg = Math.max(1, Math.round(proj.damage) - u.defense);
+                    let bf = this.blockFactor(u, proj.x - proj.vx, proj.y - proj.vy);
+                    if(bf === 0) { this.blockedFx(u, proj.x - proj.vx, proj.y - proj.vy); hit = true; break; }
+                    let dmg = Math.max(1, Math.round(proj.damage * bf) - u.defense);
                     u.hp -= dmg;
                     hit = true;
                     u.hitFlash = 0.15;
@@ -3490,8 +3564,22 @@ const Battle = {
             let uSpeed = u.speed * speedMod;
             let uAttack = u.attack * attackMod;
 
+            // At vurulunca binici yere düşer — oyuncu dahil herkes için tek kontrol
+            if(u.type === 'cavalry' && u.hp < u.maxHp * 0.5 && !u.dismounted) {
+                u.type = 'infantry';
+                u.dismounted = true;
+                u.speed = Math.max(50, u.speed - 30);
+                if(u.id === 'player') u.radius = 8;
+                this.floatingTexts.push({ x: u.x, y: u.y - 12, text: 'Attan Düştü!', color: '#ffaa00', life: 1.0 });
+            }
+
             if(u.id === 'player') {
-                let spd = u.speed;
+                // Blok: sağ tık ya da Shift. Blokta savuramaz, yavaş yürür.
+                u.blocking = u.hp > 0 && !u.isAttacking && (this.blockHeld || !!Input.keys['shift']);
+                if(u.blocking) u.blockAngle = Math.atan2(Input.mouse.y - u.y, Input.mouse.x - u.x);
+                if(u.blockFlash > 0) u.blockFlash -= dt;
+                if(u.bowTimer > 0) u.bowTimer -= dt;
+                uSpeed *= u.blocking ? 0.5 : 1;
                 // Saldırı (Sweep) Logic
                 if(u.swingCd > 0) u.swingCd -= dt;
                 if(u.isAttacking) {
@@ -3505,7 +3593,9 @@ const Battle = {
                         u.hasHit = true;
                         // TEK hedef: yayın içindeki en yakın düşman.
                         // (Eskiden yaydaki herkese aynı anda vuruyordu — grup biçme hatası.)
-                        let hitDist = 45, target = null, best = Infinity;
+                        // Menzil silaha bağlı: mızrak uzun, at üstünde biraz daha uzun
+                        let hitDist = 45 + (this.playerWeaponType() === 'polearm' ? 15 : 0) + (u.type === 'cavalry' ? 8 : 0);
+                        let target = null, best = Infinity;
                         this.units.forEach(e => {
                             if(e.hp <= 0 || e.isPlayerTeam === u.isPlayerTeam) return;
                             let dx = e.x - u.x, dy = e.y - u.y;
@@ -3518,7 +3608,9 @@ const Battle = {
                         if(target) {
                             // Hasar yeterliliğe bağlı: acemi %35, usta %75
                             let mult = 0.35 + Math.min(0.4, this.playerWeaponProf() * 0.004);
-                            this.dealMelee(u, target, uAttack * mult);
+                            let charge = this.chargeMult(u);
+                            if(charge >= 1.8) this.floatingTexts.push({ x: u.x, y: u.y - 26, text: 'MIZRAK ŞARJI!', color: '#ffcc00', life: 0.9 });
+                            this.dealMelee(u, target, uAttack * mult * charge);
                         } else {
                             this.floatingTexts.push({ x: u.x, y: u.y - 20, text: 'ıska', color: '#999', life: 0.5 });
                         }
@@ -3539,14 +3631,9 @@ const Battle = {
                     u.x = Math.max(10, Math.min(this.canvas.width-10, u.x));
                     u.y = Math.max(10, Math.min(this.canvas.height-10, u.y));
                 }
+                // vx/vy kare başında sıfırlanıyor — şarj ve nişan son kareye bakar
+                u.lastVx = u.vx; u.lastVy = u.vy;
                 return;
-            }
-
-            if(u.type === 'cavalry' && u.hp < u.maxHp * 0.5 && !u.dismounted) {
-                u.type = 'infantry';
-                u.dismounted = true;
-                u.speed = Math.max(50, u.speed - 30);
-                this.floatingTexts.push({ x: u.x, y: u.y - 12, text: 'Attan Düştü!', color: '#ffaa00', life: 1.0 });
             }
 
             // Terrain effects already calculated above
@@ -3907,7 +3994,7 @@ const Battle = {
     drawUnit(ctx, u, now) {
         let isPlayer = u.id === 'player';
         let icon = '💂';
-        if(isPlayer) icon = state.player.equipment.horse ? '🐴' : '🧑‍🌾';
+        if(isPlayer) icon = u.type === 'cavalry' ? '🐴' : '🧑‍🌾';
         else if(u.beast) icon = '🐺';
         else if(u.type === 'archer') icon = '🏹';
         else if(u.type === 'cavalry') icon = '🐎';
@@ -3967,6 +4054,34 @@ const Battle = {
             ctx.globalAlpha = 1;
         }
 
+        // Kalkan (blok tutarken) — baktığı yay 60°, isabet alınca beyaz parlar
+        if(u.blocking) {
+            let ba = u.blockAngle || 0;
+            ctx.save();
+            ctx.translate(u.x, u.y - hop);
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, ba - Math.PI/3, ba + Math.PI/3);
+            ctx.lineWidth = u.blockFlash > 0 ? 7 : 5;
+            ctx.strokeStyle = u.blockFlash > 0 ? '#ffffff' : (u.hasShield ? 'rgba(150,190,255,0.9)' : 'rgba(190,190,190,0.6)');
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Yay (ok attıktan hemen sonra)
+        if(u.bowTimer > 0) {
+            ctx.save();
+            ctx.translate(u.x, u.y - hop);
+            ctx.rotate(u.angleToMouse || 0);
+            ctx.beginPath();
+            ctx.arc(12, 0, 11, -Math.PI/2.2, Math.PI/2.2);
+            ctx.lineWidth = 2.5; ctx.strokeStyle = '#c8a24a'; ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(12 + 11*Math.cos(-Math.PI/2.2), 11*Math.sin(-Math.PI/2.2));
+            ctx.lineTo(12 + 11*Math.cos(Math.PI/2.2), 11*Math.sin(Math.PI/2.2));
+            ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.stroke();
+            ctx.restore();
+        }
+
         // Kılıç (savururken)
         if(u.isAttacking) {
             ctx.save();
@@ -4011,9 +4126,20 @@ const Battle = {
         ctx.fillStyle = 'rgba(233,217,168,0.55)'; ctx.font = '11px Inter, sans-serif';
         ctx.fillText('[1] Takip [2] Hücum [3] Bekle', 22 + hudW*0.42, H - 26);
 
+        // Oyuncu künyesi: binek, ok, blok
+        let pl = this._byId ? this._byId['player'] : null;
+        if(pl && pl.hp > 0) {
+            let bits = [pl.type === 'cavalry' ? '🐴 Atlı' : '🥾 Yaya'];
+            if(this.playerHasBow()) bits.push(`🏹 ${this.arrows} ok`);
+            bits.push(pl.blocking ? '🛡 BLOK' : (this.playerHasShield() ? '🛡 [Sağ tık/Shift] blok' : '[Sağ tık/Shift] savuştur'));
+            ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.fillText(bits.join('   ·   '), 22, H - 56);
+        }
+
         if(this.knockedOut) {
             ctx.fillStyle = 'rgba(255,70,70,0.9)'; ctx.font = 'bold 13px Inter, sans-serif';
-            ctx.fillText('☠ Baygınsın — adamların savaşıyor', 22, H - 56);
+            ctx.fillText('☠ Baygınsın — adamların savaşıyor', 22, H - 76);
         }
 
         // Güç çubuğu
@@ -4125,6 +4251,8 @@ const Battle = {
 
     endBattle(won) {
         this.canvas.removeEventListener('mousedown', this.clickHandler);
+        window.removeEventListener('mouseup', this.upHandler);
+        this.canvas.removeEventListener('contextmenu', this.menuHandler);
         window.removeEventListener('keydown', this.commandListener);
         cancelAnimationFrame(this.loopId);
 
@@ -4320,6 +4448,8 @@ const Battle = {
     surrender() {
         this.active = false;
         this.canvas.removeEventListener('mousedown', this.clickHandler);
+        window.removeEventListener('mouseup', this.upHandler);
+        this.canvas.removeEventListener('contextmenu', this.menuHandler);
         window.removeEventListener('keydown', this.commandListener);
         cancelAnimationFrame(this.loopId);
 

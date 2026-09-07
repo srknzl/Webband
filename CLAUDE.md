@@ -122,8 +122,10 @@ zafer +5, yenilgi −15.
 
 | Yetenek | Etkisi |
 |---|---|
-| `oneHanded`/`twoHanded`/`polearm`/`bow` | savaşta hasar çarpanı |
-| `riding`/`athletics` | savaş hareketi |
+| `oneHanded`/`twoHanded`/`polearm` | savaşta hasar çarpanı `0.35 + min(0.4, lvl×0.004)` |
+| `bow` | ok hasarı `0.5 + min(0.5, lvl×0.005)`, ok sayısı `24 + lvl×2`, atış süresi `max(0.5, 1.15 − lvl×0.006)` sn, sapmayı azaltır |
+| `riding` | atlı savaş hızı `95 + çeviklik×0.5 + (lvl−1)×3` |
+| `athletics` | yaya savaş hızı `50 + çeviklik×0.5 + (lvl−1)×1.5` |
 | `leadership` | grup kapasitesi +3/seviye, moral +3/seviye |
 | `persuasion` | drahoma pazarlığı |
 | `surgery` | ölen askerin yaralı kurtulma şansı |
@@ -295,6 +297,26 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     aynı anda vuruyordu (grup biçme hatası). Ayrıca `swingCd` toparlanma süresi var
     (`swingCooldown()` = `max(0.45, 0.75 − yeterlilik×0.005)` sn), yani hızlı tıklamak hasarı katlamaz.
     Hasar çarpanı yeterliliğe bağlı: `0.35 + min(0.4, prof×0.004)`. Isıka giderse "ıska" yazısı çıkar.
+    Menzil silaha bağlı: temel 45, mızrak +15, at üstünde +8.
+  - **Binek** (`equipment.horse` varsa): oyuncu savaşa `type:'cavalry'` olarak girer — hız
+    `95 + çeviklik×0.5 + (Binicilik−1)×3` (yayada `50 + çeviklik×0.5 + (Atletizm−1)×1.5`).
+    **Şarj** (`Battle.chargeMult`): hasar `1 + hız oranı × (mızrak 1.6 / diğer 0.6)`, yani
+    dörtnala mızrakla ×2.6'ya kadar; ≥1.8'de "MIZRAK ŞARJI!" yazısı çıkar. Ölçüldü (atlı,
+    aynı vuruş): durarak 11 → dörtnala mızrak 22, dörtnala kılıç 16, yaya 11.
+    Can yarıya inince **oyuncu da attan düşer** (`dismounted`, hız −30, ikon 🧑‍🌾) — bu kontrol
+    artık oyuncu dalından önce, tek yerden herkese uygulanır.
+  - **Blok**: sağ tık ya da **Shift** basılı tutulur. Kalkanın baktığı yön fareye kilitlenir,
+    yarı açı 60°. `Battle.blockFactor()` tek kapıdır — hem yakın dövüş (`dealMelee`) hem ok
+    isabeti oradan geçer. Kalkan (`equipment.armor` = Kalkan) önden geleni **tamamen** keser,
+    kalkansız blok %60'a indirir; yan/arkadan gelen hiç engellenmez. Ölçüldü (30 ham hasar,
+    savunma 0): kalkanla önden 0, arkadan 30, kalkansız önden 12, bloksuz 30; ok da aynı.
+    Bedeli: blokta savuramazsın ve hızın yarıya iner (ölçüldü 10 → 5 birim/0.1 sn).
+    Kalkan zırh slotunu işgal ettiği için "blok mu, zırh mı" gerçek bir tercihtir.
+  - **Yay**: silah `bow` ise sol tık/boşluk kılıç yerine **ok atar** (`Battle.playerShoot`).
+    Torba savaş başına `24 + Okçuluk×2` ok; bitince "ok bitti" yazısı çıkar. Sapma sabitken
+    ±0.04 rad, yürürken +0.10, at üstünde +0.08 — yeterlilikle azalır. Ölçüldü (Okçuluk 20):
+    sabit 2.1° → yürüyüş 7.2° → at üstünde 11.2°; ok hızı 320, hasar `saldırı × (0.5+…)`.
+  - Savaş künyesi (HUD, sol alt): binek durumu, kalan ok, blok göstergesi.
   - Tüm saldırı bekleme sayaçları **dt tabanlı** (`u.atkCd`), `performance.now()` değil — kare hızından bağımsız.
     Piyade `0.85–1.25` sn, okçu `1.4–1.7` sn.
   - Yakın dövüş hasarı tek yerden geçer: `Battle.dealMelee(src, tgt, raw)` — savunma düşer,
@@ -423,7 +445,9 @@ Kalanlar:
 1. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
 2. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
-3. `app.js` ~3900 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+3. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+4. Silah türü (kesici/delici/ezici) ayrımı yok — `defense` hâlâ düz çıkarma. Düşman AI blok
+   yapmıyor; blok yalnızca oyuncuda.
 
 ## Kod tarzı
 
