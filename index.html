@@ -35,31 +35,75 @@
         <!-- Main Game UI -->
         <div id="main-ui" class="screen">
             <header id="top-bar" class="glass-panel">
-                <div class="stat"><span class="icon">📅</span> Gün: <span id="ui-day">1</span></div>
-                <div class="stat"><span class="icon">💰</span> Dinar: <span id="ui-money">500</span></div>
-                <div class="stat"><span class="icon">⭐</span> Nam: <span id="ui-renown">0</span></div>
-                <div class="stat"><span class="icon">👥</span> Grup: <span id="ui-party">1/50</span></div>
-                <div class="stat"><span class="icon">❤️</span> Can: <span id="ui-hp">50/50</span></div>
-                <div class="stat tooltip-container">
-                    <span class="icon">🐎</span> Hız: <span id="ui-speed">50</span>
-                    <div class="tooltip-content" id="ui-speed-breakdown">
-                        Temel: 50<br>At Bonusu: Yok
-                    </div>
+                <!-- Sefer takvimi: gün + saat + günün vakti -->
+                <div class="hud-chip" id="chip-time">
+                    <span class="hud-ico" id="ui-daypart">🌅</span>
+                    <span class="hud-col">
+                        <span class="hud-val"><span id="ui-day">1</span>. Gün</span>
+                        <span class="hud-sub" id="ui-clock">08:00</span>
+                    </span>
                 </div>
-                <div class="stat"><span class="icon">⬆️</span> Lvl: <span id="ui-level">1</span></div>
+
+                <div class="hud-sep"></div>
+
+                <div class="hud-chip"><span class="hud-ico">💰</span>
+                    <span class="hud-col"><span class="hud-val" id="ui-money">500</span><span class="hud-sub">dinar</span></span>
+                </div>
+                <div class="hud-chip"><span class="hud-ico">⭐</span>
+                    <span class="hud-col"><span class="hud-val" id="ui-renown">0</span><span class="hud-sub">nam</span></span>
+                </div>
+
+                <div class="hud-sep"></div>
+
+                <div class="hud-chip"><span class="hud-ico">❤️</span>
+                    <span class="hud-col">
+                        <span class="hud-val" id="ui-hp">50/50</span>
+                        <span class="hud-bar"><i id="bar-hp" class="fill-hp" style="width:100%"></i></span>
+                    </span>
+                </div>
+                <div class="hud-chip"><span class="hud-ico">👥</span>
+                    <span class="hud-col">
+                        <span class="hud-val" id="ui-party">1/50</span>
+                        <span class="hud-bar"><i id="bar-party" class="fill-party" style="width:2%"></i></span>
+                    </span>
+                </div>
+                <div class="hud-chip"><span class="hud-ico">⬆️</span>
+                    <span class="hud-col">
+                        <span class="hud-val">Sv. <span id="ui-level">1</span></span>
+                        <span class="hud-bar"><i id="bar-xp" class="fill-xp" style="width:0%"></i></span>
+                    </span>
+                </div>
+
+                <div class="hud-chip tooltip-container" id="chip-speed">
+                    <span class="hud-ico" id="ui-speed-ico">🥾</span>
+                    <span class="hud-col">
+                        <span class="hud-val" id="ui-speed">50</span>
+                        <span class="hud-sub" id="ui-speed-mode">yaya</span>
+                    </span>
+                    <div class="tooltip-content" id="ui-speed-breakdown"></div>
+                </div>
             </header>
 
             <div class="content-area">
                 <!-- Sidebar Menus -->
                 <aside id="sidebar" class="glass-panel">
-                    <button class="menu-btn active" onclick="Game.showScreen('map')">Harita</button>
-                    <button class="menu-btn" onclick="Game.showScreen('character')">Karakter</button>
-                    <button class="menu-btn" onclick="Game.showScreen('party')">Grup</button>
-                    <button class="menu-btn" onclick="Game.showScreen('inventory')">Envanter</button>
-                    <button class="menu-btn" onclick="Game.showScreen('quests')">Görevler</button>
+                    <div class="sb-title">Sefer</div>
+                    <button class="menu-btn active" data-view="map" onclick="Game.showScreen('map')">
+                        <span class="mb-ico">🗺️</span><span class="mb-lbl">Harita</span><kbd>M</kbd></button>
+                    <button class="menu-btn" data-view="character" onclick="Game.showScreen('character')">
+                        <span class="mb-ico">🛡️</span><span class="mb-lbl">Karakter</span><kbd>C</kbd></button>
+                    <button class="menu-btn" data-view="party" onclick="Game.showScreen('party')">
+                        <span class="mb-ico">⚔️</span><span class="mb-lbl">Grup</span><kbd>P</kbd></button>
+                    <button class="menu-btn" data-view="inventory" onclick="Game.showScreen('inventory')">
+                        <span class="mb-ico">🎒</span><span class="mb-lbl">Envanter</span><kbd>I</kbd></button>
+                    <button class="menu-btn" data-view="quests" onclick="Game.showScreen('quests')">
+                        <span class="mb-ico">📜</span><span class="mb-lbl">Görevler</span><kbd>Q</kbd></button>
                     <div style="flex:1"></div>
-                    <button class="menu-btn" onclick="Save.save()">💾 Kaydet</button>
-                    <button class="menu-btn" onclick="Save.load()">📂 Yükle</button>
+                    <div class="sb-title">Kayıt</div>
+                    <button class="menu-btn" onclick="Save.save()">
+                        <span class="mb-ico">💾</span><span class="mb-lbl">Kaydet</span></button>
+                    <button class="menu-btn" onclick="Save.load()">
+                        <span class="mb-ico">📂</span><span class="mb-lbl">Yükle</span></button>
                 </aside>
 
                 <!-- Views Container -->
@@ -68,6 +112,11 @@
                     <div id="map-view" class="view active">
                         <canvas id="map-canvas"></canvas>
                         <div id="map-tooltip" class="glass-panel hidden"></div>
+                        <!-- Grup künyesi: arazi + birlik dağılımı (Warband'ın grup penceresi gibi) -->
+                        <div id="map-hud" class="glass-panel">
+                            <div id="map-terrain"><span class="mh-ico">🧭</span><span id="map-terrain-txt">Düzlük</span></div>
+                            <div id="map-comp"></div>
+                        </div>
                     </div>
 
                     <!-- Settlement View (City/Castle/Village) -->
@@ -105,9 +154,9 @@
                     <div id="battle-view" class="view">
                         <canvas id="battle-canvas"></canvas>
                         <div id="battle-ui">
-                            <div id="battle-log-left" class="battle-logs" style="position:absolute; bottom:60px; left:20px; width:350px; display:flex; flex-direction:column-reverse; gap:5px; pointer-events:none; z-index:10; text-align:left;"></div>
-                            <div id="battle-log-right" class="battle-logs" style="position:absolute; bottom:60px; right:20px; width:350px; display:flex; flex-direction:column-reverse; gap:5px; pointer-events:none; z-index:10; text-align:right;"></div>
-                            <button class="btn" style="border-color:#cc8800;color:#cc8800; position:absolute; top:20px; right:20px; z-index:20;" onclick="Battle.surrender()">🏳️ Teslim Ol</button>
+                            <div id="battle-log-left" class="battle-logs" style="left:20px; text-align:left;"></div>
+                            <div id="battle-log-right" class="battle-logs" style="right:20px; text-align:right;"></div>
+                            <button class="btn" id="btn-surrender" onclick="Battle.surrender()">🏳️ Teslim Ol</button>
                         </div>
                     </div>
                 </main>

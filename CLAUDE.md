@@ -44,12 +44,27 @@ Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `
 - Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
 - Yollar: tüm yerleşimleri bağlayan minimum spanning tree (`state.roads`).
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
-- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş = `500 + (int-10)*30`.
+- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş = `500 + (int-10)*30`, **gece ×0.7**.
 - Kamera: fare tekerleği zoom (0.4–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
 - Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket. WASD/ok tuşları kamerayı oyuncuya kilitler.
+- **Grup ikonları** (Warband'daki gibi grubun neye benzediğini gösterir, `Game.drawPartyIcon`):
+  atın varsa **atlı** silüeti (`drawRider`: at + eyer örtüsü + kalkık kılıç), yoksa mızraklı
+  yaya (`drawFootman`: mızrak + kalkan + miğfer). Fraksiyon rengi eyer örtüsünde/kalkanda ve
+  sancakta. Grup 10+ kişiyse arkada 1, 30+ kişiyse 2 figür daha çizilir — kalabalık uzaktan belli olur.
+  Çapulcular her zaman yaya, soylular atlı; krala 👑, vezire 🎖️ eklenir.
+- **Günün vakti** (`Game.getDayPart()`): gece mavi tonlama + yerleşimlerde ocak ışığı,
+  şafak/gün batımı sıcak ton, gündüz tonlamasız. Saat `state.time.hour`'dan gelir.
+- İsim etiketleri (`Game.mapLabel`) **zoom'dan bağımsız ekran boyutunda** çizilir ve
+  üst üste binenler yukarı kaydırılır (`_labelRects` çakışma testi).
 
 ### Zaman & günlük döngü (`advanceTime` / `dailyUpdate`)
 Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken (veya esirken) akar (`dt * 2`).
+
+**Harita hızı** (`getPlayerSpeed`, Warband'ın modeline yakın):
+`(temel + çeviklik×1.5) × (1 + grup bonusu + atlı oranı×0.35) × arazi × gece`.
+Temel atlıyken 105, yayayken 66. Atlı oranı = (süvari sayısı + atın varsa 1) / grup.
+Arazi `getTerrainInfo()`'dan gelir (orman ×0.8, nehir ×0.5, yol ×1.1) ve künyede adıyla yazar.
+Gece (saat <6 veya ≥20) ×0.85.
 
 Her gün:
 - Asker maaşı (lvl 10–19: 2, lvl 20+: `level/2`, lvl 51: bedava)
@@ -62,6 +77,18 @@ Her gün:
 - `Nobles.dailyTick()` — konum işaretlerini eskitir, rakip taliplerin ilgisini artırır, evlilik geliri, düğün günü kontrolü
 - `Feast.dailyTick()` — süresi dolan şöleni kapatır, planlanmış/kendiliğinden şöleni başlatır
 - `Quests.dailyTick()` — görevlerin `day()` kancası ve süre kontrolü
+
+### Arayüz
+- **Sefer çubuğu** (`#top-bar`): gün + saat + günün vakti ikonu, dinar, nam, ardından
+  **çubuklu** rozetler — can, grup/kapasite, seviye/XP. Son rozet hızdır; üstüne gelince
+  `#ui-speed-breakdown` kalem kalem döküm gösterir (temel / çeviklik / grup / atlı oranı /
+  arazi / gece). Rozet ikonu atlıysan 🐎, yayaysan 🥾.
+- **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q` (`Input.init` içinde,
+  modal veya savaş açıkken çalışmaz). `showScreen()` tıklanan butonu `data-view` ile aktifler.
+- **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
+  (🪖 piyade / 🏹 okçu / 🐎 süvari). `Game.updateMapHud()` doldurur.
+- `Game.setHtml(id, html)` innerHTML'i sadece metin değiştiyse yazar — `updateTopBar` her
+  karede çağrıldığı için gereksiz DOM yazımını önler.
 
 ### Karakter
 - Nitelikler: **Güç** (yakın dövüş hasarı, turnuvada hedef süresi), **Çeviklik** (harita hızı +1.5, savaş hızı +0.5, turnuvada hedef boyutu), **Zeka** (görüş +30), **Karizma** (grup kapasitesi +2). Seviye başına 2 puan.
@@ -164,14 +191,34 @@ Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
 - Karşılaşma modali: savaş / teslim ol. (İlk 14 günde çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.)
 - **Savaş**: 2D top-down canvas arena, prosedürel arazi (tepe / çukur / orman / nehir).
   - Arazi etkileri: ormanda okçu ×0.7 hasar & süvari ×0.6 hız, tepede okçu ×1.3 hasar, çukurda ×0.8 hız, nehirde ×0.7 hız.
-  - Oyuncu: WASD hareket, sol tık/boşluk ile 60°'lik yay şeklinde kılıç savurma (300 ms, tek isabet).
+  - Oyuncu: WASD hareket, sol tık/boşluk ile yay şeklinde kılıç savurma (300 ms).
+    **Savurma yayın içindeki EN YAKIN tek düşmana isabet eder** — eskiden yaydaki herkese
+    aynı anda vuruyordu (grup biçme hatası). Ayrıca `swingCd` toparlanma süresi var
+    (`swingCooldown()` = `max(0.45, 0.75 − yeterlilik×0.005)` sn), yani hızlı tıklamak hasarı katlamaz.
+    Hasar çarpanı yeterliliğe bağlı: `0.35 + min(0.4, prof×0.004)`. Isıka giderse "ıska" yazısı çıkar.
+  - Tüm saldırı bekleme sayaçları **dt tabanlı** (`u.atkCd`), `performance.now()` değil — kare hızından bağımsız.
+    Piyade `0.85–1.25` sn, okçu `1.4–1.7` sn.
+  - Yakın dövüş hasarı tek yerden geçer: `Battle.dealMelee(src, tgt, raw)` — savunma düşer,
+    geri tepme + kan + kıvılcım + uçan yazı üretir, öldürürse `logKill` + XP.
+  - Çapulcu çeşitliliği: %25 Çapulcu Okçu (hp20/atk6, archer), %10 Atlı Çapulcu (hp32/atk9/def2, cavalry),
+    kalanı düz Çapulcu (hp24/atk6/def0). Düşmanlar **gün sayısına göre ölçeklenir**
+    (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per seviye.
   - Taktik emirleri: **1** takip, **2** hücum, **3** mevzi koru.
   - Okçu AI: 250 birim menzil, çok yaklaşırsa geri çekilir, %50 ihtimalle hedefin hızına göre öndeleme yapar.
   - Süvari HP'si yarıya inince attan düşer (piyadeye döner, hız −30).
-  - Kan lekeleri, uçan hasar yazıları, iki taraflı öldürme logu, düşman komutanından rastgele hakaret repliği + ping animasyonu.
+  - **Herkes arenaya kilitli** (12 birim kenar payı) — geri çekilen okçular haritadan kaçıp savaşı
+    sonsuza kilitliyordu.
+  - Oyuncu ölürse savaş bitmez: **bayılırsın** (`Battle.knockedOut`), adamların dövüşmeye devam eder.
+    Böyle kazanılan savaşta dinar ve XP **yarıya iner**.
+  - Kan lekeleri, cesetler (max 60), kıvılcımlar, uçan hasar yazıları, iki taraflı öldürme logu,
+    düşman komutanından rastgele hakaret repliği + ping animasyonu.
   - Teslim ol butonu her an açık.
-- **Zafer**: dinar + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir, NPC haritadan kaldırılır.
+- **Zafer**: dinar + 3 nam + XP, silah/binicilik/atletizm yeterlilik XP'si, ölü askerler gruptan silinir,
+  NPC haritadan kaldırılır, oyuncunun savaş sonu canı `state`'e geri yazılır.
 - **Yenilgi**: tüm grup dağılır, paranın %60–90'ı gider, HP %30'a düşer, **esir düşülür**.
+- **Denge** (ölçülmüş, oyuncu göğüs göğüse dalarken): 5 acemi vs 5 çapulcu → 2–4 kayıpla zafer;
+  10 vs 15 → yenilgi; 20 acemi vs 20 çapulcu → kıl payı (yazı-tura); seviyeli askerlerle
+  (20×L10 vs 20) rahat zafer. Savaşlar 8–30 sn sürer.
 
 ### Esaret
 - Esirken oyuncu esir alanın konumuna kilitlenir, başka hiçbir şey yapılamaz.
@@ -195,12 +242,56 @@ Bitişte `tournament_end` / `chickens_caught` olayı yayınlanır.
 `boss_map` eşyası (pazardan 5000 dinar) kullanılınca **Savaş Tanrısı** savaşı açılır.
 En fazla 4 kez girilebilir, her girişte boss seviyesi +5. Kazanınca lvl 51 nişanı düşer.
 
+## Görsel katman (renovasyon)
+
+Tüm çizim `app.js` içinde, kütüphane yok. Ortak yaklaşım: **pahalı şeyi bir kez pişir,
+sonra her karede resmi bas.**
+
+- `Game.buildGroundTexture()` — 256px **dikişsiz** çim döşemesi (her leke/çim 9 sarmalı
+  konumda çizilir), `createPattern` ile `Game.groundPattern`'e konur. Harita zemini bu.
+- `Battle.buildGround()` — savaş arenasının tamamını (çim gradyanı + 60 yumuşak leke +
+  2600 çim tutamı + nehir/çukur/tepe/orman) offscreen canvas'a pişirir; `render()` tek
+  `drawImage` ile basar.
+- `Battle.drawTree(ctx,x,y,r)` — gölge + gövde + 3 gradyanlı taç. Hem savaşta hem haritada
+  kullanılır (harita ormanları `_forestTrees` içinde önbelleklenir).
+- `Battle.drawUnit()` — zemin gölgesi, takım halkası (mavi `#4fa8ff` / kırmızı `#ff5a4a`),
+  oyuncuya nabız atan altın halka, toz, emoji + rütbe işareti, isabet beyaz flaşı,
+  `currentWeaponAngle`'da gradyanlı kılıç, HP çubuğu **yalnızca hasar aldıysa**.
+  Birimler y'ye göre sıralı çizilir (derinlik hissi).
+- `Battle.drawHud()` — genişliğe uyum sağlayan komut şeridi + çelik çerçeveli halat-çekme
+  çubuğu (çentikler, titreyen çatışma imleci, Cinzel durum yazısı).
+- `Game.mapLabel()` — yuvarlak köşeli plaka + fraksiyon renginde alt çizgi. Yazı boyutu
+  `1/camera.zoom` ile ölçeklenir (her yakınlıkta aynı ekran boyu), çakışan etiketler
+  yukarı itilir. Yerleşim etiketleri ikonun üstünde, NPC etiketleri altında.
+- `Game.drawPartyIcon()` / `drawRider()` / `drawFootman()` — haritadaki grup silüetleri;
+  emoji değil, canvas yolu. Detay için "Dünya haritası" bölümüne bak.
+- `renderMap()`: önbellekli deniz gradyanı + animasyonlu dalga çizgileri, kıta yolu
+  (kum bandı → gölgeli dolgu → kenar) sonra `ctx.clip()`, toprak lekeleri, nehirler
+  (yatak + su + parıltı + akan kesikli çizgi), yollar (48/30/kesikli-4 katman), ormanlar,
+  yerleşimler (gölge + emoji + fraksiyon flaması + turnuva 🏆).
+- Gradyanlar **dünya koordinatlarında** önbelleklenir; kamera kaydırınca kaymazlar.
+
+`style.css` sonundaki `RENOVASYON` bloğu: body radyal gradyanları, `.glass-panel` iç ışığı,
+sefer çubuğu rozetleri (`.hud-chip` / `.hud-bar` / `.fill-hp|party|xp`), ikonlu ve kısayol
+rozetli `.menu-btn`, `#map-hud` künyesi, `.view > h2::after` altın çizgi,
+`#map-view`/`#battle-view` altın çerçeve, `.battle-logs` için `min(330px, 50% - 28px)`
+genişlik + `mask-image` ile alta doğru sönme.
+`#top-bar`'a `position:relative; z-index:60` verilmiştir — yoksa hız ipucu harita
+canvas'ının altında kalıyordu.
+
 ## Bilinen eksikler / bozukluklar
 
 Faz 0'da düzeltilenler (artık sorun değil): fidye butonları, turnuva softlock'u
 (`battle-log` → `battle-log-left`), çift tanımlı `showLore`/`toggleEscapePlan`/`attemptEscape`,
 Windows mutlak portre yolları, yeterlilik anahtarı uyuşmazlığı, `renderPartyScreen` kapasitesi,
 kayıt/yükleme.
+
+Savaş turunda düzeltilenler: tek savurmanın yaydaki **herkese** vurması, toparlanma süresi
+olmadığı için hızlı tıklamanın hasarı katlaması, `enemyLvl`'in hesaplanıp hiç kullanılmaması,
+`performance.now()` tabanlı bekleme sayaçlarının kare hızına bağlı olması, arenadan kaçan
+okçuların savaşı sonsuza kilitlemesi, ok hasarının `-4.199999999999999` gibi yazılması,
+yenilgide oyuncu canının %30'a düşürülüp hemen üzerine yazılması, oyuncu ölünce savaşın
+anında bitmesi.
 
 Kalanlar:
 
@@ -211,7 +302,7 @@ Kalanlar:
 4. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
 5. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
-6. `app.js` ~3100 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+6. `app.js` ~3400 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 

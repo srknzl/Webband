@@ -183,6 +183,13 @@ const Input = {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             this.keys[e.key.toLowerCase()] = true;
             if(e.key === ' ') e.preventDefault(); // Boşluk ile kaymayı engelle
+            // Menü kısayolları (Warband tarzı) — savaş/turnuva/modal açıkken çalışmaz
+            if(!Battle.active && !TournamentMinigame.active && !e.ctrlKey && !e.metaKey &&
+               document.getElementById('modal-overlay').classList.contains('hidden') &&
+               document.getElementById('main-ui').classList.contains('active')) {
+                let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[e.key.toLowerCase()];
+                if(scr) Game.showScreen(scr);
+            }
         });
         window.addEventListener('keyup', e => { 
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -401,12 +408,16 @@ const Game = {
         return 50 + (cha - 10) * 2 + (leadership - 1) * 3;
     },
 
-    getTerrainMultiplier(x, y) {
-        let mult = 1.0;
+    getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
+
+    // Arazi hem hız çarpanını hem de künyede yazacak adı verir — tek kaynak
+    getTerrainInfo(x, y) {
+        let mult = 1.0, name = 'Düzlük', icon = '🌾';
         for(let f of FORESTS) {
             let dx = x - f.x, dy = y - f.y;
             if(Math.sqrt(dx*dx + dy*dy) <= f.radius) {
                 mult *= 0.8; // Ormanda %20 yavaşla
+                name = 'Orman'; icon = '🌲';
                 break;
             }
         }
@@ -424,6 +435,7 @@ const Game = {
             let dx = x - xx, dy = y - yy;
             if(Math.sqrt(dx * dx + dy * dy) <= r.width / 2) {
                 mult = 0.5; // Nehirde yavaşla
+                name = 'Nehir Geçidi'; icon = '🌊';
                 break;
             }
         }
@@ -442,11 +454,40 @@ const Game = {
                 let dx = x - xx, dy = y - yy;
                 if(Math.sqrt(dx * dx + dy * dy) <= 22.5) {
                     mult *= 1.1; // Yolda %10 hız artışı
+                    if(name === 'Düzlük') { name = 'Yol'; icon = '🛣️'; }
                     break;
                 }
             }
         }
-        return mult;
+        return { mult, name, icon };
+    },
+
+    // Grubun sınıf dağılımı — hem harita künyesi hem atlı oranı için
+    getPartyComposition() {
+        let c = { infantry: 0, archer: 0, cavalry: 0 };
+        state.player.party.forEach(t => {
+            let ti = TROOP_TYPES[t.name.replace('Efsanevi ', '')];
+            c[(ti && ti.type) || 'infantry']++;
+        });
+        return c;
+    },
+
+    // Warband'da harita hızını en çok grubun atlı oranı belirler
+    getMountedRatio() {
+        let total = state.player.party.length + 1;
+        return (this.getPartyComposition().cavalry + (state.player.equipment.horse ? 1 : 0)) / total;
+    },
+
+    isNight() { let h = state.time.hour; return h < 6 || h >= 20; },
+
+    // Günün vakti: harita tonlaması + saat rozeti
+    getDayPart() {
+        let h = state.time.hour;
+        if(h < 5)  return { key: 'night', name: 'Gece',       icon: '🌙', tint: 'rgba(12,20,52,0.44)' };
+        if(h < 8)  return { key: 'dawn',  name: 'Şafak',      icon: '🌅', tint: 'rgba(90,52,30,0.26)' };
+        if(h < 17) return { key: 'day',   name: 'Gündüz',     icon: '🌞', tint: null };
+        if(h < 20) return { key: 'dusk',  name: 'Gün Batımı', icon: '🌇', tint: 'rgba(112,54,22,0.30)' };
+        return { key: 'night', name: 'Gece', icon: '🌙', tint: 'rgba(12,20,52,0.44)' };
     },
 
     getPlayerSpeed() {
@@ -455,40 +496,53 @@ const Game = {
         if(size <= 1) speedBonus = 0.5;
         else if(size <= 10) speedBonus = 0.5 - ((size - 1) / 9) * 0.3;
         else if(size <= 50) speedBonus = 0.2 - ((size - 10) / 40) * 0.2;
-        
+
         let base = state.player.equipment.horse ? 105 : 66;
         let agiBonus = state.player.stats.agi * 1.5;
-        let beforeTerrain = (base + agiBonus) * (1 + speedBonus);
-        let terrainMult = this.getTerrainMultiplier(state.player.x, state.player.y);
-        
+        let mountBonus = this.getMountedRatio() * 0.35; // atlı oranı
+        let nightMult = this.isNight() ? 0.85 : 1;      // gece yavaş yol alınır
+        let terrain = this.getTerrainInfo(state.player.x, state.player.y);
+
         return {
-            value: beforeTerrain * terrainMult,
-            base,
-            agiBonus,
+            value: (base + agiBonus) * (1 + speedBonus + mountBonus) * terrain.mult * nightMult,
+            base, agiBonus,
             partyMult: speedBonus,
-            terrainMult
+            mountBonus,
+            nightMult,
+            terrainMult: terrain.mult,
+            terrain
         };
     },
 
     updateSpeedUI(spdData) {
         let speedEl = document.getElementById('ui-speed');
         if(!speedEl) return;
-        speedEl.innerText = spdData.value.toFixed(1);
-        
-        let terrainText = '';
-        if(spdData.terrainMult < 1) terrainText = `<br><span style="color:var(--danger)">Arazi: -%${((1 - spdData.terrainMult) * 100).toFixed(0)} (Yavaşlatma)</span>`;
-        else if(spdData.terrainMult > 1) terrainText = `<br><span style="color:var(--success)">Yol Etkisi: +%${((spdData.terrainMult - 1) * 100).toFixed(0)} (Hızlanma)</span>`;
+        speedEl.innerText = spdData.value.toFixed(0);
 
-        let brk = document.getElementById('ui-speed-breakdown');
-        if(brk) {
-            brk.innerHTML = `
-                <b>Hız Detayları</b><hr style="border-color:var(--primary);margin:4px 0">
-                Temel: <span style="color:var(--primary)">${spdData.base}</span> ${state.player.equipment.horse ? '(Atlı)' : '(Yaya)'}<br>
-                Çeviklik Bonusu: <span style="color:var(--success)">+${spdData.agiBonus.toFixed(1)}</span><br>
-                Grup Bonusu: <span style="color:var(--success)">+%${(spdData.partyMult * 100).toFixed(0)}</span>
-                ${terrainText}
-            `;
-        }
+        let mounted = !!state.player.equipment.horse;
+        let ico = document.getElementById('ui-speed-ico');
+        if(ico) ico.innerText = mounted ? '🐎' : '🥾';
+        let mode = document.getElementById('ui-speed-mode');
+        if(mode) mode.innerText = mounted ? 'atlı' : 'yaya';
+
+        let row = (label, val, good) =>
+            `<div style="display:flex;justify-content:space-between;gap:1.2rem">
+                <span>${label}</span>
+                <span style="color:${good ? 'var(--success)' : 'var(--danger)'}">${val}</span>
+             </div>`;
+
+        this.setHtml('ui-speed-breakdown', `
+            <b style="font-family:Cinzel,serif">Yol Alma Hızı</b>
+            <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
+            ${row(`Temel (${mounted ? 'atlı' : 'yaya'})`, spdData.base, true)}
+            ${row('Çeviklik', '+' + spdData.agiBonus.toFixed(1), true)}
+            ${row('Grup büyüklüğü', (spdData.partyMult >= 0 ? '+' : '') + '%' + (spdData.partyMult*100).toFixed(0), spdData.partyMult >= 0)}
+            ${row('Atlı oranı', '+%' + (spdData.mountBonus*100).toFixed(0), true)}
+            ${row(`Arazi (${spdData.terrain.name})`, (spdData.terrainMult >= 1 ? '+' : '') + '%' + ((spdData.terrainMult-1)*100).toFixed(0), spdData.terrainMult >= 1)}
+            ${spdData.nightMult < 1 ? row('Gece yürüyüşü', '-%15', false) : ''}
+            <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
+            ${row('<b>Toplam</b>', '<b>' + spdData.value.toFixed(1) + '</b>', true)}
+        `);
     },
 
     getHumorousDialog(type, npc) {
@@ -988,17 +1042,52 @@ const Game = {
 
     updateTopBar() {
         let p = state.player;
-        document.getElementById('ui-day').innerText = `${state.time.day}`;
-        document.getElementById('ui-money').innerText = Math.floor(p.money);
-        document.getElementById('ui-renown').innerText = p.renown;
-        document.getElementById('ui-party').innerText = `${p.party.length}/${this.getPartyCapacity()}`;
-        document.getElementById('ui-hp').innerText = `${p.stats.hp}/${p.stats.maxHp}`;
-        document.getElementById('ui-level').innerText = p.stats.level;
-        
+        let set = (id, v) => { let e = document.getElementById(id); if(e) e.innerText = v; };
+        let bar = (id, pct) => { let e = document.getElementById(id); if(e) e.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
+
+        let cap = this.getPartyCapacity();
+        let dp = this.getDayPart();
+
+        set('ui-day', state.time.day);
+        set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
+        set('ui-daypart', dp.icon);
+        set('ui-money', Math.floor(p.money));
+        set('ui-renown', p.renown);
+        set('ui-party', `${p.party.length}/${cap}`);
+        set('ui-hp', `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`);
+        set('ui-level', p.stats.level);
+
+        bar('bar-hp', p.stats.hp / p.stats.maxHp * 100);
+        bar('bar-party', p.party.length / cap * 100);
+        bar('bar-xp', p.stats.xp / p.stats.xpNext * 100);
+
         this.updateSpeedUI(this.getPlayerSpeed());
-        
+        this.updateMapHud();
+
         let pi = document.getElementById('prisoner-icon');
         if(pi) pi.style.display = p.status === 'prisoner' ? 'block' : 'none';
+    },
+
+    // innerHTML her karede yeniden yazılmasın — sadece metin değiştiyse
+    _htmlCache: {},
+    setHtml(id, html) {
+        if(this._htmlCache[id] === html) return;
+        this._htmlCache[id] = html;
+        let e = document.getElementById(id);
+        if(e) e.innerHTML = html;
+    },
+
+    // Harita künyesi: bulunduğun arazi + birlik dağılımı
+    updateMapHud() {
+        let t = document.getElementById('map-terrain-txt');
+        if(!t) return;
+        let terrain = this.getTerrainInfo(state.player.x, state.player.y);
+        t.innerText = terrain.name + (terrain.mult !== 1 ? `  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
+        document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
+
+        let c = this.getPartyComposition();
+        this.setHtml('map-comp',
+            `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`);
     },
 
     renderPrisonerUI() {
@@ -1057,7 +1146,7 @@ const Game = {
 
     // --- SCREENS ---
     showScreen(screenId) {
-        document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.menu-btn').forEach(b => b.classList.toggle('active', b.dataset.view === screenId));
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         let view = document.getElementById(screenId + '-view');
         if(view) view.classList.add('active');
@@ -1074,19 +1163,225 @@ const Game = {
     },
 
     // --- MAP RENDER ---
+    // Toprak dokusu: 256px'lik tekrarlı desen, bir kez üretilir
+    buildGroundTexture() {
+        let sz = 256;
+        let c = document.createElement('canvas'); c.width = c.height = sz;
+        let x = c.getContext('2d');
+        x.fillStyle = '#32472d'; x.fillRect(0, 0, sz, sz);
+        // Kenarları sarmalayarak çiz — yoksa desen döşenince ızgara izi çıkıyor
+        let wrap = (px, py, draw) => {
+            for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) draw(px + ox*sz, py + oy*sz);
+        };
+        for(let i = 0; i < 26; i++) {
+            let px = Math.random()*sz, py = Math.random()*sz, r = 18 + Math.random()*40;
+            let col = Math.random() > 0.5 ? 'rgba(84,112,64,0.22)' : 'rgba(26,42,26,0.22)';
+            wrap(px, py, (qx, qy) => {
+                let g = x.createRadialGradient(qx, qy, 0, qx, qy, r);
+                g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+                x.fillStyle = g; x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill();
+            });
+        }
+        for(let i = 0; i < 2600; i++) {
+            let px = Math.random()*sz, py = Math.random()*sz, r = 0.5 + Math.random()*1.2;
+            x.fillStyle = Math.random() > 0.5 ? 'rgba(86,116,66,0.35)' : 'rgba(28,44,26,0.35)';
+            wrap(px, py, (qx, qy) => { x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill(); });
+        }
+        this.groundPattern = this.ctx.createPattern(c, 'repeat');
+    },
+
+    // Haritadaki isim etiketleri — çıplak gölgeli yazı yerine okunur bir plaka.
+    // Üst üste binenler yukarı kaydırılır (kalabalık bölgede isimler birbirini yemesin).
+    mapLabel(ctx, text, x, y, color, accent) {
+        // Yazı boyutu zoom'dan bağımsız: her yakınlıkta aynı ekran boyunda okunur
+        let k = 1 / this.camera.zoom;
+        ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        let w = ctx.measureText(text).width + 18*k, h = 25*k;
+
+        if(!this._labelRects) this._labelRects = [];
+        for(let tries = 0; tries < 8; tries++) {
+            let hit = this._labelRects.some(r =>
+                Math.abs(r.x - x) < (r.w + w)/2 && Math.abs(r.y - y) < (r.h + h)/2 + 3);
+            if(!hit) break;
+            y -= h + 5;
+        }
+        this._labelRects.push({ x, y, w, h });
+
+        ctx.fillStyle = 'rgba(8,10,14,0.72)';
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(x - w/2, y - h/2, w, h, 5*k);
+        else ctx.rect(x - w/2, y - h/2, w, h);
+        ctx.fill();
+        if(accent) {
+            ctx.fillStyle = accent;
+            ctx.fillRect(x - w/2, y + h/2 - 2.5*k, w, 2.5*k);
+        }
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+    },
+
+    // --- HARİTA GRUP İKONLARI ---
+    // Warband'da grup ikonu grubun neye benzediğini gösterir: atlıysan atlı,
+    // yayaysan mızraklı piyade, kalabalıksan arkanda kolon görünür.
+
+    // Yaya asker silüeti (0,0 = ayak basma noktası)
+    drawFootman(ctx, col, cloak) {
+        ctx.strokeStyle = '#6b5535'; ctx.lineWidth = 2.2;             // mızrak sapı
+        ctx.beginPath(); ctx.moveTo(7, -36); ctx.lineTo(10, 8); ctx.stroke();
+        ctx.fillStyle = '#cfd6dc';                                     // mızrak ucu
+        ctx.beginPath(); ctx.moveTo(7, -36); ctx.lineTo(4, -44); ctx.lineTo(11, -40); ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = cloak; ctx.lineWidth = 3.6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-3, 2); ctx.lineTo(-5, 12); ctx.moveTo(3, 2); ctx.lineTo(5, 12); ctx.stroke();
+
+        ctx.fillStyle = cloak;                                         // gövde
+        ctx.beginPath();
+        ctx.moveTo(-7, 4); ctx.lineTo(-5, -15);
+        ctx.quadraticCurveTo(0, -21, 5, -15); ctx.lineTo(7, 4);
+        ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = col;                                           // kalkan
+        ctx.beginPath(); ctx.arc(-8, -6, 6.4, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+        ctx.fillStyle = '#d9c6a2';                                     // yüz
+        ctx.beginPath(); ctx.arc(0, -20, 4.8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = cloak;                                         // miğfer
+        ctx.beginPath(); ctx.arc(0, -20, 5.2, Math.PI, 0); ctx.fill();
+        ctx.lineCap = 'butt';
+    },
+
+    // Atlı silüeti (0,0 = atın toynak hizası, at sağa bakar)
+    drawRider(ctx, col, cloak) {
+        let hide = '#4a3524', dark = '#33241a';
+
+        ctx.strokeStyle = dark; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+        ctx.beginPath();                                                // bacaklar
+        ctx.moveTo(-9, -5); ctx.lineTo(-11, 9);
+        ctx.moveTo(-4, -4); ctx.lineTo(-2, 9);
+        ctx.moveTo(8, -5);  ctx.lineTo(10, 9);
+        ctx.moveTo(12, -6); ctx.lineTo(15, 8);
+        ctx.stroke();
+        ctx.beginPath();                                                // kuyruk
+        ctx.moveTo(-13, -12); ctx.quadraticCurveTo(-22, -10, -21, -1);
+        ctx.lineWidth = 3.8; ctx.stroke();
+
+        ctx.fillStyle = hide;
+        ctx.beginPath(); ctx.ellipse(1, -10, 14, 7.5, 0, 0, Math.PI*2); ctx.fill();   // gövde
+        ctx.beginPath();                                                // boyun
+        ctx.moveTo(7, -15); ctx.lineTo(13, -31); ctx.lineTo(19, -29); ctx.lineTo(15, -11);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();                                                // kafa + burun
+        ctx.moveTo(13, -32); ctx.lineTo(26, -28); ctx.lineTo(26, -24); ctx.lineTo(15, -25);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();                                                // kulak
+        ctx.moveTo(14, -32); ctx.lineTo(15, -37); ctx.lineTo(18, -31); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = dark; ctx.lineWidth = 2.6;                    // yele
+        ctx.beginPath(); ctx.moveTo(5, -17); ctx.lineTo(13, -32); ctx.stroke();
+
+        ctx.fillStyle = col;                                            // eyer örtüsü (fraksiyon rengi)
+        ctx.beginPath(); ctx.moveTo(-8, -11); ctx.lineTo(6, -11); ctx.lineTo(3, -2); ctx.lineTo(-7, -2);
+        ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = cloak;                                          // binicinin gövdesi
+        ctx.beginPath();
+        ctx.moveTo(-7, -12); ctx.lineTo(-5, -29);
+        ctx.quadraticCurveTo(0, -34, 5, -29); ctx.lineTo(6, -12);
+        ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = '#c8d0d8'; ctx.lineWidth = 2.6;               // havaya kalkmış kılıç
+        ctx.beginPath(); ctx.moveTo(5, -28); ctx.lineTo(14, -44); ctx.stroke();
+        ctx.strokeStyle = cloak; ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.moveTo(3, -25); ctx.lineTo(6, -29); ctx.stroke();
+
+        ctx.fillStyle = '#d9c6a2';                                      // yüz
+        ctx.beginPath(); ctx.arc(0, -35, 4.8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = cloak;                                          // miğfer
+        ctx.beginPath(); ctx.arc(0, -35, 5.2, Math.PI, 0); ctx.fill();
+        ctx.lineCap = 'butt';
+    },
+
+    /**
+     * Tam grup ikonu: gölge + arkadaki kolon + ön figür + sancak.
+     * o = { mounted, size, color, scale, bob, dim }
+     */
+    drawPartyIcon(ctx, x, y, o) {
+        let sc = o.scale || 1;
+        let cloak = o.dim ? '#3a3a42' : '#26262e';
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        ctx.beginPath();                                               // yer gölgesi
+        ctx.ellipse(0, 0, 26*sc, 9*sc, 0, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
+
+        ctx.scale(sc, sc);
+        ctx.translate(0, o.bob || 0);
+
+        // Kalabalık kolonu: 10+ kişi 1, 30+ kişi 2 arkadaş figürü
+        let extra = o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0);
+        let offsets = [[-17, -4], [16, -7]];
+        ctx.globalAlpha = 0.75;
+        for(let i = 0; i < extra; i++) {
+            ctx.save();
+            ctx.translate(offsets[i][0], offsets[i][1]);
+            ctx.scale(0.78, 0.78);
+            if(o.mounted) this.drawRider(ctx, o.color, cloak); else this.drawFootman(ctx, o.color, cloak);
+            ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+
+        if(o.mounted) this.drawRider(ctx, o.color, cloak); else this.drawFootman(ctx, o.color, cloak);
+
+        // Sancak direği
+        let top = o.mounted ? -62 : -48;
+        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
+        ctx.fillStyle = o.color;
+        ctx.beginPath();
+        ctx.moveTo(-14, top); ctx.lineTo(-14 - 20, top + 6); ctx.lineTo(-14, top + 13);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+        ctx.restore();
+    },
+
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
         let c = this.mapCanvas, ctx = this.ctx;
         let W = c.width, H = c.height;
+        this._labelRects = [];
         ctx.clearRect(0,0,W,H);
         ctx.save();
         ctx.scale(this.camera.zoom, this.camera.zoom);
         ctx.translate(-this.camera.x + W/(2*this.camera.zoom), -this.camera.y + H/(2*this.camera.zoom));
 
-        ctx.fillStyle = '#0f172a'; // Derin boşluk
+        // --- Deniz
+        if(!this._seaGrad) {
+            let g = ctx.createLinearGradient(0, -2000, 0, 11000);
+            g.addColorStop(0, '#0a1c2e');
+            g.addColorStop(0.5, '#123c58');
+            g.addColorStop(1, '#0a1c2e');
+            this._seaGrad = g;
+        }
+        ctx.fillStyle = this._seaGrad;
         ctx.fillRect(-5000, -5000, 20000, 20000);
 
-        // Kıtanın sınırlarını çiz ve clip yap
+        // Deniz dalgaları
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 6;
+        let wt = performance.now() / 4000;
+        for(let i = -4; i < 22; i++) {
+            let y = i * 600 + Math.sin(wt + i) * 40;
+            ctx.beginPath();
+            for(let x = -4000; x < 14000; x += 400) ctx.lineTo(x, y + Math.sin((x/900) + wt*2 + i) * 30);
+            ctx.stroke();
+        }
+
+        // --- Kıta
+        ctx.save();
         ctx.beginPath();
         for(let i=0; i<state.mapBorder.length; i++) {
             let pt = state.mapBorder[i];
@@ -1094,99 +1389,139 @@ const Game = {
             else ctx.lineTo(pt.x, pt.y);
         }
         ctx.closePath();
-        ctx.fillStyle = '#2d402b'; // Mat yeşil toprak zemin
+
+        // Kumsal + kıyı gölgesi
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke();
+        ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 70;
+        ctx.fillStyle = '#2f452c'; ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
+
+        ctx.clip(); // Bundan sonrası kıtanın dışına taşmaz
+
+        // Toprak dokusu (bir kez üretilip pattern olarak döşenir)
+        if(!this.groundPattern) this.buildGroundTexture();
+        ctx.fillStyle = this.groundPattern;
         ctx.fill();
 
-        // Toprak lekeleri (daha gerçekçi zemin)
+        // Toprak lekeleri — yumuşak geçişli
         if(!state.dirtPatches) {
             state.dirtPatches = [];
             for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
         }
-        ctx.fillStyle = '#263624'; // Daha koyu/kahverengimsi lekeler
         state.dirtPatches.forEach(d => {
+            let g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
+            g.addColorStop(0, 'rgba(30,44,28,0.55)');
+            g.addColorStop(1, 'rgba(30,44,28,0)');
+            ctx.fillStyle = g;
             ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI*2); ctx.fill();
         });
 
-        // Ormanları Çiz
-        FORESTS.forEach(f => {
-            ctx.beginPath();
-            ctx.arc(f.x, f.y, f.radius, 0, Math.PI*2);
-            ctx.fillStyle = '#1b3a1b';
-            ctx.fill();
-            ctx.font = '42px Arial';
-            ctx.fillText('🌲', f.x - 30, f.y - 30);
-            ctx.fillText('🌲', f.x + 30, f.y + 45);
-            ctx.fillText('🌲', f.x - 60, f.y + 15);
-            ctx.fillText('🌲', f.x + 45, f.y - 15);
-        });
-
-        // Nehirleri Çiz
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(51, 153, 255, 0.6)';
-        ctx.setLineDash([45, 60]);
-        ctx.lineDashOffset = -(performance.now() / 30); // Su akış animasyonu
+        // Nehirler — yatak, su, akıntı
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         RIVERS.forEach(riv => {
-            ctx.lineWidth = riv.width;
-            ctx.beginPath();
-            ctx.moveTo(riv.x1, riv.y1);
-            ctx.lineTo(riv.x2, riv.y2);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2);
+            ctx.lineWidth = riv.width + 22; ctx.strokeStyle = 'rgba(96,110,70,0.55)'; ctx.stroke();
+            ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.85)'; ctx.stroke();
+            ctx.lineWidth = riv.width * 0.45; ctx.strokeStyle = 'rgba(120,200,235,0.5)'; ctx.stroke();
         });
-        ctx.setLineDash([]); // reset
+        ctx.setLineDash([50, 90]);
+        ctx.lineDashOffset = -(performance.now() / 25);
+        ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+        RIVERS.forEach(riv => {
+            ctx.lineWidth = Math.max(3, riv.width * 0.18);
+            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2); ctx.stroke();
+        });
+        ctx.setLineDash([]);
 
-        // Draw Roads
+        // Yollar — toprak şerit + tekerlek izi
         if(state.roads) {
-            ctx.strokeStyle = 'rgba(139, 69, 19, 0.4)';
-            ctx.lineWidth = 45;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
             ctx.beginPath();
-            state.roads.forEach(r => {
-                ctx.moveTo(r.x1, r.y1);
-                ctx.lineTo(r.x2, r.y2);
-            });
-            ctx.stroke();
+            state.roads.forEach(r => { ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2); });
+            ctx.lineWidth = 48; ctx.strokeStyle = 'rgba(92,68,38,0.45)'; ctx.stroke();
+            ctx.lineWidth = 30; ctx.strokeStyle = 'rgba(158,124,74,0.42)'; ctx.stroke();
+            ctx.setLineDash([70, 55]);
+            ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(214,186,132,0.30)'; ctx.stroke();
+            ctx.setLineDash([]);
         }
+
+        // Ormanlar — gerçek ağaçlar (konumlar bir kez üretilip saklanır)
+        if(!this._forestTrees) {
+            this._forestTrees = FORESTS.map(f => {
+                let arr = [];
+                let n = Math.max(14, Math.floor(f.radius / 11));
+                for(let i=0;i<n;i++) {
+                    let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.radius * 0.95;
+                    arr.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 18 + Math.random()*20 });
+                }
+                arr.sort((p,q) => p.y - q.y);
+                return arr;
+            });
+        }
+        FORESTS.forEach((f, i) => {
+            let g = ctx.createRadialGradient(f.x, f.y, f.radius*0.2, f.x, f.y, f.radius);
+            g.addColorStop(0, 'rgba(16,38,18,0.85)');
+            g.addColorStop(1, 'rgba(16,38,18,0)');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI*2); ctx.fill();
+            this._forestTrees[i].forEach(t => Battle.drawTree(ctx, t.x, t.y, t.r));
+        });
+
+        ctx.restore(); // kıta clip'i biter
 
         // Draw locations
         LOCATIONS.forEach(loc => {
             let fc = FACTIONS[loc.faction] || {color:'#888'};
+            let big = loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32;
+            let icon = loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️';
+
+            // Yer gölgesi
             ctx.beginPath();
-            if(loc.type === 'city') {
-                ctx.font = '64px Arial'; // Çok büyük
-                ctx.fillText('🏙️', loc.x, loc.y + 15);
-                ctx.arc(loc.x, loc.y - 30, 16, 0, Math.PI*2);
-                ctx.fillStyle = fc.color;
-                ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-                // Turnuva ikonu
-                if(state.activeTournaments[loc.id]) {
-                    ctx.fillStyle = '#ffcc00';
-                    ctx.font = '36px Arial';
-                    ctx.fillText('🏆', loc.x + 30, loc.y - 15);
-                }
-            } else if(loc.type === 'castle') {
-                ctx.font = '48px Arial'; // Orta
-                ctx.fillText('🏰', loc.x, loc.y + 15);
-                ctx.arc(loc.x, loc.y - 30, 12, 0, Math.PI*2);
-                ctx.fillStyle = fc.color;
-                ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-            } else {
-                ctx.font = '32px Arial'; // Küçük
-                ctx.fillText('🏘️', loc.x, loc.y + 15);
-                ctx.arc(loc.x, loc.y - 24, 8, 0, Math.PI*2);
-                ctx.fillStyle = fc.color;
-                ctx.fill();
+            ctx.ellipse(loc.x, loc.y + 18, big*0.55, big*0.22, 0, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
+
+            ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+            ctx.font = big + 'px Arial';
+            ctx.fillText(icon, loc.x, loc.y + 15);
+
+            // Fraksiyon flaması
+            let px = loc.x + big*0.42, py = loc.y - big*0.45;
+            ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(px, py + 34); ctx.lineTo(px, py - 26); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(px, py - 26); ctx.lineTo(px + 30, py - 17); ctx.lineTo(px, py - 8);
+            ctx.closePath();
+            ctx.fillStyle = fc.color; ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+
+            if(loc.type === 'city' && state.activeTournaments[loc.id]) {
+                ctx.font = '36px Arial';
+                ctx.fillText('🏆', loc.x - big*0.55, loc.y - 15);
             }
-            ctx.fillStyle = '#fff';
-            ctx.font = '33px Inter';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = 'black'; ctx.shadowBlur = 12;
-            ctx.fillText(loc.name, loc.x, loc.y - 54);
-            ctx.shadowBlur = 0;
+
+            this.mapLabel(ctx, loc.name, loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
         });
+
+        // --- GÜNÜN VAKTİ ---
+        // Gece mavi, şafak/gün batımı sıcak ton. Gece yerleşimlerde ocak ışığı yanar.
+        let dayPart = this.getDayPart();
+        if(dayPart.tint) {
+            ctx.fillStyle = dayPart.tint;
+            ctx.fillRect(-1000, -1000, 11000, 11000);
+            if(dayPart.key === 'night') {
+                ctx.globalCompositeOperation = 'lighter';
+                LOCATIONS.forEach(loc => {
+                    let g = ctx.createRadialGradient(loc.x, loc.y, 0, loc.x, loc.y, 110);
+                    g.addColorStop(0, 'rgba(255,170,70,0.30)');
+                    g.addColorStop(1, 'rgba(255,140,50,0)');
+                    ctx.fillStyle = g;
+                    ctx.beginPath(); ctx.arc(loc.x, loc.y, 110, 0, Math.PI*2); ctx.fill();
+                });
+                ctx.globalCompositeOperation = 'source-over';
+            }
+        }
 
         // FOG OF WAR çizimi
         if(this.exploredCanvas) {
@@ -1197,7 +1532,7 @@ const Game = {
         // Ancak o anki dalgalı görüş alanını karartmadan Bırakacağız (evenodd taktiği)
         ctx.beginPath();
         ctx.rect(-1000,-1000, 11000, 11000); // Tüm ekranı kapsayan dikdörtgen
-        let vis = state.player.visibility;
+        let vis = state.player.visibility * (this.isNight() ? 0.7 : 1);
         let time = performance.now() / 2000;
         for (let a = 0; a < Math.PI * 2; a += 0.1) {
             let r = vis + Math.sin(a * 6 + time) * 24;
@@ -1211,12 +1546,13 @@ const Game = {
         ctx.fill('evenodd'); // İç içe geçen şekillerin içini boyamaz
         
         // Sınırlar boyunca sıra dağları çiz
-        ctx.font = '50px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         state.mapBorder.forEach((pt, index) => {
             if(index % 2 === 0) { // Çok yoğun olmaması için iki noktada bir dağ çiz
-                ctx.fillText('🏔️', pt.x, pt.y + 20);
+                let sz = 42 + ((index * 37) % 24); // düzenli tekrar yerine kırık silüet
+                ctx.font = sz + 'px Arial';
+                ctx.fillText('🏔️', pt.x, pt.y + 20 + (index % 3) * 6);
             }
         });
 
@@ -1227,80 +1563,68 @@ const Game = {
             let dist = Math.sqrt(dx*dx + dy*dy);
             if(dist > vis + 45) return; // Görüş dışıysa çizme
 
-            // Draw NPC Icon
-            ctx.save();
-            ctx.translate(npc.x, npc.y + 10);
+            let nf = FACTIONS[npc.faction] || {};
+            let nCol = npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc');
 
+            // Fraksiyon halkası
+            ctx.beginPath();
+            ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
+            ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+
+            // Çapulcular yayadır, soylular atlı — ikondan hemen anlaşılsın
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
-            if(isMoving) {
-                let time = performance.now();
-                ctx.translate(0, -Math.abs(Math.sin(time / 150)) * 6);
-                ctx.rotate(Math.sin(time / 150) * 0.15);
-            }
+            this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
+                mounted: npc.type !== 'bandit',
+                size: npc.size || 1,
+                color: nCol,
+                scale: npc.type === 'king' ? 1.15 : 1,
+                bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
+                dim: npc.type === 'bandit'
+            });
 
-            ctx.font = '30px Arial'; // emoji font
-            ctx.textBaseline = 'middle';
-            let icon = '🐴'; // default for lords
-            if(npc.type === 'bandit') icon = '🧑‍🌾';
-            else if(npc.type === 'king') icon = '🐴';
-            else if(npc.type === 'vizier') icon = '🐴';
-            
-            ctx.fillText(icon, 0, 0);
-            ctx.restore();
-
-            // Draw Rank
+            // Taç: kral/vezir
             if(npc.type === 'king' || npc.type === 'vizier') {
-                ctx.fillStyle = '#ffcc00'; // Altın sarısı
-                ctx.font = 'bold 30px Inter';
-                ctx.textAlign = 'center';
-                if(npc.type === 'king') {
-                    ctx.fillText('^', npc.x, npc.y - 25);
-                    ctx.fillText('^', npc.x, npc.y - 35);
-                } else {
-                    ctx.fillText('^', npc.x, npc.y - 30);
-                }
+                ctx.font = (npc.type === 'king' ? 30 : 24) + 'px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44);
             }
             
-            ctx.fillStyle = '#fff';
-            ctx.font = '30px Inter';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'alphabetic'; // reset
-            ctx.shadowColor = 'black'; ctx.shadowBlur = 12;
             let shortName = npc.name.split(' ')[0];
             if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
                 shortName = npc.name.replace(' Ordusu', '').replace(' Birliği', '');
             }
-            ctx.fillText(`${shortName} (${npc.size})`, npc.x, npc.y - 30);
-            ctx.shadowBlur = 0;
+            this.mapLabel(ctx, `${shortName} (${npc.size})`, npc.x, npc.y + 50, '#ffffff', nCol);
         });
 
         // Player (always visible)
         let isPrisoner = !!state.player.prisoner;
 
-        ctx.save();
-        ctx.translate(state.player.x, state.player.y);
+        // Oyuncu tabanı — nabız atan altın halka
+        let pp = 1 + Math.sin(performance.now()/450) * 0.1;
+        ctx.beginPath();
+        ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
+        ctx.strokeStyle = isPrisoner ? 'rgba(255,90,90,0.9)' : 'rgba(255,204,0,0.9)';
+        ctx.lineWidth = 4; ctx.stroke();
+
         let pIsMoving = state.player.status === 'moving';
-        if (pIsMoving && !isPrisoner) {
-            let time = performance.now();
-            ctx.translate(0, -Math.abs(Math.sin(time / 150)) * 8);
-            ctx.rotate(Math.sin(time / 150) * 0.15);
+        if(isPrisoner) {
+            ctx.font = '54px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('⛓️', state.player.x, state.player.y);
+        } else {
+            // Atımız varsa haritada atlı görünürüz (Warband'daki gibi)
+            this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
+                mounted: !!state.player.equipment.horse,
+                size: state.player.party.length + 1,
+                color: '#ffcc00',
+                scale: 1.35,
+                bob: pIsMoving ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
+            });
         }
 
-        ctx.font = '60px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        let pIcon = isPrisoner ? '⛓️' : (state.player.equipment.horse ? '🐴' : '🧑‍🌾');
-        ctx.fillText(pIcon, 0, 0);
-        ctx.restore();
-
         // Name and Troop Count
-        ctx.fillStyle = isPrisoner ? '#ff6666' : '#ffcc00';
-        ctx.font = 'bold 30px Inter';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = 'black'; ctx.shadowBlur = 12;
         let troopCount = state.player.party.length + 1;
-        ctx.fillText(`${state.player.name} (${troopCount})`, state.player.x, state.player.y - 45);
-        ctx.shadowBlur = 0;
+        this.mapLabel(ctx, `${state.player.name} (${troopCount})`, state.player.x, state.player.y - 72,
+                      isPrisoner ? '#ff8888' : '#ffcc00', isPrisoner ? '#ff4444' : '#ffcc00');
 
         // Esir durumu ikonu
         if(isPrisoner) {
@@ -1689,7 +2013,7 @@ const Game = {
                 <li>
                     🧠 <strong>Zeka:</strong> ${s.int} 
                     ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('int')">+</button>` : ''}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Görüş mesafenizi (savaş sisi çemberini) genişletir (+10 birim).</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">Harita görüş yarıçapını genişletir (+30 birim).</div>
                 </li>
                 <li>
                     ✨ <strong>Karizma:</strong> ${s.cha} 
@@ -1961,6 +2285,7 @@ const Game = {
 // --- BATTLE ---
 const Battle = {
     canvas: null, ctx: null, units: [], projectiles: [], bloodStains: [], floatingTexts: [], active: false, loopId: null, clickHandler: null, commandListener: null, currentCommand: 'charge',
+    swings: [], sparks: [], corpses: [], knockedOut: false, grass: null,
 
     // Rakip talip düellosu: 1'e 1, grup yok, ganimet yok
     startDuel(lord) {
@@ -2000,6 +2325,11 @@ const Battle = {
         this.bloodStains = [];
         this.floatingTexts = [];
         this.battlePings = [];
+        this.swings = [];
+        this.sparks = [];
+        this.corpses = [];
+        this.knockedOut = false;
+        this.grass = null;
         this.currentCommand = 'charge';
         this.active = true;
 
@@ -2040,8 +2370,8 @@ const Battle = {
             x: startPlayerX, y: H/2, speed: 50 + state.player.stats.agi * 0.5, // Yarı hız
             attack: 10 + state.player.stats.str + weaponAtk,
             defense: armorDef, type: 'infantry',
-            color: '#ffcc00', radius: 8, _cd: 0,
-            isAttacking: false, attackTimer: 0, hitList: [], angleToMouse: 0
+            color: '#ffcc00', radius: 8, atkCd: 0,
+            isAttacking: false, attackTimer: 0, swingCd: 0, angleToMouse: 0, currentWeaponAngle: 0
         });
 
         // Troops (Player's party)
@@ -2058,7 +2388,7 @@ const Battle = {
                 x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
                 speed: typeInfo.speed * debuff, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense,
                 type: typeInfo.type, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
-                radius: typeInfo.type === 'cavalry' ? 7 : 5, _cd: 0
+                radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0
             });
         });
 
@@ -2066,7 +2396,14 @@ const Battle = {
         let isBandit = enemyName.toLowerCase().includes('çapulcu');
         for(let i=0; i<enemyCount; i++) {
             let name = 'Çapulcu';
-            let hp = 20, speed = 50, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
+            let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
+
+            if(!bossLevel && isBandit) {
+                // Çapulcu çeşitliliği — düz piyade duvarı yerine okçu/atlı karışımı
+                let br = Math.random();
+                if(br < 0.25) { name = 'Çapulcu Okçu'; hp = 20; speed = 50; attack = 6; defense = 0; type = 'archer'; color = '#ff7744'; }
+                else if(br < 0.35) { name = 'Atlı Çapulcu'; hp = 32; speed = 88; attack = 9; defense = 2; type = 'cavalry'; color = '#ff5522'; radius = 7; }
+            }
             
             if(bossLevel) {
                 if(i === 0) { // Savaş Tanrısı
@@ -2105,16 +2442,23 @@ const Battle = {
                 enemyLvl = 1 + Math.floor(state.time.day / 30);
             }
 
+            // Seviye artık sadece etikette değil, gerçekten güçlendiriyor
+            if(!bossLevel) {
+                hp += (enemyLvl - 1) * 4;
+                attack += Math.floor((enemyLvl - 1) / 2);
+                defense += Math.floor((enemyLvl - 1) / 4);
+            }
+
             this.units.push({
                 id: 'enemy_'+i, isPlayerTeam: false,
                 hp: hp, maxHp: hp,
                 x: startEnemyX + Math.random()*80, y: 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense,
-                type: type, color: color, radius: radius, _cd: 0, level: enemyLvl
+                type: type, color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
             });
         }
 
-        document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="background:rgba(0,0,0,0.6);padding:5px;border-radius:5px;color:#fff;"><b>Savaş Başladı!</b><br>WASD = Hareket, Sol Tık = Saldırı<br>Taktik Emirleri: [1] Takip, [2] Hücum, [3] Bekle</div>';
+        document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>Savaş Başladı!</b><br>WASD hareket · Sol tık saldırı<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
         document.getElementById('battle-log-right').innerHTML = '';
 
         setTimeout(() => {
@@ -2179,12 +2523,57 @@ const Battle = {
     playerAttack(e) {
         if(e) e.preventDefault();
         let p = this.units.find(u => u.id === 'player');
-        if(!p || p.hp <= 0 || p.isAttacking) return; // Zaten saldırıyorsa veya öldüyse tekrar başlatma
+        // Toparlanma bitmeden yeni savurma yok — hızlı tıklama artık hasarı katlamıyor
+        if(!p || p.hp <= 0 || p.isAttacking || p.swingCd > 0) return;
 
         p.isAttacking = true;
         p.attackTimer = 0.3; // 300ms saldırı süresi
+        p.swingCd = this.swingCooldown();
         p.hasHit = false; // Tek hedefe vurmak için
         p.angleToMouse = Math.atan2(Input.mouse.y - p.y, Input.mouse.x - p.x);
+        this.swings.push({ x: p.x, y: p.y, angle: p.angleToMouse, life: 0.3 });
+    },
+
+    // Savurma toparlanması: yeterlilik arttıkça hızlanır (0.75 sn → 0.45 sn)
+    swingCooldown() {
+        let lv = this.playerWeaponProf();
+        return Math.max(0.45, 0.75 - lv * 0.005);
+    },
+
+    playerWeaponProf() {
+        let wp = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
+        let pd = state.player.proficiencies[wp] || state.player.proficiencies.oneHanded;
+        return pd ? pd.level : 1;
+    },
+
+    // Kılıç yayının yarı açısı — attackAngle + Geniş Savurma yeteneği
+    swingHalfAngle() {
+        let deg = (state.player.attackAngle || 30) + (state.player.skills.wideSwing || 0) * 10;
+        return deg * Math.PI / 180;
+    },
+
+    // Tek yerden yakın dövüş hasarı: kan, sarsıntı, hasar yazısı, ölüm kaydı
+    dealMelee(src, tgt, raw) {
+        let dmg = Math.max(1, Math.round(raw) - (tgt.defense || 0));
+        tgt.hp -= dmg;
+        tgt.hitFlash = 0.18;
+        let a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
+        tgt.x += Math.cos(a) * 4; tgt.y += Math.sin(a) * 4; // geri tepme
+        this.bloodStains.push({ x: tgt.x, y: tgt.y, alpha: 1.0, size: 3 + Math.random()*3 });
+        this.spark(tgt.x, tgt.y, a, src.isPlayerTeam ? '#ffdd66' : '#ff8866');
+        this.floatingTexts.push({ x: tgt.x, y: tgt.y - 12, text: `-${dmg}`, color: src.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8, big: src.id === 'player' });
+        if(tgt.hp <= 0) {
+            this.logKill(tgt, src);
+            this.awardTroopXp(src.id);
+        }
+    },
+
+    spark(x, y, angle, color) {
+        for(let i = 0; i < 5; i++) {
+            let a = angle + (Math.random()-0.5) * 1.6;
+            let sp = 40 + Math.random()*90;
+            this.sparks.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: 0.25 + Math.random()*0.2, color });
+        }
     },
 
     getTerrainEffects(u) {
@@ -2278,11 +2667,13 @@ const Battle = {
                 if(u.hp <= 0 || u.isPlayerTeam === proj.isPlayerTeam) continue;
                 let d = Math.sqrt(Math.pow(u.x - proj.x, 2) + Math.pow(u.y - proj.y, 2));
                 if(d < u.radius + 2) {
-                    let dmg = Math.max(1, proj.damage - u.defense);
+                    let dmg = Math.max(1, Math.round(proj.damage) - u.defense);
                     u.hp -= dmg;
                     hit = true;
+                    u.hitFlash = 0.15;
                     this.bloodStains.push({ x: u.x, y: u.y, alpha: 1.0, size: 2.5 + Math.random()*2 });
-                    this.floatingTexts.push({ x: u.x, y: u.y - 12, text: `-${dmg}`, color: proj.isPlayerTeam ? '#ff5555' : '#ff8888', life: 0.8 });
+                    this.spark(u.x, u.y, Math.atan2(proj.vy, proj.vx), '#ffeebb');
+                    this.floatingTexts.push({ x: u.x, y: u.y - 12, text: `-${dmg}`, color: proj.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8 });
                     
                     if(u.hp <= 0) {
                         let killer = this.units.find(un => un.id === proj.sourceId);
@@ -2306,6 +2697,16 @@ const Battle = {
         });
         this.floatingTexts = this.floatingTexts.filter(f => f.life > 0);
 
+        // Kılıç izleri, kıvılcımlar, isabet parlaması
+        this.swings.forEach(sw => sw.life -= dt);
+        this.swings = this.swings.filter(sw => sw.life > 0);
+        this.sparks.forEach(sp => {
+            sp.x += sp.vx * dt; sp.y += sp.vy * dt;
+            sp.vy += 120 * dt; sp.life -= dt;
+        });
+        this.sparks = this.sparks.filter(sp => sp.life > 0);
+        this.units.forEach(u => { if(u.hitFlash > 0) u.hitFlash -= dt; });
+
         // Battle pings
         if(this.battlePings) {
             this.battlePings.forEach(p => p.life -= dt);
@@ -2317,6 +2718,7 @@ const Battle = {
             if(u.hp <= 0) return;
 
             u.vx = 0; u.vy = 0; // Reset velocity
+            if(u.atkCd > 0) u.atkCd -= dt; // saldırı bekleme sayacı (dt tabanlı — kare hızından bağımsız)
             
             let { speedMod, attackMod } = this.getTerrainEffects(u);
             let uSpeed = u.speed * speedMod;
@@ -2325,33 +2727,35 @@ const Battle = {
             if(u.id === 'player') {
                 let spd = u.speed;
                 // Saldırı (Sweep) Logic
+                if(u.swingCd > 0) u.swingCd -= dt;
                 if(u.isAttacking) {
                     u.attackTimer -= dt;
-                    
+                    // Kılıç yayı: sol omuzdan sağa süpürür (çizim için)
+                    let half = this.swingHalfAngle();
+                    let prog = 1 - Math.max(0, u.attackTimer) / 0.3;
+                    u.currentWeaponAngle = u.angleToMouse - half + prog * half * 2;
+
                     if(u.attackTimer <= 0.15 && !u.hasHit) {
                         u.hasHit = true;
-                        // Çarpışma kontrolü
-                        let hitDist = 45;
-                        let hitAngleRange = Math.PI / 3; 
+                        // TEK hedef: yayın içindeki en yakın düşman.
+                        // (Eskiden yaydaki herkese aynı anda vuruyordu — grup biçme hatası.)
+                        let hitDist = 45, target = null, best = Infinity;
                         this.units.forEach(e => {
-                            if(e.hp > 0 && e.isPlayerTeam !== u.isPlayerTeam) {
-                                let dx = e.x - u.x, dy = e.y - u.y;
-                                let dist = Math.sqrt(dx*dx+dy*dy);
-                                let angle = Math.atan2(dy, dx);
-                                let diff = Math.abs(angle - u.angleToMouse);
-                                while(diff > Math.PI) diff = 2*Math.PI - diff;
-                                
-                                if(dist <= hitDist && diff <= hitAngleRange) {
-                                    let dmg = Math.max(1, Math.ceil(uAttack / 3) - (e.defense || 0));
-                                    e.hp -= dmg;
-                                    this.bloodStains.push({ x: e.x, y: e.y, alpha: 1.0, size: 3 + Math.random()*3 });
-                                    this.floatingTexts.push({ x: e.x, y: e.y - 12, text: `-${dmg}`, color: '#ff3333', life: 0.8 });
-                                    if(e.hp <= 0) {
-                                        this.logKill(e, u);
-                                    }
-                                }
-                            }
+                            if(e.hp <= 0 || e.isPlayerTeam === u.isPlayerTeam) return;
+                            let dx = e.x - u.x, dy = e.y - u.y;
+                            let dist = Math.sqrt(dx*dx+dy*dy);
+                            if(dist > hitDist || dist >= best) return;
+                            let diff = Math.abs(Math.atan2(dy, dx) - u.angleToMouse);
+                            while(diff > Math.PI) diff = 2*Math.PI - diff;
+                            if(diff <= half) { best = dist; target = e; }
                         });
+                        if(target) {
+                            // Hasar yeterliliğe bağlı: acemi %35, usta %75
+                            let mult = 0.35 + Math.min(0.4, this.playerWeaponProf() * 0.004);
+                            this.dealMelee(u, target, uAttack * mult);
+                        } else {
+                            this.floatingTexts.push({ x: u.x, y: u.y - 20, text: 'ıska', color: '#999', life: 0.5 });
+                        }
                     }
 
                     if(u.attackTimer <= 0) u.isAttacking = false;
@@ -2418,9 +2822,8 @@ const Battle = {
                             u.vx = (dx/len)*uSpeed; u.vy = (dy/len)*uSpeed;
                             u.x += u.vx*dt; u.y += u.vy*dt;
                         } else {
-                            let shootCd = u.isPlayerTeam ? 1800 : 1200;
-                            if(!u._cd || performance.now() - u._cd > shootCd) {
-                                u._cd = performance.now();
+                            if(u.atkCd <= 0) {
+                                u.atkCd = 1.4 + Math.random()*0.3;
                                 let arrowSpeed = 250;
                                 let tX = closest.x, tY = closest.y;
                                 if(Math.random() > 0.5) { // 50% predictive aim
@@ -2457,272 +2860,416 @@ const Battle = {
                     u.vx = dx*r/dt; u.vy = dy*r/dt;
                     u.x += dx*r; u.y += dy*r;
                 } else if(finalDist <= meleeRange) {
-                    if(!u._cd || performance.now()-u._cd > 1000) {
-                        let dmg = Math.max(1, uAttack - (closest.defense||0));
-                        closest.hp -= dmg;
-                        u._cd = performance.now();
-                        this.bloodStains.push({ x: closest.x, y: closest.y, alpha: 1.0, size: 3 + Math.random()*3 });
-                        this.floatingTexts.push({ x: closest.x, y: closest.y - 12, text: `-${dmg}`, color: u.isPlayerTeam ? '#ff5555' : '#ff8888', life: 0.8 });
-                        if(closest.hp <= 0) {
-                            this.logKill(closest, u);
-                            this.awardTroopXp(u.id);
-                        }
+                    if(u.atkCd <= 0) {
+                        u.atkCd = 0.85 + Math.random()*0.4; // herkes aynı anda vurmasın
+                        this.dealMelee(u, closest, uAttack);
                     }
                 }
             }
         });
 
+        // Kimse arenadan çıkamaz — geri çekilen okçular haritadan kaçıp savaşı kilitliyordu
+        let bw = this.canvas.width, bh = this.canvas.height;
+        this.units.forEach(u => {
+            if(u.hp <= 0) return;
+            u.x = Math.max(12, Math.min(bw - 12, u.x));
+            u.y = Math.max(12, Math.min(bh - 12, u.y));
+        });
+
         this.checkEnd();
+    },
+
+    // --- Zemin: çim + arazi bir kez offscreen canvas'a çizilir, her karede yeniden üretilmez
+    buildGround() {
+        let W = this.canvas.width, H = this.canvas.height;
+        let g = document.createElement('canvas');
+        g.width = W; g.height = H;
+        let c = g.getContext('2d');
+
+        let base = c.createLinearGradient(0, 0, 0, H);
+        base.addColorStop(0, '#35532f');
+        base.addColorStop(1, '#233b21');
+        c.fillStyle = base; c.fillRect(0, 0, W, H);
+
+        // Yumuşak renk lekeleri — düz yeşil zemin yerine benekli çayır
+        for(let i = 0; i < 60; i++) {
+            let x = Math.random()*W, y = Math.random()*H, r = 60 + Math.random()*140;
+            let rg = c.createRadialGradient(x, y, 0, x, y, r);
+            rg.addColorStop(0, Math.random() > 0.5 ? 'rgba(96,134,72,0.16)' : 'rgba(18,38,18,0.18)');
+            rg.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
+        }
+        // Çim tutamları
+        for(let i = 0; i < 2600; i++) {
+            let x = Math.random()*W, y = Math.random()*H;
+            c.strokeStyle = Math.random() > 0.5 ? 'rgba(126,166,92,0.30)' : 'rgba(28,52,26,0.35)';
+            c.lineWidth = 1;
+            c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random()-0.5)*3, y - 2 - Math.random()*3); c.stroke();
+        }
+
+        let T = this.terrain || {};
+
+        (T.rivers||[]).forEach(r => {
+            let vert = r.isVertical;
+            let wg = vert ? c.createLinearGradient(r.x, 0, r.x+r.w, 0) : c.createLinearGradient(0, r.y, 0, r.y+r.h);
+            wg.addColorStop(0, 'rgba(58,92,74,0.9)');
+            wg.addColorStop(0.5, 'rgba(88,172,206,0.72)');
+            wg.addColorStop(1, 'rgba(58,92,74,0.9)');
+            c.fillStyle = wg; c.fillRect(r.x, r.y, r.w, r.h);
+            c.strokeStyle = 'rgba(186,164,110,0.32)'; c.lineWidth = 3;
+            c.beginPath();
+            if(vert) { c.moveTo(r.x,0); c.lineTo(r.x,H); c.moveTo(r.x+r.w,0); c.lineTo(r.x+r.w,H); }
+            else { c.moveTo(0,r.y); c.lineTo(W,r.y); c.moveTo(0,r.y+r.h); c.lineTo(W,r.y+r.h); }
+            c.stroke();
+        });
+
+        (T.pits||[]).forEach(p => {
+            let rg = c.createRadialGradient(p.x, p.y - p.r*0.2, p.r*0.1, p.x, p.y, p.r);
+            rg.addColorStop(0, 'rgba(0,0,0,0.58)');
+            rg.addColorStop(0.75, 'rgba(0,0,0,0.30)');
+            rg.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = rg; c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI*2); c.fill();
+            c.strokeStyle = 'rgba(170,190,140,0.22)'; c.lineWidth = 2;
+            c.beginPath(); c.arc(p.x, p.y, p.r*0.94, Math.PI*1.1, Math.PI*1.9); c.stroke();
+        });
+
+        (T.hills||[]).forEach(h => {
+            let rg = c.createRadialGradient(h.x - h.r*0.25, h.y - h.r*0.3, h.r*0.1, h.x, h.y, h.r);
+            rg.addColorStop(0, 'rgba(196,220,152,0.20)');
+            rg.addColorStop(0.6, 'rgba(124,164,92,0.10)');
+            rg.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = rg; c.beginPath(); c.arc(h.x, h.y, h.r, 0, Math.PI*2); c.fill();
+            c.strokeStyle = 'rgba(255,255,255,0.07)'; c.lineWidth = 1.5;
+            c.beginPath(); c.arc(h.x, h.y, h.r*0.62, 0, Math.PI*2); c.stroke();
+        });
+
+        (T.forests||[]).forEach(f => {
+            c.fillStyle = 'rgba(9,24,11,0.5)';
+            c.beginPath(); c.arc(f.x, f.y, f.r, 0, Math.PI*2); c.fill();
+            let n = Math.floor(f.r / 9);
+            let trees = [];
+            for(let i = 0; i < n; i++) {
+                let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.r * 0.92;
+                trees.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 8 + Math.random()*7 });
+            }
+            trees.sort((a,b) => a.y - b.y).forEach(t => this.drawTree(c, t.x, t.y, t.r));
+        });
+
+        this.ground = g;
+    },
+
+    drawTree(c, x, y, r) {
+        c.fillStyle = 'rgba(0,0,0,0.35)';
+        c.beginPath(); c.ellipse(x + r*0.4, y + r*0.55, r*0.95, r*0.42, 0, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#3b2a18';
+        c.fillRect(x - r*0.13, y - r*0.1, r*0.26, r*0.7);
+        let rg = c.createRadialGradient(x - r*0.35, y - r*0.45, r*0.1, x, y - r*0.2, r);
+        rg.addColorStop(0, 'rgba(96,146,72,1)');
+        rg.addColorStop(0.65, 'rgba(46,88,40,1)');
+        rg.addColorStop(1, 'rgba(20,44,20,1)');
+        c.fillStyle = rg;
+        c.beginPath(); c.arc(x, y - r*0.25, r*0.85, 0, Math.PI*2); c.fill();
+        c.beginPath(); c.arc(x - r*0.5, y - r*0.05, r*0.5, 0, Math.PI*2); c.fill();
+        c.beginPath(); c.arc(x + r*0.5, y - r*0.05, r*0.48, 0, Math.PI*2); c.fill();
     },
 
     render() {
         let ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
-        ctx.clearRect(0,0,W,H);
-        ctx.fillStyle = '#1e381e'; // Green field
-        ctx.fillRect(0,0,W,H);
+        if(!this.ground || this.ground.width !== W || this.ground.height !== H) this.buildGround();
+        let now = performance.now();
 
-        // Draw Terrain
-        if(this.terrain) {
-            // Rivers
-            if(this.terrain.rivers) {
-                ctx.fillStyle = 'rgba(64, 164, 223, 0.5)';
-                this.terrain.rivers.forEach(r => {
-                    ctx.fillRect(r.x, r.y, r.w, r.h);
-                });
-            }
-            // Pits
-            if(this.terrain.pits) {
-                ctx.fillStyle = '#152515';
-                this.terrain.pits.forEach(p => {
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
-                });
-            }
-            // Forests
-            if(this.terrain.forests) {
-                this.terrain.forests.forEach(f => {
-                    ctx.fillStyle = '#112211';
-                    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
-                    ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('🌲', f.x, f.y);
-                    ctx.fillText('🌲', f.x-f.r/2, f.y-f.r/3);
-                    ctx.fillText('🌲', f.x+f.r/2, f.y+f.r/3);
-                });
-            }
-            // Hills
-            if(this.terrain.hills) {
-                ctx.fillStyle = '#264426';
-                this.terrain.hills.forEach(h => {
-                    ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI*2); ctx.fill();
-                });
-            }
+        ctx.clearRect(0,0,W,H);
+        ctx.drawImage(this.ground, 0, 0);
+
+        // Su parıltısı (tek canlı arazi efekti)
+        if(this.terrain && this.terrain.rivers) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 2;
+            this.terrain.rivers.forEach(r => {
+                for(let i = 0; i < 7; i++) {
+                    let t = (now/1400 + i/7) % 1;
+                    ctx.beginPath();
+                    if(r.isVertical) { let y = t*H; ctx.moveTo(r.x+6, y); ctx.lineTo(r.x+r.w-6, y + Math.sin(now/500+i)*4); }
+                    else { let x = t*W; ctx.moveTo(x, r.y+6); ctx.lineTo(x + Math.sin(now/500+i)*4, r.y+r.h-6); }
+                    ctx.stroke();
+                }
+            });
         }
 
-        // Render blood stains
+        // Kan lekeleri
         this.bloodStains.forEach(b => {
             ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2);
-            ctx.fillStyle = `rgba(139, 0, 0, ${b.alpha})`; ctx.fill();
+            ctx.fillStyle = `rgba(122,10,10,${b.alpha*0.8})`; ctx.fill();
         });
 
-        // Units
-        ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 2;
-        this.projectiles.forEach(p => {
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            // Draw a small line representing arrow velocity direction
-            let angle = Math.atan2(p.vy, p.vx);
-            ctx.lineTo(p.x - Math.cos(angle)*8, p.y - Math.sin(angle)*8);
-            ctx.stroke();
-        });
-
-        // Units
-        this.units.forEach(u => {
-            if(u.hp <= 0) return;
-            
-            let icon = '💂';
-            if(u.id === 'player') icon = state.player.equipment.horse ? '🐴' : '🧑‍🌾';
-            else if(u.type === 'archer') icon = '🏹';
-            else if(u.type === 'cavalry') icon = '🐎';
-            
-            let isMoving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
-            let hop = 0;
-            let sway = 0;
-            if(isMoving) {
-                let offset = (u.x + u.y) * 0.05;
-                hop = Math.abs(Math.sin(performance.now()/150 + offset)) * 4;
-                sway = Math.sin(performance.now()/150 + offset) * 0.15;
-            }
-
-            if(isMoving && Math.random() < 0.1) {
-                // Dust particles
-                ctx.fillStyle = 'rgba(200,200,200,0.4)';
-                ctx.beginPath(); ctx.arc(u.x, u.y+5, 2+Math.random()*2, 0, Math.PI*2); ctx.fill();
-            }
-
+        // Cesetler — düşenler meydanda kalır
+        this.corpses.forEach(cp => {
             ctx.save();
-            ctx.translate(u.x, u.y - hop);
-            if(isMoving) ctx.rotate(sway);
-
-            ctx.font = '22px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(icon, 0, 0);
-
-            // Draw rank symbol
-            if(u.level >= 5) {
-                let rankStr = '';
-                if(u.level >= 20) rankStr = '^';
-                else if(u.level >= 15) rankStr = "'''";
-                else if(u.level >= 10) rankStr = "''";
-                else if(u.level >= 5) rankStr = "'";
-                ctx.fillStyle = '#ffaa00';
-                ctx.font = 'bold 16px Inter';
-                ctx.fillText(rankStr, -12, -12);
-            }
-
+            ctx.translate(cp.x, cp.y); ctx.rotate(cp.rot);
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = cp.isPlayerTeam ? '#4a5a7a' : '#6a3a3a';
+            ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.5, 0, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
-
-            // Draw sword if attacking
-            if(u.isAttacking && u.currentWeaponAngle !== undefined) {
-                ctx.save();
-                ctx.translate(u.x, u.y - hop);
-                ctx.rotate(u.currentWeaponAngle); // Kılıcı tam hedefe doğru uzat
-                ctx.scale(1.1, 1.1); // Kılıcı %10 büyüt
-                
-                // Metalik bir kılıç çizimi (emoji yerine)
-                ctx.beginPath();
-                ctx.moveTo(10, -2); ctx.lineTo(15, -2); // Kabza
-                ctx.lineTo(15, -6); ctx.lineTo(18, -6); // Çaprazlık üst
-                ctx.lineTo(18, -2); ctx.lineTo(40, -2); // Kılıç üst kenar
-                ctx.lineTo(45, 0);  // Uç noktası
-                ctx.lineTo(40, 2);  // Kılıç alt kenar
-                ctx.lineTo(18, 2);  ctx.lineTo(18, 6);  // Çaprazlık alt
-                ctx.lineTo(15, 6);  ctx.lineTo(15, 2);  // Kabza
-                ctx.lineTo(10, 2);  ctx.closePath();
-                
-                ctx.fillStyle = '#ddd'; ctx.fill();
-                ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.stroke();
-                
-                ctx.restore();
-            }
-
-            // HP bar
-            let bw = 24;
-            ctx.fillStyle = '#333'; ctx.fillRect(u.x-bw/2, u.y-18-hop, bw, 4);
-            ctx.fillStyle = u.hp/u.maxHp > 0.5 ? '#2d2' : u.hp/u.maxHp > 0.25 ? '#dd2' : '#d22';
-            ctx.fillRect(u.x-bw/2, u.y-18-hop, bw*(u.hp/u.maxHp), 4);
+            ctx.globalAlpha = 1;
         });
 
-        // Render floating texts
-        ctx.textAlign = 'center';
+        // Kılıç savurma izi
+        this.swings.forEach(sw => {
+            let a = sw.life / 0.3;
+            let half = this.swingHalfAngle();
+            ctx.save();
+            ctx.translate(sw.x, sw.y);
+            ctx.beginPath();
+            ctx.moveTo(0,0);
+            ctx.arc(0, 0, 46, sw.angle - half, sw.angle + half);
+            ctx.closePath();
+            ctx.fillStyle = `rgba(255,240,190,${0.18*a})`; ctx.fill();
+            ctx.strokeStyle = `rgba(255,255,255,${0.45*a})`; ctx.lineWidth = 2; ctx.stroke();
+            ctx.restore();
+        });
+
+        // Birimler — y sırasına göre, derinlik hissi için
+        this.units.filter(u => u.hp > 0).sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));
+
+        // Oklar
+        this.projectiles.forEach(p => {
+            let angle = Math.atan2(p.vy, p.vx);
+            ctx.save();
+            ctx.translate(p.x, p.y); ctx.rotate(angle);
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(-11, 3); ctx.lineTo(4, 3); ctx.stroke();
+            ctx.strokeStyle = '#d8c9a0'; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(5, 0); ctx.stroke();
+            ctx.fillStyle = '#e8e8ee';
+            ctx.beginPath(); ctx.moveTo(5,0); ctx.lineTo(0,-2); ctx.lineTo(0,2); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = p.isPlayerTeam ? '#8fd4ff' : '#ff9a8a'; ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.moveTo(-11,0); ctx.lineTo(-14,-3); ctx.moveTo(-11,0); ctx.lineTo(-14,3); ctx.stroke();
+            ctx.restore();
+        });
+
+        // Kıvılcımlar
+        this.sparks.forEach(sp => {
+            ctx.globalAlpha = Math.max(0, sp.life / 0.4);
+            ctx.strokeStyle = sp.color; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x - sp.vx*0.02, sp.y - sp.vy*0.02); ctx.stroke();
+        });
+        ctx.globalAlpha = 1;
+
+        // Uçan hasar yazıları
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         this.floatingTexts.forEach(f => {
-            ctx.fillStyle = f.color; ctx.font = 'bold 11px Inter';
-            ctx.fillText(f.text, f.x, f.y);
+            ctx.globalAlpha = Math.min(1, f.life / 0.4);
+            ctx.font = `bold ${f.big ? 15 : 12}px Inter, sans-serif`;
+            ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+            ctx.strokeText(f.text, f.x, f.y);
+            ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
         });
+        ctx.globalAlpha = 1;
 
-        // Render battle pings
-        if (this.battlePings) {
+        // Komutan pingleri
+        if(this.battlePings) {
             this.battlePings.forEach(p => {
-                let maxLife = 3.0;
-                let progress = 1 - (p.life / maxLife); // 0'dan 1'e doğru büyür
+                let progress = 1 - (p.life / 3.0);
                 let size = 30 + progress * 20;
-                let alpha = p.life > 1.0 ? 1.0 : p.life; // Son 1 saniyede kaybolur
-                
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, size, 0, Math.PI*2);
-                ctx.strokeStyle = `rgba(255, 50, 50, ${alpha})`;
-                ctx.lineWidth = 3;
-                ctx.stroke();
-                
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(255, 50, 50, ${alpha})`;
-                ctx.fill();
-
-                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                ctx.font = '14px Arial';
-                ctx.textAlign = 'center';
+                let alpha = p.life > 1.0 ? 1.0 : p.life;
+                ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+                ctx.strokeStyle = `rgba(255,50,50,${alpha})`; ctx.lineWidth = 3; ctx.stroke();
+                ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255,50,50,${alpha})`; ctx.fill();
+                ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                ctx.font = '14px Inter, sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText(p.label, p.x, p.y - size - 10);
             });
         }
 
-        // Command HUD
-        ctx.textAlign = 'left';
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.fillRect(10, H - 35, 340, 25);
-        ctx.fillStyle = '#ffffff'; ctx.font = '12px Inter';
-        let cmdName = this.currentCommand === 'follow' ? 'Takip Et (Defansif)' : this.currentCommand === 'hold' ? 'Mevzini Koru (Sabit)' : 'Hücum Et (Serbest)';
-        ctx.fillText(`Mevcut Emir: ${cmdName} [Tuşlar: 1, 2, 3]`, 15, H - 18);
+        // Vinyet
+        if(!this._vignette || this._vignette.w !== W) {
+            let vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.35, W/2, H/2, Math.max(W,H)*0.72);
+            vg.addColorStop(0, 'rgba(0,0,0,0)');
+            vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+            this._vignette = { w: W, g: vg };
+        }
+        ctx.fillStyle = this._vignette.g; ctx.fillRect(0,0,W,H);
 
-        // Tug of War Bar (Güç Çubuğu) - Animated & Humorous
-        let playerAlive = this.units.filter(u => u.isPlayerTeam && u.hp > 0).length;
-        let enemyAlive = this.units.filter(u => !u.isPlayerTeam && u.hp > 0).length;
-        let totalAlive = playerAlive + enemyAlive;
-        
-        if (totalAlive > 0) {
-            let ratio = playerAlive / totalAlive; // 0 to 1
-            if (this.tugRatio === undefined) this.tugRatio = ratio;
-            this.tugRatio += (ratio - this.tugRatio) * 0.1; // Smooth transition
+        this.drawHud(ctx, W, H, now);
+    },
 
-            let barW = 500, barH = 30;
-            let barX = W/2 - barW/2, barY = 25;
+    drawUnit(ctx, u, now) {
+        let isPlayer = u.id === 'player';
+        let icon = '💂';
+        if(isPlayer) icon = state.player.equipment.horse ? '🐴' : '🧑‍🌾';
+        else if(u.type === 'archer') icon = '🏹';
+        else if(u.type === 'cavalry') icon = '🐎';
 
-            // Shiny futuristic/fantasy background
-            let gradient = ctx.createLinearGradient(barX, 0, barX+barW, 0);
-            gradient.addColorStop(0, '#2ecc71'); // Green
-            gradient.addColorStop(this.tugRatio, '#ffcc00'); // Clash point
-            gradient.addColorStop(1, '#e74c3c'); // Red
-            
-            ctx.fillStyle = gradient;
-            
-            // Draw a hexagon/polygon bar background
+        let isMoving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
+        let offset = (u.x + u.y) * 0.05;
+        let hop = isMoving ? Math.abs(Math.sin(now/150 + offset)) * 4 : 0;
+        let sway = isMoving ? Math.sin(now/150 + offset) * 0.15 : 0;
+        let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
+
+        // Yer gölgesi + takım halkası
+        ctx.beginPath();
+        ctx.ellipse(u.x, u.y + 9, 11, 5, 0, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(0,0,0,${0.35 - hop*0.03})`; ctx.fill();
+
+        ctx.beginPath();
+        ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
+        ctx.strokeStyle = ring; ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+
+        if(isPlayer) {
+            let pulse = 1 + Math.sin(now/300)*0.12;
             ctx.beginPath();
-            ctx.moveTo(barX, barY);
-            ctx.lineTo(barX+barW, barY);
-            ctx.lineTo(barX+barW+15, barY+barH/2);
-            ctx.lineTo(barX+barW, barY+barH);
-            ctx.lineTo(barX, barY+barH);
-            ctx.lineTo(barX-15, barY+barH/2);
-            ctx.closePath();
-            ctx.fill();
+            ctx.ellipse(u.x, u.y + 9, 14*pulse, 6.5*pulse, 0, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(255,204,0,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+        }
 
-            // Draw a clash point indicator
-            let clashX = barX + barW * this.tugRatio;
-            let clashOffset = Math.sin(performance.now()/100) * 5; // Jitter effect
+        if(isMoving && Math.random() < 0.25) {
+            ctx.fillStyle = 'rgba(196,186,150,0.35)';
+            ctx.beginPath(); ctx.arc(u.x + (Math.random()-0.5)*8, u.y + 9, 1.5+Math.random()*2.5, 0, Math.PI*2); ctx.fill();
+        }
+
+        ctx.save();
+        ctx.translate(u.x, u.y - hop);
+        ctx.rotate(sway);
+        ctx.font = '22px Arial';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(icon, 0, 0);
+
+        if(u.level >= 5) {
+            let rankStr = u.level >= 20 ? '^' : u.level >= 15 ? "'''" : u.level >= 10 ? "''" : "'";
+            ctx.fillStyle = '#ffcc44';
+            ctx.font = 'bold 15px Inter, sans-serif';
+            ctx.fillText(rankStr, -12, -12);
+        }
+        ctx.restore();
+
+        // İsabet parlaması
+        if(u.hitFlash > 0) {
+            ctx.globalAlpha = Math.min(0.75, u.hitFlash * 4);
             ctx.fillStyle = '#fff';
-            ctx.fillRect(clashX - 5 + clashOffset, barY - 10, 10, barH + 20);
+            ctx.beginPath(); ctx.arc(u.x, u.y - hop, 13, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
 
-            // Texts
-            let statusText = "Kafa Kafaya! ⚔️";
-            if(this.tugRatio > 0.8) statusText = "Ağlatıyoruz! 😂";
-            else if(this.tugRatio > 0.6) statusText = "Tokatlıyoruz! 😎";
-            else if(this.tugRatio < 0.2) statusText = "Eyvah Anam! 😱";
-            else if(this.tugRatio < 0.4) statusText = "Dayak Yiyoruz! 😬";
+        // Kılıç (savururken)
+        if(u.isAttacking) {
+            ctx.save();
+            ctx.translate(u.x, u.y - hop);
+            ctx.rotate(u.currentWeaponAngle || 0);
+            ctx.beginPath();
+            ctx.moveTo(10,-2); ctx.lineTo(15,-2); ctx.lineTo(15,-6); ctx.lineTo(18,-6);
+            ctx.lineTo(18,-2); ctx.lineTo(40,-2); ctx.lineTo(45,0); ctx.lineTo(40,2);
+            ctx.lineTo(18,2); ctx.lineTo(18,6); ctx.lineTo(15,6); ctx.lineTo(15,2);
+            ctx.lineTo(10,2); ctx.closePath();
+            let sg = ctx.createLinearGradient(10,-4,45,4);
+            sg.addColorStop(0, '#8a7a55'); sg.addColorStop(0.35, '#f2f2f6'); sg.addColorStop(1, '#9aa0aa');
+            ctx.fillStyle = sg; ctx.fill();
+            ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.restore();
+        }
 
-            // Glow for text
-            ctx.shadowColor = 'rgba(0,0,0,0.8)';
-            ctx.shadowBlur = 5;
-
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Inter';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(statusText, W/2, barY - 15);
-
-            ctx.font = 'bold 16px Inter';
-            ctx.textAlign = 'left'; ctx.fillText(`Bizimkiler: ${playerAlive}`, barX + 10, barY + barH/2);
-            ctx.textAlign = 'right'; ctx.fillText(`Çapulcular: ${enemyAlive}`, barX + barW - 10, barY + barH/2);
-            
-            ctx.shadowBlur = 0; // Reset
+        // Can çubuğu — sadece yaralıysa (ve oyuncuda hep)
+        if(u.hp < u.maxHp || isPlayer) {
+            let bw = 26, r = Math.max(0, u.hp / u.maxHp);
+            let by = u.y - 20 - hop;
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.fillRect(u.x - bw/2 - 1, by - 1, bw + 2, 5);
+            ctx.fillStyle = r > 0.5 ? '#41d06a' : r > 0.25 ? '#e8c93a' : '#e0463a';
+            ctx.fillRect(u.x - bw/2, by, bw * r, 3);
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.fillRect(u.x - bw/2, by, bw * r, 1);
         }
     },
 
+    drawHud(ctx, W, H, now) {
+        // Emir şeridi
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        let cmdName = this.currentCommand === 'follow' ? 'Takip Et' : this.currentCommand === 'hold' ? 'Mevzini Koru' : 'Hücum Et';
+        let hudW = Math.min(360, W - 24);
+        ctx.fillStyle = 'rgba(12,14,10,0.72)';
+        ctx.fillRect(12, H - 40, hudW, 28);
+        ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1;
+        ctx.strokeRect(12, H - 40, hudW, 28);
+        ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.fillText(`⚑ ${cmdName}`, 22, H - 26);
+        ctx.fillStyle = 'rgba(233,217,168,0.55)'; ctx.font = '11px Inter, sans-serif';
+        ctx.fillText('[1] Takip [2] Hücum [3] Bekle', 22 + hudW*0.42, H - 26);
+
+        if(this.knockedOut) {
+            ctx.fillStyle = 'rgba(255,70,70,0.9)'; ctx.font = 'bold 13px Inter, sans-serif';
+            ctx.fillText('☠ Baygınsın — adamların savaşıyor', 22, H - 56);
+        }
+
+        // Güç çubuğu
+        let playerAlive = this.units.filter(u => u.isPlayerTeam && u.hp > 0).length;
+        let enemyAlive = this.units.filter(u => !u.isPlayerTeam && u.hp > 0).length;
+        let total = playerAlive + enemyAlive;
+        if(total <= 0) return;
+
+        let ratio = playerAlive / total;
+        if(this.tugRatio === undefined) this.tugRatio = ratio;
+        this.tugRatio += (ratio - this.tugRatio) * 0.08;
+
+        let barW = Math.min(460, W - 130), barH = 22, barX = W/2 - barW/2, barY = 30;
+
+        ctx.fillStyle = 'rgba(10,12,9,0.75)';
+        ctx.fillRect(barX - 6, barY - 6, barW + 12, barH + 12);
+        ctx.strokeStyle = 'rgba(200,170,90,0.5)'; ctx.lineWidth = 1.5;
+        ctx.strokeRect(barX - 6, barY - 6, barW + 12, barH + 12);
+
+        let fill = barW * this.tugRatio;
+        let gl = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        gl.addColorStop(0, '#2f8f4f'); gl.addColorStop(1, '#5ad07f');
+        ctx.fillStyle = gl; ctx.fillRect(barX, barY, fill, barH);
+        let gr = ctx.createLinearGradient(barX + fill, 0, barX + barW, 0);
+        gr.addColorStop(0, '#c0392b'); gr.addColorStop(1, '#7d241a');
+        ctx.fillStyle = gr; ctx.fillRect(barX + fill, barY, barW - fill, barH);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(barX, barY, barW, barH/2);
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+        for(let i = 1; i < 10; i++) {
+            let x = barX + barW*i/10;
+            ctx.beginPath(); ctx.moveTo(x, barY); ctx.lineTo(x, barY + barH); ctx.stroke();
+        }
+
+        let jitter = Math.sin(now/110) * 3;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(barX + fill - 2 + jitter, barY - 5, 4, barH + 10);
+        ctx.fillStyle = 'rgba(255,220,120,0.9)';
+        ctx.fillRect(barX + fill - 1 + jitter, barY - 5, 2, barH + 10);
+
+        let statusText = 'Kafa Kafaya! ⚔️';
+        if(this.tugRatio > 0.8) statusText = 'Ağlatıyoruz! 😂';
+        else if(this.tugRatio > 0.6) statusText = 'Tokatlıyoruz! 😎';
+        else if(this.tugRatio < 0.2) statusText = 'Eyvah Anam! 😱';
+        else if(this.tugRatio < 0.4) statusText = 'Dayak Yiyoruz! 😬';
+
+        ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 6;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#f3e6c0'; ctx.font = 'bold 18px Cinzel, serif';
+        ctx.fillText(statusText, W/2, barY - 18);
+        ctx.font = 'bold 13px Inter, sans-serif'; ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left'; ctx.fillText(`Biz ${playerAlive}`, barX + 8, barY + barH/2);
+        ctx.textAlign = 'right'; ctx.fillText(`${enemyAlive} Düşman`, barX + barW - 8, barY + barH/2);
+        ctx.shadowBlur = 0;
+    },
     logKill(victim, killer) {
+        this.corpses.push({ x: victim.x, y: victim.y, isPlayerTeam: victim.isPlayerTeam, rot: Math.random()*Math.PI*2 });
+        if(this.corpses.length > 60) this.corpses.shift();
+        if(victim.id === 'player') {
+            this.knockedOut = true;
+            this.log('<span style="color:#ff4444"><b>Yere yığıldın!</b> Adamların savaşa devam ediyor…</span>', 'right');
+        }
         let vName = victim.name || (victim.isPlayerTeam ? 'Dost Asker' : 'Çapulcu');
         let kName = killer ? (killer.name || (killer.isPlayerTeam ? 'Dost Asker' : 'Çapulcu')) : 'Bilinmeyen';
-        let msg = `${vName}, ${kName} tarafından öldürüldü.`;
-        
+        let msg = `☠ ${vName} <span style="opacity:.6">←</span> ${kName}`;
+
         if (victim.isPlayerTeam) {
-            this.log(`<span style="color:#ff4444">${msg}</span>`, 'right');
+            this.log(`<span style="color:#ff6666">${msg}</span>`, 'right');
         } else {
-            this.log(`<span style="color:#44ff44">${msg}</span>`, 'left');
+            this.log(`<span style="color:#66dd77">${msg}</span>`, 'left');
         }
     },
 
@@ -2732,21 +3279,18 @@ const Battle = {
         let div = document.createElement('div');
         div.className = 'log-msg';
         div.innerHTML = msg;
-        div.style.background = 'rgba(0,0,0,0.6)';
         div.style.padding = '5px 10px';
-        div.style.borderRadius = '5px';
         div.style.color = '#fff';
         div.style.fontFamily = 'Inter, sans-serif';
-        div.style.fontSize = '0.85rem';
         div.style.transition = 'opacity 0.5s';
         
         b.prepend(div);
-        while(b.children.length > 8) b.removeChild(b.lastChild);
+        while(b.children.length > 5) b.removeChild(b.lastChild);
         
         setTimeout(() => {
             if(b.contains(div)) div.style.opacity = '0';
             setTimeout(() => { if(b.contains(div)) b.removeChild(div); }, 500);
-        }, 6000);
+        }, 4500);
     },
 
     checkEnd() {
@@ -2775,6 +3319,12 @@ const Battle = {
         if(won) {
             let xpGain = 30 + state.player.party.length * 5;
             let moneyGain = 50 + Math.floor(Math.random()*100);
+
+            // Bayılıp adamlarının sırtından kazanılan zafer yarım zaferdir
+            if(this.knockedOut) {
+                xpGain = Math.floor(xpGain * 0.5);
+                moneyGain = Math.floor(moneyGain * 0.5);
+            }
             
             if(this.isBossFight) {
                 moneyGain += 1000 + state.bossEntries * 500;
@@ -2828,7 +3378,8 @@ const Battle = {
 
             let resultHtml = `
             <div style="text-align:center;">
-                <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">⚔️ Mükemmel Zafer! ⚔️</h2>
+                <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.knockedOut ? '🩸 Pahalı Zafer' : '⚔️ Mükemmel Zafer! ⚔️'}</h2>
+                ${this.knockedOut ? '<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>' : ''}
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Dinar:</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Şan/Nam:</b> <span style="color:#3498db">+3</span> 👑</p>
@@ -2869,9 +3420,9 @@ const Battle = {
             if(captor) alert(`Yenildin! Esir düştün! Tüm birliğin dağıldı.\n-${moneyLost} Dinar`);
         }
 
-        // Sync HP
+        // Sync HP — yenilgide yukarıdaki %30 canı ezmesin
         let pUnit = this.units[0];
-        state.player.stats.hp = Math.max(5, pUnit ? pUnit.hp : 5);
+        if(won) state.player.stats.hp = Math.max(1, Math.floor(pUnit ? pUnit.hp : 1));
 
         // Remove dead troops
         let ti = 1;
