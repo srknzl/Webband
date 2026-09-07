@@ -953,60 +953,65 @@ const Game = {
                 }
                 this.updateTopBar();
             }
-            return;
         }
 
-        let totalWage = 0;
-        let foodRequiredLow = 0;
-        let foodRequiredHigh = 0;
+        // Maaş, yemek ve can yenilenmesi yalnızca hür oyuncuya işler; dünyanın
+        // geri kalanı (görev süreleri, şölen/düğün günü, rakip talipler, turnuva)
+        // esaret sırasında da dönmeli. Eskiden esaret bloğu return ediyordu ve
+        // nişanlıyken esir düşenin düğünü hiç kurulmuyordu.
+        if(!state.player.prisoner) {
+            let totalWage = 0;
+            let foodRequiredLow = 0;
+            let foodRequiredHigh = 0;
 
-        state.player.party.forEach(t => {
-            if(t.level >= 51) return; // Seviye 51 maaş ve yemek istemez
-            if(t.level >= 20 && t.level < 51) totalWage += Math.floor(t.level / 2);
-            else if(t.level < 20 && t.level >= 10) totalWage += 2;
+            state.player.party.forEach(t => {
+                if(t.level >= 51) return; // Seviye 51 maaş ve yemek istemez
+                if(t.level >= 20 && t.level < 51) totalWage += Math.floor(t.level / 2);
+                else if(t.level < 20 && t.level >= 10) totalWage += 2;
 
-            if(t.level >= 20) foodRequiredLow += 1.5;
-            else foodRequiredLow += 1;
+                if(t.level >= 20) foodRequiredLow += 1.5;
+                else foodRequiredLow += 1;
 
-            if(t.level >= 30) foodRequiredHigh += 1;
-        });
+                if(t.level >= 30) foodRequiredHigh += 1;
+            });
 
-        if(state.player.money >= totalWage) state.player.money -= totalWage;
-        else {
-            alert("Maaşları ödeyemedin! Askerlerin morali çok düşük.");
-            // İleride firar eklenebilir
-        }
-
-        // Yemek Tüketimi
-        let lowQualityFoods = ['wheat', 'bread'];
-        let highQualityFoods = ['meat', 'cheese'];
-        
-        let consumeFood = (typeArr, amount) => {
-            let req = amount;
-            for(let i=0; i<state.player.inventory.length && req>0; i++) {
-                let it = state.player.inventory[i];
-                if(typeArr.includes(it.id)) {
-                    let take = Math.min(it.qty, req);
-                    it.qty -= take; req -= take;
-                    if(it.qty <= 0) { state.player.inventory.splice(i,1); i--; }
-                }
+            if(state.player.money >= totalWage) state.player.money -= totalWage;
+            else {
+                alert("Maaşları ödeyemedin! Askerlerin morali çok düşük.");
+                // İleride firar eklenebilir
             }
-            return req; // Kalan (karşılanamayan) miktar
-        };
 
-        // Yüksek kalite yemekler 30+ level askerler için
-        let missingHighQuality = consumeFood(highQualityFoods, Math.ceil(foodRequiredHigh));
-        if(missingHighQuality > 0) {
-            state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = true; });
-        } else {
-            state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = false; });
+            // Yemek Tüketimi
+            let lowQualityFoods = ['wheat', 'bread'];
+            let highQualityFoods = ['meat', 'cheese'];
+        
+            let consumeFood = (typeArr, amount) => {
+                let req = amount;
+                for(let i=0; i<state.player.inventory.length && req>0; i++) {
+                    let it = state.player.inventory[i];
+                    if(typeArr.includes(it.id)) {
+                        let take = Math.min(it.qty, req);
+                        it.qty -= take; req -= take;
+                        if(it.qty <= 0) { state.player.inventory.splice(i,1); i--; }
+                    }
+                }
+                return req; // Kalan (karşılanamayan) miktar
+            };
+
+            // Yüksek kalite yemekler 30+ level askerler için
+            let missingHighQuality = consumeFood(highQualityFoods, Math.ceil(foodRequiredHigh));
+            if(missingHighQuality > 0) {
+                state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = true; });
+            } else {
+                state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = false; });
+            }
+
+            // Kalan yemek ihtiyacı düşük kalite ile de karşılanabilir
+            consumeFood([...lowQualityFoods, ...highQualityFoods], Math.ceil(foodRequiredLow - foodRequiredHigh + missingHighQuality));
+
+            let p = state.player.stats;
+            p.hp = Math.min(p.maxHp, p.hp + 5);
         }
-
-        // Kalan yemek ihtiyacı düşük kalite ile de karşılanabilir
-        consumeFood([...lowQualityFoods, ...highQualityFoods], Math.ceil(foodRequiredLow - foodRequiredHigh + missingHighQuality));
-
-        let p = state.player.stats;
-        p.hp = Math.min(p.maxHp, p.hp + 5);
 
         // Gönüllü yenileme (her gün köylerde +1-2 gönüllü artar, max 5)
         LOCATIONS.forEach(loc => {
