@@ -9,7 +9,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 |---|---|
 | `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli) |
 | `app.js` | Çekirdek — harita, zaman, yerleşim, savaş, turnuva, kayıt. Global objeler: `Input`, `Game`, `Battle`, `TournamentMinigame`, `Save` + `state` |
-| `nobles.js` | `LORDS` (23), `LADIES` (12), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
+| `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
 | `style.css` | Cam panel (glassmorphism) teması, CSS değişkenleri (`--primary`, `--danger`, `--success`, `--panel-border`, `--text-muted`) |
@@ -126,6 +126,17 @@ zafer +5, yenilgi −15.
 - Askerler `TROOP_TYPES` ile tanımlı (hp/speed/attack/defense/type/icon). Türler: `infantry`, `archer`, `cavalry`.
 - XP savaşta öldürme başına +1. XP dolunca ya otomatik seviye atlar ya da `TROOP_UPGRADES` varsa **terfiye hazır** olur — grup ekranından dinar ödeyerek sınıf seçilir (Acemi Asker → Milis/Avcı/Süvari → Çavuş/Keskin Nişancı/Şövalye).
 - Tavan lvl 50. Boss'tan düşen **Savaş Tanrısı Nişanı** ile lvl 51 "Efsanevi" yapılır: maaş ve yemek istemez, +100 HP / +15 saldırı.
+
+### Yoldaşlar (`COMPANIONS`)
+7 isimli kahraman, her biri bir şehrin hanında bekler (`c.city`), 600–900 dinara katılır.
+- Savaşta **ölmezler**, yalnızca yaralanırlar; sıradan asker gibi seviye atlarlar (`Game.giveTroopXp`).
+- Uzmanlık yeteneklerini gruba katarlar: `Game.profLvl(id)` "gruptaki en yüksek" kuralını
+  uygular (yaralı yoldaş katkı vermez).
+- **Husumet**: `dislikes` listesindeki yoldaş gruptayken katılmazlar (Gaddar Kudret ↔ Cerrah
+  Ferhat / Tüccar Mervan).
+- Günde 20 dinar ücret + 1 yemek isterler.
+- Grup üyelerinin savaş/ekran verisi `Game.troopStats(t)`'ten gelir — yoldaş ve eş
+  `TROOP_TYPES`'ta olmadığı için her çağıran kendi varsayılanını uyduruyordu.
 
 ### Envanter & ekipman
 Silah / zırh / at slotları. Zırh max HP'ye, silah saldırıya, at harita hızına (66 → 105) etki eder.

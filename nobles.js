@@ -100,6 +100,34 @@ const LADIES = [
     { id:'gokce',   name:'Leydi Gökçe',   faction:'khergit', guardianId:'arslan',   homeLocId:'narra',     trait:'romantic',  lore:'Bozkırda söylenen bütün ağıtları ezbere bilir; hiçbirini sonuna kadar söylemez.' }
 ];
 
+// --- YOLDAŞLAR ---
+// Handa bulunan isimli NPC kahramanlar. Sıradan askerden farkları: savaşta
+// ölmezler (yaralanırlar), seviye atlarlar ve uzmanlık yeteneklerini gruba
+// katarlar (Game.profLvl "gruptaki en yüksek" kuralını uygular).
+const COMPANIONS = [
+    { id:'ferhat',  name:'Cerrah Ferhat',    city:'praven',   cost:800, skill:'surgery',      troopType:'infantry', icon:'🩺', level:10,
+      lore:'Ordu cerrahıydı, bir lordun kolunu kesmeyi reddedince kovuldu. "Adam iyileşti ama beni kovdular. Kalradya böyle bir yer."',
+      dislikes:['kudret'] },
+    { id:'zeynep',  name:'İzci Zeynep',      city:'sargoth',  cost:700, skill:'spotting',     troopType:'archer',   icon:'🦅', level:11,
+      lore:'Sisin içinde bir atlıyı sesinden tanır. "Gözüm senin haritandan iyidir, ona güven."',
+      dislikes:[] },
+    { id:'bahadir', name:'Kılavuz Bahadır',  city:'tulga',    cost:750, skill:'pathfinding',  troopType:'cavalry',  icon:'🧭', level:10,
+      lore:'Bozkırda doğdu, yolu yıldızdan okur. "Kestirme diye bir şey yok, sadece bilenler ve kaybolanlar var."',
+      dislikes:[] },
+    { id:'mervan',  name:'Tüccar Mervan',    city:'reyvadin', cost:900, skill:'trade',        troopType:'infantry', icon:'💰', level:9,
+      lore:'İki kervanını da çapulculara kaptırdı, üçüncüsünü korumak için kılıç kuşandı. "Zarar da bir tecrübedir ama pahalı olanından."',
+      dislikes:['kudret'] },
+    { id:'kudret',  name:'Gaddar Kudret',    city:'jelkala',  cost:650, skill:'looting',      troopType:'infantry', icon:'🪓', level:12,
+      lore:'Savaş meydanında ölülerin cebini ilk o karıştırır. "Ölünün dinarı ölüye ne fayda?"',
+      dislikes:['ferhat','mervan'] },
+    { id:'lale',    name:'Talimci Lale',     city:'uxkhal',   cost:850, skill:'trainer',      troopType:'archer',   icon:'🎯', level:10,
+      lore:'Bir kalenin bütün garnizonunu tek başına eğitti, komutan alkışı kendine sakladı. "Bana asker ver, sana ordu vereyim."',
+      dislikes:[] },
+    { id:'harun',   name:'Zindancı Harun',   city:'halmar',   cost:600, skill:'prisonerMgmt', troopType:'infantry', icon:'🔗', level:9,
+      lore:'On yıl zindan gardiyanlığı yaptı, sonra zindandakiyle yer değiştirdi. "Zinciri bilirim; iki tarafından da tuttum."',
+      dislikes:[] }
+];
+
 // --- SOYLU SİSTEMİ ---
 const Nobles = {
 

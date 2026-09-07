@@ -521,12 +521,21 @@ const Game = {
     },
 
     // Grubun sınıf dağılımı — hem harita künyesi hem atlı oranı için
+    // Bir grup üyesinin savaş/ekran verisi tek yerden gelir: yoldaşlar ve eş
+    // TROOP_TYPES'ta yok, her çağıran kendi varsayılanını uyduruyordu.
+    troopStats(t) {
+        if(t.isCompanion) {
+            let c = COMPANIONS.find(x => x.id === t.companionId) || {};
+            return { hp: 55, speed: c.troopType === 'cavalry' ? 90 : 68, attack: 14, defense: 6,
+                     type: c.troopType || 'infantry', icon: c.icon || '🎖️' };
+        }
+        if(t.isSpouse) return { hp: 45, speed: 70, attack: 10, defense: 4, type: 'infantry', icon: '💍' };
+        return TROOP_TYPES[t.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
+    },
+
     getPartyComposition() {
         let c = { infantry: 0, archer: 0, cavalry: 0 };
-        state.player.party.forEach(t => {
-            let ti = TROOP_TYPES[t.name];
-            c[(ti && ti.type) || 'infantry']++;
-        });
+        state.player.party.forEach(t => { c[this.troopStats(t).type]++; });
         return c;
     },
 
@@ -1024,6 +1033,7 @@ const Game = {
             let foodRequiredHigh = 0;
 
             state.player.party.forEach(t => {
+                if(t.isCompanion) { totalWage += 20; foodRequiredLow += 1; return; } // yoldaş pahalıdır
                 if(t.level >= 51) return; // Seviye 51 maaş ve yemek istemez
                 if(t.level >= 20 && t.level < 51) totalWage += Math.floor(t.level / 2);
                 else if(t.level < 20 && t.level >= 10) totalWage += 2;
@@ -1956,9 +1966,52 @@ const Game = {
                 : `<button class="btn" style="font-size:0.85rem" onclick="Game.learnPoem('${p.id}')">${p.name} — ${p.cost} Dinar</button>`;
         });
         html += `</div>`;
+
+        // Handaki yoldaşlar
+        let here = COMPANIONS.filter(c => c.city === loc.id && !state.player.party.some(t => t.companionId === c.id));
+        if(here.length) {
+            html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
+                <h4 style="color:var(--primary)">🎖️ Köşedeki Yabancılar</h4>`;
+            here.forEach(c => {
+                let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
+                html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.8rem;margin-bottom:0.5rem">
+                    <b>${c.icon} ${c.name}</b> <span style="font-size:0.8rem;color:var(--text-muted)">· ${this.profName(c.skill)} ${c.level}</span>
+                    <div style="font-size:0.85rem;font-style:italic;color:var(--text-muted);margin:0.3rem 0">${c.lore}</div>
+                    ${rival
+                        ? `<button class="btn" disabled style="opacity:0.5;font-size:0.85rem">${rival.name} grubundayken katılmaz</button>`
+                        : `<button class="btn primary" style="font-size:0.85rem" onclick="Game.hireCompanion('${c.id}')">Gruba Kat (${c.cost} Dinar)</button>`}
+                </div>`;
+            });
+        }
+
         this.showModal(html);
         this._tavernLoc = loc;
     },
+    profName(id) {
+        let m = { surgery:'Cerrahlık', spotting:'Gözcülük', pathfinding:'Yol Bulma', trade:'Ticaret',
+                  looting:'Yağma', trainer:'Eğitim', prisonerMgmt:'Esir Yönetimi' };
+        return m[id] || id;
+    },
+
+    hireCompanion(cid) {
+        let c = COMPANIONS.find(x => x.id === cid);
+        if(!c || state.player.party.some(t => t.companionId === cid)) return;
+        if(state.player.party.length >= this.getPartyCapacity()) return alert('Grubun dolu. "Kalabalığa karışmam ben."');
+        let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
+        // ponytail: husumet katılmayı engeller; Warband'daki "sonradan çekip gitme"
+        // için grup içi olay sistemi gerekirdi, bu kadarı hikâyeyi veriyor.
+        if(rival) return alert(`"${rival.name} mi? O adamla aynı çadırda uyumam." (Katılmadı)`);
+        if(state.player.money < c.cost) return alert('Kesen yetmiyor. "Bedavaya kimse kılıç sallamaz."');
+        state.player.money -= c.cost;
+        state.player.party.push({
+            id: 'comp_' + c.id, companionId: c.id, isCompanion: true,
+            name: c.name, level: c.level, xp: 0, xpNext: 3 + c.level
+        });
+        this.updateTopBar();
+        alert(`${c.name} gruba katıldı. ${this.profName(c.skill)} yeteneği artık grubuna işliyor (seviye ${c.level}).`);
+        if(this._tavernLoc) this.openTavern(this._tavernLoc);
+    },
+
     learnPoem(pid) {
         let p = POEMS.find(x => x.id === pid);
         if(state.player.poems.includes(pid)) return;
@@ -2234,7 +2287,17 @@ const Game = {
         return 'levelup';
     },
 
-    profLvl(id) { return (state.player.proficiencies[id] || { level: 1 }).level; },
+    // Parti yetenekleri "gruptaki en yüksek" kuralıyla çalışır: uzman bir
+    // yoldaş kendi alanında oyuncunun seviyesinin yerine geçebilir.
+    profLvl(id) {
+        let lvl = (state.player.proficiencies[id] || { level: 1 }).level;
+        state.player.party.forEach(t => {
+            if(!t.isCompanion || t.wounded) return;
+            let c = COMPANIONS.find(x => x.id === t.companionId);
+            if(c && c.skill === id) lvl = Math.max(lvl, t.level);
+        });
+        return lvl;
+    },
 
     addProficiencyXp(id, amount) {
         let pData = state.player.proficiencies[id];
@@ -2278,7 +2341,7 @@ const Game = {
                 // efsaneviler ve yaralılar ayrı satırda listelenir
                 let key = this.troopLabel(t) + (t.wounded ? ' 🩹 (yaralı)' : '');
                 if(!groups[key]) {
-                    groups[key] = { base: t.name, count: 0, ready: [], normal: [], wounded: 0 };
+                    groups[key] = { base: t.name, sample: t, count: 0, ready: [], normal: [], wounded: 0 };
                 }
                 if(t.wounded) groups[key].wounded = Math.max(groups[key].wounded, t.wounded);
                 if(!t.legendary && !t.wounded && t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
@@ -2292,12 +2355,12 @@ const Game = {
             html += '<ul style="list-style:none;">';
             for(let name in groups) {
                 let g = groups[name];
-                let typeInfo = TROOP_TYPES[g.base] || { type: 'infantry', icon: '🪖' };
+                let typeInfo = this.troopStats(g.sample);
                 html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.2);margin-bottom:0.5rem;border-radius:6px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--panel-border);">
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
                 </div>`;
                 
                 if(g.ready.length > 0) {
@@ -2755,7 +2818,7 @@ const Battle = {
 
         // Troops (Player's party) — yaralılar savaşa katılmaz, kampta iyileşir
         state.player.party.filter(p => !p.wounded).forEach((p, i) => {
-            let typeInfo = TROOP_TYPES[p.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
+            let typeInfo = Game.troopStats(p);
             let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
             let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
             let debuff = (p.debuff ? 0.7 : 1) * Game.moraleMult();
@@ -3693,7 +3756,8 @@ const Battle = {
         state.player.party.forEach(t => {
             let u = this.units.find(x => x.id === t.id);
             if(!u || u.hp > 0) return;
-            if(Math.random() < saveChance) {
+            // Yoldaşlar ölmez, yalnızca yaralanır
+            if(t.isCompanion || Math.random() < saveChance) {
                 t.wounded = Math.max(1, 3 + Math.floor(Math.random()*2) - Math.floor(surgery / 4));
                 saved++;
             } else { t._dead = true; killed++; }
