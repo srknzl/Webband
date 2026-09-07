@@ -292,7 +292,13 @@ const Game = {
             }
         }
 
-        // Yolları oluştur (Tüm yerleşkeleri birbirine bağlayan Minimum Spanning Tree tarzı)
+        this.buildRoads();
+        this.spawnNPCs();
+    },
+
+    // Tüm yerleşkeleri birbirine bağlayan Minimum Spanning Tree tarzı yol ağı.
+    // Yerleşim koordinatları değiştiğinde (eski kayıt yüklemesi) yeniden çağrılır.
+    buildRoads() {
         state.roads = [];
         let connected = [LOCATIONS[0]];
         let unconnected = LOCATIONS.slice(1);
@@ -319,8 +325,6 @@ const Game = {
             connected.push(u);
             unconnected.splice(bestUnconnIdx, 1);
         }
-
-        this.spawnNPCs();
     },
 
     spawnNPCs() {
@@ -3590,7 +3594,9 @@ const Save = {
             localStorage.setItem(this.KEY, JSON.stringify({
                 v: 1, savedAt: Date.now(),
                 state: { ...state, loopInterval: null },
-                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay })),
+                // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
+                // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
+                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay })),
                 playerKingdom: FACTIONS['player_kingdom'] || null
             }));
             alert('Oyun kaydedildi.');
@@ -3612,10 +3618,16 @@ const Save = {
         Object.assign(state, d.state);
         state.loopInterval = null;
 
+        let legacyLocs = false;
         (d.locations || []).forEach(sl => {
             let l = LOCATIONS.find(x => x.id === sl.id);
-            if(l) Object.assign(l, sl);
+            if(!l) return;
+            if(sl.x === undefined) legacyLocs = true;
+            Object.assign(l, sl);
         });
+        // x/y taşımayan eski kayıtlarda yerleşimler init()'in rastgele yerinde kalır;
+        // kayıttan gelen yollar o dünyaya ait olmadığı için baştan örülür.
+        if(legacyLocs) Game.buildRoads();
 
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
