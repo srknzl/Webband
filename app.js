@@ -916,9 +916,12 @@ const Game = {
         // Gönüllü yenilenmesi (şehirler ve köyler için 2 günde bir)
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village' || loc.type === 'city') {
-                if(loc.volunteersAvailable === 0 && (state.time.day - (loc.lastRecruitDay || 0) >= 2)) {
-                    loc.volunteersAvailable = 1 + Math.floor(Math.random()*4);
-                    if(loc.type === 'city') loc.volunteersAvailable += 3;
+                // Kısmi alım sonrası (ör. 5'ten 2 kalmış) köy de yenilenebilmeli;
+                // eskiden yalnızca tam boşalınca yenileniyordu.
+                let full = loc.type === 'city' ? 7 : 5;
+                if(loc.volunteersAvailable < full && (state.time.day - (loc.lastRecruitDay || 0) >= 2)) {
+                    let fresh = 1 + Math.floor(Math.random()*4) + (loc.type === 'city' ? 3 : 0);
+                    loc.volunteersAvailable = Math.max(loc.volunteersAvailable, fresh);
                 }
             }
         });
@@ -1912,20 +1915,43 @@ const Game = {
         let dialog = this.getHumorousDialog('elder', loc);
         this.showModal(`<h3>🧓 Köy Yaşlısı</h3><p><i>${dialog}</i></p>`);
     },
+    // Kaç gönüllü alınacağı seçilebilir. Eskiden hepsini almak zorunluydu:
+    // kapasitede 3 yer varken 5 gönüllülük köyden tek asker bile alınamıyordu.
     recruitVolunteers(loc) {
-        let amount = loc.volunteersAvailable;
         let cost = 10;
-        this.showModal(`<h3>🪖 Gönüllü Topla</h3><p>${amount} gönüllü hazır. Kişi başı ${cost} Dinar.</p>
-        <button class="btn primary" onclick="Game.doRecruit('${loc.id}',${amount},${cost})">İşe Al (${amount*cost} Dinar)</button>`);
+        let avail = loc.volunteersAvailable;
+        let space = Math.max(0, this.getPartyCapacity() - state.player.party.length);
+        let afford = Math.floor(state.player.money / cost);
+        let max = Math.min(avail, space, afford);
+
+        if(max <= 0) {
+            return this.showModal(`<h3>🪖 Gönüllü Topla</h3>
+            <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar.</p>
+            <p style="color:var(--danger)">${space <= 0 ? 'Grubunda yer yok.' : 'Bir gönüllüye bile yetecek dinarın yok.'}</p>`);
+        }
+
+        this.showModal(`<h3>🪖 Gönüllü Topla</h3>
+        <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar. En fazla <b>${max}</b> kişi alabilirsin.</p>
+        <input type="range" id="recruit-n" min="1" max="${max}" value="${max}" style="width:100%;margin:0.8rem 0"
+               oninput="Game.updateRecruitLabel(${cost})">
+        <button class="btn primary" id="recruit-btn"
+                onclick="Game.doRecruit('${loc.id}', +document.getElementById('recruit-n').value, ${cost})"></button>`);
+        this.updateRecruitLabel(cost);
+    },
+    updateRecruitLabel(cost) {
+        let n = +document.getElementById('recruit-n').value;
+        this.setHtml('recruit-btn', `İşe Al: ${n} kişi (${n * cost} Dinar)`);
     },
     doRecruit(locId, amount, cost) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        amount = Math.min(amount, loc ? loc.volunteersAvailable : amount);
         let total = amount * cost;
+        if(amount < 1) return alert('Alınacak gönüllü yok!');
         if(state.player.money < total) return alert('Yeterli dinarın yok!');
         if(state.player.party.length + amount > this.getPartyCapacity()) return alert('Grubunda yer yok!');
         state.player.money -= total;
-        let loc = LOCATIONS.find(l => l.id === locId);
         if(loc) {
-            loc.volunteersAvailable = 0;
+            loc.volunteersAvailable -= amount;
             loc.lastRecruitDay = state.time.day;
         }
         
