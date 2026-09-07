@@ -122,6 +122,11 @@ zafer +5, yenilgi −15.
 - Seviye atlama: `xpNext *= 1.5`, +10 max HP, tam iyileşme.
 - Grup kapasitesi: `50 + (cha-10)*2 + (leadership-1)*3`.
 
+### Paralı asker
+Handa şehir başına 2 kalem, 3 günde bir tazelenen havuz (`state.mercPools`): hazır
+seviye 10–15 asker, kişi başı `60 + seviye×12` dinar. Gönüllü grindine alternatif —
+parayı doğrudan orduya çevirmenin tek yolu.
+
 ### Grup & asker
 - Askerler `TROOP_TYPES` ile tanımlı (hp/speed/attack/defense/type/icon). Türler: `infantry`, `archer`, `cavalry`.
 - XP savaşta öldürme başına +1. XP dolunca ya otomatik seviye atlar ya da `TROOP_UPGRADES` varsa **terfiye hazır** olur — grup ekranından dinar ödeyerek sınıf seçilir (Acemi Asker → Milis/Avcı/Süvari → Çavuş/Keskin Nişancı/Şövalye).
@@ -143,7 +148,8 @@ Silah / zırh / at slotları. Zırh max HP'ye, silah saldırıya, at harita hız
 Ticaret malları pazarda alınıp satılır (satış fiyatı ×0.7). Pazar çarpanı şehir girişinde rastgele 0.8–1.2.
 
 ### Yerleşimler
-- **Şehir**: pazar, han (dinlenme + ozandan şiir öğrenme), turnuva (varsa), lordlar salonu,
+- **Şehir**: pazar, köle tüccarı, han (dinlenme + ozandan şiir öğrenme + **paralı asker** +
+  **lonca ustası** + **yoldaş** kiralama), turnuva (varsa), lordlar salonu,
   şölen (varsa katıl; kendi krallığındaysa ver), gönüllü toplama
 - **Kale**: lordlar salonu, şölen (varsa)
 - Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
@@ -219,6 +225,12 @@ Görevler Warband'ın görev listesinin kopyası değil; **WebBand'ın kendi mek
 | Hasat Nöbeti | Köy yakınında bekle, 2 çapulcu dalgası püskürt |
 | Kayıp Mektup | Köyden al, başka bir lorda götür |
 | Bir Şiir Getir | Meyhane ozanından şiir öğren, lorda oku |
+| Kervan Yolu Temizliği | *(lonca)* 2 çapulcu grubu dağıt, sonra hedef şehre var |
+| Lonca Siparişi | *(lonca)* 10 birim ticaret malını loncanın şehrine getir |
+
+Görev veren lord olabilir, **lonca ustası** da olabilir (`giverId = 'guild_<locId>'`,
+`Quests.giver()` ikisini de çözer). Lonca ustasının ilişkisi yoktur: ödülü yalnızca dinar
+ve nam, başarısızlığın ilişki cezası yok. `Quests.back()` lordda diyaloga, loncada hana döner.
 
 Kabul edilen görevler `state.player.quests`; **Görevler** sekmesi (`#quests-view`) listeler.
 Reddedilen lord 7–15 gün yeni görev vermez (`state.questCooldown`).

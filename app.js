@@ -123,6 +123,7 @@ const TROOP_TYPES = {
 const state = {
     npcParties: [],
     activeTournaments: {},   // { cityId: true }
+    mercPools: {},           // { locId: { day, list:[{name, level, count}] } }
     encounterCooldown: 0,
     player: {
         name: 'Maceracı',
@@ -1967,6 +1968,34 @@ const Game = {
         });
         html += `</div>`;
 
+        // Paralı askerler — parayı doğrudan hazır seviyeli askere çevirmenin tek yolu
+        let pool = this.mercPool(loc);
+        html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
+            <h4 style="color:var(--primary)">🗡️ Paralı Askerler</h4>
+            <p style="font-size:0.9rem;color:var(--text-muted)">"Sadakat pahalıdır, biz peşin çalışırız."</p>`;
+        if(!pool.list.length) html += `<p style="color:var(--text-muted)">Bu şehirde şu an boşta adam yok.</p>`;
+        pool.list.forEach((m, i) => {
+            let price = this.mercPrice(m);
+            let space = Math.max(0, this.getPartyCapacity() - state.player.party.length);
+            let max = Math.min(m.count, space, Math.floor(state.player.money / price));
+            let st = this.troopStats({ name: m.name });
+            html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.7rem;margin-bottom:0.5rem">
+                <b>${st.icon} ${m.name}</b> <span style="font-size:0.8rem;color:var(--text-muted)">· seviye ${m.level} · ${m.count} kişi · kişi başı ${price} dinar</span>`;
+            html += max > 0
+                ? `<input type="range" id="merc-n-${i}" min="1" max="${max}" value="${max}" style="width:100%;margin:0.5rem 0"
+                        oninput="Game.updateMercLabel(${i}, ${price})">
+                   <button class="btn primary" id="merc-btn-${i}" style="font-size:0.85rem"
+                        onclick="Game.hireMercs('${loc.id}', ${i}, +document.getElementById('merc-n-${i}').value)"></button>`
+                : `<div style="font-size:0.85rem;color:var(--danger);margin-top:0.4rem">${space <= 0 ? 'Grubunda yer yok.' : 'Kesen yetmiyor.'}</div>`;
+            html += `</div>`;
+        });
+
+        // Lonca ustası
+        html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
+            <h4 style="color:var(--primary)">⚖️ Lonca Ustası</h4>
+            <p style="font-size:0.9rem;color:var(--text-muted)">Köşedeki masada, defterine bir şeyler yazıyor.</p>
+            <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">İşi Sor</button>`;
+
         // Handaki yoldaşlar
         let here = COMPANIONS.filter(c => c.city === loc.id && !state.player.party.some(t => t.companionId === c.id));
         if(here.length) {
@@ -1987,6 +2016,51 @@ const Game = {
         this.showModal(html);
         this._tavernLoc = loc;
     },
+    // Paralı asker havuzu şehir başına 3 günde bir tazelenir
+    mercPool(loc) {
+        state.mercPools = state.mercPools || {};
+        let p = state.mercPools[loc.id];
+        if(!p || state.time.day - p.day >= 3) {
+            let names = ['Svadya Milisi', 'Svadya Avcısı', 'Svadya Süvarisi', 'Svadya Çavuşu', 'Svadya Keskin Nişancısı'];
+            let list = [];
+            for(let i = 0; i < 2; i++) {
+                let name = names[Math.floor(Math.random() * names.length)];
+                if(list.some(x => x.name === name)) continue;
+                list.push({ name, level: 10 + Math.floor(Math.random() * 6), count: 3 + Math.floor(Math.random() * 6) });
+            }
+            p = state.mercPools[loc.id] = { day: state.time.day, list };
+        }
+        return p;
+    },
+    mercPrice(m) { return 60 + m.level * 12; },
+
+    updateMercLabel(i, price) {
+        let n = +document.getElementById('merc-n-' + i).value;
+        this.setHtml('merc-btn-' + i, `Tut: ${n} kişi (${n * price} Dinar)`);
+    },
+
+    hireMercs(locId, idx, n) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        let pool = this.mercPool(loc);
+        let m = pool.list[idx];
+        if(!m) return;
+        let price = this.mercPrice(m);
+        n = Math.min(n, m.count, Math.max(0, this.getPartyCapacity() - state.player.party.length), Math.floor(state.player.money / price));
+        if(n < 1) return alert('Alacak adam yok.');
+        state.player.money -= n * price;
+        m.count -= n;
+        for(let i = 0; i < n; i++) {
+            state.player.party.push({
+                id: 'merc_' + Math.random().toString(36).substr(2,9),
+                name: m.name, level: m.level, xp: 0,
+                xpNext: m.level < 30 ? 3 + m.level : 5 + m.level * 2
+            });
+        }
+        if(m.count <= 0) pool.list.splice(idx, 1);
+        this.updateTopBar();
+        this.openTavern(loc);
+    },
+
     profName(id) {
         let m = { surgery:'Cerrahlık', spotting:'Gözcülük', pathfinding:'Yol Bulma', trade:'Ticaret',
                   looting:'Yağma', trainer:'Eğitim', prisonerMgmt:'Esir Yönetimi' };

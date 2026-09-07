@@ -341,9 +341,86 @@ const QUESTS = {
     }
 };
 
+// --- LONCA GÖREVLERİ (giver: 'guild_<locId>') ---
+QUESTS.caravan_escort = {
+    title: 'Kervan Yolu Temizliği',
+    givers: ['guild'],
+    minRelation: -100,
+    days: 12,
+    reward: { money: 1400, renown: 8, rel: 0 },
+    setup(q, giver) {
+        let others = LOCATIONS.filter(l => l.type === 'city' && l.id !== giver.homeLocId);
+        let c = others[Math.floor(Math.random() * others.length)];
+        q.data = { locId: c.id, locName: c.name, need: 2, got: 0 };
+    },
+    offer(q) {
+        return `"Kervanımız <b>${q.data.locName}</b>'a gidecek ama yol çapulcu kaynıyor. Muhafız tutmak pahalı, tabut daha pahalı.<br><br>
+            Sen önden git: <b>${q.data.need} çapulcu grubunu</b> dağıt, sonra ${q.data.locName}'a var ve oradaki adamımıza haber ver.
+            Lonca borcunu unutmaz."`;
+    },
+    desc(q) { return `Çapulcu grubu dağıt: <b>${q.data.got}/${q.data.need}</b>${q.data.got >= q.data.need ? ` · sonra <b>${q.data.locName}</b>'a git` : ''}`; },
+    on(q, ev, d) {
+        if(ev === 'battle_won' && !d.lordId && q.data.got < q.data.need) q.data.got++;
+        if(ev === 'entered_location' && d.locId === q.data.locId && q.data.got >= q.data.need) return 'done';
+    }
+};
+
+QUESTS.guild_supply = {
+    title: 'Lonca Siparişi',
+    givers: ['guild'],
+    minRelation: -100,
+    days: 15,
+    reward: { money: 900, renown: 5, rel: 0 },
+    setup(q, giver) {
+        let goods = ['iron', 'salt', 'velvet', 'ale'];
+        let item = goods[Math.floor(Math.random() * goods.length)];
+        let loc = LOCATIONS.find(l => l.id === giver.homeLocId);
+        q.data = { locId: giver.homeLocId, locName: loc ? loc.name : '?', item, itemName: ITEMS[item].name, need: 10 };
+    },
+    offer(q) {
+        return `"Atölyeler <b>${q.data.itemName}</b> bekliyor, tedarikçim iki haftadır ortada yok.<br><br>
+            <b>${q.data.need} birim ${q.data.itemName}</b> bul, ${q.data.locName}'a getir. Nereden bulduğun beni ilgilendirmez —
+            loncanın defterinde sadece rakamlar var."`;
+    },
+    desc(q) {
+        let inv = state.player.inventory.find(i => i.id === q.data.item);
+        return `${q.data.locName}'a <b>${q.data.need} ${q.data.itemName}</b> getir (çantanda ${inv ? inv.qty : 0})`;
+    },
+    on(q, ev, d) {
+        if(ev !== 'entered_location' || d.locId !== q.data.locId) return;
+        let idx = state.player.inventory.findIndex(i => i.id === q.data.item && i.qty >= q.data.need);
+        if(idx === -1) return;
+        let it = state.player.inventory[idx];
+        it.qty -= q.data.need;
+        if(it.qty <= 0) state.player.inventory.splice(idx, 1);
+        return 'done';
+    }
+};
+
 const Quests = {
 
     active() { return state.player.quests; },
+
+    // Görev veren bir lord olabilir, bir şehrin lonca ustası da olabilir.
+    // Lonca ustasının ilişkisi yoktur; ödül olarak yalnızca dinar ve nam verir.
+    giver(id) {
+        if(String(id).indexOf('guild_') === 0) {
+            let loc = LOCATIONS.find(l => l.id === String(id).slice(6)) || { id: '', name: '?', faction: null };
+            return { id, name: `Lonca Ustası (${loc.name})`, personality: 'guild',
+                     faction: loc.faction, homeLocId: loc.id, isGuild: true };
+        }
+        return Nobles.lord(id);
+    },
+
+    // "Geri" tuşu: lorda diyaloga, lonca ustasında hana döner
+    back(giverId) {
+        let g = this.giver(giverId);
+        if(g && g.isGuild) {
+            let loc = LOCATIONS.find(l => l.id === g.homeLocId);
+            return loc ? Game.openTavern(loc) : Game.closeModal();
+        }
+        Nobles.talk(giverId);
+    },
 
     foodCount() {
         return state.player.inventory
@@ -367,20 +444,20 @@ const Quests = {
 
     // ---------- Teklif ----------
     offerMenu(giverId) {
-        let giver = Nobles.lord(giverId);
+        let giver = this.giver(giverId);
         if(state.player.quests.some(q => q.giverId === giverId)) {
             let q = state.player.quests.find(x => x.giverId === giverId);
             return Game.showModal(`<h3>📜 ${giver.name}</h3>
                 <p style="font-style:italic">"Sana verdiğim işi bitirmeden yenisini isteme."</p>
                 <p style="margin-top:1rem"><b>${QUESTS[q.id].title}</b><br>
                 <span style="color:var(--text-muted)">${QUESTS[q.id].desc(q)}</span></p>
-                <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${giverId}')">Geri</button>`);
+                <button class="btn" style="margin-top:1rem" onclick="Quests.back('${giverId}')">Geri</button>`);
         }
         let cd = (state.questCooldown || {})[giverId] || 0;
         if(state.time.day < cd) {
             return Game.showModal(`<h3>📜 ${giver.name}</h3>
                 <p style="font-style:italic">"Şu an sana verecek bir işim yok. Bir süre sonra uğra."</p>
-                <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${giverId}')">Geri</button>`);
+                <button class="btn" style="margin-top:1rem" onclick="Quests.back('${giverId}')">Geri</button>`);
         }
         // Teklif lord başına sabitlenir. Eskiden her açılışta yeni zar
         // atılıyordu; modalı kapatmak ceza da doğurmadığı için oyuncu
@@ -390,7 +467,7 @@ const Quests = {
         if(!q) {
             return Game.showModal(`<h3>📜 ${giver.name}</h3>
                 <p style="font-style:italic">"Yok. Git başımdan."</p>
-                <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${giverId}')">Geri</button>`);
+                <button class="btn" style="margin-top:1rem" onclick="Quests.back('${giverId}')">Geri</button>`);
         }
         // Bekleyen teklif tazelenir: eski bir teklif kısalmış süreyle başlamasın
         q.startDay = state.time.day;
@@ -407,8 +484,8 @@ const Quests = {
             <p style="margin-top:1rem;line-height:1.6;font-style:italic">${def.offer(q, giver)}</p>
             <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:1rem;font-size:0.9rem">
                 Ödül: <b style="color:#ffcc00">${def.reward.money} dinar</b> ·
-                <b style="color:${def.reward.renown < 0 ? 'var(--danger)' : '#3498db'}">${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam</b> ·
-                <b style="color:#2ecc71">+${def.reward.rel} ilişki</b>
+                <b style="color:${def.reward.renown < 0 ? 'var(--danger)' : '#3498db'}">${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam</b>${def.reward.rel ? ` ·
+                <b style="color:#2ecc71">+${def.reward.rel} ilişki</b>` : ''}
             </div>
             <div style="display:flex;gap:1rem;margin-top:1rem">
                 <button class="btn primary" onclick="Quests.accept()">Kabul Ediyorum</button>
@@ -426,7 +503,7 @@ const Quests = {
     },
 
     pick(giverId, ignoreDup = false) {
-        let giver = Nobles.lord(giverId);
+        let giver = this.giver(giverId);
         let rel = Nobles.rel(giverId);
         let pool = Object.keys(QUESTS).filter(id => {
             let d = QUESTS[id];
@@ -457,8 +534,8 @@ const Quests = {
         if(state.questOffers) delete state.questOffers[giverId];
         state.questCooldown = state.questCooldown || {};
         state.questCooldown[giverId] = state.time.day + 7 + Math.floor(Math.random() * 9);
-        Nobles.addRel(giverId, -2);
-        Nobles.talk(giverId);
+        if(!this.giver(giverId).isGuild) Nobles.addRel(giverId, -2);
+        this.back(giverId);
     },
 
     // ---------- Olay dağıtımı ----------
@@ -494,26 +571,29 @@ const Quests = {
 
         state.player.money += def.reward.money;
         state.player.renown = Math.max(0, state.player.renown + def.reward.renown);
-        Nobles.addRel(q.giverId, def.reward.rel);
+        let g = this.giver(q.giverId);
+        if(!g.isGuild) Nobles.addRel(q.giverId, def.reward.rel);
         if(def.onDone) def.onDone(q);
 
         if(q.dowryFor && state.dowryOffer && state.dowryOffer.ladyId === q.dowryFor) {
             state.dowryOffer.amount = Math.max(500, Math.round(state.dowryOffer.amount * 0.5 / 50) * 50);
-            alert(`${Nobles.lord(q.giverId).name}: "Sözümün arkasındayım. Drahomanın yarısını sil."\nYeni drahoma: ${state.dowryOffer.amount} dinar.`);
+            alert(`${g.name}: "Sözümün arkasındayım. Drahomanın yarısını sil."\nYeni drahoma: ${state.dowryOffer.amount} dinar.`);
         }
 
         Game.updateTopBar();
-        alert(`✅ Görev tamamlandı: ${def.title}\n\n+${def.reward.money} dinar, ${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam, ${Nobles.lord(q.giverId).name} ile +${def.reward.rel} ilişki.`);
+        alert(`✅ Görev tamamlandı: ${def.title}\n\n+${def.reward.money} dinar, ${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam` +
+              (g.isGuild ? '.' : `, ${g.name} ile +${def.reward.rel} ilişki.`));
         this.render();
     },
 
     fail(q, why) {
         let def = QUESTS[q.id];
+        let g = this.giver(q.giverId);
         state.player.quests = state.player.quests.filter(x => x !== q);
-        Nobles.addRel(q.giverId, -10);
+        if(!g.isGuild) Nobles.addRel(q.giverId, -10);
         state.questCooldown = state.questCooldown || {};
         state.questCooldown[q.giverId] = state.time.day + 10;
-        alert(`❌ ${def.title}: ${why}\n${Nobles.lord(q.giverId).name} ile −10 ilişki.`);
+        alert(`❌ ${def.title}: ${why}` + (g.isGuild ? '\nLonca defterine kırmızı bir çizik atıldı.' : `\n${g.name} ile −10 ilişki.`));
         this.render();
     },
 
@@ -540,7 +620,7 @@ const Quests = {
                     <b style="font-size:1.1rem">${def.title}</b>
                     <span style="font-size:0.85rem;color:${left <= 3 ? 'var(--danger)' : 'var(--text-muted)'}">${left} gün kaldı</span>
                 </div>
-                <div style="font-size:0.85rem;color:var(--text-muted);margin:0.3rem 0">Veren: ${Nobles.lord(q.giverId).name}</div>
+                <div style="font-size:0.85rem;color:var(--text-muted);margin:0.3rem 0">Veren: ${Quests.giver(q.giverId).name}</div>
                 <div style="margin-top:0.4rem">${def.desc(q)}</div>
                 <button class="btn" style="margin-top:0.6rem;font-size:0.8rem;padding:0.3rem 0.8rem;border-color:var(--danger);color:var(--danger)"
                         onclick="Quests.abandon('${q.id}')">Vazgeç</button>

@@ -160,6 +160,12 @@ const Nobles = {
     // 3x3 sprite sheet'ten portre karesi
     portraitCss(n, size = 120) {
         let col = (n.portraitIndex ?? 0) % 3, row = Math.floor((n.portraitIndex ?? 0) / 3);
+        if(n.isGuild) {
+            // Lonca ustasının portresi yok — terazi mührü
+            return `<div style="width:${size}px;height:${size}px;border-radius:8px;flex:0 0 auto;
+                background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
+                display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
+        }
         if(n.guardianId !== undefined) {
             // Leydiler için portre yok — kamea tarzı baş harf madalyonu
             let letter = n.name.replace(/^Leydi\s+/, '').charAt(0);
