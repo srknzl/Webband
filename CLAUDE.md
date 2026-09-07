@@ -29,8 +29,8 @@ Script yükleme sırası: `app.js` → `nobles.js` → `quests.js`. Aralarındak
 fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için önemli.
 
 Tüm veri tek bir `state` objesinde. `Save.save()` / `Save.load()` bunu localStorage'a
-(`webband_save_v1`) JSON olarak yazar. Keşfedilen harita 100 birimlik kaba bir ızgarada
-(`state.explored`, 90×90 '0'/'1' dizesi) saklanır; yüklemede sis tuvali bu ızgaradan yeniden boyanır.
+(`webband_save_v1`) JSON olarak yazar. *(Savaş sisi kaldırıldığı için `state.explored`
+ızgarası da kayıttan çıktı; eski kayıtlardaki alan yok sayılır.)*
 
 Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
 `TROOP_TREES` (+ ondan üretilen `TROOP_UPGRADES` / `TROOP_TYPES`); nobles.js'te `LORDS`, `LADIES`, `PERSONALITIES`,
@@ -79,8 +79,19 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   fark edersen normal karşılaşma (yeşil uyarı), fark edemezsen `state.ambush` açılır:
   `Battle.start` oyuncuyu arenanın ortasına koyar ve düşmanı 130–240 birimlik **çember**
   hâlinde doğurur (normalde 470–530 birim uzakta, tek şeritte).
-- Savaş sisi: 9000×9000 offscreen canvas (`exploredCanvas`), oyuncu görüş yarıçapı kadar `destination-out` ile silinir. Görüş `Game.getVisibility()` = `500 + (int−10)×30 + (Gözcülük−1)×25`, **gece ×0.7**. Aynı keşif `Game.markExplored()` ile 90×90 ızgaraya da işlenir (kayıt için); `Game.repaintFog()` / `loadExplored()` tuvali ızgaradan üretir.
-- Kamera: fare tekerleği zoom (0.4–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
+- **Savaş sisi yok** (Warband'daki gibi): arazi, yollar, nehirler ve yerleşimler ilk
+  kareden itibaren görünür. Gizli olan tek şey **gruplardır** — `Game.canSee(npc)` /
+  `Game.spotRange(npc)` hâlâ tek kapı, yani uzaktaki ve ormandaki çeteler görünmez.
+  Görüş `Game.getVisibility()` = `500 + (int−10)×30 + (Gözcülük−1)×25`, **gece ×0.7**;
+  artık sis kazımaz, yalnızca grup fark etme menzilini belirler.
+  *(Kaldırılanlar: `exploredCanvas`/`exploredCtx`/`exploredGrid`, `markExplored`,
+  `repaintFog`, `loadExplored`, görüş çemberi dışını `evenodd` ile karartan katman.)*
+- Kamera: fare tekerleği zoom (`Game.minZoom()`–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
+  Alt sınır ekrana göre hesaplanır (`min(kısa kenar/9600, 0.8)`, taban 0.07) — **tüm kıta
+  (9000 birim) tek ekrana sığar**. 1440×900'de ölçüldü: zoom 0.084, ekran 14453×9600 birimlik
+  alanı gösteriyor, 25 yerleşimin hepsi ve 36 gruptan yalnızca görüş içindeki 4'ü çizili.
+  Uzaklaşınca yerleşim ve grup ikonları dünya biriminde eridiği için `Game.iconScale()`
+  = `max(1, 0.55/zoom)` ile büyütülür (etiketler zaten `1/zoom` ile ekran boyutundaydı).
 - **Rota çizgisi**: kalın sarı kesik yerine akan ince kesikli çizgi (gölge + altın kat),
   hedefte nabız atan halka ve yön oku.
 - Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket. WASD/ok tuşları kamerayı oyuncuya kilitler.
@@ -598,8 +609,7 @@ Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan ku
   modalin 16 px'lik cam blur'unu her kare yeniden hesaplatıyordu. Ölçüldü: modal açıkken
   500 ms'de 30 kare → 0 kare, kapanınca geri geliyor.
 - **Tuvaller opak** (`getContext('2d', { alpha: false })`): harita denizi, savaş zemini ve
-  turnuva arka planı her kareyi baştan sona dolduruyor, alfa kanalı boşuna. Sis
-  (`exploredCanvas`) ayrı bir RGBA tuval olarak `drawImage` ile üstüne biniyor, etkilenmiyor.
+  turnuva arka planı her kareyi baştan sona dolduruyor, alfa kanalı boşuna.
   Not: `battle-canvas`'ı `Battle` ve `TournamentMinigame` paylaşıyor — ikisi de aynı
   bayrakla `getContext` çağırmalı (ilk çağrı bağlayıcıdır).
 - **Her rAF döngüsünün çift başlama koruması var** (`Game.startGameLoop`, `Battle.start`,
@@ -651,4 +661,8 @@ Kalanlar:
   `onclick="Game.xxx()"` ile globallere bağlanır — bu yüzden `Game`/`Battle`/`Nobles`/`Quests`/
   `Feast`/`Save` global kalmalı.
 - Modal açmak: `Game.showModal(html, width?, bgImage?)`, kapatmak `Game.closeModal()`.
-- Bildirim için `alert()` yeterli (modala yönlendirilmiş durumda).
+- Bildirim için `alert()` yeterli (modala yönlendirilmiş durumda). Override `typeof Game`
+  ile bakar: `const Game` **sözcüksel** globaldir, `window.Game`'e takılmaz — eski guard
+  `window.Game` sorduğu için oyundaki bütün `alert()` çağrıları sessizce yutuluyordu
+  (ör. "İlgi 0/60" uyarısı; buton hiçbir şey yapmıyor sanılıyordu). Mesajdaki `\n`
+  modalde `<br>`'ye çevrilir.

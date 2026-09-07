@@ -116,8 +116,10 @@ const FORESTS = [
 ];
 
 window.alert = function(msg) {
-    if(window.Game && window.Game.showModal) {
-        Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">Bildirim</h3><p style="font-size:1.1rem;line-height:1.5">${msg}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.closeModal()">Tamam</button></div>`);
+    // `const Game` window'a takılmaz (sözcüksel global bağ), bu yüzden window.Game
+    // her zaman undefined'dı ve oyundaki BÜTÜN alert'ler sessizce yutuluyordu.
+    if(typeof Game !== 'undefined' && Game.showModal) {
+        Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">Bildirim</h3><p style="font-size:1.1rem;line-height:1.5">${String(msg).replace(/\n/g, '<br>')}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.closeModal()">Tamam</button></div>`);
     }
 };
 
@@ -320,7 +322,6 @@ const state = {
     pendingQuest: null, questOffers: {}, dowryOffer: null, betrothed: null, pendingWedding: null,
     pendingDedication: false, duel: null,
     feast: null, scheduledFeasts: [], nextFeastDay: 8,
-    explored: '',        // keşfedilen harita: 90x90 kaba ızgara, '0'/'1' dizesi
 };
 
 // --- INPUT ---
@@ -365,7 +366,7 @@ const Input = {
         window.addEventListener('wheel', e => {
             if (document.getElementById('map-view').classList.contains('active')) {
                 Game.camera.targetZoom -= e.deltaY * 0.001;
-                Game.camera.targetZoom = Math.max(0.4, Math.min(Game.camera.targetZoom, 3.0));
+                Game.camera.targetZoom = Math.max(Game.minZoom(), Math.min(Game.camera.targetZoom, 3.0));
             }
         });
     }
@@ -375,14 +376,17 @@ const Input = {
 const Game = {
     mapCanvas: null,
     ctx: null,
-    exploredCanvas: null,
-    exploredCtx: null,
-    // Sis 9000x9000 tuvalde tutuluyor; kaydedilebilmesi için aynı bilgi
-    // 100 birimlik kaba bir ızgarada da tutulur (90x90 = 8100 hücre).
-    FOG_CELL: 100,
-    FOG_N: 90,
-    exploredGrid: null,
     camera: { x: 0, y: 0, zoom: 0.8, targetZoom: 0.8, offsetX: 0, offsetY: 0 },
+
+    // Kıta 9000 birim; en uzak yakınlık tamamını ekrana sığdırır (kenarda %6 pay).
+    minZoom() {
+        if(!this.mapCanvas) return 0.12;
+        return Math.max(0.07, Math.min(0.8, Math.min(this.mapCanvas.width, this.mapCanvas.height) / 9600));
+    },
+
+    // Uzaklaşınca yerleşim/grup ikonları ekranda okunur boyutta kalsın (etiketler zaten
+    // 1/zoom ile ölçekleniyordu, ikonlar dünya biriminde olduğu için erimişti).
+    iconScale() { return Math.max(1, 0.55 / this.camera.zoom); },
 
     getMapRadius(x, y) {
         let dx = x - 4500;
@@ -718,50 +722,6 @@ const Game = {
         };
         fit(this.mapCanvas);
         fit(document.getElementById('battle-canvas'));
-
-        if(!this.exploredCanvas) {
-            this.exploredCanvas = document.createElement('canvas');
-            this.exploredCanvas.width = 9000;
-            this.exploredCanvas.height = 9000;
-            this.exploredCtx = this.exploredCanvas.getContext('2d');
-            this.exploredGrid = new Uint8Array(this.FOG_N * this.FOG_N);
-            this.repaintFog();
-        }
-    },
-
-    // Kayıttan gelen ızgarayı tuvale uygular
-    loadExplored() {
-        let n = this.FOG_N, want = n * n, str = state.explored || '';
-        this.exploredGrid = new Uint8Array(want);
-        if(str.length === want) {
-            for(let i = 0; i < want; i++) if(str[i] === '1') this.exploredGrid[i] = 1;
-        }
-        this.repaintFog();
-    },
-
-    // Sis tuvalini ızgaradan yeniden üretir (yeni oyunda ızgara boş = her yer sisli)
-    repaintFog() {
-        let c = this.FOG_CELL, n = this.FOG_N, g = this.exploredGrid;
-        this.exploredCtx.globalCompositeOperation = 'source-over';
-        this.exploredCtx.fillStyle = 'black';
-        this.exploredCtx.fillRect(0, 0, 9000, 9000);
-        this.exploredCtx.globalCompositeOperation = 'destination-out';
-        for(let gy = 0; gy < n; gy++) for(let gx = 0; gx < n; gx++) {
-            if(g[gy*n + gx]) this.exploredCtx.fillRect(gx*c, gy*c, c, c);
-        }
-        this.exploredCtx.globalCompositeOperation = 'source-over';
-    },
-
-    // Görüş çemberinin içinde kalan ızgara hücrelerini keşfedilmiş işaretle
-    markExplored(x, y, r) {
-        let c = this.FOG_CELL, n = this.FOG_N, g = this.exploredGrid;
-        if(!g) return;
-        let gx0 = Math.max(0, Math.floor((x - r) / c)), gx1 = Math.min(n-1, Math.floor((x + r) / c));
-        let gy0 = Math.max(0, Math.floor((y - r) / c)), gy1 = Math.min(n-1, Math.floor((y + r) / c));
-        for(let gy = gy0; gy <= gy1; gy++) for(let gx = gx0; gx <= gx1; gx++) {
-            let dx = (gx + 0.5) * c - x, dy = (gy + 0.5) * c - y;
-            if(dx*dx + dy*dy <= r*r) g[gy*n + gx] = 1;
-        }
     },
 
     // 144/180 Hz ekranda rAF kare başına 5-7 ms bütçe verir; oyun 60 fps'te de
@@ -1206,25 +1166,6 @@ const Game = {
                     this.updateSpeedUI(spdData);
                 }
             }
-        }
-
-        if(this.exploredCtx) {
-            this.exploredCtx.globalCompositeOperation = 'destination-out';
-            this.exploredCtx.fillStyle = 'rgba(0,0,0,1)';
-            this.exploredCtx.beginPath();
-            let vis = this.getVisibility();
-            let time = performance.now() / 2000;
-            for (let a = 0; a < Math.PI * 2; a += 0.1) {
-                let r = vis + Math.sin(a * 6 + time) * 24;
-                let px = state.player.x + Math.cos(a) * r;
-                let py = state.player.y + Math.sin(a) * r;
-                if(a === 0) this.exploredCtx.moveTo(px, py);
-                else this.exploredCtx.lineTo(px, py);
-            }
-            this.exploredCtx.closePath();
-            this.exploredCtx.fill();
-            this.exploredCtx.globalCompositeOperation = 'source-over';
-            this.markExplored(state.player.x, state.player.y, vis);
         }
 
         if(timeFlows) this.checkAmbush(dt);
@@ -2319,7 +2260,8 @@ const Game = {
         // Draw locations
         LOCATIONS.forEach(loc => {
             let fc = FACTIONS[loc.faction] || {color:'#888'};
-            let big = loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32;
+            let ik = this.iconScale();
+            let big = (loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32) * ik;
             let icon = loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️';
 
             // Yer gölgesi
@@ -2333,16 +2275,16 @@ const Game = {
 
             // Fraksiyon flaması
             let px = loc.x + big*0.42, py = loc.y - big*0.45;
-            ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(px, py + 34); ctx.lineTo(px, py - 26); ctx.stroke();
+            ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3 * ik;
+            ctx.beginPath(); ctx.moveTo(px, py + 34*ik); ctx.lineTo(px, py - 26*ik); ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(px, py - 26); ctx.lineTo(px + 30, py - 17); ctx.lineTo(px, py - 8);
+            ctx.moveTo(px, py - 26*ik); ctx.lineTo(px + 30*ik, py - 17*ik); ctx.lineTo(px, py - 8*ik);
             ctx.closePath();
             ctx.fillStyle = fc.color; ctx.fill();
-            ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
 
             if(loc.type === 'city' && state.activeTournaments[loc.id]) {
-                ctx.font = '36px Arial';
+                ctx.font = (36*ik) + 'px Arial';
                 ctx.fillText('🏆', loc.x - big*0.55, loc.y - 15);
             }
 
@@ -2369,28 +2311,9 @@ const Game = {
             ctx.globalCompositeOperation = 'source-over';
         }
 
-        // FOG OF WAR çizimi
-        if(this.exploredCanvas) {
-            ctx.drawImage(this.exploredCanvas, 0, 0); // Keşfedilmemiş yerler siyah olur
-        }
-        
-        // Tüm ekranı hafif karart (Keşfedilmiş ama şu an göremediğimiz yerleri karartmak için)
-        // Ancak o anki dalgalı görüş alanını karartmadan Bırakacağız (evenodd taktiği)
-        ctx.beginPath();
-        ctx.rect(-1000,-1000, 11000, 11000); // Tüm ekranı kapsayan dikdörtgen
-        let vis = this.getVisibility() * (this.isNight() ? 0.7 : 1);
-        let time = performance.now() / 2000;
-        for (let a = 0; a < Math.PI * 2; a += 0.1) {
-            let r = vis + Math.sin(a * 6 + time) * 24;
-            let px = state.player.x + Math.cos(a) * r;
-            let py = state.player.y + Math.sin(a) * r;
-            if(a === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fill('evenodd'); // İç içe geçen şekillerin içini boyamaz
-        
+        // Savaş sisi yok: arazi, yol ve yerleşimler her zaman görünür (Warband gibi).
+        // Gizli olan tek şey gruplardır — onlar Game.canSee() ile eleniyor.
+
         // Sınırlar boyunca sıra dağları çiz
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
@@ -2426,7 +2349,7 @@ const Game = {
                 mounted: npc.type !== 'bandit',
                 size: npc.size || 1,
                 color: nCol,
-                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1),
+                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * this.iconScale(),
                 bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
                 dim: npc.type === 'bandit'
             });
@@ -2466,7 +2389,7 @@ const Game = {
                 mounted: !!state.player.equipment.horse,
                 size: state.player.party.length + 1,
                 color: this.bannerColor(),
-                scale: 1.35 * this.partyIconScale(state.player.party.length + 1),
+                scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
                 bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
             });
 
@@ -5433,8 +5356,6 @@ const Save = {
 
     save() {
         try {
-            // Keşfedilen harita kaba ızgarada saklanır (8100 karakter)
-            if(Game.exploredGrid) state.explored = Game.exploredGrid.join('');
             localStorage.setItem(this.KEY, JSON.stringify({
                 v: this.V, savedAt: Date.now(),
                 state: { ...state },
@@ -5481,7 +5402,6 @@ const Save = {
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
         Game.resizeCanvases();   // sis tuvalini de kurar
-        Game.loadExplored();     // keşfedilen harita ızgaradan geri gelir
         Game.camera.x = state.player.x; Game.camera.y = state.player.y;
         Game.camera.offsetX = 0; Game.camera.offsetY = 0;
         Game.showScreen('map');
