@@ -93,7 +93,7 @@ Her gün:
 
 ### Karakter
 - Nitelikler: **Güç** (yakın dövüş hasarı, turnuvada hedef süresi), **Çeviklik** (harita hızı +1.5, savaş hızı +0.5, turnuvada hedef boyutu), **Zeka** (görüş +30), **Karizma** (grup kapasitesi +2). Seviye başına 2 puan.
-- Yetenekler (Bannerlord tarzı odak sistemi): `oneHanded`, `twoHanded`, `polearm`, `bow`, `riding`, `athletics`, `leadership`. Her seviyede 3 odak puanı; odak XP çarpanını `0.5 + focus` yapar (max 5 odak).
+- Yetenekler (Bannerlord tarzı odak sistemi): `oneHanded`, `twoHanded`, `polearm`, `bow`, `riding`, `athletics`, `leadership`, `persuasion`, `surgery`, `prisonerMgmt`. Her seviyede 3 odak puanı; odak XP çarpanını `0.5 + focus` yapar (max 5 odak).
 - Seviye atlama: `xpNext *= 1.5`, +10 max HP, tam iyileşme.
 - Grup kapasitesi: `50 + (cha-10)*2 + (leadership-1)*3`.
 
@@ -221,7 +221,19 @@ Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
   10 vs 15 → yenilgi; 20 acemi vs 20 çapulcu → kıl payı (yazı-tura); seviyeli askerlerle
   (20×L10 vs 20) rahat zafer. Savaşlar 8–30 sn sürer.
 
-### Esaret
+### Esir alma (oyuncunun esirleri)
+- Kazanılan savaşta düşen düşmanların **%45'i esir düşer** (`state.player.prisoners`), boss savaşı hariç.
+- Kapasite `Game.prisonerCapacity()` = `5 + (Esir Yönetimi − 1) × 3`; her esir alma/satma bu yeteneğe XP verir.
+- Değer `Game.prisonerValue()` = `(25 + seviye×12) × (süvari 1.5 / okçu 1.2 / piyade 1)`; şehirdeki
+  **⛓️ Köle Tüccarı** ekranından tür tür ya da toptan satılır. Grup ekranında salıverilebilir.
+- Her gün `max(1%, 6% − yetenek×0.5%)` ihtimalle esir kaçar; soylular kaçmaz.
+- **Soylu esir**: lord partisi yenilince o lord esir düşer (haritadan silinir). Grup ekranından
+  fidye istenir (2500–4500 dinar, −20 ilişki, o krallığın diğer lordlarına −4) ya da onurla
+  salıverilır (+25 ilişki, fraksiyona +6, +3 nam). Her iki durumda `Game.respawnLordParty()`
+  lordu evinin yanında küçülmüş bir partiyle haritaya döndürür.
+- Oyuncu yenilir/teslim olursa elindeki bütün esirler serbest kalır.
+
+### Esaret (oyuncunun esareti)
 - Esirken oyuncu esir alanın konumuna kilitlenir, başka hiçbir şey yapılamaz.
 - "Kaçış planı yap" toggle'ı kaçış şansını 0'dan 80'e kadar giderek yavaşlayan bir ivmeyle doldurur.
 - "Kaçmaya çalış" günde bir kez; başarısızlıkta şans −60 ve plan sıfırlanır.

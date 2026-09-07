@@ -148,7 +148,8 @@ const state = {
             athletics: { level: 1, xp: 0, next: 100, focus: 0 },
             leadership:{ level: 1, xp: 0, next: 100, focus: 0 },
             persuasion:{ level: 1, xp: 0, next: 100, focus: 0 },
-            surgery:   { level: 1, xp: 0, next: 100, focus: 0 }
+            surgery:   { level: 1, xp: 0, next: 100, focus: 0 },
+            prisonerMgmt:{ level: 1, xp: 0, next: 100, focus: 0 }
         },
         skills: { fastRun: 0, wideSwing: 0, fastArrow: 0, homingArrow: 0 },
         attackAngle: 30, // Base 30 degrees
@@ -157,6 +158,7 @@ const state = {
         currentSiege: null,
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
+        prisoners: [],   // ele geçirilen esirler: { id, name, level, type } | soylu: { id, name, noble, lordId, faction, ransom }
         quests: [],
         poems: [],
     },
@@ -891,8 +893,10 @@ const Game = {
         let moneyLost = Math.floor(state.player.money * ratio);
         state.player.money = Math.max(0, state.player.money - moneyLost);
 
-        // Tüm askerler kaybedilir
+        // Tüm askerler kaybedilir, esirler serbest kalır
         state.player.party = [];
+        state.player.prisoners.filter(p => p.noble).forEach(p => this.respawnLordParty(p));
+        state.player.prisoners = [];
         state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
 
         state.player.prisoner = { npcId, npcName, daysLeft: daysLost, ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0, escapeChance: 10, isPlanning: false };
@@ -1064,6 +1068,12 @@ const Game = {
                 t.wounded--;
                 if(t.wounded <= 0) delete t.wounded;
             });
+
+            // Esirler fırsat kollar: her gün küçük bir kaçış şansı.
+            // ponytail: soylular kaçmaz — fidye kararını oyuncuya bırakıyoruz.
+            let pmLvl = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
+            let escChance = Math.max(0.01, 0.06 - pmLvl * 0.005);
+            state.player.prisoners = state.player.prisoners.filter(pr => pr.noble || Math.random() > escChance);
         }
 
         // Gönüllü yenileme (her gün köylerde +1-2 gönüllü artar, max 5)
@@ -1792,6 +1802,7 @@ const Game = {
             if(loc.type === 'city') {
                 this.addBtn(ac, '🛒 Pazara Git', () => this.openMarket(loc));
                 this.addBtn(ac, '🍺 Hana Gir', () => this.openTavern(loc));
+                this.addBtn(ac, '⛓️ Köle Tüccarı', () => this.openSlaveTrader());
                 if(state.activeTournaments[loc.id]) {
                     this.addBtn(ac, '🏆 Turnuvaya Katıl', () => this.joinTournament(loc));
                 }
@@ -2137,7 +2148,8 @@ const Game = {
             { id: 'athletics', name: 'Atletizm' },
             { id: 'leadership', name: 'Liderlik' },
             { id: 'persuasion', name: 'İkna Kabiliyeti' },
-            { id: 'surgery', name: 'Cerrahlık' }
+            { id: 'surgery', name: 'Cerrahlık' },
+            { id: 'prisonerMgmt', name: 'Esir Yönetimi' }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${fp} Odak Puanı Dağıtılabilir)</span>` : ''}</h3>
@@ -2260,10 +2272,146 @@ const Game = {
             }
             html += '</ul>';
         }
+        html += this.prisonersHtml();
         document.getElementById('party-list').innerHTML = html;
     },
     // Efsanevi öneki yalnızca ekranda görünür, veride ad temiz kalır
     troopLabel(t) { return (t.legendary ? 'Efsanevi ' : '') + t.name; },
+
+    // --- ESİRLER ---
+    // Kapasite Esir Yönetimi yeteneğine bağlı; soylu esirler de yer kaplar.
+    prisonerCapacity() {
+        let lvl = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
+        return 5 + (lvl - 1) * 3;
+    },
+    prisonerValue(p) {
+        if(p.noble) return p.ransom || 0;
+        let mult = p.type === 'cavalry' ? 1.5 : p.type === 'archer' ? 1.2 : 1;
+        return Math.floor((25 + (p.level || 1) * 12) * mult);
+    },
+
+    openSlaveTrader(note) {
+        let ps = state.player.prisoners;
+        let html = `<h2 style="color:var(--primary);margin-top:0">⛓️ Köle Tüccarı</h2>`;
+        if(note) html += `<p style="color:#ffcc00">${note}</p>`;
+        let troops = ps.filter(p => !p.noble);
+        if(troops.length === 0) {
+            html += `<p style="color:var(--text-muted)">Tüccar boş ranzalarını gösteriyor: "Zincirim bol, malın yok. Git birkaç çapulcu topla da konuşalım."</p>`;
+        } else {
+            let groups = {};
+            troops.forEach(t => {
+                let key = t.name;
+                if(!groups[key]) groups[key] = { count: 0, value: this.prisonerValue(t) };
+                groups[key].count++;
+            });
+            let total = troops.reduce((a, t) => a + this.prisonerValue(t), 0);
+            html += `<p style="color:var(--text-muted)">Tüccar esirlerini tek tek süzüyor.</p><ul style="list-style:none;padding:0">`;
+            for(let name in groups) {
+                let g = groups[name];
+                html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
+                    <span>⛓️ <b>${name}</b> x${g.count} <span style="color:var(--text-muted);font-size:0.8rem">(tanesi ${g.value} dinar)</span></span>
+                    <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">Sat (+${g.count * g.value})</button>
+                </li>`;
+            }
+            html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">Hepsini Sat (+${total} Dinar)</button>`;
+        }
+        if(ps.some(p => p.noble)) html += `<p style="color:#e59b3d;font-size:0.85rem;margin-top:0.8rem">Tüccar soylulara elini sürmez: "Onların fidyesi benim değil, senin işin." (Grup ekranından fidye iste)</p>`;
+        html += `<button class="btn" style="width:100%;margin-top:0.8rem" onclick="Game.closeModal()">Ayrıl</button>`;
+        this.showModal(html);
+    },
+
+    sellPrisoners(name) {
+        let sold = 0, money = 0;
+        state.player.prisoners = state.player.prisoners.filter(p => {
+            if(p.noble || (name && p.name !== name)) return true;
+            money += this.prisonerValue(p); sold++;
+            return false;
+        });
+        if(!sold) return;
+        state.player.money += money;
+        this.addProficiencyXp('prisonerMgmt', 8 * sold);
+        this.updateTopBar();
+        // Not modalın içinde gösterilir; alert() showModal ile üst üste binerdi
+        this.openSlaveTrader(`${sold} esir satıldı. +${money} dinar.`);
+    },
+
+    releasePrisoners(name) {
+        let n = 0;
+        state.player.prisoners = state.player.prisoners.filter(p => {
+            if(p.noble || p.name !== name) return true;
+            n++; return false;
+        });
+        if(n) { this.renderPartyScreen(); alert(`${n} esir salıverildi.`); }
+    },
+
+    // Fidye alınan ya da salıverilen lord haritaya döner — yoksa yenilen soylu
+    // oyundan tamamen siliniyordu.
+    respawnLordParty(pr) {
+        let lord = Nobles.lord(pr.lordId);
+        if(!lord || state.npcParties.some(n => n.lordId === lord.id)) return;
+        let size = lord.rank === 'king' ? 60 : lord.rank === 'vizier' ? 30 : 20;
+        let npc = this.createNPC(lord.name, lord.rank, size, FACTIONS[lord.faction].color, lord.faction, 1);
+        npc.lordId = lord.id;
+        let home = LOCATIONS.find(x => x.id === lord.homeLocId);
+        if(home) { npc.x = home.x; npc.y = home.y; npc.targetX = home.x; npc.targetY = home.y; }
+        state.npcParties.push(npc);
+    },
+
+    ransomLord(id) {
+        let i = state.player.prisoners.findIndex(p => p.id === id);
+        if(i === -1) return;
+        let pr = state.player.prisoners.splice(i, 1)[0];
+        state.player.money += pr.ransom;
+        Nobles.addRel(pr.lordId, -20);
+        LORDS.filter(l => l.faction === pr.faction && l.id !== pr.lordId).forEach(l => Nobles.addRel(l.id, -4));
+        this.respawnLordParty(pr);
+        this.addProficiencyXp('prisonerMgmt', 40);
+        this.updateTopBar();
+        this.renderPartyScreen();
+        alert(`${pr.name} için ${pr.ransom} dinar fidye alındı. Serbest bıraktın ama bunu unutmayacak.`);
+    },
+
+    releaseLord(id) {
+        let i = state.player.prisoners.findIndex(p => p.id === id);
+        if(i === -1) return;
+        let pr = state.player.prisoners.splice(i, 1)[0];
+        Nobles.addRel(pr.lordId, 25);
+        LORDS.filter(l => l.faction === pr.faction && l.id !== pr.lordId).forEach(l => Nobles.addRel(l.id, 6));
+        state.player.renown += 3;
+        this.respawnLordParty(pr);
+        this.updateTopBar();
+        this.renderPartyScreen();
+        alert(`${pr.name}'i fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
+    },
+
+    prisonersHtml() {
+        let ps = state.player.prisoners || [];
+        let html = `<h3 style="color:var(--primary);margin-top:1.5rem">⛓️ Esirler ${ps.length}/${this.prisonerCapacity()}</h3>`;
+        if(ps.length === 0) return html + `<p style="color:var(--text-muted);font-size:0.85rem">Zincirlerin boş. Kazandığın savaşlarda düşen düşmanların bir kısmı esir alınır; şehirdeki köle tüccarına satılır.</p>`;
+        let groups = {};
+        html += '<ul style="list-style:none;padding:0">';
+        ps.forEach(p => {
+            if(p.noble) {
+                html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:6px;margin-bottom:0.5rem">
+                    <b style="color:#e59b3d">👑 ${p.name}</b> <span style="font-size:0.8rem;color:var(--text-muted)">${(FACTIONS[p.faction]||{name:''}).name} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}</span>
+                    <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
+                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">💰 Fidye İste (${p.ransom} Dinar)</button>
+                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">🕊️ Onurunla Salıver</button>
+                    </div></li>`;
+                return;
+            }
+            if(!groups[p.name]) groups[p.name] = { count: 0, value: this.prisonerValue(p) };
+            groups[p.name].count++;
+        });
+        for(let name in groups) {
+            let g = groups[name];
+            html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
+                <span>⛓️ <b>${name}</b> x${g.count} <span style="font-size:0.8rem;color:var(--text-muted)">(tanesi ~${g.value} dinar)</span></span>
+                <button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${name.replace(/'/g,"\\'")}')">Salıver</button>
+            </li>`;
+        }
+        return html + '</ul>';
+    },
 
     promoteTo51(id) {
         let t = state.player.party.find(x => x.id === id);
@@ -2569,7 +2717,7 @@ const Battle = {
             }
 
             this.units.push({
-                id: 'enemy_'+i, isPlayerTeam: false,
+                id: 'enemy_'+i, isPlayerTeam: false, name: name,
                 hp: hp, maxHp: hp,
                 x: startEnemyX + Math.random()*80, y: 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense,
@@ -3453,6 +3601,22 @@ const Battle = {
         if(saved) Game.addProficiencyXp('surgery', 30 * saved);
         this.lastCasualties = { saved, killed };
 
+        // Düşen düşmanların bir kısmı ölmez, esir düşer (Warband'ın esir sistemi).
+        // Kapasite Esir Yönetimi yeteneğine bağlı; boss savaşında esir alınmaz.
+        let captured = 0;
+        if(won && !this.isBossFight) {
+            let free = Game.prisonerCapacity() - state.player.prisoners.length;
+            this.units.forEach(u => {
+                if(u.isPlayerTeam || u.hp > 0 || free <= 0 || Math.random() > 0.45) return;
+                state.player.prisoners.push({
+                    id: 'pr_' + Math.random().toString(36).substr(2,7),
+                    name: u.name || 'Çapulcu', level: u.level || 1, type: u.type
+                });
+                free--; captured++;
+            });
+            if(captured) Game.addProficiencyXp('prisonerMgmt', 10 * captured);
+        }
+
         if(won) {
             let xpGain = 30 + state.player.party.length * 5;
             let moneyGain = 50 + Math.floor(Math.random()*100);
@@ -3502,6 +3666,7 @@ const Battle = {
             }
 
             // Yenilen NPC'yi haritadan kaldır
+            let nobleTaken = null;
             if(state.player.currentEncounterNpcId) {
                 let beaten = state.npcParties.find(n => n.id === state.player.currentEncounterNpcId);
                 Quests.emit('battle_won', {
@@ -3511,6 +3676,17 @@ const Battle = {
                 });
                 state.npcParties = state.npcParties.filter(n => n.id !== state.player.currentEncounterNpcId);
                 state.player.currentEncounterNpcId = null;
+
+                // Yenilen soylu esir düşer: ya fidyesini alırsın ya onurunla salıverirsin
+                let lord = beaten && beaten.lordId ? Nobles.lord(beaten.lordId) : null;
+                if(lord) {
+                    state.player.prisoners.push({
+                        id: 'pr_' + Math.random().toString(36).substr(2,7),
+                        name: lord.name, noble: true, lordId: lord.id, faction: lord.faction,
+                        ransom: 2500 + Math.floor(Math.random()*2000)
+                    });
+                    nobleTaken = lord.name;
+                }
             }
 
             let resultHtml = `
@@ -3522,6 +3698,8 @@ const Battle = {
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Şan/Nam:</b> <span style="color:#3498db">+3</span> 👑</p>
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Tecrübe:</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
                     <p><b>Kayıplar:</b> <span style="color:#e74c3c">${killed} ölü</span> · <span style="color:#ffaa00">${saved} yaralı</span> 🩹</p>
+                    ${captured ? `<p style="margin-top:0.8rem"><b>Esir Alınan:</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:0.85rem;color:var(--text-muted)">(şehirdeki köle tüccarına satabilirsin)</span></p>` : ''}
+                    ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>👑 ${nobleTaken} esir alındı!</b> <span style="font-size:0.85rem;color:var(--text-muted)">Grup ekranından fidye iste ya da salıver.</span></p>` : ''}
                 </div>
                 <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:8px" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">Kazanımları Al ve İlerle</button>
             </div>`;
@@ -3533,8 +3711,10 @@ const Battle = {
             let moneyLost = Math.floor(state.player.money * ratio);
             state.player.money = Math.max(0, state.player.money - moneyLost);
 
-            // Askerler dağılır
+            // Askerler dağılır, esirler zincirlerinden kurtulur
             state.player.party = [];
+            state.player.prisoners.filter(p => p.noble).forEach(p => Game.respawnLordParty(p));
+            state.player.prisoners = [];
             state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
 
             // Esir sistemi
@@ -3585,6 +3765,8 @@ const Battle = {
         else {
             alert(wasSiege ? 'Kuşatmadan çekildin. Birliğin dağıldı.' : 'Teslim oldun! Birliğini kaybettin.');
             state.player.party = [];
+            state.player.prisoners.filter(p => p.noble).forEach(p => Game.respawnLordParty(p));
+            state.player.prisoners = [];
             state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
         }
         Game.updateTopBar();
