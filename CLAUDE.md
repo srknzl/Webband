@@ -451,6 +451,41 @@ genişlik + `mask-image` ile alta doğru sönme.
 `#top-bar`'a `position:relative; z-index:60` verilmiştir — yoksa hız ipucu harita
 canvas'ının altında kalıyordu.
 
+## Performans
+
+Darboğaz JS değil, **compositor**. Ölçüldü (1920×1080 tuval, 81 canlı birim + 60 ceset +
+200 kan lekesi): `Battle.update` kare başına 0.27 ms, `Battle.render` 0.97 ms — toplam
+~1.2 ms. Yani kare bütçesinin (16.7 ms) ancak %7'si JS'te geçiyor; kalan her şey çizim
+ve birleştirme.
+
+Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan kurallar:
+
+- **Hareketli tuvalin üstünde `backdrop-filter` yok.** Blur, altındaki piksel her değiştiğinde
+  yeniden hesaplanır; harita/savaş tuvali her kare değiştiği için bu kare başına tam bir
+  blur geçişi demek. Ölçüldü: 344×513'lük savaş tuvalinde bile 10 kütük mesajı
+  **54 fps / p95 33.3 ms → 60 fps / p95 18.2 ms** (üç kez tekrarlandı). `#map-hud`,
+  `#map-tooltip`, `#prisoner-ui`, `.battle-logs .log-msg` blur yerine daha opak zemin
+  kullanıyor. Durağan zemin üstündeki paneller (`#top-bar`, `#sidebar`, modal) blur'u
+  koruyabilir — altları değişmediği için sonuç önbelleklenir.
+- **Modal açıkken `renderMap()` erken döner.** Zaman zaten donuk; çizmeye devam etmek
+  modalin 16 px'lik cam blur'unu her kare yeniden hesaplatıyordu. Ölçüldü: modal açıkken
+  500 ms'de 30 kare → 0 kare, kapanınca geri geliyor.
+- **Tuvaller opak** (`getContext('2d', { alpha: false })`): harita denizi, savaş zemini ve
+  turnuva arka planı her kareyi baştan sona dolduruyor, alfa kanalı boşuna. Sis
+  (`exploredCanvas`) ayrı bir RGBA tuval olarak `drawImage` ile üstüne biniyor, etkilenmiyor.
+  Not: `battle-canvas`'ı `Battle` ve `TournamentMinigame` paylaşıyor — ikisi de aynı
+  bayrakla `getContext` çağırmalı (ilk çağrı bağlayıcıdır).
+- **Her rAF döngüsünün çift başlama koruması var** (`Game.startGameLoop`, `Battle.start`,
+  `TournamentMinigame.start`): `if(this.loopId) cancelAnimationFrame(this.loopId)`. Yoksa
+  ikinci bir döngü hem hızı hem çizim yükünü ikiye katlar.
+- Pahalı şey bir kez pişirilir: `Game.buildGroundTexture()`, `Battle.buildGround()`,
+  `_seaGrad`, `_vignette`, `_forestTrees`. Kare başına gradyan üretilmez.
+- Parçacık tavanları: kıvılcım 120, uçan yazı 40, kan lekesi 200, ceset 60.
+- Hedef arama kare başına tam tarama değil — birim başına 0.3–0.5 sn'de bir (`u.tgtId`).
+
+Hâlâ kasan bir makinede ilk bakılacak yer `chrome://gpu`: tuval hızlandırması kapalıysa
+(sürücü kara listesi) her şey yazılımla rasterize edilir ve buradaki hiçbir önlem yetmez.
+
 ## Bilinen eksikler / bozukluklar
 
 Faz 0'da düzeltilenler (artık sorun değil): fidye butonları, turnuva softlock'u

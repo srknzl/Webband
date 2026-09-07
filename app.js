@@ -344,7 +344,9 @@ const Game = {
         Input.init();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         this.mapCanvas = document.getElementById('map-canvas');
-        this.ctx = this.mapCanvas.getContext('2d');
+        // Opak tuval: deniz her kareyi baştan sona dolduruyor, alfa kanalına gerek yok.
+        // alpha:false ile tarayıcı harmanlama geçişini atlar (zayıf GPU'da belirgin).
+        this.ctx = this.mapCanvas.getContext('2d', { alpha: false });
         this.mapCanvas.addEventListener('mousemove', e => this.handleMapHover(e));
         this.mapCanvas.addEventListener('click', e => this.handleMapClick(e));
         document.getElementById('modal-overlay').addEventListener('click', e => {
@@ -1663,6 +1665,9 @@ const Game = {
 
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
+        // Modal açıkken zaman durur; çizmeye devam etmek modalin cam panelindeki
+        // backdrop blur'unu her kare yeniden hesaplatıyordu.
+        if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
         let c = this.mapCanvas, ctx = this.ctx;
         let W = c.width, H = c.height;
         this._labelRects = [];
@@ -3093,7 +3098,7 @@ const Battle = {
     start(enemyName, enemyCount, bossLevel = null, faction = null) {
         Input.keys = {}; // Tuşları temizle
         this.canvas = document.getElementById('battle-canvas');
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
         Game.showScreen('battle');
         this.isBossFight = !!bossLevel;
         
@@ -3331,6 +3336,7 @@ const Battle = {
         };
         window.addEventListener('keydown', this.commandListener);
 
+        if(this.loopId) cancelAnimationFrame(this.loopId);
         let last = performance.now();
         const loop = (t) => {
             if(!this.active) return;
@@ -4543,7 +4549,7 @@ const TournamentMinigame = {
         this.mode = opts.mode || 'tournament';
         this.goal = opts.goal || 12;
         this.canvas = document.getElementById('battle-canvas');
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
         Game.showScreen('battle');
         this.canvas.width = this.canvas.parentElement.clientWidth;
         this.canvas.height = this.canvas.parentElement.clientHeight;
@@ -4560,6 +4566,7 @@ const TournamentMinigame = {
         this.clickHandler = (e) => this.onClick(e);
         this.canvas.addEventListener('mousedown', this.clickHandler);
 
+        if(this.loopId) cancelAnimationFrame(this.loopId);
         let last = performance.now();
         const loop = (t) => {
             if(!this.active) return;
