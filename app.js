@@ -77,10 +77,12 @@ const DMG_TYPES = {
 };
 
 const ITEMS = {
-    wheat:  { id:'wheat',  name:'Tahıl',         type:'food',  quality:'low', basePrice:20,  icon:'🌾' },
-    bread:  { id:'bread',  name:'Ekmek',         type:'food',  quality:'low', basePrice:30,  icon:'🍞' },
-    meat:   { id:'meat',   name:'Kurutulmuş Et', type:'food',  quality:'high',basePrice:100, icon:'🥩' },
-    cheese: { id:'cheese', name:'Peynir',        type:'food',  quality:'high',basePrice:80,  icon:'🧀' },
+    // spoil: kaç günde bir stoğun tamamı bozulur (günlük kayıp = qty/spoil).
+    // Ucuz erzak çabuk bozulur, pahalısı dayanır — depolamak da bir tercih.
+    wheat:  { id:'wheat',  name:'Tahıl',         type:'food',  quality:'low', basePrice:20,  icon:'🌾', spoil:60 },
+    bread:  { id:'bread',  name:'Ekmek',         type:'food',  quality:'low', basePrice:30,  icon:'🍞', spoil:20 },
+    meat:   { id:'meat',   name:'Kurutulmuş Et', type:'food',  quality:'high',basePrice:100, icon:'🥩', spoil:30 },
+    cheese: { id:'cheese', name:'Peynir',        type:'food',  quality:'high',basePrice:80,  icon:'🧀', spoil:40 },
     iron:   { id:'iron',   name:'Demir',         type:'trade', basePrice:150, icon:'⛏️' },
     velvet: { id:'velvet', name:'Kadife',        type:'trade', basePrice:400, icon:'🧵' },
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺' },
@@ -206,6 +208,8 @@ const state = {
         money: 250,
         renown: 0,
         rightToRule: 0,
+        wageDebt: 0,          // ödenemeyen maaş birikir
+        wageLateHours: 0,     // kaç saattir gecikmiş (saat başı -1 moral)
         partyCapacity: 50,
         party: [],
         inventory: [{...ITEMS.wheat, qty:3}],
@@ -580,10 +584,27 @@ const Game = {
     },
 
     // --- UPDATE ---
+    // Yeni karakter 12 kişiyle sınırlı; ordu nitelik, yetenek VE namla büyür.
+    // Nam da sayılır çünkü kalabalık asker tanınmış bir komutanın peşinden gider.
     getPartyCapacity() {
         let cha = state.player.stats.cha || 10;
         let leadership = state.player.proficiencies.leadership ? state.player.proficiencies.leadership.level : 1;
-        return 24 + (cha - 10) * 2 + (leadership - 1) * 3;   // temel 24: ordu liderlikle büyür
+        return 12 + (cha - 10) * 3 + (leadership - 1) * 4 + Math.floor((state.player.renown || 0) / 40);
+    },
+
+    // Ödenmemiş maaş her saat 1 moral götürür ve borç birikir. Para geldiği anda
+    // otomatik ödenir; sayaç ancak borç tamamen kapanınca sıfırlanır.
+    wageDebtTick() {
+        let p = state.player;
+        if(!(p.wageDebt > 0)) { p.wageLateHours = 0; return; }
+        if(p.money >= p.wageDebt) {
+            p.money -= p.wageDebt;
+            alert(`💰 Birikmiş <b>${Math.ceil(p.wageDebt)} dinar</b> maaş borcu ödendi. Askerler homurdanmayı bıraktı.`);
+            p.wageDebt = 0; p.wageLateHours = 0;
+            return;
+        }
+        p.wageLateHours = (p.wageLateHours || 0) + 1;
+        p.morale = Math.max(0, this.morale() - 1);
     },
 
     getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
@@ -1130,7 +1151,12 @@ const Game = {
     },
 
     advanceTime(hours) {
+        let before = state.time.day * 24 + state.time.hour;
         state.time.hour += hours;
+        // Maaş borcu saat saat işler: tek seferlik sabit ceza yerine büyüyen bir
+        // baskı. Tam saat sınırlarını sayıyoruz, dt kesirli geldiği için.
+        let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
+        for(let i = 0; i < passed; i++) this.wageDebtTick();
         while(state.time.hour >= 24) {
             state.time.day++;
 
@@ -1191,6 +1217,9 @@ const Game = {
 
             let paid = state.player.money >= totalWage;
             if(paid) state.player.money -= totalWage;
+            else state.player.wageDebt = (state.player.wageDebt || 0) + totalWage;   // borç birikir, saat saat morali yer
+
+            this.spoilFood();
 
             // Yemek Tüketimi
             let lowQualityFoods = ['wheat', 'bread'];
@@ -1374,17 +1403,20 @@ const Game = {
             R('Kesede', Math.floor(p.money) + ' dinar', null) +
             R('Günlük asker maaşı', '-' + up.wage, false) +
             R('Günlük yemek', `-${Math.ceil(up.foodLow)} birim${up.foodHigh ? ` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
-            (p.spouse ? R('Evlilik geliri', '+50', true) : ''),
-            'Maaş ödenmezse moral −25 düşer ve firar başlar. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.'));
+            (p.spouse ? R('Evlilik geliri', '+50', true) : '') +
+            (p.wageDebt > 0 ? R('Gecikmiş maaş', `${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
+            (p.wageDebt > 0 ? R('Saatlik moral kaybı', '-1', false) : ''),
+            'Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.'));
 
         let fs = this.foodStock();
         this.setHtml('tip-food', this.tipBox('Erzak',
             R('Elde', `${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
             R('Günlük tüketim', `-${fs.need} birim`, false) +
+            (fs.spoil >= 0.05 ? R('Bozulma', `-${fs.spoil.toFixed(1)} birim/gün`, false) : '') +
             R('Yeter', fs.need ? `${fs.days} gün` : 'ordu yok', fs.days >= 3) +
             (fs.needHigh ? R('Seçkin asker payı', `${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
             R('Yemek çeşidi', `${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
-            'Erzak biterse moral −30 ve firar başlar. Çeşit başına +5 moral: tek tür taşımak yerine karışık taşı.'));
+            'Erzak biterse moral −30 ve firar başlar. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).'));
 
         this.setHtml('tip-renown', this.tipBox('Nam',
             R('Namın', p.renown, null) +
@@ -1403,9 +1435,10 @@ const Game = {
         let lead = this.profLvl('leadership');
         this.setHtml('tip-party', this.tipBox('Grup',
             R('Mevcut', `${p.party.length}/${cap}`, p.party.length <= cap) +
-            R('Temel kapasite', 24, null) +
-            R('Karizma', `+${(p.stats.cha - 10) * 2}`, p.stats.cha >= 10) +
-            R('İdare yeteneği', `+${(lead - 1) * 3}`, true) +
+            R('Temel kapasite', 12, null) +
+            R('Karizma', `+${(p.stats.cha - 10) * 3}`, p.stats.cha >= 10) +
+            R('İdare yeteneği', `+${(lead - 1) * 4}`, true) +
+            R('Nam', `+${Math.floor(p.renown / 40)}`, p.renown >= 40) +
             R('Dağılım', `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +
             R('Atlı oranı', '%' + Math.round(this.getMountedRatio() * 100), null),
             'Kapasiteyi aşarsan moral düşer. Kalabalık ordu haritada yavaş yol alır; atlı oranı bu cezayı hafifletir.'));
@@ -1427,7 +1460,9 @@ const Game = {
             .map(k => this.tipRow(k, (info[k] > 0 ? '+' : '') + info[k], info[k] > 0)).join('');
         return this.tipBox(`Moral ${m}/100 — ${this.moraleLabel(m)}`,
             (rows || '<i>Henüz hesaplanmadı (bir gün geçmeli).</i>') +
-            this.tipRow('Savaş gücü çarpanı', '×' + this.moraleMult().toFixed(2), this.moraleMult() >= 1),
+            this.tipRow('Savaş gücü çarpanı', '×' + this.moraleMult().toFixed(2), this.moraleMult() >= 1) +
+            (state.player.wageDebt > 0
+                ? this.tipRow('Maaş gecikmesi', `${state.player.wageLateHours || 0} saat · -1/saat`, false) : ''),
             'Moral tüm askerlerinin canını ve saldırısını ölçekler. 25\'in altında her gece asker firar eder. Hızlı düşer, yavaş toparlanır.');
     },
 
@@ -2185,7 +2220,8 @@ const Game = {
         <div style="display:flex;gap:2rem;margin-top:1rem;">
         <div style="flex:1;"><h4>Satın Al</h4><ul id="market-buy" style="list-style:none;"></ul></div>
         <div style="flex:1;"><h4>Sat</h4><ul id="market-sell" style="list-style:none;"></ul></div>
-        </div>`;
+        </div>
+        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:0.9rem"></div>`;
         this.showModal(html);
         this._marketLoc = loc;
         this._marketMult = 0.8 + Math.random()*0.4;
@@ -2207,7 +2243,9 @@ const Game = {
             let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
             let note = this.itemNote(item);
-            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button>`
+            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> `
+                + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button> `
+                + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',5)">x5</button>`
                 + (note ? `<div style="font-size:0.7rem;color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
         });
@@ -2216,31 +2254,46 @@ const Game = {
             if(item.type === 'trade') {
                 let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-                li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> <button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">Sat</button>`;
+                li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> `
+                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">Sat</button> `
+                    + (item.qty >= 5 ? `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}',5)">x5</button>` : '');
                 sell.appendChild(li);
             }
         });
     },
-    buyItem(id) {
+    // Alışverişin sonucu modalin içinde görünsün: alert() pazarı kapatırdı.
+    marketMsg(html, ok = true) {
+        this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
+    },
+    buyItem(id, n = 1) {
         let price = this.marketPrice(id);
         if(price === null) return alert('Bu eşya pazarda yok.');
-        if(state.player.money < price) return alert('Yeterli dinarın yok!');
-        state.player.money -= price;
+        // Parası yetmiyorsa alabildiği kadarını al, sessizce hiçbir şey yapma.
+        let can = Math.min(n, Math.floor(state.player.money / price));
+        if(can <= 0) return this.marketMsg(`Yeterli dinarın yok — ${ITEMS[id].name} ${price}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
+        let cost = price * can;
+        state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
-        if(ex) ex.qty++; else state.player.inventory.push({...ITEMS[id], qty:1});
-        this.addProficiencyXp('trade', 4);
-        Quests.emit('bought_item', { itemId: id, qty: 1, locId: this._marketLoc ? this._marketLoc.id : null });
+        if(ex) ex.qty += can; else state.player.inventory.push({...ITEMS[id], qty:can});
+        this.addProficiencyXp('trade', 4 * can);
+        Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
+        let have = state.player.inventory.find(i=>i.id===id);
+        this.marketMsg(`${ITEMS[id].icon} <b>${ITEMS[id].name} x${can}</b> alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`
+            + (can < n ? ` <i>(paran ${n} taneye yetmedi)</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
     },
-    sellItem(id) {
+    sellItem(id, n = 1) {
         let idx = state.player.inventory.findIndex(i => i.id === id);
         if(idx === -1) return;
         let item = state.player.inventory[idx];
         if(item.type !== 'trade') return alert('Bu eşya pazarda satılmıyor.');
-        state.player.money += this.marketPrice(id, true);
-        this.addProficiencyXp('trade', 4);
-        item.qty--;
+        let can = Math.min(n, item.qty);
+        let price = this.marketPrice(id, true), gain = price * can;
+        state.player.money += gain;
+        this.addProficiencyXp('trade', 4 * can);
+        item.qty -= can;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
+        this.marketMsg(`${item.icon||'📦'} <b>${item.name} x${can}</b> satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`);
         this.updateTopBar(); this.refreshMarket();
     },
 
@@ -2785,7 +2838,9 @@ const Game = {
             'İdare yeteneği': (lead - 1) * 3,
             'Yemek çeşidi': foods * 5,
             'Açlık': hungry ? -30 : 0,
-            'Ödenmeyen maaş': paid ? 0 : -25,
+            // Sabit -25 yerine: borç büyüdükçe hedef de düşer. Asıl ceza saat başı
+            // işleyen -1 moral (Game.wageDebtTick); bu satır moralin toparlanmasını engeller.
+            'Maaş borcu': p.wageDebt > 0 ? -Math.min(40, 10 + Math.floor(p.wageDebt / Math.max(1, this.upkeep().wage)) * 10) : 0,
             'Kapasite aşımı': -over * 2
         };
         p.moraleInfo = parts;
@@ -2810,6 +2865,31 @@ const Game = {
         });
     },
 
+    // Erzak bozulur: her türün kendi dayanıklılığı var (ITEMS[].spoil = gün).
+    // Kesirli kayıp yığının üstünde birikir, tam birime ulaşınca düşer —
+    // 3 birimlik yığın da sonsuza kadar durmasın.
+    spoilFood() {
+        for(let i = state.player.inventory.length - 1; i >= 0; i--) {
+            let it = state.player.inventory[i];
+            let sp = (ITEMS[it.id] || {}).spoil;
+            if(!sp || it.qty <= 0) continue;
+            it.decay = (it.decay || 0) + it.qty / sp;
+            let n = Math.min(Math.floor(it.decay), it.qty);
+            if(n <= 0) continue;
+            it.decay -= n;
+            it.qty -= n;
+            if(it.qty <= 0) state.player.inventory.splice(i, 1);
+        }
+    },
+
+    // Bugün bozulmayla kaç birim gidecek (künyede gösterilir).
+    spoilRate() {
+        return state.player.inventory.reduce((a, it) => {
+            let sp = (ITEMS[it.id] || {}).spoil;
+            return a + (sp ? it.qty / sp : 0);
+        }, 0);
+    },
+
     // Erzak durumu: elde ne var, günde ne gidiyor, kaç gün yeter.
     // Künye, uyarı ve envanter aynı hesabı kullansın diye tek yerde.
     foodStock() {
@@ -2818,11 +2898,13 @@ const Game = {
         let low = sum(['wheat','bread']), high = sum(['meat','cheese']);
         let up = this.upkeep();
         let need = Math.ceil(up.foodLow);
+        // Bozulma da stoğu yiyor; "kaç gün yeter" onu saymazsa iyimser çıkar.
+        let drain = need + this.spoilRate();
         return {
             low, high, total: low + high,
-            need, needHigh: Math.ceil(up.foodHigh),
+            need, needHigh: Math.ceil(up.foodHigh), spoil: this.spoilRate(),
             // Karışık stokta bile doğru: yüksek kalite hem kendi payını hem genel payı kapatır
-            days: need > 0 ? Math.floor((low + high) / need) : Infinity,
+            days: drain > 0 ? Math.floor((low + high) / drain) : Infinity,
             kinds: ['wheat','bread','meat','cheese'].filter(id => inv.some(i => i.id === id && i.qty > 0)).length
         };
     },

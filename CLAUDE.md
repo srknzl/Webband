@@ -81,6 +81,8 @@ Her gün:
   Üst çubuktaki 🍞 rozeti kaç gün yettiğini yazar (3 günün altında kırmızıya döner), künyesinde kalem kalem döküm var.
   Açlık başlayınca/bitince ve seçkin asker et bulamayınca **geçişte bir kez** uyarı çıkar
   (`state.player.wasHungry` / `wasLowQuality`) — kalite eksiği açlıkla karıştırılmasın diye ayrı metin.
+  Her erzağın kendi dayanıklılığı var (`ITEMS[].spoil` = gün): tahıl 60, peynir 40, et 30, ekmek 20.
+  `Game.spoilFood()` her gün `qty/spoil` kadar eksiltir (kesirli kayıp `it.decay`'de birikir), `foodStock().days` bunu sayar.
 - Moral yeniden hesaplanır (`Game.updateMorale`)
 - Oyuncu +5 HP
 - Köy gönüllüleri yenilenir (köy max 5; şehirler 2 günde bir 4–8)
@@ -93,7 +95,10 @@ Her gün:
 
 ### Moral
 `state.player.morale` (0–100, başlangıç 60). Günlük hedef `Game.moraleTarget()`:
-`50 + (idare−1)×3 + yemek çeşidi×5 − açlık 30 − ödenmeyen maaş 25 − kapasite aşımı×2`.
+`50 + (idare−1)×3 + yemek çeşidi×5 − açlık 30 − maaş borcu (10..40) − kapasite aşımı×2`.
+**Maaş borcu zamana bağlıdır**: ödenemeyen maaş `state.player.wageDebt`'e birikir ve
+`Game.wageDebtTick()` her saat 1 moral götürür (`wageLateHours` sayar). Para yeterli hâle
+gelince borç kendiliğinden ödenir, sayaç sıfırlanır. Hazine ve moral künyelerinde görünür.
 Moral hedefe doğru gider ama **hızlı düşer, yavaş toparlanır** (−10 / +4 gün başına);
 zafer +5, yenilgi −15.
 - Moral < 25 → her gün `1 + (25−moral)/8` asker **firar eder** (en son katılanlar).
@@ -147,10 +152,11 @@ zafer +5, yenilgi −15.
 | `looting` | savaş ganimeti +%4/seviye |
 | `trainer` | her gün en tecrübesiz `lvl−1` askere +1 XP |
 - Seviye atlama: `xpNext *= 1.5`, +10 max HP, tam iyileşme.
-- Grup kapasitesi: `24 + (cha-10)*2 + (leadership-1)*3` (temel 50'den 24'e indi: ordu artık liderlikle büyür).
+- Grup kapasitesi: `12 + (cha-10)*3 + (leadership-1)*4 + nam/40` — yeni karakter **12 kişiyle** başlar;
+ordu nitelik, yetenek ve namla birlikte büyür (temel 50 → 24 → 12).
 
 ### Başlangıç dengesi
-Başlangıç: **250 dinar**, grup kapasitesi 24, 1 kişilik grup. Erken oyunda her dinar bir karar;
+Başlangıç: **250 dinar**, grup kapasitesi 12, 1 kişilik grup. Erken oyunda her dinar bir karar;
 ordu liderlik/karizma ile büyür. Düşük seviyeli düşmandan alınan ödül `Battle.rewardScale` ile kısılır.
 
 ### Paralı asker
@@ -193,6 +199,8 @@ parayı doğrudan orduya çevirmenin tek yolu.
 ### Envanter & ekipman
 Silah / zırh / at slotları. Zırh max HP'ye, silah saldırıya, at harita hızına (66 → 105) etki eder.
 Ticaret malları pazarda alınıp satılır (satış fiyatı ×0.7). Pazar çarpanı şehir girişinde rastgele 0.8–1.2.
+Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ürün + adet + ödenen/alınan tutar + kalan dinar yazar
+(`Game.marketMsg`). Para yetmezse alabildiği kadarını alır ve bunu söyler — `alert()` kullanılmaz, pazarı kapatırdı.
 
 ### Yerleşimler
 - **Şehir**: pazar, köle tüccarı, han (dinlenme + ozandan şiir öğrenme + **paralı asker** +
