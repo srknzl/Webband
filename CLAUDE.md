@@ -33,7 +33,7 @@ Tüm veri tek bir `state` objesinde. `Save.save()` / `Save.load()` bunu localSto
 (`state.explored`, 90×90 '0'/'1' dizesi) saklanır; yüklemede sis tuvali bu ızgaradan yeniden boyanır.
 
 Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
-`TROOP_UPGRADES`, `TROOP_TYPES`; nobles.js'te `LORDS`, `LADIES`, `PERSONALITIES`,
+`TROOP_TREES` (+ ondan üretilen `TROOP_UPGRADES` / `TROOP_TYPES`); nobles.js'te `LORDS`, `LADIES`, `PERSONALITIES`,
 `LADY_TRAITS`, `COMPLIMENTS`, `POEMS`; quests.js'te `QUESTS`.
 
 `window.alert` override edilmiştir → modal olarak gösterilir.
@@ -124,12 +124,28 @@ zafer +5, yenilgi −15.
 
 ### Paralı asker
 Handa şehir başına 2 kalem, 3 günde bir tazelenen havuz (`state.mercPools`): hazır
-seviye 10–15 asker, kişi başı `60 + seviye×12` dinar. Gönüllü grindine alternatif —
+seviye 10–15 asker (şehrin kendi fraksiyonunun ağacından), kişi başı `60 + seviye×12` dinar. Gönüllü grindine alternatif —
 parayı doğrudan orduya çevirmenin tek yolu.
 
 ### Grup & asker
-- Askerler `TROOP_TYPES` ile tanımlı (hp/speed/attack/defense/type/icon). Türler: `infantry`, `archer`, `cavalry`.
-- XP savaşta öldürme başına +1. XP dolunca ya otomatik seviye atlar ya da `TROOP_UPGRADES` varsa **terfiye hazır** olur — grup ekranından dinar ödeyerek sınıf seçilir (Acemi Asker → Milis/Avcı/Süvari → Çavuş/Keskin Nişancı/Şövalye).
+- **Fraksiyon asker ağaçları** (`TROOP_TREES`): her krallığın kendi köylü → dal → elit
+  zinciri var. Tek kaynak tablodur; `TROOP_UPGRADES` ve `TROOP_TYPES` yüklemede ondan
+  üretilir (satır formatı `[ad, tür, hp, hız, saldırı, savunma, ikon, terfi bedeli]`).
+
+| Fraksiyon | Köylü | Dallar (orta → elit) | Karakter |
+|---|---|---|---|
+| Svadya | Svadya Köylüsü | Milis→Çavuş, Avcı→Keskin Nişancı, Süvari→Şövalye | dengeli, en güçlü ağır süvari |
+| Rodok | Rodok Köylüsü | Mızraklı→Kalkanlı, Nişancı→Tatar Yaylısı | **süvarisi yok**, en yüksek savunma ve okçu hasarı |
+| Veagir | Veagir Köylüsü | Piyade→Baltacı, Okçu→Nişancı, Atlı→Süvari | baltalı piyade, ölümcül okçu, vasat süvari |
+| Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | **atsız**, en güçlü piyade (Baltacı 80 hp / 24 atk) |
+| Kergit | Kergit Çobanı | Atlı→Süvari, Atlı Okçu→Han Muhafızı | **hepsi atlı**, en hızlı (105–118), ince zırh |
+
+- Kaynaklar fraksiyona bağlı: köy/şehir gönüllüsü `Game.recruitName(loc)` ile o yerleşimin
+  köylüsünü verir, handaki paralı asker havuzu ve savaştaki düşman fraksiyon ordusu
+  `Game.factionTroopPool(faction)`'dan gelir (her daldan 2 pay orta, 1 pay elit).
+  Bilinmeyen/boş fraksiyon Svadya ağacına düşer; eski kayıtlardaki `Acemi Asker`
+  Svadya köylüsünün takma adıdır.
+- XP savaşta öldürme başına +1. XP dolunca ya otomatik seviye atlar ya da `TROOP_UPGRADES` varsa **terfiye hazır** olur — grup ekranından dinar ödeyerek sınıf seçilir. Terfi kademesi ada değil ağaca bakar: üstü olmayan asker elit (lvl 20) sayılır.
 - Tavan lvl 50. Boss'tan düşen **Savaş Tanrısı Nişanı** ile lvl 51 "Efsanevi" yapılır: maaş ve yemek istemez, +100 HP / +15 saldırı.
 
 ### Yoldaşlar (`COMPANIONS`)
@@ -357,11 +373,10 @@ anında bitmesi.
 
 Kalanlar:
 
-1. Sadece Svadya asker ağacı var (`TROOP_UPGRADES`); diğer fraksiyonların askerleri yok.
-2. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
+1. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
-3. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
-4. `app.js` ~3900 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+2. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
+3. `app.js` ~3900 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 

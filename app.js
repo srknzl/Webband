@@ -89,35 +89,78 @@ const ITEMS = {
 };
 
 // --- UPGRADE TREES & STATS ---
-const TROOP_UPGRADES = {
-    'Acemi Asker': [
-        { name: 'Svadya Milisi', cost: 40, type: 'infantry' },
-        { name: 'Svadya Avcısı', cost: 50, type: 'archer' },
-        { name: 'Svadya Süvarisi', cost: 70, type: 'cavalry' }
-    ],
-    'Svadya Milisi': [
-        { name: 'Svadya Çavuşu', cost: 100, type: 'infantry' }
-    ],
-    'Svadya Avcısı': [
-        { name: 'Svadya Keskin Nişancısı', cost: 120, type: 'archer' }
-    ],
-    'Svadya Süvarisi': [
-        { name: 'Svadya Şövalyesi', cost: 150, type: 'cavalry' }
-    ]
+// Her fraksiyonun kendi asker ağacı: köylü -> dal -> elit.
+// Satır formatı: [ad, tür, hp, hız, saldırı, savunma, ikon, terfi bedeli]
+const TROOP_TREES = {
+    swadia: {   // dengeli; en güçlü ağır süvari
+        recruit: ['Svadya Köylüsü', 'infantry', 20, 50, 6, 0, '🪖'],
+        branches: [
+            [['Svadya Milisi', 'infantry', 45, 60, 12, 5, '🛡️', 40],
+             ['Svadya Çavuşu', 'infantry', 65, 65, 18, 12, '🏰', 100]],
+            [['Svadya Avcısı', 'archer', 35, 55, 6, 2, '🏹', 50],
+             ['Svadya Keskin Nişancısı', 'archer', 45, 60, 10, 5, '🎯', 120]],
+            [['Svadya Süvarisi', 'cavalry', 50, 99, 12, 8, '🐴', 70],
+             ['Svadya Şövalyesi', 'cavalry', 75, 110, 22, 15, '⚔️🐴', 150]]
+        ]
+    },
+    rhodok: {   // süvarisi yok; dev kalkanlar ve tatar yayı
+        recruit: ['Rodok Köylüsü', 'infantry', 20, 50, 6, 0, '🪖'],
+        branches: [
+            [['Rodok Mızraklısı', 'infantry', 48, 56, 11, 8, '🛡️', 40],
+             ['Rodok Kalkanlısı', 'infantry', 70, 58, 17, 18, '🛡️', 110]],
+            [['Rodok Nişancısı', 'archer', 36, 54, 8, 3, '🏹', 55],
+             ['Rodok Tatar Yaylısı', 'archer', 48, 56, 16, 6, '🎯', 130]]
+        ]
+    },
+    vaegir: {   // baltalı piyade, ölümcül okçu, vasat süvari
+        recruit: ['Veagir Köylüsü', 'infantry', 20, 50, 6, 0, '🪖'],
+        branches: [
+            [['Veagir Piyadesi', 'infantry', 44, 60, 13, 4, '🪓', 40],
+             ['Veagir Baltacısı', 'infantry', 62, 64, 20, 9, '🪓', 105]],
+            [['Veagir Okçusu', 'archer', 34, 56, 9, 2, '🏹', 55],
+             ['Veagir Nişancısı', 'archer', 44, 60, 14, 4, '🎯', 125]],
+            [['Veagir Atlısı', 'cavalry', 46, 95, 11, 6, '🐴', 70],
+             ['Veagir Süvarisi', 'cavalry', 60, 100, 16, 10, '🐴', 140]]
+        ]
+    },
+    nord: {     // at kullanmaz; piyade dövüşünde rakipsiz
+        recruit: ['Nord Serfi', 'infantry', 20, 50, 6, 0, '🪖'],
+        branches: [
+            [['Nord Savaşçısı', 'infantry', 50, 62, 14, 6, '🛡️', 45],
+             ['Nord Baltacısı', 'infantry', 80, 66, 24, 13, '🪓', 140]],
+            [['Nord Avcısı', 'archer', 38, 58, 9, 3, '🏹', 50],
+             ['Nord Nişancısı', 'archer', 50, 60, 12, 6, '🎯', 115]]
+        ]
+    },
+    khergit: {  // hepsi atlı; hızlı ama ince zırhlı
+        recruit: ['Kergit Çobanı', 'infantry', 20, 55, 6, 0, '🪖'],
+        branches: [
+            [['Kergit Atlısı', 'cavalry', 44, 105, 11, 4, '🐴', 60],
+             ['Kergit Süvarisi', 'cavalry', 58, 115, 18, 8, '⚔️🐴', 135]],
+            [['Kergit Atlı Okçusu', 'archer', 40, 108, 10, 3, '🏹', 65],
+             ['Kergit Han Muhafızı', 'archer', 52, 118, 15, 6, '🎯', 145]]
+        ]
+    }
 };
 
-const TROOP_TYPES = {
-    'Acemi Asker':          { hp: 20, speed: 50, attack: 6,  defense: 0, type: 'infantry', icon: '🪖' },
-    'Svadya Milisi':        { hp: 45, speed: 60, attack: 12, defense: 5, type: 'infantry', icon: '🛡️' },
-    'Svadya Çavuşu':        { hp: 65, speed: 65, attack: 18, defense: 12, type: 'infantry', icon: '🏰' },
-    'Svadya Avcısı':        { hp: 35, speed: 55, attack: 6,  defense: 2, type: 'archer',   icon: '🏹' },
-    'Svadya Keskin Nişancısı': { hp: 45, speed: 60, attack: 10, defense: 5, type: 'archer',   icon: '🎯' },
-    'Svadya Süvarisi':      { hp: 50, speed: 99, attack: 12, defense: 8, type: 'cavalry',  icon: '🐴' },
-    'Svadya Şövalyesi':     { hp: 75, speed: 110, attack: 22, defense: 15, type: 'cavalry',  icon: '⚔️🐴' },
-    'Milis Piyade':         { hp: 40, speed: 60, attack: 11, defense: 5, type: 'infantry', icon: '🛡️' },
-    'Milis Okçu':           { hp: 35, speed: 55, attack: 7,  defense: 2, type: 'archer',   icon: '🏹' },
-    'Milis Süvari':         { hp: 50, speed: 105, attack: 13, defense: 7, type: 'cavalry',  icon: '🐴' },
-};
+const TROOP_UPGRADES = {};
+const TROOP_TYPES = {};
+(function buildTroopTrees() {
+    const stats = r => ({ hp: r[2], speed: r[3], attack: r[4], defense: r[5], type: r[1], icon: r[6] });
+    const up = r => ({ name: r[0], cost: r[7], type: r[1] });
+    for(let f in TROOP_TREES) {
+        let tree = TROOP_TREES[f];
+        TROOP_TYPES[tree.recruit[0]] = stats(tree.recruit);
+        TROOP_UPGRADES[tree.recruit[0]] = tree.branches.map(b => up(b[0]));
+        tree.branches.forEach(b => b.forEach((r, i) => {
+            TROOP_TYPES[r[0]] = stats(r);
+            if(b[i + 1]) TROOP_UPGRADES[r[0]] = [up(b[i + 1])];
+        }));
+    }
+})();
+// Eski kayıtlardaki 'Acemi Asker' Svadya ağacına girer
+TROOP_TYPES['Acemi Asker'] = TROOP_TYPES['Svadya Köylüsü'];
+TROOP_UPGRADES['Acemi Asker'] = TROOP_UPGRADES['Svadya Köylüsü'];
 
 // --- STATE ---
 const state = {
@@ -892,13 +935,13 @@ const Game = {
             <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">Çapulcular seninle savaşmaya değmeyeceğini düşünüyor.</p>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
             <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">Uzaklaş</button>
-            <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size})">⚔️ Yine De Savaş!</button>
+            <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Yine De Savaş!</button>
             </div>`;
         } else {
             html += `<p><i>${dialog}</i></p>
             <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">Kaçış yok — savaş ya da teslim ol!</p>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
-            <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size})">⚔️ Savaş!</button>
+            <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Savaş!</button>
             <button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">🏳️ Teslim Ol</button>
             </div>`;
         }
@@ -2021,7 +2064,7 @@ const Game = {
         state.mercPools = state.mercPools || {};
         let p = state.mercPools[loc.id];
         if(!p || state.time.day - p.day >= 3) {
-            let names = ['Svadya Milisi', 'Svadya Avcısı', 'Svadya Süvarisi', 'Svadya Çavuşu', 'Svadya Keskin Nişancısı'];
+            let names = this.factionTroopPool(loc.faction);
             let list = [];
             for(let i = 0; i < 2; i++) {
                 let name = names[Math.floor(Math.random() * names.length)];
@@ -2033,6 +2076,16 @@ const Game = {
         return p;
     },
     mercPrice(m) { return 60 + m.level * 12; },
+
+    // Yerleşimin fraksiyonu hangi köylüyü verir; bilinmeyen fraksiyon Svadya ağacına düşer
+    tree(faction) { return TROOP_TREES[faction] || TROOP_TREES.swadia; },
+    recruitName(loc) { return this.tree(loc && loc.faction).recruit[0]; },
+    // Fraksiyon ordusu havuzu: her daldan 2 pay orta, 1 pay elit
+    factionTroopPool(faction) {
+        let pool = [];
+        this.tree(faction).branches.forEach(b => pool.push(b[0][0], b[0][0], b[1][0]));
+        return pool;
+    },
 
     updateMercLabel(i, price) {
         let n = +document.getElementById('merc-n-' + i).value;
@@ -2132,7 +2185,8 @@ const Game = {
     },
     startSiege(locId, count, founding) {
         state.player.currentSiege = { locId, foundingKingdom: founding };
-        Battle.start('Garnizon', count);
+        let loc = LOCATIONS.find(l => l.id === locId);
+        Battle.start('Garnizon', count, null, loc ? loc.faction : null);
     },
 
     // --- VILLAGE ---
@@ -2183,7 +2237,7 @@ const Game = {
         for(let i=0;i<amount;i++) {
             state.player.party.push({
                 id: 'troop_' + Math.random().toString(36).substr(2,9),
-                name: 'Acemi Asker',
+                name: this.recruitName(loc),
                 level: 1,
                 xp: 0,
                 xpNext: 3,
@@ -2689,7 +2743,7 @@ const Game = {
             let t = state.player.party[troopIdx];
             t.name = newName;
             t.xp = 0;
-            let nextTier = (newName === 'Svadya Çavuşu' || newName === 'Svadya Keskin Nişancısı' || newName === 'Svadya Şövalyesi') ? 3 : 2;
+            let nextTier = TROOP_UPGRADES[newName] ? 2 : 3;   // daha üstü yoksa elit kademe
             t.xpNext = nextTier * 4;
             t.level = nextTier === 3 ? 20 : 10;
             t.type = TROOP_TYPES[newName].type;
@@ -2819,7 +2873,7 @@ const Battle = {
         document.getElementById('battle-log-left').innerHTML = `<b>🗡️ Şeref Düellosu:</b> ${lord.name}`;
     },
 
-    start(enemyName, enemyCount, bossLevel = null) {
+    start(enemyName, enemyCount, bossLevel = null, faction = null) {
         Input.keys = {}; // Tuşları temizle
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = this.canvas.getContext('2d');
@@ -2932,18 +2986,12 @@ const Battle = {
                 }
             }
             else if(!isBandit) {
-                // Faction troop (derebeyi askeri - daha güçlü ve karma)
-                let r = Math.random();
-                if(r < 0.4) {
-                    name = 'Milis Piyade';
-                    hp = 40; speed = 60; attack = 11; defense = 5; type = 'infantry'; radius = 5;
-                } else if(r < 0.7) {
-                    name = 'Milis Okçu';
-                    hp = 35; speed = 55; attack = 7; defense = 2; type = 'archer'; radius = 5;
-                } else {
-                    name = 'Milis Süvari';
-                    hp = 50; speed = 95; attack = 13; defense = 7; type = 'cavalry'; radius = 7;
-                }
+                // Fraksiyon askeri — karşılaşılan krallığın kendi asker ağacından
+                let pool = Game.factionTroopPool(faction);
+                name = pool[Math.floor(Math.random() * pool.length)];
+                let ti = TROOP_TYPES[name];
+                hp = ti.hp; speed = ti.speed; attack = ti.attack; defense = ti.defense; type = ti.type;
+                radius = type === 'cavalry' ? 7 : 5;
                 color = '#ff6666';
             }
 
