@@ -160,7 +160,6 @@ const state = {
         poems: [],
     },
     time: { day:1, hour:8 },
-    loopInterval: null,
 
     // --- Soylu / görev sistemi ---
     relations: {},        // lordId -> -100..100
@@ -393,6 +392,9 @@ const Game = {
     },
 
     startGameLoop() {
+        // Çift döngü koruması: yükleme/yeniden başlatma her seferinde bir rAF
+        // döngüsü daha eklerse zaman ve hareket kat kat hızlanır.
+        if(this._loopId) cancelAnimationFrame(this._loopId);
         let lastTime = performance.now();
         const loop = (t) => {
             let dt = (t - lastTime) / 1000;
@@ -400,9 +402,9 @@ const Game = {
             lastTime = t;
             this.update(dt);
             this.renderMap();
-            state.loopInterval = requestAnimationFrame(loop);
+            this._loopId = requestAnimationFrame(loop);
         };
-        state.loopInterval = requestAnimationFrame(loop);
+        this._loopId = requestAnimationFrame(loop);
     },
 
     // --- UPDATE ---
@@ -3593,7 +3595,7 @@ const Save = {
         try {
             localStorage.setItem(this.KEY, JSON.stringify({
                 v: 1, savedAt: Date.now(),
-                state: { ...state, loopInterval: null },
+                state: { ...state },
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
                 locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay })),
@@ -3616,7 +3618,6 @@ const Save = {
         if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
         Object.keys(state).forEach(k => { if(!(k in d.state)) delete state[k]; });
         Object.assign(state, d.state);
-        state.loopInterval = null;
 
         let legacyLocs = false;
         (d.locations || []).forEach(sl => {
@@ -3637,7 +3638,6 @@ const Save = {
         Game.showScreen('map');
         Game.updateTopBar();
         Game.renderPrisonerUI();
-        if(state.loopInterval) cancelAnimationFrame(state.loopInterval);
         Game.startGameLoop();
         alert(`Kayıt yüklendi. Gün ${state.time.day}. (Keşfedilen harita sıfırlandı — sis yeniden çöktü.)`);
     },
