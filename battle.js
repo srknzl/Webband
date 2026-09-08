@@ -54,7 +54,7 @@ const Battle = {
         document.getElementById('battle-log-left').innerHTML = `<b>🤺 Arena:</b> ${f.name} — kum meydanı, tahta silahlar, ganimet yok.`;
     },
 
-    start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null) {
+    start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null, auto = false) {
         Input.keys = {}; // Tuşları temizle
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = this.canvas.getContext('2d', { alpha: false });
@@ -80,6 +80,7 @@ const Battle = {
         this.sparks = [];
         this.corpses = [];
         this.knockedOut = false;
+        this.autoLoss = null;
         this.grass = null;
         this.currentCommand = 'charge';
         this.cmdSlots = []; this.battleTime = 0;
@@ -271,6 +272,11 @@ const Battle = {
                 type: type, color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
             });
         }
+
+        // Otomatik çözüm: aynı birimler kurulur ama arena açılmaz, sonuç hesaplanır (#30)
+        if(auto) return this.autoResolve();
+        // Kısmi katılım: sahaya kapasite kadar birim çıkar, kalanı yedekte bekler (#30)
+        this.splitReserves(H, startPlayerX, startEnemyX);
 
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
             + (this.ambushed ? 'Pusuya Düştün! Etrafın sarıldı.' : 'Savaş Başladı!')
@@ -1425,9 +1431,68 @@ const Battle = {
         }, 4500);
     },
 
+    // --- KISMİ KATILIM, DALGALAR VE OTOMATİK ÇÖZÜM (#30) ---
+    // Warband'ın "savaş alanı kapasitesi": 100 kişilik ordu tek seferde sahaya
+    // dolmaz; kapasite kadarı dövüşür, saha boşaldıkça yedekler dalga hâlinde girer.
+    FIELD_CAP: 30,
+    reserves: { p: [], e: [] },
+    splitReserves(H, startPlayerX, startEnemyX) {
+        this._spawn = { H, p: startPlayerX, e: startEnemyX };
+        this.reserves = { p: [], e: [] };
+        [true, false].forEach(team => {
+            let side = team ? 'p' : 'e';
+            let list = this.units.filter(u => u.isPlayerTeam === team && u.id !== 'player');
+            let over = list.length - (this.FIELD_CAP - (team ? 1 : 0));   // oyuncu da bir yer tutar
+            if(over <= 0) return;
+            this.reserves[side] = list.slice(list.length - over);
+            this.units = this.units.filter(u => this.reserves[side].indexOf(u) < 0);
+        });
+    },
+    reinforce() {
+        if(!this.reserves) return;
+        [true, false].forEach(team => {
+            let side = team ? 'p' : 'e', pool = this.reserves[side];
+            if(!pool.length) return;
+            let live = this.units.filter(u => u.isPlayerTeam === team && u.hp > 0).length;
+            // Damla damla değil dalga hâlinde: saha %70'in altına inince toptan takviye gelir
+            if(live > this.FIELD_CAP * 0.7) return;
+            let n = 0;
+            while(n < this.FIELD_CAP - live && pool.length) {
+                let u = pool.shift();
+                u.x = (team ? this._spawn.p : this._spawn.e) + Math.random() * 60 - 30;
+                u.y = 50 + Math.random() * (this._spawn.H - 100);
+                this.units.push(u); n++;
+            }
+            if(n) this.log(`🚩 <b>Takviye dalgası:</b> ${n} ${team ? 'asker sahaya girdi' : 'düşman sahaya girdi'} (yedek: ${pool.length})`, team ? 'left' : 'right');
+        });
+    },
+    // Askerlerini gönder: kazananın kaybı güç oranıyla ters orantılıdır (Lanchester'ın
+    // *doğrusal* yasası). Kare yasası denendi — 5 kat üstün orduda kayıp %3'e düşüyor,
+    // otomatik çözüm bedavaya geliyordu. 0.45 katsayısıyla 2 kat üstünlük ~%22, 5 kat ~%9,
+    // 10 kat ~%4 kayıp verir; elle dövüşmek hâlâ ucuzdur. İdare yeteneği %40'a kadar indirir.
+    autoResolve() {
+        this.reserves = { p: [], e: [] };
+        let str = team => this.units.filter(u => u.isPlayerTeam === team)
+            .reduce((a, u) => a + u.hp * (u.attack + 2), 0);
+        let q = str(true) / Math.max(1, str(false)) * (0.85 + Math.random() * 0.3);   // ±%15 talih payı
+        let won = q > 1, ratio = won ? q : 1 / q;
+        let loss = Math.min(0.85, 0.45 / ratio
+            * (1 - Math.min(0.4, (Game.profLvl('leadership') - 1) * 0.04)));
+        this.units.forEach(u => {
+            if(u.isPlayerTeam !== won) { u.hp = 0; return; }              // kaybeden taraf tamamen düşer
+            if(u.id !== 'player' && Math.random() < loss) u.hp = 0;
+        });
+        let pu = this.units[0];
+        if(won) pu.hp = Math.max(5, Math.round(pu.hp * (1 - loss * 0.6)));   // oyuncu hırpalanır, ölmez
+        this.autoLoss = loss;
+        this.active = false;
+        this.endBattle(won);
+    },
+
     checkEnd() {
-        let pAlive = this.units.some(u=>u.isPlayerTeam&&u.hp>0);
-        let eAlive = this.units.some(u=>!u.isPlayerTeam&&u.hp>0);
+        this.reinforce();
+        let pAlive = this.units.some(u=>u.isPlayerTeam&&u.hp>0) || this.reserves.p.length > 0;
+        let eAlive = this.units.some(u=>!u.isPlayerTeam&&u.hp>0) || this.reserves.e.length > 0;
         if(!pAlive) { this.active=false; this.endBattle(false); }
         else if(!eAlive) { this.active=false; this.endBattle(true); }
     },
@@ -1620,7 +1685,8 @@ const Battle = {
 
             let resultHtml = `
             <div style="text-align:center;">
-                <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.knockedOut ? '🩸 Pahalı Zafer' : '⚔️ Mükemmel Zafer! ⚔️'}</h2>
+                <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.autoLoss ? '🎖️ Askerlerin Halletti' : this.knockedOut ? '🩸 Pahalı Zafer' : '⚔️ Mükemmel Zafer! ⚔️'}</h2>
+                ${this.autoLoss ? `<p style="color:#8fd6ff;margin-bottom:1rem">Sen inmedin: adamların kendi başlarına dövüştü, beklenen kayıp %${Math.round(this.autoLoss*100)}.</p>` : ''}
                 ${this.knockedOut ? '<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>' : ''}
                 ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.</p>` : ''}
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">

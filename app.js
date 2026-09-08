@@ -1494,18 +1494,34 @@ const Game = {
     },
 
     // Hayvan sürüsüne teslim olunmaz — hızın yeterse sıyrılırsın
+    // Kaçış şansı hız farkına bağlıdır: atlı bir grup çapulcuyu ekebilir,
+    // ağır ordu Kergit atlılarından kaçamaz (#30). Harita hızı zaten atlı oranı,
+    // arazi ve geceyi hesaplıyor — doğrudan onu kullanıyoruz.
+    fleeChance(npc) {
+        // Fark değil oran: hız farkını doğrusal alınca (0.45 + fark/90) kalabalık ordu bile
+        // Kergit atlılarından %89 ile kaçıyordu. Oranda denk hız %24, 1.5 kat hız %84 eder.
+        let his = (npc && npc.speed) || 60;
+        return Math.max(0.1, Math.min(0.9, (this.getPlayerSpeed().value / his - 0.8) * 1.2));
+    },
     fleeEncounter(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
         this.closeModal();
-        let chance = Math.max(0.15, Math.min(0.85, this.getPlayerSpeed().value / 160));
+        let chance = this.fleeChance(npc);
         if(Math.random() < chance) {
             state.encounterCooldown = 6;
             state.player.status = 'idle'; state.player.targetLocation = null;
-            alert(`Sürüyü geride bıraktın. (Kaçış şansı %${Math.round(chance*100)})`);
+            alert(`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
         } else {
-            alert(`Kaçamadın, sürü yolunu kesti! (Kaçış şansı %${Math.round(chance*100)})`);
-            Battle.start(npc ? npc.name : 'Kurt Sürüsü', npc ? npc.size : 6);
+            alert(`Kaçamadın, yolunu kestiler! (Kaçış şansı %${Math.round(chance*100)})`);
+            Battle.start(npc ? npc.name : 'Kurt Sürüsü', npc ? npc.size : 6, null, (npc && npc.faction) || '');
         }
+    },
+    // "Askerlerini gönder": savaşı motorun kendisi kursun ama arena açılmasın (#30)
+    autoBattle(npcId) {
+        let npc = state.npcParties.find(n => n.id === npcId);
+        if(!npc) return this.closeModal();
+        this.closeModal();
+        Battle.start(npc.name, npc.size, null, npc.faction || '', null, true);
     },
 
     isHostile(npc) {
@@ -1679,13 +1695,22 @@ const Game = {
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Yine De Savaş!</button>
             </div>`;
         } else {
+            // Pusuda ve yağma baskınında kaçış yok — etrafın sarılı, suçüstü yakalandın
+            let canFlee = ambush !== 'ambush' && ambush !== 'raid';
+            let flee = Math.round(this.fleeChance(npc) * 100);
+            // Ordun rakibin 1.5 katıysa her çapulcu için arenaya inmek zorunda değilsin
+            let mine = state.player.party.filter(t => !t.wounded).length + 1;
+            let canAuto = !ambush && mine >= npc.size * 1.5;
             html += `<p><i>${dialog}</i></p>
-            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">Kaçış yok — savaş ya da teslim ol!</p>
-            <div style="display:flex;gap:1rem;margin-top:1rem;">
+            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">${canFlee
+                ? `Kaçabilirsin ama hız farkı belirler: kaçış şansın <b>%${flee}</b>.`
+                : 'Kaçış yok — savaş ya da teslim ol!'}</p>
+            <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
             <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Savaş!</button>
-            ${(BAND_KINDS[npc.band] || {}).beast
-                ? `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.fleeEncounter('${npc.id}')">🏃 Kaçmayı Dene</button>`
-                : `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">🏳️ Teslim Ol</button>`}
+            ${canAuto ? `<button class="btn" style="border-color:#8fd6ff;color:#8fd6ff" onclick="Game.autoBattle('${npc.id}')" title="Sen inmezsin, adamların halleder — kayıp daha yüksektir">🎖️ Askerlerini Gönder</button>` : ''}
+            ${canFlee ? `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.fleeEncounter('${npc.id}')">🏃 Kaçmayı Dene (%${flee})</button>` : ''}
+            ${(BAND_KINDS[npc.band] || {}).beast ? '' :
+                `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">🏳️ Teslim Ol</button>`}
             </div>`;
         }
         this.showModal(html);

@@ -650,9 +650,37 @@ Yani av davranışı baskını **3.5 katına** çıkarıyor ama haritayı yükl�
   `size × 1.5`, yani kendinden kalabalık orduya da yürür; ancak belirgin şekilde güçlüysen
   geri çekilir. Ölçüldü (100 kişilik lord): 101 ve 122 kişilik orduya yürüyor (300 → 20 birim),
   151 kişilikten kaçıyor (300 → 580 birim). Eskiden `isHostile` false dönünce hiç kaçmıyor, dibine girene kadar dolaşıyordu. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
-- Karşılaşma modali: savaş / teslim ol. (İlk 14 günde çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.)
-  Hayvan sürüsüne teslim olunmaz: kurtlarda buton **"🏃 Kaçmayı Dene"** olur
-  (`Game.fleeEncounter`, şans = harita hızın/160, %15–85 arası).
+- Karşılaşma modali: savaş / **askerlerini gönder** / **kaç** / teslim ol (#30). (İlk 14 günde
+  çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.) Hayvan sürüsüne teslim olunmaz.
+
+#### Kaçış, otomatik çözüm ve dalgalar (#30)
+**Kaçış** (`Game.fleeChance` / `fleeEncounter`): pusu ve yağma baskını dışında her
+karşılaşmada çıkar. Şans **hız oranına** bağlıdır: `clamp(0.1, 0.9, (senin hızın/onun hızı − 0.8) × 1.2)`.
+*(Fark tabanlı formül denendi — 20 kişilik ordu Kergit atlılarından %89 ile kaçıyordu.)*
+Başarısızlık normal savaştır. Ölçüldü (yeni karakter): yaya tek başına (hız 122) çapulcudan
+(66) %90, lord partisinden (84) %78, Kergit'ten (100) %50 kaçar; 20 piyadeli ordu aynı,
+20 süvarili ordu (hız 161) hepsinden %90.
+
+**Otomatik çözüm** — "🎖️ Askerlerini Gönder", ordun düşmanın **1.5 katıysa** çıkar.
+Ayrı bir hesap değil, aynı motor: `Battle.start(..., auto = true)` birimleri normal gibi
+kurar, arenayı açmaz, `Battle.autoResolve()` sonucu hesaplar ve **aynı `endBattle`**'a
+girer — ganimet, esir, kuşatma/yağma/kervan dalları tek yerde kalır.
+Kayıp oranı `0.45 / güç oranı`, İdare yeteneğiyle %40'a kadar iner; güç
+`Σ(can × (saldırı+2))`, sonuca ±%15 talih payı bindirilir. *(Lanchester'ın kare yasası
+denendi: 5 kat üstün orduda kayıp %3'e düşüyor, otomatik çözüm bedavaya geliyordu.)*
+Oyuncu otomatik çözümde ölmez, canının bir kısmını kaybeder.
+Ölçüldü (20 tur, lvl-10 Svadya Milisi, İdare 1): 20 vs 10 çapulcu → **%4 kayıp (0.7 asker)**,
+20 vs 25 → **%7 (1.3)**, 20 vs 40 → **%12 (2.9)**, 20 köylüyle 25 çapulcu → **%20 (3.9)**;
+İdare 8 ile 20 vs 25 kaybı %6'ya iner. Aynı savaş elle dövüşünce 0 kayıpla ve 7.2 sn'de
+bitiyor — otomatik çözüm hız için ödenen bedeldir.
+
+**Kısmi katılım ve dalgalar**: sahaya taraf başına en fazla `Battle.FIELD_CAP` (**30**)
+birim çıkar (`splitReserves`), kalanı `Battle.reserves`'te bekler. Saha kapasitenin
+**%70'inin altına** inince `reinforce()` yedeği toptan sahaya sürer ve savaş kütüğüne
+"🚩 Takviye dalgası" yazar — damla damla değil dalga hâlinde. `checkEnd` yedekleri de
+sayar, yoksa savaş ilk dalga bitince sona ererdi. Ölçüldü (45 asker vs 60 çapulcu, kafa
+kafaya sim): sahada hiç 30'u geçmedi, düşman 1.3 / 2.2 / 3.3 / 4.3 sn'de **9+9+9+3** kişilik
+dört dalga hâlinde girdi, savaş 8.5 sn sürdü.
 
 #### Düşman çeteleri (`BAND_KINDS`)
 Çapulcunun ötesinde çeşit var; her tür haritada kendi adı/rengiyle gezer (`npc.band`) ve savaşta
