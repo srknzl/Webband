@@ -974,7 +974,10 @@ const Game = {
     getPartyCapacity() {
         let cha = this.attr('cha');
         let leadership = state.player.proficiencies.leadership ? state.player.proficiencies.leadership.level : 1;
-        return 12 + (cha - 10) * 3 + (leadership - 1) * 4 + Math.floor((state.player.renown || 0) / 40);
+        // Nitelikler efektif (kesirli) olduğu için kapasite de kesirli çıkıyordu
+        // ("15/15.785700000000002"). Kesir kaynağında kırpılır ki karşılaştırma,
+        // künye dökümü ve rozet aynı tam sayıyı görsün (#43).
+        return 12 + Math.floor((cha - 10) * 3) + (leadership - 1) * 4 + Math.floor((state.player.renown || 0) / 40);
     },
 
     // Ödenmemiş maaş her saat 1 moral götürür ve borç birikir. Para geldiği anda
@@ -1999,11 +2002,13 @@ const Game = {
             'Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.'));
 
         let comp = this.getPartyComposition();
-        let lead = this.profLvl('leadership');
+        // Kapasite oyuncunun KENDİ İdare seviyesinden gelir; künye profLvl (gruptaki en
+        // yüksek) okuduğu için yoldaş varken döküm toplama uymuyordu (#43).
+        let lead = (state.player.proficiencies.leadership || { level: 1 }).level;
         this.setHtml('tip-party', this.tipBox('Grup',
             R('Mevcut', `${p.party.length}/${cap}`, p.party.length <= cap) +
             R('Temel kapasite', 12, null) +
-            R('Liderlik (efektif)', `+${Math.round((this.attr('cha') - 10) * 3)}`, this.attr('cha') >= 10) +
+            R('Liderlik (efektif)', `+${Math.floor((this.attr('cha') - 10) * 3)}`, this.attr('cha') >= 10) +
             R('İdare yeteneği', `+${(lead - 1) * 4}`, true) +
             R('Nam', `+${Math.floor(p.renown / 40)}`, p.renown >= 40) +
             R('Dağılım', `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +

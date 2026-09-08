@@ -239,8 +239,12 @@ zafer +5, yenilgi −15.
 | `looting` | savaş ganimeti +%4/seviye |
 | `trainer` | her gün en tecrübesiz `lvl−1` askere +1 XP |
 - Seviye atlama: `xpNext *= 1.5`, +10 max HP, tam iyileşme.
-- Grup kapasitesi: `12 + (cha-10)*3 + (leadership-1)*4 + nam/40` — yeni karakter **12 kişiyle** başlar;
-ordu nitelik, yetenek ve namla birlikte büyür (temel 50 → 24 → 12).
+- Grup kapasitesi: `12 + floor((cha−10)×3) + (İdare−1)×4 + floor(nam/40)` — yeni karakter
+**12 kişiyle** başlar; ordu nitelik, yetenek ve namla birlikte büyür (temel 50 → 24 → 12).
+Nitelikler efektif, yani kesirli olduğu için kapasite **kaynağında** kırpılır (#43) — rozet,
+künye dökümü ve bütün karşılaştırmalar aynı tam sayıyı görsün diye (eskiden
+`15/15.785700000000002` yazıyordu). Künyedeki İdare satırı oyuncunun **kendi** seviyesini
+okur, `profLvl` (gruptaki en yüksek) değil — yoksa yoldaş varken döküm toplama uymuyordu.
 
 ### Başlangıç dengesi
 Başlangıç: **250 dinar** (geçmiş seçimleri ±300 oynatır), grup kapasitesi 12, 1 kişilik grup. Erken oyunda her dinar bir karar;
