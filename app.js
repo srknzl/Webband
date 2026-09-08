@@ -2771,6 +2771,7 @@ const Game = {
                 this.addBtn(ac, '🛒 Pazara Git', () => this.openMarket(loc));
                 this.addBtn(ac, '🍺 Hana Gir', () => this.openTavern(loc));
                 this.addBtn(ac, '⛓️ Köle Tüccarı', () => this.openSlaveTrader());
+                this.addBtn(ac, '🤺 Arenada Dövüş', () => this.openArena(loc));
                 if(state.activeTournaments[loc.id]) {
                     this.addBtn(ac, '🏆 Turnuvaya Katıl', () => this.joinTournament(loc));
                 }
@@ -3153,21 +3154,68 @@ const Game = {
         } else alert('Yeterli dinarın yok!');
     },
 
+    // --- ARENA (#26) ---
+    // Warband'daki gibi turnuvadan bağımsız, her zaman açık pratik dövüşü.
+    // Ganimet ve nam vermez; parası da yoktur — karşılığı yeterlilik XP'si ve zamandır.
+    ARENA_BET_MAX: 1000,
+    openArena(loc) {
+        let lv = state.player.stats.level;
+        this.showModal(`<h3>🤺 ${loc.name} Arenası</h3>
+        <p style="color:var(--text-muted)">Kum meydanında tahta silahlarla dövüşülür. Ganimet, nam ve esaret yok —
+        kazanan da kaybeden de kendi ayağıyla çıkar. Kazandığın tek şey <b>yeterlilik</b>, ödediğin tek bedel <b>zaman</b>.</p>
+        <div class="action-list" style="margin-top:1rem">
+            ${Battle.ARENA_FOES.map((f, i) => `<button class="btn" onclick="Game.startArena(${i})">
+                <b>${f.name}</b> <span style="color:var(--text-muted)">· Sv. ${Math.max(1, lv + f.dLv)} · ~${f.xp} XP</span>
+                <div style="font-size:0.8rem;color:var(--text-muted)">${f.desc}</div></button>`).join('')}
+        </div>`);
+    },
+    startArena(idx) { this.closeModal(); Battle.startArena(idx); },
+    finishArena(foe, won) {
+        let wp = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
+        if(!state.player.proficiencies[wp]) wp = 'oneHanded';
+        let xp = won ? foe.xp : Math.round(foe.xp * 0.4);
+        let moveProf = state.player.equipment.horse ? 'riding' : 'athletics';
+        this.addProficiencyXp(wp, xp);
+        this.addProficiencyXp(moveProf, Math.round(xp * 0.6));
+        // Bedeli zamandır: kazanınca birkaç saat, kaybedince bir gün hasta yatağı.
+        this.advanceTime(won ? 3 : 24);
+        this.updateTopBar();
+        alert((won ? `${foe.name} kumun üstünde kaldı, kalabalık ıslık çalıyor.`
+                   : `${foe.name} seni yere serdi. Bir gün kendine gelemedin.`)
+            + `\n\n+${xp} ${this.profName(wp)}, +${Math.round(xp * 0.6)} ${this.profName(moveProf)} yeterlilik XP'si.`
+            + `\nArena para vermez — burada yalnız ustalık kazanılır.`);
+    },
+
     // --- TOURNAMENT ---
     joinTournament(loc) {
         if(!state.activeTournaments[loc.id]) {
             this.showModal(`<h3>🏆 Turnuva Alanı</h3><p>Şu anda bu şehirde turnuva düzenlenmiyor.</p>`);
             return;
         }
-        this.showModal(`<h3>🏆 Büyük Turnuva!</h3>
-        <p>Ödül: <b>500 Dinar</b> ve <b>+20 Nam</b></p>
-        <p>Kaybedersen turnuva sona erer.</p>
+        let max = Math.min(this.ARENA_BET_MAX, state.player.money);
+        let T = TournamentMinigame;
+        this.showModal(`<h3>🏆 ${loc.name} Turnuvası!</h3>
+        <p><b>${T.ROUNDS} tur</b> — her turda kuradan <b>rastgele bir ekipman</b> çıkar; kiminde hedef küçülür, kiminde büyür.</p>
+        <p>Şampiyonluk ödülü: <b>500 Dinar</b> ve <b>+20 Nam</b>. Elenirsen turnuva sona erer.</p>
+        <div style="margin-top:1rem;padding:0.8rem;border:1px solid var(--panel-border);border-radius:8px">
+            <b>🎲 Bahis</b> <span style="color:var(--text-muted);font-size:0.85rem">— kendi kazanmana yatırırsın, oran tur ilerledikçe katlanır.</span>
+            <div style="display:flex;gap:0.5rem;margin:0.5rem 0;font-size:0.85rem;color:var(--text-muted);flex-wrap:wrap">
+                ${T.ODDS.map((o, i) => `<span>${i === T.ROUNDS ? '🏆 Şampiyon' : `${i + 1}. turda elenme`}: <b style="color:${o >= 1 ? 'var(--success)' : 'var(--danger)'}">×${o}</b></span>`).join(' · ')}
+            </div>
+            <label>Yatırılacak: <input type="number" id="tourney-bet" value="0" min="0" max="${max}" step="50"
+                style="width:110px;padding:0.3rem"></label>
+            <span style="color:var(--text-muted);font-size:0.85rem">(en fazla ${max} dinar)</span>
+        </div>
         <button class="btn primary" style="margin-top:1rem" onclick="Game.startTournament('${loc.id}')">⚔️ Arenaya Çık!</button>`);
     },
     startTournament(locId) {
+        let el = document.getElementById('tourney-bet');
+        let bet = Math.max(0, Math.min(Math.min(this.ARENA_BET_MAX, state.player.money), Math.floor(+(el && el.value) || 0)));
         this.closeModal();
         delete state.activeTournaments[locId];
-        TournamentMinigame.start();
+        state.player.money -= bet;
+        this.updateTopBar();
+        TournamentMinigame.start({ bet });
     },
 
     // Garnizon refahla büyür — kuşatma ekranı da harita künyesi de aynı sayıyı kullanır

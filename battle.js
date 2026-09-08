@@ -20,9 +20,38 @@ const Battle = {
             let lv = state.player.stats.level;
             e.hp = e.maxHp = 60 + lv * 6;
             e.attack = 12 + lv;
+            // Tekil rakip piyade olmalı: havuzdan okçu çıkarsa 1v1'de seni sonsuza kadar kite eder
+            e.name = lord.name; e.type = 'infantry';
             e.defense = 8; e.speed = 70; e.radius = 9; e.color = '#ff8800';
         }
         document.getElementById('battle-log-left').innerHTML = `<b>🗡️ Şeref Düellosu:</b> ${lord.name}`;
+    },
+
+    // Arena (#26): şehrin kum meydanında ücretsiz pratik dövüşü. Düello altyapısının
+    // aynısı — grup sahneye girmez, ganimet/esaret/nam yok, yalnızca yeterlilik XP'si.
+    ARENA_FOES: [
+        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  desc: 'Kolay lokma, az ter.' },
+        { name: 'Arena Gediklisi', dLv: 2,  xp: 180, desc: 'Senden bir gömlek üstün.' },
+        { name: 'Arena Şampiyonu', dLv: 8,  xp: 340, desc: 'Dayak yersin ama çok şey öğrenirsin.' }
+    ],
+    startArena(idx) {
+        let f = this.ARENA_FOES[idx] || this.ARENA_FOES[1];
+        this._duelParty = state.player.party;
+        state.player.party = [];
+        this.isArena = f;
+        this.start(f.name, 1);
+        let e = this.units.find(u => !u.isPlayerTeam);
+        if(e) {
+            let lv = Math.max(1, state.player.stats.level + f.dLv);
+            e.level = lv;
+            e.hp = e.maxHp = 50 + lv * 6;
+            e.attack = 10 + lv;
+            e.defense = 6 + Math.floor(lv / 3);
+            // Tahta silah: ezici, yani öldürmez bayıltır — arenada kimse ölmez
+            e.name = f.name; e.type = 'infantry'; e.dmgType = 'blunt';
+            e.speed = 70; e.radius = 9; e.color = '#ffcc55';
+        }
+        document.getElementById('battle-log-left').innerHTML = `<b>🤺 Arena:</b> ${f.name} — kum meydanı, tahta silahlar, ganimet yok.`;
     },
 
     start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null) {
@@ -1418,6 +1447,18 @@ const Battle = {
         window.removeEventListener('keydown', this.commandListener);
         cancelAnimationFrame(this.loopId);
 
+        if(this.isArena) {
+            let foe = this.isArena;
+            this.isArena = null;
+            state.player.party = this._duelParty || [];
+            this._duelParty = null;
+            let aUnit = this.units[0];
+            state.player.stats.hp = Math.max(5, aUnit ? Math.floor(aUnit.hp) : 5);
+            Game.showScreen('map');
+            Game.finishArena(foe, won);
+            return;
+        }
+
         if(this.isDuel) {
             this.isDuel = false;
             state.player.party = this._duelParty || [];
@@ -1641,6 +1682,9 @@ const Battle = {
     },
 
     surrender() {
+        // Düello/arena maçından çekilmek esaret değil yenilgidir — eskiden bu yol
+        // _duelParty'yi geri koymadığı için grubu kalıcı olarak siliyordu.
+        if(this.isDuel || this.isArena) { this.active = false; this.endBattle(false); return; }
         this.active = false;
         this.canvas.removeEventListener('mousedown', this.clickHandler);
         window.removeEventListener('mouseup', this.upHandler);
@@ -1676,9 +1720,26 @@ const Battle = {
 const TournamentMinigame = {
     canvas:null, ctx:null, active:false, score:0, targets:[], spawnTimer:0, timeLeft:0, loopId:null, clickHandler:null,
 
+    // Turnuva tur tur elenir (#26). Her turda kuradan rastgele bir ekipman çıkar:
+    // uzun menzilli silah hedefi küçültür ama ekranda daha uzun tutar, kalkanlı topuz
+    // tam tersi. Bahis oranı elendiğin tura bağlı — şampiyonluk ×5 öder.
+    ROUNDS: 4,
+    ODDS: [0, 0.3, 0.8, 1.6, 5],
+    GEAR: [
+        { icon:'🗡️', name:'Tahta Kılıç',     size:1.00, life:1.00 },
+        { icon:'🔱', name:'Mızrak',           size:0.85, life:1.30 },
+        { icon:'🏹', name:'Yay',              size:0.70, life:1.55 },
+        { icon:'🛡️', name:'Topuz ve Kalkan',  size:1.30, life:0.75 }
+    ],
+    rollGear() { return this.GEAR[Math.floor(Math.random() * this.GEAR.length)]; },
+
     start(opts = {}) {
         this.mode = opts.mode || 'tournament';
         this.goal = opts.goal || 12;
+        this.bet = opts.bet || 0;
+        this.round = 1;
+        this.perRound = Math.max(1, Math.ceil(this.goal / this.ROUNDS));
+        this.gear = this.mode === 'chicken' ? null : this.rollGear();
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = this.canvas.getContext('2d', { alpha: false });
         Game.showScreen('battle');
@@ -1692,7 +1753,7 @@ const TournamentMinigame = {
 
         document.getElementById('battle-log-left').innerHTML = this.mode === 'chicken'
             ? `<b>🐔 Tavuk Avı!</b> ${this.goal} tavuk yakala. Kimseye anlatma.`
-            : `<b>🏆 Turnuva!</b> Hedeflere tıkla! ${this.goal} hedef vurursan kazanırsın.`;
+            : `<b>🏆 1. Tur!</b> Kuradan ${this.gear.icon} <b>${this.gear.name}</b> çıktı — ${this.perRound} isabet bir tur eder.`;
 
         this.clickHandler = (e) => this.onClick(e);
         this.canvas.addEventListener('mousedown', this.clickHandler);
@@ -1723,8 +1784,8 @@ const TournamentMinigame = {
             this.targets.push({
                 x: 40 + Math.random()*(this.canvas.width-80),
                 y: 40 + Math.random()*(this.canvas.height-80),
-                radius: 42 + agiBonus * 1.2,
-                timeLeft: 1.2 + strBonus * 0.12,
+                radius: (42 + agiBonus * 1.2) * (this.gear ? this.gear.size : 1),
+                timeLeft: (1.2 + strBonus * 0.12) * (this.gear ? this.gear.life : 1),
             });
             this.spawnTimer = 0.4 + Math.random()*0.4;
         }
@@ -1746,6 +1807,14 @@ const TournamentMinigame = {
         ctx.fillStyle = '#fff'; ctx.font = '18px Inter';
         ctx.fillText(`Skor: ${this.score}/${this.goal}`, 15, 25);
         ctx.fillText(`Süre: ${Math.ceil(this.timeLeft)}`, 15, 50);
+        if(this.mode !== 'chicken') {
+            ctx.fillStyle = '#e0b062';
+            ctx.fillText(`${this.round}. Tur / ${this.ROUNDS}  ·  ${this.gear.icon} ${this.gear.name}`, 15, 75);
+            if(this.bet) {
+                let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
+                ctx.fillText(`🎲 Bahis ${this.bet} → şu an ${Math.round(this.bet * this.ODDS[cleared])} dinar`, 15, 100);
+            }
+        }
 
         this.targets.forEach(t => {
             let alpha = Math.min(t.timeLeft, 1);
@@ -1767,7 +1836,16 @@ const TournamentMinigame = {
             if(Math.sqrt(Math.pow(t.x-mx,2)+Math.pow(t.y-my,2)) <= t.radius) {
                 this.score++;
                 this.targets.splice(i,1);
-                document.getElementById('battle-log-left').innerHTML = `${this.mode === 'chicken' ? 'Yakaladın!' : 'İsabet!'} (${this.score}/${this.goal})`;
+                let msg = `${this.mode === 'chicken' ? 'Yakaladın!' : 'İsabet!'} (${this.score}/${this.goal})`;
+                // Tur bitti: yeni kura, temiz saha ve tur arası nefes payı
+                if(this.mode !== 'chicken' && this.score < this.goal && this.score % this.perRound === 0) {
+                    this.round++;
+                    this.gear = this.rollGear();
+                    this.targets = [];
+                    this.timeLeft += 6;
+                    msg = `<b>${this.round}. Tur!</b> Kuradan ${this.gear.icon} <b>${this.gear.name}</b> çıktı. (+6 sn)`;
+                }
+                document.getElementById('battle-log-left').innerHTML = msg;
                 break;
             }
         }
@@ -1786,12 +1864,21 @@ const TournamentMinigame = {
             return;
         }
 
+        // Bahis: para girişte kesildi, ödeme elenilen tura göre yapılır (#26)
+        let betTxt = '';
+        if(this.bet) {
+            let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
+            let pay = Math.round(this.bet * this.ODDS[cleared]);
+            state.player.money += pay;
+            betTxt = `\n\n🎲 Bahis: ${this.bet} dinar × ${this.ODDS[cleared]} = ${pay} dinar `
+                   + (pay > this.bet ? `(+${pay - this.bet} kâr)` : `(−${this.bet - pay} zarar)`);
+        }
         if(won) {
             state.player.money += 500; state.player.renown += 20;
             state.pendingDedication = true;
-            alert('Turnuvayı kazandın! +500 Dinar, +20 Nam\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.');
+            alert('Turnuvayı kazandın! +500 Dinar, +20 Nam' + betTxt + '\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.');
         } else {
-            alert(`Elendin! Skor: ${this.score}/${this.goal}`);
+            alert(`${this.round}. turda elendin! Skor: ${this.score}/${this.goal}` + betTxt);
         }
         Quests.emit('tournament_end', { won, score: this.score });
         Game.updateTopBar();

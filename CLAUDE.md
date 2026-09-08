@@ -335,7 +335,7 @@ riski istiyor.
 
 ### Yerleşimler
 - **Şehir**: pazar, köle tüccarı, han (dinlenme + ozandan şiir öğrenme + **paralı asker** +
-  **lonca ustası** + **yoldaş** kiralama), turnuva (varsa), lordlar salonu,
+  **lonca ustası** + **yoldaş** kiralama), **arena** (her zaman açık), turnuva (varsa), lordlar salonu,
   şölen (varsa katıl; kendi krallığındaysa ver), gönüllü toplama
 - **Kale**: lordlar salonu, şölen (varsa)
 - Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
@@ -837,12 +837,58 @@ Warband'daki kural aynen geçerli — topraksız krala kimse yemin etmez.
   kendi vergisi 96'ya iniyor ama +33 haraç geliyor (net 129) — toprağı dağıtmak parayı
   yarıya indirir, karşılığında sana savaşacak bir lord ve bedavaya savunulan bir şehir verir.
 
-### Turnuva
-`TournamentMinigame.start(opts)` — varsayılan 25 saniyede 12 hedefe tıklama. Hedef boyutu
-çevikliğe, ekranda kalma süresi güce bağlı. Kazanınca +500 dinar, +20 nam ve
-`state.pendingDedication` açılır (zaferi bir leydiye ithaf edebilirsin).
-`opts = { mode:'chicken', goal:8, time:15 }` ile tavuk görevi varyantı olarak çalışır.
-Bitişte `tournament_end` / `chickens_caught` olayı yayınlanır.
+### Turnuva, bahis ve arena (#26)
+Şehirde savaş dışı iki dövüş içeriği var: **turnuva** (ara sıra açılır, ödüllü, bahisli) ve
+**arena** (her zaman açık, ödülsüz, pratik).
+
+**Turnuva** — `TournamentMinigame.start({ bet })`, 25 saniyede 12 hedefe tıklama. Hedef boyutu
+çevikliğe, ekranda kalma süresi güce bağlı. Artık **tur tur elenilir**: 12 hedef `ROUNDS = 4`
+tura bölünür (`perRound = 3`), her turun başında kuradan **rastgele bir ekipman** çıkar
+(`GEAR`) ve tur arasında +6 saniye nefes payı verilir.
+
+| Ekipman | Hedef boyutu | Ekranda kalma |
+|---|---|---|
+| 🗡️ Tahta Kılıç | ×1.00 | ×1.00 |
+| 🔱 Mızrak | ×0.85 | ×1.30 |
+| 🏹 Yay | ×0.70 | ×1.55 |
+| 🛡️ Topuz ve Kalkan | ×1.30 | ×0.75 |
+
+**Bahis** (`ODDS`, en fazla `Game.ARENA_BET_MAX` = 1000 dinar): para turnuvaya girerken
+kesilir, ödeme **temizlenen tur sayısına** göre yapılır — `bet × ODDS[floor(skor/perRound)]`.
+
+| Elendiğin tur | 1 | 2 | 3 | 4 | 🏆 Şampiyon |
+|---|---|---|---|---|---|
+| Oran | ×0 | ×0.3 | ×0.8 | ×1.6 | **×5** |
+
+Ölçüldü (1000 dinar bahisle): 1. turda elenme **−1000**, 2. tur −700, 3. tur −200,
+finalde elenme **+600**, şampiyonluk **+4000** (üstüne turnuvanın kendi 500 dinarı + 20 nam).
+Yani orta seviye bir oyuncuda beklenen değer negatif, iyi oyuncuda erken oyunun en hızlı
+para kaynağı — Warband'daki gibi.
+
+Kazanınca ayrıca `state.pendingDedication` açılır (zaferi bir leydiye ithaf edebilirsin).
+`opts = { mode:'chicken', goal:8, time:15 }` ile tavuk görevi varyantı olarak çalışır —
+tavuk modunda tur, kura ve bahis yoktur. Bitişte `tournament_end` / `chickens_caught` olayı yayınlanır.
+
+**Arena** (`Game.openArena` → `Battle.startArena(idx)`) — düello altyapısının varyantı: grup
+sahneye girmez, **ganimet, nam, esir ve esaret yok**. Rakip `Battle.ARENA_FOES`'tan seçilir,
+seviyesi oyuncununkine göredir; tahta silah olduğu için `dmgType = 'blunt'` (öldürmez, bayıltır)
+ve `type = 'infantry'` — *tekil rakip piyade olmalı, havuzdan okçu çıkarsa 1v1'de seni sonsuza
+kadar kite eder; aynı düzeltme `startDuel`'e de uygulandı.*
+
+| Rakip | Seviye | Yeterlilik XP'si (galibiyet) |
+|---|---|---|
+| Acemi Dövüşçü | oyuncu −3 | 80 |
+| Arena Gediklisi | oyuncu +2 | 180 |
+| Arena Şampiyonu | oyuncu +8 | 340 |
+
+Yenilgide XP'nin **%40'ı** verilir. Ödenen bedel zamandır (`Game.finishArena`): galibiyet
+**3 saat**, yenilgi **1 gün** hasta yatağı — bu, sonsuz XP grindini sınırlar. Silah yeterliliği
+kuşandığın silahın türüne, ek olarak `riding`/`athletics` XP'nin %60'ı kadar yazılır.
+Ölçüldü (Tek El 1 → 10, hep kazanarak): acemiyle **52 dövüş / 6.5 gün**, gediklisiyle
+**23 / 2.9 gün**, şampiyonla **13 / 1.6 gün**.
+
+*(`Battle.surrender()` artık düello ve arenada doğrudan `endBattle(false)`'a düşer — eski yol
+`_duelParty`'yi geri koymadığı için maçtan çekilen oyuncunun grubu kalıcı olarak siliniyordu.)*
 
 ### Boss
 `boss_map` eşyası (pazardan 5000 dinar) kullanılınca **Savaş Tanrısı** savaşı açılır.
