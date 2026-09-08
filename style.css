@@ -787,3 +787,29 @@ body {
 /* Erzak rozeti: 3 günden az kaldıysa kırmızıya döner */
 #chip-food.warn { border-color: rgba(224,70,58,0.65); background: rgba(90,20,16,0.35); }
 #chip-food.warn .hud-val, #chip-food.warn .hud-sub { color: #ff8f82; }
+
+
+/* İşlem geri bildirimi (#45): satır parlaması + dinar rozetinde uçan delta */
+@keyframes fxFlash {
+    0%   { background: rgba(107, 191, 89, 0.45); box-shadow: 0 0 12px rgba(107, 191, 89, 0.5); }
+    100% { background: transparent; box-shadow: none; }
+}
+@keyframes fxFlashBad {
+    0%   { background: rgba(200, 60, 50, 0.45); box-shadow: 0 0 12px rgba(200, 60, 50, 0.5); }
+    100% { background: transparent; box-shadow: none; }
+}
+.fx-flash     { animation: fxFlash 0.6s ease-out; border-radius: 6px; }
+.fx-flash-bad { animation: fxFlashBad 0.6s ease-out; border-radius: 6px; }
+
+@keyframes fxFloat {
+    0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.9); }
+    18%  { opacity: 1; transform: translate(-50%, -6px) scale(1.08); }
+    100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+}
+.fx-float {
+    position: fixed; z-index: 200; pointer-events: none;
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.05rem;
+    color: var(--success); text-shadow: 0 2px 6px #000, 0 0 10px rgba(0,0,0,0.8);
+    animation: fxFloat 0.95s ease-out forwards;
+}
+.fx-float.bad { color: var(--danger); }

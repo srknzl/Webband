@@ -206,6 +206,31 @@ zafer +5, yenilgi −15.
 - `Game.setHtml(id, html)` innerHTML'i sadece metin değiştiyse yazar — `updateTopBar` her
   karede çağrıldığı için gereksiz DOM yazımını önler.
 
+#### İşlem geri bildirimi — parlama, uçan yazı, ses (#45)
+Alım/satım/asker işlemleri eskiden yalnız `#market-msg` şeridine bir satır yazıyordu; tıkladın
+mı tıklamadın mı belli olmuyordu. Artık her işlem tek kapıdan geçer:
+`Game.feedback(kind, el, moneyDelta)` → `sfx(kind)` + `flash(el, ok)` + `floatText(...)`.
+`kind` = `buy | sell | error | recruit | upgrade`.
+
+- **Ses** (`Game.SFX` + `Game.sfx`): dosya yok, WebAudio osilatörü. Her tür kısa bir arpej —
+  al `523→784 Hz` üçgen, sat `659→988`, hata `196→131 Hz` kare dalga, asker `392→523→659`,
+  terfi `523→659→880`. `AudioContext` tek örnek olarak tembel kurulur, tamamı `try/catch`
+  içinde (ses kapalı/izinsiz tarayıcı oyunu bozmaz) ve `state.muted` ise hiç çalmaz.
+- **Mute**: kenar menüsündeki 🔊/🔇 düğmesi (`Game.toggleMute`), durum `state.muted`'da,
+  `updateTopBar` `mute-ico`/`mute-lbl`'i yazar. Kayda `state` ile birlikte girer.
+- **Parlama** (`Game.flash`): satıra `.fx-flash` (yeşil) ya da `.fx-flash-bad` (kırmızı)
+  eklenir. Sınıfı eklemeden önce ikisi de silinip `void el.offsetWidth` ile reflow zorlanır —
+  yoksa arka arkaya aynı işlemde animasyon yeniden başlamıyordu.
+- **Uçan yazı** (`Game.floatText`): hazine rozetinin üstünde `−65₺` / `+140₺` yükselip söner
+  (`.fx-float`, 950 ms sonra DOM'dan silinir). `position:fixed`, `z-index:200`.
+- Pazar satırlarına `mrow-buy-<id>` / `mrow-sell-<id>` kimlikleri verildi (`refreshMarket`) —
+  parlayacak elemanı bulmanın tek yolu bu. Alışta alış satırı yeşil, karşılığı olan satış
+  satırı da sessizce parlar (stok değişti).
+- Animasyonlar `style.css` sonunda: `@keyframes fxFlash` / `fxFlashBad` / `fxFloat`.
+
+Bağlanan yerler: `buyItem` / `sellItem` (para yetmezse `error`), `doRecruit` (üç başarısızlık
+dalı `sfx('error')`, başarı `recruit`), `promoteTroop` (`upgrade`).
+
 ### Karakter
 - Nitelikler **hedef/efektif** çalışır (`Game.ATTRS`). Puan vermek `stats.<k>` **hedefini** yükseltir;
   gerçekten işleyen değer `stats.eff.<k>`'dir ve o niteliğe uygun oynadıkça hedefe yaklaşır.

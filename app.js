@@ -2002,6 +2002,9 @@ const Game = {
             (p.equipment.armor ? R(`Zırh (${p.equipment.armor.name})`, '+' + p.equipment.armor.armor, true) : R('Zırh', 'yok', false)),
             'Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.'));
 
+        this.setHtml('mute-ico', state.muted ? '🔇' : '🔊');
+        this.setHtml('mute-lbl', state.muted ? 'Ses Kapalı' : 'Ses Açık');
+
         let comp = this.getPartyComposition();
         // Kapasite oyuncunun KENDİ İdare seviyesinden gelir; künye profLvl (gruptaki en
         // yüksek) okuduğu için yoldaş varken döküm toplama uymuyordu (#43).
@@ -2953,6 +2956,7 @@ const Game = {
         Object.values(ITEMS).forEach(item => {
             let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
+            li.id = 'mrow-buy-' + item.id;   // satır her yenilemede yeniden kurulur; parlatma id'den bulur
             let note = this.itemNote(item);
             li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> `
                 + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
@@ -2966,6 +2970,7 @@ const Game = {
             if(item.type === 'trade') {
                 let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
+                li.id = 'mrow-sell-' + item.id;
                 li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> `
                     + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
                     + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">Sat</button> `
@@ -2974,6 +2979,63 @@ const Game = {
             }
         });
     },
+    // ============ İŞLEM GERİ BİLDİRİMİ (#45) ============
+    // Tek kapı: ses + ilgili satırın parlaması + dinar rozetinde uçan delta.
+    // Ses dosyası yok (bağımlılık/varlık eklemeden) — kısa zarflı osilatörlerle üretilir.
+    SFX: {
+        buy:     { f: [523, 784],       t: 'triangle', d: 0.10 },
+        sell:    { f: [659, 988],       t: 'triangle', d: 0.10 },
+        error:   { f: [196, 131],       t: 'square',   d: 0.16 },
+        recruit: { f: [392, 523, 659],  t: 'triangle', d: 0.11 },
+        upgrade: { f: [523, 659, 880],  t: 'triangle', d: 0.13 }
+    },
+    sfx(kind) {
+        let s = this.SFX[kind];
+        if(!s || state.muted) return;
+        try {
+            let AC = window.AudioContext || window.webkitAudioContext;
+            let ac = this._audio || (this._audio = new AC());
+            if(ac.state === 'suspended') ac.resume();
+            s.f.forEach((freq, i) => {
+                let o = ac.createOscillator(), g = ac.createGain();
+                let t0 = ac.currentTime + i * s.d * 0.6;
+                o.type = s.t;
+                o.frequency.setValueAtTime(freq, t0);
+                // Zarf: exponentialRamp 0'a inemez, 0.0001 taban kullanılır
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.012);
+                g.gain.exponentialRampToValueAtTime(0.0001, t0 + s.d);
+                o.connect(g); g.connect(ac.destination);
+                o.start(t0); o.stop(t0 + s.d + 0.02);
+            });
+        } catch(e) { /* ses yoksa oyun durmaz */ }
+    },
+    toggleMute() { state.muted = !state.muted; this.updateTopBar(); if(!state.muted) this.sfx('buy'); },
+    flash(el, ok = true) {
+        if(!el) return;
+        el.classList.remove('fx-flash', 'fx-flash-bad');
+        void el.offsetWidth;   // reflow: aynı sınıfı arka arkaya tetiklemenin tek yolu
+        el.classList.add(ok ? 'fx-flash' : 'fx-flash-bad');
+    },
+    floatText(el, txt, ok = true) {
+        if(!el) return;
+        let r = el.getBoundingClientRect();
+        let d = document.createElement('div');
+        d.className = 'fx-float' + (ok ? '' : ' bad');
+        d.textContent = txt;
+        d.style.left = (r.left + r.width / 2) + 'px';
+        d.style.top = r.top + 'px';
+        document.body.appendChild(d);
+        setTimeout(() => d.remove(), 950);
+    },
+    // kind: buy | sell | error | recruit | upgrade. el varsa parlar, moneyDelta varsa uçar.
+    feedback(kind, el, moneyDelta) {
+        this.sfx(kind);
+        this.flash(el, kind !== 'error');
+        if(moneyDelta) this.floatText(document.getElementById('ui-money'),
+            (moneyDelta > 0 ? '+' : '−') + Math.abs(Math.round(moneyDelta)) + '₺', moneyDelta > 0);
+    },
+
     // Alışverişin sonucu modalin içinde görünsün: alert() pazarı kapatırdı.
     marketMsg(html, ok = true) {
         this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
@@ -2983,7 +3045,10 @@ const Game = {
         if(price === null) return alert('Bu eşya pazarda yok.');
         // Parası yetmiyorsa alabildiği kadarını al, sessizce hiçbir şey yapma.
         let can = Math.min(n, Math.floor(state.player.money / price));
-        if(can <= 0) return this.marketMsg(`Yeterli dinarın yok — ${ITEMS[id].name} ${price}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
+        if(can <= 0) {
+            this.feedback('error', document.getElementById('mrow-buy-' + id));
+            return this.marketMsg(`Yeterli dinarın yok — ${ITEMS[id].name} ${price}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
+        }
         let cost = price * can;
         state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
@@ -2995,12 +3060,15 @@ const Game = {
         this.marketMsg(`${ITEMS[id].icon} <b>${ITEMS[id].name} x${can}</b> alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`
             + (can < n ? ` <i>(paran ${n} taneye yetmedi)</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
+        // Parlatma yenilemeden SONRA: satır elemanı yeniden kuruluyor
+        this.feedback('buy', document.getElementById('mrow-buy-' + id), -cost);
+        this.flash(document.getElementById('mrow-sell-' + id));   // elindeki adet de değişti
     },
     sellItem(id, n = 1) {
         let idx = state.player.inventory.findIndex(i => i.id === id);
         if(idx === -1) return;
         let item = state.player.inventory[idx];
-        if(item.type !== 'trade') return alert('Bu eşya pazarda satılmıyor.');
+        if(item.type !== 'trade') { this.sfx('error'); return alert('Bu eşya pazarda satılmıyor.'); }
         let can = Math.min(n, item.qty);
         let price = this.marketPrice(id, true), gain = price * can;
         state.player.money += gain;
@@ -3010,6 +3078,8 @@ const Game = {
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
         this.marketMsg(`${item.icon||'📦'} <b>${item.name} x${can}</b> satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`);
         this.updateTopBar(); this.refreshMarket();
+        this.feedback('sell', document.getElementById('mrow-sell-' + id) || document.getElementById('mrow-buy-' + id), gain);
+        this.flash(document.getElementById('mrow-buy-' + id));
     },
 
     // --- TAVERN ---
@@ -4005,9 +4075,9 @@ const Game = {
         let loc = LOCATIONS.find(l => l.id === locId);
         amount = Math.min(amount, loc ? loc.volunteersAvailable : amount);
         let total = amount * cost;
-        if(amount < 1) return alert('Alınacak gönüllü yok!');
-        if(state.player.money < total) return alert('Yeterli dinarın yok!');
-        if(state.player.party.length + amount > this.getPartyCapacity()) return alert('Grubunda yer yok!');
+        if(amount < 1) { this.sfx('error'); return alert('Alınacak gönüllü yok!'); }
+        if(state.player.money < total) { this.sfx('error'); return alert('Yeterli dinarın yok!'); }
+        if(state.player.party.length + amount > this.getPartyCapacity()) { this.sfx('error'); return alert('Grubunda yer yok!'); }
         state.player.money -= total;
         if(loc) {
             loc.volunteersAvailable -= amount;
@@ -4026,6 +4096,7 @@ const Game = {
         }
         this.closeModal(); this.updateTopBar();
         if(loc) this.enterLocation(loc); // Arayüzü yenile
+        this.feedback('recruit', null, -total);
         alert(`${amount} gönüllü gruba katıldı!`);
     },
 
@@ -4616,7 +4687,7 @@ const Game = {
         }
     },
     promoteTroop(oldName, newName, cost) {
-        if(state.player.money < cost) return alert('Yeterli dinarın yok!');
+        if(state.player.money < cost) { this.sfx('error'); return alert('Yeterli dinarın yok!'); }
         let troopIdx = state.player.party.findIndex(t => t.name === oldName && t.xp >= t.xpNext);
         if(troopIdx !== -1) {
             state.player.money -= cost;
@@ -4630,6 +4701,7 @@ const Game = {
             
             this.updateTopBar();
             this.renderPartyScreen();
+            this.feedback('upgrade', null, -cost);
             alert(`Asker başarıyla ${newName} sınıfına terfi ettirildi!`);
         }
     },
