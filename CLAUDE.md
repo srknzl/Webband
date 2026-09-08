@@ -343,6 +343,17 @@ yollarında `state.player.currentRaid` da `currentSiege` gibi temizlenir.
 yerleşiminin etrafında dolaşır, böylece salonunda bulunabilir. `Nobles.isAt()` "evinde mi"
 kontrolünü 420 birim yarıçapla yapar.
 
+- **Portreler**: lordlar `lord_portraits.jpg` sprite sheet'inden gelir, sheet'te leydi
+  yok (#39). Leydi portresi `Nobles.ladyPortrait(n, size)` ile **kodla çizilir** — baş
+  harf madalyonunun yerini alan satır içi SVG. Her şey `n.id`'nin hash'inden türediği için
+  aynı leydi her açılışta aynı yüzle gelir: elbise/ten paleti fraksiyondan
+  (`Nobles.LADY_LOOK`), saç/göz/dudak rengi ve yüz genişliği hash'ten, aksesuar **huydan**
+  (`ambitious` taç, `pious` tülbent, `romantic` çiçek + örgü, `wild` savrulmuş tutamlar).
+  Aksesuar `back`/`front` diye ikiye ayrılır — tülbent yüzün altına çizilmezse yüzü kapatıyordu.
+  Lord portreleri fotoğraf olduğu için SVG'nin temiz kenarı yanlarında oyuncak duruyordu:
+  hafif `feDisplacementMap` dalgalanması + tuval taneciği + `sepia(0.35)` ile aynı çerçeveye
+  yaklaştırılır. `portraitCss` hâlâ tek kapıdır; talip (`suitor_*`) kimlikleri lordun kendi
+  portresini kullanmaya devam eder.
 - **İlişki** `state.relations[lordId]` (−100..100). `Nobles.relLabel()` etiketler:
   Kan Davalı / Düşman / Kırgın / Kayıtsız / Hoşnut / Dost / Sadık Dost.
 - **Mizaç** (`PERSONALITIES`): `martial`, `cunning`, `debauched`, `goodnatured`, `quarrelsome`.
@@ -852,11 +863,9 @@ anında bitmesi.
 
 Kalanlar:
 
-1. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
-   baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
-2. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
+1. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
    yalnızca oyuncunun kendisine veriliyor.
-3. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+2. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 

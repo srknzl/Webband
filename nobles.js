@@ -194,20 +194,109 @@ const Nobles = {
                 background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
                 display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
         }
-        if(n.guardianId !== undefined && !n.suitor) {
-            // Leydiler için portre yok — kamea tarzı baş harf madalyonu
-            let letter = n.name.replace(/^Leydi\s+/, '').charAt(0);
-            let hue = (n.id.charCodeAt(0) * 37) % 360;
-            return `<div style="width:${size}px;height:${size}px;border-radius:50%;flex:0 0 auto;
-                background:radial-gradient(circle at 35% 30%, hsl(${hue} 45% 62%), hsl(${hue} 35% 22%));
-                border:4px ridge #dca243;display:flex;align-items:center;justify-content:center;
-                font-family:'Cinzel',serif;font-size:${size*0.45}px;color:#1a0b02;
-                text-shadow:0 1px 0 rgba(255,255,255,0.35);box-shadow:inset 0 0 20px rgba(0,0,0,0.6);">${letter}</div>`;
-        }
+        if(n.guardianId !== undefined && !n.suitor) return this.ladyPortrait(n, size);
         return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border:4px ridge #dca243;
             background-image:url('lord_portraits.jpg');background-size:300% 300%;
             background-position:${col*50}% ${row*50}%;filter:sepia(0.2) contrast(1.1);
             box-shadow:inset 0 0 15px #000;"></div>`;
+    },
+
+    // Sprite sheet'te leydi yok (#39): portre kodla çizilir. Her şey id'nin hash'inden
+    // türer, yani aynı leydi her açılışta aynı yüzle gelir.
+    LADY_LOOK: {
+        // fraksiyon: [elbise, elbise gölgesi, ten, saç seçenekleri]
+        swadia:  ['#8d2230', '#5d1220', '#f0cdb0', ['#5a3418', '#241611', '#b06a2c']],
+        rhodok:  ['#2f6b3a', '#1c4325', '#e8c4a4', ['#3a2412', '#161616', '#7b4a22']],
+        vaegir:  ['#2b4f86', '#1a3054', '#f5dcc6', ['#c8a86a', '#e0cf9c', '#6b4a24']],
+        nord:    ['#4a6b7c', '#2c4350', '#f7e0cb', ['#e6d08a', '#c9954a', '#8a6a3a']],
+        khergit: ['#8a6320', '#573c12', '#e3b489', ['#1b1410', '#3a2416', '#5a3a1c']]
+    },
+
+    ladyPortrait(n, size = 120) {
+        let h = 0;
+        for(let i = 0; i < n.id.length; i++) h = (h * 31 + n.id.charCodeAt(i)) >>> 0;
+        let look = this.LADY_LOOK[n.faction] || this.LADY_LOOK.swadia;
+        let [dress, dressDark, skin, hairs] = look;
+        let hair = hairs[h % hairs.length];
+        let eye = ['#3c6e4a', '#4a6f9c', '#5a4230', '#6b6b74'][(h >> 3) % 4];
+        let faceW = 20 + (h >> 5) % 3;              // yüz genişliği biraz oynar
+        let lip = ['#a8434c', '#93394a', '#b95a55'][(h >> 7) % 3];
+        let uid = 'ld' + n.id;
+
+        // Huya göre aksesuar. back yüzün ALTINA, front üstüne çizilir — tülbent
+        // yüzü kapatmasın diye ikiye ayrıldı.
+        let back = '', front = '';
+        if(n.trait === 'ambitious') {
+            front = `<path d="M31 33 L37 24 L44 31 L50 21 L56 31 L63 24 L69 33 Z" fill="#e0b955" stroke="#8a6a1e" stroke-width="0.8"/>
+                     <circle cx="50" cy="28" r="2.4" fill="#a5322b"/>`;
+        } else if(n.trait === 'pious') {
+            back = `<path d="M22 52 Q20 16 50 14 Q80 16 78 52 Q78 82 68 96 L32 96 Q22 82 22 52 Z" fill="#ded6c4"/>`;
+            front = `<path d="M27 44 Q30 22 50 21 Q70 22 73 44" fill="none" stroke="#bdb49e" stroke-width="2.4"/>`;
+        } else if(n.trait === 'romantic') {
+            back = `<path d="M72 50 Q82 68 74 92" fill="none" stroke="${hair}" stroke-width="7" stroke-linecap="round"/>`;
+            front = `<g transform="translate(70,40)"><circle cx="-3" cy="-3" r="3" fill="#e3a3b6"/><circle cx="3" cy="-3" r="3" fill="#e3a3b6"/>
+                       <circle cx="-3" cy="3" r="3" fill="#e3a3b6"/><circle cx="3" cy="3" r="3" fill="#e3a3b6"/>
+                       <circle r="2" fill="#efd07e"/></g>`;
+        } else {
+            back = `<path d="M29 44 Q23 68 31 92" fill="none" stroke="${hair}" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M71 44 Q78 66 70 90" fill="none" stroke="${hair}" stroke-width="8" stroke-linecap="round"/>`;
+            front = `<path d="M34 30 Q44 24 52 27" fill="none" stroke="${hair}" stroke-width="2" stroke-linecap="round" opacity="0.8"/>`;
+        }
+
+        let svg = `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block">
+            <defs>
+                <radialGradient id="${uid}bg" cx="34%" cy="26%">
+                    <stop offset="0%" stop-color="#6a5540"/><stop offset="100%" stop-color="#1b1410"/>
+                </radialGradient>
+                <radialGradient id="${uid}sk" cx="38%" cy="30%">
+                    <stop offset="0%" stop-color="#fff" stop-opacity="0.35"/><stop offset="100%" stop-color="#000" stop-opacity="0.22"/>
+                </radialGradient>
+                <radialGradient id="${uid}vg" cx="50%" cy="45%">
+                    <stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.55"/>
+                </radialGradient>
+                <!-- Lord portreleri yağlıboya; SVG'nin temiz kenarı yanlarında oyuncak duruyordu.
+                     Hafif dalgalanma + tuval taneciği ikisini aynı çerçeveye yaklaştırır. -->
+                <filter id="${uid}pt" x="-10%" y="-10%" width="120%" height="120%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="${h % 100}" result="w"/>
+                    <feDisplacementMap in="SourceGraphic" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/>
+                </filter>
+                <filter id="${uid}gr" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="${(h >> 4) % 100}"/>
+                    <feColorMatrix type="saturate" values="0"/>
+                </filter>
+            </defs>
+            <rect width="100" height="100" fill="url(#${uid}bg)"/>
+            <g filter="url(#${uid}pt)">
+            ${back}
+            <path d="M50 64 Q28 68 20 100 L80 100 Q72 68 50 64 Z" fill="${dress}"/>
+            <path d="M50 64 Q41 80 50 100 L58 100 Q53 80 50 64 Z" fill="${dressDark}"/>
+            <path d="M44 54 h12 v13 q-6 4 -12 0 Z" fill="${skin}"/>
+            <path d="M44 54 h12 v6 q-6 4 -12 0 Z" fill="#000" opacity="0.18"/>
+            <path d="M26 46 Q26 17 50 17 Q74 17 74 46 Q74 61 70 72 L30 72 Q26 61 26 46 Z" fill="${hair}"/>
+            <ellipse cx="50" cy="46" rx="${faceW}" ry="25" fill="${skin}"/>
+            <ellipse cx="50" cy="46" rx="${faceW}" ry="25" fill="url(#${uid}sk)"/>
+            <path d="M29 40 Q35 23 50 23 Q65 23 71 40 Q63 31 50 32 Q37 31 29 40 Z" fill="${hair}"/>
+            <path d="M35 26 Q46 21 58 24" fill="none" stroke="#fff" stroke-width="1.6" opacity="0.13"/>
+            <path d="M38.5 42.5 Q42 40.6 45.5 42.5" fill="none" stroke="${hair}" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M54.5 42.5 Q58 40.6 61.5 42.5" fill="none" stroke="${hair}" stroke-width="1.2" stroke-linecap="round"/>
+            <ellipse cx="42" cy="47" rx="2.6" ry="1.6" fill="#e6dbcb"/><circle cx="42" cy="47" r="1.4" fill="${eye}"/>
+            <circle cx="42" cy="46.8" r="0.6" fill="#170f07"/>
+            <ellipse cx="58" cy="47" rx="2.6" ry="1.6" fill="#e6dbcb"/><circle cx="58" cy="47" r="1.4" fill="${eye}"/>
+            <circle cx="58" cy="46.8" r="0.6" fill="#170f07"/>
+            <path d="M39 45.6 Q42 44 45 45.6" fill="none" stroke="#2a1c12" stroke-width="0.9" stroke-linecap="round"/>
+            <path d="M55 45.6 Q58 44 61 45.6" fill="none" stroke="#2a1c12" stroke-width="0.9" stroke-linecap="round"/>
+            <path d="M48.6 50 Q50 54 52 54.6" fill="none" stroke="#b98a6c" stroke-width="0.9" stroke-linecap="round"/>
+            <path d="M46 59.4 Q50 57.6 54 59.4 Q50 62.4 46 59.4 Z" fill="${lip}"/>
+            <path d="M46 59.4 Q50 60.4 54 59.4" fill="none" stroke="#6d2a30" stroke-width="0.6"/>
+            <ellipse cx="37.5" cy="53" rx="3.2" ry="2.1" fill="#c9705e" opacity="0.25"/>
+            <ellipse cx="62.5" cy="53" rx="3.2" ry="2.1" fill="#c9705e" opacity="0.25"/>
+            ${front}
+            </g>
+            <rect width="100" height="100" filter="url(#${uid}gr)" opacity="0.16" style="mix-blend-mode:overlay"/>
+            <rect width="100" height="100" fill="url(#${uid}vg)"/>
+        </svg>`;
+        return `<div style="width:${size}px;height:${size}px;border-radius:50%;flex:0 0 auto;overflow:hidden;
+            border:4px ridge #dca243;box-shadow:inset 0 0 15px #000;filter:sepia(0.35) contrast(1.05) saturate(0.9);">${svg}</div>`;
     },
 
     // ---------- Nerede kim var ----------
