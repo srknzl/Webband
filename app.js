@@ -632,6 +632,43 @@ const Game = {
         Battle.start(npc.name, npc.size, null, npc.faction);
     },
 
+    // --- YOL KESME (#24) ---
+    // Kervanları yalnız oyuncu soymaz. Haydut çeteleri de yolda kesiştikleri kafileyi
+    // vurur; yük ve kese çetenin üstünde kalır, yani o çeteyi yakalayan yükü de alır
+    // (zafer dalı beaten.cargo/purse'ü zaten envantere yazıyor).
+    banditTick() {
+        // ponytail: haydut kervan avlamaya çıkmaz, yolu kesişirse vurur — gerçek av
+        // davranışı istenirse updateNPCs'teki hedef seçimine eklenir
+        let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0
+                                                   && !(BAND_KINDS[n.band] || {}).beast);
+        if(!raiders.length) return;
+        state.npcParties.filter(t => t.trade && t.size > 0).forEach(t => {
+            let b = raiders.find(r => r.size > 0 && this.dist(r, t) < 400);
+            if(!b) return;
+            let pw = p => p.size * (0.7 + Math.random() * 0.6);
+            // Kervan muhafızı parasını hak eder, köylü kafilesi kaçamaz
+            if(pw(t) * (t.trade.kind === 'caravan' ? 1.15 : 0.5) > pw(b)) {
+                b.size = Math.round(b.size * (0.5 + Math.random() * 0.3));
+                t.size = Math.max(2, Math.round(t.size * (0.75 + Math.random() * 0.2)));
+                if(b.size < 4) { b.size = 0; this.news(`🛡️ ${t.name}, ${b.name} baskınını püskürttü.`); }
+                return;
+            }
+            b.cargo = b.cargo || [];
+            (t.cargo || []).forEach(c => {
+                let ex = b.cargo.find(x => x.id === c.id);
+                if(ex) ex.qty += c.qty; else b.cargo.push({ ...c });
+            });
+            b.purse = (b.purse || 0) + (t.purse || 0);
+            b.size = Math.max(3, b.size - Math.floor(Math.random() * 3));
+            t.size = 0;
+            // Ulaşamayan yük varılacak yerin refahını düşürür
+            let dest = LOCATIONS.find(l => l.id === t.trade.toId);
+            if(dest) dest.prosperity = Math.max(10, (dest.prosperity || 50) - (t.trade.kind === 'caravan' ? 1.5 : 0.5));
+            this.news(`🗡️ ${b.name}, ${t.name} kafilesini bastı — yük çetenin elinde.`);
+        });
+        state.npcParties = state.npcParties.filter(n => n.size > 0 || n.lordId);
+    },
+
     spawnNPCs() {
         this.ensureTraders();
         for(let i = 0; i < 8; i++) this.spawnBand('bandit');
@@ -1817,6 +1854,8 @@ const Game = {
                 delete state.lordRespawn[lid];
             }
         }
+
+        this.banditTick();      // haydutlar yoldaki kafileleri vurur
 
         Nobles.dailyTick();
         Feast.dailyTick();
@@ -3314,10 +3353,11 @@ const Game = {
         let html = `${what}<br>${unitWord}: ${npc.size}`;
         if(npc.trade) {
             let d = LOCATIONS.find(l => l.id === npc.trade.toId);
-            html += (d ? `<br>Hedef: ${d.name}` : '')
-                  + ((npc.cargo || []).filter(c => ITEMS[c.id]).length
-                     ? `<br>Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}` : '');
+            html += d ? `<br>Hedef: ${d.name}` : '';
         }
+        // Yük yalnız kafilelerde değil, onları soymuş çetede de görünür (#24)
+        if((npc.cargo || []).filter(c => ITEMS[c.id]).length)
+            html += `<br>Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}`;
         let pr = state.player.prisoner;
         if(pr && pr.npcId === npc.id) {
             html += `<br><span style="color:#ff8f82">⛓️ Esirleri:</span> ${state.player.name} (sen)`

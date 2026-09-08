@@ -433,6 +433,31 @@ hazır makineden gelir.
 - Kafileler `state.npcParties`'te durduğu için kayda kendiliğinden yazılır; eski kayıtlar
   `Save.load` içindeki `Game.ensureTraders()` ile doldurulur.
 
+### Yol kesme — haydutlar kervan avlar (#24)
+Kafileleri yalnız oyuncu soymaz. `Game.banditTick()` her gün (`dailyUpdate`, `warTick`'ten
+sonra) haydut çeteleriyle ticaret partilerini eşleştirir: **400 birim** içinde kesişen varsa
+baskın olur. Kurt sürüsü yağma yapmaz (`BAND_KINDS[].beast` elenir).
+
+- Güç zarı `size × 0.7–1.3`; kervan muhafızı **×1.15**, köylü kafilesi **×0.5** ile direnir —
+  yani kervan sık sık püskürtür, köylü neredeyse hep kaybeder.
+- **Püskürtülen çete** yarı yarıya kırılır (4 kişinin altına düşerse dağılır), kafile birkaç
+  kişi kaybeder ve yoluna devam eder.
+- **Basılan kafile haritadan silinir**; yük ve kese *çetenin üstüne geçer* (`b.cargo` aynı
+  kalemde birleştirilir, `b.purse` toplanır). Zafer dalı `beaten.cargo`/`beaten.purse`'ü
+  zaten envantere yazdığı için **o çeteyi yakalayan yükü de alır** — ek kod yok.
+  Künye (`npcTipHtml`) artık yükü ticaret partisine özel değil, taşıyan herkese gösterir.
+- Ulaşamayan yük varış yerleşiminin refahını düşürür (kervan −1.5, kafile −0.5).
+- Haberler `state.warLog`'a düşer (bildirim çıkmaz, diplomasi ekranından okunur).
+
+Ölçüldü (200 gün × 30 tur, oyuncusuz): günde **0.75 baskın** — 0.50 kafile yok oluyor,
+0.25 püskürtülüyor, 0.12 çete kırılıyor. Bir kafilenin ortalama ömrü **28 gün**
+(`ensureTraders` her gün yerine yenisini yola çıkarıyor, sayı 14'te sabit kalıyor).
+Steady-state'te haritada **1–3 yüklü çete** dolaşır; tipik biri 6 kişi, 472 dinar kese ve
+4 kalem yük taşır — yani haydut avı artık gerçekten kârlı bir iştir.
+
+*Kalan eksik:* haydut kervan avlamaya **çıkmaz**, yolu kesişirse vurur (`ponytail:` notu
+`banditTick`'te). Gerçek av davranışı `updateNPCs`'teki hedef seçimine eklenir.
+
 ### Karşılaşma & savaş
 - Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir.
 - **Kaçış menzili güç farkına bağlı** (`updateNPCs`): zayıf çete `360 + min(640, (bizim güç/onun gücü)×240)`
@@ -758,10 +783,8 @@ Kalanlar:
    birbirine karşı ittifak kurmuyor (savaş/barış ve cephe var, bkz. "Diplomasi").
 3. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
    yalnızca oyuncunun kendisine veriliyor.
-4. Haydutlar kervanlara saldırmıyor: NPC↔NPC çatışması yalnız lord partileri arasında
-   (`warTick`) çözülüyor, kafileler yalnız oyuncu tarafından soyulabiliyor.
-5. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
-6. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
+4. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+5. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
    ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
    silahı tür seçiyor.
 
