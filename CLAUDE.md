@@ -325,6 +325,15 @@ parayı doğrudan orduya çevirmenin tek yolu.
   `Game.factionTroopPool(faction)`'dan gelir (her daldan 2 pay orta, 1 pay elit).
   Bilinmeyen/boş fraksiyon Svadya ağacına düşer; eski kayıtlardaki `Acemi Asker`
   Svadya köylüsünün takma adıdır.
+- **Grup ekranı** (#51): her satırda sınıf (`Game.troopClassName`) + hasar türü yazar, sağında
+  **▲ / ▼** (aynı adlı askerler blok hâlinde yer değiştirir, `moveTroopGroup`; sıralama
+  `state.player.party` dizisinin kendisidir) ve **➖** (`dismissTroops` → "Bir Tane / Hepsi"
+  onayı) durur. Terfi düğmeleri de artık kör tercih değil: her seçenekte ikon + sınıf +
+  hasar türü yazar ("🐴 Svadya Süvarisi · Süvari · kesici"). Sınıf **hızdan** okunur —
+  Kergit Atlı Okçusu ağaçta `archer`'dır ama 108 hızla gezer, yaya tavanı 66 / süvari
+  tabanı 95 olduğu için ≥90 hız "atlı" sayılır ve "Atlı Okçu" yazılır.
+  Esir bölümünde kapasite, günlük kaçma ihtimali (`max(1, 6 − Esir Yönetimi×0.5)`) ve
+  eldeki esirlerin toplam değeri görünür.
 - XP savaşta öldürme başına +1. XP dolunca ya otomatik seviye atlar ya da `TROOP_UPGRADES` varsa **terfiye hazır** olur — grup ekranından dinar ödeyerek sınıf seçilir. Terfi kademesi ada değil ağaca bakar: üstü olmayan asker elit (lvl 20) sayılır.
 - Tavan lvl 50. Boss'tan düşen **Savaş Tanrısı Nişanı** ile lvl 51 "Efsanevi" yapılır: maaş ve yemek istemez, +100 HP / +15 saldırı.
 

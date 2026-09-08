@@ -4515,7 +4515,7 @@ const Game = {
             let groups = {};
             state.player.party.forEach(t => {
                 // efsaneviler ve yaralılar ayrı satırda listelenir
-                let key = this.troopLabel(t) + (t.wounded ? ' 🩹 (yaralı)' : '');
+                let key = this.troopGroupKey(t);
                 if(!groups[key]) {
                     groups[key] = { base: t.name, sample: t, count: 0, ready: [], normal: [], wounded: 0 };
                 }
@@ -4536,15 +4536,26 @@ const Game = {
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + DMG_TYPES[typeInfo.dmgType].name : ''}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${this.troopClassName(typeInfo)}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + DMG_TYPES[typeInfo.dmgType].name : ''}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
                 </div>`;
-                
+
+                // Sıra değiştirme + gruptan çıkarma (#51)
+                let q = name.replace(/'/g, "\\'");
+                html += `<div style="display:flex;gap:0.3rem;align-items:center">
+                    <button class="btn" title="Yukarı taşı" style="font-size:0.75rem;padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', -1)">▲</button>
+                    <button class="btn" title="Aşağı taşı" style="font-size:0.75rem;padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', 1)">▼</button>
+                    <button class="btn" title="Gruptan çıkar" style="font-size:0.75rem;padding:0.2rem 0.45rem;border-color:var(--danger);color:var(--danger)" onclick="Game.dismissTroops('${q}')">➖</button>
+                </div>`;
+
                 if(g.ready.length > 0) {
                     let upgradeChoices = TROOP_UPGRADES[g.base];
                     html += `<div style="display:flex;gap:0.4rem;margin-top:0.4rem;">`;
                     upgradeChoices.forEach(choice => {
+                        // Hangi seçenek piyade, hangisi atlı okçu — terfi kör tercih olmasın (#51)
+                        let ci = this.troopStats({ name: choice.name });
                         html += `<button class="btn primary" style="font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${choice.name.replace(/'/g,"\\'")}', ${choice.cost})">
-                            Sınıf Terfisi: ${choice.name} (${choice.cost} Dinar)
+                            Sınıf Terfisi: ${ci.icon} ${choice.name} (${choice.cost} Dinar)
+                            <div style="font-size:0.7rem;opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + DMG_TYPES[ci.dmgType].name : ''}</div>
                         </button>`;
                     });
                     html += `</div>`;
@@ -4566,6 +4577,47 @@ const Game = {
     },
     // Efsanevi öneki yalnızca ekranda görünür, veride ad temiz kalır
     troopLabel(t) { return (t.legendary ? 'Efsanevi ' : '') + t.name; },
+    // Grup ekranı askerleri bu anahtarla toplar; sıra ve çıkarma da aynı anahtarı kullanır (#51)
+    troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? ' 🩹 (yaralı)' : ''); },
+    troopClassName(st) {
+        // Kergit atlı okçusu ağaçta 'archer' ama 108 hızla gezer — sınıfı hıza bakarak yaz,
+        // yoksa listede yaya okçularla aynı görünüyor. Yaya tavanı 66, süvari tabanı 95.
+        let mounted = st.type === 'cavalry' || st.speed >= 90;
+        if(st.type === 'archer') return mounted ? 'Atlı Okçu' : 'Okçu';
+        return mounted ? 'Süvari' : 'Piyade';
+    },
+    // Sırayı grup grup değiştir: aynı ada sahip askerler bloğu komşu blokla yer değiştirir
+    moveTroopGroup(key, dir) {
+        let keys = [];
+        state.player.party.forEach(t => { let k = this.troopGroupKey(t); if(keys.indexOf(k) < 0) keys.push(k); });
+        let i = keys.indexOf(key), j = i + dir;
+        if(i < 0 || j < 0 || j >= keys.length) return;
+        keys[i] = keys[j]; keys[j] = key;
+        // sort kararlıdır: blok içindeki sıra bozulmaz
+        state.player.party.sort((a, b) => keys.indexOf(this.troopGroupKey(a)) - keys.indexOf(this.troopGroupKey(b)));
+        this.renderPartyScreen();
+    },
+    dismissTroops(key) {
+        let n = state.player.party.filter(t => this.troopGroupKey(t) === key).length;
+        if(!n) return;
+        this.showModal(`<h3>➖ Gruptan Çıkar</h3>
+            <p><b>${key}</b> — elinde ${n} tane var. Çıkardığın asker yoluna gider, geri gelmez.</p>
+            <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem">
+                <button class="btn" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', 1)">Bir Tane</button>
+                ${n > 1 ? `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', ${n})">Hepsi (${n})</button>` : ''}
+                <button class="btn" onclick="Game.closeModal()">Vazgeç</button>
+            </div>`);
+    },
+    doDismiss(key, n) {
+        let gone = 0;
+        for(let i = state.player.party.length - 1; i >= 0 && gone < n; i--) {
+            if(this.troopGroupKey(state.player.party[i]) === key) { state.player.party.splice(i, 1); gone++; }
+        }
+        this.closeModal();
+        this.renderPartyScreen();
+        this.updateTopBar();
+        alert(`${key} × ${gone} gruptan ayrıldı.`);
+    },
 
     // --- MORAL ---
     // Warband'ın moral sistemi: yemek çeşidi, maaş, idare ve kalabalık grubun
@@ -4815,7 +4867,10 @@ const Game = {
 
     prisonersHtml() {
         let ps = state.player.prisoners || [];
-        let html = `<h3 style="color:var(--primary);margin-top:1.5rem">⛓️ Esirler ${ps.length}/${this.prisonerCapacity()}</h3>`;
+        let pm = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
+        let risk = Math.max(1, 6 - pm * 0.5).toFixed(1);
+        let html = `<h3 style="color:var(--primary);margin-top:1.5rem">⛓️ Esirler ${ps.length}/${this.prisonerCapacity()}</h3>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.5rem">Esir Yönetimi ${pm} · her esir günde <b>%${risk}</b> ihtimalle kaçar (soylular kaçmaz) · toplam değer ~${ps.reduce((a, p) => a + (p.noble ? p.ransom : this.prisonerValue(p)), 0)} dinar</p>`;
         if(ps.length === 0) return html + `<p style="color:var(--text-muted);font-size:0.85rem">Zincirlerin boş. Kazandığın savaşlarda düşen düşmanların bir kısmı esir alınır; şehirdeki köle tüccarına satılır.</p>`;
         let groups = {};
         html += '<ul style="list-style:none;padding:0">';
