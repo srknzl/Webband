@@ -322,6 +322,10 @@ const state = {
     pendingQuest: null, questOffers: {}, dowryOffer: null, betrothed: null, pendingWedding: null,
     pendingDedication: false, duel: null,
     feast: null, scheduledFeasts: [], nextFeastDay: 8,
+    wars: {},            // 'a|b' (sıralı fraksiyon çifti) -> savaşın başladığı gün
+    warLog: [],          // son olaylar: { day, msg }
+    lordRespawn: {},     // cephede dağılan lord partisi -> hangi gün geri döner
+    warSeeded: false,    // dünya kurulurken ilk savaş atandı mı
 };
 
 // --- INPUT ---
@@ -343,6 +347,8 @@ const Input = {
                 else if(e.key === 'Escape') Game.showScreen('map');
                 // Boşluk kamerayı oyuncuya geri getirir (harita kenardan kaydırılmışsa)
                 else if(e.key === ' ' && document.getElementById('map-view').classList.contains('active')) Game.centerOnPlayer();
+                // K: krallıkların savaş/barış hâli
+                else if(e.key.toLowerCase() === 'k') Game.showDiplomacy();
             }
         });
         window.addEventListener('keyup', e => { 
@@ -699,6 +705,7 @@ const Game = {
     enterWorld() {
         // Rakip talipler cinsiyete göre kurulur (kadın oyuncuda hedef lordlardır)
         Nobles.initRivals();
+        this.initDiplomacy();   // Kalradya'da her zaman açık bir cephe vardır
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
         this.resizeCanvases();
@@ -1243,17 +1250,14 @@ const Game = {
         // Soylular artık konuşulacak kişiler; kavga sadece düşman krallıktaysak.
         if(npc.lordId) {
             if(Nobles.rel(npc.lordId) <= -50) return true;
-            if(!state.player.vassalOf || state.player.vassalOf === npc.faction ||
-               state.player.vassalOf === 'player_kingdom' || npc.faction === 'player_kingdom') return false;
-            return true;
+            // Artık "başka bayrak" değil, krallığının o krallıkla savaşta olması saldırtır
+            return this.atWar(this.playerFaction(), npc.faction);
         }
         if(npc.type === 'king' || npc.type === 'vizier' || npc.type === 'lord') {
             if(state.player.stats.level < npc.level - 5 && ps < npc.size / 2) return false; // Güçsüzlere agresif değil
         }
-        if((npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') && state.player.vassalOf &&
-           state.player.vassalOf !== npc.faction &&
-           state.player.vassalOf !== 'player_kingdom' &&
-           npc.faction !== 'player_kingdom') return true;
+        if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier')
+            return this.atWar(this.playerFaction(), npc.faction);
         return false;
     },
 
@@ -1286,6 +1290,13 @@ const Game = {
                     let home = lord ? LOCATIONS.find(x => x.id === lord.homeLocId) : null;
                     if(state.feast && lord && lord.faction === state.feast.faction) {
                         home = LOCATIONS.find(x => x.id === state.feast.locId) || home;
+                    }
+                    // Savaştaki lord evinde oturmaz: yakın düşman yerleşimlerinden
+                    // birine yürür (warTick orada çarpışmayı/kuşatmayı çözer).
+                    if(lord && this.warsOf(npc.faction).length && Math.random() < 0.35) {
+                        let foes = LOCATIONS.filter(l => l.type !== 'village' && this.atWar(npc.faction, l.faction))
+                                            .sort((a2, b2) => this.dist(a2, npc) - this.dist(b2, npc));
+                        if(foes.length) home = foes[Math.floor(Math.random() * Math.min(3, foes.length))];
                     }
                     if(home) {
                         let r = Math.random() < 0.45 ? Math.random() * 200 : 300 + Math.random() * 900;
@@ -1663,6 +1674,16 @@ const Game = {
             if(Math.random() < 0.3) delete state.activeTournaments[cid];
         }
 
+        this.diplomacyTick();   // savaş ilanı / barış zarı
+        this.warTick();         // cephede çarpışma + yerleşim el değiştirme
+        // Cephede dağılan lordlar birkaç gün sonra evinde toparlanır
+        for(let lid in state.lordRespawn) {
+            if(state.time.day >= state.lordRespawn[lid]) {
+                this.respawnLordParty({ lordId: lid });
+                delete state.lordRespawn[lid];
+            }
+        }
+
         Nobles.dailyTick();
         Feast.dailyTick();
         Quests.dailyTick();
@@ -1815,7 +1836,8 @@ const Game = {
         let c = this.getPartyComposition();
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="Kamerayı bana getir (Boşluk)">🎯 Beni Bul <kbd>Boşluk</kbd></button>`);
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="Kamerayı bana getir (Boşluk)">🎯 Beni Bul <kbd>Boşluk</kbd></button>`
+            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="Krallıkların savaş/barış hâli (K)">🌍 Diplomasi <kbd>K</kbd></button>`);
     },
 
     renderPrisonerUI() {
@@ -2500,11 +2522,9 @@ const Game = {
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
-        // Kendi krallığını kuran oyuncu da bir fraksiyona bağlıdır: kendi
-        // yerleşimi olmayan her şehir/kale ona da düşmandır. Eskiden
-        // 'player_kingdom' istisna tutulduğu için krallık kurduktan sonra
-        // hiçbir yer kuşatılamıyordu.
-        let isEnemy = state.player.vassalOf && state.player.vassalOf !== loc.faction;
+        // Kapılar yalnızca savaşta olduğun krallığa kapalıdır (Warband'daki gibi);
+        // barıştaki komşunun şehrinde pazar ve han sana açık.
+        let isEnemy = this.atWar(this.playerFaction(), loc.faction);
 
         Quests.emit('entered_location', { locId: loc.id, loc });
 
@@ -2838,6 +2858,145 @@ const Game = {
     },
 
     // Garnizon refahla büyür — kuşatma ekranı da harita künyesi de aynı sayıyı kullanır
+    // ============ DİPLOMASİ ============
+    // Krallıklar birbirine savaş açar, barışır; lord partileri cephede çarpışır,
+    // yerleşimler el değiştirir. Tek veri: state.wars = { 'a|b': başlangıç günü }.
+    warKey(a, b) { return [a, b].sort().join('|'); },
+    atWar(a, b) { return !!(a && b && a !== b && state.wars[this.warKey(a, b)]); },
+    warsOf(f) {
+        if(!f) return [];
+        return Object.keys(state.wars).filter(k => k.split('|').indexOf(f) !== -1)
+                     .map(k => k.split('|').find(x => x !== f));
+    },
+    playerFaction() { return state.player.vassalOf || null; },
+    factionName(f) { return (FACTIONS[f] || { name: f || 'Bağımsız' }).name; },
+    // Haber akışı; oyuncunun krallığını ilgilendiren olay ayrıca bildirim olur
+    news(msg, mine) {
+        state.warLog.unshift({ day: state.time.day, msg });
+        if(state.warLog.length > 20) state.warLog.pop();
+        if(mine) alert(msg);
+    },
+    declareWar(a, b) {
+        if(!a || !b || a === b || this.atWar(a, b)) return;
+        state.wars[this.warKey(a, b)] = state.time.day;
+        let mine = this.playerFaction() === a || this.playerFaction() === b;
+        this.news(`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaşa girdi.`, mine);
+    },
+    makePeace(a, b) {
+        if(!this.atWar(a, b)) return;
+        delete state.wars[this.warKey(a, b)];
+        let mine = this.playerFaction() === a || this.playerFaction() === b;
+        this.news(`🕊️ ${this.factionName(a)} ile ${this.factionName(b)} barış imzaladı.`, mine);
+    },
+    // Dünya kurulurken bir cephe açık başlar (Kalradya hiç sakin değildir)
+    initDiplomacy() {
+        if(state.warSeeded) return;
+        state.warSeeded = true;
+        let fs = Object.keys(FACTIONS).filter(f => f !== 'player_kingdom');
+        let a = fs[Math.floor(Math.random() * fs.length)];
+        let b = fs.filter(f => f !== a)[Math.floor(Math.random() * (fs.length - 1))];
+        state.wars[this.warKey(a, b)] = 1;
+        state.warLog.unshift({ day: 1, msg: `⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaş hâlinde.` });
+    },
+    // Günlük zar: uzayan savaşlar barışla biter, iki cepheden fazlası açılmaz
+    diplomacyTick() {
+        for(let k in state.wars) {
+            let len = state.time.day - state.wars[k];
+            if(len >= 15 && Math.random() < 0.06 + len * 0.004) {
+                let p = k.split('|'); this.makePeace(p[0], p[1]);
+            }
+        }
+        if(Math.random() < 0.10) {
+            let fs = Object.keys(FACTIONS).filter(f => this.warsOf(f).length < 2);
+            let a = fs[Math.floor(Math.random() * fs.length)];
+            let cand = fs.filter(f => f !== a && !this.atWar(a, f));
+            let b = cand[Math.floor(Math.random() * cand.length)];
+            if(a && b) this.declareWar(a, b);
+        }
+    },
+    // Cephe: karşılaşan düşman lord partileri çarpışır, güçlü olan düşman
+    // yerleşimini alır. Günde bir kez, oyuncudan bağımsız işler.
+    warTick() {
+        if(!Object.keys(state.wars).length) return;
+        let parties = state.npcParties.filter(n => n.lordId && n.faction);
+        for(let i = 0; i < parties.length; i++) {
+            for(let j = i + 1; j < parties.length; j++) {
+                let A = parties[i], B = parties[j];
+                if(A.size <= 0 || B.size <= 0) continue;
+                if(!this.atWar(A.faction, B.faction)) continue;
+                if(this.dist(A, B) > 700) continue;
+                this.resolveFieldBattle(A, B);
+            }
+        }
+        LOCATIONS.forEach(loc => {
+            if(loc.type === 'village') return;
+            let g = this.garrisonOf(loc);
+            let atk = parties.find(p => p.size > 0 && this.atWar(p.faction, loc.faction)
+                                        && this.dist(p, loc) < 500 && p.size > g * 1.3);
+            if(!atk) return;
+            // Kuşatma bir günde bitmez: ordunun 3 gün kapıda beklemesi gerekir.
+            // Yoksa yoldan geçen her lord kaleyi kapıyordu (ölçüldü: 200 günde 38
+            // el değiştirme, iki krallık silinmişti).
+            if(atk.siegeLocId !== loc.id) { atk.siegeLocId = loc.id; atk.siegeDays = 1; return; }
+            atk.siegeDays = (atk.siegeDays || 1) + 1;
+            // Yeni düşen kale hemen geri alınamaz
+            if(state.time.day - (loc.capturedDay || -99) < 10) return;
+            if(atk.siegeDays < 3) return;
+            atk.siegeLocId = null; atk.siegeDays = 0;
+            this.captureSettlement(loc, atk);
+        });
+        // Dağılan partiler haritadan silinir, birkaç gün sonra evinde toparlanır
+        state.npcParties.filter(n => n.size <= 0 && n.lordId).forEach(n => {
+            state.lordRespawn[n.lordId] = state.time.day + 4 + Math.floor(Math.random() * 6);
+        });
+        state.npcParties = state.npcParties.filter(n => !(n.lordId && n.size <= 0));
+    },
+    resolveFieldBattle(A, B) {
+        let pw = p => p.size * (1 + (p.level || 1) * 0.05) * (0.75 + Math.random() * 0.5);
+        let win = pw(A) >= pw(B) ? A : B, lose = win === A ? B : A;
+        win.size = Math.max(5, Math.round(win.size * (0.80 + Math.random() * 0.12)));
+        lose.size = Math.round(lose.size * (0.25 + Math.random() * 0.25));
+        // Cephe çarpışması günde birkaç kez olur: yalnızca bir parti dağılırsa
+        // habere girer, bildirim hiç çıkmaz (yoksa savaşta her gün modal yerdin).
+        if(lose.size < 8) {
+            lose.size = 0;
+            this.news(`🩸 ${win.name} (${this.factionName(win.faction)}), ${lose.name} kuvvetlerini dağıttı.`);
+        }
+    },
+    captureSettlement(loc, atk) {
+        let old = loc.faction;
+        loc.faction = atk.faction;
+        loc.capturedDay = state.time.day;
+        atk.size = Math.max(10, Math.round(atk.size * 0.6));   // kuşatma orduyu yer
+        // Kalenin/şehrin çevresindeki köyler de el değiştirir
+        LOCATIONS.filter(l => l.type === 'village' && l.faction === old && this.dist(l, loc) < 900)
+                 .forEach(l => l.faction = atk.faction);
+        let mine = [old, atk.faction].indexOf(this.playerFaction()) !== -1;
+        this.news(`🏰 ${loc.name}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.`, mine);
+    },
+    // Diplomasi ekranı: kim kiminle savaşta, kimin kaç toprağı var, son haberler
+    showDiplomacy() {
+        let rows = Object.keys(FACTIONS).map(f => {
+            let foes = this.warsOf(f);
+            let holds = LOCATIONS.filter(l => l.faction === f).length;
+            return `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
+                <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${FACTIONS[f].name}</span>
+                <span style="color:var(--text-muted);min-width:70px">${holds} toprak</span>
+                <span>${foes.length ? '⚔️ ' + foes.map(x => this.factionName(x)).join(', ')
+                                    : '<span style="color:#2ecc71">🕊️ Barış içinde</span>'}</span></div>`;
+        }).join('');
+        let log = state.warLog.length
+            ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${n.day}. gün</span> — ${n.msg}</div>`).join('')
+            : '<p style="color:var(--text-muted)">Henüz haber yok.</p>';
+        let mine = this.playerFaction();
+        this.showModal(`<h3>🌍 Kalradya'nın Hâli</h3>
+            ${mine ? `<p style="color:var(--text-muted)">Bağlılığın: <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? ' — savaştasın!' : ''}</p>` : ''}
+            ${rows}
+            <h3 style="margin-top:1rem">📜 Haberler</h3>
+            <div style="max-height:220px;overflow:auto;font-size:0.92rem">${log}</div>
+            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Kapat</button>`, '640px');
+    },
+
     garrisonOf(loc) {
         let base = loc.type === 'city' ? 30 : loc.type === 'castle' ? 15 : 0;
         return Math.round(base * (0.6 + (loc.prosperity || 50) / 125));
@@ -2874,7 +3033,7 @@ const Game = {
         let g = this.garrisonOf(loc);
         let lord = this.ownerLord(loc);
         let rel = lord && typeof Nobles !== 'undefined' ? Nobles.rel(lord.id) : 0;
-        let hostile = state.player.vassalOf && state.player.vassalOf !== loc.faction;
+        let hostile = this.atWar(this.playerFaction(), loc.faction);
         return `${f.name} · ${type}<br>`
             + (lord ? `Sahibi: ${lord.name} (${Nobles.relLabel(rel)})<br>` : '')
             + `Refah: ${prLbl} <span style="color:var(--text-muted)">(${pr})</span><br>`
@@ -5094,13 +5253,16 @@ const Battle = {
                 let s = state.player.currentSiege;
                 let loc = LOCATIONS.find(l=>l.id===s.locId);
                 if(loc) {
+                    let oldF = loc.faction;   // fethettiğin krallıkla savaş başlar
                     if(s.foundingKingdom) {
                         FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+' Krallığı', color:Game.bannerColor(), ruler:state.player.name};
                         state.player.vassalOf = 'player_kingdom';
                         loc.faction = 'player_kingdom';
+                        Game.declareWar('player_kingdom', oldF);
                         alert(`${loc.name} fethedildi! Kendi krallığını ilan ettin!`);
                     } else if(state.player.vassalOf) {
                         loc.faction = state.player.vassalOf;
+                        Game.declareWar(state.player.vassalOf, oldF);
                         alert(`${loc.name} fethedildi! ${(FACTIONS[state.player.vassalOf]||{name:'?'}).name} adına aldın.`);
                     }
                 }
@@ -5409,6 +5571,7 @@ const Save = {
         Game.renderPrisonerUI();
         // initRivals artık dünyaya girişte çalışıyor; rakipsiz eski kayıtta burada kurulur
         if(!Object.keys(state.rivals || {}).length) Nobles.initRivals();
+        Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
         Game.startGameLoop();
         alert(`Kayıt yüklendi. Gün ${state.time.day}.`);
     },

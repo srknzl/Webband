@@ -180,12 +180,14 @@ zafer +5, yenilgi −15.
   seviye (XP, bekleyen puanlar). Takvim rozeti aynı zamanda tıklanabilir (zaman akışı).
 - Karakter ekranındaki her yetenek satırı **şu anki etkisini sayıyla** yazar
   (ör. "Görüş 615 birim", "Esir kapasitesi 8", "Savaş ganimeti +%12").
-- **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q`, **Esc** her ekrandan
+- **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q`, **K** diplomasi
+  ekranını açar (`Game.showDiplomacy`), **Esc** her ekrandan
   haritaya döner, **Boşluk** haritada kamerayı oyuncuya geri kilitler (`Game.centerOnPlayer()`)
   — hepsi `Input.init` içinde, modal veya savaş açıkken çalışmaz.
   `showScreen()` tıklanan butonu `data-view` ile aktifler.
 - **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
-  (🪖 piyade / 🏹 okçu / 🐎 süvari) ve **🎯 Beni Bul** düğmesi. `Game.updateMapHud()` doldurur.
+  (🪖 piyade / 🏹 okçu / 🐎 süvari), **🎯 Beni Bul** ve **🌍 Diplomasi** düğmeleri.
+  `Game.updateMapHud()` doldurur.
   Künye `pointer-events:none` olduğu için düğmeye CSS'te `pointer-events:auto` verilmiştir.
 - `Game.setHtml(id, html)` innerHTML'i sadece metin değiştiyse yazar — `updateTopBar` her
   karede çağrıldığı için gereksiz DOM yazımını önler.
@@ -526,11 +528,41 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
 - "Kaçmaya çalış" günde bir kez; başarısızlıkta şans −60 ve plan sıfırlanır.
 - Süre dolunca %40 bedava kaçış, aksi halde fidye modali (paranın %75–90'ı).
 
+### Diplomasi — krallıklar arası savaş (#20)
+Tek veri: `state.wars = { 'a|b': savaşın başladığı gün }` (fraksiyon çifti sıralı anahtar).
+Yardımcılar `Game.atWar(a,b)` / `warsOf(f)` / `declareWar` / `makePeace` / `playerFaction()`;
+haberler `state.warLog` (son 20 olay), `Game.news(msg, mine)` yazar — `mine` yalnızca oyuncunun
+krallığını ilgilendiren olayda bildirim çıkarır.
+
+- `Game.initDiplomacy()` dünyaya girişte (ve diplomasi öncesi kayıtlarda `Save.load`'da) bir
+  cephe açık başlatır — Kalradya hiç sakin değildir.
+- `Game.diplomacyTick()` her gün: 15 günü geçen savaşlar `0.06 + süre×0.004` ihtimalle barışla
+  biter; %10 ihtimalle yeni savaş ilan edilir (bir krallık **en fazla iki cephede** savaşır).
+- `Game.warTick()` her gün cepheyi çözer:
+  - 700 birim içindeki düşman lord partileri çarpışır (`resolveFieldBattle`) — kazanan %20,
+    kaybeden ~%70 asker kaybeder; 8 kişinin altına düşen parti dağılır, `state.lordRespawn`
+    ile 4–10 gün sonra evinde yeniden doğar. Bu çarpışmalar bildirim çıkarmaz, yalnız
+    parti dağılırsa habere girer.
+  - 500 birim içindeki güçlü ordu (`size > garnizon × 1.3`) yerleşimi **3 gün kuşatır**
+    (`atk.siegeDays`), sonra alır; düşen yerleşim 10 gün geri alınamaz (`loc.capturedDay`),
+    kuşatan ordu %40 erir. Şehir/kale el değiştirince 900 birim içindeki köyleri de götürür.
+- Savaştaki lordlar evinde oturmaz: `updateNPCs`'te yeni hedef seçerken %35 ihtimalle en yakın
+  3 düşman yerleşiminden birine yürür.
+- Oyuncuya etkisi: lord partisi yalnızca **krallığın onunkiyle savaştaysa** saldırır
+  (`isHostile` → `atWar`); şehir/kale ancak savaştaysan kuşatılır, barıştaki komşunun pazarı ve
+  hanı sana açıktır (`enterSettlement`, `locTipHtml`). Fetih yaptığında o krallıkla savaş başlar.
+- `Game.showDiplomacy()` (harita künyesindeki 🌍 düğmesi veya **K**): krallık başına toprak
+  sayısı + kiminle savaşta olduğu, altında haber akışı.
+- Ölçüldü (200 gün, oyuncusuz simülasyon): 8 yerleşim el değiştirdi, ~290 cephe çarpışması,
+  13 savaş ilanı, hiçbir krallık silinmedi. Kuşatma bekleme süresi eklenmeden önce aynı sim
+  38 fetih üretiyor ve iki krallığı 150. günde haritadan siliyordu.
+
 ### Kuşatma & krallık kurma
 Şehir/kale kuşatması normal savaş olarak oynanır (garnizon `Game.garrisonOf(loc)`: şehir 30,
 kale 15 temel, refahla ±%30).
 Kazanılırsa yerleşim vassalı olunan fraksiyona geçer; bağımsızsan **kendi krallığını** kurarsın
-(`FACTIONS.player_kingdom` runtime'da oluşturulur).
+(`FACTIONS.player_kingdom` runtime'da oluşturulur). Her iki durumda fethedilen yerleşimin eski
+sahibiyle **savaş ilan edilir** (`Game.declareWar`).
 
 ### Turnuva
 `TournamentMinigame.start(opts)` — varsayılan 25 saniyede 12 hedefe tıklama. Hedef boyutu
@@ -648,7 +680,8 @@ Kalanlar:
 
 1. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
-2. Krallıklar arası savaş/barış yok — fraksiyonlar birbiriyle hiç savaşmıyor.
+2. Diplomaside marshal/sefer çağrısı ve ittifak yok: kral seni sefere çağırmıyor, krallıklar
+   birbirine karşı ittifak kurmuyor (savaş/barış ve cephe var, bkz. "Diplomasi").
 3. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 4. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
    ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
