@@ -470,14 +470,25 @@ baskın olur. Kurt sürüsü yağma yapmaz (`BAND_KINDS[].beast` elenir).
 - Ulaşamayan yük varış yerleşiminin refahını düşürür (kervan −1.5, kafile −0.5).
 - Haberler `state.warLog`'a düşer (bildirim çıkmaz, diplomasi ekranından okunur).
 
-Ölçüldü (200 gün × 30 tur, oyuncusuz): günde **0.75 baskın** — 0.50 kafile yok oluyor,
-0.25 püskürtülüyor, 0.12 çete kırılıyor. Bir kafilenin ortalama ömrü **28 gün**
-(`ensureTraders` her gün yerine yenisini yola çıkarıyor, sayı 14'te sabit kalıyor).
-Steady-state'te haritada **1–3 yüklü çete** dolaşır; tipik biri 6 kişi, 472 dinar kese ve
-4 kalem yük taşır — yani haydut avı artık gerçekten kârlı bir iştir.
+**Çete artık ava çıkar (#38)**: `updateNPCs`'te haydut partisi, oyuncuyla ilgilenmiyorsa
+(`!notices`) **1200 birim** içindeki en yakın ticaret partisine yönelir. Peşine düşme şartı
+baskının güç şartıyla aynı: `kafile gücü × (kervan 1.15 / köylü 0.5) < çete × 1.2` — zayıf
+çete güçlü kervanın peşinde ölmez. Kurt sürüsü avlanmaz (`beast`). Hedef `npc.hunting`'de
+durur ve harita künyesinde "🎯 Peşinde: …" satırı olarak görünür; baskını yine `banditTick`
+çözer, yani av davranışı sadece **yolları kesiştirir**.
 
-*Kalan eksik:* haydut kervan avlamaya **çıkmaz**, yolu kesişirse vurur (`ponytail:` notu
-`banditTick`'te). Gerçek av davranışı `updateNPCs`'teki hedef seçimine eklenir.
+Ölçüldü (200 gün, oyuncusuz, 3 tohum — her tur ayrı sayfa yüklemesiyle):
+
+| | av yokken | av varken |
+|---|---|---|
+| Baskın / gün | 0.11 / 0.18 / 0.27 (ort. **0.19**) | 0.43 / 0.70 / 0.92 (ort. **0.68**) |
+| Püskürtme (200 günde) | 9–11 | 21–30 |
+| Basılan kafilenin ömrü | 13–21 gün (ort. 16) | 6–8 gün (ort. **7**) |
+| 200. günde yüklü çete | 2–5, kese 49–229 dinar | 0–1, kese **668–822** dinar |
+
+Yani av davranışı baskını **3.5 katına** çıkarıyor ama haritayı yüklü çeteyle doldurmuyor:
+çete daha çok vuruyor, daha çok püskürtülüp dağılıyor, ayakta kalan az sayıdaki çete
+**çok daha zengin** oluyor. Kafile sayısı `ensureTraders` sayesinde 14'te sabit kalır.
 
 ### Karşılaşma & savaş
 - Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir.

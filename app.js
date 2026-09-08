@@ -639,8 +639,7 @@ const Game = {
     // vurur; yük ve kese çetenin üstünde kalır, yani o çeteyi yakalayan yükü de alır
     // (zafer dalı beaten.cargo/purse'ü zaten envantere yazıyor).
     banditTick() {
-        // ponytail: haydut kervan avlamaya çıkmaz, yolu kesişirse vurur — gerçek av
-        // davranışı istenirse updateNPCs'teki hedef seçimine eklenir
+        // Av davranışı updateNPCs'te: çete kafilenin üstüne yürür, baskını burası çözer
         let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0
                                                    && !(BAND_KINDS[n.band] || {}).beast);
         if(!raiders.length) return;
@@ -1469,6 +1468,22 @@ const Game = {
                         npc.targetX = 4500 + Math.cos(a)*r;
                         npc.targetY = 4500 + Math.sin(a)*r;
                     }
+                }
+            }
+
+            // Haydut kervan avlar (#38): menzilindeki en yakın kafileye yönelir; baskının
+            // kendisini banditTick çözer. Gücü yetmeyen çete peşine düşmez.
+            if(npc.type === 'bandit' && !notices && !(BAND_KINDS[npc.band] || {}).beast) {
+                let prey = null, bd = 1200;
+                state.npcParties.forEach(t => {
+                    if(!t.trade || t.size <= 0) return;
+                    let d2 = this.dist(t, npc);
+                    if(d2 < bd) { bd = d2; prey = t; }
+                });
+                npc.hunting = null;
+                if(prey && prey.size * (prey.trade.kind === 'caravan' ? 1.15 : 0.5) < npc.size * 1.2) {
+                    npc.targetX = prey.x; npc.targetY = prey.y;
+                    npc.hunting = prey.name;
                 }
             }
 
@@ -3510,7 +3525,8 @@ const Game = {
             let d = LOCATIONS.find(l => l.id === npc.trade.toId);
             html += d ? `<br>Hedef: ${d.name}` : '';
         }
-        // Yük yalnız kafilelerde değil, onları soymuş çetede de görünür (#24)
+        if(npc.hunting) html += `<br><span style="color:#ffb347">🎯 Peşinde:</span> ${npc.hunting}`;
+        // Yük yalnız kafilelerde değil, onları soymuş çetede de görünür
         if((npc.cargo || []).filter(c => ITEMS[c.id]).length)
             html += `<br>Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}`;
         let pr = state.player.prisoner;
