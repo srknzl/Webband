@@ -134,10 +134,10 @@ const DMG_TYPES = {
 const ITEMS = {
     // spoil: kaç günde bir stoğun tamamı bozulur (günlük kayıp = qty/spoil).
     // Ucuz erzak çabuk bozulur, pahalısı dayanır — depolamak da bir tercih.
-    wheat:  { id:'wheat',  name:'Tahıl',         type:'food',  quality:'low', basePrice:20,  icon:'🌾', spoil:60 },
-    bread:  { id:'bread',  name:'Ekmek',         type:'food',  quality:'low', basePrice:30,  icon:'🍞', spoil:20 },
-    meat:   { id:'meat',   name:'Kurutulmuş Et', type:'food',  quality:'high',basePrice:100, icon:'🥩', spoil:30 },
-    cheese: { id:'cheese', name:'Peynir',        type:'food',  quality:'high',basePrice:80,  icon:'🧀', spoil:40 },
+    wheat:  { id:'wheat',  name:'Tahıl',         type:'food',  quality:'low', basePrice:4,  icon:'🌾', spoil:60 },
+    bread:  { id:'bread',  name:'Ekmek',         type:'food',  quality:'low', basePrice:6,  icon:'🍞', spoil:20 },
+    meat:   { id:'meat',   name:'Kurutulmuş Et', type:'food',  quality:'high',basePrice:20, icon:'🥩', spoil:30 },
+    cheese: { id:'cheese', name:'Peynir',        type:'food',  quality:'high',basePrice:16,  icon:'🧀', spoil:40 },
     iron:   { id:'iron',   name:'Demir',         type:'trade', basePrice:150, icon:'⛏️' },
     velvet: { id:'velvet', name:'Kadife',        type:'trade', basePrice:400, icon:'🧵' },
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺' },
@@ -572,8 +572,9 @@ const Game = {
             }
             npc.purse = 120 + Math.floor(Math.random() * 260);
         } else {
-            npc.cargo = [{ id: 'wheat', qty: 3 + Math.floor(Math.random() * 6) },
-                         { id: 'cheese', qty: 1 + Math.floor(Math.random() * 3) }];
+            // Erzak ucuzladığı için (#47) kafile artık araba dolusu taşır — yoksa soyması anlamsızdı
+            npc.cargo = [{ id: 'wheat', qty: 15 + Math.floor(Math.random() * 30) },
+                         { id: 'cheese', qty: 5 + Math.floor(Math.random() * 15) }];
             npc.purse = 20 + Math.floor(Math.random() * 50);
         }
         npc.x = npc.targetX = home.x; npc.y = npc.targetY = home.y;

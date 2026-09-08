@@ -342,6 +342,12 @@ parayı doğrudan orduya çevirmenin tek yolu.
 ### Envanter & ekipman
 Silah / zırh / at slotları. Zırh max HP'ye, silah saldırıya, at harita hızına (66 → 105) etki eder.
 Ticaret malları pazarda alınıp satılır (satış fiyatı ×0.7).
+
+**Erzak ticaret malı değildir (#47)**: tahıl 4, ekmek 6, peynir 16, et 20 temel fiyat —
+eskisinin **beşte biri**. Ordunun günlük yemi para akışını tek başına bitiriyordu; ölçüldü,
+20 kişilik ordu günde 20 tahıl yiyor: eskiden ~270₺, şimdi **40₺** (aynı orduya maaş 40₺).
+Ticaret malları (demir, kadife, bira, tuz) indirimden etkilenmedi — onlar kâr için taşınır.
+Kafileler bunun için araba dolusu erzak taşır (bkz. "Ticaret partileri").
 Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ürün + adet + ödenen/alınan tutar + kalan dinar yazar
 (`Game.marketMsg`). Para yetmezse alabildiği kadarını alır ve bunu söyler — `alert()` kullanılmaz, pazarı kapatırdı.
 
@@ -366,8 +372,9 @@ Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara
 Pazarın elindeki mal sonsuz değil: `loc.stock[id]` (kayda girer, `Save`'deki `locations` dizisinde).
 
 - `Game.stockBase(loc, id)` = `STOCK_SCALE` (şehir 500 / köy 190 / kale 150) × `(0.55 + refah/110)`
-  ÷ (üretim bölgesi çarpanı × **√fiyat**). Ölçüldü (refah 84 Praven): tahıl 180, bira 80,
-  kadife 22; köyde tahıl 71, et 22. *(Tam fiyatla bölmek denendi: şehirde 6 top kadife
+  ÷ (üretim bölgesi çarpanı × **√fiyat**). Ölçüldü (refah 86 Praven): tahıl 474, ekmek 361,
+  et 148, bira 80, kadife 22; refah 56'lık köyde tahıl 144, et 45. Ucuz temel gıda bol,
+  pahalı ticaret malı kıt — bir şehrin ambarı boşaltılamaz, kadife tezgâhı boşaltılır. *(Tam fiyatla bölmek denendi: şehirde 6 top kadife
   kalıyordu, tek yük pazarı boşaltıp ticareti zarara sokuyordu.)*
 - `Game.supplyMul` = `(stok/taban)^−0.5`, **0.55–2.0** sınırlı. Stok yarıya inince fiyat ×1.41,
   ikiye katlanınca ×0.71.
@@ -538,7 +545,7 @@ hazır makineden gelir.
 | Parti | Rota | Muhafız | Yük (ölçüldü) | Harita ikonu |
 |---|---|---|---|---|
 | Kervan | şehir → barıştaki başka şehir (`traderNext`) | 6–14: Kervan Muhafızı / Okçu / Atlı Muhafız + **Kervanbaşı** | 2 kalem ticaret malı + 120–380 dinar kese → satışta **790–1350 dinar** | araba (`cart`), altın sarısı |
-| Köylü kafilesi | köy ↔ en yakın şehir (mekik) | 3–7: Köylü / Köy Avcısı | tahıl + peynir + 20–70 dinar → **120–300 dinar** | mızraklı yaya, açık yeşil |
+| Köylü kafilesi | köy ↔ en yakın şehir (mekik) | 3–7: Köylü / Köy Avcısı | 15–44 tahıl + 5–19 peynir + 20–70 dinar → **100–270 dinar** | mızraklı yaya, açık yeşil |
 
 - Yük değerce dengelenir: `qty ≈ (3–7) × 100 / basePrice`, yani kadife 1–2, bira 10–19 taşınır.
 - **Saldırmazlar.** `isHostile` false döner; yalnızca krallığıyla savaştaysan senden kaçarlar.
