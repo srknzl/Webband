@@ -625,10 +625,52 @@ krallığını ilgilendiren olayda bildirim çıkarır.
   (`isHostile` → `atWar`); şehir/kale ancak savaştaysan kuşatılır, barıştaki komşunun pazarı ve
   hanı sana açıktır (`enterSettlement`, `locTipHtml`). Fetih yaptığında o krallıkla savaş başlar.
 - `Game.showDiplomacy()` (harita künyesindeki 🌍 düğmesi veya **K**): krallık başına toprak
-  sayısı + kiminle savaşta olduğu, altında haber akışı.
+  sayısı, kiminle savaşta/müttefik olduğu, yürüyen seferler, altında haber akışı.
 - Ölçüldü (200 gün, oyuncusuz simülasyon): 8 yerleşim el değiştirdi, ~290 cephe çarpışması,
   13 savaş ilanı, hiçbir krallık silinmedi. Kuşatma bekleme süresi eklenmeden önce aynı sim
   38 fetih üretiyor ve iki krallığı 150. günde haritadan siliyordu.
+
+### Mareşal, sefer çağrısı ve ittifak (#36)
+Diplomasi artık yalnız "kim kiminle savaşta" değil: krallıklar **ordu topluyor** ve
+**taraf tutuyor**.
+
+**Sefer** (`state.campaigns[faction]` = `{marshalId, marshalName, targetLocId, day, pledged, helped}`,
+`Game.campaignTick()` günlük):
+- Savaştaki krallık günde %25 ihtimalle bir **mareşal** seçer (`pickMarshal`: haritadaki en
+  büyük lord partisi, kral hariç) ve ona en yakın düşman şehrini/kalesini hedef verir.
+- **`updateNPCs` artık orduyu dağıtmıyor**: seferi olan krallığın lordu yeni hedef seçerken
+  %70 ihtimalle mareşalin hedefine yürür (eskiden %35 ile rastgele üç düşman yerleşiminden
+  biri). Ordunun toplanması kuşatmayı `warTick`'in kendi kuralıyla çözer — kuşatma koduna
+  dokunulmadı.
+- Sefer, hedef düşünce / barış olunca / 25 gün dolunca `endCampaign` ile biter; aynı krallık
+  **3 gün** yeni sefer açamaz (`state.campaignCooldown`) — yoksa biten seferin ödül modalini
+  yeni çağrı modali eziyordu.
+
+**Sefer çağrısı** (vassalsan): `summonToArms` modali kralın adı, mareşal ve hedefle çıkar.
+
+| Cevap | Sonuç |
+|---|---|
+| ⚔️ Katıl + hedefin **1200 birim** yakınında bulun (günde bir örneklenir → `helped`) | Sefer başarılıysa **+15 nam, bütün lordlarla +8**; başarısızsa +5 nam / +3 ilişki |
+| ⚔️ Katıl ama hiç gitme | **Kral −8, diğer lordlar −3** — en pahalı seçenek |
+| 🚪 Reddet | Anında bütün lordlarla **−5**, sefer bitince ek ceza yok |
+
+Katılınca hedef haritada altın kesikli çemberle görünür: `state.knownLocations['campaign']`
+her gün tazelenir, böylece `Nobles.dailyTick`'in 3 günlük silme kuralına takılmaz.
+
+**İttifak** (`state.allies` = `{'a|b': gün}`, `Game.allied/alliesOf/makeAlliance/breakAlliance`):
+- `diplomacyTick` günde %5 ihtimalle **ortak düşmanı olan** iki barışık krallığı el sıkıştırır.
+- İttifakın bedeli var: müttefikin bütün cepheleri sana da açılır (`makeAlliance` içinde
+  karşılıklı `declareWar`). `declareWar` müttefike savaş açmaz.
+- 25 günü geçen ittifak günde %5 ihtimalle dağılır.
+
+**Krallık artık silinmiyor** — sefer sistemi orduları tek hedefte topladığı için fetih hızlandı
+ve ölçümde 4 turun 3'ünde bir krallık haritadan siliniyordu. İki kural geri getirdi:
+`warTick` bir fraksiyonun **son şehrini/kalesini kuşattırmaz**, ve iki toprağa düşen krallık
+`diplomacyTick`'te 5 günden sonra günde %25 ihtimalle barış imzalar (normalde 15 gün / %6).
+
+Ölçüldü (200 gün × 5 tur, oyuncusuz): **4–11 fetih**, 23–37 sefer (~6 günde bir),
+0–2 ittifak, 10–22 barış antlaşması, **hiçbir turda krallık silinmedi**. Sefer öncesi aynı
+sim 8 fetih üretiyordu — cephe belirgin şekilde hareketlendi ama harita çökmedi.
 
 ### Kuşatma & krallık kurma
 Şehir/kale kuşatması normal savaş olarak oynanır. Garnizon `Game.garrisonOf(loc)`: **senin
@@ -779,12 +821,10 @@ Kalanlar:
 
 1. `lord_portraits.jpg` yalnızca 9 erkek portre içeriyor; leydiler CSS ile üretilen
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
-2. Diplomaside marshal/sefer çağrısı ve ittifak yok: kral seni sefere çağırmıyor, krallıklar
-   birbirine karşı ittifak kurmuyor (savaş/barış ve cephe var, bkz. "Diplomasi").
-3. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
+2. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
    yalnızca oyuncunun kendisine veriliyor.
-4. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
-5. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
+3. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+4. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
    ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
    silahı tür seçiyor.
 

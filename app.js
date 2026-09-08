@@ -343,6 +343,9 @@ const state = {
     warLog: [],          // son olaylar: { day, msg }
     lordRespawn: {},     // cephede dağılan lord partisi -> hangi gün geri döner
     warSeeded: false,    // dünya kurulurken ilk savaş atandı mı
+    allies: {},          // 'a|b' -> ittifakın kurulduğu gün
+    campaigns: {},       // fraksiyon -> { marshalId, marshalName, targetLocId, day, pledged, helped }
+    campaignCooldown: {}, // fraksiyon -> son seferin bittiği gün
 };
 
 // --- INPUT ---
@@ -1447,10 +1450,16 @@ const Game = {
                     }
                     // Savaştaki lord evinde oturmaz: yakın düşman yerleşimlerinden
                     // birine yürür (warTick orada çarpışmayı/kuşatmayı çözer).
-                    if(lord && this.warsOf(npc.faction).length && Math.random() < 0.35) {
-                        let foes = LOCATIONS.filter(l => l.type !== 'village' && this.atWar(npc.faction, l.faction))
-                                            .sort((a2, b2) => this.dist(a2, npc) - this.dist(b2, npc));
-                        if(foes.length) home = foes[Math.floor(Math.random() * Math.min(3, foes.length))];
+                    if(lord && this.warsOf(npc.faction).length) {
+                        // Sefer varsa ordu dağılmaz, mareşalin hedefine yürür
+                        let camp = state.campaigns[npc.faction];
+                        let ct = camp && LOCATIONS.find(l => l.id === camp.targetLocId);
+                        if(ct && Math.random() < 0.7) home = ct;
+                        else if(Math.random() < 0.35) {
+                            let foes = LOCATIONS.filter(l => l.type !== 'village' && this.atWar(npc.faction, l.faction))
+                                                .sort((a2, b2) => this.dist(a2, npc) - this.dist(b2, npc));
+                            if(foes.length) home = foes[Math.floor(Math.random() * Math.min(3, foes.length))];
+                        }
                     }
                     if(home) {
                         let r = Math.random() < 0.45 ? Math.random() * 200 : 300 + Math.random() * 900;
@@ -1855,6 +1864,7 @@ const Game = {
             }
         }
 
+        this.campaignTick();    // mareşal seçimi, sefer hedefi, oyuncuya çağrı
         this.banditTick();      // haydutlar yoldaki kafileleri vurur
 
         Nobles.dailyTick();
@@ -3082,7 +3092,7 @@ const Game = {
         if(mine) alert(msg);
     },
     declareWar(a, b) {
-        if(!a || !b || a === b || this.atWar(a, b)) return;
+        if(!a || !b || a === b || this.atWar(a, b) || this.allied(a, b)) return;
         state.wars[this.warKey(a, b)] = state.time.day;
         let mine = this.playerFaction() === a || this.playerFaction() === b;
         this.news(`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaşa girdi.`, mine);
@@ -3093,6 +3103,119 @@ const Game = {
         let mine = this.playerFaction() === a || this.playerFaction() === b;
         this.news(`🕊️ ${this.factionName(a)} ile ${this.factionName(b)} barış imzaladı.`, mine);
     },
+    // ---- İTTİFAK ----
+    // Müttefikler birbirine savaş açmaz; birinin düşmanı diğerinin de düşmanı olur.
+    allied(a, b) { return !!(a && b && a !== b && state.allies[this.warKey(a, b)]); },
+    alliesOf(f) {
+        if(!f) return [];
+        return Object.keys(state.allies).filter(k => k.split('|').indexOf(f) !== -1)
+                     .map(k => k.split('|').find(x => x !== f));
+    },
+    makeAlliance(a, b) {
+        if(!a || !b || a === b || this.allied(a, b) || this.atWar(a, b)) return;
+        state.allies[this.warKey(a, b)] = state.time.day;
+        let mine = this.playerFaction() === a || this.playerFaction() === b;
+        this.news(`🤝 ${this.factionName(a)} ile ${this.factionName(b)} ittifak kurdu.`, mine);
+        // İttifakın bedeli: müttefikin cephesi senin cephen olur
+        this.warsOf(a).concat(this.warsOf(b)).forEach(f => {
+            if(f === a || f === b) return;
+            this.declareWar(a, f); this.declareWar(b, f);
+        });
+    },
+    breakAlliance(a, b) {
+        if(!this.allied(a, b)) return;
+        delete state.allies[this.warKey(a, b)];
+        this.news(`💔 ${this.factionName(a)} ile ${this.factionName(b)} ittifakı bozuldu.`,
+                  this.playerFaction() === a || this.playerFaction() === b);
+    },
+
+    // ---- MAREŞAL VE SEFER ----
+    // Savaştaki krallık bir mareşal seçer ve tek bir hedefe yürür: lord partileri
+    // artık rastgele düşman yerleşimine dağılmaz, ordu toplanır (updateNPCs).
+    // Vassal olan oyuncu sefere çağrılır — söz verip gitmemek en pahalı seçenektir.
+    pickMarshal(f) {
+        let ps = state.npcParties.filter(n => n.lordId && n.faction === f && n.size > 0);
+        // Kral sancağı taşır, mareşallik başka bir lorda verilir
+        let lords = ps.filter(n => (Nobles.lord(n.lordId) || {}).rank !== 'king');
+        return (lords.length ? lords : ps).sort((a, b) => b.size - a.size)[0] || null;
+    },
+    campaignTick() {
+        for(let f in state.campaigns) {
+            let c = state.campaigns[f];
+            let loc = LOCATIONS.find(l => l.id === c.targetLocId);
+            // Orduyla birlikte yürüdüysen sayılır — günde bir kez örneklenir
+            if(c.pledged && loc && this.dist(state.player, loc) < 1200) c.helped = true;
+            if(!loc || !this.atWar(f, loc.faction) || state.time.day - c.day > 25) { this.endCampaign(f); continue; }
+            // Sefer işareti haritada durur (Nobles.drawMarkers 3 günde siler, her gün tazeleniyor)
+            if(c.pledged) state.knownLocations['campaign'] =
+                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, name: `Sefer: ${loc.name}` };
+        }
+        Object.keys(FACTIONS).forEach(f => {
+            // Biten seferin ödül modalini yeni sefer çağrısı ezmesin
+            if(state.time.day - (state.campaignCooldown[f] || -99) < 3) return;
+            if(state.campaigns[f] || !this.warsOf(f).length || Math.random() > 0.25) return;
+            let marshal = this.pickMarshal(f);
+            if(!marshal) return;
+            let target = LOCATIONS.filter(l => l.type !== 'village' && this.atWar(f, l.faction))
+                                  .sort((a, b) => this.dist(a, marshal) - this.dist(b, marshal))[0];
+            if(!target) return;
+            state.campaigns[f] = { marshalId: marshal.lordId, marshalName: marshal.name,
+                                   targetLocId: target.id, day: state.time.day };
+            this.news(`🎖️ ${marshal.name} mareşal seçildi — ${this.factionName(f)} ordusu ${target.name} üzerine yürüyor.`);
+            if(f === this.playerFaction()) this.summonToArms(f);
+        });
+    },
+    endCampaign(f) {
+        let c = state.campaigns[f];
+        if(!c) return;
+        delete state.campaigns[f];
+        state.campaignCooldown[f] = state.time.day;
+        let loc = LOCATIONS.find(l => l.id === c.targetLocId);
+        let won = loc && loc.faction === f;
+        this.news(won ? `🎖️ ${this.factionName(f)} seferi ${loc.name} ile taçlandı.`
+                      : `🏳️ ${this.factionName(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
+        if(c.pledged === undefined || f !== this.playerFaction()) return;
+        delete state.knownLocations['campaign'];
+        if(!c.pledged) return;                       // reddedenin bedeli çağrı anında ödendi
+        let king = LORDS.find(l => l.faction === f && l.rank === 'king');
+        let lords = LORDS.filter(l => l.faction === f);
+        if(c.helped && won) {
+            state.player.renown += 15;
+            lords.forEach(l => Nobles.addRel(l.id, 8));
+            alert(`Sefer taçlandı: ${loc.name} alındı ve sen oradaydın.\n+15 nam, ${this.factionName(f)} lordlarıyla +8 ilişki.`);
+        } else if(c.helped) {
+            state.player.renown += 5;
+            lords.forEach(l => Nobles.addRel(l.id, 3));
+            alert(`Sefer sonuç vermedi ama sancağın ordunun yanındaydı.\n+5 nam, lordlarla +3 ilişki.`);
+        } else {
+            if(king) Nobles.addRel(king.id, -8);
+            lords.forEach(l => Nobles.addRel(l.id, -3));
+            alert(`Sefere katılacağını söyleyip ordunun yanına hiç gitmedin.\n${king ? king.name : 'Kralın'} −8, diğer lordlar −3 ilişki.`);
+        }
+    },
+    summonToArms(f) {
+        let c = state.campaigns[f];
+        let loc = LOCATIONS.find(l => l.id === c.targetLocId);
+        let king = LORDS.find(l => l.faction === f && l.rank === 'king');
+        this.showModal(`<h3>🎖️ Sefer Çağrısı</h3>
+        <p>${king ? king.name : 'Kralın'} bütün derebeylerini sancağı altında topluyor.
+        <b>${c.marshalName}</b> mareşal seçildi; ordu <b>${loc.name}</b> üzerine yürüyor.</p>
+        <p style="color:var(--text-muted)">Katılırsan hedefin yakınında bulunman gerekir — harita
+        sefer işaretini gösterir. Söz verip gitmemek, çağrıyı baştan reddetmekten pahalıdır.</p>
+        <div style="display:flex;gap:1rem;margin-top:1rem">
+        <button class="btn primary" onclick="Game.answerSummons(true)">⚔️ Sefere Katıl</button>
+        <button class="btn" onclick="Game.answerSummons(false)">🚪 Reddet</button></div>`);
+    },
+    answerSummons(join) {
+        let f = this.playerFaction(), c = state.campaigns[f];
+        this.closeModal();
+        if(!c) return;
+        c.pledged = !!join;
+        if(join) return alert('Sancağını kaldırdın. Ordunun hedefine yürü — sefer işareti haritada.');
+        LORDS.filter(l => l.faction === f).forEach(l => Nobles.addRel(l.id, -5));
+        alert('Çağrıyı geri çevirdin. Krallığın bütün lordlarıyla ilişkin −5.');
+    },
+
     // Dünya kurulurken bir cephe açık başlar (Kalradya hiç sakin değildir)
     initDiplomacy() {
         if(state.warSeeded) return;
@@ -3106,9 +3229,26 @@ const Game = {
     // Günlük zar: uzayan savaşlar barışla biter, iki cepheden fazlası açılmaz
     diplomacyTick() {
         for(let k in state.wars) {
-            let len = state.time.day - state.wars[k];
-            if(len >= 15 && Math.random() < 0.06 + len * 0.004) {
-                let p = k.split('|'); this.makePeace(p[0], p[1]);
+            let len = state.time.day - state.wars[k], p = k.split('|');
+            // İki toprağa düşen krallık barış için yalvarır — yoksa eziliyor
+            let weak = p.some(f => LOCATIONS.filter(l => l.type !== 'village' && l.faction === f).length <= 2);
+            if(len >= (weak ? 5 : 15) && Math.random() < (weak ? 0.25 : 0.06 + len * 0.004)) this.makePeace(p[0], p[1]);
+        }
+        // Ortak düşmanı olan iki barışık krallık el sıkışır
+        if(Math.random() < 0.05) {
+            let fs = Object.keys(FACTIONS).filter(f => f !== 'player_kingdom');
+            let pairs = [];
+            fs.forEach(a => fs.forEach(b => {
+                if(a >= b || this.atWar(a, b) || this.allied(a, b)) return;
+                if(this.warsOf(a).some(x => this.warsOf(b).indexOf(x) !== -1)) pairs.push([a, b]);
+            }));
+            let p = pairs[Math.floor(Math.random() * pairs.length)];
+            if(p) this.makeAlliance(p[0], p[1]);
+        }
+        // Eskiyen ittifak dağılır
+        for(let k in state.allies) {
+            if(state.time.day - state.allies[k] > 25 && Math.random() < 0.05) {
+                let p = k.split('|'); this.breakAlliance(p[0], p[1]);
             }
         }
         if(Math.random() < 0.10) {
@@ -3135,6 +3275,10 @@ const Game = {
         }
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village') return;
+            // Sefer sistemi orduları tek hedefte topladığı için fetih hızlandı; son
+            // şehrini/kalesini de kaptıran krallık haritadan siliniyordu. Son toprak
+            // alınamaz — o krallık artık barışa zorlanır (diplomacyTick).
+            if(LOCATIONS.filter(l => l.type !== 'village' && l.faction === loc.faction).length <= 1) return;
             let g = this.garrisonOf(loc);
             let atk = parties.find(p => p.size > 0 && this.atWar(p.faction, loc.faction)
                                         && this.dist(p, loc) < 500 && p.size > g * 1.3);
@@ -3198,7 +3342,18 @@ const Game = {
                 <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${FACTIONS[f].name}</span>
                 <span style="color:var(--text-muted);min-width:70px">${holds} toprak</span>
                 <span>${foes.length ? '⚔️ ' + foes.map(x => this.factionName(x)).join(', ')
-                                    : '<span style="color:#2ecc71">🕊️ Barış içinde</span>'}</span></div>`;
+                                    : '<span style="color:#2ecc71">🕊️ Barış içinde</span>'}${
+                    this.alliesOf(f).length ? ` <span style="color:#6fc3ff">🤝 ${this.alliesOf(f).map(x => this.factionName(x)).join(', ')}</span>` : ''
+                }</span></div>`;
+        }).join('');
+        // Yürüyen seferler: kim mareşal, ordu nereye gidiyor
+        let camps = Object.keys(state.campaigns).map(f => {
+            let c = state.campaigns[f], t = LOCATIONS.find(l => l.id === c.targetLocId);
+            return `<div style="padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
+                <span style="color:${(FACTIONS[f]||{}).color||'#fff'};font-weight:600">${this.factionName(f)}</span>
+                — 🎖️ ${c.marshalName} → <b>${t ? t.name : '?'}</b>
+                ${c.pledged ? '<span style="color:#2ecc71">· sancağın orada</span>'
+                            : c.pledged === false ? '<span style="color:var(--danger)">· çağrıyı reddettin</span>' : ''}</div>`;
         }).join('');
         let log = state.warLog.length
             ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${n.day}. gün</span> — ${n.msg}</div>`).join('')
@@ -3214,6 +3369,7 @@ const Game = {
                     <span style="color:#ffcc00;min-width:110px">+${this.fiefTax(l)} dinar/gün</span>
                     <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">🛡️ ${(l.garrison || []).length} garnizon</span>
                 </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> dinar/gün</div>` : ''}
+            ${camps ? `<h3 style="margin-top:1rem">🎖️ Yürüyen Seferler</h3>${camps}` : ''}
             <h3 style="margin-top:1rem">📜 Haberler</h3>
             <div style="max-height:220px;overflow:auto;font-size:0.92rem">${log}</div>
             <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Kapat</button>`, '640px');
