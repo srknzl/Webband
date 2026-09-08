@@ -289,6 +289,8 @@ Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ü
   şölen (varsa katıl; kendi krallığındaysa ver), gönüllü toplama
 - **Kale**: lordlar salonu, şölen (varsa)
 - Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
+- **Kendi tımarında** (`loc.owner === 'player'`, köy hariç): **🛡️ Garnizon** ve **📦 Depo**
+  düğmeleri en üstte çıkar (bkz. "Tımar yönetimi").
 - **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı,
   **köyü yağmalama**. Savaştaki krallığın köyünde yalnızca yağma seçeneği çıkar — düşman
   köyü sana ne asker ne erzak verir.
@@ -604,11 +606,37 @@ krallığını ilgilendiren olayda bildirim çıkarır.
   38 fetih üretiyor ve iki krallığı 150. günde haritadan siliyordu.
 
 ### Kuşatma & krallık kurma
-Şehir/kale kuşatması normal savaş olarak oynanır (garnizon `Game.garrisonOf(loc)`: şehir 30,
-kale 15 temel, refahla ±%30).
+Şehir/kale kuşatması normal savaş olarak oynanır. Garnizon `Game.garrisonOf(loc)`: **senin
+tımarındaysa oradaki gerçek asker sayısı**, değilse şehir 30 / kale 15 temel, refahla ±%30.
 Kazanılırsa yerleşim vassalı olunan fraksiyona geçer; bağımsızsan **kendi krallığını** kurarsın
 (`FACTIONS.player_kingdom` runtime'da oluşturulur). Her iki durumda fethedilen yerleşimin eski
-sahibiyle **savaş ilan edilir** (`Game.declareWar`).
+sahibiyle **savaş ilan edilir** (`Game.declareWar`) ve yerleşim **senin tımarın olur**
+(`Game.grantFief` → aşağıdaki bölüm). Fetih bilgisi zafer modalinde yazar; `alert()` kullanılmaz,
+zafer ekranı onu eziyordu.
+
+### Tımar yönetimi (#23)
+Fethedilen yerleşim artık bayrak değişikliğinden ibaret değil: `loc.owner === 'player'` olur
+(`Game.grantFief`, 900 birim içindeki köyler de seninle beraber gelir) ve üç şey açar.
+
+| Ne | Nerede | Kural |
+|---|---|---|
+| **Vergi** | her gün, `dailyUpdate` | `Game.fiefTax(loc)` = `refah × (şehir 2 / kale 0.7 / köy 1)`. Ölçüldü: 55 refahlı şehir +110, 69 refahlı şehir +141, tipik kale ~+45 |
+| **Garnizon** | yerleşim ekranı → 🛡️ Garnizon | `loc.garrison[]` gerçek asker nesneleri; grup kapasitenden düşmez ama **maaşı `upkeep()`'e eklenir**. Yoldaş garnizonda kalamaz |
+| **Depo** | yerleşim ekranı → 📦 Depo | `loc.storage[]`; **depodaki erzak bozulmaz** (`spoilFood` yalnız `state.player.inventory`'yi gezer) ve yenilgide yağmalanmaz |
+
+- Maaş tek kuraldan okunur: `Game.troopWage(t)` (yoldaş 20, lvl 51 bedava, lvl 20+ `level/2`,
+  lvl 10+ 2, altı bedava) — hem `upkeep()` hem `fiefIncome()` bunu çağırır.
+- `Game.fiefIncome()` = `{tax, wage, troops, net}`. Hazine künyesinde "Tımar vergisi" satırı,
+  diplomasi ekranında (**K**) tımar listesi + net gelir görünür.
+- **Denge**: garnizonu elit askerle doldurmak zarardır — ölçüldü, 12 şövalye (lvl 30) 180
+  dinar/gün yer, 141 dinarlık şehri **−39**'a düşürür. Ucuz askerle doldurmak Warband'daki
+  gibi doğru hamledir.
+- **Savunmasız tımar geri alınır**: `warTick`'in kuşatma eşiği `garrisonOf`'a bakar, yani
+  garnizonsuz tımarı düşman lord ilk uğradığında alır. `captureSettlement` o zaman
+  `owner`'ı düşürür, **garnizonu yok eder** ve haberi modal olarak sana gösterir; depo kalır.
+- `owner` / `garrison` / `storage` kayda yazılır (`Save.save`'deki `locations` dizisi).
+
+*Eksik: kral olarak vassallarına tımar dağıtma (oyuncunun vassalı yok).*
 
 ### Turnuva
 `TournamentMinigame.start(opts)` — varsayılan 25 saniyede 12 hedefe tıklama. Hedef boyutu
@@ -728,10 +756,12 @@ Kalanlar:
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
 2. Diplomaside marshal/sefer çağrısı ve ittifak yok: kral seni sefere çağırmıyor, krallıklar
    birbirine karşı ittifak kurmuyor (savaş/barış ve cephe var, bkz. "Diplomasi").
-3. Haydutlar kervanlara saldırmıyor: NPC↔NPC çatışması yalnız lord partileri arasında
+3. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
+   yalnızca oyuncunun kendisine veriliyor.
+4. Haydutlar kervanlara saldırmıyor: NPC↔NPC çatışması yalnız lord partileri arasında
    (`warTick`) çözülüyor, kafileler yalnız oyuncu tarafından soyulabiliyor.
-4. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
-5. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
+5. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+6. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
    ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
    silahı tür seçiyor.
 

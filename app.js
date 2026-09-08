@@ -1683,6 +1683,8 @@ const Game = {
         // esaret sırasında da dönmeli. Eskiden esaret bloğu return ediyordu ve
         // nişanlıyken esir düşenin düğünü hiç kurulmuyordu.
         if(!state.player.prisoner) {
+            let fief = this.fiefIncome();                 // tımar vergisi (garnizon maaşı upkeep'te)
+            if(fief.tax) state.player.money += fief.tax;
             let up = this.upkeep();
             let totalWage = up.wage;
             let foodRequiredLow = up.foodLow;
@@ -1886,6 +1888,7 @@ const Game = {
             R('Kesede', Math.floor(p.money) + ' dinar', null) +
             R('Günlük asker maaşı', '-' + up.wage, false) +
             R('Günlük yemek', `-${Math.ceil(up.foodLow)} birim${up.foodHigh ? ` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
+            (this.myFiefs().length ? R('Tımar vergisi', `+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
             (p.spouse ? R('Evlilik geliri', '+50', true) : '') +
             (p.wageDebt > 0 ? R('Gecikmiş maaş', `${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
             (p.wageDebt > 0 ? R('Saatlik moral kaybı', '-1', false) : ''),
@@ -2689,6 +2692,10 @@ const Game = {
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
             this.addBtn(ac, '⚔️ Kuşat ve Saldır!', () => this.besiegeLocation(loc));
         } else {
+            if(loc.owner === 'player' && loc.type !== 'village') {
+                this.addBtn(ac, `🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
+                this.addBtn(ac, `📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));
+            }
             if(loc.type === 'city') {
                 this.addBtn(ac, '🛒 Pazara Git', () => this.openMarket(loc));
                 this.addBtn(ac, '🍺 Hana Gir', () => this.openTavern(loc));
@@ -3124,14 +3131,24 @@ const Game = {
     },
     captureSettlement(loc, atk) {
         let old = loc.faction;
+        let wasMine = loc.owner === 'player';
         loc.faction = atk.faction;
         loc.capturedDay = state.time.day;
         atk.size = Math.max(10, Math.round(atk.size * 0.6));   // kuşatma orduyu yer
         // Kalenin/şehrin çevresindeki köyler de el değiştirir
         LOCATIONS.filter(l => l.type === 'village' && l.faction === old && this.dist(l, loc) < 900)
-                 .forEach(l => l.faction = atk.faction);
-        let mine = [old, atk.faction].indexOf(this.playerFaction()) !== -1;
-        this.news(`🏰 ${loc.name}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.`, mine);
+                 .forEach(l => { l.faction = atk.faction; l.owner = null; });
+        // Savunmasız bıraktığın tımar elden çıkar; garnizonun kılıçtan geçer
+        // ponytail: depo el değiştirmez — yeni sahibi mahzeni bulamamış sayılır
+        let lostFief = '';
+        if(wasMine) {
+            let lost = (loc.garrison || []).length;
+            loc.owner = null; loc.garrison = [];
+            lostFief = `<br><b style="color:#e0463a">⚔️ ${loc.name} senin tımarındı!</b> `
+                + (lost ? `${lost} kişilik garnizonun kılıçtan geçti.` : 'Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.');
+        }
+        let mine = wasMine || [old, atk.faction].indexOf(this.playerFaction()) !== -1;
+        this.news(`🏰 ${loc.name}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.${lostFief}`, mine);
     },
     // Diplomasi ekranı: kim kiminle savaşta, kimin kaç toprağı var, son haberler
     showDiplomacy() {
@@ -3151,14 +3168,130 @@ const Game = {
         this.showModal(`<h3>🌍 Kalradya'nın Hâli</h3>
             ${mine ? `<p style="color:var(--text-muted)">Bağlılığın: <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? ' — savaştasın!' : ''}</p>` : ''}
             ${rows}
+            ${this.myFiefs().length ? `<h3 style="margin-top:1rem">🏰 Tımarların</h3>` + this.myFiefs().map(l =>
+                `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
+                    <span style="min-width:150px;font-weight:600">${l.name}</span>
+                    <span style="color:var(--text-muted);min-width:70px">${l.type === 'city' ? 'Şehir' : l.type === 'castle' ? 'Kale' : 'Köy'}</span>
+                    <span style="color:#ffcc00;min-width:110px">+${this.fiefTax(l)} dinar/gün</span>
+                    <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">🛡️ ${(l.garrison || []).length} garnizon</span>
+                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> dinar/gün</div>` : ''}
             <h3 style="margin-top:1rem">📜 Haberler</h3>
             <div style="max-height:220px;overflow:auto;font-size:0.92rem">${log}</div>
             <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Kapat</button>`, '640px');
     },
 
     garrisonOf(loc) {
+        // Senin tımarında garnizon bir formül değil, oradaki gerçek askerlerdir (#23)
+        if(loc.owner === 'player') return (loc.garrison || []).length;
         let base = loc.type === 'city' ? 30 : loc.type === 'castle' ? 15 : 0;
         return Math.round(base * (0.6 + (loc.prosperity || 50) / 125));
+    },
+
+    // --- TIMAR YÖNETİMİ (#23) ---
+    // Fethettiğin yerleşim artık bayrak değişikliğinden ibaret değil: garnizon
+    // bırakırsın (maaşını sen ödersin), günlük vergi getirir, depoya erzak koyarsın.
+    // Savunmasız bıraktığın tımarı düşman lordlar geri alır (warTick → captureSettlement).
+    myFiefs() { return LOCATIONS.filter(l => l.owner === 'player'); },
+    fiefTax(loc) { return Math.round((loc.prosperity || 50) * (loc.type === 'city' ? 2 : loc.type === 'castle' ? 0.7 : 1)); },
+    troopWage(t) { return t.isCompanion ? 20 : t.level >= 51 ? 0 : t.level >= 20 ? Math.floor(t.level / 2) : t.level >= 10 ? 2 : 0; },
+    fiefIncome() {
+        let tax = 0, wage = 0, troops = 0;
+        this.myFiefs().forEach(l => {
+            tax += this.fiefTax(l);
+            (l.garrison || []).forEach(t => { wage += this.troopWage(t); troops++; });
+        });
+        return { tax, wage, troops, net: tax - wage };
+    },
+    // Fetihten sonra: yerleşim senin tımarın olur, çevresindeki köyler de bayrak değiştirir
+    grantFief(loc, oldFaction) {
+        loc.owner = 'player';
+        loc.capturedDay = state.time.day;
+        loc.garrison = loc.garrison || [];
+        LOCATIONS.filter(l => l.type === 'village' && l.faction === oldFaction && this.dist(l, loc) < 900)
+                 .forEach(l => { l.faction = loc.faction; l.owner = 'player'; });
+    },
+    troopGroups(list) {
+        let g = {};
+        (list || []).forEach(t => {
+            let k = this.troopLabel(t);
+            if(!g[k]) g[k] = { sample: t, n: 0 };
+            g[k].n++;
+        });
+        return g;
+    },
+    openGarrison(loc) {
+        loc.garrison = loc.garrison || [];
+        let cap = this.getPartyCapacity();
+        let btns = (label, dir, max) => [1, 5, max].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
+            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveGarrison('${loc.id}','${label.replace(/'/g,"\\'")}',${v},'${dir}')">${v === max && max > 5 ? 'Hepsi' : v}</button>`).join(' ');
+        let col = (title, groups, dir, empty) => {
+            let rows = Object.keys(groups).map(k => {
+                let g = groups[k];
+                let blocked = dir === 'in' && g.sample.isCompanion;
+                return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
+                    <span>${this.troopStats(g.sample).icon} ${k} <b>x${g.n}</b></span>
+                    <span>${blocked ? '<span style="color:var(--text-muted);font-size:0.75rem">yoldaş kalamaz</span>' : btns(k, dir, g.n)}</span></li>`;
+            }).join('');
+            return `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${rows || `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
+        };
+        let inc = this.fiefIncome();
+        this.showModal(`<h3>🛡️ ${loc.name} Garnizonu</h3>
+        <p style="color:var(--text-muted)">Garnizon: <b>${loc.garrison.length}</b> asker · günlük maaşı <b>${loc.garrison.reduce((a, t) => a + this.troopWage(t), 0)}</b> dinar ·
+           bu tımarın vergisi <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> dinar/gün.
+           <br>Garnizon grup kapasitenden düşmez ama maaşını sen ödersin; düşman kuşatması bu sayıya bakar.</p>
+        <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
+            ${col('Grubun (' + state.player.party.length + '/' + cap + ')', this.troopGroups(state.player.party), 'in', 'Yanında asker yok.')}
+            ${col('Garnizon', this.troopGroups(loc.garrison), 'out', 'Kale boş — ilk saldırıda düşer.')}
+        </div>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.8rem">Tüm tımarlarının garnizonu: ${inc.troops} asker · ${inc.wage} dinar/gün</p>
+        <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">Kapat</button>`, '700px');
+    },
+    moveGarrison(locId, label, n, dir) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc) return;
+        loc.garrison = loc.garrison || [];
+        let from = dir === 'in' ? state.player.party : loc.garrison;
+        let to = dir === 'in' ? loc.garrison : state.player.party;
+        if(dir === 'out') n = Math.min(n, Math.max(0, this.getPartyCapacity() - state.player.party.length));
+        for(let i = 0; i < n; i++) {
+            let idx = from.findIndex(t => this.troopLabel(t) === label && !(dir === 'in' && t.isCompanion));
+            if(idx === -1) break;
+            to.push(from.splice(idx, 1)[0]);
+        }
+        this.openGarrison(loc);
+        this.updateTopBar();
+    },
+    openStorage(loc) {
+        loc.storage = loc.storage || [];
+        let btns = (id, dir, max) => [1, 5, max].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
+            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? 'Hepsi' : v}</button>`).join(' ');
+        let col = (title, list, dir, empty) => `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${
+            list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
+                <span>${i.icon} ${i.name} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
+            : `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
+        this.showModal(`<h3>📦 ${loc.name} Deposu</h3>
+        <p style="color:var(--text-muted)">Depodaki erzak bozulmaz (bozulma yalnız yanında taşıdığına işler) ve yenilgide yağmalanmaz.</p>
+        <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
+            ${col('Yanındakiler', state.player.inventory, 'in', 'Çantan boş.')}
+            ${col('Depo', loc.storage, 'out', 'Depo boş.')}
+        </div>
+        <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">Kapat</button>`, '700px');
+    },
+    moveStorage(locId, itemId, n, dir) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc) return;
+        loc.storage = loc.storage || [];
+        let from = dir === 'in' ? state.player.inventory : loc.storage;
+        let to = dir === 'in' ? loc.storage : state.player.inventory;
+        let src = from.find(i => i.id === itemId);
+        if(!src) return;
+        let q = Math.min(n, src.qty);
+        let dst = to.find(i => i.id === itemId);
+        if(dst) dst.qty += q; else to.push({ ...src, qty: q, decay: 0 });
+        src.qty -= q;
+        if(src.qty <= 0) from.splice(from.indexOf(src), 1);
+        this.openStorage(loc);
+        this.updateTopBar();
     },
     // Yerleşimin sahibi lord; köylerin kendi lordu yok, en yakın kale/şehre bağlıdırlar
     ownerLord(loc) {
@@ -3725,13 +3858,13 @@ const Game = {
     upkeep() {
         let wage = 0, foodLow = 0, foodHigh = 0;
         state.player.party.forEach(t => {
-            if(t.isCompanion) { wage += 20; foodLow += 1; return; } // yoldaş pahalıdır
-            if(t.level >= 51) return;                               // efsanevi bedava
-            if(t.level >= 20) wage += Math.floor(t.level / 2);
-            else if(t.level >= 10) wage += 2;
+            wage += this.troopWage(t);                              // yoldaş 20, lvl51 bedava
+            if(t.isCompanion) { foodLow += 1; return; }
+            if(t.level >= 51) return;
             foodLow += t.level >= 20 ? 1.5 : 1;
             if(t.level >= 30) foodHigh += 1;
         });
+        wage += this.fiefIncome().wage;   // tımar garnizonunun maaşı da senden çıkar (#23)
         return { wage, foodLow, foodHigh };
     },
 
@@ -5466,6 +5599,7 @@ const Battle = {
             else Game.addProficiencyXp('athletics', 40 * enemyCount);
 
             // Kuşatma
+            let conquestTxt = '';
             if(state.player.currentSiege) {
                 let s = state.player.currentSiege;
                 let loc = LOCATIONS.find(l=>l.id===s.locId);
@@ -5475,13 +5609,18 @@ const Battle = {
                         FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+' Krallığı', color:Game.bannerColor(), ruler:state.player.name};
                         state.player.vassalOf = 'player_kingdom';
                         loc.faction = 'player_kingdom';
+                        Game.grantFief(loc, oldF);
                         Game.declareWar('player_kingdom', oldF);
-                        alert(`${loc.name} fethedildi! Kendi krallığını ilan ettin!`);
+                        conquestTxt = `<b>${loc.name} fethedildi — kendi krallığını ilan ettin!</b>`;
                     } else if(state.player.vassalOf) {
                         loc.faction = state.player.vassalOf;
+                        Game.grantFief(loc, oldF);
                         Game.declareWar(state.player.vassalOf, oldF);
-                        alert(`${loc.name} fethedildi! ${(FACTIONS[state.player.vassalOf]||{name:'?'}).name} adına aldın.`);
+                        conquestTxt = `<b>${loc.name} fethedildi!</b> ${(FACTIONS[state.player.vassalOf]||{name:'?'}).name} adına aldın; kralın burayı sana tımar verdi.`;
                     }
+                    // Fetih bilgisi zafer modalinde durur: alert() zafer ekranıyla eziliyordu
+                    if(conquestTxt) conquestTxt += `<br>Tımar geliri <b style="color:#ffcc00">+${Game.fiefTax(loc)} dinar/gün</b>. `
+                        + `Garnizon bırakmazsan düşman ilk fırsatta geri alır (yerleşim ekranı → 🛡️ Garnizon).`;
                 }
                 state.player.currentSiege = null;
             }
@@ -5540,6 +5679,7 @@ const Battle = {
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Tecrübe:</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
                     <p><b>Kayıplar:</b> <span style="color:#e74c3c">${killed} ölü</span> · <span style="color:#ffaa00">${saved} yaralı</span> 🩹</p>
                     ${captured ? `<p style="margin-top:0.8rem"><b>Esir Alınan:</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:0.85rem;color:var(--text-muted)">(şehirdeki köle tüccarına satabilirsin)</span></p>` : ''}
+                    ${conquestTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">🏰 ${conquestTxt}</p>` : ''}
                     ${cargoTxt ? `<p style="margin-top:0.8rem"><b>Yük Ganimeti:</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
                     ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>👑 ${nobleTaken} esir alındı!</b> <span style="font-size:0.85rem;color:var(--text-muted)">Grup ekranından fidye iste ya da salıver.</span></p>` : ''}
                 </div>
@@ -5762,7 +5902,8 @@ const Save = {
                 state: { ...state },
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
-                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay })),
+                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
+                    owner: l.owner, garrison: l.garrison, storage: l.storage })),
                 playerKingdom: FACTIONS['player_kingdom'] || null
             }));
             alert('Oyun kaydedildi.');
