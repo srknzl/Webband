@@ -1709,7 +1709,7 @@ const Game = {
             // Yakılan köy daha hızlı toparlanır; zaten zengin yerleşim yavaş büyür
             if(loc.prosperity !== undefined && loc.prosperity < 90) loc.prosperity += loc.prosperity < 50 ? 0.4 : 0.15;
         });
-        this.priceTick();   // arz/talep dengesi kendi tabanına döner (#24)
+        this.stockTick();   // stok tabanına döner, fiyat da onunla (#24/#46)
 
         // Gönüllü yenilenmesi (şehirler ve köyler için 2 günde bir)
         LOCATIONS.forEach(loc => {
@@ -2891,26 +2891,45 @@ const Game = {
         if(loc.type === 'village' && it) m *= it.type === 'food' ? 0.8 : 1.15;   // köy erzağı ucuz, ticaret malı pahalı
         return m * (1.15 - (loc.prosperity || 50) / 400);                        // bolluk fiyatı düşürür
     },
-    priceMult(loc, id) {
-        if(!loc.prices) loc.prices = {};
-        if(loc.prices[id] === undefined) loc.prices[id] = this.basePriceMult(loc, id);
-        return loc.prices[id];
+    // Fiyat = bölge tabanı × arz eğrisi. Ayrı bir "fiyat durumu" yok: oynayan tek şey stok.
+    priceMult(loc, id) { return this.basePriceMult(loc, id) * this.supplyMul(loc, id); },
+
+    // --- SINIRLI STOK VE ARZ EĞRİSİ (#46) ---
+    // Yerleşimin elindeki mal sınırlıdır: aldıkça biter ve pahalanır, sattıkça bollaşır ve
+    // ucuzlar, her gün refahla orantılı yenilenir. Bir köyü boşaltmak sonraki alımı pahalı
+    // yapar — "ucuz köyü bul, hepsini al" artık gerçek bir karar.
+    STOCK_SCALE: { city: 500, village: 190, castle: 150 },   // stok ölçeği — √fiyat ile bölünür
+    stocked(id) { let it = ITEMS[id]; return !!it && (it.type === 'food' || it.type === 'trade'); },
+    stockBase(loc, id) {
+        // Üretim bölgesinde bol, uzağında kıt (aynı `GOOD_ORIGIN` tablosu); refah depoyu büyütür.
+        // Değere göre normalize: şehir her maldan aynı sayıda değil, aynı değerde tutar.
+        let orig = (this.GOOD_ORIGIN[loc.faction] || {})[id] || 1;
+        // Pahalı mal az bulunur ama fiyatla ters orantılı değil (√fiyat): tam orantıda bir şehirde
+        // 6 top kadife kalıyordu, tek yük bile pazarı boşaltıp ticareti zarara sokuyordu.
+        return Math.max(3, Math.round((this.STOCK_SCALE[loc.type] || 150) * (0.55 + (loc.prosperity || 50) / 110)
+            / (orig * Math.sqrt(ITEMS[id].basePrice))));
     },
-    // Alım fiyatı yükseltir, satım düşürür — birim başına %0.8, taban çarpanın 0.5–1.8 katı
-    // arasında. (%2 denendi: 20 birimlik tek yük fiyatı %49 oynatıp kârı %8'e indiriyordu.)
-    priceImpact(loc, id, n) {
-        let base = this.basePriceMult(loc, id);
-        let m = this.priceMult(loc, id) * (1 + 0.008 * n);
-        loc.prices[id] = Math.max(base * 0.5, Math.min(base * 1.8, m));
+    stock(loc, id) {
+        if(!this.stocked(id)) return Infinity;
+        if(!loc.stock) loc.stock = {};
+        if(loc.stock[id] === undefined) loc.stock[id] = this.stockBase(loc, id);
+        return loc.stock[id];
     },
-    // Her gün fiyat kendi tabanına %12 yaklaşır; taban değere oturunca kayıt şişmesin diye silinir
-    priceTick() {
+    addStock(loc, id, n) { if(this.stocked(id)) loc.stock[id] = Math.max(0, this.stock(loc, id) + n); },
+    // Arz eğrisi 1/√oran: stok yarıya inince fiyat ×1.41, ikiye katlanınca ×0.71 (0.55–2.0 sınırlı)
+    supplyMul(loc, id) {
+        if(!this.stocked(id)) return 1;
+        let r = Math.max(0.05, this.stock(loc, id) / this.stockBase(loc, id));
+        return Math.max(0.55, Math.min(2, Math.pow(r, -0.5)));
+    },
+    // Her gün stok tabanına yaklaşır (üretim/tüketim); tabana oturunca kayıt şişmesin diye silinir
+    stockTick() {
         LOCATIONS.forEach(l => {
-            if(!l.prices) return;
-            for(let id in l.prices) {
-                let base = this.basePriceMult(l, id);
-                l.prices[id] += (base - l.prices[id]) * 0.12;
-                if(Math.abs(l.prices[id] - base) < 0.005) delete l.prices[id];
+            if(!l.stock) return;
+            for(let id in l.stock) {
+                let base = this.stockBase(l, id);
+                l.stock[id] += (base - l.stock[id]) * (0.08 + (l.prosperity || 50) / 700);
+                if(Math.abs(l.stock[id] - base) < 0.5) delete l.stock[id];
             }
         });
     },
@@ -2958,10 +2977,15 @@ const Game = {
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
             li.id = 'mrow-buy-' + item.id;   // satır her yenilemede yeniden kurulur; parlatma id'den bulur
             let note = this.itemNote(item);
+            // Stok (#46): sınırlı mal kaç tane kalmış, tükendiyse buton yok
+            let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
+            let empty = st <= 0;
             li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> `
                 + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button> `
-                + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',5)">x5</button>`
+                + (isFinite(st) ? `<span style="font-size:0.72rem;color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">stok ${st}</span> ` : '')
+                + (empty ? `<i style="font-size:0.8rem;color:var(--text-muted)">tükendi</i>`
+                    : `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button> `
+                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',5)">x5</button>`)
                 + (note ? `<div style="font-size:0.7rem;color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
         });
@@ -3041,24 +3065,30 @@ const Game = {
         this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
     },
     buyItem(id, n = 1) {
-        let price = this.marketPrice(id);
-        if(price === null) return alert('Bu eşya pazarda yok.');
-        // Parası yetmiyorsa alabildiği kadarını al, sessizce hiçbir şey yapma.
-        let can = Math.min(n, Math.floor(state.player.money / price));
+        if(this.marketPrice(id) === null) return alert('Bu eşya pazarda yok.');
+        let loc = this._marketLoc, out = false, cost = 0, can = 0;
+        // Fiyat birim birim hesaplanır: her alınan mal stoku düşürür, düşen stok bir sonrakini
+        // pahalılaştırır. (Tek fiyatla toplu almak ucuza gelirdi — teker teker al/toplu al farkı.)
+        for(; can < n; can++) {
+            if(loc && this.stock(loc, id) < 1) { out = true; break; }
+            let p = this.marketPrice(id);
+            if(state.player.money - cost < p) break;
+            cost += p;
+            if(loc) this.addStock(loc, id, -1);
+        }
         if(can <= 0) {
             this.feedback('error', document.getElementById('mrow-buy-' + id));
-            return this.marketMsg(`Yeterli dinarın yok — ${ITEMS[id].name} ${price}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
+            return this.marketMsg(out ? `${ITEMS[id].name} kalmadı — pazarın stoku tükendi, birkaç gün sonra gel.`
+                : `Yeterli dinarın yok — ${ITEMS[id].name} ${this.marketPrice(id)}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
         }
-        let cost = price * can;
         state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
         if(ex) ex.qty += can; else state.player.inventory.push({...ITEMS[id], qty:can});
         this.addProficiencyXp('trade', 4 * can);
-        if(this._marketLoc) this.priceImpact(this._marketLoc, id, can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
         this.marketMsg(`${ITEMS[id].icon} <b>${ITEMS[id].name} x${can}</b> alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`
-            + (can < n ? ` <i>(paran ${n} taneye yetmedi)</i>` : ''));
+            + (can < n ? ` <i>(${out ? 'stok bitti' : `paran ${n} taneye yetmedi`})</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
         // Parlatma yenilemeden SONRA: satır elemanı yeniden kuruluyor
         this.feedback('buy', document.getElementById('mrow-buy-' + id), -cost);
@@ -3069,11 +3099,14 @@ const Game = {
         if(idx === -1) return;
         let item = state.player.inventory[idx];
         if(item.type !== 'trade') { this.sfx('error'); return alert('Bu eşya pazarda satılmıyor.'); }
-        let can = Math.min(n, item.qty);
-        let price = this.marketPrice(id, true), gain = price * can;
+        let can = Math.min(n, item.qty), gain = 0;
+        // Sattığın mal pazarın stokuna girer: her satılan birim bir sonrakinin fiyatını düşürür.
+        for(let i = 0; i < can; i++) {
+            gain += this.marketPrice(id, true);
+            if(this._marketLoc) this.addStock(this._marketLoc, id, 1);
+        }
         state.player.money += gain;
         this.addProficiencyXp('trade', 4 * can);
-        if(this._marketLoc) this.priceImpact(this._marketLoc, id, -can);
         item.qty -= can;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
         this.marketMsg(`${item.icon||'📦'} <b>${item.name} x${can}</b> satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`);
@@ -4834,7 +4867,7 @@ const Save = {
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
                 locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
-                    owner: l.owner, garrison: l.garrison, storage: l.storage, prices: l.prices })),
+                    owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock })),
                 playerKingdom: FACTIONS['player_kingdom'] || null
             }));
             alert('Oyun kaydedildi.');

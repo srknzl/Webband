@@ -353,23 +353,44 @@ Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara
   Rodok bira 0.65 / demir 0.80, Veagir et 0.70, Nord tuz 0.70, Kergit peynir 0.70; uzak
   krallıkta 1.20–1.35) × yerleşim+mal hash'inden sabit ±%12 sapma × köy düzeltmesi
   (erzak ×0.8, ticaret malı ×1.15) × refah (`1.15 − refah/400`).
-- `Game.priceMult(loc, id)` bu tabanı `loc.prices[id]`'ye yazar ve **oradan okur** —
-  yani fiyat oynayabilir bir durumdur, kayda girer.
-- **Sen aldıkça pahalanır, sattıkça ucuzlar**: `priceImpact` birim başına **%0.8**,
-  taban çarpanın 0.5–1.8 katıyla sınırlı. *(%2 denendi: 20 birimlik tek yük fiyatı %49
-  oynatıp kârı %8'e indiriyordu — piyasa oyuncunun tek yüküne fazla duyarlıydı.)*
-- `Game.priceTick()` her gün fiyatı tabanına **%12** yaklaştırır; oturunca anahtarı siler.
+- `Game.priceMult(loc, id)` = taban × **arz eğrisi** (`supplyMul`). Fiyatın kendi durumu yoktur;
+  oynayan tek şey **stoktur** (aşağıda). Aynı gün pazara ikinci kez girmek fiyatı değiştirmez —
+  ölçüldü: Praven'de bira iki girişte de 44₺.
 - Pazar listesinde ve lonca defterinde `Game.priceTag()` rozetleri: **ucuz** ≤ −%12 yeşil,
   **pahalı** ≥ +%12 kırmızı.
 - **Lonca fiyat defteri** (han → ⚖️ Lonca Ustası → 📈 Fiyat Defterine Bak,
   `Game.guildPrices`): en yakın 5 şehrin bütün erzak/ticaret mallarındaki fiyatı tek tabloda.
   Rota kurmanın bilgi kaynağı bu — Warband'daki "ticaret malları fiyatları" ekranı.
 
-Ölçüldü (yeni dünya, ticaret yeteneği 1): en ucuz→en pahalı şehir arası **tek yükün kârı**
-20 bira Jelkala→Reyvadin **+220 dinar (%33)**, 20 tuz Sargoth→Uxkhal **+470 (%37)**,
-10 kadife Veluca→Narra **+1005 (%30)**, 20 demir Veluca→Tihr **+310 (%14)**. Bir çapulcu
-savaşı ~80 dinar olduğu için ticaret artık gerçekten meslek — ama sermaye, yol ve haydut
-riski istiyor.
+#### Sınırlı stok ve arz eğrisi (#46)
+Pazarın elindeki mal sonsuz değil: `loc.stock[id]` (kayda girer, `Save`'deki `locations` dizisinde).
+
+- `Game.stockBase(loc, id)` = `STOCK_SCALE` (şehir 500 / köy 190 / kale 150) × `(0.55 + refah/110)`
+  ÷ (üretim bölgesi çarpanı × **√fiyat**). Ölçüldü (refah 84 Praven): tahıl 180, bira 80,
+  kadife 22; köyde tahıl 71, et 22. *(Tam fiyatla bölmek denendi: şehirde 6 top kadife
+  kalıyordu, tek yük pazarı boşaltıp ticareti zarara sokuyordu.)*
+- `Game.supplyMul` = `(stok/taban)^−0.5`, **0.55–2.0** sınırlı. Stok yarıya inince fiyat ×1.41,
+  ikiye katlanınca ×0.71.
+- **Fiyat birim birim hesaplanır** (`buyItem`/`sellItem` döngüsü): her alınan mal stoku düşürür,
+  düşen stok bir sonrakini pahalılaştırır. Böylece teker teker almakla toplu almak aynı tutar.
+- **Stoktan fazlası alınamaz**: tükenmiş malda buton yerine "tükendi" yazar, satır kırmızı
+  "stok 0" rozeti taşır. Sattığın mal pazarın stokuna girer ve fiyatı düşürür.
+- `Game.stockTick()` her gün stoku tabanına `0.08 + refah/700` oranında yaklaştırır
+  (refah 50 → %15/gün). Ölçüldü: 80'lik bira stoku sıfırlandıktan sonra 12 günde 63'e,
+  fiyat 87₺'den 45₺'ye döndü.
+
+Ölçüldü (yeni dünya, ticaret yeteneği 1) — **tek yükün kârı, yük büyüdükçe payı düşer**:
+
+| Mal / rota | 10 birim | 20 birim | 30 birim |
+|---|---|---|---|
+| Bira, Jelkala→Reyvadin | +116 (%35) | +182 (%26) | +253 (%24) |
+| Tuz, Sargoth→Uxkhal | +287 (%49) | +462 (%38) | +575 (%31) |
+| Demir, Veluca→Tihr | +383 (%37) | +618 (%29) | +553 (%16) |
+| Kadife, Veluca→Narra | +404 (%11) | **−741 (−%9)** | **−3847 (−%27)** |
+
+Yani ucuz mal (bira/tuz) yükü büyüttükçe kâr getirir, pahalı mal (kadife, şehirde 22 top)
+tek pazarı doyurur: 20 topu tek şehre boşaltmak zarardır, yükü şehirlere bölmek gerekir.
+Bir çapulcu savaşı ~80 dinar olduğu için ticaret hâlâ gerçek bir meslek.
 
 ### Yerleşimler
 - **Şehir**: pazar, köle tüccarı, han (dinlenme + ozandan şiir öğrenme + **paralı asker** +
