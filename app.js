@@ -1448,8 +1448,11 @@ const Game = {
             // Kervan/kafile savaştaki krallığın ordusundan kaçar (yoksa yoluna devam)
             let notices = dp < sense && (hostile || npc.type === 'bandit'
                           || (npc.trade && this.atWar(this.playerFaction(), npc.faction)));
-            if(notices && (npc.size > ps ? hostile : true)) {
-                if(npc.size > ps) {
+            // Soylu kaçmaz: düşman lord kendinden biraz kalabalık orduya da yürür, ancak
+            // belirgin şekilde güçlüysen (×1.5) geri çekilir (#48).
+            let might = npc.size * (npc.lordId ? 1.5 : 1);
+            if(notices && (might > ps ? hostile : true)) {
+                if(might > ps) {
                     npc.targetX = state.player.x; npc.targetY = state.player.y;
                 } else {
                     npc.targetX = npc.x - dxP * 2; npc.targetY = npc.y - dyP * 2;
@@ -2785,12 +2788,14 @@ const Game = {
 
         Quests.emit('entered_location', { locId: loc.id, loc });
 
-        let chickenQ = state.player.quests.find(q => q.id === 'crazy_chickens' && q.data.locId === loc.id);
-        if(chickenQ) this.addBtn(ac, '🐔 Tavukları Kovala (15 sn)', () => TournamentMinigame.start({ mode:'chicken', goal:8, time:15 }));
-
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
-            this.addBtn(ac, '⚔️ Kuşatma Kampı Kur', () => this.besiegeLocation(loc));
+            // Düşman kapısında hiçbir sivil hizmet yok: pazar, han, salon, gönüllü — hepsi kapalı.
+            // Bağımsızsan aynı kuşatma kendi krallığını kurar, iki ayrı düğme çıkmaz.
+            this.addBtn(ac, state.player.vassalOf ? '⚔️ Kuşatma Kampı Kur' : '⚔️ Kuşat! (Kendi Krallığını Kur)',
+                        () => this.besiegeLocation(loc, !state.player.vassalOf));
         } else {
+            let chickenQ = state.player.quests.find(q => q.id === 'crazy_chickens' && q.data.locId === loc.id);
+            if(chickenQ) this.addBtn(ac, '🐔 Tavukları Kovala (15 sn)', () => TournamentMinigame.start({ mode:'chicken', goal:8, time:15 }));
             if(loc.owner === 'player' && loc.type !== 'village') {
                 this.addBtn(ac, `🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
                 this.addBtn(ac, `📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));
@@ -2829,7 +2834,7 @@ const Game = {
                 this.addBtn(ac, '🔥 Köyü Yağmala', () => this.raidVillage(loc));
             }
         }
-        if(!state.player.vassalOf && (loc.type==='city'||loc.type==='castle')) {
+        if(!isEnemy && !state.player.vassalOf && (loc.type==='city'||loc.type==='castle')) {
             this.addBtn(ac, '⚔️ Kuşat! (Kendi Krallığını Kur)', () => this.besiegeLocation(loc, true));
         }
         this.addBtn(ac, '🚪 Ayrıl', () => this.showScreen('map'));
@@ -3357,8 +3362,13 @@ const Game = {
         return Object.keys(state.wars).filter(k => k.split('|').indexOf(f) !== -1)
                      .map(k => k.split('|').find(x => x !== f));
     },
-    playerFaction() { return state.player.vassalOf || null; },
-    factionName(f) { return (FACTIONS[f] || { name: f || 'Bağımsız' }).name; },
+    // Bağımsız oyuncunun da bir bayrağı vardır ('player'): yoksa `atWar` hep false dönüyor,
+    // düşman şehrin pazarı açık kalıyor ve düşman lord yanından geçip gidiyordu (#48).
+    playerFaction() { return state.player.vassalOf || 'player'; },
+    factionName(f) {
+        if(f === 'player') return (state.player.name || 'Bağımsız') + ' Bölüğü';
+        return (FACTIONS[f] || { name: f || 'Bağımsız' }).name;
+    },
     // Haber akışı; oyuncunun krallığını ilgilendiren olay ayrıca bildirim olur
     news(msg, mine) {
         state.warLog.unshift({ day: state.time.day, msg });
@@ -3505,7 +3515,8 @@ const Game = {
         for(let k in state.wars) {
             let len = state.time.day - state.wars[k], p = k.split('|');
             // İki toprağa düşen krallık barış için yalvarır — yoksa eziliyor
-            let weak = p.some(f => LOCATIONS.filter(l => l.type !== 'village' && l.faction === f).length <= 2);
+            // 'player' toprağı olmayan bir bayraktır; "iki toprağa düşen barış ister" kuralına girmez
+            let weak = p.some(f => f !== 'player' && LOCATIONS.filter(l => l.type !== 'village' && l.faction === f).length <= 2);
             if(len >= (weak ? 5 : 15) && Math.random() < (weak ? 0.25 : 0.06 + len * 0.004)) this.makePeace(p[0], p[1]);
         }
         // Ortak düşmanı olan iki barışık krallık el sıkışır
@@ -3634,7 +3645,10 @@ const Game = {
             : '<p style="color:var(--text-muted)">Henüz haber yok.</p>';
         let mine = this.playerFaction();
         this.showModal(`<h3>🌍 Kalradya'nın Hâli</h3>
-            ${mine ? `<p style="color:var(--text-muted)">Bağlılığın: <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? ' — savaştasın!' : ''}</p>` : ''}
+            ${mine === 'player'
+                ? `<p style="color:var(--text-muted)">Bağımsızsın — kimseye yemin etmedin.${this.warsOf('player').length
+                    ? ` <b style="color:var(--danger)">Düşmanın: ${this.warsOf('player').map(x => this.factionName(x)).join(', ')}</b> — şehirlerine giremezsin, lordları üstüne gelir.` : ''}</p>`
+                : `<p style="color:var(--text-muted)">Bağlılığın: <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? ' — savaştasın!' : ''}</p>`}
             ${rows}
             ${this.myFiefs().length ? `<h3 style="margin-top:1rem">🏰 Tımarların</h3>` + this.myFiefs().map(l =>
                 `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">

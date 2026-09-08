@@ -410,7 +410,9 @@ Bir çapulcu savaşı ~80 dinar olduğu için ticaret hâlâ gerçek bir meslek.
 - **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı,
   **köyü yağmalama**. Savaştaki krallığın köyünde yalnızca yağma seçeneği çıkar — düşman
   köyü sana ne asker ne erzak verir.
-- Düşman (savaşta olduğun) fraksiyonun şehri/kalesi ise sadece **kuşatma** seçeneği çıkar.
+- Düşman (savaşta olduğun) fraksiyonun şehri/kalesi ise sadece **kuşatma** seçeneği çıkar —
+  pazar, han, salon, gönüllü, hatta görev düğmeleri bile kapalıdır (#48). Bağımsızsan aynı
+  düğme "Kuşat! (Kendi Krallığını Kur)" olur, iki ayrı kuşatma düğmesi çıkmaz.
 - **Refah** (`loc.prosperity`, 35–90; `init()`'te atanır, kayda yazılır) tek sayıdır ve üç yeri
   besler: garnizon (`Game.garrisonOf` = temel × (0.6 + refah/125)), gönüllü tazelenmesi
   (+refah/40) ve pazar çarpanı (× (1.15 − refah/400) — bolluk fiyatı düşürür).
@@ -599,7 +601,10 @@ Yani av davranışı baskını **3.5 katına** çıkarıyor ama haritayı yükl�
 ### Karşılaşma & savaş
 - Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir.
 - **Kaçış menzili güç farkına bağlı** (`updateNPCs`): zayıf çete `360 + min(640, (bizim güç/onun gücü)×240)`
-  birimden seni fark edip kaçar. Eskiden `isHostile` false dönünce hiç kaçmıyor, dibine girene kadar dolaşıyordu. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
+  birimden seni fark edip kaçar. **Soylu kaçmaz** (#48): lord partisinin kovalama eşiği
+  `size × 1.5`, yani kendinden kalabalık orduya da yürür; ancak belirgin şekilde güçlüysen
+  geri çekilir. Ölçüldü (100 kişilik lord): 101 ve 122 kişilik orduya yürüyor (300 → 20 birim),
+  151 kişilikten kaçıyor (300 → 580 birim). Eskiden `isHostile` false dönünce hiç kaçmıyor, dibine girene kadar dolaşıyordu. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
 - Karşılaşma modali: savaş / teslim ol. (İlk 14 günde çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.)
   Hayvan sürüsüne teslim olunmaz: kurtlarda buton **"🏃 Kaçmayı Dene"** olur
   (`Game.fleeEncounter`, şans = harita hızın/160, %15–85 arası).
@@ -745,6 +750,17 @@ Tek veri: `state.wars = { 'a|b': savaşın başladığı gün }` (fraksiyon çif
 Yardımcılar `Game.atWar(a,b)` / `warsOf(f)` / `declareWar` / `makePeace` / `playerFaction()`;
 haberler `state.warLog` (son 20 olay), `Game.news(msg, mine)` yazar — `mine` yalnızca oyuncunun
 krallığını ilgilendiren olayda bildirim çıkarır.
+
+**Oyuncunun da bir bayrağı var (#48)**: `Game.playerFaction()` artık vassal değilken `null`
+değil **`'player'`** döner. Eskiden bağımsız oyuncu hiç kimseyle savaşta sayılmıyordu —
+`atWar` her yerde false dönüyor, düşman şehrin pazarı/hanı açık kalıyor ve düşman lord
+yanından geçip gidiyordu. `'player'` bir `FACTIONS` kaydı değildir; `factionName` onu
+"<oyuncu adı> Bölüğü" diye yazar, `diplomacyTick`'in "iki toprağa düşen krallık barış ister"
+kuralına girmez (toprağı yok), ama savaş anahtarı (`player|rhodok`), haber akışı, kapalı
+şehir kapısı ve lord saldırganlığı normal bir cephe gibi işler. Bağımsızken savaşa girmenin
+yolu **köy yağmalamaktır** (`completeRaid` → `declareWar`); 15 günden sonra karşı taraf
+kendiliğinden barış imzalayabilir. Diplomasi ekranı bağımsız oyuncuya bağlılık yerine
+düşman listesini yazar.
 
 - `Game.initDiplomacy()` dünyaya girişte (ve diplomasi öncesi kayıtlarda `Save.load`'da) bir
   cephe açık başlatır — Kalradya hiç sakin değildir.
