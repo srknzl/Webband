@@ -1255,19 +1255,20 @@ const Game = {
         this.camera.x += (targetCamX - this.camera.x) * 5 * dt;
         this.camera.y += (targetCamY - this.camera.y) * 5 * dt;
 
-        // Klavyeden hareket edilirse kamerayı tekrar oyuncuya kitle (offset'i sıfırla)
-        if(Input.keys['w']||Input.keys['arrowup']||Input.keys['s']||Input.keys['arrowdown']||Input.keys['a']||Input.keys['arrowleft']||Input.keys['d']||Input.keys['arrowright']) {
-            this.camera.offsetX = 0;
-            this.camera.offsetY = 0;
+        // WASD/oklar kamerayı SERBEST kaydırır — kenardan fare pan'ının klavye karşılığı (#44).
+        // Eskiden tam tersini yapıyor, offset'i sıfırlayıp kamerayı oyuncuya kilitliyordu;
+        // haritayı elle gezmenin tek yolu fareyi ekran kenarına dayamaktı.
+        // Oyuncuya dönmek zaten Boşluk ve 🎯 Beni Bul ile mümkün.
+        if(document.getElementById('map-view').classList.contains('active')) {
+            let k = Input.keys;
+            if(k['a']||k['arrowleft'])  this.camera.offsetX -= panSpeed;
+            if(k['d']||k['arrowright']) this.camera.offsetX += panSpeed;
+            if(k['w']||k['arrowup'])    this.camera.offsetY -= panSpeed;
+            if(k['s']||k['arrowdown'])  this.camera.offsetY += panSpeed;
         }
-
-        // Mouse click ile hareket edilirse de kitle
-        if(state.player.status === 'moving' && state.player.targetLocation && state.player.targetLocation.name === 'Hedef Bölge') {
-            // Eğer oyuncu haritaya tıklayıp gidiyorsa da kamerayı toparla
-            // offseti yavaşça sıfıra çekelim
-            this.camera.offsetX += (0 - this.camera.offsetX) * 2 * dt;
-            this.camera.offsetY += (0 - this.camera.offsetY) * 2 * dt;
-        }
+        // Kıtayı büsbütün kaybetmeyelim: harita 9000 birim, offset onun kadarıyla sınırlı
+        this.camera.offsetX = Math.max(-9000, Math.min(9000, this.camera.offsetX));
+        this.camera.offsetY = Math.max(-9000, Math.min(9000, this.camera.offsetY));
 
         if(state.player.prisoner) {
             state.player.status = 'prisoner';

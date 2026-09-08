@@ -92,7 +92,12 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   artık sis kazımaz, yalnızca grup fark etme menzilini belirler.
   *(Kaldırılanlar: `exploredCanvas`/`exploredCtx`/`exploredGrid`, `markExplored`,
   `repaintFog`, `loadExplored`, görüş çemberi dışını `evenodd` ile karartan katman.)*
-- Kamera: fare tekerleği zoom (`Game.minZoom()`–3.0), kenardan fare ile pan, oyuncuya yumuşak takip.
+- Kamera: fare tekerleği zoom (`Game.minZoom()`–3.0), kenardan fare ile pan, **WASD/ok tuşlarıyla
+  serbest pan** (#44), oyuncuya yumuşak takip. Kamera `state.player + camera.offset`'i izler;
+  pan yalnızca offset'i oynatır, ±9000 birimle sınırlıdır ve **Boşluk** / 🎯 Beni Bul
+  (`Game.centerOnPlayer`) onu sıfırlar. *(Eskiden WASD tam tersini yapıp offset'i sıfırlıyordu:
+  haritayı elle gezmenin tek yolu fareyi ekran kenarına dayamaktı. Haritaya tıklayıp yürürken
+  offset'i kendiliğinden geri çeken kural da kaldırıldı — kamerayı toparlamak artık oyuncunun kararı.)*
   Alt sınır ekrana göre hesaplanır (`min(kısa kenar/9600, 0.8)`, taban 0.07) — **tüm kıta
   (9000 birim) tek ekrana sığar**. 1440×900'de ölçüldü: zoom 0.084, ekran 14453×9600 birimlik
   alanı gösteriyor, 25 yerleşimin hepsi ve 36 gruptan yalnızca görüş içindeki 4'ü çizili.
@@ -100,7 +105,7 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   = `max(1, 0.55/zoom)` ile büyütülür (etiketler zaten `1/zoom` ile ekran boyutundaydı).
 - **Rota çizgisi**: kalın sarı kesik yerine akan ince kesikli çizgi (gölge + altın kat),
   hedefte nabız atan halka ve yön oku.
-- Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket. WASD/ok tuşları kamerayı oyuncuya kilitler.
+- Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket.
 - **Grup ikonları** (Warband'daki gibi grubun neye benzediğini gösterir, `Game.drawPartyIcon`):
   atın varsa **atlı** silüeti (`drawRider`: at + eyer örtüsü + kalkık kılıç), yoksa mızraklı
   yaya (`drawFootman`: mızrak + kalkan + miğfer). Fraksiyon rengi eyer örtüsünde/kalkanda ve
@@ -190,7 +195,8 @@ zafer +5, yenilgi −15.
   (ör. "Görüş 615 birim", "Esir kapasitesi 8", "Savaş ganimeti +%12").
 - **Kenar menüsü**: ikon + ad + kısayol rozeti. Kısayollar `M/C/P/I/Q`, **K** diplomasi
   ekranını açar (`Game.showDiplomacy`), **Esc** her ekrandan
-  haritaya döner, **Boşluk** haritada kamerayı oyuncuya geri kilitler (`Game.centerOnPlayer()`)
+  haritaya döner, **WASD/oklar** haritada kamerayı serbest kaydırır, **Boşluk** kamerayı
+  oyuncuya geri getirir (`Game.centerOnPlayer()`)
   — hepsi `Input.init` içinde, modal veya savaş açıkken çalışmaz.
   `showScreen()` tıklanan butonu `data-view` ile aktifler.
 - **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
