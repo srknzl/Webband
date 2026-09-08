@@ -8,7 +8,8 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | Dosya | İçerik |
 |---|---|
 | `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli) |
-| `app.js` | Çekirdek — harita, zaman, yerleşim, savaş, turnuva, kayıt. Global objeler: `Input`, `Game`, `Battle`, `TournamentMinigame`, `Save` + `state` |
+| `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. Global objeler: `Input`, `Game`, `Save` + `state` |
+| `battle.js` | Savaş arenası ve turnuva minigame'i: `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
@@ -25,8 +26,10 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 `Battle.active || TournamentMinigame.active` iken kendini durdurur; savaş/turnuva kendi
 döngüsünü işletir.
 
-Script yükleme sırası: `app.js` → `nobles.js` → `quests.js`. Aralarındaki tüm referanslar
-fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için önemli.
+Script yükleme sırası: `app.js` → `battle.js` → `nobles.js` → `quests.js`. Aralarındaki tüm
+referanslar fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için
+önemli. *(`const` klasik script'te global sözcüksel kapsama girer, yani `battle.js`'teki
+`Battle` app.js'ten de görünür — `window.Battle` diye aranmamalı.)*
 
 Tüm veri tek bir `state` objesinde. `Save.save()` / `Save.load()` bunu localStorage'a
 (`webband_save_v1`) JSON olarak yazar. *(Savaş sisi kaldırıldığı için `state.explored`
@@ -785,7 +788,7 @@ En fazla 4 kez girilebilir, her girişte boss seviyesi +5. Kazanınca lvl 51 ni�
 
 ## Görsel katman (renovasyon)
 
-Tüm çizim `app.js` içinde, kütüphane yok. Ortak yaklaşım: **pahalı şeyi bir kez pişir,
+Tüm çizim `app.js` + `battle.js` içinde, kütüphane yok. Ortak yaklaşım: **pahalı şeyi bir kez pişir,
 sonra her karede resmi bas.**
 
 - `Game.buildGroundTexture()` — 256px **dikişsiz** çim döşemesi (her leke/çim 9 sarmalı
@@ -884,9 +887,9 @@ okçuların savaşı sonsuza kilitlemesi, ok hasarının `-4.199999999999999` gi
 yenilgide oyuncu canının %30'a düşürülüp hemen üzerine yazılması, oyuncu ölünce savaşın
 anında bitmesi.
 
-Kalanlar:
+Kalanlar: —
 
-1. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+*(Savaş motoru #41'de `battle.js`'e ayrıldı: `app.js` 6276 → 4581 satır, `battle.js` 1701 satır.)*
 
 ## Kod tarzı
 
