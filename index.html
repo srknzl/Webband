@@ -192,6 +192,15 @@
             <button id="btn-escape-attempt" class="btn" onclick="Game.attemptEscape()">Kaçmaya Çalış</button>
         </div>
     </div>
+    <!-- Kuşatma kampı paneli: hazırlık günleri, açlık, saldırı emri (#25) -->
+    <div id="siege-ui" class="glass-panel hidden">
+        <h3>🏰 Kuşatma Kampı</h3>
+        <div id="siege-info"></div>
+        <div class="pr-actions" style="margin-top:0.6rem">
+            <button id="btn-siege-assault" class="btn" onclick="Game.assaultSiege()">⚔️ Saldırıya Geç</button>
+            <button class="btn" onclick="Game.liftSiege()">🚪 Kuşatmayı Kaldır</button>
+        </div>
+    </div>
     <!-- Modals -->
     <div id="modal-overlay" class="hidden">
         <div id="modal-content" class="glass-panel">

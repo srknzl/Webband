@@ -317,6 +317,7 @@ const state = {
         spouse: null,
         vassalOf: null,
         currentSiege: null,
+        siege: null,               // kuşatma kampı: { locId, plan, daysLeft, weaken, foundingKingdom }
         currentRaid: null,         // yağmalanan köy: { locId }
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
@@ -1263,7 +1264,9 @@ const Game = {
         let timeFlows = false;
         
         if (isMapActive && !isModalOpen) {
-            if (state.player.status === 'moving' || state.player.status === 'prisoner') {
+            // Kuşatma kampında da zaman akar: hazırlık günleri geçsin, dünya işlesin (#25)
+            if (state.player.status === 'moving' || state.player.status === 'prisoner'
+                || state.player.status === 'besieging') {
                 timeFlows = true;
             }
         }
@@ -1583,6 +1586,7 @@ const Game = {
         this.beginCaptivity(foe || { id: npcId, name: npcName, size: 0 }, daysLost);
         state.player.currentEncounterNpcId = null;
         state.player.currentSiege = null;
+        state.player.siege = null;
         state.player.currentRaid = null;
 
         alert(`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-${moneyLost} Dinar`
@@ -1882,6 +1886,7 @@ const Game = {
 
         this.campaignTick();    // mareşal seçimi, sefer hedefi, oyuncuya çağrı
         this.banditTick();      // haydutlar yoldaki kafileleri vurur
+        this.siegeTick();       // kuşatma kampı: hazırlık, açlık, yardım ordusu (#25)
 
         Nobles.dailyTick();
         Feast.dailyTick();
@@ -2113,6 +2118,7 @@ const Game = {
         // resize onu 0x0 bırakmış olabilir (harita bomboş kalıyordu).
         this.resizeCanvases();
 
+        this.renderSiegeUI();   // kuşatma paneli yalnız haritada durur
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
@@ -2755,7 +2761,7 @@ const Game = {
         if(chickenQ) this.addBtn(ac, '🐔 Tavukları Kovala (15 sn)', () => TournamentMinigame.start({ mode:'chicken', goal:8, time:15 }));
 
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
-            this.addBtn(ac, '⚔️ Kuşat ve Saldır!', () => this.besiegeLocation(loc));
+            this.addBtn(ac, '⚔️ Kuşatma Kampı Kur', () => this.besiegeLocation(loc));
         } else {
             if(loc.owner === 'player' && loc.type !== 'village') {
                 this.addBtn(ac, `🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
@@ -2795,7 +2801,7 @@ const Game = {
             }
         }
         if(!state.player.vassalOf && (loc.type==='city'||loc.type==='castle')) {
-            this.addBtn(ac, '⚔️ Saldır! (Kendi Krallığını Kur)', () => this.besiegeLocation(loc, true));
+            this.addBtn(ac, '⚔️ Kuşat! (Kendi Krallığını Kur)', () => this.besiegeLocation(loc, true));
         }
         this.addBtn(ac, '🚪 Ayrıl', () => this.showScreen('map'));
     },
@@ -3724,18 +3730,122 @@ const Game = {
         return Math.min(state.player.renown || 0, loss);
     },
 
-    // --- SIEGE ---
+    // --- SIEGE (#25) ---
+    // Kuşatma tek tuşla açılan bir meydan savaşı değil: önce kamp kurulur, hazırlık
+    // günleri geçer (dünya işler, düşman lordu yardıma gelebilir), sonra surun
+    // dibinde saldırılır. Yöntem seçimi hem süreyi hem savunanın avantajını belirler.
+    SIEGE_PLANS: {
+        ladder: { icon: '🪜', name: 'Merdiven', days: 1, defBonus: 0.40, gaps: 1,
+                  desc: 'Bir günde hazırlanır ama tek gedikten girersin — savunan surun ardında güçlüdür (+%40).' },
+        tower:  { icon: '🗼', name: 'Kuşatma Kulesi', days: 3, defBonus: 0.15, gaps: 2,
+                  desc: 'Üç gün marangozluk ister; kule surda ikinci bir gedik açar, savunanın avantajı erir (+%15).' }
+    },
     besiegeLocation(loc, founding = false) {
-        let garrison = this.garrisonOf(loc);
-        this.showModal(`<h3>🏰 Kuşatma - ${loc.name}</h3>
-        <p>Garnizonda tahmini <b>${garrison}</b> asker var.</p>
-        <button class="btn primary" onclick="Game.closeModal(); Game.startSiege('${loc.id}',${garrison},${founding})">⚔️ Saldırıya Geç!</button>
+        let g = this.garrisonOf(loc);
+        let plans = Object.keys(this.SIEGE_PLANS).map(k => {
+            let p = this.SIEGE_PLANS[k];
+            return `<button class="btn" style="display:block;width:100%;text-align:left;margin-bottom:0.5rem"
+                onclick="Game.closeModal(); Game.beginSiege('${loc.id}','${k}',${founding})">
+                ${p.icon} <b>${p.name}</b> — ${p.days} gün hazırlık
+                <br><span style="color:var(--text-muted);font-size:0.82rem">${p.desc}</span></button>`;
+        }).join('');
+        this.showModal(`<h3>🏰 ${loc.name} Kuşatması</h3>
+        <p>Garnizonda tahmini <b>${g}</b> asker var. Kampı kurunca ordun kapıda bekler:
+        hazırlık bitene kadar zaman akar, ${this.factionName(loc.faction)} lordları kuşatmayı yarmaya gelebilir.</p>
+        <p style="color:var(--text-muted);font-size:0.85rem">Hazırlık bitince beklemeye devam edersen garnizonu
+        <b>açlığa mahkûm</b> edersin: her gün erir — ama senin ordun da kapıda erzak yer.</p>
+        ${plans}
         <button class="btn" onclick="Game.closeModal()">Vazgeç</button>`);
     },
-    startSiege(locId, count, founding) {
+    beginSiege(locId, plan, founding) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc) return;
+        state.player.siege = { locId, plan, daysLeft: this.SIEGE_PLANS[plan].days, weaken: 0, foundingKingdom: founding };
+        state.player.x = loc.x; state.player.y = loc.y;
+        state.player.targetLocation = null;
+        state.player.status = 'besieging';
+        this.showScreen('map');
+        this.news(`${loc.name} kuşatma altında.`);   // panel zaten görünür, modal bildirim gereksiz
+        this.renderSiegeUI();
+    },
+    // Günlük kuşatma işleyişi (dailyUpdate)
+    siegeTick() {
+        let s = state.player.siege;
+        if(!s) return;
+        let loc = LOCATIONS.find(l => l.id === s.locId);
+        if(!loc || loc.faction === this.playerFaction()) return this.liftSiege(true);
+        if(s.daysLeft > 0) {
+            s.daysLeft--;
+            if(s.daysLeft === 0) alert(`${this.SIEGE_PLANS[s.plan].name} hazır — ${loc.name} surlarına saldırabilirsin.`);
+        } else {
+            // Açlığa mahkûm etme: bekledikçe garnizon erir, şehrin refahı düşer
+            s.weaken = Math.min(0.55, (s.weaken || 0) + 0.07);
+            loc.prosperity = Math.max(10, (loc.prosperity || 50) - 1.5);
+        }
+        this.renderSiegeUI();
+        this.siegeRelief(loc);
+    },
+    // Kuşatmayı yarmaya gelen ordu: 2500 birim içindeki en yakın düşman lord partisi
+    siegeRelief(loc) {
+        let foes = state.npcParties.filter(n => n.lordId && n.faction === loc.faction && this.dist(n, loc) < 2500);
+        if(!foes.length || Math.random() > 0.25) return;
+        let n = foes.reduce((a, b) => this.dist(a, loc) <= this.dist(b, loc) ? a : b);
+        n.x = loc.x + 40; n.y = loc.y + 40;
+        this.showModal(`<h3>🚩 Yardım Ordusu!</h3>
+        <p><b>${n.name}</b> ${n.size} kişiyle kuşatmayı yarmaya geldi. Surun dibinde iki ateş arasında
+        kalamazsın: ya bu orduyu karşılarsın ya da kampı toplarsın.</p>
+        <button class="btn primary" onclick="Game.closeModal(); Game.meetRelief('${n.id}')">⚔️ Karşıla</button>
+        <button class="btn" onclick="Game.closeModal(); Game.liftSiege()">🚪 Kuşatmayı Kaldır</button>`);
+    },
+    meetRelief(npcId) {
+        let n = state.npcParties.find(p => p.id === npcId);
+        if(n) this.triggerEncounter(n);
+    },
+    liftSiege(silent) {
+        state.player.siege = null;
+        if(state.player.status === 'besieging') state.player.status = 'idle';
+        this.renderSiegeUI();
+        if(!silent) alert('Kuşatma kaldırıldı. Ordun kampı toplayıp çekildi.');
+    },
+    assaultSiege() {
+        let s = state.player.siege;
+        if(!s) return;
+        if(s.daysLeft > 0) return alert(`Hazırlık bitmedi — ${s.daysLeft} gün daha gerek.`);
+        let loc = LOCATIONS.find(l => l.id === s.locId);
+        if(!loc) return this.liftSiege(true);
+        let count = this.siegeGarrison(loc, s);
+        state.player.siege = null;
+        state.player.status = 'idle';
+        this.renderSiegeUI();
+        this.startSiege(s.locId, count, s.foundingKingdom, s.plan);
+    },
+    // Açlık garnizonu eritir; kuşatma paneli de saldırı da aynı sayıyı okur
+    siegeGarrison(loc, s) {
+        return Math.max(3, Math.round(this.garrisonOf(loc) * (1 - (s.weaken || 0))));
+    },
+    renderSiegeUI() {
+        let ui = document.getElementById('siege-ui');
+        if(!ui) return;
+        let s = state.player.siege;
+        let onMap = document.getElementById('map-view').classList.contains('active');
+        if(!s || !onMap) { ui.classList.add('hidden'); return; }
+        ui.classList.remove('hidden');
+        let loc = LOCATIONS.find(l => l.id === s.locId) || { name: '?' };
+        let p = this.SIEGE_PLANS[s.plan];
+        this.setHtml('siege-info',
+              `Kuşatılan: <b>${loc.name}</b><br>`
+            + `Yöntem: <b>${p.icon} ${p.name}</b><br>`
+            + (s.daysLeft > 0 ? `Hazırlık: <b>${s.daysLeft}</b> gün kaldı<br>`
+                              : `Hazırlık tamam — açlık garnizonu <b>%${Math.round((s.weaken || 0) * 100)}</b> eritti<br>`)
+            + `Garnizon: <b>${this.siegeGarrison(loc, s)}</b> asker`);
+        let btn = document.getElementById('btn-siege-assault');
+        btn.disabled = s.daysLeft > 0;
+        btn.style.opacity = s.daysLeft > 0 ? 0.5 : 1;
+    },
+    startSiege(locId, count, founding, plan = 'ladder') {
         state.player.currentSiege = { locId, foundingKingdom: founding };
         let loc = LOCATIONS.find(l => l.id === locId);
-        Battle.start('Garnizon', count, null, loc ? loc.faction : null);
+        Battle.start('Garnizon', count, null, loc ? loc.faction : null, this.SIEGE_PLANS[plan]);
     },
 
     // --- VILLAGE ---

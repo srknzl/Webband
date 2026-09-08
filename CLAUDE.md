@@ -7,7 +7,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 
 | Dosya | İçerik |
 |---|---|
-| `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli) |
+| `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli, kuşatma kampı paneli) |
 | `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. Global objeler: `Input`, `Game`, `Save` + `state` |
 | `battle.js` | Savaş arenası ve turnuva minigame'i: `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
@@ -745,9 +745,45 @@ ve ölçümde 4 turun 3'ünde bir krallık haritadan siliniyordu. İki kural ger
 0–2 ittifak, 10–22 barış antlaşması, **hiçbir turda krallık silinmedi**. Sefer öncesi aynı
 sim 8 fetih üretiyordu — cephe belirgin şekilde hareketlendi ama harita çökmedi.
 
-### Kuşatma & krallık kurma
-Şehir/kale kuşatması normal savaş olarak oynanır. Garnizon `Game.garrisonOf(loc)`: **senin
-tımarındaysa oradaki gerçek asker sayısı**, değilse şehir 30 / kale 15 temel, refahla ±%30.
+### Kuşatma & krallık kurma (#25)
+Kuşatma tek tuşla açılan bir meydan savaşı değil, **üç aşamalı** bir iştir: kamp → hazırlık →
+sur dibinde saldırı. Garnizon `Game.garrisonOf(loc)`: **senin tımarındaysa oradaki gerçek asker
+sayısı**, değilse şehir 30 / kale 15 temel, refahla ±%30.
+
+**1. Kamp** (`Game.besiegeLocation` → `beginSiege`): yerleşim ekranındaki *⚔️ Kuşatma Kampı Kur*
+yöntem sorar. Seçim `state.player.siege = { locId, plan, daysLeft, weaken, foundingKingdom }`
+olarak durur (kayda `state.player` ile birlikte yazılır), oyuncu yerleşimin üstüne çakılır ve
+`state.player.status = 'besieging'` olur — **kampta zaman akar**, dünya işlemeye devam eder.
+Sağ alttaki `#siege-ui` paneli durumu ve iki düğmeyi (⚔️ Saldırıya Geç / 🚪 Kuşatmayı Kaldır)
+gösterir; saldırı düğmesi hazırlık bitene kadar sönüktür.
+
+| Yöntem (`Game.SIEGE_PLANS`) | Hazırlık | Surdaki gedik | Savunan avantajı |
+|---|---|---|---|
+| 🪜 Merdiven | **1 gün** | yalnız kapı (74 birim) | **+%40** can ve saldırı |
+| 🗼 Kuşatma Kulesi | **3 gün** | kapı + kule rampası (118 birim) | **+%15** |
+
+**2. Hazırlık ve açlık** (`Game.siegeTick`, `dailyUpdate`): her gün `daysLeft` düşer. Hazırlık
+bittikten sonra beklemeye devam etmek **açlığa mahkûm etmektir** — garnizon günde **%7** erir
+(tavan %55) ve yerleşimin refahı günde 1.5 düşer. Ölçüldü: 34 kişilik garnizon 3 günde 26'ya,
+refah 65'ten 61'e indi. Bedeli senin ordunun da kapıda erzak yemesidir.
+**Yardım ordusu** (`Game.siegeRelief`): hazırlık günlerinde de bekleme günlerinde de %25 ihtimalle
+2500 birim içindeki en yakın düşman lord partisi kapıya gelir — ya karşılarsın (normal karşılaşma)
+ya da kampı toplarsın. Yenilirsen/teslim olursan kamp kendiliğinden dağılır.
+
+**3. Saldırı** (`assaultSiege` → `startSiege` → `Battle.start(..., plan)`): savaş arenası
+**sur varyantı** olur (`Battle.siege`). Arenanın %66'sında dikey bir taş sur vardır; nehir ve
+kaya konmaz, tepe/orman yalnız kuşatan tarafta kalır. Savunan surun ardında, saldıran sahada doğar.
+- Sur geçilmez (`update`'in arena sınırı bloğunda); gediğin içi koridor gibi daraltır.
+- Yol bulma tek kuraldan geçer: hedefi surun **öbür** tarafında olan birim en yakın gediğe yürür.
+  Saldıran gediğin 70 birim ötesini hedefler (geçince sapma kalkar), **savunan geçmez** —
+  gediğin ağzını tutar, darboğaz onun avantajıdır. *(Hedef noktası yakın dövüş menzilinden
+  uzak olmalı: 30 birim denendiğinde saldıran gediğin ağzında "vardım" sanıp duruyor ve orada
+  kırılıyordu.)*
+- Oklar surun üstünden geçer (kayalar gibi) — savunan okçu mazgaldan vurur.
+- Ölçüldü (40 lvl-15 Svadya Milisi vs 26 kişilik Svadya garnizonu, 2 tur, her tur ayrı sayfa
+  yüklemesi): sursuz meydan savaşı **0–1 kayıp / 9–10 sn**, kuşatma kulesi **3–4 kayıp / 9–10 sn**,
+  merdiven **8–18 kayıp / 10–14 sn**. Yani kule üç günün karşılığını veriyor, merdiven hızlı ama pahalı.
+
 Kazanılırsa yerleşim vassalı olunan fraksiyona geçer; bağımsızsan **kendi krallığını** kurarsın
 (`FACTIONS.player_kingdom` runtime'da oluşturulur). Her iki durumda fethedilen yerleşimin eski
 sahibiyle **savaş ilan edilir** (`Game.declareWar`) ve yerleşim **senin tımarın olur**

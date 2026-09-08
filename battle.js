@@ -25,7 +25,7 @@ const Battle = {
         document.getElementById('battle-log-left').innerHTML = `<b>🗡️ Şeref Düellosu:</b> ${lord.name}`;
     },
 
-    start(enemyName, enemyCount, bossLevel = null, faction = null) {
+    start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null) {
         Input.keys = {}; // Tuşları temizle
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = this.canvas.getContext('2d', { alpha: false });
@@ -56,11 +56,22 @@ const Battle = {
         this.cmdSlots = []; this.battleTime = 0;
         // Pusu (Game.checkAmbush): fark edemediğin çete seni ortada yakalar
         this.ambushed = !!state.ambush; state.ambush = false;
+        // Kuşatma (#25): sur + gedik arazisi, savunana mevzi bonusu. Plan Game.SIEGE_PLANS'ten gelir.
+        this.siege = siegePlan ? { name: siegePlan.name, defBonus: siegePlan.defBonus, gaps: siegePlan.gaps } : null;
+        if(this.siege) {
+            let wx = Math.round(W * 0.66);
+            let gaps = [{ y: H / 2, h: 74, gate: true }];
+            if(this.siege.gaps > 1) gaps.push({ y: Math.round(H * 0.22), h: 118, gate: false });   // kule rampası
+            this.siege.wall = { x: wx, t: 26, gaps };
+        }
         this.active = true;
 
         // Pusuda oyuncu kenarda değil, arenanın ortasında yakalanır (çember için şart)
-        let startPlayerX = this.ambushed ? W/2 : (enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80);
-        let startEnemyX = enemyCount < 30 ? W/2 + 100 + Math.random()*100 : W - 160;
+        let startPlayerX = this.siege ? 120
+                         : this.ambushed ? W/2 : (enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80);
+        // Kuşatmada savunan surun ardında doğar, saldıran sahada
+        let startEnemyX = this.siege ? this.siege.wall.x + 60
+                        : (enemyCount < 30 ? W/2 + 100 + Math.random()*100 : W - 160);
 
         // Procedural Terrain Generation
         this.terrain = { hills: [], pits: [], forests: [], rivers: [] };
@@ -96,6 +107,16 @@ const Battle = {
             }
         }
         
+        // Kuşatma sahası: sur dibinde nehir/kaya olmaz, örtü yalnızca kuşatan tarafta kalır
+        if(this.siege) {
+            let wx = this.siege.wall.x;
+            this.terrain.rivers = [];
+            this.terrain.rocks = [];
+            this.terrain.hills = this.terrain.hills.filter(h => h.x < wx - 120);
+            this.terrain.pits = this.terrain.pits.filter(p => p.x < wx - 100);
+            this.terrain.forests = this.terrain.forests.filter(f => f.x < wx - 160);
+        }
+
         let weaponAtk = state.player.equipment.weapon ? state.player.equipment.weapon.attack : 0;
         let armorDef = state.player.equipment.armor ? state.player.equipment.armor.defense : 0;
 
@@ -201,6 +222,11 @@ const Battle = {
                 attack += Math.floor((enemyLvl - 1) / 2);
                 defense += Math.floor((enemyLvl - 1) / 4);
             }
+            // Savunan surun ardında dövüşür: mevzi avantajı kuşatma yöntemine bağlı (#25)
+            if(this.siege) {
+                hp = Math.round(hp * (1 + this.siege.defBonus));
+                attack = Math.round(attack * (1 + this.siege.defBonus));
+            }
 
             this.units.push({
                 id: 'enemy_'+i, isPlayerTeam: false, name: name,
@@ -220,6 +246,10 @@ const Battle = {
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
             + (this.ambushed ? 'Pusuya Düştün! Etrafın sarıldı.' : 'Savaş Başladı!')
             + '</b><br>WASD hareket · Sol tık saldırı<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
+        if(this.siege) document.getElementById('battle-log-left').innerHTML =
+            `<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>🏰 Kuşatma — ${this.siege.name}</b><br>`
+            + `Sur geçilmez; gedikten gireceksin. Savunanın mevzi avantajı +%${Math.round(this.siege.defBonus*100)}.`
+            + `<br>WASD hareket · Sol tık saldırı</div>`;
         document.getElementById('battle-log-right').innerHTML = '';
 
         setTimeout(() => {
@@ -690,6 +720,22 @@ const Battle = {
                 }
             }
 
+            // Kuşatmada sur geçilmez: karşı taraftaki hedefe gedikten gidilir. Savunan
+            // kendi tarafında kalır, gediğin ağzını tutar — darboğaz onun avantajıdır (#25).
+            let moveX = closest ? closest.x : u.x, moveY = closest ? closest.y : u.y;
+            let wall = this.siege && this.siege.wall;
+            if(wall && closest) {
+                let mySide = u.x < wall.x;
+                if(mySide !== (targetX < wall.x)) {
+                    let g = wall.gaps.reduce((a, b) => Math.abs(b.y - u.y) < Math.abs(a.y - u.y) ? b : a);
+                    targetY = moveY = g.y;
+                    // Saldıran gediğin ötesini hedefler (geçince sapma kalkar), savunan ağzında bekler.
+                    // Hedef noktası yakın dövüş menzilinden (35) uzak olmalı: yakınsa birim
+                    // gediğin ağzında "vardım" sanıp duruyor ve orada kırılıyordu.
+                    targetX = moveX = u.isPlayerTeam ? wall.x + 70 : wall.x + 40;
+                }
+            }
+
             // Archer AI
             if(u.type === 'archer') {
                 if(closest) {
@@ -723,8 +769,9 @@ const Battle = {
                             }
                         }
                     } else {
-                        let dx = closest.x-u.x, dy = closest.y-u.y;
-                        let r = Math.min(uSpeed*0.8*dt/finalDist, 1);   // okçu yürüyerek yaklaşır
+                        let dx = moveX-u.x, dy = moveY-u.y;
+                        let md = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+                        let r = Math.min(uSpeed*0.8*dt/md, 1);   // okçu yürüyerek yaklaşır
                         u.vx = dx*r/dt; u.vy = dy*r/dt;
                         u.x += dx*r; u.y += dy*r;
                     }
@@ -777,6 +824,13 @@ const Battle = {
                 let d = Math.sqrt(dx*dx + dy*dy), min = k.r + u.radius;
                 if(d < min && d > 0.01) { u.x = k.x + dx/d*min; u.y = k.y + dy/d*min; }
             });
+            // Sur: gedik dışında geçilmez, gediğin içinde koridor gibi daraltır (#25)
+            let w = this.siege && this.siege.wall;
+            if(w && Math.abs(u.x - w.x) < w.t/2 + u.radius) {
+                let g = w.gaps.find(g2 => Math.abs(u.y - g2.y) < g2.h/2);
+                if(g) u.y = Math.max(g.y - g.h/2 + u.radius, Math.min(g.y + g.h/2 - u.radius, u.y));
+                else u.x = u.x < w.x ? w.x - w.t/2 - u.radius : w.x + w.t/2 + u.radius;
+            }
         });
 
         this.checkEnd();
@@ -860,11 +914,54 @@ const Battle = {
 
         (T.rocks||[]).forEach(k => this.drawRock(c, k.x, k.y, k.r));
 
+        if(this.siege && this.siege.wall) this.drawWall(c, this.siege.wall, H);
+
         // Hafif karartma: birimler zeminin üstünde daha okunur dursun
         c.fillStyle = 'rgba(6,10,6,0.16)';
         c.fillRect(0, 0, W, H);
 
         this.ground = g;
+    },
+
+    // Kuşatma suru: gedikler dışında taş bant + mazgal, kapıda kırık kanatlar (#25)
+    drawWall(c, w, H) {
+        let x0 = w.x - w.t/2, x1 = w.x + w.t/2;
+        let sorted = w.gaps.slice().sort((a, b) => a.y - b.y);
+        let segs = [], y = 0;
+        sorted.forEach(g => { segs.push([y, g.y - g.h/2]); y = g.y + g.h/2; });
+        segs.push([y, H]);
+
+        segs.forEach(([a, b]) => {
+            if(b <= a) return;
+            c.fillStyle = 'rgba(0,0,0,0.45)';
+            c.fillRect(x1, a + 8, 18, b - a);
+            let g = c.createLinearGradient(x0, 0, x1, 0);
+            g.addColorStop(0, '#8b8377'); g.addColorStop(0.45, '#6d6559'); g.addColorStop(1, '#443f38');
+            c.fillStyle = g; c.fillRect(x0, a, w.t, b - a);
+            c.strokeStyle = 'rgba(28,26,24,0.55)'; c.lineWidth = 1.5;
+            for(let yy = a + 14; yy < b; yy += 14) { c.beginPath(); c.moveTo(x0, yy); c.lineTo(x1, yy); c.stroke(); }
+            c.strokeStyle = 'rgba(20,18,16,0.85)'; c.lineWidth = 3;
+            c.strokeRect(x0, a, w.t, b - a);
+            for(let yy = a + 5; yy < b - 12; yy += 24) {   // mazgallar savunan tarafa bakar
+                c.fillStyle = '#7a7266'; c.fillRect(x1 - 4, yy, 13, 12);
+                c.strokeStyle = 'rgba(20,18,16,0.8)'; c.lineWidth = 2; c.strokeRect(x1 - 4, yy, 13, 12);
+            }
+        });
+
+        w.gaps.forEach(g => {
+            let a = g.y - g.h/2, b = g.y + g.h/2;
+            c.fillStyle = 'rgba(0,0,0,0.28)'; c.fillRect(x0, a, w.t, b - a);
+            if(g.gate) {
+                c.fillStyle = '#3a3129';
+                c.fillRect(x0 - 7, a - 14, w.t + 14, 14);
+                c.fillRect(x0 - 7, b, w.t + 14, 14);
+                c.fillStyle = '#5b3f22';   // kırılmış kapı kanatları
+                c.fillRect(x0 - 4, a + 3, 9, 22); c.fillRect(x0 - 4, b - 25, 9, 22);
+            } else {
+                for(let i = 0; i < 9; i++)   // kule rampası: molozla dolmuş gedik
+                    this.drawRock(c, x0 + Math.random()*w.t, a + 6 + Math.random()*(b - a - 12), 3 + Math.random()*4);
+            }
+        });
     },
 
     drawRock(c, x, y, r) {
@@ -1528,6 +1625,7 @@ const Battle = {
             }
             state.player.currentEncounterNpcId = null;
             state.player.currentSiege = null;
+            state.player.siege = null;
             state.player.currentRaid = null;
 
             if(captor) alert(`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`
