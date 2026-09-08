@@ -1690,6 +1690,7 @@ const Game = {
             // Yakılan köy daha hızlı toparlanır; zaten zengin yerleşim yavaş büyür
             if(loc.prosperity !== undefined && loc.prosperity < 90) loc.prosperity += loc.prosperity < 50 ? 0.4 : 0.15;
         });
+        this.priceTick();   // arz/talep dengesi kendi tabanına döner (#24)
 
         // Gönüllü yenilenmesi (şehirler ve köyler için 2 günde bir)
         LOCATIONS.forEach(loc => {
@@ -2832,8 +2833,78 @@ const Game = {
         <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:0.9rem"></div>`;
         this.showModal(html);
         this._marketLoc = loc;
-        this._marketMult = (0.8 + Math.random()*0.4) * (1.15 - (loc.prosperity || 50) / 400);  // bolluk fiyatı düşürür
         this.refreshMarket();
+    },
+
+    // --- MAL BAŞINA ARZ/TALEP (#24) ---
+    // Fiyat artık şehre girerken atılan tek zar değil: her yerleşimin her mal için
+    // kendi çarpanı var. Üretim bölgesinde ucuz, uzağında pahalı; sen aldıkça
+    // yükselir, sattıkça düşer, dokunulmazsa kendi tabanına geri döner.
+    GOOD_ORIGIN: {
+        swadia:  { wheat:0.70, bread:0.75, velvet:1.30, salt:1.15 },   // ova, tahıl ambarı
+        rhodok:  { ale:0.65,   iron:0.80,  meat:1.25,   cheese:1.15 }, // dağ, bağ ve maden
+        vaegir:  { meat:0.70,  cheese:0.80, velvet:1.25, ale:1.20 },   // kuzey ormanı
+        nord:    { salt:0.70,  meat:0.85,  wheat:1.30,  iron:1.20 },   // kıyı, tuzla
+        khergit: { cheese:0.70, meat:0.75, velvet:1.35, bread:1.25 }   // bozkır, sürü
+    },
+    basePriceMult(loc, id) {
+        let it = ITEMS[id];
+        let m = (this.GOOD_ORIGIN[loc.faction] || {})[id] || 1;
+        // Aynı krallığın her şehri aynı fiyatı vermesin: yerleşim+mal'dan türeyen sabit sapma
+        let h = 0, str = loc.id + id;
+        for(let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+        m *= 0.88 + (h % 25) / 100;
+        if(loc.type === 'village' && it) m *= it.type === 'food' ? 0.8 : 1.15;   // köy erzağı ucuz, ticaret malı pahalı
+        return m * (1.15 - (loc.prosperity || 50) / 400);                        // bolluk fiyatı düşürür
+    },
+    priceMult(loc, id) {
+        if(!loc.prices) loc.prices = {};
+        if(loc.prices[id] === undefined) loc.prices[id] = this.basePriceMult(loc, id);
+        return loc.prices[id];
+    },
+    // Alım fiyatı yükseltir, satım düşürür — birim başına %0.8, taban çarpanın 0.5–1.8 katı
+    // arasında. (%2 denendi: 20 birimlik tek yük fiyatı %49 oynatıp kârı %8'e indiriyordu.)
+    priceImpact(loc, id, n) {
+        let base = this.basePriceMult(loc, id);
+        let m = this.priceMult(loc, id) * (1 + 0.008 * n);
+        loc.prices[id] = Math.max(base * 0.5, Math.min(base * 1.8, m));
+    },
+    // Her gün fiyat kendi tabanına %12 yaklaşır; taban değere oturunca kayıt şişmesin diye silinir
+    priceTick() {
+        LOCATIONS.forEach(l => {
+            if(!l.prices) return;
+            for(let id in l.prices) {
+                let base = this.basePriceMult(l, id);
+                l.prices[id] += (base - l.prices[id]) * 0.12;
+                if(Math.abs(l.prices[id] - base) < 0.005) delete l.prices[id];
+            }
+        });
+    },
+    // Fiyatın taban fiyata göre nerede durduğu — pazar listesinde ve lonca defterinde
+    priceTag(loc, id) {
+        let rel = Math.round((this.priceMult(loc, id) - 1) * 100);
+        let c = rel <= -12 ? '#2ecc71' : rel >= 12 ? '#e0463a' : 'var(--text-muted)';
+        let w = rel <= -12 ? 'ucuz' : rel >= 12 ? 'pahalı' : 'normal';
+        return `<span style="color:${c}">${w} ${rel > 0 ? '+' : ''}${rel}%</span>`;
+    },
+    // Lonca ustasının defteri: hangi mal nerede ucuz, nerede pahalı (Warband'daki
+    // "ticaret malları fiyatları" ekranı). Rota kurmanın tek bilgi kaynağı.
+    guildPrices(locId) {
+        let here = LOCATIONS.find(l => l.id === locId);
+        let towns = LOCATIONS.filter(l => l.type === 'city')
+                             .sort((a, b) => this.dist(a, here) - this.dist(b, here)).slice(0, 5);
+        let goods = Object.values(ITEMS).filter(i => i.type === 'trade' || i.type === 'food');
+        let head = towns.map(t => `<th style="padding:0.2rem 0.4rem;font-weight:600;color:${(FACTIONS[t.faction]||{}).color||'#fff'}">${t.name}${t.id === here.id ? ' *' : ''}</th>`).join('');
+        let rows = goods.map(g => `<tr><td style="padding:0.2rem 0.4rem">${g.icon} ${g.name}</td>` +
+            towns.map(t => `<td style="padding:0.2rem 0.4rem;text-align:right">${Math.max(1, Math.floor(g.basePrice * this.priceMult(t, g.id)))}₺<br>
+                <span style="font-size:0.7rem">${this.priceTag(t, g.id)}</span></td>`).join('') + '</tr>').join('');
+        this.showModal(`<h3>📈 Lonca Fiyat Defteri</h3>
+            <p style="color:var(--text-muted);font-size:0.9rem">"En yakın beş şehrin fiyatları bunlar. Ucuz aldığın malı
+            pahalı olduğu yerde satarsan kâr edersin — ama sen aldıkça fiyat yükselir, sattıkça düşer."<br>
+            Satış fiyatı bu rakamın <b>%70</b>'i (Ticaret yeteneği payını iyileştirir). <i>*</i> bulunduğun şehir.</p>
+            <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+            <tr><th style="text-align:left;padding:0.2rem 0.4rem">Mal</th>${head}</tr>${rows}</table></div>
+            <button class="btn" style="margin-top:1rem" onclick="Game.openTavern(LOCATIONS.find(l=>l.id==='${locId}'))">Geri</button>`, '760px');
     },
     // Fiyat butonun HTML'inden parametre olarak gelmemeli: DOM'dan değiştirilerek
     // bedavaya alışveriş yapılabiliyor, eksik parametrede para NaN oluyordu.
@@ -2842,7 +2913,8 @@ const Game = {
         if(!it) return null;
         // Ticaret yeteneği: alışta indirim, satışta prim (en fazla %25)
         let edge = Math.min(0.25, (this.profLvl('trade') - 1) * 0.02);
-        let mult = (this._marketMult || 1) * (selling ? 0.7 * (1 + edge) : 1 - edge);
+        let loc = this._marketLoc;
+        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 * (1 + edge) : 1 - edge);
         return Math.max(1, Math.floor(it.basePrice * mult));
     },
     refreshMarket() {
@@ -2852,6 +2924,7 @@ const Game = {
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
             let note = this.itemNote(item);
             li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> `
+                + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
                 + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button> `
                 + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',5)">x5</button>`
                 + (note ? `<div style="font-size:0.7rem;color:#cbb26b">${note}</div>` : '');
@@ -2863,6 +2936,7 @@ const Game = {
                 let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
                 li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> `
+                    + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
                     + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">Sat</button> `
                     + (item.qty >= 5 ? `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}',5)">x5</button>` : '');
                 sell.appendChild(li);
@@ -2884,6 +2958,7 @@ const Game = {
         let ex = state.player.inventory.find(i=>i.id===id);
         if(ex) ex.qty += can; else state.player.inventory.push({...ITEMS[id], qty:can});
         this.addProficiencyXp('trade', 4 * can);
+        if(this._marketLoc) this.priceImpact(this._marketLoc, id, can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
         this.marketMsg(`${ITEMS[id].icon} <b>${ITEMS[id].name} x${can}</b> alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`
@@ -2899,6 +2974,7 @@ const Game = {
         let price = this.marketPrice(id, true), gain = price * can;
         state.player.money += gain;
         this.addProficiencyXp('trade', 4 * can);
+        if(this._marketLoc) this.priceImpact(this._marketLoc, id, -can);
         item.qty -= can;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
         this.marketMsg(`${item.icon||'📦'} <b>${item.name} x${can}</b> satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`);
@@ -2947,7 +3023,8 @@ const Game = {
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
             <h4 style="color:var(--primary)">⚖️ Lonca Ustası</h4>
             <p style="font-size:0.9rem;color:var(--text-muted)">Köşedeki masada, defterine bir şeyler yazıyor.</p>
-            <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">İşi Sor</button>`;
+            <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">İşi Sor</button>
+            <button class="btn" onclick="Game.guildPrices('${loc.id}')">📈 Fiyat Defterine Bak</button>`;
 
         // Handaki yoldaşlar
         let here = COMPANIONS.filter(c => c.city === loc.id && !state.player.party.some(t => t.companionId === c.id));
@@ -4503,7 +4580,7 @@ const Save = {
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
                 locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
-                    owner: l.owner, garrison: l.garrison, storage: l.storage })),
+                    owner: l.owner, garrison: l.garrison, storage: l.storage, prices: l.prices })),
                 playerKingdom: FACTIONS['player_kingdom'] || null
             }));
             alert('Oyun kaydedildi.');

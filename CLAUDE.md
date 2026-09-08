@@ -303,9 +303,35 @@ parayı doğrudan orduya çevirmenin tek yolu.
 
 ### Envanter & ekipman
 Silah / zırh / at slotları. Zırh max HP'ye, silah saldırıya, at harita hızına (66 → 105) etki eder.
-Ticaret malları pazarda alınıp satılır (satış fiyatı ×0.7). Pazar çarpanı şehir girişinde rastgele 0.8–1.2.
+Ticaret malları pazarda alınıp satılır (satış fiyatı ×0.7).
 Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ürün + adet + ödenen/alınan tutar + kalan dinar yazar
 (`Game.marketMsg`). Para yetmezse alabildiği kadarını alır ve bunu söyler — `alert()` kullanılmaz, pazarı kapatırdı.
+
+#### Mal başına arz/talep fiyatı (#24)
+Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara aynı 0.8–1.2
+çarpanı vuruyordu, yani rota kurulamıyordu). Her yerleşimin her mal için kendi çarpanı var:
+
+- `Game.basePriceMult(loc, id)` = **üretim bölgesi** (`Game.GOOD_ORIGIN`: Svadya tahıl 0.70,
+  Rodok bira 0.65 / demir 0.80, Veagir et 0.70, Nord tuz 0.70, Kergit peynir 0.70; uzak
+  krallıkta 1.20–1.35) × yerleşim+mal hash'inden sabit ±%12 sapma × köy düzeltmesi
+  (erzak ×0.8, ticaret malı ×1.15) × refah (`1.15 − refah/400`).
+- `Game.priceMult(loc, id)` bu tabanı `loc.prices[id]`'ye yazar ve **oradan okur** —
+  yani fiyat oynayabilir bir durumdur, kayda girer.
+- **Sen aldıkça pahalanır, sattıkça ucuzlar**: `priceImpact` birim başına **%0.8**,
+  taban çarpanın 0.5–1.8 katıyla sınırlı. *(%2 denendi: 20 birimlik tek yük fiyatı %49
+  oynatıp kârı %8'e indiriyordu — piyasa oyuncunun tek yüküne fazla duyarlıydı.)*
+- `Game.priceTick()` her gün fiyatı tabanına **%12** yaklaştırır; oturunca anahtarı siler.
+- Pazar listesinde ve lonca defterinde `Game.priceTag()` rozetleri: **ucuz** ≤ −%12 yeşil,
+  **pahalı** ≥ +%12 kırmızı.
+- **Lonca fiyat defteri** (han → ⚖️ Lonca Ustası → 📈 Fiyat Defterine Bak,
+  `Game.guildPrices`): en yakın 5 şehrin bütün erzak/ticaret mallarındaki fiyatı tek tabloda.
+  Rota kurmanın bilgi kaynağı bu — Warband'daki "ticaret malları fiyatları" ekranı.
+
+Ölçüldü (yeni dünya, ticaret yeteneği 1): en ucuz→en pahalı şehir arası **tek yükün kârı**
+20 bira Jelkala→Reyvadin **+220 dinar (%33)**, 20 tuz Sargoth→Uxkhal **+470 (%37)**,
+10 kadife Veluca→Narra **+1005 (%30)**, 20 demir Veluca→Tihr **+310 (%14)**. Bir çapulcu
+savaşı ~80 dinar olduğu için ticaret artık gerçekten meslek — ama sermaye, yol ve haydut
+riski istiyor.
 
 ### Yerleşimler
 - **Şehir**: pazar, köle tüccarı, han (dinlenme + ozandan şiir öğrenme + **paralı asker** +
