@@ -329,6 +329,7 @@ const state = {
     time: { day:1, hour:8 },
 
     // --- Soylu / görev sistemi ---
+    vassals: [],          // krallığına katılan lordların id'leri (#40)
     relations: {},        // lordId -> -100..100
     affection: {},        // ladyId -> 0..100
     rivals: {},           // ladyId -> { lordId, affection }
@@ -1744,7 +1745,7 @@ const Game = {
         // nişanlıyken esir düşenin düğünü hiç kurulmuyordu.
         if(!state.player.prisoner) {
             let fief = this.fiefIncome();                 // tımar vergisi (garnizon maaşı upkeep'te)
-            if(fief.tax) state.player.money += fief.tax;
+            state.player.money += fief.tax + fief.tribute;
             let up = this.upkeep();
             let totalWage = up.wage;
             let foodRequiredLow = up.foodLow;
@@ -3176,7 +3177,7 @@ const Game = {
             state.campaigns[f] = { marshalId: marshal.lordId, marshalName: marshal.name,
                                    targetLocId: target.id, day: state.time.day };
             this.news(`🎖️ ${marshal.name} mareşal seçildi — ${this.factionName(f)} ordusu ${target.name} üzerine yürüyor.`);
-            if(f === this.playerFaction()) this.summonToArms(f);
+            if(f === this.playerFaction() && f !== 'player_kingdom') this.summonToArms(f);
         });
     },
     endCampaign(f) {
@@ -3382,7 +3383,15 @@ const Game = {
                     <span style="color:var(--text-muted);min-width:70px">${l.type === 'city' ? 'Şehir' : l.type === 'castle' ? 'Kale' : 'Köy'}</span>
                     <span style="color:#ffcc00;min-width:110px">+${this.fiefTax(l)} dinar/gün</span>
                     <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">🛡️ ${(l.garrison || []).length} garnizon</span>
-                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> dinar/gün</div>` : ''}
+                    ${this.vassals().length && l.type !== 'village' ? `<button class="btn" style="padding:0.1rem 0.5rem;font-size:0.75rem" onclick="Game.grantFiefMenu('${l.id}')">👑 Vassala ver</button>` : ''}
+                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi${this.fiefIncome().tribute ? ` · +${this.fiefIncome().tribute} haraç` : ''} · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> dinar/gün</div>` : ''}
+            ${this.vassals().length ? `<h3 style="margin-top:1rem">👑 Vassalların</h3>` + this.vassals().map(v =>
+                `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
+                    <span style="min-width:150px;font-weight:600">${v.name}</span>
+                    <span style="color:var(--text-muted);min-width:110px">İlişki: ${Nobles.rel(v.id)}</span>
+                    <span>${this.fiefsOf(v.id).length ? this.fiefsOf(v.id).map(l => l.name).join(', ')
+                        : '<span style="color:#e0463a">topraksız — küskün</span>'}</span>
+                </div>`).join('') : ''}
             ${camps ? `<h3 style="margin-top:1rem">🎖️ Yürüyen Seferler</h3>${camps}` : ''}
             <h3 style="margin-top:1rem">📜 Haberler</h3>
             <div style="max-height:220px;overflow:auto;font-size:0.92rem">${log}</div>
@@ -3409,7 +3418,10 @@ const Game = {
             tax += this.fiefTax(l);
             (l.garrison || []).forEach(t => { wage += this.troopWage(t); troops++; });
         });
-        return { tax, wage, troops, net: tax - wage };
+        // Vassalın tımarı kasana doğrudan girmez, haraç olarak bir payı gelir (#40)
+        let tribute = this.vassals().reduce((a, v) =>
+            a + this.fiefsOf(v.id).reduce((b, l) => b + Math.round(this.fiefTax(l) * this.VASSAL_TRIBUTE), 0), 0);
+        return { tax, tribute, wage, troops, net: tax + tribute - wage };
     },
     // Fetihten sonra: yerleşim senin tımarın olur, çevresindeki köyler de bayrak değiştirir
     grantFief(loc, oldFaction) {
@@ -3418,6 +3430,77 @@ const Game = {
         loc.garrison = loc.garrison || [];
         LOCATIONS.filter(l => l.type === 'village' && l.faction === oldFaction && this.dist(l, loc) < 900)
                  .forEach(l => { l.faction = loc.faction; l.owner = 'player'; });
+    },
+
+    // --- VASSALLAR (#40) ---
+    // Kral olunca tımar tek başına taşınacak bir yük olmaktan çıkar: toprak vererek
+    // lord tutarsın. Vassal senin bayrağınla savaşır (partisinin fraksiyonu değişir),
+    // tımarını kendi garnizonuyla savunur ve vergisinin bir payını haraç olarak öder.
+    VASSAL_TRIBUTE: 0.3,
+    VASSAL_REL: 25,
+    isKing() { return state.player.vassalOf === 'player_kingdom'; },
+    vassals() { return typeof LORDS === 'undefined' ? [] : LORDS.filter(l => (state.vassals || []).indexOf(l.id) !== -1); },
+    fiefsOf(lordId) { return LOCATIONS.filter(l => l.owner === lordId); },
+    // LORDS kayda yazılmaz; lordun bayrağı her yüklemede state.vassals'tan geri kurulur
+    applyVassals() {
+        (state.vassals || []).forEach(id => {
+            let l = Nobles.lord(id);
+            if(!l) return;
+            l.faction = 'player_kingdom';
+            let npc = state.npcParties.find(n => n.lordId === id);
+            if(npc) { npc.faction = 'player_kingdom'; npc.color = this.bannerColor(); }
+        });
+    },
+    // Lord diyaloğundaki "krallığıma katıl" kapısı: toprak vermeden kimse yemin etmez
+    offerVassalage(lordId) {
+        let lord = Nobles.lord(lordId), rel = Nobles.rel(lordId);
+        let free = this.myFiefs().filter(l => l.type !== 'village');
+        if(rel < this.VASSAL_REL)
+            return alert(`${lord.name} sana bağlanacak kadar güvenmiyor.\nGereken ilişki: ${this.VASSAL_REL} (şu an ${rel}).`);
+        if(!free.length)
+            return alert('Toprağı olmayan krala kimse yemin etmez. Önce bir şehir ya da kale fethet — vassal ancak tımar karşılığı gelir.');
+        this.showModal(`<h3>👑 ${lord.name}'e Bağlılık Teklifi</h3>
+            <p style="color:var(--text-muted)">Hangi tımarı ona veriyorsun? Toprak onun olur:
+            vergisinin <b>%${Math.round(this.VASSAL_TRIBUTE * 100)}</b>'i haraç olarak sana gelir, kalanı ve garnizon
+            derdi ona kalır. Partisi bundan sonra senin bayrağınla savaşır.</p>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
+            ${free.map(l => `<button class="btn" onclick="Game.grantFiefTo('${l.id}','${lordId}',1)">🏰 ${l.name} (${l.type === 'city' ? 'Şehir' : 'Kale'}) — +${this.fiefTax(l)} dinar/gün</button>`).join('')}
+            <button class="btn" onclick="Nobles.talk('${lordId}')">Vazgeç</button></div>`, '560px');
+    },
+    grantFiefMenu(locId) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        let vs = this.vassals();
+        if(!vs.length) return alert('Henüz vassalın yok. Lordlarla konuşup krallığına davet et.');
+        this.showModal(`<h3>🏰 ${loc.name} kime veriliyor?</h3>
+            <p style="color:var(--text-muted)">Tımar vassalın olur; vergisinin %${Math.round(this.VASSAL_TRIBUTE * 100)}'i haraç
+            olarak sana gelir. Buradaki <b>${(loc.garrison || []).length}</b> asker onun emrine geçer.</p>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
+            ${vs.map(v => `<button class="btn" onclick="Game.grantFiefTo('${locId}','${v.id}')">👑 ${v.name} — ${this.fiefsOf(v.id).length} tımar · ilişki ${Nobles.rel(v.id)}</button>`).join('')}
+            <button class="btn" onclick="Game.showDiplomacy()">Vazgeç</button></div>`, '560px');
+    },
+    grantFiefTo(locId, lordId, swear) {
+        let loc = LOCATIONS.find(l => l.id === locId), lord = Nobles.lord(lordId);
+        if(!loc || !lord || loc.owner !== 'player') return;
+        if(swear) {
+            let old = lord.faction;
+            state.vassals.push(lordId);
+            this.applyVassals();
+            LORDS.filter(l => l.faction === old).forEach(l => Nobles.addRel(l.id, -10));
+            this.news(`👑 ${lord.name}, ${this.factionName(old)}'dan ayrılıp senin krallığına katıldı.`, true);
+        }
+        let n = (loc.garrison || []).length;
+        loc.owner = lordId;
+        loc.garrison = [];
+        LOCATIONS.filter(l => l.type === 'village' && l.owner === 'player' && this.dist(l, loc) < 900)
+                 .forEach(l => l.owner = lordId);
+        Nobles.addRel(lordId, 20);
+        // Warband'daki kıskançlık: toprak dağıtılırken eli boş kalan vassal küser
+        this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
+                      .forEach(v => Nobles.addRel(v.id, -5));
+        this.news(`🏰 ${loc.name} tımarı ${lord.name}'e verildi.`, true);
+        this.closeModal();
+        alert(`${loc.name} artık ${lord.name}'in tımarı.\n+20 ilişki${n ? `, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
+        this.updateTopBar();
     },
     troopGroups(list) {
         let g = {};
@@ -6163,6 +6246,7 @@ const Save = {
         Game.renderPrisonerUI();
         // initRivals artık dünyaya girişte çalışıyor; rakipsiz eski kayıtta burada kurulur
         if(!Object.keys(state.rivals || {}).length) Nobles.initRivals();
+        Game.applyVassals();     // LORDS kayda yazılmaz, vassalların bayrağı burada geri kurulur
         Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
         Game.ensureTraders();    // eski kayıtlarda kervan/kafile yoktu
         Game.startGameLoop();

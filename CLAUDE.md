@@ -747,7 +747,30 @@ Fethedilen yerleşim artık bayrak değişikliğinden ibaret değil: `loc.owner 
   `owner`'ı düşürür, **garnizonu yok eder** ve haberi modal olarak sana gösterir; depo kalır.
 - `owner` / `garrison` / `storage` kayda yazılır (`Save.save`'deki `locations` dizisi).
 
-*Eksik: kral olarak vassallarına tımar dağıtma (oyuncunun vassalı yok).*
+### Vassallar — kral olarak tımar dağıtma (#40)
+Kendi krallığını kurunca (`state.player.vassalOf === 'player_kingdom'`, `Game.isKing()`)
+tımar tek başına taşınacak bir yük olmaktan çıkar: **toprak vererek lord tutarsın.**
+Warband'daki kural aynen geçerli — topraksız krala kimse yemin etmez.
+
+| Ne | Nerede | Kural |
+|---|---|---|
+| **Davet** | lord diyaloğu → 👑 Krallığıma katıl | İlişki ≥ **25** ve elinde dağıtılacak (köy olmayan) bir tımar şartı. Teklif doğrudan tımar teklifidir: seçtiğin şehir/kale onun olur |
+| **Tımar dağıtma** | diplomasi ekranı (**K**) → tımar satırındaki 👑 Vassala ver | `Game.grantFiefTo(locId, lordId)`; 900 birim içindeki köylerin de sahibi değişir |
+| **Haraç** | her gün, `fiefIncome()` | Vassalın tımar vergisinin **%30'u** (`Game.VASSAL_TRIBUTE`) sana gelir, kalanı ve garnizon derdi ona kalır |
+
+- Vassalın **partisi senin bayrağınla savaşır**: `lord.faction` ve haritadaki partisinin
+  `faction`/rengi `player_kingdom` olur, yani `warTick`/`isHostile`/`pickMarshal` onu
+  kendiliğinden senin ordunun parçası sayar. Eski krallığının bütün lordları **−10** ilişki.
+- Tımarı verirken oradaki **garnizon vassalın emrine geçer** (`loc.garrison` boşalır, maaşı
+  artık `upkeep()`'ten çıkmaz); savunma `garrisonOf`'un formül dalına döner.
+- Verilen tımar **+20 ilişki**, o sırada hâlâ topraksız kalan diğer vassallar **−5** (kıskançlık).
+- `LORDS` kayda yazılmadığı için vassallık `state.vassals` (id listesi) olarak saklanır;
+  `Game.applyVassals()` yüklemede lordun ve partisinin bayrağını geri kurar.
+- Kral olan oyuncu **kendi seferine çağrılmaz**: `campaignTick`'teki `summonToArms` çağrısı
+  `player_kingdom` için atlanır (mareşalini yine de seçer, vassalları hedefe yürür).
+- Ölçüldü: 3 tımarlı kral günde +205 vergi topluyor; refah 55'lik Praven'i vassala verince
+  kendi vergisi 96'ya iniyor ama +33 haraç geliyor (net 129) — toprağı dağıtmak parayı
+  yarıya indirir, karşılığında sana savaşacak bir lord ve bedavaya savunulan bir şehir verir.
 
 ### Turnuva
 `TournamentMinigame.start(opts)` — varsayılan 25 saniyede 12 hedefe tıklama. Hedef boyutu
@@ -863,9 +886,7 @@ anında bitmesi.
 
 Kalanlar:
 
-1. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
-   yalnızca oyuncunun kendisine veriliyor.
-2. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+1. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
 
 ## Kod tarzı
 

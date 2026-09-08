@@ -455,6 +455,12 @@ const Nobles = {
             });
         }
 
+        // Kral olan oyuncu lord tutabilir — bedeli tımardır (#40)
+        if(Game.isKing() && n.rank !== 'king' && n.faction !== 'player_kingdom')
+            html += `<button class="btn" style="border-color:var(--primary);color:var(--primary)" onclick="Game.offerVassalage('${id}')">👑 Krallığıma katıl (tımar teklif et)</button>`;
+        else if(n.faction === 'player_kingdom')
+            html += `<button class="btn" disabled style="opacity:0.5">👑 Senin vassalın — ${Game.fiefsOf(id).length} tımar</button>`;
+
         html += `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.insult('${id}')">🤬 Hakaret et</button>`;
         html += `<button class="btn" onclick="Game.closeModal()">Ayrıl</button></div>`;
 
