@@ -435,6 +435,38 @@ yollarında `state.player.currentRaid` da `currentSiege` gibi temizlenir.
 Ölçüldü: refah 44 köyde 408 dinar + 9 tahıl + 4 peynir, refah 24'e düştü, sahibi 5 → −25,
 40 günde refah 54'e toparlandı.
 
+#### Yağma bir eylemdir, ganimet düğmesi değil (#49)
+Milisi yenmek yağmanın **başlangıcıdır**. `Game.completeRaid` artık ganimeti dağıtmaz;
+`state.player.raid = { locId, t }` kurar, oyuncuyu köyün üstüne çakar ve
+`state.player.status = 'raiding'` yapar — kuşatma kampıyla aynı desen: zaman akar
+(`update`'in `timeFlows` listesinde), harita tıklaması yok sayılır, sağ altta `#raid-ui`
+paneli (kalan süre, ilerleme çubuğu, en yakın lordun mesafesi) durur.
+
+| Sabit | Değer | Ne yapar |
+|---|---|---|
+| `RAID_SECONDS` | 15 sn | ambarı boşaltma süresi; bitince `finishRaid` → `grantRaidLoot` |
+| `RAID_ALERT` | 1600 birim | dumanı gören lord (`npc.raidResponder`) — 15 sn'de ~1200–1600 birim yol alır, yani sınırdakiler yetişir |
+| `RAID_COOLDOWN` | 30 gün | aynı köy tekrar yağmalanamaz (`loc.raidedDay`) |
+
+`Game.raidTick(dt)` her karede işaretli lordları köye yönlendirir; biri **60 birim** yaklaşırsa
+yağma iptal olur, ilişki **−15** düşer ve `triggerEncounter(responder, 'raid')` savaşı açar.
+`'raid'` kipi `triggerEncounter`'ın dostane soylu dalını atlar — yoksa seni suçüstü yakalayan
+lord gelip hâl hatır soruyordu. 🚪 *Yağmayı Bırak* ile ganimetsiz çekilebilirsin.
+
+**Yağmacı damgası** (`state.player.infamy`): her tamamlanan yağma **+12**, günde −0.5 söner.
+Kademe (`infamyTier`): ≥10 🔥 Yağmacı, ≥36 💀 Köy Yakan. Karakter ekranında ve lord
+diyaloğunun başlığında yazar.
+
+| Etki | Kural |
+|---|---|
+| Gönüllü | sayı `×(1 − damga/100)`, ücret `×(1 + damga/100)` — ölçüldü: 8 kişi/10₺ → **7 kişi/11₺** |
+| Paralı asker | `mercPrice` aynı çarpanla — lvl 12 asker **204 → 228 dinar** |
+| Soylu ağırlığı | `Nobles.standing` kademe kadar düşer (ölçüldü: −1) |
+
+Ölçüldü: rahatsız edilmeyen yağma 15.1 saatte bitiyor, 297 dinar + 8 tahıl + 3 peynir;
+900 birimdeki lord (hız 70) 12. saniyede yetişip yağmayı bozuyor ve "🔥 Baskın!" savaşını
+açıyor; 2000 birimdeki lord işaretlenmiyor, yağma tamamlanıyor.
+
 ### Soylular (`nobles.js`)
 23 lord + 12 leydi. Her lordun haritada gezen kendi partisi var (`npc.lordId`); parti kendi
 yerleşiminin etrafında dolaşır, böylece salonunda bulunabilir. `Nobles.isAt()` "evinde mi"

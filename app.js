@@ -1282,7 +1282,7 @@ const Game = {
         if (isMapActive && !isModalOpen) {
             // Kuşatma kampında da zaman akar: hazırlık günleri geçsin, dünya işlesin (#25)
             if (state.player.status === 'moving' || state.player.status === 'prisoner'
-                || state.player.status === 'besieging') {
+                || state.player.status === 'besieging' || state.player.status === 'raiding') {
                 timeFlows = true;
             }
         }
@@ -1292,6 +1292,9 @@ const Game = {
             this.updateNPCs(dt);
             if(state.encounterCooldown > 0) state.encounterCooldown -= dt;
         }
+
+        // Yağma süren bir eylemdir: ilerleme, müdahale eden lord, bitiş (#49)
+        if(state.player.status === 'raiding') { this.raidTick(timeFlows ? dt : 0); return; }
 
         if(state.player.status === 'prisoner') {
             let captor = state.npcParties.find(n => n.id === state.player.prisoner.npcId);
@@ -1530,6 +1533,7 @@ const Game = {
         });
     },
 
+    // `ambush`: 'ambush' | 'spotted' | 'raid' — 'raid' yağmayı basan lorddur, sohbet yok
     triggerEncounter(npc, ambush) {
         state.encounterCooldown = 2;
         state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
@@ -1541,8 +1545,9 @@ const Game = {
             if(live) return this.meetTrader(live);
         }
 
-        // Düşman olmayan bir soyluya rastladıysak bu bir sohbet fırsatı, savaş değil
-        if(npc.lordId && !this.isHostile(npc)) {
+        // Düşman olmayan bir soyluya rastladıysak bu bir sohbet fırsatı, savaş değil.
+        // Ama köyünü yakarken bastıysa sohbet olmaz (#49).
+        if(npc.lordId && !this.isHostile(npc) && ambush !== 'raid') {
             state.player.currentEncounterNpcId = null;
             state.encounterCooldown = 8;
             return Nobles.talk(npc.lordId);
@@ -1550,7 +1555,7 @@ const Game = {
 
         let dialog = this.getHumorousDialog(npc.type, npc);
 
-        let html = `<h3>${ambush === 'ambush' ? '🌲 Pusu!' : '⚔️ Karşılaşma:'} ${npc.name}</h3>
+        let html = `<h3>${ambush === 'ambush' ? '🌲 Pusu!' : ambush === 'raid' ? '🔥 Baskın!' : '⚔️ Karşılaşma:'} ${npc.name}</h3>
         <p style="margin-top:0.5rem;">Düşman grup büyüklüğü: <b>${npc.size}</b> kişi</p>
         <p>Senin grubun: <b>${state.player.party.length + 1}</b> kişi</p>`;
 
@@ -1707,6 +1712,9 @@ const Game = {
         for(let i = 0; i < passed; i++) { this.wageDebtTick(); this.regenTick(); }
         while(state.time.hour >= 24) {
             state.time.day++;
+
+        // Yağmacı damgası zamanla soluklaşır ama çabuk değil (#49)
+        if(state.player.infamy) state.player.infamy = Math.max(0, state.player.infamy - 0.5);
 
         // Refah zamanla toparlanır (yağmalanan köy sonsuza dek yoksul kalmasın)
         LOCATIONS.forEach(loc => {
@@ -2148,6 +2156,7 @@ const Game = {
         }
 
         this.renderSiegeUI();   // kuşatma paneli yalnız haritada durur
+        this.renderRaidUI();    // yağma paneli de (#49)
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
@@ -2751,6 +2760,8 @@ const Game = {
 
     handleMapClick(e) {
         if(Battle.active || TournamentMinigame.active) return;   // savaş açıkken harita girdisi yok sayılır (#42)
+        // Esaret gibi yağma da yerinde tutar: ambarı boşaltırken yürüyemezsin (#49)
+        if(state.player.status === 'raiding' || state.player.status === 'prisoner') return;
         let rect = this.mapCanvas.getBoundingClientRect();
         let mx = ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x;
         let my = ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y;
@@ -3202,7 +3213,8 @@ const Game = {
         }
         return p;
     },
-    mercPrice(m) { return 60 + m.level * 12; },
+    // Yağmacıyla çalışmak risklidir; paralı asker fazladan ister (#49)
+    mercPrice(m) { return Math.round((60 + m.level * 12) * (1 + this.infamyPenalty())); },
 
     // Yerleşimin fraksiyonu hangi köylüyü verir; bilinmeyen fraksiyon Svadya ağacına düşer
     tree(faction) { return TROOP_TREES[faction] || TROOP_TREES.swadia; },
@@ -4045,11 +4057,20 @@ const Game = {
         let owner = this.ownerLord(loc);
         let militia = Math.max(4, Math.round((loc.prosperity || 50) / 5));
         let peace = !this.atWar(this.playerFaction(), loc.faction) && loc.faction !== this.playerFaction();
+        // Yakılan köyün ambarı hemen dolmaz (#49)
+        let wait = loc.raidedDay !== undefined ? this.RAID_COOLDOWN - (state.time.day - loc.raidedDay) : 0;
+        if(wait > 0) return this.showModal(`<h3>🔥 ${loc.name}</h3>
+        <p>Burası daha yeni yağmalandı — ambar boş, ahır boş, sağ kalanlar ormanda.
+        Alacak bir şey kalması için <b>${Math.ceil(wait)} gün</b> daha geçmeli.</p>
+        <button class="btn" onclick="Game.closeModal()">Geri</button>`);
         this.showModal(`<h3>🔥 ${loc.name} Yağması</h3>
-        <p>Köy milisi tahminen <b>${militia}</b> kişi. Dağıtırsan sürüyü, ambarı ve keseyi alırsın.</p>
+        <p>Köy milisi tahminen <b>${militia}</b> kişi. Dağıtırsan ambarı boşaltmak
+        <b>${this.RAID_SECONDS} saniye</b> sürer — o sürede kıpırdayamazsın ve dumanı gören
+        ${this.factionName(loc.faction)} lordları üstüne yürür. Yetişirlerse ganimet yok.</p>
         <p style="color:var(--danger);line-height:1.5">Bedeli:
             ${owner ? `${owner.name} ile ilişki <b>−30</b>, ` : ''}${this.factionName(loc.faction)} lordları <b>−6</b>,
-            köyün refahı çöker ve günlerce gönüllü vermez, namın <b>−6</b>.
+            köyün refahı çöker ve günlerce gönüllü vermez, namın <b>−6</b>,
+            <b>yağmacı damgası +${this.RAID_INFAMY}</b> (gönüllü ve paralı asker pahalanır, lordlar yüz vermez).
             ${peace ? `<br>Bu köy barıştaki bir krallığın — yağma <b>savaş sebebi</b> sayılır.` : ''}</p>
         <button class="btn primary" onclick="Game.closeModal(); Game.startRaid('${loc.id}', ${militia})">🔥 Yak ve Yağmala</button>
         <button class="btn" onclick="Game.closeModal()">Vazgeç</button>`);
@@ -4059,10 +4080,94 @@ const Game = {
         let loc = LOCATIONS.find(l => l.id === locId);
         Battle.start('Köy Milisi', count, null, loc ? loc.faction : null);
     },
-    // Yağma savaşı kazanılınca (Battle zafer dalından)
+    // --- YAĞMA: SÜREN EYLEM (#49) ---
+    // Milisi dağıtmak yağmanın yarısı. Ambarı boşaltmak zaman ister: 15 saniye boyunca
+    // kıpırdayamazsın, zaman akar ve köyün krallığının lordları dumana doğru yürür.
+    // --- YAĞMACI DAMGASI (#49) ---
+    // Köylüye kılıç çekmek unutulmaz: `state.player.infamy` her yağmada artar, günde 0.5
+    // erir (bir yağmayı silmek ~24 gün). Tek kapı `infamy()`, etkiler `infamyTier()`den.
+    RAID_INFAMY: 12,
+    infamy() { return Math.max(0, Math.round(state.player.infamy || 0)); },
+    infamyTier() { let i = this.infamy(); return i >= 36 ? 2 : i >= 10 ? 1 : 0; },   // 1 yağma damgalar, 3 yağma canavar yapar
+    infamyLabel() { return ['—', '🔥 Yağmacı', '💀 Köy Yakan'][this.infamyTier()]; },
+    // Fiyat/gönüllü çarpanı: 60 onursuzlukta gönüllü yarıya iner, paralı asker %60 pahalanır
+    infamyPenalty() { return Math.min(0.6, this.infamy() / 100); },
+    RAID_SECONDS: 15,
+    RAID_ALERT: 1600,     // bu menzildeki lord dumanı görür; 15 sn'de ~1200–1600 birim yol alır
+    RAID_COOLDOWN: 30,    // gün — aynı köy bir daha yağmalanamaz (~12 dk gerçek zaman, hız ×1)
+    // Battle zafer dalı burayı çağırır: ganimet değil, yağma safhası başlar
     completeRaid(locId) {
         let loc = LOCATIONS.find(l => l.id === locId);
         if(!loc) return;
+        state.player.currentRaid = null;
+        state.player.raid = { locId, t: 0 };
+        state.player.x = loc.x; state.player.y = loc.y;
+        state.player.targetLocation = null;
+        state.player.status = 'raiding';
+        this.showScreen('map');
+        // Dumanı gören lordlar köye yönelir; hedefleri raidTick her karede tazeler
+        state.npcParties.forEach(n => {
+            if(n.lordId && n.faction === loc.faction && this.dist(n, loc) < this.RAID_ALERT) n.raidResponder = true;
+        });
+        this.renderRaidUI();
+    },
+    raidTick(dt) {
+        let r = state.player.raid;
+        if(!r) return;
+        let loc = LOCATIONS.find(l => l.id === r.locId);
+        if(!loc) return this.abortRaid(true);
+        r.t += dt;
+        let responder = null;
+        state.npcParties.forEach(n => {
+            if(!n.raidResponder) return;
+            n.targetX = loc.x; n.targetY = loc.y;
+            if(this.dist(n, loc) < 60 && !responder) responder = n;
+        });
+        if(responder) {
+            // Yetişti: ambar yarım kaldı, ganimet yok — kılıcını çekmek zorundasın
+            this.abortRaid(true);
+            // Ambarı basılmış lordun sana diyeceği yok: ganimet gitti, kılıç kaldı
+            if(typeof Nobles !== 'undefined') Nobles.addRel(responder.lordId, -15);
+            alert(`${responder.name} dumanı görüp yetişti — yağma yarıda kaldı, ganimet yok.`);
+            return this.triggerEncounter(responder, 'raid');
+        }
+        if(r.t >= this.RAID_SECONDS) return this.finishRaid(loc);
+        this.renderRaidUI();
+    },
+    abortRaid(silent) {
+        state.player.raid = null;
+        if(state.player.status === 'raiding') state.player.status = 'idle';
+        state.npcParties.forEach(n => delete n.raidResponder);
+        this.renderRaidUI();
+        if(!silent) alert('Yağmayı bıraktın. Ambara dokunmadan çekildin — köylü ucuz kurtuldu.');
+    },
+    renderRaidUI() {
+        let ui = document.getElementById('raid-ui');
+        if(!ui) return;
+        let r = state.player.raid;
+        let onMap = document.getElementById('map-view').classList.contains('active');
+        if(!r || !onMap) { ui.classList.add('hidden'); return; }
+        ui.classList.remove('hidden');
+        let loc = LOCATIONS.find(l => l.id === r.locId) || { name: '?' };
+        let pct = Math.min(100, r.t / this.RAID_SECONDS * 100);
+        // En yakın müdahaleci ne kadar uzakta? Kumarın gerilimi bu satırda.
+        let near = state.npcParties.filter(n => n.raidResponder)
+                    .sort((a, b) => this.dist(a, loc) - this.dist(b, loc))[0];
+        this.setHtml('raid-info',
+            `<div><b>${loc.name}</b> yağmalanıyor — ${(this.RAID_SECONDS - r.t).toFixed(1)} sn</div>
+             <div class="hud-bar" style="margin:0.4rem 0"><i class="fill-hp" style="width:${pct}%"></i></div>
+             <div style="color:${near ? 'var(--danger)' : 'var(--text-muted)'};font-size:0.85rem">
+                ${near ? `🚩 ${near.name} yaklaşıyor — ${Math.round(this.dist(near, loc))} birim`
+                       : 'Ufukta kimse yok. Ambarı boşalt.'}</div>`);
+    },
+    finishRaid(loc) {
+        state.player.raid = null;
+        state.player.status = 'idle';
+        state.npcParties.forEach(n => delete n.raidResponder);
+        this.renderRaidUI();
+        this.grantRaidLoot(loc);
+    },
+    grantRaidLoot(loc) {
         let pr = loc.prosperity || 50;
         let loot = Math.round(pr * 6 * (0.85 + Math.random() * 0.3));
         state.player.money += loot;
@@ -4075,6 +4180,7 @@ const Game = {
         loc.volunteersAvailable = 0;
         loc.raidedDay = state.time.day;
         state.player.renown = Math.max(0, (state.player.renown || 0) - 6);   // zaferin +3'ünü de yer
+        state.player.infamy = (state.player.infamy || 0) + this.RAID_INFAMY;  // yağmacı damgası (#49)
         let owner = this.ownerLord(loc);
         if(typeof Nobles !== 'undefined') {
             if(owner) Nobles.addRel(owner.id, -30);
@@ -4095,8 +4201,10 @@ const Game = {
     // Kaç gönüllü alınacağı seçilebilir. Eskiden hepsini almak zorunluydu:
     // kapasitede 3 yer varken 5 gönüllülük köyden tek asker bile alınamıyordu.
     recruitVolunteers(loc) {
-        let cost = 10;
-        let avail = loc.volunteersAvailable;
+        // Yağmacıya köylü zor katılır ve pahalıya katılır (#49)
+        let pen = this.infamyPenalty();
+        let cost = Math.round(10 * (1 + pen));
+        let avail = Math.floor(loc.volunteersAvailable * (1 - pen));
         let space = Math.max(0, this.getPartyCapacity() - state.player.party.length);
         let afford = Math.floor(state.player.money / cost);
         let max = Math.min(avail, space, afford);
@@ -4109,6 +4217,7 @@ const Game = {
 
         this.showModal(`<h3>🪖 Gönüllü Topla</h3>
         <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar. En fazla <b>${max}</b> kişi alabilirsin.</p>
+        ${pen ? `<p style="color:var(--danger);font-size:0.85rem">${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).</p>` : ''}
         <input type="range" id="recruit-n" min="1" max="${max}" value="${max}" style="width:100%;margin:0.8rem 0"
                oninput="Game.updateRecruitLabel(${cost})">
         <button class="btn primary" id="recruit-btn"
@@ -4121,7 +4230,7 @@ const Game = {
     },
     doRecruit(locId, amount, cost) {
         let loc = LOCATIONS.find(l => l.id === locId);
-        amount = Math.min(amount, loc ? loc.volunteersAvailable : amount);
+        amount = Math.min(amount, loc ? Math.floor(loc.volunteersAvailable * (1 - this.infamyPenalty())) : amount);
         let total = amount * cost;
         if(amount < 1) { this.sfx('error'); return alert('Alınacak gönüllü yok!'); }
         if(state.player.money < total) { this.sfx('error'); return alert('Yeterli dinarın yok!'); }
@@ -4242,7 +4351,8 @@ const Game = {
                 <div style="background:var(--primary);height:100%;width:${xpBar}%;border-radius:4px;"></div>
             </div>
             <p>Can: ${Math.round(s.hp)}/${Math.round(s.maxHp)}</p>
-            <p>Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}</p>
+            <p>Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}${this.infamyTier()
+                ? ` | <span style="color:var(--danger)">${this.infamyLabel()} (${this.infamy()})</span>` : ''}</p>
             <p>Bağlılık: ${p.vassalOf ? (FACTIONS[p.vassalOf]||{name:p.vassalOf}).name : 'Bağımsız'}</p>
             <p>Eş: ${p.spouse ? (Nobles.any(p.spouse) || {name:p.spouse}).name : 'Yok'}</p>
             <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.8rem">

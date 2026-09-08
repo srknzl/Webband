@@ -203,6 +203,14 @@
             <button class="btn" onclick="Game.liftSiege()">🚪 Kuşatmayı Kaldır</button>
         </div>
     </div>
+    <!-- Yağma paneli: 15 saniyelik ambar boşaltma, ilerleme ve yetişen lord (#49) -->
+    <div id="raid-ui" class="glass-panel hidden">
+        <h3>🔥 Yağma</h3>
+        <div id="raid-info"></div>
+        <div class="pr-actions" style="margin-top:0.6rem">
+            <button class="btn" onclick="Game.abortRaid()">🚪 Yağmayı Bırak</button>
+        </div>
+    </div>
     <!-- Modals -->
     <div id="modal-overlay" class="hidden">
         <div id="modal-content" class="glass-panel">

@@ -420,6 +420,7 @@ const Nobles = {
                     ${FACTIONS[n.faction].name} · ${p.name} · İlişki: ${this.relLabel(r)} (${r})
                     <br>Gözünde ağırlığın: <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
                     <span style="opacity:0.7">(nam + ilişki + kapıya getirdiğin ordu)</span>
+                    ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda ${Game.infamyTier() > 1 ? 'hiç' : 'zor'} geçer.</span>` : ''}
                 </div>
                 <p style="font-style:italic;color:#eee;line-height:1.5">${line}</p>
             </div>
@@ -482,7 +483,8 @@ const Nobles = {
         let sc = Math.min(3, Math.floor(p.renown / 130))
                + (r >= 40 ? 1 : r <= -15 ? -1 : 0)
                + (power >= 1.2 ? 1 : power < 0.4 ? -1 : 0)
-               - (this.lord(id).personality === 'quarrelsome' ? 1 : 0);
+               - (this.lord(id).personality === 'quarrelsome' ? 1 : 0)
+               - Game.infamyTier();   // köy yakanın sözü salonda geçmez (#49)
         return Math.max(-1, Math.min(4, sc));
     },
     standingLabel(sc) {
