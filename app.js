@@ -159,61 +159,60 @@ const ITEMS = {
 // Satır formatı: [ad, tür, hp, hız, saldırı, savunma, ikon, terfi bedeli]
 const TROOP_TREES = {
     swadia: {   // dengeli; en güçlü ağır süvari
-        recruit: ['Svadya Köylüsü', 'infantry', 20, 50, 6, 0, '🪖'],
+        recruit: ['Svadya Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Svadya Milisi', 'infantry', 45, 60, 12, 5, '🛡️', 40],
-             ['Svadya Çavuşu', 'infantry', 65, 65, 18, 12, '🏰', 100]],
-            [['Svadya Avcısı', 'archer', 35, 55, 6, 2, '🏹', 50],
-             ['Svadya Keskin Nişancısı', 'archer', 45, 60, 10, 5, '🎯', 120]],
-            [['Svadya Süvarisi', 'cavalry', 50, 99, 12, 8, '🐴', 70],
-             ['Svadya Şövalyesi', 'cavalry', 75, 110, 22, 15, '⚔️🐴', 150]]
+            [['Svadya Milisi', 'infantry', 45, 60, 12, 5, '🛡️', 'pierce', 40],
+             ['Svadya Çavuşu', 'infantry', 65, 65, 18, 12, '🏰', 'cut', 100]],
+            [['Svadya Avcısı', 'archer', 35, 55, 6, 2, '🏹', 'pierce', 50],
+             ['Svadya Keskin Nişancısı', 'archer', 45, 60, 10, 5, '🎯', 'pierce', 120]],
+            [['Svadya Süvarisi', 'cavalry', 50, 99, 12, 8, '🐴', 'cut', 70],
+             ['Svadya Şövalyesi', 'cavalry', 75, 110, 22, 15, '⚔️🐴', 'cut', 150]]
         ]
     },
     rhodok: {   // süvarisi yok; dev kalkanlar ve tatar yayı
-        recruit: ['Rodok Köylüsü', 'infantry', 20, 50, 6, 0, '🪖'],
+        recruit: ['Rodok Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Rodok Mızraklısı', 'infantry', 48, 56, 11, 8, '🛡️', 40],
-             ['Rodok Kalkanlısı', 'infantry', 70, 58, 17, 18, '🛡️', 110]],
-            [['Rodok Nişancısı', 'archer', 36, 54, 8, 3, '🏹', 55],
-             ['Rodok Tatar Yaylısı', 'archer', 48, 56, 16, 6, '🎯', 130]]
+            [['Rodok Mızraklısı', 'infantry', 48, 56, 11, 8, '🛡️', 'pierce', 40],
+             ['Rodok Kalkanlısı', 'infantry', 70, 58, 17, 18, '🛡️', 'cut', 110]],
+            [['Rodok Nişancısı', 'archer', 36, 54, 8, 3, '🏹', 'pierce', 55],
+             ['Rodok Tatar Yaylısı', 'archer', 48, 56, 16, 6, '🎯', 'pierce', 130]]
         ]
     },
     vaegir: {   // baltalı piyade, ölümcül okçu, vasat süvari
-        recruit: ['Veagir Köylüsü', 'infantry', 20, 50, 6, 0, '🪖'],
+        recruit: ['Veagir Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Veagir Piyadesi', 'infantry', 44, 60, 13, 4, '🪓', 40],
-             ['Veagir Baltacısı', 'infantry', 62, 64, 20, 9, '🪓', 105]],
-            [['Veagir Okçusu', 'archer', 34, 56, 9, 2, '🏹', 55],
-             ['Veagir Nişancısı', 'archer', 44, 60, 14, 4, '🎯', 125]],
-            [['Veagir Atlısı', 'cavalry', 46, 95, 11, 6, '🐴', 70],
-             ['Veagir Süvarisi', 'cavalry', 60, 100, 16, 10, '🐴', 140]]
+            [['Veagir Piyadesi', 'infantry', 44, 60, 13, 4, '🪓', 'cut', 40],
+             ['Veagir Baltacısı', 'infantry', 62, 64, 20, 9, '🪓', 'cut', 105]],
+            [['Veagir Okçusu', 'archer', 34, 56, 9, 2, '🏹', 'pierce', 55],
+             ['Veagir Nişancısı', 'archer', 44, 60, 14, 4, '🎯', 'pierce', 125]],
+            [['Veagir Atlısı', 'cavalry', 46, 95, 11, 6, '🐴', 'cut', 70],
+             ['Veagir Süvarisi', 'cavalry', 60, 100, 16, 10, '🐴', 'cut', 140]]
         ]
     },
     nord: {     // at kullanmaz; piyade dövüşünde rakipsiz
-        recruit: ['Nord Serfi', 'infantry', 20, 50, 6, 0, '🪖'],
+        recruit: ['Nord Serfi', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Nord Savaşçısı', 'infantry', 50, 62, 14, 6, '🛡️', 45],
-             ['Nord Baltacısı', 'infantry', 80, 66, 24, 13, '🪓', 140]],
-            [['Nord Avcısı', 'archer', 38, 58, 9, 3, '🏹', 50],
-             ['Nord Nişancısı', 'archer', 50, 60, 12, 6, '🎯', 115]]
+            [['Nord Savaşçısı', 'infantry', 50, 62, 14, 6, '🛡️', 'cut', 45],
+             ['Nord Baltacısı', 'infantry', 80, 66, 24, 13, '🪓', 'cut', 140]],
+            [['Nord Avcısı', 'archer', 38, 58, 9, 3, '🏹', 'pierce', 50],
+             ['Nord Nişancısı', 'archer', 50, 60, 12, 6, '🎯', 'pierce', 115]]
         ]
     },
     khergit: {  // hepsi atlı; hızlı ama ince zırhlı
-        recruit: ['Kergit Çobanı', 'infantry', 20, 55, 6, 0, '🪖'],
+        recruit: ['Kergit Çobanı', 'infantry', 20, 55, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Kergit Atlısı', 'cavalry', 44, 105, 11, 4, '🐴', 60],
-             ['Kergit Süvarisi', 'cavalry', 58, 115, 18, 8, '⚔️🐴', 135]],
-            [['Kergit Atlı Okçusu', 'archer', 40, 108, 10, 3, '🏹', 65],
-             ['Kergit Han Muhafızı', 'archer', 52, 118, 15, 6, '🎯', 145]]
+            [['Kergit Atlısı', 'cavalry', 44, 105, 11, 4, '🐴', 'cut', 60],
+             ['Kergit Süvarisi', 'cavalry', 58, 115, 18, 8, '⚔️🐴', 'cut', 135]],
+            [['Kergit Atlı Okçusu', 'archer', 40, 108, 10, 3, '🏹', 'pierce', 65],
+             ['Kergit Han Muhafızı', 'archer', 52, 118, 15, 6, '🎯', 'pierce', 145]]
         ]
     }
 };
-
 const TROOP_UPGRADES = {};
 const TROOP_TYPES = {};
 (function buildTroopTrees() {
-    const stats = r => ({ hp: r[2], speed: r[3], attack: r[4], defense: r[5], type: r[1], icon: r[6] });
-    const up = r => ({ name: r[0], cost: r[7], type: r[1] });
+    const stats = r => ({ hp: r[2], speed: r[3], attack: r[4], defense: r[5], type: r[1], icon: r[6], dmgType: r[7] });
+    const up = r => ({ name: r[0], cost: r[8], type: r[1] });
     for(let f in TROOP_TREES) {
         let tree = TROOP_TREES[f];
         TROOP_TYPES[tree.recruit[0]] = stats(tree.recruit);
@@ -231,7 +230,7 @@ TROOP_UPGRADES['Acemi Asker'] = TROOP_UPGRADES['Svadya Köylüsü'];
 // Düşman çeteleri: haritadaki parti + savaştaki birim karışımı.
 // battle: [ad, tür, hp, hız, saldırı, savunma, pay] — pay = çıkma ağırlığı
 const BAND_KINDS = {
-    bandit:   { name: 'Çapulcular', color: '#d0483a', icon: 'foot', min: 5, max: 14, speedMult: 1,
+    bandit:   { name: 'Çapulcular', color: '#d0483a', icon: 'foot', min: 5, max: 14, speedMult: 1, dmg: 'blunt',
                 lore: '"Ya paranı, ya canını!"',
                 battle: [['Çapulcu','infantry',24,52,6,0,6], ['Çapulcu Okçu','archer',20,50,6,0,2],
                          ['Atlı Çapulcu','cavalry',32,88,9,2,1]],
@@ -240,25 +239,25 @@ const BAND_KINDS = {
                 lore: '"Ağaçların arasından bakan gözleri ancak ok uçarken fark edersin."',
                 battle: [['Haydut Okçusu','archer',24,54,8,1,6], ['Orman Haydudu','infantry',28,58,8,1,4]],
                 leader: ['Haydut Başı','archer',48,58,14,3] },
-    mountain: { name: 'Dağ Eşkıyaları', color: '#d4a03a', icon: 'foot', min: 8, max: 16, speedMult: 0.95,
+    mountain: { name: 'Dağ Eşkıyaları', color: '#d4a03a', icon: 'foot', min: 8, max: 16, speedMult: 0.95, dmg: 'blunt',
                 lore: '"Bu geçit bizim. Geçiş ücreti: her şeyin."',
                 battle: [['Dağ Eşkıyası','infantry',36,56,11,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
                          ['Atlı Eşkıya','cavalry',44,92,13,5,2]],
                 leader: ['Eşkıya Reisi','infantry',75,62,18,7] },
     // Köy milisi: yağmada karşına çıkan köylüler. Haritada gezmez, yalnızca
     // Game.startRaid savaşında doğar (bandKey ada göre bulunur).
-    militia:  { name: 'Köy Milisi', color: '#c9a227', icon: 'foot', min: 4, max: 16, speedMult: 1,
+    militia:  { name: 'Köy Milisi', color: '#c9a227', icon: 'foot', min: 4, max: 16, speedMult: 1, dmg: 'pierce',
                 lore: '"Tırpanı kap Yusuf, geliyorlar!"',
                 battle: [['Köylü','infantry',22,50,5,0,7], ['Köy Avcısı','archer',20,52,6,0,3],
                          ['Köy Bekçisi','infantry',30,54,8,2,2]],
                 leader: ['Köy Muhtarı','infantry',44,54,10,3] },
     // Ticaret partileri (#22): haritada gezerler, saldırmazlar; soyulunca yükleri düşer
-    caravan:  { name: 'Kervan Muhafızları', color: '#e0b062', icon: 'cart', min: 6, max: 14, speedMult: 1, trade: true,
+    caravan:  { name: 'Kervan Muhafızları', color: '#e0b062', icon: 'cart', min: 6, max: 14, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Yükümüze dokunma yolcu — bu mallar loncaya yazılı."',
                 battle: [['Kervan Muhafızı','infantry',34,56,10,3,5], ['Kervan Okçusu','archer',26,54,9,1,3],
                          ['Atlı Muhafız','cavalry',40,90,12,4,2]],
                 leader: ['Kervanbaşı','infantry',55,58,14,5] },
-    villager: { name: 'Köylü Kafilesi', color: '#9dbf6a', icon: 'foot', min: 3, max: 7, speedMult: 1, trade: true,
+    villager: { name: 'Köylü Kafilesi', color: '#9dbf6a', icon: 'foot', min: 3, max: 7, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Pazara gidiyoruz efendim... bizde alacak bir şey yok ki."',
                 battle: [['Köylü','infantry',22,50,5,0,8], ['Köy Avcısı','archer',20,52,6,0,2]] },
     wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
@@ -3934,7 +3933,7 @@ const Game = {
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${typeInfo.type==='infantry'?'Piyade':typeInfo.type==='archer'?'Okçu':'Süvari'}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + DMG_TYPES[typeInfo.dmgType].name : ''}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
                 </div>`;
                 
                 if(g.ready.length > 0) {
@@ -4517,7 +4516,7 @@ const Battle = {
                 hp: (typeInfo.hp + lvlBonusHp) * debuff, maxHp: (typeInfo.hp + lvlBonusHp) * debuff,
                 x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
                 speed: typeInfo.speed * debuff, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense,
-                type: typeInfo.type, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
+                type: typeInfo.type, dmgType: typeInfo.dmgType, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
                 radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0
             });
         });
@@ -4530,6 +4529,7 @@ const Battle = {
         for(let i=0; i<enemyCount; i++) {
             let name = 'Çapulcu';
             let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
+            let dmgType = (band && band.dmg) || 'cut';
 
             if(!bossLevel && isBandit) {
                 // Çete karışımı: her türün kendi birimleri; kalabalık çetenin başında reis olur
@@ -4562,7 +4562,7 @@ const Battle = {
                 let pool = Game.factionTroopPool(faction);
                 name = pool[Math.floor(Math.random() * pool.length)];
                 let ti = TROOP_TYPES[name];
-                hp = ti.hp; speed = ti.speed; attack = ti.attack; defense = ti.defense; type = ti.type;
+                hp = ti.hp; speed = ti.speed; attack = ti.attack; defense = ti.defense; type = ti.type; dmgType = ti.dmgType;
                 radius = type === 'cavalry' ? 7 : 5;
                 color = '#ff6666';
             }
@@ -4596,7 +4596,7 @@ const Battle = {
                                  : startEnemyX + Math.random()*80,
                 y: this.ambushed ? Math.max(20, Math.min(H-20, H/2 + Math.sin(i*2.4)*(130+Math.random()*110)))
                                  : 50 + Math.random()*(H-100),
-                speed: speed, attack: attack, defense: defense,
+                speed: speed, attack: attack, defense: defense, dmgType: dmgType,
                 type: type, color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
             });
         }

@@ -248,7 +248,8 @@ parayı doğrudan orduya çevirmenin tek yolu.
 ### Grup & asker
 - **Fraksiyon asker ağaçları** (`TROOP_TREES`): her krallığın kendi köylü → dal → elit
   zinciri var. Tek kaynak tablodur; `TROOP_UPGRADES` ve `TROOP_TYPES` yüklemede ondan
-  üretilir (satır formatı `[ad, tür, hp, hız, saldırı, savunma, ikon, terfi bedeli]`).
+  üretilir (satır formatı `[ad, tür, hp, hız, saldırı, savunma, ikon, hasar türü, terfi bedeli]`;
+  köylü satırında terfi bedeli yoktur).
 
 | Fraksiyon | Köylü | Dallar (orta → elit) | Karakter |
 |---|---|---|---|
@@ -257,6 +258,26 @@ parayı doğrudan orduya çevirmenin tek yolu.
 | Veagir | Veagir Köylüsü | Piyade→Baltacı, Okçu→Nişancı, Atlı→Süvari | baltalı piyade, ölümcül okçu, vasat süvari |
 | Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | **atsız**, en güçlü piyade (Baltacı 80 hp / 24 atk) |
 | Kergit | Kergit Çobanı | Atlı→Süvari, Atlı Okçu→Han Muhafızı | **hepsi atlı**, en hızlı (105–118), ince zırh |
+
+- **Askerin de hasar türü var (#37)**: ağaçtaki hasar türü kolonu `TROOP_TYPES` üzerinden
+  `Battle`'ın doğurduğu birime (`u.dmgType`) geçer, oradan zaten hazır olan
+  `Battle.afterArmor` matematiğine girer. Kural basit: **balta/kılıç kesici, mızrak ve
+  yay delici, köylünün sopası ezici**; süvari kesici sayılır çünkü mızrağını zaten
+  `chargeMult` temsil eder. Çeteler tek alanla ayarlanır (`BAND_KINDS[].dmg`) —
+  çapulcu ve dağ eşkıyası sopalı (`blunt`), köy milisi ve kervan muhafızı yabalı/mızraklı
+  (`pierce`), kalanı kesici.
+  - Orta kademe mızraklı artık zırhlı elite karşı gerçekten işe yarıyor. Ölçüldü
+    (`Battle.dealMelee` ile 200 tekrar, hedef karşılık vermiyor): Rodok Mızraklısı bir
+    Nord Baltacısı'nı (savunma 13) **84.9 sn → 24.8 sn**'de indiriyor, Svadya Milisi bir
+    Rodok Kalkanlısı'nı (savunma 18) **74.1 sn → 39.8 sn**'de. Zırhsız hedefe karşı fark yok.
+  - Elit dengesi bozulmadı: Nord Baltacısı vs Rodok Kalkanlısı hâlâ %100 (11.9 sn),
+    Nord Baltacısı vs Svadya Şövalyesi %69. *Denemede Rodok Kalkanlısı'na `pierce`
+    verilmişti; savunma 18 + delici birleşince baltacıyı %100'den %1'e düşürüyordu —
+    ağır kalkanlı piyade bu yüzden kısa kılıçla (kesici) dövüşür.*
+  - Köylü sopası (`blunt`) hem zırha karşı biraz daha iyi (Svadya Köylüsü → Svadya Milisi
+    38.7 sn → 30.5 sn) hem de düşürdüğü düşmanı bayıltır: acemi orduyla savaşmak esir
+    oranını %45'ten %90'a çıkarır (`stunned`, bkz. "Esir alma").
+  - Grup ekranında asker satırında tür yanında yazar ("Piyade · delici").
 
 - Kaynaklar fraksiyona bağlı: köy/şehir gönüllüsü `Game.recruitName(loc)` ile o yerleşimin
   köylüsünü verir, handaki paralı asker havuzu ve savaştaki düşman fraksiyon ordusu
@@ -433,7 +454,7 @@ hazır makineden gelir.
 - Kafileler `state.npcParties`'te durduğu için kayda kendiliğinden yazılır; eski kayıtlar
   `Save.load` içindeki `Game.ensureTraders()` ile doldurulur.
 
-### Yol kesme — haydutlar kervan avlar (#24)
+### Yol kesme — haydutlar kervan avlar
 Kafileleri yalnız oyuncu soymaz. `Game.banditTick()` her gün (`dailyUpdate`, `warTick`'ten
 sonra) haydut çeteleriyle ticaret partilerini eşleştirir: **400 birim** içinde kesişen varsa
 baskın olur. Kurt sürüsü yağma yapmaz (`BAND_KINDS[].beast` elenir).
@@ -517,6 +538,7 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     topuzla 44 sn (ve bayıltarak). Ezici ile düşen düşmanın esir düşme şansı %45 yerine %90 —
     ölçüldü: 64 düşenden kılıçta 24 esir (%38), topuzda 59 esir (%92).
     Silahın türü envanterde ve pazarda künye olarak yazar (`Game.itemNote`).
+    Askerlerin hasar türü de aynı kapıdan geçer — bkz. "Grup & asker".
   - **Düşman blok yapar**: yakın dövüşteki (hayvan olmayan) birimler vuruşlar arasında
     kalkan kaldırır — blok isteği `min(0.45, savunma/40)` ile 0.6–1.4 sn'de bir yenilenir,
     savuracakken (`atkCd ≤ 0.2`) kalkan iner. Oyuncuyla **aynı `blockFactor` kapısından**
@@ -824,9 +846,6 @@ Kalanlar:
 2. Kral olarak vassallara tımar dağıtma yok — oyuncunun vassalı olmadığı için tımar
    yalnızca oyuncunun kendisine veriliyor.
 3. `app.js` ~6000 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
-4. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
-   ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
-   silahı tür seçiyor.
 
 ## Kod tarzı
 
