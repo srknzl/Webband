@@ -23,8 +23,11 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 
 `window.onload → Game.init()` → harita üretimi + NPC spawn. `Game.startGame()` oyun döngüsünü
 (`requestAnimationFrame`) başlatır. Döngü `update(dt)` + `renderMap()` çağırır ve
-`Battle.active || TournamentMinigame.active` iken kendini durdurur; savaş/turnuva kendi
-döngüsünü işletir.
+`Battle.active || TournamentMinigame.active` iken **gerçekten durur** (`_loopId = null`,
+yeni kare istemez); savaş/turnuva kendi döngüsünü işletir. Döngüyü geri kuran tek yer
+`showScreen()`'dir: savaş dışı bir ekrana dönülünce, `_loopId` boşsa ve iki motor da kapalıysa
+`startGameLoop()` çağrılır. Savaştan çıkan her yol (zafer, yenilgi, teslim, düello, arena,
+turnuva) `Game.showScreen('map')`'ten geçtiği için ek kanca gerekmez.
 
 Script yükleme sırası: `app.js` → `battle.js` → `nobles.js` → `quests.js`. Aralarındaki tüm
 referanslar fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için
@@ -946,6 +949,21 @@ tazeleme hızı ilk karelerden ölçülüp 60'ın altına düşürmeyen en büy�
 Ölçüldü (`node` ile kapı simülasyonu): 60→60, 75→75, 90→90, 120→60, 144→72, 165→82, 180→60, 240→60.
 `_minStep` yalnızca 1 ms'den büyük deltalarla güncellenir — iki döngü aynı karede çağırırsa
 delta ~0 olup bölen patlıyordu.
+
+**Karar kare başına verilir, çağrı başına değil (#42).** Aynı karede ikinci kez sorulursa
+(`t === _prevT`) önbelleklenmiş cevap döner. Eskiden her çağrı `_frameNo`'yu artırıyordu:
+harita ve savaş döngüsü bir arada koştuğunda sayaç kare başına **2** artıyor, `n ≥ 2` olan
+her ekranda (120 Hz ve üstü) döngülerden birinin parmak izi kalıcı olarak tek sayıya
+düşüyor ve o döngü **bir kez bile** çalışmıyordu. Ölçüldü (n=2, 2 saniye): önce harita
+döngüsü 60 / savaş döngüsü **0** kare — savaş donuyor, tuval hiç çizilmediği için ekran
+**simsiyah** kalıyordu (bkz. #42: "savaş arka planda çözülüyor" — kaydet/yükle döngüleri
+yeniden kurup pariteyi değiştirdiği için savaş bir anda bitiyordu). Düzeltmeden sonra aynı
+koşulda savaş döngüsü **61 update + 61 render** (30 fps), harita döngüsü 0 (zaten durmuş).
+60 Hz'te değişen bir şey yok: harita 60 fps, savaş 60 fps, savaş sırasında boşa harita
+render'ı 0.
+
+Savaş açıkken harita girdisi de yok sayılır (`handleMapClick` / `handleMapHover` başında
+`Battle.active || TournamentMinigame.active` kapısı).
 
 Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan kurallar:
 

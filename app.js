@@ -892,15 +892,23 @@ const Game = {
     // Sabit ms eşiği olmaz: 90 Hz'te her ikinci kareyi atlamak 45 fps eder.
     // Onun yerine tazeleme hızı ölçülüp 60'ın altına düşürmeyen en büyük tam
     // bölen seçilir -> 60:60, 75:75, 90:90, 120:60, 144:72, 165:82, 180:60, 240:60.
-    _prevT: 0, _minStep: Infinity, _frameNo: 0,
+    _prevT: 0, _minStep: Infinity, _frameNo: 0, _lastSkip: false,
     skipFrame(t) {
+        // Karar KARE başına verilir, çağrı başına değil (#42). İki döngü aynı karede
+        // sorduğunda ikisi de aynı cevabı almalı: eskiden her çağrı _frameNo'yu
+        // artırdığı için sayaç kare başına 2 artıyor, n≥2 olan her ekranda (120 Hz
+        // ve üstü) döngülerden birinin parmak izi hep tek sayıya düşüyordu — o döngü
+        // BİR KEZ BİLE çalışmıyordu. Ölçüldü: n=2'de 2 saniyede harita döngüsü 60,
+        // savaş döngüsü 0 kez işledi; savaş donuyor, tuval hiç çizilmediği için
+        // ekran simsiyah kalıyordu.
+        if(t === this._prevT) return this._lastSkip;
         let d = t - this._prevT;
         this._prevT = t;
-        // d > 1: iki döngü aynı karede çağırırsa delta ~0 olur ve bölen patlar.
+        // d > 1: tarayıcı jank sonrası iki kareyi arka arkaya verirse bölen patlar.
         // Gerçek hiçbir ekran 1000 Hz'in üstünde değil, alt sınır güvenli.
         if(d > 1 && d < this._minStep) this._minStep = d;   // min: tek tük takılmayı eler
         let n = Math.max(1, Math.floor(1000 / 60 / this._minStep + 0.01));
-        return (++this._frameNo % n) !== 0;
+        return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
 
     startGameLoop() {
@@ -909,6 +917,9 @@ const Game = {
         if(this._loopId) cancelAnimationFrame(this._loopId);
         let lastTime = performance.now();
         const loop = (t) => {
+            // Savaş/turnuva kendi döngüsünü işletir; harita döngüsü yerini bırakır.
+            // showScreen() savaş dışı bir ekrana dönüldüğünde geri kurar.
+            if(Battle.active || TournamentMinigame.active) { this._loopId = null; return; }
             if(this.skipFrame(t)) { this._loopId = requestAnimationFrame(loop); return; }
             let dt = (t - lastTime) / 1000;
             if(dt > 0.1) dt = 0.1;
@@ -2118,6 +2129,11 @@ const Game = {
         // resize onu 0x0 bırakmış olabilir (harita bomboş kalıyordu).
         this.resizeCanvases();
 
+        // Savaştan/turnuvadan çıkılan her yol buradan geçer: harita döngüsünü geri kur
+        if(screenId !== 'battle' && !this._loopId && !Battle.active && !TournamentMinigame.active) {
+            this.startGameLoop();
+        }
+
         this.renderSiegeUI();   // kuşatma paneli yalnız haritada durur
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
@@ -2687,6 +2703,7 @@ const Game = {
     },
 
     handleMapHover(e) {
+        if(Battle.active || TournamentMinigame.active) return;
         let rect = this.mapCanvas.getBoundingClientRect();
         // Ekran -> dünya: tıklamayla aynı dönüşüm. Ortalama payı (rect/2) eksikti,
         // künye imlecin yarım ekran uzağındaki yerleşimi buluyordu — yani hiç çıkmıyordu.
@@ -2720,6 +2737,7 @@ const Game = {
     },
 
     handleMapClick(e) {
+        if(Battle.active || TournamentMinigame.active) return;   // savaş açıkken harita girdisi yok sayılır (#42)
         let rect = this.mapCanvas.getBoundingClientRect();
         let mx = ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x;
         let my = ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y;
