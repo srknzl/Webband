@@ -245,6 +245,13 @@ const BAND_KINDS = {
                 battle: [['Dağ Eşkıyası','infantry',36,56,11,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
                          ['Atlı Eşkıya','cavalry',44,92,13,5,2]],
                 leader: ['Eşkıya Reisi','infantry',75,62,18,7] },
+    // Köy milisi: yağmada karşına çıkan köylüler. Haritada gezmez, yalnızca
+    // Game.startRaid savaşında doğar (bandKey ada göre bulunur).
+    militia:  { name: 'Köy Milisi', color: '#c9a227', icon: 'foot', min: 4, max: 16, speedMult: 1,
+                lore: '"Tırpanı kap Yusuf, geliyorlar!"',
+                battle: [['Köylü','infantry',22,50,5,0,7], ['Köy Avcısı','archer',20,52,6,0,3],
+                         ['Köy Bekçisi','infantry',30,54,8,2,2]],
+                leader: ['Köy Muhtarı','infantry',44,54,10,3] },
     wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
                 lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
                 battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
@@ -302,6 +309,7 @@ const state = {
         spouse: null,
         vassalOf: null,
         currentSiege: null,
+        currentRaid: null,         // yağmalanan köy: { locId }
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
         morale: 60,      // parti morali 0-100
@@ -1399,6 +1407,7 @@ const Game = {
         this.beginCaptivity(foe || { id: npcId, name: npcName, size: 0 }, daysLost);
         state.player.currentEncounterNpcId = null;
         state.player.currentSiege = null;
+        state.player.currentRaid = null;
 
         alert(`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-${moneyLost} Dinar`
             + (renownLost ? `<br>-${renownLost} nam` : ''));
@@ -1500,12 +1509,20 @@ const Game = {
         while(state.time.hour >= 24) {
             state.time.day++;
 
+        // Refah zamanla toparlanır (yağmalanan köy sonsuza dek yoksul kalmasın)
+        LOCATIONS.forEach(loc => {
+            // Yakılan köy daha hızlı toparlanır; zaten zengin yerleşim yavaş büyür
+            if(loc.prosperity !== undefined && loc.prosperity < 90) loc.prosperity += loc.prosperity < 50 ? 0.4 : 0.15;
+        });
+
         // Gönüllü yenilenmesi (şehirler ve köyler için 2 günde bir)
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village' || loc.type === 'city') {
                 // Kısmi alım sonrası (ör. 5'ten 2 kalmış) köy de yenilenebilmeli;
                 // eskiden yalnızca tam boşalınca yenileniyordu.
                 let full = loc.type === 'city' ? 7 : 5;
+                // Yağmalanan köyde bir hafta toplanacak gönüllü kalmaz
+                if(state.time.day - (loc.raidedDay || -99) < 7) return;
                 if(loc.volunteersAvailable < full && (state.time.day - (loc.lastRecruitDay || 0) >= 2)) {
                     let fresh = 1 + Math.floor(Math.random()*4) + (loc.type === 'city' ? 3 : 0)
                              + Math.floor((loc.prosperity || 50) / 40);   // zengin yerleşim daha çok gönüllü besler
@@ -2556,11 +2573,15 @@ const Game = {
                     this.addBtn(ac, '🍷 Şölene Katıl', () => Feast.open(loc));
                 }
             } else if(loc.type === 'village') {
-                this.addBtn(ac, '🧓 Köy Yaşlısıyla Konuş', () => this.talkToElder(loc));
-                if(loc.volunteersAvailable > 0) {
-                    this.addBtn(ac, '🪖 Gönüllü Topla', () => this.recruitVolunteers(loc));
+                // Düşman köyü sana ne asker ne erzak verir; tek seçenek yağmadır.
+                if(!isEnemy) {
+                    this.addBtn(ac, '🧓 Köy Yaşlısıyla Konuş', () => this.talkToElder(loc));
+                    if(loc.volunteersAvailable > 0) {
+                        this.addBtn(ac, '🪖 Gönüllü Topla', () => this.recruitVolunteers(loc));
+                    }
+                    this.addBtn(ac, '🛒 Erzak Al', () => this.openMarket(loc));
                 }
-                this.addBtn(ac, '🛒 Erzak Al', () => this.openMarket(loc));
+                this.addBtn(ac, '🔥 Köyü Yağmala', () => this.raidVillage(loc));
             }
         }
         if(!state.player.vassalOf && (loc.type==='city'||loc.type==='castle')) {
@@ -3067,6 +3088,55 @@ const Game = {
     },
 
     // --- VILLAGE ---
+    // Yağma: köy milisini dağıt, ganimeti al. Bedeli ağır — sahibi lordla ilişki,
+    // köyün refahı, namın ve (barıştaki bir krallıksa) diplomatik durum.
+    raidVillage(loc) {
+        let owner = this.ownerLord(loc);
+        let militia = Math.max(4, Math.round((loc.prosperity || 50) / 5));
+        let peace = !this.atWar(this.playerFaction(), loc.faction) && loc.faction !== this.playerFaction();
+        this.showModal(`<h3>🔥 ${loc.name} Yağması</h3>
+        <p>Köy milisi tahminen <b>${militia}</b> kişi. Dağıtırsan sürüyü, ambarı ve keseyi alırsın.</p>
+        <p style="color:var(--danger);line-height:1.5">Bedeli:
+            ${owner ? `${owner.name} ile ilişki <b>−30</b>, ` : ''}${this.factionName(loc.faction)} lordları <b>−6</b>,
+            köyün refahı çöker ve günlerce gönüllü vermez, namın <b>−6</b>.
+            ${peace ? `<br>Bu köy barıştaki bir krallığın — yağma <b>savaş sebebi</b> sayılır.` : ''}</p>
+        <button class="btn primary" onclick="Game.closeModal(); Game.startRaid('${loc.id}', ${militia})">🔥 Yak ve Yağmala</button>
+        <button class="btn" onclick="Game.closeModal()">Vazgeç</button>`);
+    },
+    startRaid(locId, count) {
+        state.player.currentRaid = { locId };
+        let loc = LOCATIONS.find(l => l.id === locId);
+        Battle.start('Köy Milisi', count, null, loc ? loc.faction : null);
+    },
+    // Yağma savaşı kazanılınca (Battle zafer dalından)
+    completeRaid(locId) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc) return;
+        let pr = loc.prosperity || 50;
+        let loot = Math.round(pr * 6 * (0.85 + Math.random() * 0.3));
+        state.player.money += loot;
+        let food = [['wheat', 4 + Math.round(pr / 12)], ['cheese', 1 + Math.round(pr / 25)]];
+        food.forEach(([id, qty]) => {
+            let ex = state.player.inventory.find(i => i.id === id);
+            if(ex) ex.qty += qty; else state.player.inventory.push({ ...ITEMS[id], qty });
+        });
+        loc.prosperity = Math.max(10, pr - 20);
+        loc.volunteersAvailable = 0;
+        loc.raidedDay = state.time.day;
+        state.player.renown = Math.max(0, (state.player.renown || 0) - 6);   // zaferin +3'ünü de yer
+        let owner = this.ownerLord(loc);
+        if(typeof Nobles !== 'undefined') {
+            if(owner) Nobles.addRel(owner.id, -30);
+            LORDS.filter(l => l.faction === loc.faction && (!owner || l.id !== owner.id))
+                 .forEach(l => Nobles.addRel(l.id, -6));
+        }
+        // Barıştaki krallığın köyünü yakmak savaş sebebidir
+        if(this.playerFaction() && loc.faction !== this.playerFaction()) this.declareWar(this.playerFaction(), loc.faction);
+        this.addProficiencyXp('looting', 60);
+        alert(`${loc.name} yağmalandı!\n\n💰 ${loot} dinar\n${food.map(([id, q]) => `${ITEMS[id].icon} ${ITEMS[id].name} x${q}`).join('\n')}`
+            + `\n\nKöyün refahı ${Math.round(loc.prosperity)}'e düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
+    },
+
     talkToElder(loc) {
         let dialog = this.getHumorousDialog('elder', loc);
         this.showModal(`<h3>🧓 Köy Yaşlısı</h3><p><i>${dialog}</i></p>`);
@@ -5269,6 +5339,13 @@ const Battle = {
                 state.player.currentSiege = null;
             }
 
+            // Köy yağması
+            if(state.player.currentRaid) {
+                let locId = state.player.currentRaid.locId;
+                state.player.currentRaid = null;
+                Game.completeRaid(locId);
+            }
+
             // Yenilen NPC'yi haritadan kaldır
             let nobleTaken = null;
             if(state.player.currentEncounterNpcId) {
@@ -5339,6 +5416,7 @@ const Battle = {
             }
             state.player.currentEncounterNpcId = null;
             state.player.currentSiege = null;
+            state.player.currentRaid = null;
 
             if(captor) alert(`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`
                 + (renownLost ? `<br>-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.</i>` : ''));
@@ -5367,6 +5445,7 @@ const Battle = {
         // savaşta o şehri fethetmiş sayıyordu.
         let wasSiege = state.player.currentSiege;
         state.player.currentSiege = null;
+        state.player.currentRaid = null;
         state.player.currentEncounterNpcId = null;
 
         if(captor) Game.surrender(captor.id, captor.name);
@@ -5523,7 +5602,7 @@ const Save = {
                 state: { ...state },
                 // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
                 // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
-                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity })),
+                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay })),
                 playerKingdom: FACTIONS['player_kingdom'] || null
             }));
             alert('Oyun kaydedildi.');

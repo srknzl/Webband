@@ -287,11 +287,31 @@ Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ü
   şölen (varsa katıl; kendi krallığındaysa ver), gönüllü toplama
 - **Kale**: lordlar salonu, şölen (varsa)
 - Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
-- **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı
-- Düşman fraksiyon şehri/kalesi ise sadece **kuşatma** seçeneği çıkar.
+- **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı,
+  **köyü yağmalama**. Savaştaki krallığın köyünde yalnızca yağma seçeneği çıkar — düşman
+  köyü sana ne asker ne erzak verir.
+- Düşman (savaşta olduğun) fraksiyonun şehri/kalesi ise sadece **kuşatma** seçeneği çıkar.
 - **Refah** (`loc.prosperity`, 35–90; `init()`'te atanır, kayda yazılır) tek sayıdır ve üç yeri
   besler: garnizon (`Game.garrisonOf` = temel × (0.6 + refah/125)), gönüllü tazelenmesi
   (+refah/40) ve pazar çarpanı (× (1.15 − refah/400) — bolluk fiyatı düşürür).
+  Her gün kendiliğinden toparlanır: 50'nin altındaysa +0.4, üstündeyse +0.15 (tavan 90).
+
+#### Köy yağması (#21)
+`Game.raidVillage(loc)` onay modali → `startRaid` → `Battle.start('Köy Milisi', n, null, faction)`.
+Milis sayısı `max(4, refah/5)` (~7–18) ve `BAND_KINDS.militia` karışımından doğar
+(Köylü / Köy Avcısı / Köy Bekçisi + 6 kişiden sonra Köy Muhtarı) — fraksiyon ordusu değil,
+köylüdür. Savaş kazanılınca `Battle` zafer dalı `Game.completeRaid(locId)` çağırır:
+
+| Kazanç | Bedel |
+|---|---|
+| `refah × 6 × 0.85–1.15` dinar | Sahibi lordla ilişki **−30**, o krallığın diğer lordları **−6** |
+| Tahıl `4 + refah/12`, peynir `1 + refah/25` | Refah **−20** (taban 10), `loc.raidedDay` işaretlenir |
+| Yağma yeteneğine +60 XP | Köy **7 gün** gönüllü vermez, nam **−6** (zaferin +3'ünü de yer) |
+
+Barıştaki bir krallığın köyünü yakmak **savaş sebebidir** (`declareWar`). Yenilgi/teslim
+yollarında `state.player.currentRaid` da `currentSiege` gibi temizlenir.
+Ölçüldü: refah 44 köyde 408 dinar + 9 tahıl + 4 peynir, refah 24'e düştü, sahibi 5 → −25,
+40 günde refah 54'e toparlandı.
 
 ### Soylular (`nobles.js`)
 23 lord + 12 leydi. Her lordun haritada gezen kendi partisi var (`npc.lordId`); parti kendi
