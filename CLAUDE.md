@@ -8,7 +8,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | Dosya | İçerik |
 |---|---|
 | `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli, kuşatma kampı paneli) |
-| `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. Global objeler: `Input`, `Game`, `Save` + `state` |
+| `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. Global objeler: `Debug`, `Input`, `Game`, `Save` + `state` |
 | `battle.js` | Savaş arenası ve turnuva minigame'i: `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
@@ -1020,6 +1020,26 @@ kuşandığın silahın türüne, ek olarak `riding`/`athletics` XP'nin %60'ı k
 ### Boss
 `boss_map` eşyası (pazardan 5000 dinar) kullanılınca **Savaş Tanrısı** savaşı açılır.
 En fazla 4 kez girilebilir, her girişte boss seviyesi +5. Kazanınca lvl 51 nişanı düşer.
+
+### Debug raporu (#52)
+Hata yaşandığında elde ekran görüntüsünden fazlası olsun diye kenar menüsünde
+**🐞 Debug Raporu** düğmesi var (`Debug.open()`). `Debug` objesi `app.js`'in **en başında**
+durur ve `Debug.init()` orada çağrılır — oyun kurulurken atılan hata da yakalansın diye.
+
+- Halkasal tampon (`Debug.errors`, son 25): `window.onerror` (mesaj + dosya:satır + yığının
+  ilk 3 satırı), `unhandledrejection` ve sarmalanmış `console.error`.
+- `Game.skipFrame` her rAF'ta `Debug.frame(d)` çağırır — son 30 kare aralığı raporda durur,
+  "siyah ekran / donuyor" şikâyetinde kanıt olur.
+- Rapor (`Debug.report()` → JSON): dosya tarihi + adres, oyun özeti (gün/saat, aktif ekran,
+  modal açık mı, can/dinar/nam, konum, `status`, grup, esir, fraksiyon, damga, kuşatma/yağma/
+  esaret, açık savaşlar, görev id'leri), çizim durumu (`Battle.active`, döngü id'leri, kare
+  böleni, ölçülen tazeleme hızı, iki tuvalin boyutu, son kareler), tarayıcı/ekran/DPR/bellek,
+  hata listesi. Her alan try/catch'ten geçer — rapor kendi başına patlamaz.
+- Modal metni seçilebilir; **📋 Panoya Kopyala** (`navigator.clipboard`, izin yoksa
+  `execCommand` yedeği) ve **💾 Dosya Olarak İndir** (`webband-debug-gunN.json`).
+
+Ölçüldü: `Game.nonexistentFunction()` ve reddedilen bir promise tamponda `error` ve
+`promise` olarak göründü, rapor 1.6 KB, son 30 karenin ortalaması 16.7 ms (68 Hz).
 
 ## Görsel katman (renovasyon)
 

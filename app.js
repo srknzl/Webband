@@ -2,6 +2,92 @@
 // WEBBAND - Mount & Blade Tarzı RPG
 // ============================================
 
+// --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
+// Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
+// birikir, kenar menüsündeki düğme her şeyi tek JSON'a çevirip panoya kopyalar.
+// Dosyanın en başında durur ki oyun kurulurken atılan hata da yakalansın.
+const Debug = {
+    errors: [], MAX_ERRORS: 25, frames: [],
+    log(kind, msg, extra) {
+        this.errors.push(Object.assign({ t: new Date().toISOString().slice(11, 19), kind, msg: String(msg).slice(0, 400) }, extra || {}));
+        if(this.errors.length > this.MAX_ERRORS) this.errors.shift();
+    },
+    init() {
+        window.addEventListener('error', e => this.log('error', e.message, {
+            at: (e.filename || '').split('/').pop() + ':' + e.lineno,
+            stack: ((e.error && e.error.stack) || '').split('\n').slice(1, 4).map(l => l.trim()).join(' | ')
+        }));
+        window.addEventListener('unhandledrejection', e => this.log('promise', (e.reason && e.reason.message) || e.reason));
+        let orig = console.error.bind(console);
+        console.error = (...a) => { this.log('console', a.map(x => (x && x.message) || x).join(' ')); orig(...a); };
+    },
+    // skipFrame her rAF'ta çağırır: siyah ekran/donma şikâyetinde kare aralıkları belge olur
+    frame(ms) { this.frames.push(Math.round(ms * 10) / 10); if(this.frames.length > 30) this.frames.shift(); },
+    report() {
+        let g = (f, d) => { try { let v = f(); return v === undefined ? d : v; } catch(e) { return 'hata: ' + e.message; } };
+        let cv = id => g(() => { let c = document.getElementById(id); return c ? `${c.width}x${c.height} (css ${Math.round(c.clientWidth)}x${Math.round(c.clientHeight)})` : 'yok'; });
+        return {
+            surum: { dosya: document.lastModified, adres: location.href.split('?')[0], zaman: new Date().toISOString() },
+            oyun: g(() => {
+                let p = state.player;
+                return {
+                    gun: state.time.day, saat: Math.floor(state.time.hour) + ':00', zamanOlcegi: state.timeScale,
+                    ekran: (document.querySelector('.view.active') || {}).id,
+                    modalAcik: !document.getElementById('modal-overlay').classList.contains('hidden'),
+                    ad: p.name, seviye: p.stats.level, can: Math.floor(p.stats.hp) + '/' + p.stats.maxHp, dinar: p.money, nam: p.renown,
+                    konum: { x: Math.round(p.x), y: Math.round(p.y) }, durum: p.status,
+                    grup: p.party.length + '/' + Game.getPartyCapacity(), esir: (p.prisoners || []).length,
+                    fraksiyon: Game.playerFaction(), damga: Game.infamy(),
+                    kusatma: p.siege || null, yagma: p.raid || null, esaret: p.prisoner ? p.prisoner.npcName : null,
+                    savaslar: Object.keys(state.wars || {}), gorevler: (p.quests || []).map(q => q.id)
+                };
+            }, 'oyun başlamamış'),
+            cizim: {
+                savasAktif: g(() => Battle.active), turnuvaAktif: g(() => TournamentMinigame.active),
+                haritaDonguId: g(() => Game._loopId), savasDonguId: g(() => Battle.loopId),
+                kareBoleni: g(() => Math.max(1, Math.floor(1000 / 60 / Game._minStep + 0.01))),
+                olculenTazeleme: g(() => Game._minStep === Infinity ? 'ölçülmedi' : Math.round(1000 / Game._minStep) + ' Hz'),
+                haritaTuval: cv('map-canvas'), savasTuvali: cv('battle-canvas'),
+                sonKareler: this.frames.slice()
+            },
+            tarayici: {
+                ua: navigator.userAgent, dil: navigator.language, dpr: window.devicePixelRatio,
+                pencere: innerWidth + 'x' + innerHeight, ekran: screen.width + 'x' + screen.height,
+                bellek: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : 'bilinmiyor')
+            },
+            hatalar: this.errors.slice()
+        };
+    },
+    text() { return JSON.stringify(this.report(), null, 1); },
+    open() {
+        let n = this.errors.length;
+        Game.showModal(`<h3>🐞 Debug Raporu</h3>
+            <p style="font-size:0.85rem;color:var(--text-muted)">Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.</p>
+            <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
+            <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
+                <button class="btn primary" onclick="Debug.copy()">📋 Panoya Kopyala</button>
+                <button class="btn" onclick="Debug.download()">💾 Dosya Olarak İndir</button>
+                <button class="btn" onclick="Game.closeModal()">Kapat</button>
+            </div>
+            <div id="debug-msg" style="text-align:center;margin-top:0.5rem;font-size:0.85rem;color:var(--success)"></div>`, '720px');
+    },
+    copy() {
+        let ta = document.getElementById('debug-text');
+        let done = () => { let m = document.getElementById('debug-msg'); if(m) m.textContent = '✅ Panoya kopyalandı.'; };
+        // Pano izni yoksa (file:// veya eski tarayıcı) seçip execCommand'a düş
+        if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
+        else { ta.select(); document.execCommand('copy'); done(); }
+    },
+    download() {
+        let a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([this.text()], { type: 'application/json' }));
+        a.download = `webband-debug-gun${((state || {}).time || {}).day || 0}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }
+};
+Debug.init();
+
 // --- DATA ---
 const FACTIONS = {
     swadia:  { id: 'swadia',  name: 'Svadya Krallığı',  color: '#ff4d4d', ruler: 'Kral Harlaus', vizier: 'Vezir Klargus', lore: 'Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu\'nun asıl varisi olduğunu iddia eden güçlü bir krallık.' },
@@ -907,6 +993,7 @@ const Game = {
         this._prevT = t;
         // d > 1: tarayıcı jank sonrası iki kareyi arka arkaya verirse bölen patlar.
         // Gerçek hiçbir ekran 1000 Hz'in üstünde değil, alt sınır güvenli.
+        Debug.frame(d);                                     // kare aralıkları debug raporuna girer (#52)
         if(d > 1 && d < this._minStep) this._minStep = d;   // min: tek tük takılmayı eler
         let n = Math.max(1, Math.floor(1000 / 60 / this._minStep + 0.01));
         return this._lastSkip = ((++this._frameNo % n) !== 0);
