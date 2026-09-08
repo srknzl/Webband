@@ -252,6 +252,15 @@ const BAND_KINDS = {
                 battle: [['Köylü','infantry',22,50,5,0,7], ['Köy Avcısı','archer',20,52,6,0,3],
                          ['Köy Bekçisi','infantry',30,54,8,2,2]],
                 leader: ['Köy Muhtarı','infantry',44,54,10,3] },
+    // Ticaret partileri (#22): haritada gezerler, saldırmazlar; soyulunca yükleri düşer
+    caravan:  { name: 'Kervan Muhafızları', color: '#e0b062', icon: 'cart', min: 6, max: 14, speedMult: 1, trade: true,
+                lore: '"Yükümüze dokunma yolcu — bu mallar loncaya yazılı."',
+                battle: [['Kervan Muhafızı','infantry',34,56,10,3,5], ['Kervan Okçusu','archer',26,54,9,1,3],
+                         ['Atlı Muhafız','cavalry',40,90,12,4,2]],
+                leader: ['Kervanbaşı','infantry',55,58,14,5] },
+    villager: { name: 'Köylü Kafilesi', color: '#9dbf6a', icon: 'foot', min: 3, max: 7, speedMult: 1, trade: true,
+                lore: '"Pazara gidiyoruz efendim... bizde alacak bir şey yok ki."',
+                battle: [['Köylü','infantry',22,50,5,0,8], ['Köy Avcısı','archer',20,52,6,0,2]] },
     wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
                 lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
                 battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
@@ -527,7 +536,104 @@ const Game = {
         return pool[Math.floor(Math.random() * pool.length)];
     },
 
+    // --- TİCARET PARTİLERİ (#22) ---
+    // Harita yalnız haydut ve lordlardan ibaret kalmasın: kervanlar şehirler arasında,
+    // köylüler kendi köyleriyle en yakın şehir arasında mekik dokur. Saldırmazlar;
+    // soymak ganimet verir ama barıştaki bir krallığı soymak eşkıyalıktır.
+    spawnTrader(kind) {
+        let pool = LOCATIONS.filter(l => l.type === (kind === 'caravan' ? 'city' : 'village'));
+        let home = pool[Math.floor(Math.random() * pool.length)];
+        if(!home) return null;
+        let k = BAND_KINDS[kind];
+        let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
+        let name = kind === 'caravan' ? `${this.factionName(home.faction)} Kervanı` : `${home.name} Köylüleri`;
+        let npc = this.createNPC(name, kind, size, k.color, home.faction, 1);
+        npc.band = kind;
+        npc.speed = kind === 'caravan' ? 58 : 52;
+        npc.trade = { kind, homeId: home.id, fromId: home.id, toId: home.id };
+        if(kind === 'villager') {
+            let market = LOCATIONS.filter(l => l.type === 'city')
+                                  .sort((a, b) => this.dist(a, home) - this.dist(b, home))[0];
+            npc.trade.marketId = market ? market.id : home.id;
+        }
+        if(kind === 'caravan') {
+            let goods = Object.values(ITEMS).filter(i => i.type === 'trade');
+            npc.cargo = [];
+            for(let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+                let g = goods[Math.floor(Math.random() * goods.length)];
+                // Yük değerce dengelensin: kadife az, bira çok taşınır
+                let qty = Math.max(1, Math.round((3 + Math.random() * 4) * 100 / g.basePrice));
+                let ex = npc.cargo.find(c => c.id === g.id);
+                if(ex) ex.qty += qty; else npc.cargo.push({ id: g.id, qty });
+            }
+            npc.purse = 120 + Math.floor(Math.random() * 260);
+        } else {
+            npc.cargo = [{ id: 'wheat', qty: 3 + Math.floor(Math.random() * 6) },
+                         { id: 'cheese', qty: 1 + Math.floor(Math.random() * 3) }];
+            npc.purse = 20 + Math.floor(Math.random() * 50);
+        }
+        npc.x = npc.targetX = home.x; npc.y = npc.targetY = home.y;
+        state.npcParties.push(npc);
+        this.traderArrive(npc);   // ilk hedefini seçsin
+        return npc;
+    },
+    // Yollarda hep aynı yoğunluk olsun — yenilen kafilenin yerine ertesi gün yenisi çıkar
+    ensureTraders() {
+        let n = k => state.npcParties.filter(p => p.trade && p.trade.kind === k).length;
+        for(let i = n('caravan'); i < 6; i++) this.spawnTrader('caravan');
+        for(let i = n('villager'); i < 8; i++) this.spawnTrader('villager');
+    },
+    // Hedefe vardı: yerleşime biraz refah bırakır, sonraki durağına yönelir
+    traderArrive(npc) {
+        let t = npc.trade;
+        let dest = LOCATIONS.find(l => l.id === t.toId);
+        if(dest) dest.prosperity = Math.min(90, (dest.prosperity || 50) + (t.kind === 'caravan' ? 0.5 : 0.15));
+        let next = this.traderNext(npc);
+        if(!next) return;
+        t.fromId = t.toId; t.toId = next.id;
+        npc.targetX = next.x + (Math.random() - 0.5) * 60;
+        npc.targetY = next.y + (Math.random() - 0.5) * 60;
+    },
+    traderNext(npc) {
+        let t = npc.trade;
+        if(t.kind === 'villager') return LOCATIONS.find(l => l.id === (t.toId === t.homeId ? t.marketId : t.homeId));
+        // Kervan savaş bölgesine girmez: kendi krallığıyla barışık bir şehre yönelir
+        let cities = LOCATIONS.filter(l => l.type === 'city' && l.id !== t.toId && !this.atWar(npc.faction, l.faction));
+        return cities.length ? cities[Math.floor(Math.random() * cities.length)] : LOCATIONS.find(l => l.id === t.fromId);
+    },
+    // Kafileye rastlamak savaş değil, bir seçimdir
+    meetTrader(npc) {
+        let bk = BAND_KINDS[npc.band] || {};
+        let war = this.atWar(this.playerFaction(), npc.faction) ;
+        let cargo = (npc.cargo || []).filter(c => ITEMS[c.id])
+                    .map(c => `${ITEMS[c.id].icon} ${ITEMS[c.id].name} ×${c.qty}`).join(' · ') || 'boş';
+        let dest = LOCATIONS.find(l => l.id === npc.trade.toId);
+        this.showModal(`<h3>${npc.trade.kind === 'caravan' ? '🐪' : '🧺'} ${npc.name}</h3>
+        <p><i>${bk.lore || ''}</i></p>
+        <p>${this.factionName(npc.faction)} · <b>${npc.size}</b> kişi${dest ? ` · ${dest.name} yolunda` : ''}</p>
+        <p style="color:var(--text-muted)">Yük: ${cargo}${npc.purse ? ` · 💰 kese` : ''}</p>
+        ${war ? `<p style="color:#2ecc71">Krallığın ${this.factionName(npc.faction)} ile savaşta — bu yük meşru ganimet.</p>`
+              : `<p style="color:var(--danger)">Soyarsan eşkıyalık sayılır: ${this.factionName(npc.faction)} lordları <b>−4</b>, namın <b>−5</b>.</p>`}
+        <div style="display:flex;gap:1rem;margin-top:1rem;">
+        <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.robTrader('${npc.id}')">🗡️ Soy</button>
+        <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 6; state.player.currentEncounterNpcId = null;">🚪 Yoluna Bırak</button>
+        </div>`);
+    },
+    robTrader(npcId) {
+        let npc = state.npcParties.find(n => n.id === npcId);
+        this.closeModal();
+        if(!npc) return;
+        // Savaştaki krallığın kervanını vurmak seferdir; barıştakini vurmak yol kesmektir
+        if(!this.atWar(this.playerFaction(), npc.faction) && npc.faction !== this.playerFaction()) {
+            state.player.renown = Math.max(0, (state.player.renown || 0) - 5);
+            if(typeof Nobles !== 'undefined')
+                LORDS.filter(l => l.faction === npc.faction).forEach(l => Nobles.addRel(l.id, -4));
+        }
+        Battle.start(npc.name, npc.size, null, npc.faction);
+    },
+
     spawnNPCs() {
+        this.ensureTraders();
         for(let i = 0; i < 8; i++) this.spawnBand('bandit');
         for(let i = 0; i < 3; i++) this.spawnBand('wolf');
         for(let i = 0; i < 2; i++) this.spawnBand('forest');
@@ -1189,7 +1295,7 @@ const Game = {
         if(timeFlows && state.encounterCooldown <= 0) {
             for(let npc of state.npcParties) {
                 // Dost soylulara çarpmak da bir karşılaşmadır — savaş değil, sohbet
-                if(!npc.lordId && !this.isHostile(npc)) continue;
+                if(!npc.lordId && !npc.trade && !this.isHostile(npc)) continue;
                 let d = this.dist(npc, state.player);
                 if(d < 24) {
                     state.player.status = 'idle';
@@ -1281,7 +1387,9 @@ const Game = {
             let sense = npc.size > ps ? 360 : 360 + Math.min(640, (ps / Math.max(1, npc.size)) * 240);
             // Kaçış artık düşmanlıktan bağımsız: çete zaten sana saldırmayacak kadar
             // zayıfsa (isHostile false) eskiden hiç kaçmıyor, dolaşmaya devam ediyordu.
-            let notices = dp < sense && (hostile || npc.type === 'bandit');
+            // Kervan/kafile savaştaki krallığın ordusundan kaçar (yoksa yoluna devam)
+            let notices = dp < sense && (hostile || npc.type === 'bandit'
+                          || (npc.trade && this.atWar(this.playerFaction(), npc.faction)));
             if(notices && (npc.size > ps ? hostile : true)) {
                 if(npc.size > ps) {
                     npc.targetX = state.player.x; npc.targetY = state.player.y;
@@ -1291,6 +1399,7 @@ const Game = {
             } else {
                 let dtx = npc.targetX - npc.x, dty = npc.targetY - npc.y;
                 if(Math.sqrt(dtx*dtx + dty*dty) < 15) {
+                    if(npc.trade) return this.traderArrive(npc);   // kafile durağına vardı
                     let a = Math.random() * Math.PI * 2;
                     // Soylular kendi yerleşimlerinin etrafında döner; başkalarını
                     // salonlarında bulabilmek için bu şart.
@@ -1342,6 +1451,12 @@ const Game = {
         state.encounterCooldown = 2;
         state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
         state.player.currentEncounterNpcId = npc.id;
+
+        // Kervan/köylü kafilesi: savaş dayatılmaz, soymak senin seçimin
+        if(npc.trade) {
+            let live = state.npcParties.find(n => n.id === npc.id);
+            if(live) return this.meetTrader(live);
+        }
 
         // Düşman olmayan bir soyluya rastladıysak bu bir sohbet fırsatı, savaş değil
         if(npc.lordId && !this.isHostile(npc)) {
@@ -1709,6 +1824,7 @@ const Game = {
         if(state.npcParties.filter(n=>n.type==='bandit').length < 10) {
             this.spawnBand(this.randomBandKind());
         }
+        this.ensureTraders();   // soyulan kafilelerin yerine yenileri yola çıkar
     },
 
     updateTopBar() {
@@ -2113,7 +2229,29 @@ const Game = {
     },
 
     // Grup neye benziyorsa o çizilir: atlı / mızraklı yaya / okçu / kurt
+    // Kervan: çeki atı + yük arabası. Fraksiyon rengi tentede.
+    drawCart(ctx, col, cloak) {
+        ctx.save();
+        ctx.fillStyle = '#6b5442';                                      // çeki atı
+        ctx.beginPath(); ctx.ellipse(22, -22, 11, 6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(29,-26); ctx.lineTo(38,-32); ctx.lineTo(40,-24); ctx.lineTo(31,-19); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#4a3a2e'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(16,-17); ctx.lineTo(15,-3); ctx.moveTo(27,-17); ctx.lineTo(28,-3); ctx.stroke();
+        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;               // ok (dişingi)
+        ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(18,-20); ctx.stroke();
+        ctx.fillStyle = cloak; ctx.fillRect(-24, -30, 26, 17);          // yük kasası
+        ctx.fillStyle = col;                                            // tente
+        ctx.beginPath(); ctx.moveTo(-26,-30); ctx.quadraticCurveTo(-11,-46, 4,-30); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+        ctx.strokeStyle = '#4a3a2e'; ctx.lineWidth = 2.6;               // tekerlekler
+        ctx.beginPath(); ctx.arc(-18, -10, 7, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(-3, -10, 6, 0, Math.PI*2); ctx.stroke();
+        ctx.lineCap = 'butt';
+        ctx.restore();
+    },
+
     drawFigure(ctx, kind, col, cloak) {
+        if(kind === 'cart')  return this.drawCart(ctx, col, cloak);
         if(kind === 'wolf')  return this.drawWolf(ctx, col);
         if(kind === 'rider') return this.drawRider(ctx, col, cloak);
         this.drawFootman(ctx, col, cloak, kind === 'archer');
@@ -3035,9 +3173,18 @@ const Game = {
     // yanındaki diğer esirler de görünür (esaret modeli: state.player.prisoner).
     npcTipHtml(npc) {
         let bk = BAND_KINDS[npc.band];
-        let what = bk ? (bk.beast ? 'Yaratık sürüsü' : 'Haydut çetesi')
-                      : (FACTIONS[npc.faction] || { name: 'Bağımsız' }).name;
-        let html = `${what}<br>Asker: ${npc.size}`;
+        let fname = (FACTIONS[npc.faction] || { name: 'Bağımsız' }).name;
+        let what = bk ? (bk.trade ? `${fname} · ${npc.trade && npc.trade.kind === 'caravan' ? 'Kervan' : 'Köylü kafilesi'}`
+                                  : (bk.beast ? 'Yaratık sürüsü' : 'Haydut çetesi'))
+                      : fname;
+        let unitWord = bk && bk.trade ? (npc.trade && npc.trade.kind === 'caravan' ? 'Muhafız' : 'Kişi') : 'Asker';
+        let html = `${what}<br>${unitWord}: ${npc.size}`;
+        if(npc.trade) {
+            let d = LOCATIONS.find(l => l.id === npc.trade.toId);
+            html += (d ? `<br>Hedef: ${d.name}` : '')
+                  + ((npc.cargo || []).filter(c => ITEMS[c.id]).length
+                     ? `<br>Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}` : '');
+        }
         let pr = state.player.prisoner;
         if(pr && pr.npcId === npc.id) {
             html += `<br><span style="color:#ff8f82">⛓️ Esirleri:</span> ${state.player.name} (sen)`
@@ -5347,7 +5494,7 @@ const Battle = {
             }
 
             // Yenilen NPC'yi haritadan kaldır
-            let nobleTaken = null;
+            let nobleTaken = null, cargoTxt = '';
             if(state.player.currentEncounterNpcId) {
                 let beaten = state.npcParties.find(n => n.id === state.player.currentEncounterNpcId);
                 Quests.emit('battle_won', {
@@ -5357,6 +5504,18 @@ const Battle = {
                 });
                 state.npcParties = state.npcParties.filter(n => n.id !== state.player.currentEncounterNpcId);
                 state.player.currentEncounterNpcId = null;
+
+                // Kervan/kafile yükü ganimete eklenir (#22)
+                if(beaten && beaten.cargo) {
+                    beaten.cargo.forEach(c => {
+                        let it = ITEMS[c.id];
+                        if(!it) return;
+                        let ex = state.player.inventory.find(i => i.id === c.id);
+                        if(ex) ex.qty += c.qty; else state.player.inventory.push({ ...it, qty: c.qty });
+                        cargoTxt += `${it.icon} ${it.name} ×${c.qty} · `;
+                    });
+                    if(beaten.purse) { state.player.money += beaten.purse; cargoTxt += `💰 ${beaten.purse} dinar kese`; }
+                }
 
                 // Yenilen soylu esir düşer: ya fidyesini alırsın ya onurunla salıverirsin
                 let lord = beaten && beaten.lordId ? Nobles.lord(beaten.lordId) : null;
@@ -5381,6 +5540,7 @@ const Battle = {
                     <p style="margin-bottom:0.8rem"><b>Kazanılan Tecrübe:</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
                     <p><b>Kayıplar:</b> <span style="color:#e74c3c">${killed} ölü</span> · <span style="color:#ffaa00">${saved} yaralı</span> 🩹</p>
                     ${captured ? `<p style="margin-top:0.8rem"><b>Esir Alınan:</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:0.85rem;color:var(--text-muted)">(şehirdeki köle tüccarına satabilirsin)</span></p>` : ''}
+                    ${cargoTxt ? `<p style="margin-top:0.8rem"><b>Yük Ganimeti:</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
                     ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>👑 ${nobleTaken} esir alındı!</b> <span style="font-size:0.85rem;color:var(--text-muted)">Grup ekranından fidye iste ya da salıver.</span></p>` : ''}
                 </div>
                 <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:8px" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">Kazanımları Al ve İlerle</button>
@@ -5651,6 +5811,7 @@ const Save = {
         // initRivals artık dünyaya girişte çalışıyor; rakipsiz eski kayıtta burada kurulur
         if(!Object.keys(state.rivals || {}).length) Nobles.initRivals();
         Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
+        Game.ensureTraders();    // eski kayıtlarda kervan/kafile yoktu
         Game.startGameLoop();
         alert(`Kayıt yüklendi. Gün ${state.time.day}.`);
     },

@@ -105,7 +105,9 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   **Çeteler kendi silüetiyle gezer** (`BAND_KINDS[].icon` → `Game.drawFigure`): çapulcu/eşkıya
   mızraklı yaya, orman haydudu **yaylı** yaya (`drawFootman(..., bow)`), kurt sürüsü **kurt**
   silüeti (`Game.drawWolf`, sancak taşımaz). Halka ve sancak rengi de çetenin kendi rengidir —
-  hepsi aynı kırmızıyla çizilmez.
+  hepsi aynı kırmızıyla çizilmez. **Kervan** ise araba silüetidir (`Game.drawCart`: çeki atı +
+  tenteli yük kasası + tekerlekler); 10+ kişilik kervan arkasında ikinci arabayla, yani konvoy
+  olarak görünür.
 - **Günün vakti**: `Game.getDayPart()` yalnızca ad/ikon verir (Gece / Şafak / Sabah / Öğle /
   İkindi / Gün Batımı). Harita tonu **kademelidir**: `Game.dayTint()` `DAY_TINTS` anahtar
   saatleri arasında rgba'yı lineer geçirir, `Game.nightGlow()` yerleşimlerdeki ocak ışığını
@@ -405,6 +407,30 @@ Kabul edilen görevler `state.player.quests`; **Görevler** sekmesi (`#quests-vi
 Reddedilen lord 7–15 gün yeni görev vermez (`state.questCooldown`).
 Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
 
+### Ticaret partileri — kervan ve kafileler (#22)
+Harita artık yalnız haydutlar ve lordlardan ibaret değil: yollarda **6 kervan + 8 köylü
+kafilesi** dolaşır (`Game.ensureTraders`, `spawnTrader`). İkisi de `BAND_KINDS`'ta bir çete
+gibi tanımlıdır (`trade: true`), böylece harita ikonu, savaş birim karışımı ve reis mantığı
+hazır makineden gelir.
+
+| Parti | Rota | Muhafız | Yük (ölçüldü) | Harita ikonu |
+|---|---|---|---|---|
+| Kervan | şehir → barıştaki başka şehir (`traderNext`) | 6–14: Kervan Muhafızı / Okçu / Atlı Muhafız + **Kervanbaşı** | 2 kalem ticaret malı + 120–380 dinar kese → satışta **790–1350 dinar** | araba (`cart`), altın sarısı |
+| Köylü kafilesi | köy ↔ en yakın şehir (mekik) | 3–7: Köylü / Köy Avcısı | tahıl + peynir + 20–70 dinar → **120–300 dinar** | mızraklı yaya, açık yeşil |
+
+- Yük değerce dengelenir: `qty ≈ (3–7) × 100 / basePrice`, yani kadife 1–2, bira 10–19 taşınır.
+- **Saldırmazlar.** `isHostile` false döner; yalnızca krallığıyla savaştaysan senden kaçarlar.
+- Çarpışınca savaş değil **seçim** açılır (`Game.meetTrader`): 🗡️ Soy / 🚪 Yoluna Bırak
+  (bırakınca `encounterCooldown = 6`, dibinden geçerken modal tekrar açılmaz).
+- **Soymak eşkıyalıktır** (`Game.robTrader`): barıştaki krallığın kafilesini vurmak
+  **−5 nam** ve o krallığın *bütün* lordlarıyla **−4 ilişki** demektir (zaferin +3 namıyla
+  birlikte net −2). Savaştaki krallığın kervanı meşru ganimettir, ceza yoktur.
+- Zafer ganimeti: yük doğrudan envantere, kese doğrudan kasaya (`beaten.cargo` / `beaten.purse`,
+  zafer modalinde "Yük Ganimeti" satırı). `rewardScale` yalnız dinar ödülünü kısar, yükü kısmaz.
+- Vardıkları yerleşimin refahını besler (kervan +0.5, kafile +0.15 / varış).
+- Kafileler `state.npcParties`'te durduğu için kayda kendiliğinden yazılır; eski kayıtlar
+  `Save.load` içindeki `Game.ensureTraders()` ile doldurulur.
+
 ### Karşılaşma & savaş
 - Düşmanlık kuralları `isHostile()`: çapulcular 120 birim içinde her zaman saldırır, oyuncu 1.5× güçlüyse kaçar; ilk 14 gün id hash'ine göre kademeli agresifleşir.
 - **Kaçış menzili güç farkına bağlı** (`updateNPCs`): zayıf çete `360 + min(640, (bizim güç/onun gücü)×240)`
@@ -702,8 +728,10 @@ Kalanlar:
    baş harf madalyonu (`Nobles.portraitCss`) kullanıyor.
 2. Diplomaside marshal/sefer çağrısı ve ittifak yok: kral seni sefere çağırmıyor, krallıklar
    birbirine karşı ittifak kurmuyor (savaş/barış ve cephe var, bkz. "Diplomasi").
-3. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
-4. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
+3. Haydutlar kervanlara saldırmıyor: NPC↔NPC çatışması yalnız lord partileri arasında
+   (`warTick`) çözülüyor, kafileler yalnız oyuncu tarafından soyulabiliyor.
+4. `app.js` ~4300 satır. Büyümeye devam ederse savaş motoru `battle.js`'e ayrılmalı.
+5. Asker birimlerinin hasar türü sabit: yakın dövüş `cut`, oklar `pierce`. Fraksiyon
    ağacındaki baltacı/mızraklı ayrımı henüz hasar türüne yansımıyor — yalnız oyuncunun
    silahı tür seçiyor.
 
