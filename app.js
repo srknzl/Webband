@@ -1208,6 +1208,20 @@ const Game = {
         let lastDefeatDaysAgo = p.lastDefeatDay ? (day - p.lastDefeatDay) : 999;
         
         if(type === 'elder') {
+            // Köylü kimin karşısında durduğunu bilir: yağmacı / düşman / misafir (#50)
+            let loc = npc, pick = a => a[Math.floor(Math.random() * a.length)];
+            if(this.raidedRecently(loc)) return pick([
+                `"Yine mi sen?! Ambarımızı boşalttın, damları yaktın... Defol! (Arkadan bir taş vızıldayıp geçer.)"`,
+                `"Allah belanı versin. Kızım o gece ağlamaktan sesini kaybetti. Bir daha ağzını açma bana."`,
+                `"Köpek. Hasadımızı yiyip 'köy yaşlısıyla konuşayım' diyor. Ne yüzle geliyorsun?"`,
+                `"Konuşacak bir şeyimiz yok. Sen gittikten sonra üç ev boş kaldı — say bakalım kaç tane."`
+            ]);
+            if(loc && this.atWar(this.playerFaction(), loc.faction)) return pick([
+                `"...Bizim lordumuzla savaştasın. Sana ne ekmek var ne asker. Yolun açık olsun — çabuk olsun."`,
+                `"Kılıcını görüyorum yabancı. Kadınlar çoktan ambara saklandı. Ne istiyorsan al da git."`,
+                `"Bu köy ${this.factionName(loc.faction)}'ın. Senin gibi birine kuyudan su bile vermeyiz."`
+            ]);
+            if(this.infamyTier() >= 2) return `"Adını duyduk. Köy yakanmışsın. ...Hoşgeldin de deme bana, sadece çabuk git."`;
             if(p.party.length < 5 && p.stats.level < 5) return `"Şu cılız delikanlıya bakın, Deli Hüsnü'ye söyleyin belki gönüllü olur, bununla giderse biz de kurtuluruz."`;
             if(p.money > 5000) return `"Lordum, şu yaşlıya köydeki fakfakirler için biraz dinar atsanız da ortalık şenlense..."`;
             if(lastDefeatDaysAgo < 3) return `"Duyduğuma göre geçenlerde biri buralarda çapulculardan fena dayak yemiş... Umarım o sen değilsindir yabancı."`;
@@ -2834,9 +2848,10 @@ const Game = {
                     this.addBtn(ac, '🍷 Şölene Katıl', () => Feast.open(loc));
                 }
             } else if(loc.type === 'village') {
-                // Düşman köyü sana ne asker ne erzak verir; tek seçenek yağmadır.
-                if(!isEnemy) {
-                    this.addBtn(ac, '🧓 Köy Yaşlısıyla Konuş', () => this.talkToElder(loc));
+                // Düşman köyü sana ne asker ne erzak verir — ama söyleyecek iki çift lafı vardır (#50)
+                this.addBtn(ac, '🧓 Köy Yaşlısıyla Konuş', () => this.talkToElder(loc));
+                // Küfrettiği adama peynir de satmaz: yağmaladığın köy hizmet vermez (#50)
+                if(!isEnemy && !this.raidedRecently(loc)) {
                     if(loc.volunteersAvailable > 0) {
                         this.addBtn(ac, '🪖 Gönüllü Topla', () => this.recruitVolunteers(loc));
                     }
@@ -4095,6 +4110,7 @@ const Game = {
     RAID_SECONDS: 15,
     RAID_ALERT: 1600,     // bu menzildeki lord dumanı görür; 15 sn'de ~1200–1600 birim yol alır
     RAID_COOLDOWN: 30,    // gün — aynı köy bir daha yağmalanamaz (~12 dk gerçek zaman, hız ×1)
+    raidedRecently(loc) { return !!loc && loc.raidedDay !== undefined && state.time.day - loc.raidedDay < this.RAID_COOLDOWN; },
     // Battle zafer dalı burayı çağırır: ganimet değil, yağma safhası başlar
     completeRaid(locId) {
         let loc = LOCATIONS.find(l => l.id === locId);

@@ -407,9 +407,13 @@ Bir çapulcu savaşı ~80 dinar olduğu için ticaret hâlâ gerçek bir meslek.
 - Aktif göreve bağlı butonlar da burada çıkar (ör. tavuk kovalama).
 - **Kendi tımarında** (`loc.owner === 'player'`, köy hariç): **🛡️ Garnizon** ve **📦 Depo**
   düğmeleri en üstte çıkar (bkz. "Tımar yönetimi").
-- **Köy**: köy yaşlısı (duruma göre esprili diyalog), gönüllü toplama, erzak pazarı,
+- **Köy**: köy yaşlısı (duruma göre diyalog), gönüllü toplama, erzak pazarı,
   **köyü yağmalama**. Savaştaki krallığın köyünde yalnızca yağma seçeneği çıkar — düşman
-  köyü sana ne asker ne erzak verir.
+  köyü sana ne asker ne erzak verir. **Köy yaşlısı her durumda konuşur** (#50): ağzı
+  duruma göre değişir — 30 günlük yağma penceresi içindeyse (`Game.raidedRecently`)
+  açık düşmanlık ve arkadan taş, düşman krallığın köyündeyse korkmuş/soğuk ret,
+  onursuzluk kademen 2 ise ("💀 Köy Yakan") dost köyde bile "çabuk git". Yağmaladığın
+  köy o pencerede **gönüllü ve erzak da vermez** — küfrettiği adama peynir satmaz.
 - Düşman (savaşta olduğun) fraksiyonun şehri/kalesi ise sadece **kuşatma** seçeneği çıkar —
   pazar, han, salon, gönüllü, hatta görev düğmeleri bile kapalıdır (#48). Bağımsızsan aynı
   düğme "Kuşat! (Kendi Krallığını Kur)" olur, iki ayrı kuşatma düğmesi çıkmaz.
