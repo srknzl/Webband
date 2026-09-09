@@ -80,7 +80,8 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
 
 ### Dünya haritası
 - Prosedürel kıta sınırı: `getMapRadius()` açıya bağlı sinüs toplamı ile düzensiz kıyı üretir; `clampToMap()` herkesi içeride tutar.
-- Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
+- Yerleşimler (`LOCATIONS`) `init()` içinde **kurallı olarak yeniden dağıtılır** (`Game.layoutWorld`)
+  — dizideki x/y değerleri kullanılmaz; bkz. "Yerleşim dağıtımı (#57)".
 - Yollar: doğal güzergâhlı, türlü ve kavşaklı bir ağ (`state.roads`, `state.bridges`) —
   bkz. "Yol ağı (#56)".
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
@@ -149,6 +150,55 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   Çete/partinin üstünde tür (yaratık sürüsü / haydut çetesi / fraksiyon) + asker sayısı.
   *(Ekran→dünya dönüşümünde `rect/2` ortalama payı eksikti; künye imlecin yarım ekran
   uzağındaki şeyi arıyor, yani hiç açılmıyordu.)*
+
+### Yerleşim dağıtımı — asgari aralık, sınırdaki kale, köyün merkezi (#57)
+Eski dağıtım tek satırdı: her yerleşim kendi fraksiyonunun açı diliminde **tamamen rastgele**
+bir noktaya (merkeze 1000–3500 birim) düşüyordu. Ölçüldü (200 dünya): dünya başına
+**6.81 asgari aralık ihlali**, **200 dünyanın 200'ünde** en az bir ihlal, en yakın çiftin
+medyanı **148** birim (en kötü **12** — iki şehir üst üste), ve **82 yerleşim kıtanın dışında**
+kalıyordu. `layoutWorld()` bunu üç kuralla değiştirir; kurallar sağlanana kadar
+(en fazla 12 deneme) dünya baştan kurulur.
+
+**1. Asgari aralık** (`Game.MIN_GAP`, `minGap(a,b)` çift türüne bakar): şehir–şehir 700,
+şehir–kale 480, şehir–köy 380, kale–kale 620, kale–köy 340, köy–köy 420 birim.
+`spotOk(p, type, placed)` tek kapıdır: aday nokta hem kıyıdan **320 birim** içeride olacak
+hem de yerleşmiş herkese kendi çift kuralı kadar uzak duracak. 400 denemede yer bulunamazsa
+son aday kabul edilir (kilitlenme yerine kusurlu bir dünya — doğrulama zaten yakalar).
+
+**2. Kale sınırda, şehir ortada** (`placeLocations`): dilim içindeki açı `f` kale için
+`0.02–0.20` ya da `0.80–0.98`, şehir için `0.22–0.78`. Yani kale komşu krallığın sınırına
+bakar, şehir yurdun göbeğinde durur. Ölçüldü (40 dünya, 240 kale / 520 şehir):
+kalelerin **%100'ü**, şehirlerin **%0'ı** dilimin dış %20'lik bandında.
+Merkezden uzaklık **kıyıya görelidir** (`R = getMapRadius(açı)`, `d = R × 0.28–0.82`) —
+sabit 1300–3200 bandı kıtanın şişkin taraflarını boş bırakıyordu.
+
+**3. Köyün bir merkezi var** (`placeVillage`): her köy o fraksiyonun **en az köyü olan**
+şehrine/kalesine bağlanır (`loc.parentId`) ve ondan `VILLAGE_RANGE` = **420–900** birim
+uzağa konur. Ölçüldü (200 dünya): köy–merkez mesafesi min **420** / medyan **655** / max **900**.
+
+`validateLocations()` üretilen dünyayı denetler ve **insan diliyle** hata listesi döner:
+kıta dışı, asgari aralık ihlali, merkezi olmayan/kopmuş köy, **yol ağına bağlanmamış**
+yerleşim (`state.roads` uçlarına 40 birim). `layoutWorld` bu liste boşalana kadar döner;
+12 denemede de oturmazsa `console.warn` ile sebebi yazar. Ölçüldü (200 dünya):
+**deneme sayısı medyan 1, max 1, 12 denemede başarısız 0**.
+
+| | eski | yeni |
+|---|---|---|
+| İhlal / dünya | 6.81 | **0** |
+| İhlalli dünya (200'de) | 200 | **0** |
+| En yakın çift (medyan / en kötü) | 148 / **12** | **431 / 345** |
+| Kıta dışında kalan (200 dünya toplamı) | 82 | **0** |
+| En boş noktanın uzaklığı (40 dünya medyanı) | 2294 | **2189** |
+| Rastgele noktadan en yakın yerleşime (medyan) | 680 | **637** |
+
+Çift bazında ölçülen en dar aralık kuralın kendisine oturuyor: şehir|şehir 701,
+kale|şehir 481, şehir|köy 380, kale|kale 622, kale|köy 345, köy|köy 454.
+
+**`parentId` üç kopyalanmış sezgiyi de siliyor.** Fetih (`captureSettlement`), tımar
+(`grantFief`) ve vassala tımar verme (`grantFiefTo`) "900 birim içindeki köyler de gelir"
+kuralını **ayrı ayrı** yazıyordu; artık üçü de `Game.villagesOf(loc)` çağırır. Eski
+kayıtlarda köyün `parentId`'si yoktur — `villagesOf` o zaman eski 900 birim kuralına düşer,
+yani göç kodu gerekmedi. (`parentId` `Save.snapshot`'ın `locations` dizisine yazılır.)
 
 ### Yol ağı — dönemeç, tür ve köprü (#56)
 Yollar eskiden yerleşimleri bağlayan minimum spanning tree'nin **düz çizgileriydi**: 24 parça,

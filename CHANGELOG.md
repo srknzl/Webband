@@ -3,6 +3,23 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.58 — Kurallı Kıta (2026-09-09)
+
+- **Yerleşimler artık üst üste binmiyor**: her şehir/kale/köy çifti için bir asgari aralık var,
+  kaleler krallığın sınırına, şehirler yurdun göbeğine düşüyor.
+- **Her köyün bir merkezi var** — bağlı olduğu şehir/kale belli, 420–900 birim uzağında.
+  Şehri fethettiğinde hangi köylerin seninle geldiği artık tesadüf değil.
+- Dünya kurulurken kendini denetliyor: kıta dışına taşan, komşusuna yapışan ya da yola
+  bağlanmayan yerleşim varsa harita baştan üretiliyor.
+
+## 0.57 — Doğal Yollar (2026-09-09)
+
+- **Yollar artık dümdüz değil**: dönemeçli geçiyor, ormanın içinden değil kenarından dolaşıyor.
+- **Üç yol türü**: taş yol (×1.18), toprak yol (×1.10), keçi yolu (×1.04). Şehre giden yol taş,
+  köye giden patika. Yoldan gitmek Warband'daki gibi bir tercih.
+- **Köprüler**: yol nehri kestiği yerde köprü var — nehir geçidinin yarı hız cezası orada yok.
+- Yollar birbirine kavuşuyor: her bağlantı bir yerleşimden çıkmıyor, kavşaklar oluşuyor.
+
 ## 0.55 — Denetim Turu (2026-09-09)
 
 - **Kayıtlar yenilendi**: 3 elle slot + her oyun gününün başında dönen 5 otomatik kayıt.

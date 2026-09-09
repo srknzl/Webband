@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.57', date: '2026-09-09', name: 'Doğal Yollar' };
+const VERSION = { no: '0.58', date: '2026-09-09', name: 'Kurallı Kıta' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -603,22 +603,6 @@ const Game = {
             }
         });
 
-        // LOCATIONS Dağıtımı (Kıtanın her yerine yayalım)
-        let angleOffset = 0;
-        let factionIds = Object.keys(FACTIONS);
-        let quadrantAngle = (Math.PI * 2) / factionIds.length;
-        
-        factionIds.forEach((fid, index) => {
-            let baseAngle = index * quadrantAngle;
-            let factionLocs = LOCATIONS.filter(l => l.faction === fid);
-            factionLocs.forEach((loc, i) => {
-                let a = baseAngle + (Math.random() * quadrantAngle * 0.8) + (quadrantAngle * 0.1);
-                let dist = 1000 + Math.random() * 2500;
-                loc.x = 4500 + Math.cos(a) * dist;
-                loc.y = 4500 + Math.sin(a) * dist;
-            });
-        });
-
         // Kıtayı ve Sıradağları oluştur
         if(!state.mapBorder) {
             state.mapBorder = [];
@@ -629,8 +613,117 @@ const Game = {
             }
         }
 
-        this.buildRoads();
+        this.layoutWorld();
         this.spawnNPCs();
+    },
+
+    // --- YERLEŞİM DAĞITIMI (#57) ---
+    // Eskiden her yerleşim dilimin içinde tamamen rastgele bir noktaya düşüyordu:
+    // iki şehir üst üste binebiliyor, bir bölge bomboş kalabiliyordu. Artık üç kural var
+    // (asgari aralık / kale sınırda / köy merkeze bağlı) ve üretim doğrulanır.
+    MIN_GAP: {
+        'city|city': 700, 'city|castle': 480, 'city|village': 380,
+        'castle|castle': 620, 'castle|village': 340, 'village|village': 420
+    },
+    VILLAGE_RANGE: [420, 900],       // köyün bağlı olduğu şehre/kaleye uzaklığı
+
+    minGap(a, b) { return this.MIN_GAP[a + '|' + b] || this.MIN_GAP[b + '|' + a] || 400; },
+
+    // Aday nokta yerleşilebilir mi: kıtanın içinde ve komşulardan yeterince uzak
+    spotOk(p, type, placed) {
+        if(Math.hypot(p.x - 4500, p.y - 4500) > this.getMapRadius(p.x, p.y) - 320) return false;
+        return placed.every(o => this.dist(p, o) >= this.minGap(type, o.type));
+    },
+
+    // Dünyayı kur: yerleşimleri dağıt, yolları ör, sonucu doğrula. Kurallar
+    // sağlanamazsa baştan dener — kopuk/çakışık bir dünyayla oynanmaz.
+    layoutWorld() {
+        let bad = [];
+        for(let t = 0; t < 12; t++) {
+            this.placeLocations();
+            this.buildRoads();
+            bad = this.validateLocations();
+            if(!bad.length) return;
+        }
+        console.warn('Yerleşim dağıtımı 12 denemede kurallara oturmadı:', bad);
+    },
+
+    placeLocations() {
+        let ids = Object.keys(FACTIONS).filter(f => LOCATIONS.some(l => l.faction === f));
+        let wedge = Math.PI * 2 / ids.length;
+        let placed = [];
+        ids.forEach((fid, i) => {
+            let base = i * wedge;
+            let mine = LOCATIONS.filter(l => l.faction === fid);
+            // Şehir → kale → köy sırası: köy bağlanacağı merkezi hazır bulsun
+            for(let type of ['city', 'castle', 'village']) {
+                for(let loc of mine.filter(l => l.type === type)) {
+                    if(type === 'village') { this.placeVillage(loc, mine, placed); continue; }
+                    for(let k = 0; k < 400; k++) {
+                        // Kale sınırda durur (dilimin kenar %20'si), şehir içeride
+                        let f = type === 'castle'
+                            ? (Math.random() < 0.5 ? 0.02 + Math.random() * 0.18 : 0.80 + Math.random() * 0.18)
+                            : 0.22 + Math.random() * 0.56;
+                        // Uzaklık kıyıya göre: dar yönde içeride, geniş yönde açılır —
+                        // sabit bant kıtanın şişkin taraflarını boş bırakıyordu
+                        let a = base + wedge * f;
+                        let R = this.getMapRadius(4500 + Math.cos(a), 4500 + Math.sin(a));
+                        let d = R * (0.28 + Math.random() * 0.54);
+                        let p = { x: 4500 + Math.cos(a) * d, y: 4500 + Math.sin(a) * d };
+                        if(k === 399 || this.spotOk(p, type, placed)) { loc.x = p.x; loc.y = p.y; break; }
+                    }
+                    placed.push(loc);
+                }
+            }
+        });
+    },
+
+    // Köy bir şehre/kaleye bağlıdır (`loc.parentId`); en az köyü olan merkez seçilir
+    placeVillage(loc, mine, placed) {
+        let hubs = mine.filter(l => l.type !== 'village');
+        if(!hubs.length) hubs = placed.filter(l => l.type !== 'village');
+        let count = id => placed.filter(l => l.parentId === id).length;
+        let hub = hubs.reduce((a, b) => count(b.id) < count(a.id) ? b : a);
+        loc.parentId = hub.id;
+        let [lo, hi] = this.VILLAGE_RANGE;
+        for(let k = 0; k < 400; k++) {
+            let a = Math.random() * Math.PI * 2, d = lo + Math.random() * (hi - lo);
+            let p = { x: hub.x + Math.cos(a) * d, y: hub.y + Math.sin(a) * d };
+            if(k === 399 || this.spotOk(p, 'village', placed)) { loc.x = p.x; loc.y = p.y; break; }
+        }
+        placed.push(loc);
+    },
+
+    // Üretim sonrası doğrulama: aralık, kıta içi, köy–merkez bağı, yol bağlantısı
+    validateLocations() {
+        let bad = [];
+        LOCATIONS.forEach((a, i) => {
+            if(Math.hypot(a.x - 4500, a.y - 4500) > this.getMapRadius(a.x, a.y) - 200)
+                bad.push(a.name + ' kıta sınırının dışında');
+            for(let j = i + 1; j < LOCATIONS.length; j++) {
+                let b = LOCATIONS[j], need = this.minGap(a.type, b.type), d = this.dist(a, b);
+                if(d < need) bad.push(`${a.name}–${b.name} çok yakın (${Math.round(d)} < ${need})`);
+            }
+            if(a.type === 'village') {
+                let h = LOCATIONS.find(l => l.id === a.parentId);
+                if(!h) bad.push(a.name + ' köyünün bağlı merkezi yok');
+                else if(this.dist(a, h) > this.VILLAGE_RANGE[1] + 1) bad.push(a.name + ' merkezinden kopuk');
+            }
+        });
+        // Kopuk yerleşim kalmasın: her yerleşim en az bir yol parçasının ucunda olmalı
+        let touched = new Set();
+        (state.roads || []).forEach(r => LOCATIONS.forEach(l => {
+            if(Math.hypot(l.x - r.x1, l.y - r.y1) < 40 || Math.hypot(l.x - r.x2, l.y - r.y2) < 40) touched.add(l.id);
+        }));
+        LOCATIONS.filter(l => !touched.has(l.id)).forEach(l => bad.push(l.name + ' yol ağına bağlı değil'));
+        return bad;
+    },
+
+    // Bir şehrin/kalenin köyleri. `parentId` yoksa (eski dünya) 900 birimlik eski kurala düşer.
+    villagesOf(loc) {
+        let kids = LOCATIONS.filter(l => l.type === 'village' && l.parentId === loc.id);
+        return kids.length ? kids
+            : LOCATIONS.filter(l => l.type === 'village' && !l.parentId && this.dist(l, loc) < 900);
     },
 
     // --- YOL AĞI (#56) ---
@@ -4393,8 +4486,8 @@ const Game = {
         loc.capturedDay = state.time.day;
         atk.size = Math.max(10, Math.round(atk.size * 0.6));   // kuşatma orduyu yer
         // Kalenin/şehrin çevresindeki köyler de el değiştirir
-        LOCATIONS.filter(l => l.type === 'village' && l.faction === old && this.dist(l, loc) < 900)
-                 .forEach(l => { l.faction = atk.faction; l.owner = null; });
+        this.villagesOf(loc).filter(l => l.faction === old)
+            .forEach(l => { l.faction = atk.faction; l.owner = null; });
         // Savunmasız bıraktığın tımar elden çıkar; garnizonun kılıçtan geçer
         // ponytail: depo el değiştirmez — yeni sahibi mahzeni bulamamış sayılır
         let lostFief = '';
@@ -4520,8 +4613,8 @@ const Game = {
         loc.owner = 'player';
         loc.capturedDay = state.time.day;
         loc.garrison = loc.garrison || [];
-        LOCATIONS.filter(l => l.type === 'village' && l.faction === oldFaction && this.dist(l, loc) < 900)
-                 .forEach(l => { l.faction = loc.faction; l.owner = 'player'; });
+        this.villagesOf(loc).filter(l => l.faction === oldFaction)
+            .forEach(l => { l.faction = loc.faction; l.owner = 'player'; });
     },
 
     // --- VASSALLAR (#40) ---
@@ -4583,8 +4676,7 @@ const Game = {
         let n = (loc.garrison || []).length;
         loc.owner = lordId;
         loc.garrison = [];
-        LOCATIONS.filter(l => l.type === 'village' && l.owner === 'player' && this.dist(l, loc) < 900)
-                 .forEach(l => l.owner = lordId);
+        this.villagesOf(loc).filter(l => l.owner === 'player').forEach(l => l.owner = lordId);
         Nobles.addRel(lordId, 20);
         // Warband'daki kıskançlık: toprak dağıtılırken eli boş kalan vassal küser
         this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
@@ -5974,7 +6066,7 @@ const Save = {
             state: { ...state },
             // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
             // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
-            locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
+            locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, parentId: l.parentId, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
                 owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock,
                 enterprise: l.enterprise, treasury: l.treasury })),   // işletme ve kasa (#53)
             playerKingdom: FACTIONS['player_kingdom'] || null
