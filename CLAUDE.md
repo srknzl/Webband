@@ -598,6 +598,41 @@ Bir çapulcu savaşı ~80 dinar olduğu için ticaret hâlâ gerçek bir meslek.
   (+refah/40) ve pazar çarpanı (× (1.15 − refah/400) — bolluk fiyatı düşürür).
   Her gün kendiliğinden toparlanır: 50'nin altındaysa +0.4, üstündeyse +0.15 (tavan 90).
 
+#### Yerleşim sahnesi — düğmeler bina olarak (#60)
+Yerleşim ekranı düz bir düğme listesiydi. Şimdi listenin üstünde `#scene-canvas`
+(900×280) var ve **sahne düğmelerden üretilir**: `Game.renderScene(loc)` `#settlement-actions`
+çocuklarını okur, her düğmenin **ikonunu** bir yapı türüne çevirir (`SCENE_KIND`:
+👑🛡️🏆 → kule, 🍺🧓⛓️ → ev, 🏭 → atölye, 🛒🍷 → tezgâh, 🪖⚔️ → çadır, 🤺 → arena çemberi,
+🔥 → ateş, 🐔 → kümes, 🚪 → kapı; tanınmayan ikon eve düşer) ve o yapıyı çizer.
+
+**`addBtn` tek kapı olduğu için yeni bir yerleşim düğmesi kendiliğinden bina olur** — ayrı
+bir "hotspot tablosu" tutulmaz. Tıklama da öyle: `cv.onclick` bulduğu kutunun
+`btn.onclick()`'ini çağırır, yani sahne düğmenin ikizidir, kopyası değil.
+
+| Parça | Kural |
+|---|---|
+| Yerleşim | Çift indisli düğmeler ön sırada (122×88, taban `H−16`), tek indisliler arka sırada (96×66, ×0.82 karartma) |
+| Gök | `state.time.hour`: gece <6/≥20, tan 6–8, gün batımı 18–20; gece yıldız + ay diski, gündüz güneş |
+| Arka plan | Köy: tarla şeritleri + çit · Kale: mazgallı iç kale + sancak · Şehir: 7–12 evlik silüet; hepsinin önünde 92 birim yükseklikte sur, mazgal, kapı kemeri ve fraksiyon flaması |
+| Rastgelelik | `Game.sceneRnd(loc, i)` = `loc.id + '|' + i` hash'i (×131) — **kayda hiçbir şey yazılmaz**, aynı şehir her açılışta aynı silueti verir |
+| Fareyle | `cv.onmousemove` kutu testi; **yalnız üstündeki bina değişince** yeniden çizilir, imleç `pointer` olur, bina altın `shadowBlur` ile parlar, üstünde adı yazan plaka çıkar |
+
+**İç mekân** (`Game.sceneBg(kind)`): han ve lordlar salonu modalinin arkasına o mekânın resmi
+konur — `showModal`'ın zaten var olan üçüncü argümanı (`bgImage`) kullanılır. Çizim bir kez
+yapılıp `toDataURL` ile önbelleklenir (`_sceneBg`). Han: ahşap duvar + kirişler, ocak ışığı,
+fıçılar, uzun masa, asma kandiller. Salon: taş sıraları, sütunlar, iki sancak, taht, kırmızı
+halı, meşaleler. *Modalin siyah perdesi 0.80/0.90'dan **0.62/0.82**'ye indirildi — eski değerde
+çizim tamamen yutuluyordu, yazı hâlâ okunur.*
+
+**Bütün çizim koddadır** — dışarıdan tek bir görsel dosya gelmez, yani lisans/atıf sorunu yok.
+
+Ölçüldü: 25 yerleşimin **25'inin de arka plan parmak izi farklı**; düğme yerleşimi türe göre
+3 kalıp (şehir 9 düğme, köy 5, kale 3 — durum düğmeleriyle, ör. turnuva veya kendi tımarın,
+sayı artar). Sahnenin tam çizimi **1.62 ms** (yerleşime girerken ve fare binayı değiştirince
+bir kez), aynı bina üstünde gezinen fare **0.007 ms** (erken çıkış, yeniden çizim yok).
+Gök gerçekten değişiyor: aynı şehrin sol üst pikseli öğlen `120,172,222`, gün batımı
+`82,73,100`, gece `14,19,44`. İç mekân JPEG'i **19.8 KB**, ilk açılış **17.3 ms**, sonrası önbellek.
+
 #### Köy yağması (#21)
 `Game.raidVillage(loc)` onay modali → `startRaid` → `Battle.start('Köy Milisi', n, null, faction)`.
 Milis sayısı `max(4, refah/5)` (~7–18) ve `BAND_KINDS.militia` karışımından doğar

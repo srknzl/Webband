@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.61 — Şehrin Kapısı (2026-09-09)
+
+- **Yerleşimler artık düğme listesi değil, bir manzara**: şehre, kaleye ya da köye girince
+  üstte o yerin resmi çıkar — sur, kapı, çarşı tezgâhı, arena çemberi, kulübeler, ocak ateşi.
+  Binaların üstündeki tabelalar hangi kapı olduğunu söyler.
+- **Binalara tıklanır**: fareyi üstüne getirince bina altın ışıkla parlar ve adı yazar;
+  tıklayınca aşağıdaki düğmenin yaptığı şey olur. Düğmeler duruyor, sahne onların ikizi.
+- **Sahne günün vaktini bilir**: öğlen mavi gök, akşam kızıl ufuk, gece yıldızlar ve ay.
+  Her yerleşimin kendi silueti var — Praven'in çatıları Suno'nunkine benzemiyor.
+- **Hana ve lordlar salonuna girince arka plan da değişiyor**: han ocağı ve fıçıları,
+  salonun taş duvarı, sancakları ve tahtı pencerenin ardında durur.
+
 ## 0.60 — Lordun Dili (2026-09-09)
 
 - **Her lordun bir de huyu var**: kibirli, korkak, zalim, neşeli, paragöz, onurlu, dalkavuk.

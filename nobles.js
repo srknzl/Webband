@@ -375,7 +375,7 @@ const Nobles = {
             html += `<button class="btn" style="margin-top:1.5rem" onclick="Nobles.swearFealtyPrompt('${loc.faction}')">⚔️ ${FACTIONS[loc.faction].ruler}'a Bağlılık Yemini Et</button>`;
         }
         html += `<button class="btn" style="margin-top:0.5rem" onclick="Game.closeModal()">Ayrıl</button>`;
-        Game.showModal(html, '760px');
+        Game.showModal(html, '760px', Game.sceneBg('hall'));   // kale içi (#60)
     },
 
     nobleCard(n) {
