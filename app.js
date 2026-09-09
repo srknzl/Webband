@@ -1002,6 +1002,16 @@ const Game = {
         return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
 
+    // battle-canvas'ı Battle ve TournamentMinigame paylaşıyor. İlk getContext bağlayıcıdır:
+    // biri { alpha:false } bayrağını unutursa ikinci çağrı null döner ve ekran yine
+    // simsiyah kalır — kök neden bambaşka yerde aranır. Tek kapı sözleşmeyi taşır (#54).
+    battleCtx() {
+        let c = document.getElementById('battle-canvas');
+        let ctx = c.getContext('2d', { alpha: false });
+        if(!ctx) Debug.log('tuval', 'battle-canvas 2d bağlamı alınamadı — ekran siyah kalır');
+        return ctx;
+    },
+
     startGameLoop() {
         // Çift döngü koruması: yükleme/yeniden başlatma her seferinde bir rAF
         // döngüsü daha eklerse zaman ve hareket kat kat hızlanır.

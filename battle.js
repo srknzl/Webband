@@ -57,7 +57,7 @@ const Battle = {
     start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null, auto = false) {
         Input.keys = {}; // Tuşları temizle
         this.canvas = document.getElementById('battle-canvas');
-        this.ctx = this.canvas.getContext('2d', { alpha: false });
+        this.ctx = Game.battleCtx();   // paylaşılan tuvalin tek kapısı (#54)
         Game.showScreen('battle');
         this.isBossFight = !!bossLevel;
         
@@ -358,9 +358,21 @@ const Battle = {
             last = t;
             this.update(dt);
             this.render();
+            this.lastRender = performance.now();     // nabız (#54)
             this.loopId = requestAnimationFrame(loop);
         };
         this.loopId = requestAnimationFrame(loop);
+        // Nabız kontrolü (#54): siyah ekran bir daha sessizce oturmasın. 700 ms içinde
+        // tek kare çizilmediyse döngü ölmüş demektir — bir kez yeniden kurulur ve
+        // olay Debug raporuna düşer. (Kök neden #42'de kapatıldı; bu ağdır, çözüm değil.)
+        this.lastRender = 0;
+        clearTimeout(this._pulseT);
+        this._pulseT = setTimeout(() => {
+            if(!this.active || this.lastRender || document.hidden) return;   // gizli sekmede rAF zaten duruyor, yanlış alarm olmasın
+            Debug.log('nabiz', 'Savaş döngüsü 700 ms boyunca hiç kare çizmedi — döngü yeniden kuruldu');
+            cancelAnimationFrame(this.loopId);
+            this.loopId = requestAnimationFrame(loop);
+        }, 700);
     },
 
     playerAttack(e) {
@@ -1807,7 +1819,7 @@ const TournamentMinigame = {
         this.perRound = Math.max(1, Math.ceil(this.goal / this.ROUNDS));
         this.gear = this.mode === 'chicken' ? null : this.rollGear();
         this.canvas = document.getElementById('battle-canvas');
-        this.ctx = this.canvas.getContext('2d', { alpha: false });
+        this.ctx = Game.battleCtx();   // paylaşılan tuvalin tek kapısı (#54)
         Game.showScreen('battle');
         this.canvas.width = this.canvas.parentElement.clientWidth;
         this.canvas.height = this.canvas.parentElement.clientHeight;

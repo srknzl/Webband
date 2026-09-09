@@ -1190,6 +1190,19 @@ render'ı 0.
 Savaş açıkken harita girdisi de yok sayılır (`handleMapClick` / `handleMapHover` başında
 `Battle.active || TournamentMinigame.active` kapısı).
 
+**İki emniyet ağı** (#54) kök nedenin üstüne kondu — ikisi de çözüm değil, sessiz siyah
+ekranı bir daha uzun sürmesin diye konmuş nöbetçilerdir:
+- `Game.battleCtx()` — `battle-canvas`'ı `Battle` ve `TournamentMinigame` paylaşıyor ve
+  **ilk `getContext` bağlayıcıdır**: biri `{ alpha:false }` bayrağını unutsaydı ikinci çağrı
+  `null` dönecek ve ekran yine siyah kalacaktı. Artık ikisi de aynı kapıdan alır, bağlam
+  alınamazsa `Debug.log('tuval', …)`.
+- **Nabız kontrolü** — `Battle.start` savaş döngüsünü kurduktan 700 ms sonra bakar: tek kare
+  bile çizilmediyse (`this.lastRender` hâlâ 0) döngüyü bir kez yeniden kurar ve
+  `Debug.log('nabiz', …)` yazar. `document.hidden` iken atlanır, çünkü gizli sekmede
+  `requestAnimationFrame` zaten durur — yoksa alt+tab yapan her oyuncuya yanlış alarm.
+  Ölçüldü: `render` boşa çıkarılıp rAF kesildiğinde uyarı 700 ms'de düştü, normal savaşta
+  hiç düşmedi.
+
 Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan kurallar:
 
 - **Hareketli tuvalin üstünde `backdrop-filter` yok.** Blur, altındaki piksel her değiştiğinde
