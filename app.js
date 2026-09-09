@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.56', date: '2026-09-09', name: 'Kamp, Şeref ve Kan Davası' };
+const VERSION = { no: '0.57', date: '2026-09-09', name: 'Doğal Yollar' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -633,35 +633,102 @@ const Game = {
         this.spawnNPCs();
     },
 
-    // Tüm yerleşkeleri birbirine bağlayan Minimum Spanning Tree tarzı yol ağı.
+    // --- YOL AĞI (#56) ---
+    // Yol türleri: taş döşeli ana yol (şehirler), toprak yol (kaleler), bakımsız
+    // keçi yolu (köyler). Hepsi aynı `state.roads` dizisinde kısa parçalar hâlinde
+    // durur — getTerrainInfo ve renderMap tek veri şeklini okumaya devam eder.
+    ROAD_KINDS: {
+        stone: { half: 26, mult: 1.18, name: 'Taş Yol',   icon: '🛣️' },
+        dirt:  { half: 22, mult: 1.10, name: 'Toprak Yol', icon: '🛤️' },
+        track: { half: 15, mult: 1.04, name: 'Keçi Yolu',  icon: '🥾' }
+    },
+    roadKind(loc) { return loc.type === 'city' ? 'stone' : loc.type === 'castle' ? 'dirt' : 'track'; },
+
+    // İki nokta arası doğal güzergâh: yumuşak dönemeç + ormanı dolanma + kıyıda kalma.
+    // Düz çizgi yerine kısa parçalardan oluşan bir polyline döner.
+    roadPath(a, b) {
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let len = Math.hypot(dx, dy) || 1;
+        let n = Math.max(6, Math.min(18, Math.round(len / 220)));
+        let nx = -dy / len, ny = dx / len;              // dik yön
+        let amp = len * (0.10 + Math.random() * 0.14) * (Math.random() < 0.5 ? -1 : 1);
+        let phase = Math.random() * Math.PI * 2;
+        let pts = [];
+        for(let i = 0; i <= n; i++) {
+            let t = i / n;
+            // Uçlarda sıfırlanan (sin) taban dönemeç + ikinci harmonikten sapma
+            let off = (i === 0 || i === n) ? 0
+                    : amp * Math.sin(t * Math.PI) * (0.7 + 0.3 * Math.sin(t * Math.PI * 2 + phase));
+            let p = { x: a.x + dx * t + nx * off, y: a.y + dy * t + ny * off };
+            if(i > 0 && i < n) {
+                // Ormanın içinden değil kenarından geçilir
+                for(let f of FORESTS) {
+                    let fd = Math.hypot(p.x - f.x, p.y - f.y), edge = f.radius + 45;
+                    if(fd < edge) {
+                        let ang = fd < 1 ? Math.random() * Math.PI * 2 : Math.atan2(p.y - f.y, p.x - f.x);
+                        p.x = f.x + Math.cos(ang) * edge; p.y = f.y + Math.sin(ang) * edge;
+                    }
+                }
+                this.clampToMap(p);
+            }
+            pts.push(p);
+        }
+        return pts;
+    },
+
+    // İki doğru parçasının kesişimi (nehir geçişi = köprü noktası)
+    segCross(p, q, r, s) {
+        let d = (q.x - p.x) * (s.y - r.y) - (q.y - p.y) * (s.x - r.x);
+        if(Math.abs(d) < 1e-6) return null;
+        let t = ((r.x - p.x) * (s.y - r.y) - (r.y - p.y) * (s.x - r.x)) / d;
+        let u = ((r.x - p.x) * (q.y - p.y) - (r.y - p.y) * (q.x - p.x)) / d;
+        if(t < 0 || t > 1 || u < 0 || u > 1) return null;
+        return { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
+    },
+
+    // Tüm yerleşkeleri birbirine bağlayan yol ağı. Yeni yerleşim en yakın **yol
+    // noktasına** da bağlanabilir — böylece ağda gerçek kavşaklar oluşur (eskiden
+    // her bağlantı bir yerleşimden çıkıyordu, yıldız şeklinde bir MST'ydi).
     // Yerleşim koordinatları değiştiğinde (eski kayıt yüklemesi) yeniden çağrılır.
     buildRoads() {
         state.roads = [];
-        let connected = [LOCATIONS[0]];
+        state.bridges = [];
+        let nodes = [{ x: LOCATIONS[0].x, y: LOCATIONS[0].y }];   // bağlanılabilir noktalar
         let unconnected = LOCATIONS.slice(1);
 
         while(unconnected.length > 0) {
-            let bestDist = Infinity;
-            let bestConn = null;
-            let bestUnconnIdx = -1;
-
-            for(let c of connected) {
-                for(let i=0; i<unconnected.length; i++) {
-                    let u = unconnected[i];
-                    let d = Math.sqrt(Math.pow(c.x-u.x,2)+Math.pow(c.y-u.y,2));
-                    if(d < bestDist) {
-                        bestDist = d;
-                        bestConn = c;
-                        bestUnconnIdx = i;
-                    }
+            let bestDist = Infinity, bestNode = null, bestIdx = -1;
+            for(let c of nodes) {
+                for(let i = 0; i < unconnected.length; i++) {
+                    let d = Math.hypot(c.x - unconnected[i].x, c.y - unconnected[i].y);
+                    if(d < bestDist) { bestDist = d; bestNode = c; bestIdx = i; }
                 }
             }
-
-            let u = unconnected[bestUnconnIdx];
-            state.roads.push({ x1: bestConn.x, y1: bestConn.y, x2: u.x, y2: u.y });
-            connected.push(u);
-            unconnected.splice(bestUnconnIdx, 1);
+            let u = unconnected[bestIdx];
+            this.layRoad(bestNode, u, this.roadKind(u), nodes);
+            nodes.push({ x: u.x, y: u.y });
+            unconnected.splice(bestIdx, 1);
         }
+    },
+
+    // Bir güzergâhı parçalara böler, nehir geçişlerini köprü olarak işaretler ve
+    // ara noktaları kavşak adayı olarak `nodes`'a ekler.
+    layRoad(a, b, kind, nodes) {
+        let pts = this.roadPath(a, b);
+        for(let i = 0; i < pts.length - 1; i++) {
+            let p = pts[i], q = pts[i+1];
+            state.roads.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, kind });
+            for(let riv of RIVERS) {
+                let c = this.segCross(p, q, { x: riv.x1, y: riv.y1 }, { x: riv.x2, y: riv.y2 });
+                if(c) state.bridges.push({ x: c.x, y: c.y, a: Math.atan2(q.y - p.y, q.x - p.x), kind });
+            }
+            if(nodes && i > 0) nodes.push({ x: p.x, y: p.y });
+        }
+    },
+
+    // Nehri köprüden geçmek yavaşlatmaz (getTerrainInfo)
+    onBridge(x, y) {
+        return (state.bridges || []).some(br => Math.hypot(x - br.x, y - br.y) < 70);
     },
 
     // Haritadaki düşman çeşitleri: her biri savaşta farklı birim karışımı ve davranış
@@ -1206,13 +1273,18 @@ const Game = {
             else { xx = r.x1 + param * C; yy = r.y1 + param * D; }
             let dx = x - xx, dy = y - yy;
             if(Math.sqrt(dx * dx + dy * dy) <= r.width / 2) {
-                mult = 0.5; // Nehirde yavaşla
-                name = 'Nehir Geçidi'; icon = '🌊';
+                // Köprüden geçen yavaşlamaz — nehir yolun altından akar
+                if(this.onBridge(x, y)) { name = 'Köprü'; icon = '🌉'; }
+                else { mult = 0.5; name = 'Nehir Geçidi'; icon = '🌊'; }
                 break;
             }
         }
         if(state.roads) {
             for(let r of state.roads) {
+                // Yol ~150 kısa parça: önce ucuz kutu elemesi, sonra izdüşüm
+                let kk = this.ROAD_KINDS[r.kind] || this.ROAD_KINDS.dirt, h = kk.half;
+                if(x < (r.x1 < r.x2 ? r.x1 : r.x2) - h || x > (r.x1 > r.x2 ? r.x1 : r.x2) + h) continue;
+                if(y < (r.y1 < r.y2 ? r.y1 : r.y2) - h || y > (r.y1 > r.y2 ? r.y1 : r.y2) + h) continue;
                 let A = x - r.x1, B = y - r.y1;
                 let C = r.x2 - r.x1, D = r.y2 - r.y1;
                 let dot = A * C + B * D;
@@ -1224,9 +1296,9 @@ const Game = {
                 else if (param > 1) { xx = r.x2; yy = r.y2; }
                 else { xx = r.x1 + param * C; yy = r.y1 + param * D; }
                 let dx = x - xx, dy = y - yy;
-                if(Math.sqrt(dx * dx + dy * dy) <= 22.5) {
-                    mult *= 1.1; // Yolda %10 hız artışı
-                    if(name === 'Düzlük') { name = 'Yol'; icon = '🛣️'; }
+                if(dx * dx + dy * dy <= h * h) {
+                    mult *= kk.mult;  // taş yol ×1.18, toprak ×1.10, keçi yolu ×1.04
+                    if(name === 'Düzlük') { name = kk.name; icon = kk.icon; }  // Köprü/Orman adı korunur
                     break;
                 }
             }
@@ -3062,15 +3134,51 @@ const Game = {
         });
         ctx.setLineDash([]);
 
-        // Yollar — toprak şerit + tekerlek izi
+        // Yollar — türüne göre ayrı doku (#56): taş döşeli ana yol, toprak yol,
+        // bakımsız keçi yolu. Aynı türdekiler tek path'te toplanır (kare başına 3 stroke seti).
         if(state.roads) {
-            ctx.beginPath();
-            state.roads.forEach(r => { ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2); });
-            ctx.lineWidth = 48; ctx.strokeStyle = 'rgba(92,68,38,0.45)'; ctx.stroke();
-            ctx.lineWidth = 30; ctx.strokeStyle = 'rgba(158,124,74,0.42)'; ctx.stroke();
-            ctx.setLineDash([70, 55]);
-            ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(214,186,132,0.30)'; ctx.stroke();
-            ctx.setLineDash([]);
+            const STYLE = {
+                stone: { w: 52, shoulder: 'rgba(78,72,60,0.45)', top: 36, surf: 'rgba(150,146,134,0.48)',
+                         mark: 'rgba(226,222,208,0.26)', dash: [26, 20], mw: 5 },
+                dirt:  { w: 44, shoulder: 'rgba(92,68,38,0.45)', top: 28, surf: 'rgba(158,124,74,0.42)',
+                         mark: 'rgba(214,186,132,0.30)', dash: [70, 55], mw: 4 },
+                track: { w: 26, shoulder: 'rgba(84,72,44,0.30)', top: 14, surf: 'rgba(150,132,88,0.28)',
+                         mark: 'rgba(198,180,132,0.22)', dash: [22, 46], mw: 3 }
+            };
+            for(let kind of ['stone', 'dirt', 'track']) {
+                let st = STYLE[kind];
+                ctx.beginPath();
+                let any = false;
+                state.roads.forEach(r => {
+                    if((r.kind || 'dirt') !== kind) return;
+                    any = true;
+                    ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2);
+                });
+                if(!any) continue;
+                ctx.lineWidth = st.w;   ctx.strokeStyle = st.shoulder; ctx.stroke();
+                ctx.lineWidth = st.top; ctx.strokeStyle = st.surf;     ctx.stroke();
+                ctx.setLineDash(st.dash);
+                ctx.lineWidth = st.mw;  ctx.strokeStyle = st.mark;     ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            // Yerleşim ağzında yol meydana açılır
+            ctx.fillStyle = 'rgba(120,98,62,0.35)';
+            LOCATIONS.forEach(l => {
+                let r = l.type === 'city' ? 70 : l.type === 'castle' ? 52 : 40;
+                ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI*2); ctx.fill();
+            });
+            // Köprüler — nehrin üstünden geçen kalaslar
+            (state.bridges || []).forEach(b => {
+                let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // yolun kendi genişliği
+                ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a || 0);
+                ctx.fillStyle = 'rgba(70,52,30,0.92)';
+                ctx.fillRect(-w * 1.3, -w, w * 2.6, w * 2);
+                ctx.strokeStyle = 'rgba(186,152,96,0.95)'; ctx.lineWidth = 4;
+                for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // kalaslar yola dik
+                    ctx.beginPath(); ctx.moveTo(i, -w + 2); ctx.lineTo(i, w - 2); ctx.stroke();
+                }
+                ctx.restore();
+            });
         }
 
         // Ormanlar — gerçek ağaçlar (konumlar bir kez üretilip saklanır)
@@ -5967,7 +6075,8 @@ const Save = {
         });
         // x/y taşımayan eski kayıtlarda yerleşimler init()'in rastgele yerinde kalır;
         // kayıttan gelen yollar o dünyaya ait olmadığı için baştan örülür.
-        if(legacyLocs) Game.buildRoads();
+        // #56 öncesi kayıtlarda yollar düz çizgidir (kind yok) — yeni ağ örülür
+        if(legacyLocs || !(state.roads || []).some(r => r.kind)) Game.buildRoads();
 
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');

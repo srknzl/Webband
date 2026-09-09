@@ -81,7 +81,8 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
 ### Dünya haritası
 - Prosedürel kıta sınırı: `getMapRadius()` açıya bağlı sinüs toplamı ile düzensiz kıyı üretir; `clampToMap()` herkesi içeride tutar.
 - Yerleşimler (`LOCATIONS`) `init()` içinde her fraksiyon için bir açı diliminde **rastgele yeniden dağıtılır** — dizideki x/y değerleri kullanılmaz.
-- Yollar: tüm yerleşimleri bağlayan minimum spanning tree (`state.roads`).
+- Yollar: doğal güzergâhlı, türlü ve kavşaklı bir ağ (`state.roads`, `state.bridges`) —
+  bkz. "Yol ağı (#56)".
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
 - **Orman oynanışa etki eder**: ormandaki düşman normal görüşle görünmez
   (`Game.spotRange(npc)` = görüş × `min(0.9, 0.25 + Gözcülük×3% + Yol Bulma×2%)`; temel
@@ -148,6 +149,47 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   Çete/partinin üstünde tür (yaratık sürüsü / haydut çetesi / fraksiyon) + asker sayısı.
   *(Ekran→dünya dönüşümünde `rect/2` ortalama payı eksikti; künye imlecin yarım ekran
   uzağındaki şeyi arıyor, yani hiç açılmıyordu.)*
+
+### Yol ağı — dönemeç, tür ve köprü (#56)
+Yollar eskiden yerleşimleri bağlayan minimum spanning tree'nin **düz çizgileriydi**: 24 parça,
+hepsi aynı kahverengi, hepsi aynı ×1.1. Şimdi ağ üç noktada değişti.
+
+**1. Güzergâh dönemeçlidir** (`Game.roadPath(a, b)`): iki nokta arası düz çizgi değil,
+`max(6, min(18, uzaklık/220))` parçalı bir polyline. Dik yönde `sin(t·π)` ile uçlarda
+sıfırlanan bir taban dönemeç (genlik = uzunluk × 0.10–0.24) ve ikinci harmonikten gelen
+sapma bindirilir; ara noktalar ormana girerse **kenarına** (yarıçap + 45) itilir ve
+`clampToMap`'ten geçer. Ölçüldü (285 rastgele yerleşim çifti): yol / kuş uçuşu oranı
+medyan **1.049**, p90 1.088, en fazla 1.122 — yani yol kuş uçuşundan ~%5 uzun.
+Ormanın **içinden** geçen parça sayısı 0 (eskiden düz çizgiler ormanı biçiyordu).
+
+**2. Yol türü vardır** (`Game.ROAD_KINDS`, hedef yerleşimin türünden: şehir → taş,
+kale → toprak, köy → keçi yolu). Tür hem yarıçapı hem hız çarpanını hem dokusunu belirler:
+
+| Tür | Yarıçap | Hız | Ölçülen hız (aynı grup, düzlük 121.5) | Doku |
+|---|---|---|---|---|
+| 🛣️ Taş Yol | 26 | ×1.18 | **143.4** | gri taş yüzey, kısa kesik orta çizgi |
+| 🛤️ Toprak Yol | 22 | ×1.10 | **133.7** | kahverengi, uzun kesik tekerlek izi |
+| 🥾 Keçi Yolu | 15 | ×1.04 | **126.4** | ince, soluk, seyrek kesik |
+
+Yol %5 uzun ama %18 hızlı olduğu için taş yolu takip etmek net ~%12 kazanç — Warband'daki
+gibi "yoldan git" bir tercih, zorunluluk değil.
+
+**3. Kavşak ve köprü.** MST'nin her bağlantısı bir yerleşimden çıkmıyor artık: yeni
+yerleşim, bağlı yerleşimlere **ve mevcut yol noktalarına** olan mesafeye bakar, en yakını
+kazanır. Yol noktası kazanınca ağda gerçek bir **T kavşağı** oluşur (ölçüldü: tipik dünyada
+yerleşim dışında **5 kavşak**). Bir yol parçası bir nehir parçasını kesiyorsa
+(`Game.segCross`) kesişim noktası `state.bridges`'e **köprü** olarak yazılır: haritada yola
+dik kalaslarla çizilir, `Game.onBridge(x, y)` (70 birim) sayesinde `getTerrainInfo` orada
+nehrin ×0.5 cezasını **uygulamaz**, adı "🌉 Köprü" kalır ama yolun hız çarpanını alır
+(ölçüldü: köprüde 133.7, aynı nehrin köprüsüz yerinde "Nehir Geçidi" ×0.5).
+
+**Maliyet**: parça sayısı 24 → **~150**. `getTerrainInfo` yol döngüsüne önce ucuz bir
+kutu elemesi kondu ve `sqrt` karşılaştırması kareye çevrildi; yine de çağrı başına
+0.35 µs → **3.84 µs**. Kare bütçesindeki karşılığı ölçüldü (50 NPC, `update` + `renderMap`):
+**0.88 ms → 1.17 ms**, yani 16.7 ms'lik bütçenin %1.7'si. Uzamsal ızgara gerekmedi.
+
+*(Kayıt: `state.roads` ve `state.bridges` `state` ile birlikte yazılır. `#56` öncesi
+kayıtlarda parçaların `kind`'ı yoktur — `Save.apply` bunu görüp ağı baştan örer.)*
 
 ### Zaman & günlük döngü (`advanceTime` / `dailyUpdate`)
 Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken (veya esirken) akar
