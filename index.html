@@ -28,8 +28,11 @@
             <div style="position: absolute; bottom: 40px; display:flex; gap: 2rem; justify-content:center; width:100%;">
                 <button class="btn hex-btn-small" onclick="Game.showLore('lords')">🏇 Lordlar</button>
                 <button class="btn hex-btn-small" onclick="Game.showLore('kingdoms')">🏰 Krallıklar</button>
-                <button class="btn hex-btn-small" onclick="Save.load()">📂 Kayıttan Devam</button>
+                <button class="btn hex-btn-small" onclick="Save.continueGame()">📂 Kayıttan Devam</button>
+                <button class="btn hex-btn-small" onclick="Save.open()">💾 Kayıtlar</button>
             </div>
+            <!-- Sürüm damgası (#55 madde 8): hata raporunda hangi kod konuşuluyor -->
+            <div id="ver-tag"></div>
         </div>
 
         <!-- Main Game UI -->
@@ -117,14 +120,12 @@
                         <span class="mb-ico">📜</span><span class="mb-lbl">Görevler</span><kbd>Q</kbd></button>
                     <div style="flex:1"></div>
                     <div class="sb-title">Kayıt</div>
-                    <button class="menu-btn" onclick="Save.save()">
-                        <span class="mb-ico">💾</span><span class="mb-lbl">Kaydet</span></button>
-                    <button class="menu-btn" onclick="Save.load()">
-                        <span class="mb-ico">📂</span><span class="mb-lbl">Yükle</span></button>
+                    <button class="menu-btn" onclick="Save.open()">
+                        <span class="mb-ico">💾</span><span class="mb-lbl">Kayıtlar</span></button>
                     <button class="menu-btn" onclick="Game.toggleMute()">
                         <span class="mb-ico" id="mute-ico">🔊</span><span class="mb-lbl" id="mute-lbl">Ses Açık</span></button>
-                    <button class="menu-btn" onclick="Debug.open()">
-                        <span class="mb-ico">🐞</span><span class="mb-lbl">Debug Raporu</span></button>
+                    <button class="menu-btn" onclick="Game.showSettings()">
+                        <span class="mb-ico">⚙️</span><span class="mb-lbl">Ayarlar</span></button>
                 </aside>
 
                 <!-- Views Container -->
@@ -213,6 +214,8 @@
             <button class="btn" onclick="Game.abortRaid()">🚪 Yağmayı Bırak</button>
         </div>
     </div>
+    <!-- Hata rozeti (#55 madde 2): oyun sessizce ölmesin, konsolu açmayan da görsün -->
+    <div id="err-badge" class="hidden" onclick="Debug.open()"></div>
     <!-- Modals -->
     <div id="modal-overlay" class="hidden">
         <div id="modal-content" class="glass-panel">

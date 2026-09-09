@@ -356,8 +356,7 @@ const Battle = {
             if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
-            this.update(dt);
-            this.render();
+            Debug.guard('savaş döngüsü', () => { this.update(dt); this.render(); });
             this.lastRender = performance.now();     // nabız (#54)
             this.loopId = requestAnimationFrame(loop);
         };
@@ -479,7 +478,7 @@ const Battle = {
         tgt.hitFlash = 0.18;
         let a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
         tgt.x += Math.cos(a) * 4; tgt.y += Math.sin(a) * 4; // geri tepme
-        this.bloodStains.push({ x: tgt.x, y: tgt.y, alpha: 1.0, size: 3 + Math.random()*3 });
+        this.blood(tgt.x, tgt.y, 3 + Math.random()*3);
         this.spark(tgt.x, tgt.y, a, src.isPlayerTeam ? '#ffdd66' : '#ff8866');
         this.floatingTexts.push({ x: tgt.x, y: tgt.y - 12, text: `-${dmg}`, color: src.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8, big: src.id === 'player' });
         if(tgt.hp <= 0) {
@@ -490,7 +489,14 @@ const Battle = {
         }
     },
 
+    // Kan ve kıvılcım tek kapıdan geçer: ayarlardan kapatılabilsin (#55 madde 6/7).
+    // Kan/ceset "gore", kıvılcım hareket azaltma ayarına bağlı — ikisi ayrı ihtiyaç.
+    blood(x, y, size) {
+        if(!Game.opt('gore')) return;
+        this.bloodStains.push({ x, y, alpha: 1.0, size });
+    },
     spark(x, y, angle, color) {
+        if(Game.reduceMotion()) return;
         for(let i = 0; i < 5; i++) {
             let a = angle + (Math.random()-0.5) * 1.6;
             let sp = 40 + Math.random()*90;
@@ -596,7 +602,7 @@ const Battle = {
                     u.hp -= dmg;
                     hit = true;
                     u.hitFlash = 0.15;
-                    this.bloodStains.push({ x: u.x, y: u.y, alpha: 1.0, size: 2.5 + Math.random()*2 });
+                    this.blood(u.x, u.y, 2.5 + Math.random()*2);
                     this.spark(u.x, u.y, Math.atan2(proj.vy, proj.vx), '#ffeebb');
                     this.floatingTexts.push({ x: u.x, y: u.y - 12, text: `-${dmg}`, color: proj.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8 });
                     
@@ -1213,7 +1219,11 @@ const Battle = {
         ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
         ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
         ctx.fill();
+        // Takım ayrımı yalnız renge bırakılmaz (#55 madde 6): dost halkası dolu,
+        // düşmanınki kesiklidir — gri tonlamalı ekranda da ayırt edilir.
+        ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
         ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
+        ctx.setLineDash([]);
 
         if(isPlayer) {
             let pulse = 1 + Math.sin(now/300)*0.12;
@@ -1406,7 +1416,7 @@ const Battle = {
         ctx.shadowBlur = 0;
     },
     logKill(victim, killer) {
-        this.corpses.push({ x: victim.x, y: victim.y, isPlayerTeam: victim.isPlayerTeam, rot: Math.random()*Math.PI*2 });
+        if(Game.opt('gore')) this.corpses.push({ x: victim.x, y: victim.y, isPlayerTeam: victim.isPlayerTeam, rot: Math.random()*Math.PI*2 });
         if(this.corpses.length > 60) this.corpses.shift();
         if(victim.id === 'player') {
             this.knockedOut = true;
@@ -1509,9 +1519,12 @@ const Battle = {
         else if(!eAlive) { this.active=false; this.endBattle(true); }
     },
 
-    // Seninle boy ölçüşemeyecek düşman doyurmaz: ganimet ve tecrübe güç oranına göre kısılır
-    rewardScale() {
-        let ep = this.units.filter(u => !u.isPlayerTeam).reduce((a, u) => a + (u.level || 1) + 1, 0);
+    // Seninle boy ölçüşemeyecek düşman doyurmaz: ganimet ve tecrübe güç oranına göre kısılır.
+    // Düşman gücü dışarıdan verilebilir (#55 madde 9): karşılaşma modali savaş
+    // başlamadan aynı formülle "kolay av" uyarısını yazabilsin diye.
+    rewardScale(enemyPower) {
+        let ep = enemyPower !== undefined ? enemyPower
+               : this.units.filter(u => !u.isPlayerTeam).reduce((a, u) => a + (u.level || 1) + 1, 0);
         let pp = state.player.stats.level +
                  state.player.party.reduce((a, t) => a + (t.level || 1) + 1, 0);
         return Math.max(0.2, Math.min(1, (ep / Math.max(1, pp)) * 1.6));
@@ -1843,8 +1856,7 @@ const TournamentMinigame = {
             if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
-            this.update(dt);
-            this.render();
+            Debug.guard('turnuva döngüsü', () => { this.update(dt); this.render(); });
             if(this.active) this.loopId = requestAnimationFrame(loop);
         };
         this.loopId = requestAnimationFrame(loop);

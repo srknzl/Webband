@@ -13,6 +13,9 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
+| `README.md` | İngilizce depo tanıtımı — kurulum tek satır: `index.html`'i aç |
+| `CHANGELOG.md` | Oyuncu diliyle, tarihli değişiklik listesi; sürüm numarası `VERSION` sabitidir |
+| `.github/ISSUE_TEMPLATE/bug.md` | Hata şablonu: sürüm damgası, **ekran tazeleme hızı**, debug raporu, kayıt JSON'u |
 | `style.css` | Cam panel (glassmorphism) teması, CSS değişkenleri (`--primary`, `--danger`, `--success`, `--panel-border`, `--text-muted`) |
 | `bg.jpg`, `bg_hdr.jpg` | Arkaplan görselleri |
 | `lord_portraits.jpg` | 3x3 sprite sheet — lord portreleri (`background-position` ile kırpılır) |
@@ -34,9 +37,13 @@ referanslar fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışm
 önemli. *(`const` klasik script'te global sözcüksel kapsama girer, yani `battle.js`'teki
 `Battle` app.js'ten de görünür — `window.Battle` diye aranmamalı.)*
 
-Tüm veri tek bir `state` objesinde. `Save.save()` / `Save.load()` bunu localStorage'a
-(`webband_save_v1`) JSON olarak yazar. *(Savaş sisi kaldırıldığı için `state.explored`
-ızgarası da kayıttan çıktı; eski kayıtlardaki alan yok sayılır.)*
+Tüm veri tek bir `state` objesinde; `Save` onu localStorage'a JSON olarak yazar
+(3 slot + 5'lik otomatik kayıt halkası, bkz. "Kayıt sistemi").
+
+`VERSION = { no, date, name }` `app.js`'in en başında durur ve **elle artırılır**. Başlangıç
+ekranının köşesindeki `#ver-tag` ile debug raporunun ilk satırı aynı sabitten okur — oyuncunun
+masaüstü kısayolu her açılışta depoyu `main`'e çektiği için "hangi kodu konuşuyoruz"
+sorusunun tek cevabı budur (#55 madde 8). Sürüm artırılırken `CHANGELOG.md`'ye de bir satır girer.
 
 Global veri sabitleri: app.js'te `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
 `TROOP_TREES` (+ ondan üretilen `TROOP_UPGRADES` / `TROOP_TYPES`); nobles.js'te `LORDS`, `LADIES`, `PERSONALITIES`,
@@ -206,7 +213,8 @@ zafer +5, yenilgi −15.
   ekranını açar (`Game.showDiplomacy`), **Esc** her ekrandan
   haritaya döner, **WASD/oklar** haritada kamerayı serbest kaydırır, **Boşluk** kamerayı
   oyuncuya geri getirir (`Game.centerOnPlayer()`)
-  — hepsi `Input.init` içinde, modal veya savaş açıkken çalışmaz.
+  — hepsi `Input.init` içinde, modal veya savaş açıkken çalışmaz. Kayıt bölümünde
+  **💾 Kayıtlar** (`Save.open()`), 🔊 ses ve **⚙️ Ayarlar** durur.
   `showScreen()` tıklanan butonu `data-view` ile aktifler.
 - **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
   (🪖 piyade / 🏹 okçu / 🐎 süvari), **🎯 Beni Bul** ve **🌍 Diplomasi** düğmeleri.
@@ -1094,8 +1102,8 @@ Sefer sessiz bir tabloya bakmak olmasın diye `Game.dailyEvent()` her günün so
 olumsuz, 13 olayın 12'si çıktı (nal düşmesi at gerektirir).
 
 ### Debug raporu (#52)
-Hata yaşandığında elde ekran görüntüsünden fazlası olsun diye kenar menüsünde
-**🐞 Debug Raporu** düğmesi var (`Debug.open()`). `Debug` objesi `app.js`'in **en başında**
+Hata yaşandığında elde ekran görüntüsünden fazlası olsun diye **🐞 Debug Raporu**
+düğmesi var (`Debug.open()`; ⚙️ Ayarlar panelinden ve hata rozetine tıklayarak açılır). `Debug` objesi `app.js`'in **en başında**
 durur ve `Debug.init()` orada çağrılır — oyun kurulurken atılan hata da yakalansın diye.
 
 - Halkasal tampon (`Debug.errors`, son 25): `window.onerror` (mesaj + dosya:satır + yığının
@@ -1121,6 +1129,91 @@ oyuncunun gönderdiği JSON'dan okunur. İki çağıranı var: `addBtn` (yerleş
 tarar ve boş olanı `display:none` yapar. Ölçüldü: boş etiketli `addBtn` çizilmedi, modaldeki
 boş düğme gizlendi, dolu düğme dokunulmadan kaldı; pazar (36 düğme), han (11), salon,
 diplomasi ve debug modallerinde tek bir yanlış pozitif yok.
+
+### Kayıt sistemi (#55 madde 1)
+Tek slotlu `webband_save_v1` yerine sürümlü, göçlü, dışa aktarılabilir bir sistem.
+
+| Ne | Kural |
+|---|---|
+| Anahtar | `webband_save_<slot>`; slotlar `1/2/3` (elle) + `a1..a5` (otomatik halka) + `legacy` (`webband_save_v1`, yalnız okunur) |
+| Sürüm | Kaydın kökünde `v: 2`; `state.meta = { v, surum, createdAt, playtime, autoIdx }` |
+| Otomatik kayıt | `Save.auto()` her oyun gününün başında (`dailyUpdate`'in ilk satırı), halka `a1→a5→a1`; ayarlardan kapatılır |
+| Bozuk kayıt | `Save.read()` JSON hatasında kaydı **silmez**, `webband_broken_<zaman>` anahtarına taşır, `Debug.log` + uyarı verir, `null` döner |
+| Dışa/içe aktarma | `Save.exportSave()` metni panoya kopyalar, `Save.doImport()` yapıştırılanı doğrular ve 1. slota yazar |
+
+**Göç zinciri** `Save.migrate(d)` tek yerdedir — eskiden `load()` içine serpilmiş tek seferlik
+`if`'lerdi. v1 → v2: `state.explored` silinir, `Efsanevi ` önekli asker adı `legendary: true`
+bayrağına çevrilir, `state.muted` `settings.muted`'a taşınır, `meta` kurulur (`gocEdildi: true`).
+`d.v > Save.V` ise kayıt açılmaz ("daha yeni bir sürümden").
+
+Ölçüldü: `Save.save('1')` **1.4 ms**, kayıt **36 KB**; 7 otomatik kayıttan sonra halka
+`a1..a5` = gün 15/16/12/13/14 (`autoIdx=2`); dışa aktar → `localStorage.clear()` → içe aktar
+turunda gün 42 / 9999 dinar / 77 nam birebir geri geldi; bozuk JSON `webband_save_2`'den
+`webband_broken_2026-09-09042327`'ye taşındı, oyun açık kaldı; v1 kaydı yüklendiğinde
+`explored` düştü, "Efsanevi Svadya Şövalyesi" → "Svadya Şövalyesi + legendary", `muted`
+ayarlara geçti, `meta.v = 2`.
+
+### Hata görünürlüğü: rozet ve döngü kalkanı (#55 madde 2)
+Bir istisna rAF zincirini koparınca ekran donuyor ve konsolu açmayan kimse sebebini
+göremiyordu. İki parça:
+
+- **`Debug.guard(where, fn)`** — üç döngünün de gövdesini sarar (`harita döngüsü`,
+  `savaş döngüsü`, `turnuva döngüsü`). İstisnayı yutar, **bir sonraki satırdaki
+  `requestAnimationFrame` yine çalışır**, yani döngü yaşar. Aynı imza (`yer|mesaj`) bir kez
+  loglanır, tekrarı `Debug._sig`'de sayılır ve raporda `yutulanTekrar` olarak yazar — hata
+  seli tamponu süpürmez.
+- **`#err-badge`** — sağ alt köşede "⚠️ N hata — tıkla ve kopyala", tıklayınca `Debug.open()`.
+  `Debug.log` her çağrıda `badge()` çağırır, yani `onerror`/`unhandledrejection`/`guard`
+  hepsi aynı sayaçtan geçer.
+
+Ölçüldü: 45 istisna (40'ı aynı imza, 5'i ikinci imza) → **2 kayıt, 0 sızan istisna**, rozet
+"⚠️ 2 hata", rapor `harita döngüsü|test patlaması x40` ve `savaş döngüsü|ikinci imza x5`
+satırlarını taşıyor; normal dönen gövdenin değeri (`42`) korunuyor. Gerçek döngüde
+`renderMap` patlatıldığında `Game._loopId` yaşıyor ve rozet 1 hata gösteriyor.
+
+### Ayarlar ekranı (#55 madde 7)
+Kenar menüsündeki **⚙️ Ayarlar** (`Game.showSettings()`). Tek kapı `Game.opt(k)` / `setOpt(k,v)`:
+varsayılanlar `Game.OPTS`'ta durur, `state.settings` **yalnızca sapmaları** saklar (kayda
+`state` ile girer).
+
+| Ayar | Etki |
+|---|---|
+| Ses / ses seviyesi | `Game.sfx()` `opt('muted')` bakar, kazancı `opt('volume')` ile çarpar |
+| Hareket azaltma (Sistem/Açık/Kapalı) | `Game.reduceMotion()`; `body.reduced-motion` bütün CSS animasyon ve geçişlerini kapatır, kamera yumuşatması **anlık** olur (`snap = 1`), `Battle.spark()` hiç parçacık üretmez |
+| Kan ve ceset | `opt('gore')` false ise `Battle.blood()` erken döner, ceset itilmez |
+| Kare atlama kapısı | `opt('frameGate')` false ise `skipFrame` **hiç kare atmaz** (ölçüm yine sürer) — oyuncunun elindeki kaçış yolu |
+| Yazı boyutu | `opt('fontScale')` × 16 px kök yazı boyutu; arayüz `rem` tabanlı |
+| Otomatik kayıt | `Save.auto()`'yu kapatır |
+
+Panel ayrıca 💾 Kayıtlar, 🐞 Debug Raporu, ⌨️ Tuşlar (`Game.KEYS` tablosu) ve sürüm satırını
+taşır. Ölçüldü: yazı ölçeği 0.9/1/1.15 → kök **14.4 / 16 / 18.4 px**; `reducedMotion:true`
+`body.reduced-motion` sınıfını ekliyor, `'auto'` bu makinede false; kare kapısı `_minStep=4`
+iken açıkken `[true,true,true,false]`, kapalıyken `[false,false,false,false]`;
+`state.settings` yalnız sapan üç anahtarı tutuyor.
+
+### Erişilebilirlik turu (#55 madde 6)
+- **Takım ayrımı yalnız renk değil**: `Battle.drawUnit` düşman halkasını `setLineDash([4,3.2])`
+  ile çizer, dost halkası dolu kalır. Ölçüldü: dost halkası **%100 kapsama / 0 boşluk**,
+  düşman **%75 / 6 boşluk**; iki halka renginin gri tonu 151'e karşı 138 — arada yalnız
+  **13/255** var, yani gri tonlamalı ekranda ayrımı taşıyan şey artık şekil.
+- **Modalde klavye**: `Input.init` modal açıkken **Esc** kapatır (karşılaşma modali hariç —
+  `currentEncounterNpcId` varken kaçış tuşu yok) ve **Enter** `#modal-body`'deki
+  `button.primary`'ye, yoksa ilk düğmeye basar. Ölçüldü: Esc kapattı, Enter primary düğmeyi
+  seçti (2), primary yokken tek düğmeye bastı (7), karşılaşma modali Esc'e direndi.
+- Yazı boyutu ölçeği ve hareket azaltma yukarıdaki ayarlar tablosunda.
+- Kalan tek büyük parça **dokunmatik/mobil**, kendi issue'sunda.
+
+### Denge görünürlüğü (#55 madde 9)
+Sayıların kendisi değil, oyuncunun onları **görüp görmediği** düzeltildi.
+
+| Ne | Kural | Ölçüldü |
+|---|---|---|
+| **Zirve nam** | Bütün nam kapıları `Game.peakRenown()` okur (leydi 80, şölen 150, evlilik 120, drahoma görevi 200, bağlılık 50). `p.maxRenown` kendi kendini günceller | Nam 350'ye çıkıp 40'a düşünce kapılar hâlâ 350'yi görüyor — tek yenilgi bütün kapıları kapatmıyor |
+| **Kolay av uyarısı** | `Game.preyWarning(npc)` karşılaşma modalinde ve harita künyesinde; `Battle.rewardScale`'i savaş **öncesi** düşman gücüyle çağırır | 6 kişilik grupla: 1–3 kişilik çete %20, 5 kişilik %25, 10 kişilik %50, 20+ kişide uyarı yok |
+| **Garnizon neti** | `openGarrison` başlığında `vergi − maaş = net`, negatifse "bu tımar zarar ediyor" | Praven (refah 83, vergi 165): 12 şövalye **−15/gün**, 12 köylü **+165/gün** |
+| **Aç asker işareti** | Grup ekranında `debuff` taşıyan satırda "🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7" | Satır çıkıyor |
+| **Boss kapısı** | `boss_map` kullanımı `Game.BOSS_RENOWN = 300` zirve nam ister; envanter künyesinde de yazar | Nam 10'da harita harcanmadı, uyarı çıktı |
+| **Kervan yükü muhafıza bağlı** | `spawnTrader`'da `w = size / türün ortası`; yük ve kese `w` ile ölçeklenir. Ortalama değişmez, **dağılım riske bağlanır** | Kervan: 6 muhafız ort **949**, 14 muhafız **2135** (ort. 1544). Kafile: 3 muhafız **221**, 7 muhafız **513** (ort. 374). Eskiden en zayıfını seçmek risksiz kârdı |
 
 ## Görsel katman (renovasyon)
 

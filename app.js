@@ -2,6 +2,11 @@
 // WEBBAND - Mount & Blade Tarzı RPG
 // ============================================
 
+// Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
+// yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
+// "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
+const VERSION = { no: '0.55', date: '2026-09-09', name: 'Denetim Turu' };
+
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
 // birikir, kenar menüsündeki düğme her şeyi tek JSON'a çevirip panoya kopyalar.
@@ -11,6 +16,32 @@ const Debug = {
     log(kind, msg, extra) {
         this.errors.push(Object.assign({ t: new Date().toISOString().slice(11, 19), kind, msg: String(msg).slice(0, 400) }, extra || {}));
         if(this.errors.length > this.MAX_ERRORS) this.errors.shift();
+        this.seen++;
+        this.badge();
+    },
+    // Ekranın köşesindeki rozet (#55 madde 2): oyun sessizce ölmesin, hata
+    // olduğunu konsolu açmayan oyuncu da görsün. Tıklayınca rapor açılır.
+    seen: 0,
+    badge() {
+        let el = document.getElementById('err-badge');
+        if(!el) return;
+        el.textContent = `⚠️ ${this.seen} hata — tıkla ve kopyala`;
+        el.classList.toggle('hidden', !this.seen);
+    },
+    // Döngü gövdesini saran tek kapı: içeride atılan istisna rAF zincirini
+    // koparıyordu (ekran donar, kimse bilmez). Artık hata bir kez raporlanır,
+    // aynı imza tekrarlanırsa sayılır ve döngü yaşamaya devam eder.
+    _sig: {},
+    guard(where, fn) {
+        try { return fn(); }
+        catch(e) {
+            let sig = where + '|' + (e && e.message);
+            if(this._sig[sig]) { this._sig[sig]++; return; }
+            this._sig[sig] = 1;
+            this.log('döngü', where + ': ' + ((e && e.message) || e), {
+                yigin: ((e && e.stack) || '').split('\n').slice(1, 4).map(l => l.trim()).join(' | ')
+            });
+        }
     },
     init() {
         window.addEventListener('error', e => this.log('error', e.message, {
@@ -27,7 +58,8 @@ const Debug = {
         let g = (f, d) => { try { let v = f(); return v === undefined ? d : v; } catch(e) { return 'hata: ' + e.message; } };
         let cv = id => g(() => { let c = document.getElementById(id); return c ? `${c.width}x${c.height} (css ${Math.round(c.clientWidth)}x${Math.round(c.clientHeight)})` : 'yok'; });
         return {
-            surum: { dosya: document.lastModified, adres: location.href.split('?')[0], zaman: new Date().toISOString() },
+            surum: { oyun: VERSION.no + ' — ' + VERSION.name, tarih: VERSION.date,
+                     dosya: document.lastModified, adres: location.href.split('?')[0], zaman: new Date().toISOString() },
             oyun: g(() => {
                 let p = state.player;
                 return {
@@ -55,7 +87,8 @@ const Debug = {
                 pencere: innerWidth + 'x' + innerHeight, ekran: screen.width + 'x' + screen.height,
                 bellek: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : 'bilinmiyor')
             },
-            hatalar: this.errors.slice()
+            hatalar: this.errors.slice(),
+            yutulanTekrar: Object.keys(this._sig).map(k => `${k} x${this._sig[k]}`)
         };
     },
     text() { return JSON.stringify(this.report(), null, 1); },
@@ -355,6 +388,8 @@ const BAND_KINDS = {
 // --- STATE ---
 const state = {
     npcParties: [],
+    settings: {},            // ayarlar ekranı (#55): varsayılandan sapan anahtarlar; okuma Game.opt()
+    meta: {},                // kayıt künyesi: { v, surum, createdAt, playtime }
     timeScale: 1,            // zaman akışı çarpanı (üst çubuktaki takvim rozetinden 0.5/1/2)
     activeTournaments: {},   // { cityId: true }
     mercPools: {},           // { locId: { day, list:[{name, level, count}] } }
@@ -444,6 +479,16 @@ const Input = {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             this.keys[e.key.toLowerCase()] = true;
             if(e.key === ' ') e.preventDefault(); // Boşluk ile kaymayı engelle
+            // Modal açıkken klavye modalindir (#55 madde 6): Esc kapatır, Enter ana
+            // düğmeye basar. Karşılaşma modali Esc ile kapanmaz — savaştan kaçış değildir.
+            if(!document.getElementById('modal-overlay').classList.contains('hidden')) {
+                if(e.key === 'Escape' && !state.player.currentEncounterNpcId) Game.closeModal();
+                else if(e.key === 'Enter') {
+                    let b = document.querySelector('#modal-body button.primary') || document.querySelector('#modal-body button');
+                    if(b) { e.preventDefault(); b.click(); }
+                }
+                return;
+            }
             // Menü kısayolları (Warband tarzı) — savaş/turnuva/modal açıkken çalışmaz
             if(!Battle.active && !TournamentMinigame.active && !e.ctrlKey && !e.metaKey &&
                document.getElementById('modal-overlay').classList.contains('hidden') &&
@@ -523,6 +568,9 @@ const Game = {
     init() {
         Input.init();
         this.initTooltipClamp();
+        let vt = document.getElementById('ver-tag');
+        if(vt) vt.textContent = `WebBand ${VERSION.no} · ${VERSION.name} · ${VERSION.date}`;
+        this.applySettings();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         this.mapCanvas = document.getElementById('map-canvas');
         // Opak tuval: deniz her kareyi baştan sona dolduruyor, alfa kanalına gerek yok.
@@ -649,22 +697,26 @@ const Game = {
                                   .sort((a, b) => this.dist(a, home) - this.dist(b, home))[0];
             npc.trade.marketId = market ? market.id : home.id;
         }
+        // Yük muhafız sayısıyla ölçülür (#55 madde 9): eskiden 6 kişilik kervanla
+        // 14 kişilik aynı keseyi taşıyordu, yani en zayıfını seçmek risksiz kârdı.
+        // w = büyüklük / türün ortası; ortalama yük değişmez, dağılımı riske bağlanır.
+        let w = size / ((k.min + k.max) / 2);
         if(kind === 'caravan') {
             let goods = Object.values(ITEMS).filter(i => i.type === 'trade');
             npc.cargo = [];
             for(let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
                 let g = goods[Math.floor(Math.random() * goods.length)];
                 // Yük değerce dengelensin: kadife az, bira çok taşınır
-                let qty = Math.max(1, Math.round((3 + Math.random() * 4) * 100 / g.basePrice));
+                let qty = Math.max(1, Math.round((3 + Math.random() * 4) * w * 100 / g.basePrice));
                 let ex = npc.cargo.find(c => c.id === g.id);
                 if(ex) ex.qty += qty; else npc.cargo.push({ id: g.id, qty });
             }
-            npc.purse = 120 + Math.floor(Math.random() * 260);
+            npc.purse = Math.round((120 + Math.random() * 260) * w);
         } else {
             // Erzak ucuzladığı için (#47) kafile artık araba dolusu taşır — yoksa soyması anlamsızdı
-            npc.cargo = [{ id: 'wheat', qty: 15 + Math.floor(Math.random() * 30) },
-                         { id: 'cheese', qty: 5 + Math.floor(Math.random() * 15) }];
-            npc.purse = 20 + Math.floor(Math.random() * 50);
+            npc.cargo = [{ id: 'wheat', qty: Math.max(4, Math.round((15 + Math.random() * 30) * w)) },
+                         { id: 'cheese', qty: Math.max(2, Math.round((5 + Math.random() * 15) * w)) }];
+            npc.purse = Math.round((20 + Math.random() * 50) * w);
         }
         npc.x = npc.targetX = home.x; npc.y = npc.targetY = home.y;
         state.npcParties.push(npc);
@@ -961,6 +1013,7 @@ const Game = {
         this.camera.offsetY = 0;
 
         this.updateTopBar();
+        this.applySettings();
         this.startGameLoop();
     },
 
@@ -998,6 +1051,9 @@ const Game = {
         // Gerçek hiçbir ekran 1000 Hz'in üstünde değil, alt sınır güvenli.
         Debug.frame(d);                                     // kare aralıkları debug raporuna girer (#52)
         if(d > 1 && d < this._minStep) this._minStep = d;   // min: tek tük takılmayı eler
+        // Kapı ayarlardan kapatılabilir (#55 madde 7): kapıya güvenmeyen oyuncunun
+        // elinde bir kaçış yolu olsun. Ölçüm (Debug.frame) kapalıyken de sürer.
+        if(!this.opt('frameGate')) return this._lastSkip = false;
         let n = Math.max(1, Math.floor(1000 / 60 / this._minStep + 0.01));
         return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
@@ -1025,8 +1081,8 @@ const Game = {
             let dt = (t - lastTime) / 1000;
             if(dt > 0.1) dt = 0.1;
             lastTime = t;
-            this.update(dt);
-            this.renderMap();
+            // İstisna rAF zincirini koparmasın: hata bir kez raporlanır, döngü yaşar (#55)
+            Debug.guard('harita döngüsü', () => { this.update(dt); this.renderMap(); });
             this._loopId = requestAnimationFrame(loop);
         };
         this._loopId = requestAnimationFrame(loop);
@@ -1342,6 +1398,7 @@ const Game = {
 
     update(dt) {
         if (Battle.active || TournamentMinigame.active) return;
+        state.meta.playtime = (state.meta.playtime || 0) + dt;   // kayıt künyesinde oynama süresi
         
         // Fare ile Ekran Kaydırma (Edge Panning)
         let edgeMargin = 40;
@@ -1364,11 +1421,13 @@ const Game = {
         }
 
         // Smooth Zoom ve Camera Follow
-        this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * 8 * dt;
         let targetCamX = state.player.x + this.camera.offsetX;
         let targetCamY = state.player.y + this.camera.offsetY;
-        this.camera.x += (targetCamX - this.camera.x) * 5 * dt;
-        this.camera.y += (targetCamY - this.camera.y) * 5 * dt;
+        // Hareket azaltma açıkken kamera ve zoom yumuşatması yok, anında oturur (#55 madde 6)
+        let snap = this.reduceMotion() ? 1 : 0;
+        this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * (snap || 8 * dt);
+        this.camera.x += (targetCamX - this.camera.x) * (snap || 5 * dt);
+        this.camera.y += (targetCamY - this.camera.y) * (snap || 5 * dt);
 
         // WASD/oklar kamerayı SERBEST kaydırır — kenardan fare pan'ının klavye karşılığı (#44).
         // Eskiden tam tersini yapıyor, offset'i sıfırlayıp kamerayı oyuncuya kilitliyordu;
@@ -1714,6 +1773,14 @@ const Game = {
         return `<span style="color:var(--text-muted)">${this.troopLabel(t)}:</span> <i>"${line}"</i>`;
     },
 
+    // Ödül kısma savaştan sonra tek satırda görülüyordu; kararı vermeden önce bilinsin.
+    // Hesap Battle.rewardScale'in kendisidir — düşman gücü npc'den tahmin edilir (#55 madde 9).
+    preyWarning(npc) {
+        if(!npc || npc.trade) return '';
+        let sc = Battle.rewardScale(npc.size * ((npc.level || 1) + 1));
+        return sc < 0.95 ? `🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.` : '';
+    },
+
     triggerEncounter(npc, ambush) {
         state.encounterCooldown = 2;
         state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
@@ -1765,8 +1832,10 @@ const Game = {
             let mine = state.player.party.filter(t => !t.wounded).length + 1;
             let canAuto = !ambush && mine >= npc.size * 1.5;
             let chat = this.troopChatter(npc);   // adamlarının da söyleyecek bir şeyi var (#35)
+            let prey = this.preyWarning(npc);    // ödül kısılacaksa savaştan önce söyle (#55)
             html += `<p><i>${dialog}</i></p>
             ${chat ? `<p style="margin-top:0.4rem;font-size:0.9rem">${chat}</p>` : ''}
+            ${prey ? `<p style="margin-top:0.4rem;font-size:0.85rem;color:#cc8800">${prey}</p>` : ''}
             <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">${canFlee
                 ? `Kaçabilirsin ama hız farkı belirler: kaçış şansın <b>%${flee}</b>.`
                 : 'Kaçış yok — savaş ya da teslim ol!'}</p>
@@ -2054,6 +2123,7 @@ const Game = {
     },
 
     dailyUpdate() {
+        Save.auto();   // günün başında halkasal otomatik kayıt (#55 madde 1)
         if(state.player.prisoner) {
             state.player.prisoner.daysLeft--;
             if(state.player.prisoner.daysLeft <= 0) {
@@ -2312,9 +2382,10 @@ const Game = {
 
         this.setHtml('tip-renown', this.tipBox('Nam',
             R('Namın', p.renown, null) +
-            R('Salon konukları', '80 nam', p.renown >= 80) +
-            R('Kız isteme', '120 nam', p.renown >= 120) +
-            R('Şölen daveti', '150 nam', p.renown >= 150),
+            R('Ulaşılan en yüksek', this.peakRenown(), null) +
+            R('Salon konukları', '80 nam', this.peakRenown() >= 80) +
+            R('Kız isteme', '120 nam', this.peakRenown() >= 120) +
+            R('Şölen daveti', '150 nam', this.peakRenown() >= 150),
             'Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.'));
 
         this.setHtml('tip-hp', this.tipBox('Can',
@@ -2323,8 +2394,8 @@ const Game = {
             (p.equipment.armor ? R(`Zırh (${p.equipment.armor.name})`, '+' + p.equipment.armor.armor, true) : R('Zırh', 'yok', false)),
             'Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.'));
 
-        this.setHtml('mute-ico', state.muted ? '🔇' : '🔊');
-        this.setHtml('mute-lbl', state.muted ? 'Ses Kapalı' : 'Ses Açık');
+        this.setHtml('mute-ico', this.opt('muted') ? '🔇' : '🔊');
+        this.setHtml('mute-lbl', this.opt('muted') ? 'Ses Kapalı' : 'Ses Açık');
 
         let comp = this.getPartyComposition();
         // Kapasite oyuncunun KENDİ İdare seviyesinden gelir; künye profLvl (gruptaki en
@@ -3396,7 +3467,7 @@ const Game = {
     },
     sfx(kind) {
         let s = this.SFX[kind];
-        if(!s || state.muted) return;
+        if(!s || this.opt('muted')) return;
         try {
             let AC = window.AudioContext || window.webkitAudioContext;
             let ac = this._audio || (this._audio = new AC());
@@ -3408,14 +3479,77 @@ const Game = {
                 o.frequency.setValueAtTime(freq, t0);
                 // Zarf: exponentialRamp 0'a inemez, 0.0001 taban kullanılır
                 g.gain.setValueAtTime(0.0001, t0);
-                g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.012);
+                g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.12 * this.opt('volume')), t0 + 0.012);
                 g.gain.exponentialRampToValueAtTime(0.0001, t0 + s.d);
                 o.connect(g); g.connect(ac.destination);
                 o.start(t0); o.stop(t0 + s.d + 0.02);
             });
         } catch(e) { /* ses yoksa oyun durmaz */ }
     },
-    toggleMute() { state.muted = !state.muted; this.updateTopBar(); if(!state.muted) this.sfx('buy'); },
+    toggleMute() { this.setOpt('muted', !this.opt('muted')); this.updateTopBar(); if(!this.opt('muted')) this.sfx('buy'); },
+
+    // ============ AYARLAR (#55 madde 7) ============
+    // Tek ekran, tek okuma kapısı: her ayarın varsayılanı OPTS'ta durur, sapan
+    // anahtar state.settings'e yazılır (yani kayda girer ve eski kayıtta boş kalır).
+    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true },
+    opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
+    setOpt(k, v) {
+        (state.settings || (state.settings = {}))[k] = v;
+        this.applySettings();
+        if(document.getElementById('settings-panel')) this.showSettings();
+    },
+    // 'auto' sistemin tercihini okur — erişilebilirlik ayarı oyunda ikinci kez sorulmasın
+    reduceMotion() {
+        let v = this.opt('reducedMotion');
+        if(v !== 'auto') return !!v;
+        try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e) { return false; }
+    },
+    applySettings() {
+        // Arayüzün tamamı rem tabanlı; kök boyutu tek noktadan ölçeklenir
+        document.documentElement.style.fontSize = (this.opt('fontScale') * 16) + 'px';
+        document.body.classList.toggle('reduced-motion', this.reduceMotion());
+    },
+    showSettings() {
+        let sw = (k, on, off) => `<button class="btn${this.opt(k) ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.7rem"
+            onclick="Game.setOpt('${k}', ${!this.opt(k)})">${this.opt(k) ? on : off}</button>`;
+        let row = (label, ctrl, note) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:0.5rem 0;border-bottom:1px solid var(--panel-border)">
+            <div><div>${label}</div>${note ? `<div style="font-size:0.75rem;color:var(--text-muted)">${note}</div>` : ''}</div><div style="white-space:nowrap">${ctrl}</div></div>`;
+        let rm = this.opt('reducedMotion');
+        let rmBtn = ['auto', true, false].map(v => `<button class="btn${rm === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('reducedMotion', ${JSON.stringify(v)})">${v === 'auto' ? 'Sistem' : v ? 'Açık' : 'Kapalı'}</button>`).join(' ');
+        let fs = this.opt('fontScale');
+        let fsBtn = [0.9, 1, 1.15].map(v => `<button class="btn${fs === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('fontScale', ${v})">${v === 0.9 ? 'Küçük' : v === 1 ? 'Normal' : 'Büyük'}</button>`).join(' ');
+        let hz = this._minStep === Infinity ? 'ölçülmedi' : Math.round(1000 / this._minStep) + ' Hz';
+        this.showModal(`<div id="settings-panel"><h3>⚙️ Ayarlar</h3>
+        ${row('🔊 Ses', sw('muted', 'Kapalı', 'Açık'))}
+        ${row('🎚️ Ses seviyesi', `<input type="range" min="0" max="100" value="${Math.round(this.opt('volume') * 100)}"
+            oninput="Game.setOpt('volume', this.value / 100)" onchange="Game.sfx('buy')" style="vertical-align:middle">
+            <span style="font-size:0.8rem;color:var(--text-muted)">%${Math.round(this.opt('volume') * 100)}</span>`)}
+        ${row('🎞️ Hareketi azalt', rmBtn, 'Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır')}
+        ${row('🩸 Kan ve cesetler', sw('gore', 'Açık', 'Kapalı'), 'Kapatmak zayıf makinede kare hızını rahatlatır')}
+        ${row('🖼️ Kare atlama kapısı', sw('frameGate', 'Açık', 'Kapalı'), `Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen: <b>${hz}</b>`)}
+        ${row('🔠 Yazı boyutu', fsBtn)}
+        ${row('💾 Otomatik kayıt', sw('autosave', 'Açık', 'Kapalı'), 'Her oyun günü başında, halkasal 5 slot')}
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
+            <button class="btn" onclick="Save.open()">💾 Kayıtlar</button>
+            <button class="btn" onclick="Debug.open()">🐞 Debug Raporu</button>
+            <button class="btn" onclick="Game.showKeys()">⌨️ Tuşlar</button>
+            <button class="btn primary" onclick="Game.closeModal()">Kapat</button>
+        </div>
+        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})</p>
+        </div>`, '620px');
+    },
+    KEYS: [['M', 'Harita'], ['C', 'Karakter'], ['P', 'Grup'], ['I', 'Envanter'], ['Q', 'Görevler'],
+           ['K', 'Diplomasi'], ['Esc', 'Haritaya dön / modalı kapat'], ['Enter', 'Modaldeki ana düğme'],
+           ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['Boşluk', 'Kamerayı oyuncuya getir'],
+           ['Savaşta W A S D', 'Hareket'], ['Sol tık / Boşluk', 'Vur veya ok at'],
+           ['Sağ tık / Shift', 'Blok'], ['1 2 3', 'Taktik emirleri']],
+    showKeys() {
+        this.showModal(`<h3>⌨️ Tuşlar</h3><table style="width:100%;font-size:0.9rem">
+        ${this.KEYS.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${k}</kbd></td><td style="color:var(--text-muted)">${v}</td></tr>`).join('')}
+        </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">← Ayarlar</button>`, '460px');
+    },
     flash(el, ok = true) {
         if(!el) return;
         el.classList.remove('fx-flash', 'fx-flash-bad');
@@ -4176,9 +4310,13 @@ const Game = {
             return `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${rows || `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         };
         let inc = this.fiefIncome();
+        // Günlük net tek satırda yazsın (#55 madde 9): "elit garnizon zarardır" kuralı
+        // belgede duruyordu ama oyuncu ekranda hiçbir yerde görmüyordu.
+        let wage = loc.garrison.reduce((a, t) => a + this.troopWage(t), 0), net = this.fiefTax(loc) - wage;
         this.showModal(`<h3>🛡️ ${loc.name} Garnizonu</h3>
-        <p style="color:var(--text-muted)">Garnizon: <b>${loc.garrison.length}</b> asker · günlük maaşı <b>${loc.garrison.reduce((a, t) => a + this.troopWage(t), 0)}</b> dinar ·
-           bu tımarın vergisi <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> dinar/gün.
+        <p style="color:var(--text-muted)">Vergi <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> − garnizon maaşı <b>${wage}</b> =
+           <b style="color:${net >= 0 ? 'var(--success)' : 'var(--danger)'}">${net >= 0 ? '+' : ''}${net} dinar/gün</b>
+           (${loc.garrison.length} asker).${net < 0 ? ' <b>Bu tımar zarar ediyor</b> — ucuz askerle doldurmak doğru hamledir.' : ''}
            <br>Garnizon grup kapasitenden düşmez ama maaşını sen ödersin; düşman kuşatması bu sayıya bakar.</p>
         <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
             ${col('Grubun (' + state.player.party.length + '/' + cap + ')', this.troopGroups(state.player.party), 'in', 'Yanında asker yok.')}
@@ -4258,6 +4396,9 @@ const Game = {
             html += d ? `<br>Hedef: ${d.name}` : '';
         }
         if(npc.hunting) html += `<br><span style="color:#ffb347">🎯 Peşinde:</span> ${npc.hunting}`;
+        // Üstüne gitmeden önce gör: bu çete senin için doyurucu mu (#55 madde 9)
+        let prey = this.preyWarning(npc);
+        if(prey) html += `<br><span style="color:#cc8800;font-size:0.85em">${prey.replace(/<\/?b>/g, '')}</span>`;
         // Yük yalnız kafilelerde değil, onları soymuş çetede de görünür
         if((npc.cargo || []).filter(c => ITEMS[c.id]).length)
             html += `<br>Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}`;
@@ -4288,6 +4429,15 @@ const Game = {
     },
     // Yenilgide nam kaybı: düşman senden ne kadar zayıfsa rezillik o kadar büyük.
     // pow = düşmanın güç puanı (asker başına seviye+1)
+    // Kapılar ulaşılmış nama bakar (#55 madde 9). Tek yenilgi 22 nam yakabiliyor,
+    // bu da salon (80) / kız isteme (120) / şölen (150) kapılarının hepsini birden
+    // kapatıyordu: şeref kaybı keseyi ve ilişkiyi vurmalı, kapıyı değil.
+    // Okuyan herkes aynı anda tepe değeri de günceller — ayrı bir kanca gerekmez.
+    peakRenown() {
+        let p = state.player;
+        return (p.maxRenown = Math.max(p.maxRenown || 0, p.renown || 0));
+    },
+
     defeatRenown(pow) {
         let mine = state.player.stats.level +
                    state.player.party.reduce((a, t) => a + (t.level || 1) + 1, 0);
@@ -4886,6 +5036,7 @@ const Game = {
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
                     <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${this.troopClassName(typeInfo)}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + DMG_TYPES[typeInfo.dmgType].name : ''}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
+                    ${g.sample.debuff ? '<div style="font-size:0.75rem;color:#e0463a">🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7</div>' : ''}
                 </div>`;
 
                 // Sıra değiştirme + gruptan çıkarma (#51)
@@ -5316,9 +5467,11 @@ const Game = {
         html += '</div></div>';
         document.getElementById('inventory-content').innerHTML = html;
     },
+    BOSS_RENOWN: 300,   // boss haritasının nam kapısı (#55 madde 9)
     // Silahın hasar türü künyesi — zırha karşı davranışı burada görünür
     itemNote(item) {
         if(!item) return '';
+        if(item.id === 'boss_map') return `Kullanmak için ${this.BOSS_RENOWN} nam gerekir (sende ${this.peakRenown()})`;
         let bits = [];
         if(item.attack) bits.push(`+${item.attack} saldırı`);
         if(item.defense) bits.push(`+${item.defense} savunma`);
@@ -5348,6 +5501,12 @@ const Game = {
     useItem(idx) {
         let item = state.player.inventory[idx];
         if(item.id === 'boss_map') {
+            // Oyunun en güçlü ödülü yalnız parayla alınmasın (#55 madde 9): kapı nam da ister
+            if(this.peakRenown() < this.BOSS_RENOWN) {
+                alert(`🗺️ Harita bir yol tarif ediyor ama sonundaki kapı herkese açılmıyor.<br><br>`
+                    + `Savaş Tanrısı'nın önüne çıkmak için <b>${this.BOSS_RENOWN} nam</b> gerekir (sende ${this.peakRenown()}).`);
+                return;
+            }
             state.bossEntries = (state.bossEntries || 0) + 1;
             if(state.bossEntries > 4) { alert("Boss haritasını daha fazla kullanamazsın!"); return; }
             item.qty--;
@@ -5401,43 +5560,116 @@ const Game = {
 // ponytail: tüm state'i JSON'a atıyoruz. npcParties ve görev data'sı düz veri
 // olduğu için bu yeterli; kaydedilemeyen tek şey canvas/loop referansları.
 const Save = {
-    KEY: 'webband_save_v1',
-    V: 1,
+    // --- KAYIT SİSTEMİ (#55 madde 1) ---
+    // Tek slot + sürümsüz JSON, "eski kayıt yeni kodla açılınca ne oluyor"
+    // sorusunu cevapsız bırakıyordu. Artık: sürüm numarası + göç zinciri,
+    // 3 elle slot + 5 halkasal otomatik kayıt, panoya dışa/içe aktarma ve
+    // bozuk kaydı silmeden kenara çekme.
+    LEGACY: 'webband_save_v1',        // sürümsüz tek slot — yalnız okunur, göç kaynağı
+    V: 2,
+    SLOTS: ['1', '2', '3'],
+    AUTOS: ['a1', 'a2', 'a3', 'a4', 'a5'],
+    key(slot) { return slot === 'legacy' ? this.LEGACY : 'webband_save_' + slot; },
+    slotName(slot) { return slot === 'legacy' ? 'Eski kayıt' : slot[0] === 'a' ? 'Oto ' + slot[1] : 'Slot ' + slot; },
 
-    save() {
+    snapshot() {
+        state.meta = Object.assign({ createdAt: Date.now(), playtime: 0 }, state.meta, { v: this.V, surum: VERSION.no });
+        return {
+            v: this.V, savedAt: Date.now(), surum: VERSION.no,
+            gun: state.time.day, ad: state.player.name, seviye: state.player.stats.level,
+            state: { ...state },
+            // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
+            // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
+            locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
+                owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock })),
+            playerKingdom: FACTIONS['player_kingdom'] || null
+        };
+    },
+
+    write(slot) {
         try {
-            localStorage.setItem(this.KEY, JSON.stringify({
-                v: this.V, savedAt: Date.now(),
-                state: { ...state },
-                // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
-                // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
-                locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
-                    owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock })),
-                playerKingdom: FACTIONS['player_kingdom'] || null
-            }));
-            alert('Oyun kaydedildi.');
+            localStorage.setItem(this.key(slot), JSON.stringify(this.snapshot()));
+            return true;
         } catch(e) {
-            alert('Kayıt başarısız: ' + e.message);
+            // Kota dolduysa oyunu kilitlemek yerine söyle: oyuncu eski slotu silebilsin
+            Debug.log('kayit', 'Kayıt yazılamadı: ' + e.message, { slot });
+            return false;
+        }
+    },
+    save(slot) {
+        let ok = this.write(slot || '1');
+        if(document.getElementById('save-panel')) return this.open(ok ? `✅ ${this.slotName(slot || '1')} kaydedildi.` : '❌ Kayıt başarısız — yer kalmamış olabilir, bir slot sil.');
+        alert(ok ? 'Oyun kaydedildi.' : 'Kayıt başarısız: tarayıcı deposu dolu olabilir.');
+    },
+    // Her oyun günü başında halkasal otomatik kayıt (ayarlardan kapatılabilir)
+    auto() {
+        if(!Game.opt('autosave')) return;
+        let i = ((state.meta.autoIdx || 0) % this.AUTOS.length);
+        state.meta.autoIdx = i + 1;
+        this.write(this.AUTOS[i]);
+    },
+
+    // Bozuk JSON oyunu açılmaz hâle getiriyordu; kayıt silinmez, kenara çekilir.
+    read(slot) {
+        let raw = localStorage.getItem(this.key(slot));
+        if(!raw) return null;
+        try { return JSON.parse(raw); }
+        catch(e) {
+            let bak = 'webband_broken_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '');
+            try { localStorage.setItem(bak, raw); localStorage.removeItem(this.key(slot)); } catch(e2) {}
+            Debug.log('kayit', 'Bozuk kayıt: ' + e.message, { slot, yedek: bak });
+            alert(`Kayıt bozuk (${this.slotName(slot)}).<br>Silmedim, <b>${bak}</b> anahtarına taşıdım.`);
+            return null;
         }
     },
 
-    hasSave() { return !!localStorage.getItem(this.KEY); },
+    // Göç zinciri: her sürüm bir öncekinden gelen kaydı bugünkü şekle çevirir.
+    // Eskiden bu yamalar load() içine serpilmiş tek seferlik if'lerdi.
+    migrate(d) {
+        if(!d.v || d.v < 2) {
+            delete d.state.explored;   // savaş sisi kaldırıldı, ızgara artık okunmuyor
+            // Efsanevi askerin adı 'Efsanevi ' önekiyle saklanıyordu
+            (d.state.player.party || []).forEach(t => {
+                if(t.name && t.name.startsWith('Efsanevi ')) { t.name = t.name.slice(9); t.legendary = true; }
+            });
+            if(d.state.muted !== undefined) { d.state.settings = d.state.settings || {}; d.state.settings.muted = d.state.muted; }
+            d.state.meta = { v: 2, createdAt: d.savedAt || Date.now(), playtime: 0, gocEdildi: true };
+            d.v = 2;
+        }
+        return d;
+    },
 
-    load() {
-        let raw = localStorage.getItem(this.KEY);
-        if(!raw) return alert('Kayıtlı oyun yok.');
-        let d;
-        try { d = JSON.parse(raw); } catch(e) { return alert('Kayıt bozuk.'); }
+    hasSave() { return this.list().length > 0; },
+    list() {
+        return [].concat(this.SLOTS, this.AUTOS, ['legacy']).map(slot => {
+            let raw = localStorage.getItem(this.key(slot));
+            if(!raw) return null;
+            let d = null;
+            try { d = JSON.parse(raw); } catch(e) { return { slot, bozuk: true, kb: Math.round(raw.length / 1024) }; }
+            return { slot, kb: Math.round(raw.length / 1024), savedAt: d.savedAt || 0, surum: d.surum || '?',
+                     gun: d.gun !== undefined ? d.gun : ((d.state || {}).time || {}).day, ad: d.ad || ((d.state || {}).player || {}).name,
+                     seviye: d.seviye || (((d.state || {}).player || {}).stats || {}).level };
+        }).filter(Boolean);
+    },
+    // Başlangıç ekranındaki "Kayıttan Devam": en yeni kayıt hangisiyse o
+    continueGame() {
+        let rows = this.list().filter(r => !r.bozuk).sort((a, b) => b.savedAt - a.savedAt);
+        if(!rows.length) return alert('Kayıtlı oyun yok.');
+        this.load(rows[0].slot);
+    },
 
+    load(slot) {
+        let d = this.read(slot || '1');
+        if(!d) return alert('Bu slotta kayıt yok.');
         if(d.v > this.V) return alert('Bu kayıt oyunun daha yeni bir sürümünden; yüklenemiyor.');
+        this.migrate(d);
+        this.apply(d);
+        alert(`Kayıt yüklendi (${this.slotName(slot || '1')}). Gün ${state.time.day}.`);
+    },
 
+    apply(d) {
         if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
         this.mergeInto(state, d.state);
-
-        // Eski kayıtlarda efsanevi askerin adı 'Efsanevi ' önekiyle saklanıyordu
-        state.player.party.forEach(t => {
-            if(t.name.startsWith('Efsanevi ')) { t.name = t.name.slice(9); t.legendary = true; }
-        });
 
         let legacyLocs = false;
         (d.locations || []).forEach(sl => {
@@ -5452,19 +5684,19 @@ const Save = {
 
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
-        Game.resizeCanvases();   // sis tuvalini de kurar
+        Game.resizeCanvases();
         Game.camera.x = state.player.x; Game.camera.y = state.player.y;
         Game.camera.offsetX = 0; Game.camera.offsetY = 0;
         Game.showScreen('map');
+        Game.applySettings();
         Game.updateTopBar();
         Game.renderPrisonerUI();
-        // initRivals artık dünyaya girişte çalışıyor; rakipsiz eski kayıtta burada kurulur
+        // Kayıtta olmayan alt sistemler kurulur (hepsi kendi içinde tekrarsız)
         if(!Object.keys(state.rivals || {}).length) Nobles.initRivals();
         Game.applyVassals();     // LORDS kayda yazılmaz, vassalların bayrağı burada geri kurulur
         Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
         Game.ensureTraders();    // eski kayıtlarda kervan/kafile yoktu
         Game.startGameLoop();
-        alert(`Kayıt yüklendi. Gün ${state.time.day}.`);
     },
 
     // Kayıtta olmayan anahtar varsayılan değerinde kalır. Eskiden state'te olup
@@ -5481,9 +5713,79 @@ const Save = {
         }
     },
 
-    wipe() {
-        localStorage.removeItem(this.KEY);
-        alert('Kayıt silindi.');
+    del(slot) {
+        localStorage.removeItem(this.key(slot));
+        this.open(`🗑️ ${this.slotName(slot)} silindi.`);
+    },
+    wipe() { this.SLOTS.concat(this.AUTOS, ['legacy']).forEach(s => localStorage.removeItem(this.key(s))); },
+
+    // --- Kayıt ekranı ---
+    open(msg) {
+        let rows = this.list(), byId = {};
+        rows.forEach(r => byId[r.slot] = r);
+        let inGame = document.getElementById('main-ui').classList.contains('active');
+        let line = (slot) => {
+            let r = byId[slot];
+            let info = !r ? '<span style="color:var(--text-muted)">boş</span>'
+                : r.bozuk ? `<span style="color:var(--danger)">bozuk (${r.kb} KB)</span>`
+                : `<b>${r.ad || '—'}</b> · ${r.gun}. gün · Sv.${r.seviye || 1}
+                   <span style="color:var(--text-muted);font-size:0.78rem">${new Date(r.savedAt).toLocaleString('tr-TR')} · ${r.kb} KB · v${r.surum}</span>`;
+            return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--panel-border)">
+                <span style="min-width:5rem">${this.slotName(slot)}</span>
+                <span style="flex:1;font-size:0.9rem">${info}</span>
+                <span style="white-space:nowrap">
+                    ${inGame && slot[0] !== 'a' && slot !== 'legacy' ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.save('${slot}')">Kaydet</button>` : ''}
+                    ${r && !r.bozuk ? `<button class="btn primary" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.load('${slot}')">Yükle</button>` : ''}
+                    ${r ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem;border-color:var(--danger);color:var(--danger)" onclick="Save.del('${slot}')">Sil</button>` : ''}
+                </span></li>`;
+        };
+        Game.showModal(`<div id="save-panel"><h3>💾 Kayıtlar</h3>
+        ${msg ? `<p style="color:var(--success)">${msg}</p>` : ''}
+        <ul style="list-style:none">${this.SLOTS.map(line).join('')}</ul>
+        <h4 style="margin-top:0.8rem;color:var(--text-muted);font-size:0.85rem">Otomatik kayıtlar (her oyun günü)</h4>
+        <ul style="list-style:none">${this.AUTOS.map(line).join('')}${byId['legacy'] ? line('legacy') : ''}</ul>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
+            ${inGame ? '<button class="btn" onclick="Save.exportSave()">📤 Dışa Aktar</button>' : ''}
+            <button class="btn" onclick="Save.importSave()">📥 İçe Aktar</button>
+            <button class="btn primary" onclick="Game.closeModal()">Kapat</button>
+        </div></div>`, '660px');
+    },
+    // file:// altında dosya indirmek sorunlu; metin panoya kopyalanır (#52 raporuyla aynı desen)
+    exportSave() {
+        let txt = JSON.stringify(this.snapshot());
+        Game.showModal(`<h3>📤 Kaydı Dışa Aktar</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted)">Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).</p>
+        <textarea id="save-text" readonly style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem">${txt.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
+        <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
+            <button class="btn primary" onclick="Save.copyText()">📋 Panoya Kopyala</button>
+            <button class="btn" onclick="Save.open()">← Kayıtlar</button>
+        </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--success);font-size:0.85rem"></div>`, '660px');
+    },
+    copyText() {
+        let ta = document.getElementById('save-text');
+        let done = () => { let m = document.getElementById('save-msg'); if(m) m.textContent = '✅ Panoya kopyalandı.'; };
+        if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
+        else { ta.select(); document.execCommand('copy'); done(); }
+    },
+    importSave() {
+        Game.showModal(`<h3>📥 Kaydı İçe Aktar</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted)">Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.</p>
+        <textarea id="save-text" style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem"></textarea>
+        <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
+            <button class="btn primary" onclick="Save.doImport()">Yükle</button>
+            <button class="btn" onclick="Save.open()">← Kayıtlar</button>
+        </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--danger);font-size:0.85rem"></div>`, '660px');
+    },
+    doImport() {
+        let ta = document.getElementById('save-text'), msg = document.getElementById('save-msg');
+        let d;
+        try { d = JSON.parse(ta.value); } catch(e) { msg.textContent = 'Metin geçerli JSON değil.'; return; }
+        if(!d || !d.state || !d.state.player) { msg.textContent = 'Bu bir WebBand kaydı değil.'; return; }
+        if(d.v > this.V) { msg.textContent = 'Kayıt oyunun daha yeni bir sürümünden.'; return; }
+        this.migrate(d);
+        try { localStorage.setItem(this.key('1'), JSON.stringify(d)); } catch(e) { msg.textContent = 'Yazılamadı: ' + e.message; return; }
+        this.apply(d);
+        alert(`Kayıt içe aktarıldı ve 1. slota yazıldı. Gün ${state.time.day}.`);
     }
 };
 

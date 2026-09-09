@@ -837,3 +837,24 @@ body {
     animation: fxFloat 0.95s ease-out forwards;
 }
 .fx-float.bad { color: var(--danger); }
+
+/* ---- Sürüm damgası, hata rozeti, erişilebilirlik (#55) ---- */
+#ver-tag {
+    position: absolute; right: 14px; bottom: 10px;
+    font-size: 0.72rem; color: rgba(255,255,255,0.35); letter-spacing: .05em;
+    pointer-events: none;
+}
+#err-badge {
+    position: fixed; right: 14px; bottom: 12px; z-index: 150; cursor: pointer;
+    background: rgba(120, 20, 20, 0.92); border: 1px solid #e0463a; color: #ffd9d5;
+    padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.78rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+#err-badge:hover { background: rgba(160, 30, 30, 0.95); }
+
+/* Hareket azaltma: sistem tercihi ya da ayarlar ekranı. Animasyon ve geçişler
+   kapanır — canvas tarafındaki karşılığı Game.reduceMotion() ile okunur. */
+body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after {
+    animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+}

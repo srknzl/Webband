@@ -336,7 +336,7 @@ const Nobles = {
         let f = FACTIONS[loc.faction] || { name: '?' };
         let lords = this.lordsAt(loc.id);
         let ladies = this.ladiesAt(loc.id);
-        let renown = state.player.renown;
+        let renown = Game.peakRenown();   // kapılar ulaşılmış nama bakar (#55)
 
         let html = `<h3>👑 Lordlar Salonu — ${loc.name}</h3>
             <p style="color:var(--text-muted);font-size:0.9rem">${f.name}${state.feast && state.feast.locId===loc.id ? ' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>' : ''}</p>`;
@@ -392,7 +392,7 @@ const Nobles = {
     },
 
     swearFealtyPrompt(fid) {
-        if(state.player.renown < 50) return alert('Derebeyi olmak için en az 50 Nam gerekli.');
+        if(Game.peakRenown() < 50) return alert('Derebeyi olmak için en az 50 Nam gerekli.');
         state.player.vassalOf = fid;
         state.player.rightToRule += 5;
         LORDS.filter(l => l.faction === fid).forEach(l => this.addRel(l.id, 10));
@@ -444,9 +444,9 @@ const Nobles = {
         // Kadın oyuncunun kur yolu: lordun kendi diyaloğundan (salon nam kapısı burada)
         let suitor = this.isFemale() ? this.suitors().find(x => x.lordId === id) : null;
         if(suitor) {
-            html += state.player.renown >= this.HALL_RENOWN
+            html += Game.peakRenown() >= this.HALL_RENOWN
                 ? `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.courtMenu('${suitor.id}')">💘 Ona kur yap (ilgi ${this.aff(suitor.id)})</button>`
-                : `<button class="btn" disabled style="opacity:0.4">💘 Kur yapmak için ${this.HALL_RENOWN} nam gerekir (sende ${state.player.renown})</button>`;
+                : `<button class="btn" disabled style="opacity:0.4">💘 Kur yapmak için ${this.HALL_RENOWN} nam gerekir (sende ${Game.peakRenown()})</button>`;
         }
 
         let wards = this.courtables().filter(l => l.guardianId === id);
@@ -980,9 +980,9 @@ const Nobles = {
             <p style="font-style:italic">"${L.name}, öyle mi?" Seni tepeden tırnağa süzdü. "Üç şeye bakarım: adına, sözüne ve kesene."</p>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;margin-top:1rem">`;
 
-        let okRenown = p.renown >= this.MIN_RENOWN;
+        let okRenown = Game.peakRenown() >= this.MIN_RENOWN;
         let okRel = this.rel(g.id) >= this.MIN_REL;
-        html += `<div style="margin-bottom:0.5rem">${okRenown?'✅':'❌'} <b>Nam:</b> ${p.renown} / ${this.MIN_RENOWN}
+        html += `<div style="margin-bottom:0.5rem">${okRenown?'✅':'❌'} <b>Nam:</b> ${Game.peakRenown()} / ${this.MIN_RENOWN}
                  ${okRenown?'':`<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Adını duyan yok. ${ward} bir hiçe vermem."</div>`}</div>`;
         html += `<div style="margin-bottom:0.5rem">${okRel?'✅':'❌'} <b>İlişki:</b> ${this.rel(g.id)} / ${this.MIN_REL}
                  ${okRel?'':'<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Seni tanımıyorum bile. Önce bir işime yara."</div>'}</div>`;
@@ -1023,7 +1023,7 @@ const Nobles = {
 
         html += `<button class="btn" onclick="Nobles.haggle('${ladyId}')">🤝 Pazarlık et (İkna yeteneği)</button>`;
 
-        if(p.renown >= 200)
+        if(Game.peakRenown() >= 200)
             html += `<button class="btn" onclick="Nobles.dowryQuest('${ladyId}')">⚔️ "Param yok ama kılıcım var"</button>`;
         else
             html += `<button class="btn" disabled style="opacity:0.4">⚔️ "Param yok ama kılıcım var" (200 nam gerekir)</button>`;
@@ -1223,8 +1223,8 @@ const Feast = {
     },
 
     open(loc) {
-        if(state.player.renown < this.RENOWN_REQ) {
-            return alert(`Kapıdaki teşrifatçı listeye baktı ve başını salladı.\n"Bu isim burada yazmıyor."\n\nGereken nam: ${this.RENOWN_REQ} (sende ${state.player.renown})`);
+        if(Game.peakRenown() < this.RENOWN_REQ) {
+            return alert(`Kapıdaki teşrifatçı listeye baktı ve başını salladı.\n"Bu isim burada yazmıyor."\n\nGereken nam: ${this.RENOWN_REQ} (sende ${Game.peakRenown()})`);
         }
         let f = state.feast;
         let guests = LORDS.filter(l => l.faction === f.faction);
