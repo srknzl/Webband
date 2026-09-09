@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.55', date: '2026-09-09', name: 'Denetim Turu' };
+const VERSION = { no: '0.56', date: '2026-09-09', name: 'Kamp, Şeref ve Kan Davası' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -440,6 +440,10 @@ const state = {
         currentSiege: null,
         siege: null,               // kuşatma kampı: { locId, plan, daysLeft, weaken, foundingKingdom }
         currentRaid: null,         // yağmalanan köy: { locId }
+        wait: null,                // kamp: { until } — zaman ×4 akar, karşılaşma keser (#53/1.1)
+        honor: 0,                  // şeref −100..100; eksi tarafı eski "yağmacı damgası" (#53/1.5)
+        ambition: null,            // seçili hedef: { id, day }
+        ambitionsDone: [],         // tamamlanan hedeflerin id'leri
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
         morale: 60,      // parti morali 0-100
@@ -464,6 +468,7 @@ const state = {
     wars: {},            // 'a|b' (sıralı fraksiyon çifti) -> savaşın başladığı gün
     warLog: [],          // son olaylar: { day, msg }
     lordRespawn: {},     // cephede dağılan lord partisi -> hangi gün geri döner
+    grudges: {},         // lordId -> kan davasının başladığı gün (#53/1.3): 30 gün seni avlar
     warSeeded: false,    // dünya kurulurken ilk savaş atandı mı
     allies: {},          // 'a|b' -> ittifakın kurulduğu gün
     campaigns: {},       // fraksiyon -> { marshalId, marshalName, targetLocId, day, pledged, helped }
@@ -774,6 +779,9 @@ const Game = {
             state.player.renown = Math.max(0, (state.player.renown || 0) - 5);
             if(typeof Nobles !== 'undefined')
                 LORDS.filter(l => l.faction === npc.faction).forEach(l => Nobles.addRel(l.id, -4));
+            // Yol kesmek şerefi yer ve bölgenin lordunu peşine takar (#53)
+            this.addHonor(npc.trade && npc.trade.kind === 'villager' ? 'robPeasant' : 'robPeace');
+            this.addGrudgeNearest(npc.faction);
         }
         Battle.start(npc.name, npc.size, null, npc.faction);
     },
@@ -1239,6 +1247,83 @@ const Game = {
         return TROOP_TYPES[t.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
     },
 
+    // --- HEDEFLER (#53 madde 1.4) ---
+    // Battle Brothers'ın "ambition"ı: aynı anda TEK aktif hedef, tamamlanınca ödül
+    // ve yeni hedefler açılır. Tamamı veri; koşullar state'i okur, olay dinlemez —
+    // günlük tik ve Görevler sekmesi aynı `check`'i çağırır.
+    AMBITIONS: [
+        { id: 'band',      title: 'Küçük bir bölük', desc: 'Grubunu 10 kişiye çıkar.',
+          check: p => p.party.length >= 10, renown: 5, opens: ['champion', 'friend'] },
+        { id: 'champion',  title: 'Turnuva şampiyonu', desc: 'Bir turnuvayı kazan.',
+          check: p => (p.tourneyWins || 0) > 0, renown: 10, money: 500, opens: ['fief'] },
+        { id: 'friend',    title: 'Bir lordun dostu', desc: 'Bir soyluyla ilişkini 30\'a çıkar.',
+          check: () => Object.keys(state.relations || {}).some(k => state.relations[k] >= 30),
+          renown: 5, opens: ['sworn'] },
+        { id: 'sworn',     title: 'Yeminli', desc: 'Bir krallığa bağlılık yemini et.',
+          check: p => !!p.vassalOf, renown: 15, opens: ['feud', 'fief'] },
+        { id: 'feud',      title: 'Kan bedeli', desc: 'Açtığın bir kan davasını kapat (esiri onurla salıver ya da 30 günü doldur).',
+          check: p => !!p.hadGrudge && Game.grudgeList().length === 0,
+          renown: 10, honor: 'release', opens: [] },
+        { id: 'fief',      title: 'Toprak sahibi', desc: 'Bir tımarın olsun.',
+          check: () => LOCATIONS.some(l => l.owner === 'player'), renown: 20, opens: [] }
+    ],
+    ambition() { return this.AMBITIONS.find(a => a.id === (state.player.ambition || {}).id); },
+    // Açık hedefler: hiç hedef bitirmemişken zincirin başı, sonra tamamlananların açtıkları
+    openAmbitions() {
+        let done = state.player.ambitionsDone || [];
+        let opened = done.reduce((a, id) => {
+            let d = this.AMBITIONS.find(x => x.id === id);
+            return d ? a.concat(d.opens) : a;
+        }, ['band']);
+        return this.AMBITIONS.filter(a => done.indexOf(a.id) === -1 && opened.indexOf(a.id) !== -1);
+    },
+    pickAmbition(id) {
+        if(!id) state.player.ambition = null;
+        else if(!this.AMBITIONS.some(a => a.id === id)) return;
+        else state.player.ambition = { id, day: state.time.day };
+        if(typeof Quests !== 'undefined') Quests.render();
+    },
+    // Günlük tik: seçili hedefin koşulu sağlandıysa ödülü ver, zinciri aç
+    ambitionTick() {
+        if(this.grudgeList().length) state.player.hadGrudge = true;   // "kan bedeli" kapanabilsin (kayda girer)
+        let a = this.ambition();
+        if(!a || !a.check(state.player)) return;
+        state.player.ambitionsDone = (state.player.ambitionsDone || []).concat(a.id);
+        state.player.ambition = null;
+        state.player.renown += a.renown;
+        if(a.money) state.player.money += a.money;
+        if(a.honor) this.addHonor(a.honor);
+        this.updateTopBar();
+        alert(`🎯 Hedefe ulaştın: ${a.title}\n+${a.renown} nam${a.money ? `, +${a.money} dinar` : ''}.`
+            + (this.openAmbitions().length ? '\n\nGörevler sekmesinde yeni hedefler açıldı.' : ''));
+    },
+    ambitionHtml() {
+        let a = this.ambition(), open = this.openAmbitions();
+        let done = (state.player.ambitionsDone || []).length;
+        return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid #e0b062;
+                border-radius:8px;padding:1rem;margin-bottom:1rem">
+            <b style="font-size:1.1rem">🎯 Hedefin</b>
+            <span style="float:right;color:var(--text-muted);font-size:0.85rem">${done} hedef tamamlandı</span>
+            ${a ? `<div style="margin-top:0.5rem"><b>${a.title}</b> — ${a.desc}</div>
+                   <button class="btn" style="margin-top:0.6rem;font-size:0.8rem;padding:0.3rem 0.8rem"
+                           onclick="Game.pickAmbition('');Quests.render()">Vazgeç</button>`
+                : open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">Aynı anda tek hedef seçilir.</div>`
+                   + open.map(o => `<button class="btn" style="display:block;width:100%;text-align:left;margin-top:0.4rem"
+                        onclick="Game.pickAmbition('${o.id}')"><b>${o.title}</b> — <span style="color:var(--text-muted)">${o.desc}</span>
+                        <span style="color:#e0b062">+${o.renown} nam</span></button>`).join('')
+                : `<div style="color:var(--text-muted);margin-top:0.4rem">Bütün hedefleri kapattın.</div>`}
+        </div>`;
+    },
+
+    // Servet ölçekli baskı (#53 madde 1.3): tehdit yalnız takvime değil, senin gücüne de bakar.
+    // Rimworld'ün "baskın puanı = koloni serveti" kuralının ucuz hâli — ordunun seviye
+    // toplamının karekökü. Tek başına gezen oyuncuyu ezmez, 20 elitli orduyu rahat bırakmaz.
+    threatLevel() {
+        let sum = (state.player.party || []).reduce((a, t) => a + (t.level || 1), 0)
+                + (state.player.stats.level || 1);
+        return Math.round(Math.sqrt(sum) / 2);
+    },
+
     getPartyComposition() {
         let c = { infantry: 0, archer: 0, cavalry: 0 };
         state.player.party.forEach(t => { c[this.troopStats(t).type]++; });
@@ -1455,13 +1540,16 @@ const Game = {
         if (isMapActive && !isModalOpen) {
             // Kuşatma kampında da zaman akar: hazırlık günleri geçsin, dünya işlesin (#25)
             if (state.player.status === 'moving' || state.player.status === 'prisoner'
-                || state.player.status === 'besieging' || state.player.status === 'raiding') {
+                || state.player.status === 'besieging' || state.player.status === 'raiding'
+                || state.player.status === 'waiting') {
                 timeFlows = true;
             }
         }
 
         if (timeFlows) {
-            this.advanceTime(dt * this.timeScale());
+            // Kampta zaman ×WAIT_SCALE akar (#53/1.1)
+            this.advanceTime(dt * this.timeScale() * (state.player.wait ? this.WAIT_SCALE : 1));
+            this.waitTick();
             this.updateNPCs(dt);
             if(state.encounterCooldown > 0) state.encounterCooldown -= dt;
         }
@@ -1565,6 +1653,67 @@ const Game = {
         this.triggerEncounter(lurker, spotted ? 'spotted' : 'ambush');
     },
 
+    // ---- KAMP: BEKLE (#53 madde 1.1) ----
+    // Tek primitif: oyuncu durur, zaman ×4 akar, dünya işlemeye devam eder ve
+    // herhangi bir karşılaşma (triggerEncounter) beklemeyi keser. Dinlenme, gönüllü
+    // tazelenmesi, turnuva/şölen beklemek, kervan beklemek hep bunun müşterisi.
+    WAIT_SCALE: 4,
+    // Beklemenin bir bedeli var: maaş, erzak, bozulma zaten saatle işliyor
+    WAIT_CHOICES: [[1, '1 saat'], [8, '8 saat'], [24, '1 gün'], [72, '3 gün']],
+    askWait() {
+        if(state.player.prisoner || state.player.raid) return;
+        let terr = this.getTerrainInfo(state.player.x, state.player.y);
+        let risk = terr.name === 'Orman'
+            ? '<div style="color:var(--danger)">Ormanda kamp: pusuya düşebilirsin.</div>' : '';
+        this.showModal(`<h2>⏳ Kamp Kur</h2>
+            <p>Burada durup zamanı geçir. Zaman <b>${this.WAIT_SCALE} kat</b> hızlı akar; can yenilenir,
+               maaş ve erzak işler, karşılaşma olursa kamp bozulur.</p>
+            <div style="color:var(--text-muted)">Arazi: ${terr.icon} ${terr.name}</div>${risk}
+            <div class="action-list" style="margin-top:0.8rem">`
+            + this.WAIT_CHOICES.map(([h, lbl]) =>
+                `<button class="btn" onclick="Game.startWait(${h})">${lbl}</button>`).join('')
+            + `<button class="btn" onclick="Game.startWait(${this.hoursUntilDawn()})">Sabahı bekle</button>
+               <button class="btn" onclick="Game.closeModal()">Vazgeç</button></div>`, 420);
+    },
+    hoursUntilDawn() { let h = state.time.hour; return h < 6 ? Math.ceil(6 - h) : Math.ceil(30 - h); },
+    startWait(hours) {
+        this.closeModal();
+        if(state.player.prisoner || state.player.raid) return;
+        state.player.targetLocation = null;
+        state.player.status = 'waiting';
+        state.player.wait = { until: state.time.day * 24 + state.time.hour + hours };
+        this.showScreen('map');
+        this.renderWaitUI();
+    },
+    // Beklemeyi bitiren tek kapı — süre dolması da, karşılaşma da buradan geçer
+    stopWait(msg) {
+        if(!state.player.wait) return;
+        state.player.wait = null;
+        if(state.player.status === 'waiting') state.player.status = 'idle';
+        this.renderWaitUI();
+        if(msg) alert(msg);
+    },
+    waitTick() {
+        let w = state.player.wait;
+        if(!w) return;
+        if(state.time.day * 24 + state.time.hour >= w.until) return this.stopWait();
+        this.renderWaitUI();
+    },
+    renderWaitUI() {
+        let ui = document.getElementById('wait-ui');
+        if(!ui) return;
+        let w = state.player.wait;
+        let onMap = document.getElementById('map-view').classList.contains('active');
+        if(!w || !onMap) { ui.classList.add('hidden'); return; }
+        ui.classList.remove('hidden');
+        let left = Math.max(0, w.until - (state.time.day * 24 + state.time.hour));
+        let p = state.player;
+        this.setHtml('wait-info',
+            `<div>Kalan: <b>${left < 1 ? Math.round(left * 60) + ' dakika' : left.toFixed(1) + ' saat'}</b></div>
+             <div style="color:var(--text-muted);font-size:0.85rem">
+                ❤️ ${Math.round(p.stats.hp)}/${Math.round(p.stats.maxHp)} · 🎺 ${Math.round(this.morale())} · zaman ×${this.WAIT_SCALE}</div>`);
+    },
+
     // Hayvan sürüsüne teslim olunmaz — hızın yeterse sıyrılırsın
     // Kaçış şansı hız farkına bağlıdır: atlı bir grup çapulcuyu ekebilir,
     // ağır ordu Kergit atlılarından kaçamaz (#30). Harita hızı zaten atlı oranı,
@@ -1613,6 +1762,7 @@ const Game = {
         }
         // Soylular artık konuşulacak kişiler; kavga sadece düşman krallıktaysak.
         if(npc.lordId) {
+            if(this.hasGrudge(npc.lordId)) return true;     // kan davası: sohbet değil savaş (#53)
             if(Nobles.rel(npc.lordId) <= -50) return true;
             // Artık "başka bayrak" değil, krallığının o krallıkla savaşta olması saldırtır
             return this.atWar(this.playerFaction(), npc.faction);
@@ -1660,6 +1810,13 @@ const Game = {
                     let home = lord ? LOCATIONS.find(x => x.id === lord.homeLocId) : null;
                     if(state.feast && lord && lord.faction === state.feast.faction) {
                         home = LOCATIONS.find(x => x.id === state.feast.locId) || home;
+                    }
+                    // Kan davalı lord evine değil senin üstüne yürür (#53/1.3)
+                    if(lord && !this.hasGrudge(lord.id)) delete npc.hunting;   // dava bitince peşini bırakır
+                    if(lord && this.hasGrudge(lord.id) && state.player.status !== 'prisoner' && Math.random() < 0.5) {
+                        npc.targetX = state.player.x; npc.targetY = state.player.y;
+                        npc.hunting = state.player.name;
+                        return;
                     }
                     // Savaştaki lord evinde oturmaz: yakın düşman yerleşimlerinden
                     // birine yürür (warTick orada çarpışmayı/kuşatmayı çözer).
@@ -1782,6 +1939,8 @@ const Game = {
     },
 
     triggerEncounter(npc, ambush) {
+        // Kamp bozulur: kimse üstüne gelirken uyumaya devam edemezsin (#53/1.1)
+        if(state.player.wait) this.stopWait();
         state.encounterCooldown = 2;
         state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
         state.player.currentEncounterNpcId = npc.id;
@@ -1857,7 +2016,7 @@ const Game = {
         let renownLost = this.defeatRenown(foe ? foe.size * ((foe.level || 1) + 1) : 0);
         state.player.renown = Math.max(0, state.player.renown - renownLost);
         let daysLost = 3 + Math.floor(Math.random() * 5); // 3-7 gün esir
-        let ratio = 0.60 + Math.random() * 0.30; // %60-90 para kaybı
+        let ratio = this.defeatLootRatio();   // kasadaki pay kaybı düşürür (#53/1.2)
         let moneyLost = Math.floor(state.player.money * ratio);
         state.player.money = Math.max(0, state.player.money - moneyLost);
 
@@ -1973,8 +2132,11 @@ const Game = {
         while(state.time.hour >= 24) {
             state.time.day++;
 
-        // Yağmacı damgası zamanla soluklaşır ama çabuk değil (#49)
-        if(state.player.infamy) state.player.infamy = Math.max(0, state.player.infamy - 0.5);
+        this.ambitionTick();   // hedef koşulu sağlandı mı (#53/1.4)
+        // Şeref zamanla sıfıra döner ama çabuk değil (#49/#53): bir yağma ~24 gün
+        if(state.player.honor) state.player.honor += state.player.honor > 0 ? -0.5 : 0.5;
+        // Süresi dolan kan davaları silinir
+        Object.keys(state.grudges).forEach(id => { if(!this.hasGrudge(id)) delete state.grudges[id]; });
 
         // Refah zamanla toparlanır (yağmalanan köy sonsuza dek yoksul kalmasın)
         LOCATIONS.forEach(loc => {
@@ -2155,7 +2317,7 @@ const Game = {
         // nişanlıyken esir düşenin düğünü hiç kurulmuyordu.
         if(!state.player.prisoner) {
             let fief = this.fiefIncome();                 // tımar vergisi (garnizon maaşı upkeep'te)
-            state.player.money += fief.tax + fief.tribute;
+            state.player.money += fief.tax + fief.tribute + fief.trade;
             let up = this.upkeep();
             let totalWage = up.wage;
             let foodRequiredLow = up.foodLow;
@@ -2365,6 +2527,7 @@ const Game = {
             R('Günlük asker maaşı', '-' + up.wage, false) +
             R('Günlük yemek', `-${Math.ceil(up.foodLow)} birim${up.foodHigh ? ` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
             (this.myFiefs().length ? R('Tımar vergisi', `+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
+            (this.myEnterprises().length ? R('İşletme', `+${this.fiefIncome().trade} (${this.myEnterprises().length} işletme)`, true) : '') +
             (p.spouse ? R('Evlilik geliri', '+50', true) : '') +
             (p.wageDebt > 0 ? R('Gecikmiş maaş', `${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
             (p.wageDebt > 0 ? R('Saatlik moral kaybı', '-1', false) : ''),
@@ -2460,6 +2623,7 @@ const Game = {
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
             + pts
+            + `<button id="btn-wait" onclick="Game.askWait()" title="Kamp kur, zamanı geçir">⏳ Bekle</button>`
             + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="Kamerayı bana getir (Boşluk)">🎯 Beni Bul <kbd>Boşluk</kbd></button>`
             + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="Krallıkların savaş/barış hâli (K)">🌍 Diplomasi <kbd>K</kbd></button>`);
     },
@@ -2543,6 +2707,7 @@ const Game = {
 
         this.renderSiegeUI();   // kuşatma paneli yalnız haritada durur
         this.renderRaidUI();    // yağma paneli de (#49)
+        this.renderWaitUI();    // kamp paneli de (#53)
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
@@ -3229,6 +3394,10 @@ const Game = {
             }
             if(loc.type === 'city') {
                 this.addBtn(ac, '🛒 Pazara Git', () => this.openMarket(loc));
+                // İşletme: 20. günün "bu parayla ne yapayım" cevabı (#53 madde 1.6)
+                this.addBtn(ac, loc.enterprise
+                    ? `🏭 İşletmen (+${this.enterpriseIncome(loc)} dinar/gün)`
+                    : `🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`, () => this.buyEnterprise(loc));
                 this.addBtn(ac, '🍺 Hana Gir', () => this.openTavern(loc));
                 this.addBtn(ac, '⛓️ Köle Tüccarı', () => this.openSlaveTrader());
                 this.addBtn(ac, '🤺 Arenada Dövüş', () => this.openArena(loc));
@@ -3792,8 +3961,9 @@ const Game = {
         if(state.player.money >= 10) {
             state.player.money -= 10;
             state.player.stats.hp = state.player.stats.maxHp;
+            this.advanceTime(8);   // dinlenmek de zaman yer (#53/1.1)
             this.updateTopBar(); this.closeModal();
-            alert('Dinlendin! Canın tamamen yenilendi.');
+            alert('Bir gece handa kaldın (8 saat). Canın tamamen yenilendi.');
         } else alert('Yeterli dinarın yok!');
     },
 
@@ -3984,7 +4154,8 @@ const Game = {
         } else {
             if(king) Nobles.addRel(king.id, -8);
             lords.forEach(l => Nobles.addRel(l.id, -3));
-            alert(`Sefere katılacağını söyleyip ordunun yanına hiç gitmedin.\n${king ? king.name : 'Kralın'} −8, diğer lordlar −3 ilişki.`);
+            this.addHonor('oathBroken');   // tutulmayan söz şerefi yer (#53/1.5)
+            alert(`Sefere katılacağını söyleyip ordunun yanına hiç gitmedin.\n${king ? king.name : 'Kralın'} −8, diğer lordlar −3 ilişki, −5 şeref.`);
         }
     },
     summonToArms(f) {
@@ -4160,6 +4331,13 @@ const Game = {
                     ? ` <b style="color:var(--danger)">Düşmanın: ${this.warsOf('player').map(x => this.factionName(x)).join(', ')}</b> — şehirlerine giremezsin, lordları üstüne gelir.` : ''}</p>`
                 : `<p style="color:var(--text-muted)">Bağlılığın: <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? ' — savaştasın!' : ''}</p>`}
             ${rows}
+            ${this.grudgeList().length ? `<h3 style="margin-top:1rem">🩸 Kan Davaları</h3>`
+                + this.grudgeList().map(id => {
+                    let l = (typeof LORDS !== 'undefined' ? LORDS.find(x => x.id === id) : null) || { name: id };
+                    let left = this.GRUDGE_DAYS - (state.time.day - state.grudges[id]);
+                    return `<div style="padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
+                        <b style="color:var(--danger)">${l.name}</b> seni arıyor — <span style="color:var(--text-muted)">${left} gün daha</span></div>`;
+                }).join('') : ''}
             ${this.myFiefs().length ? `<h3 style="margin-top:1rem">🏰 Tımarların</h3>` + this.myFiefs().map(l =>
                 `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
                     <span style="min-width:150px;font-weight:600">${l.name}</span>
@@ -4193,6 +4371,27 @@ const Game = {
     // bırakırsın (maaşını sen ödersin), günlük vergi getirir, depoya erzak koyarsın.
     // Savunmasız bıraktığın tımarı düşman lordlar geri alır (warTick → captureSettlement).
     myFiefs() { return LOCATIONS.filter(l => l.owner === 'player'); },
+    // --- İŞLETME (#53 madde 1.6) ---
+    // Warband'ın işletmesi: tek seferlik büyük bedel, günlük küçük gelir. Tımar gibi
+    // fiefIncome'dan geçer; şehir el değiştirirse gelir kesilir (mülk kalır, kâr durur).
+    ENTERPRISE_COST: 3000,
+    enterpriseIncome(loc) { return Math.round((loc.prosperity || 50) * 0.55); },
+    myEnterprises() { return LOCATIONS.filter(l => l.enterprise); },
+    // Düşman eline geçen şehirdeki işletme çalışmaz
+    enterpriseWorks(loc) { return !!loc.enterprise && !this.atWar(this.playerFaction(), loc.faction); },
+    buyEnterprise(loc) {
+        if(loc.enterprise) {
+            return alert(`${loc.name}'daki işletmen günde +${this.enterpriseIncome(loc)} dinar getiriyor.`
+                + (this.enterpriseWorks(loc) ? '' : '\nAma şehirle savaştasın: kapılar kapalı, kazanç duruyor.'));
+        }
+        if(state.player.money < this.ENTERPRISE_COST) return alert('Yeterli dinarın yok!');
+        state.player.money -= this.ENTERPRISE_COST;
+        loc.enterprise = true;
+        this.updateTopBar(); this.enterLocation(loc);
+        let inc = this.enterpriseIncome(loc);
+        alert(`${loc.name}'da bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
+    },
+
     fiefTax(loc) { return Math.round((loc.prosperity || 50) * (loc.type === 'city' ? 2 : loc.type === 'castle' ? 0.7 : 1)); },
     troopWage(t) { return t.isCompanion ? 20 : t.level >= 51 ? 0 : t.level >= 20 ? Math.floor(t.level / 2) : t.level >= 10 ? 2 : 0; },
     fiefIncome() {
@@ -4204,7 +4403,9 @@ const Game = {
         // Vassalın tımarı kasana doğrudan girmez, haraç olarak bir payı gelir (#40)
         let tribute = this.vassals().reduce((a, v) =>
             a + this.fiefsOf(v.id).reduce((b, l) => b + Math.round(this.fiefTax(l) * this.VASSAL_TRIBUTE), 0), 0);
-        return { tax, tribute, wage, troops, net: tax + tribute - wage };
+        // İşletme geliri de günlük akışın parçası (#53/1.6)
+        let trade = this.myEnterprises().reduce((a, l) => a + (this.enterpriseWorks(l) ? this.enterpriseIncome(l) : 0), 0);
+        return { tax, tribute, trade, wage, troops, net: tax + tribute + trade - wage };
     },
     // Fetihten sonra: yerleşim senin tımarın olur, çevresindeki köyler de bayrak değiştirir
     grantFief(loc, oldFaction) {
@@ -4348,14 +4549,43 @@ const Game = {
             list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
                 <span>${i.icon} ${i.name} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
             : `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
+        // Kasa: yenilgide yağmalanmayan tek para (#53 madde 1.2). Depoya para taşımak
+        // bir sigortadır — yanında taşıdığın kese ne kadar küçükse yenilgi o kadar ucuz.
+        let tre = loc.treasury || 0;
+        let money = [100, 500, Math.floor(state.player.money)].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
+        let back = [100, 500, tre].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
         this.showModal(`<h3>📦 ${loc.name} Deposu</h3>
         <p style="color:var(--text-muted)">Depodaki erzak bozulmaz (bozulma yalnız yanında taşıdığına işler) ve yenilgide yağmalanmaz.</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.5rem 0;border-top:1px solid var(--panel-border);border-bottom:1px solid var(--panel-border)">
+            <span>🏦 Kasa: <b>${tre}</b> dinar <span style="color:var(--text-muted);font-size:0.8rem">(yenilgide yağmalanmaz)</span></span>
+            <span>Yatır: ${money.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'in')">${v === money[money.length-1] && money.length > 1 ? 'Hepsi' : v}</button>`).join(' ')}
+                  ${tre ? ' · Çek: ' + back.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'out')">${v === back[back.length-1] && back.length > 1 ? 'Hepsi' : v}</button>`).join(' ') : ''}</span>
+        </div>
         <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
             ${col('Yanındakiler', state.player.inventory, 'in', 'Çantan boş.')}
             ${col('Depo', loc.storage, 'out', 'Depo boş.')}
         </div>
         <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">Kapat</button>`, '700px');
     },
+    moveTreasury(locId, n, dir) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc) return;
+        loc.treasury = loc.treasury || 0;
+        let q = dir === 'in' ? Math.min(n, Math.floor(state.player.money)) : Math.min(n, loc.treasury);
+        if(q <= 0) return;
+        state.player.money += dir === 'in' ? -q : q;
+        loc.treasury += dir === 'in' ? q : -q;
+        this.openStorage(loc);
+        this.updateTopBar();
+    },
+    myTreasury() { return LOCATIONS.reduce((a, l) => a + (l.owner === 'player' ? (l.treasury || 0) : 0), 0); },
+    // Yenilgide kaybedilen kese oranı: kasadaki payın büyükse yağma da küçülür (#53/1.2)
+    defeatLootRatio() {
+        let safe = this.myTreasury(), carried = Math.max(0, state.player.money);
+        let share = safe + carried > 0 ? safe / (safe + carried) : 0;
+        return 0.6 + 0.3 * (1 - share);
+    },
+
     moveStorage(locId, itemId, n, dir) {
         let loc = LOCATIONS.find(l => l.id === locId);
         if(!loc) return;
@@ -4597,15 +4827,66 @@ const Game = {
     // --- YAĞMA: SÜREN EYLEM (#49) ---
     // Milisi dağıtmak yağmanın yarısı. Ambarı boşaltmak zaman ister: 15 saniye boyunca
     // kıpırdayamazsın, zaman akar ve köyün krallığının lordları dumana doğru yürür.
-    // --- YAĞMACI DAMGASI (#49) ---
-    // Köylüye kılıç çekmek unutulmaz: `state.player.infamy` her yağmada artar, günde 0.5
-    // erir (bir yağmayı silmek ~24 gün). Tek kapı `infamy()`, etkiler `infamyTier()`den.
+    // --- ŞEREF (#53 madde 1.5) ---
+    // Eski "yağmacı damgası" tek yönlü bir sayaçtı: yalnız kötü eylem yazılıyordu. Şeref
+    // aynı sayının iki yönlüsüdür (−100..100) ve damga onun eksi tarafının etiketidir —
+    // ikinci bir itibar alanı tutulmaz. Günde 0.5 sıfıra doğru söner (bir yağma ~24 gün).
+    HONOR: {
+        raid:       [-12, 'köy yağması'],
+        robPeace:   [-5,  'barıştaki kervanı soymak'],
+        robPeasant: [-8,  'köylü kafilesini soymak'],
+        ransom:     [-2,  'soylu esirden fidye'],
+        release:    [ 5,  'soyluyu onurla salıvermek'],
+        abduct:     [-20, 'kız kaçırma'],
+        oathBroken: [-5,  'sefer sözünü tutmamak'],
+        questDone:  [ 2,  'verilen sözü tutmak']
+    },
+    honor() { return Math.max(-100, Math.min(100, Math.round(state.player.honor || 0))); },
+    addHonor(kind) {
+        let h = this.HONOR[kind]; if(!h) return 0;
+        state.player.honor = Math.max(-100, Math.min(100, (state.player.honor || 0) + h[0]));
+        return h[0];
+    },
+    // Aynı şeref herkeste aynı okunmaz: iyi huylu lord şerefi sever, kurnaz olan
+    // şerefsizden çekinmez — Warband'ın mizaç tepkisi (#53/1.5).
+    honorWeight(personality) {
+        let h = this.honor();
+        let w = personality === 'goodnatured' ? h / 40
+              : personality === 'cunning' ? -h / 60
+              : personality === 'debauched' ? -h / 90
+              : h / 55;                                   // martial/quarrelsome: şerefi sayar ama az
+        return Math.max(-2, Math.min(2, Math.round(w)));
+    },
+    honorTier() { let h = this.honor(); return h >= 40 ? 2 : h >= 15 ? 1 : h <= -36 ? -2 : h <= -10 ? -1 : 0; },
+    honorLabel() { return { '-2': '💀 Köy Yakan', '-1': '🔥 Yağmacı', '0': '—', '1': '🕊️ Sözünün Eri', '2': '⚜️ Şerefli' }[this.honorTier()]; },
+    // Eski infamy kapıları şerefin eksi tarafından okur — çağıranların hiçbiri değişmedi
     RAID_INFAMY: 12,
-    infamy() { return Math.max(0, Math.round(state.player.infamy || 0)); },
-    infamyTier() { let i = this.infamy(); return i >= 36 ? 2 : i >= 10 ? 1 : 0; },   // 1 yağma damgalar, 3 yağma canavar yapar
+    infamy() { return Math.max(0, -this.honor()); },
+    infamyTier() { return Math.max(0, -this.honorTier()); },
     infamyLabel() { return ['—', '🔥 Yağmacı', '💀 Köy Yakan'][this.infamyTier()]; },
     // Fiyat/gönüllü çarpanı: 60 onursuzlukta gönüllü yarıya iner, paralı asker %60 pahalanır
-    infamyPenalty() { return Math.min(0.6, this.infamy() / 100); },
+    // Artık iki yönlü: eksi şeref köylüyü kaçırır, artı şeref kapıyı açar (#53/1.5).
+    // Eksi tarafı eski yağmacı cezasının aynısı, yani #49'un ölçümleri geçerli.
+    infamyPenalty() { return Math.max(-0.3, Math.min(0.6, -this.honor() / 100)); },
+
+    // --- KAN DAVASI (#53 madde 1.3) ---
+    // Köyünü yaktığın, kervanını soyduğun, esirini fidyeye bağladığın lord seni unutmaz:
+    // 30 gün boyunca partisi seni avlar ve karşılaşma sohbet değil savaş olur.
+    GRUDGE_DAYS: 30,
+    addGrudge(lordId) { if(lordId) state.grudges[lordId] = state.time.day; },
+    hasGrudge(lordId) {
+        let d = state.grudges[lordId];
+        return d !== undefined && state.time.day - d < this.GRUDGE_DAYS;
+    },
+    grudgeList() { return Object.keys(state.grudges).filter(id => this.hasGrudge(id)); },
+    // Bir fraksiyonun kervanını soymak: davayı en yakın lordu açar (kimin malıysa o)
+    addGrudgeNearest(faction) {
+        if(typeof LORDS === 'undefined') return;
+        let near = LORDS.filter(l => l.faction === faction)
+            .map(l => ({ l, p: state.npcParties.find(n => n.lordId === l.id) }))
+            .filter(o => o.p).sort((a, b) => this.dist(a.p, state.player) - this.dist(b.p, state.player))[0];
+        if(near) this.addGrudge(near.l.id);
+    },
     RAID_SECONDS: 15,
     RAID_ALERT: 1600,     // bu menzildeki lord dumanı görür; 15 sn'de ~1200–1600 birim yol alır
     RAID_COOLDOWN: 30,    // gün — aynı köy bir daha yağmalanamaz (~12 dk gerçek zaman, hız ×1)
@@ -4695,8 +4976,9 @@ const Game = {
         loc.volunteersAvailable = 0;
         loc.raidedDay = state.time.day;
         state.player.renown = Math.max(0, (state.player.renown || 0) - 6);   // zaferin +3'ünü de yer
-        state.player.infamy = (state.player.infamy || 0) + this.RAID_INFAMY;  // yağmacı damgası (#49)
+        this.addHonor('raid');            // şeref düşer, damga onun etiketidir (#49/#53)
         let owner = this.ownerLord(loc);
+        if(owner) this.addGrudge(owner.id);   // sahibi lord 30 gün seni avlar (#53/1.3)
         if(typeof Nobles !== 'undefined') {
             if(owner) Nobles.addRel(owner.id, -30);
             LORDS.filter(l => l.faction === loc.faction && (!owner || l.id !== owner.id))
@@ -4718,7 +5000,7 @@ const Game = {
     recruitVolunteers(loc) {
         // Yağmacıya köylü zor katılır ve pahalıya katılır (#49)
         let pen = this.infamyPenalty();
-        let cost = Math.round(10 * (1 + pen));
+        let cost = Math.max(5, Math.round(10 * (1 + pen)));
         let avail = Math.floor(loc.volunteersAvailable * (1 - pen));
         let space = Math.max(0, this.getPartyCapacity() - state.player.party.length);
         let afford = Math.floor(state.player.money / cost);
@@ -4732,7 +5014,8 @@ const Game = {
 
         this.showModal(`<h3>🪖 Gönüllü Topla</h3>
         <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar. En fazla <b>${max}</b> kişi alabilirsin.</p>
-        ${pen ? `<p style="color:var(--danger);font-size:0.85rem">${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).</p>` : ''}
+        ${pen > 0 ? `<p style="color:var(--danger);font-size:0.85rem">${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).</p>`
+          : pen < 0 ? `<p style="color:#7fd8a0;font-size:0.85rem">${this.honorLabel()} adın buraya da ulaşmış: fazladan gönüllü çıktı, ücreti de kırdılar (+%${Math.round(-pen*100)} gönüllü, −%${Math.round(-pen*100)} ücret).</p>` : ''}
         <input type="range" id="recruit-n" min="1" max="${max}" value="${max}" style="width:100%;margin:0.8rem 0"
                oninput="Game.updateRecruitLabel(${cost})">
         <button class="btn primary" id="recruit-btn"
@@ -4866,8 +5149,9 @@ const Game = {
                 <div style="background:var(--primary);height:100%;width:${xpBar}%;border-radius:4px;"></div>
             </div>
             <p>Can: ${Math.round(s.hp)}/${Math.round(s.maxHp)}</p>
-            <p>Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}${this.infamyTier()
-                ? ` | <span style="color:var(--danger)">${this.infamyLabel()} (${this.infamy()})</span>` : ''}</p>
+            <p>Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}${this.honorTier()
+                ? ` | <span style="color:${this.honor() < 0 ? 'var(--danger)' : '#7fd8a0'}"
+                     title="Şeref: eylemlerinin ikinci itibar ekseni (−100..100)">${this.honorLabel()} (${this.honor()})</span>` : ''}</p>
             <p>Bağlılık: ${p.vassalOf ? (FACTIONS[p.vassalOf]||{name:p.vassalOf}).name : 'Bağımsız'}</p>
             <p>Eş: ${p.spouse ? (Nobles.any(p.spouse) || {name:p.spouse}).name : 'Yok'}</p>
             <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.8rem">
@@ -5343,6 +5627,7 @@ const Game = {
         if(i === -1) return;
         let pr = state.player.prisoners.splice(i, 1)[0];
         state.player.money += pr.ransom;
+        this.addHonor('ransom'); this.addGrudge(pr.lordId);   // parayla satılan soylu unutmaz (#53)
         Nobles.addRel(pr.lordId, -20);
         LORDS.filter(l => l.faction === pr.faction && l.id !== pr.lordId).forEach(l => Nobles.addRel(l.id, -4));
         this.respawnLordParty(pr);
@@ -5359,6 +5644,7 @@ const Game = {
         Nobles.addRel(pr.lordId, 25);
         LORDS.filter(l => l.faction === pr.faction && l.id !== pr.lordId).forEach(l => Nobles.addRel(l.id, 6));
         state.player.renown += 3;
+        this.addHonor('release'); delete state.grudges[pr.lordId];   // şeref borcu siler (#53)
         this.respawnLordParty(pr);
         this.updateTopBar();
         this.renderPartyScreen();
@@ -5581,7 +5867,8 @@ const Save = {
             // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
             // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
             locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
-                owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock })),
+                owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock,
+                enterprise: l.enterprise, treasury: l.treasury })),   // işletme ve kasa (#53)
             playerKingdom: FACTIONS['player_kingdom'] || null
         };
     },

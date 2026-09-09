@@ -575,6 +575,7 @@ const Quests = {
         let g = this.giver(q.giverId);
         if(!g.isGuild) Nobles.addRel(q.giverId, def.reward.rel);
         if(def.onDone) def.onDone(q);
+        Game.addHonor('questDone');   // verilen sözü tutmak şeref kazandırır (#53/1.5)
         Game.trainAttr('int', 2);   // görev bitirmek zekâyı geliştirir
 
         if(q.dowryFor && state.dowryOffer && state.dowryOffer.ladyId === q.dowryFor) {
@@ -608,12 +609,14 @@ const Quests = {
     render() {
         let el = document.getElementById('quest-list');
         if(!el) return;
+        // Hedef zinciri görevlerin üstünde durur — "şimdi ne yapayım"ın cevabı (#53/1.4)
+        let amb = Game.ambitionHtml();
         if(!state.player.quests.length) {
-            el.innerHTML = `<p style="color:var(--text-muted)">Üstlendiğin bir görev yok.
+            el.innerHTML = amb + `<p style="color:var(--text-muted)">Üstlendiğin bir görev yok.
                 Bir şehrin ya da kalenin Lordlar Salonuna git, bir soyluyla konuş ve "Bana bir iş var mı?" de.</p>`;
             return;
         }
-        el.innerHTML = state.player.quests.map(q => {
+        el.innerHTML = amb + state.player.quests.map(q => {
             let def = QUESTS[q.id];
             let left = q.deadline - state.time.day;
             return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid var(--primary);

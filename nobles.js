@@ -484,7 +484,7 @@ const Nobles = {
                + (r >= 40 ? 1 : r <= -15 ? -1 : 0)
                + (power >= 1.2 ? 1 : power < 0.4 ? -1 : 0)
                - (this.lord(id).personality === 'quarrelsome' ? 1 : 0)
-               - Game.infamyTier();   // köy yakanın sözü salonda geçmez (#49)
+               + Game.honorWeight(this.lord(id).personality);   // şeref lordun mizacına göre okunur (#53/1.5)
         return Math.max(-1, Math.min(4, sc));
     },
     standingLabel(sc) {
@@ -1080,7 +1080,7 @@ const Nobles = {
             <p style="color:var(--danger)">Bedeli:<br>
             • ${this.lord(L.guardianId).name} ile <b>−60</b> ilişki<br>
             • ${FACTIONS[L.faction].name}'nın bütün lordlarıyla <b>−20</b><br>
-            • <b>−30</b> nam<br>
+            • <b>−30</b> nam, <b>−20</b> şeref<br>
             • ${L.name}'nın ilgisi <b>−10</b> (böyle hayal etmemişti)</p>
             <div style="display:flex;gap:1rem;margin-top:1rem">
             <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.elope('${ladyId}')">Atları hazırla</button>
@@ -1092,6 +1092,7 @@ const Nobles = {
         this.addRel(L.guardianId, -60);
         LORDS.filter(l => l.faction === L.faction && l.id !== L.guardianId).forEach(l => this.addRel(l.id, -20));
         state.player.renown = Math.max(0, state.player.renown - 30);
+        Game.addHonor('abduct');   // kaçırma şerefin en pahalı kalemi (#53/1.5)
         this.addAff(ladyId, -10);
         this.marry(ladyId, 'Şafak sökerken sınırı geçtiniz. Arkanızda bağıran bir kale kaldı.');
     },
@@ -1222,9 +1223,15 @@ const Feast = {
         }
     },
 
+    HONOR_REQ: -30,
     open(loc) {
         if(Game.peakRenown() < this.RENOWN_REQ) {
             return alert(`Kapıdaki teşrifatçı listeye baktı ve başını salladı.\n"Bu isim burada yazmıyor."\n\nGereken nam: ${this.RENOWN_REQ} (sende ${Game.peakRenown()})`);
+        }
+        // Nam kapıyı açar, şeref kapıda tutar: köy yakan adam salona alınmaz (#53/1.5)
+        if(Game.honor() < this.HONOR_REQ) {
+            return alert(`Teşrifatçı adını biliyor — fazlasıyla.\n"${Game.honorLabel()} birini bu salona sokamam."\n\n`
+                + `Gereken şeref: ${this.HONOR_REQ} (sende ${Game.honor()})`);
         }
         let f = state.feast;
         let guests = LORDS.filter(l => l.faction === f.faction);

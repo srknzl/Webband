@@ -7,7 +7,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 
 | Dosya | İçerik |
 |---|---|
-| `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli, kuşatma kampı paneli) |
+| `index.html` | Tüm ekranların DOM iskeleti (start, main-ui, map/settlement/character/party/inventory/battle view'ları, modal, esaret paneli, kuşatma kampı paneli, yağma paneli, kamp paneli) |
 | `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. Global objeler: `Debug`, `Input`, `Game`, `Save` + `state` |
 | `battle.js` | Savaş arenası ve turnuva minigame'i: `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
@@ -487,15 +487,11 @@ yağma iptal olur, ilişki **−15** düşer ve `triggerEncounter(responder, 'ra
 `'raid'` kipi `triggerEncounter`'ın dostane soylu dalını atlar — yoksa seni suçüstü yakalayan
 lord gelip hâl hatır soruyordu. 🚪 *Yağmayı Bırak* ile ganimetsiz çekilebilirsin.
 
-**Yağmacı damgası** (`state.player.infamy`): her tamamlanan yağma **+12**, günde −0.5 söner.
-Kademe (`infamyTier`): ≥10 🔥 Yağmacı, ≥36 💀 Köy Yakan. Karakter ekranında ve lord
-diyaloğunun başlığında yazar.
-
-| Etki | Kural |
-|---|---|
-| Gönüllü | sayı `×(1 − damga/100)`, ücret `×(1 + damga/100)` — ölçüldü: 8 kişi/10₺ → **7 kişi/11₺** |
-| Paralı asker | `mercPrice` aynı çarpanla — lvl 12 asker **204 → 228 dinar** |
-| Soylu ağırlığı | `Nobles.standing` kademe kadar düşer (ölçüldü: −1) |
+**Yağmacı damgası** artık ayrı bir sayı değil, **şerefin eksi tarafıdır** (#53 madde 1.5).
+`Game.infamy()` = `−honor` (yalnız eksi taraf), `infamyTier()`/`infamyLabel()`/`infamyPenalty()`
+hâlâ aynı isimlerle duruyor — bütün eski çağrı yerleri (gönüllü, paralı asker, köy yaşlısı,
+soylu ağırlığı) tek satır değişmeden çalışır. Bir yağma **−12 şeref**tir.
+Aşağıdaki "Şeref" bölümü kademeleri ve ölçülen etkileri yazıyor.
 
 Ölçüldü: rahatsız edilmeyen yağma 15.1 saatte bitiyor, 297 dinar + 8 tahıl + 3 peynir;
 900 birimdeki lord (hız 70) 12. saniyede yetişip yağmayı bozuyor ve "🔥 Baskın!" savaşını
@@ -1214,6 +1210,124 @@ Sayıların kendisi değil, oyuncunun onları **görüp görmediği** düzeltild
 | **Aç asker işareti** | Grup ekranında `debuff` taşıyan satırda "🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7" | Satır çıkıyor |
 | **Boss kapısı** | `boss_map` kullanımı `Game.BOSS_RENOWN = 300` zirve nam ister; envanter künyesinde de yazar | Nam 10'da harita harcanmadı, uyarı çıktı |
 | **Kervan yükü muhafıza bağlı** | `spawnTrader`'da `w = size / türün ortası`; yük ve kese `w` ile ölçeklenir. Ortalama değişmez, **dağılım riske bağlanır** | Kervan: 6 muhafız ort **949**, 14 muhafız **2135** (ort. 1544). Kafile: 3 muhafız **221**, 7 muhafız **513** (ort. 374). Eskiden en zayıfını seçmek risksiz kârdı |
+
+### Zaman bir kaynaktır: kamp (#53 madde 1.1)
+
+Zaman eskiden yalnız **yürürken** akıyordu: yaralı oyuncu iyileşmek için haritada daire
+çiziyor, turnuvanın açılmasını / gönüllünün tazelenmesini / şölenin kurulmasını bekleyemiyordu.
+`Game.startWait(hours)` tek primitifle bunu açar — Warband'ın "Kamp kur → Burada bekle"si.
+
+- Harita künyesindeki **⏳ Bekle** düğmesi (`askWait`) süre sorar: 1 saat / 8 saat / 1 gün /
+  3 gün / **sabahı bekle** (`hoursUntilDawn`).
+- `state.player.wait = { until }` (mutlak saat) + `status = 'waiting'`. `update`'in `timeFlows`
+  listesine girer, `advanceTime` çarpanı `timeScale × WAIT_SCALE` (**×4**) olur.
+- Sağ altta `#wait-ui` paneli: kalan süre, can, moral, 🚶 *Kampı Topla*.
+- **Kesilme tek kapıdan geçer**: `triggerEncounter`'ın ilk satırı `stopWait()` çağırır. Yani
+  NPC çarpışması da, ormandaki pusu da (`checkAmbush` → `triggerEncounter`) kampı bozar;
+  her karşılaşma yoluna ayrı yama gerekmez.
+- Han'da dinlenmek de artık bedava değil: `restAtTavern` 10 dinarın yanında **8 saat** yer.
+
+Ölçüldü (npc'siz harita, `dt = 0.05`): `startWait(24)` **24.2 oyun saati / 6.05 gerçek saniye**
+sürdü — aynı 24 saat yürüyerek 24 saniye, yani tam **×4**. Dirayet 10'la can 8 saatte bir
+yenilendiği için 24 saatte **+3 can** geldi. 200 birim ötedeki bir çapulcu çetesi kampı
+**10.8 saatte** bastı: `wait` null oldu, karşılaşma modali açıldı.
+
+### Şeref — ikinci itibar ekseni (#53 madde 1.5)
+
+Nam "ne kadar tanınıyorsun"u ölçer; şeref (`state.player.honor`, **−100..100**) "nasıl
+tanınıyorsun"u. Tek eksen: eski yağmacı damgası onun eksi tarafının etiketidir.
+
+| Eylem (`Game.HONOR`) | Şeref |
+|---|---|
+| Köy yağmalamak (`raid`) | **−12** |
+| Barıştaki kervanı soymak (`robPeace`) | −5 |
+| Köylü kafilesini soymak (`robPeasant`) | −8 |
+| Soylu esirden fidye (`ransom`) | −2 |
+| Soyluyu onurla salıvermek (`release`) | **+5** |
+| Kız kaçırma (`abduct`) | **−20** |
+| Sefer sözünü tutmamak (`oathBroken`) | −5 |
+| Görevi bitirmek (`questDone`) | +2 |
+
+Kademe (`honorTier` / `honorLabel`): ≥40 ⚜️ Şerefli, ≥15 🕊️ Sözünün Eri, ≤−10 🔥 Yağmacı,
+≤−36 💀 Köy Yakan. Günde **0.5** sıfıra doğru söner (iki yönlü).
+
+| Etki | Kural |
+|---|---|
+| Gönüllü ve ücret | `infamyPenalty()` = `−honor/100`, **−0.3 .. +0.6** — artı şeref köylüyü de getirir |
+| Paralı asker | `mercPrice` aynı çarpanla |
+| Soylu ağırlığı | `Nobles.standing` artık kademe değil **mizaç** okur: `Game.honorWeight(personality)` — iyi huylu `honor/40`, kurnaz `−honor/60`, sefih `−honor/90`, diğerleri `honor/55` (±2 ile sınırlı) |
+| Şölen | `Feast.HONOR_REQ = −30`: nam kapıyı açar, şeref kapıda tutar |
+| Köy yaşlısı | kademe 2'de dost köyde bile "çabuk git" (zaten #50'de vardı, şimdi şereften okuyor) |
+
+Ölçüldü: bir yağma −12 (🔥 Yağmacı), **beş yağma −60** (💀 Köy Yakan, ceza %60);
+gönüllü/ücret 8 kişi–10₺ → **3 kişi–16₺**, lvl 12 paralı asker 204 → **326 dinar**;
+şeref +30/+60'ta **10 kişi–7₺** ve **143 dinar**. −60 şeref **119 günde** sıfıra döndü.
+Aynı −60 şeref iyi huylu lordda `standing` **−1**, kurnaz ve sefih lordda **+1** —
+şerefsiz adamın kurnaz lordun salonunda sözü daha çok geçer.
+
+### Kan davası — dünya seni hatırlar (#53 madde 1.3)
+
+`state.grudges[lordId] = başladığı gün`; `GRUDGE_DAYS = 30`. Köyünü yaktığın lord
+(`grantRaidLoot`), kervanını soyduğun bölgenin en yakın lordu (`robTrader` →
+`addGrudgeNearest`) ve fidyeye bağladığın soylu (`ransomLord`) sana kan davası açar.
+Onurla salıvermek (`releaseLord`) davayı **siler**.
+
+- `isHostile(npc)` ilk satırı: kan davalı lord savaş/ilişki şartına bakmadan **saldırır**.
+- `updateNPCs`'te kan davalı lord yeni hedef seçerken **%50** ihtimalle evine değil
+  **senin üstüne** yürür; `npc.hunting = oyuncu adı` olduğu için harita künyesinde
+  "🎯 Peşinde: …" satırı çıkar. Dava bitince `hunting` silinir.
+- Süresi dolan davalar `dailyUpdate`'te `state.grudges`'tan atılır; diplomasi ekranında
+  (**K**) "🩸 Kan Davaları" başlığı kaç gün kaldığını yazar.
+
+Ölçüldü (tek lorda dava açıp 30 gün sim, saatte bir örnek): lord partisi **720 saatin
+674'ünde** 1200 birim içinde kaldı, mesafe **0'a** kadar indi (gerçek döngüde bu
+karşılaşma demek), 693 saat boyunca `hunting` alanı doluydu; **31. gün** dava silindi.
+
+### Servet ölçekli tehdit (#53 madde 1.3)
+
+`Game.threatLevel()` = `round(√(asker seviyeleri toplamı + oyuncu seviyesi) / 2)`.
+`battle.js`'te düşman seviyesi artık yalnız takvime bakmıyor:
+haydut `max(1 + gün/30, tehdit − 1)`, fraksiyon ordusu `max(5 + gün/15, tehdit + 3)`.
+Rimworld'ün "baskın puanı = koloni serveti" kuralının en ucuz hâli.
+
+Ölçüldü: tek başına gezen oyuncu **1**, 10 acemi **2**, 20×lvl10 **7**, 40×lvl20 **14**,
+60×lvl30 **21**. 20. günde 20×lvl10 ordu 20 çapulcuya karşı otomatik çözümde ortalama
+kaybı **0.6 → 1.7 asker** (15/15 zafer) — güçsüz oyuncuyu ezmiyor, güçlü oyuncuyu
+çapulcu avına gömmüyor.
+
+### Hedef zinciri — `AMBITIONS` (#53 madde 1.4)
+
+Battle Brothers'ın "ambition"ı: aynı anda **tek** aktif hedef, tamamlanınca ödül ve yeni
+hedefler. Tamamı veri (`Game.AMBITIONS`), koşullar `state`'i okur — olay dinlemez, günlük
+`ambitionTick()` ve Görevler sekmesi aynı `check`'i çağırır.
+
+| Hedef | Koşul | Ödül | Açtığı |
+|---|---|---|---|
+| Küçük bir bölük | grup ≥ 10 | +5 nam | Turnuva şampiyonu, Bir lordun dostu |
+| Turnuva şampiyonu | `tourneyWins > 0` | +10 nam, +500 dinar | Toprak sahibi |
+| Bir lordun dostu | herhangi ilişki ≥ 30 | +5 nam | Yeminli |
+| Yeminli | bağlılık yemini | +15 nam | Kan bedeli, Toprak sahibi |
+| Kan bedeli | açtığın bütün kan davaları kapandı | +10 nam, +5 şeref | — |
+| Toprak sahibi | tımar ≥ 1 | +20 nam | — |
+
+Panel **Görevler** sekmesinin (Q) en üstünde durur: seçili hedef + vazgeç, ya da açık
+hedeflerin listesi. Ölçüldü: zincir baştan sona yürüyor — 4 hedef kapatınca **+35 nam**,
+her tamamlamada açık hedef listesi değişiyor (`band` → `champion`/`friend` → `sworn` → `feud`/`fief`).
+
+### İşletme ve tımar kasası (#53 madde 1.6 / 1.2)
+
+**İşletme** (`Game.buyEnterprise`, şehir ekranında 🏭): **3000 dinar**, günde
+`refah × 0.55`. `fiefIncome()`'un `trade` kalemi olarak günlük akışa girer ve hazine
+künyesinde satır olur. Şehirle savaştaysan kapı kapalıdır, **kazanç durur**
+(`enterpriseWorks`); mülk kaybolmaz. Kayda `loc.enterprise` olarak yazılır.
+Ölçüldü: refah 87'lik Tulga **+52 dinar/gün, 58 günde amorti**; refah 51'lik Narra
+**+28/gün, 108 gün**. Yani işletme "hangi şehir" sorusu olur.
+
+**Kasa** (`loc.treasury`, 📦 Depo ekranında): tımarına para yatırırsın, yenilgide
+yağmalanmaz. Yenilgi/teslim kaybı artık zar değil karar:
+`Game.defeatLootRatio()` = `0.6 + 0.3 × (1 − kasadaki pay)` ve yalnız **yanındaki keseye**
+işler. Ölçüldü (toplam 10 000 dinar): hepsi yanındayken oran 0.90, geriye **1 000** kalıyor;
+%90'ı kasadayken oran 0.63, geriye **9 370** kalıyor. Depo böylece gerçek bir sigorta olur.
 
 ## Görsel katman (renovasyon)
 

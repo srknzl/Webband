@@ -214,6 +214,14 @@
             <button class="btn" onclick="Game.abortRaid()">🚪 Yağmayı Bırak</button>
         </div>
     </div>
+    <!-- Kamp paneli: bekleme süresi ve iptal (#53 madde 1.1) -->
+    <div id="wait-ui" class="glass-panel hidden">
+        <h3>⏳ Kamp</h3>
+        <div id="wait-info"></div>
+        <div class="pr-actions" style="margin-top:0.6rem">
+            <button class="btn" onclick="Game.stopWait()">🚶 Kampı Topla</button>
+        </div>
+    </div>
     <!-- Hata rozeti (#55 madde 2): oyun sessizce ölmesin, konsolu açmayan da görsün -->
     <div id="err-badge" class="hidden" onclick="Debug.open()"></div>
     <!-- Modals -->

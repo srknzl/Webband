@@ -758,11 +758,11 @@ body {
    Hareketli tuvalin (harita/savaş) üstündeki panellerde bu her kare demek:
    ölçüldü, 344x513'lük savaş tuvalinde bile 54 fps / p95 33.3 ms -> 60 fps / p95 18.2 ms.
    Bu paneller camsı görünümü blur yerine daha opak zeminle koruyor. */
-#map-tooltip, #map-hud, #prisoner-ui, #siege-ui, #raid-ui, .battle-logs .log-msg {
+#map-tooltip, #map-hud, #prisoner-ui, #siege-ui, #raid-ui, #wait-ui, .battle-logs .log-msg {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }
-#map-tooltip, #prisoner-ui, #siege-ui, #raid-ui { background: rgba(12,14,18,0.93); }
+#map-tooltip, #prisoner-ui, #siege-ui, #raid-ui, #wait-ui { background: rgba(12,14,18,0.93); }
 
 /* Esaret paneli */
 #prisoner-ui {
@@ -807,6 +807,18 @@ body {
 #raid-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
 #raid-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
 #btn-escape-attempt { border-color: #ff6666; color: #ff6666; }
+
+/* Kamp paneli — yağma paneliyle aynı köşede, aynı ölçüde (#53) */
+#wait-ui {
+    position: fixed; right: 20px; bottom: 20px; z-index: 60;
+    width: 250px; padding: 0.8rem 0.9rem;
+    font-size: 0.82rem; line-height: 1.5;
+}
+#wait-ui h3 { margin: 0 0 0.5rem; color: #9fd0ff; font-size: 1rem; text-align: center; }
+#wait-info { color: var(--text-muted); }
+#wait-info b { color: #e8e2d4; }
+#wait-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+#wait-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
 
 /* Erzak rozeti: 3 günden az kaldıysa kırmızıya döner */
 #chip-food.warn { border-color: rgba(224,70,58,0.65); background: rgba(90,20,16,0.35); }

@@ -241,9 +241,10 @@ const Battle = {
                 if(i===0) enemyLvl = bossLevel;
                 else enemyLvl = Math.max(1, bossLevel - 10);
             } else if(!isBandit) {
-                enemyLvl = 5 + Math.floor(state.time.day / 15);
+                // Takvim mi, senin gücün mü — hangisi büyükse o (#53/1.3)
+                enemyLvl = Math.max(5 + Math.floor(state.time.day / 15), Game.threatLevel() + 3);
             } else {
-                enemyLvl = 1 + Math.floor(state.time.day / 30);
+                enemyLvl = Math.max(1 + Math.floor(state.time.day / 30), Game.threatLevel() - 1);
             }
 
             // Seviye artık sadece etikette değil, gerçekten güçlendiriyor
@@ -1735,7 +1736,8 @@ const Battle = {
             state.player.renown = Math.max(0, state.player.renown - renownLost);
 
             let daysLost = 3 + Math.floor(Math.random() * 5);
-            let ratio = 0.60 + Math.random() * 0.30;
+            // Kaybın oranı artık zar değil karar: tımar kasandaki pay onu düşürür (#53/1.2)
+            let ratio = Game.defeatLootRatio();
             let moneyLost = Math.floor(state.player.money * ratio);
             state.player.money = Math.max(0, state.player.money - moneyLost);
 
@@ -1965,6 +1967,7 @@ const TournamentMinigame = {
         }
         if(won) {
             state.player.money += 500; state.player.renown += 20;
+            state.player.tourneyWins = (state.player.tourneyWins || 0) + 1;   // hedef zinciri sayar (#53/1.4)
             state.pendingDedication = true;
             alert('Turnuvayı kazandın! +500 Dinar, +20 Nam' + betTxt + '\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.');
         } else {
