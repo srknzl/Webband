@@ -410,6 +410,7 @@ const Nobles = {
         let r = this.rel(id);
         let p = PERSONALITIES[n.personality];
         let line = this.greetLine(n, r);
+        let banter = this.retinueHtml(id);          // maiyet atışması (#59), replik bitince görünür
         Quests.emit('talked_to', { lordId: id });
 
         let html = `<div style="display:flex;gap:1.5rem;align-items:flex-start">
@@ -417,12 +418,13 @@ const Nobles = {
             <div style="flex:1">
                 <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
                 <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem">
-                    ${FACTIONS[n.faction].name} · ${p.name} · İlişki: ${this.relLabel(r)} (${r})
+                    ${FACTIONS[n.faction].name} · ${p.name} · ${this.traitOb(id).icon} ${this.traitOb(id).name} · İlişki: ${this.relLabel(r)} (${r})
                     <br>Gözünde ağırlığın: <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
                     <span style="opacity:0.7">(nam + ilişki + kapıya getirdiğin ordu)</span>
                     ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda ${Game.infamyTier() > 1 ? 'hiç' : 'zor'} geçer.</span>` : ''}
                 </div>
-                <p style="font-style:italic;color:#eee;line-height:1.5">${line}</p>
+                <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3em"></p>
+                ${banter}
             </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1.2rem">`;
@@ -466,6 +468,10 @@ const Nobles = {
         html += `<button class="btn" onclick="Game.closeModal()">Ayrıl</button></div>`;
 
         Game.showModal(html, '680px');
+        // Replik kademeli yazılır; maiyet ancak lord sözünü bitirince araya girer
+        let b = document.getElementById('lord-banter');
+        if(b) b.style.visibility = 'hidden';
+        Game.typeIn('lord-line', `"${line}"`, () => { if(b) b.style.visibility = 'visible'; });
     },
 
     recitePoemToLord(id) {
@@ -489,6 +495,232 @@ const Nobles = {
     },
     standingLabel(sc) {
         return ['Bir hiç', 'Tanınmayan', 'Adı duyulmuş', 'Saygı gören', 'Ünlü', 'Çekinilen'][sc + 1];
+    },
+
+    // ---------- Lord kişilikleri ve replik havuzu (#59) ----------
+    // Mizaç (PERSONALITIES) lordun ne yaptığını, karakter özelliği nasıl konuştuğunu belirler.
+    // Özellik kayda yazılmaz: id'nin hash'inden türer, yani her açılışta ve her eski
+    // kayıtta aynı lorda aynı huy düşer — göç kodu gerekmez.
+    LORD_TRAITS: {
+        proud:     { name: 'Kibirli',  icon: '\ud83e\udd9a' },
+        craven:    { name: 'Korkak',   icon: '\ud83d\udc01' },
+        cruel:     { name: 'Zalim',    icon: '\ud83d\udde1\ufe0f' },
+        jolly:     { name: 'Neşeli',   icon: '\ud83c\udf7a' },
+        greedy:    { name: 'Paragöz',  icon: '\ud83d\udcb0' },
+        honorable: { name: 'Onurlu',   icon: '\u269c\ufe0f' },
+        fawning:   { name: 'Dalkavuk', icon: '\ud83d\ude47' }
+    },
+    traitOf(id) {
+        let keys = Object.keys(this.LORD_TRAITS), str = String(id), h = 0;
+        for(let i = 0; i < str.length; i++) h = (h * 131 + str.charCodeAt(i)) % 1000003;   // 131: 23 lorda en dengeli dağılım (2-4)
+        return keys[h % keys.length];
+    },
+    traitOb(id) { return this.LORD_TRAITS[this.traitOf(id)]; },
+
+    // Ağırlık kademesi (-1..4) üç konuşma bandına iner:
+    // 0 = seni ciddiye almıyor, 1 = normal, 2 = çekiniyor/yağcılık yapıyor
+    band(sc) { return sc <= 0 ? 0 : sc <= 2 ? 1 : 2; },
+
+    // Replik havuzu: 'b0/b1/b2' anahtarları banda, diğerleri karakter özelliğine bağlı.
+    // greet'te özellik havuzu ayrıca banda göre üçe ayrılmıştır.
+    LORD_LINES: {
+        greet: {
+            proud: [
+                ['Bu salona girmeden önce ayakkabılarına baktın mı? Ben baktım.',
+                 'Konuş. Ama kısa konuş; öğleden sonra kendi portremi izleyeceğim.'],
+                ['Adını duydum. Bir kere. Belki iki — ikincisinde de ben söylüyordum.',
+                 'Otur. Ama o koltuğa değil, o benim büyükbabamın.'],
+                ['İkimiz de büyük adamız. Aramızdaki tek fark, benim daha eski olmam.',
+                 'Seni denk sayıyorum. Bunu kimseye söyleme, itibarım zedelenir.']
+            ],
+            craven: [
+                ['Silahın var mı? Yok değil mi? Yok de. Lütfen yok de.',
+                 'Kapıyı kapat... hayır, açık bırak. Açık ki kaçabileyim. Buyur, dinliyorum.'],
+                ['Otur, ama kapıya yakın otur. İkimiz için de iyi olur.',
+                 'Kötü haber getirmediysen konuş. Getirdiysen otur, önce bir su içeyim.'],
+                ['Ordunu saydım. İki kere saydım. Sonuç ikisinde de fena çıktı.',
+                 'Ne istersen. Gerçekten. Şu masa da senin olsun, ben zaten sevmezdim.']
+            ],
+            cruel: [
+                ['Zindanım dolu ama bir kişilik yer her zaman açılır. Sen ne diyordun?',
+                 'Adını unutacağım. Yüzünü unutmam — o meslek icabı.'],
+                ['İşini bitir de git. Akşam bir asmam var, geç kalmak istemem.',
+                 'Yararlı adamları severim. Yararsızlara ne yaptığımı köylülere sorabilirsin.'],
+                ['Sen olmasan çok rahat ederdim. Olduğun için, buyur otur.',
+                 'Seni sevmiyorum, yine de iyi davranıyorum. Bu benden büyük bir iltifat.']
+            ],
+            jolly: [
+                ['Hoş geldin! Kim olduğunu bilmiyorum ama içki bitmeden öğreniriz.',
+                 'Yeni bir yüz! Çavuşum yine kaybedecek, ben hep yeni yüzlere bahse girerim.'],
+                ['Gel gel! Şu peyniri dene, kokusu ağır ama karakteri var — sana benziyor.',
+                 'Anlat bakalım, yollarda kaç kişiyi darladın? Şaka. Yarısını anlat yeter.'],
+                ['İşte adam dediğin! Hizmetkâr, iyi şaraptan getir — hayır, çok iyi olanından.',
+                 'Seninle aynı masada olmak keyifli. Karşı masada olmak da bir o kadar pahalı.']
+            ],
+            greedy: [
+                ['Vaktim paradır. Sen ise şu ana kadar bedavaya konuşuyorsun.',
+                 'Kesene baktım, oradan bir ses gelmedi. Yine de dinliyorum.'],
+                ['Otur. Kadeh başına iki dinar, ama ilk yudum ikramımdır.',
+                 'Dostluk güzel şeydir. Faizli olanı daha da güzel.'],
+                ['Zengin adamla konuşmak bedava. Bu benim tek indirimim.',
+                 'Sen ticaret yolu gibisin: yanından geçmek bile kâr.']
+            ],
+            honorable: [
+                ['Adını bilmiyorum. Ama sözünü tutup tutmadığını öğreneceğim.',
+                 'Bir adamı kılıcından değil, borcundan tanırım. Anlat.'],
+                ['Hoş geldin. Doğru söyle, kısa söyle; ikimiz de kazanalım.',
+                 'Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.'],
+                ['Namın önünden yürüyor. Umarım arkasından da aynısı geliyordur.',
+                 'Seni denk görüyorum. Bu benim verebileceğim en pahalı şey.']
+            ],
+            fawning: [
+                ['Kimsiniz? Önemli birine benziyorsunuz... değil misiniz? Peki.',
+                 'Buyurun oturun. Yani otur. Yani... hangisi rahatsa.'],
+                ['Ah, ne güzel oldu gelmeniz! Tam da sizden bahsediyordum — iyi şeylerdi tabii.',
+                 'Sizi kralın sofrasında görmüştüm sanki. Görmediysem de göreceğim, eminim.'],
+                ['Efendim! Buyurun, baş köşe zaten sizin adınıza boş duruyordu.',
+                 'Ben hep sizin tarafınızdaydım. Sorarsanız herkes doğrular — sorulacaklarla konuştum.']
+            ]
+        },
+        chat: {
+            proud: ['Kralın yeni sancağını gördün mü? Rengi berbat. Benimkini kopyalasalar bu kadar konuşulmazdı.',
+                    'Şairler beni yeterince yazmıyor. Birine para verdim, üçüncü kıtada beni unuttu.'],
+            craven: ['Sur nöbetini iki katına çıkardım. Nöbetçiler için değil, benim uykum için.',
+                     'Kergitler at üstünde uyuyormuş. Ben yatakta bile uyuyamıyorum, bu nasıl adalet?'],
+            cruel: ['Vergiyi ödemeyen iki köylüyü kuleye astım. Üçüncüsü ödedi. Sistem işliyor.',
+                    'Merhamet pahalı bir maldır. Ambarımda ona yer yok.'],
+            jolly: ['Geçen ay domuz turnuvası düzenledim. Kazanan domuza çavuşumun adını verdim.',
+                    'Şarap bitince savaş başlar derler. Ben o yüzden mahzeni büyüttüm — barış budur.'],
+            greedy: ['Bir tüccar kadifeyi bana iki katına satmaya kalktı. Şimdi bana çalışıyor.',
+                     'Toprak iyidir de, faiz uyumuyor. Ben de uyumuyorum; ikimiz anlaşıyoruz.'],
+            honorable: ['Yeminimi bozduğumu söyleyene rastlarsan bana getir. Yüzleşmeyi severim.',
+                        'Kılıç kuşanmak kolay. Zor olan, kuşanmadan durabilmek.'],
+            fawning: ['Kral geçen gün bana baktı. Bakışında bir sıcaklık vardı. Belki güneş vuruyordu.',
+                      'Ben de tam sizin gibi düşünüyorum. Ne düşündüğünüzü söyleyin, aynısını düşüneyim.'],
+            b1: ['Bu aralar yollarda çapulcu kaynıyor. Kimin beslediğini merak ediyorum.',
+                 'Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak.',
+                 'Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor.'],
+            b2: ['Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz.',
+                 'Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın.',
+                 'Adamlarım seni konuşuyor, ben de dinliyorum. Bu benim için yeni bir durum.']
+        },
+        brush: {
+            proud: ['Hâl hatır mı? Benim hâlim iyi. Senin hatırın yok.'],
+            craven: ['Bilmiyorum, duymadım, görmedim. Başka bir şey var mı?'],
+            cruel: ['Konuşmak istiyorsan zindanda konuşan çok. Onlara katılabilirsin.'],
+            jolly: ['Seninle içerdim ama kadeh sayım belli. Adını duyunca bir tane fazla koyarım.'],
+            greedy: ['Sohbet bedava değil. Fiyatını da veremezsin; geç.'],
+            honorable: ['Tanımadığım adamla ahbaplık etmem. Tanınacak bir iş yap, sonra otur.'],
+            fawning: ['Ben şu an büyüklerle konuşuyorum... yani sonra. Siz de büyüksünüz tabii. Neyse.'],
+            b0: ['Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.',
+                 'Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.',
+                 'Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma.']
+        },
+        quest: {
+            proud: ['Sana bir iş vereceğim. Aklında tut, çünkü iki kere anlatmam.',
+                    'Bu iş benim seviyeme göre küçük. Yani tam sana göre.'],
+            craven: ['Bir iş var ama tehlikeli. Ben gidemem; sırtım tutuyor. Ve kalbim. Ve dizlerim.',
+                     'Sen gidersin, ben burada senin için endişelenirim. İş bölümü budur.'],
+            cruel: ['Bir iş var. Beceremezsen ne olacağını anlatmayayım, uyku düzenin bozulur.',
+                    'Bu işi bitir. Bitmezse bitirecek birini bulurum, sen de onu izlersin.'],
+            jolly: ['Bir işim var! Sıkıcı değil, söz. Yani biraz sıkıcı. Ama sonunda içki var.',
+                    'Şuna bak, tam sana göre. Kaybedersen de güzel bir hikâye olur.'],
+            greedy: ['İş var, para var. Benim payım büyük ama seninki de var.',
+                     'Ödemeyi peşin isteme. Peşin ödeyen adam iki kere ödemiş sayılır.'],
+            honorable: ['Bir işim var. Kabul edersen sözünü tut; tutamayacaksan şimdi reddet, kimse gücenmez.',
+                        'Bu iş kolay değil. Kolay olsa sana teklif etmezdim.'],
+            fawning: ['Küçücük bir ricam olacak, sizin gibi biri için hiç iş sayılmaz...',
+                      'Bunu kral duyarsa çok memnun olur. Sizin adınızı da anarım. Muhtemelen.'],
+            b0: ['Sana verecek doğru dürüst bir iş yok ama ayak işi her zaman var.',
+                 'Bunu adamlarıma versem gülerler. O yüzden sana veriyorum.',
+                 'Beceremezsen kimse şaşırmaz. Bu da bir tür özgürlük.'],
+            b2: ['Bunu senden rica ediyorum, emretmiyorum. Farkı ikimiz de biliyoruz.',
+                 'Bu işi sana veriyorum, çünkü başkası becerse kimsenin haberi olmaz.',
+                 'Kabul edersen herkese anlatırım. Etmezsen hiç konuşmadık.']
+        },
+        retort: {
+            proud: ['Bunu bir daha söyle. Hayır, söyleme. Kulağım kirlenir.'],
+            craven: ['Ben... ben de senin hakkında kötü şeyler düşünüyorum. İçimden.'],
+            cruel: ['Güzel. Artık seni öldürmek için sebebim var, bahaneye gerek kalmadı.'],
+            jolly: ['Ha ha! Bunu bir yere yazın. Sonra da adamı kapının önüne koyun.'],
+            greedy: ['Bu hakaretin bedelini faiziyle alırım. Faizi de yüksek tutarım.'],
+            honorable: ['Söylediğinin arkasında kılıcınla durabiliyor musun? Hayır mı? Öyleyse çık.'],
+            fawning: ['Ne dediniz? Yani... öyle demek istemediniz herhalde. Değil mi? Değil mi?']
+        },
+        // Maiyet atışması: [maiyetin repliği, lordun cevabı]
+        retinue: {
+            proud: [['Efendim, portrenizin boyası hâlâ kurumadı.', 'Kurusun. Sanat acele etmez; ben ederim.'],
+                    ['Misafirin adını deftere yazayım mı efendim?', 'Yaz. Silmesi kolay olur.']],
+            craven: [['Efendim, kapıda bir atlı var.', 'Kapat! ... Postacı mı? Yine de kapat.'],
+                     ['Zırhınızı getireyim mi efendim?', 'Getir ama giymem. Yanımda dursun, moral olur.']],
+            cruel: [['Efendim, zindandaki adam af diliyor.', 'Dilesin. Dilekçe güzel şeydir, arşivde tutarız.'],
+                    ['Köylüler vergiyi ödeyemiyor efendim.', 'Öyleyse iki şey ödesinler: vergi ve özür.']],
+            jolly: [['Efendim, mahzende üç fıçı kaldı.', 'Üç mü? Felaket. Savaş ilan et, seferde içeriz.'],
+                    ['Domuz yine bahçeye girdi efendim.', 'Bırak girsin. Misafirimiz var, kalabalık görünürüz.']],
+            greedy: [['Efendim, tüccar fiyatı düşürmüş.', 'Demek bir bildiği var. Al hepsini, iki katına satarız.'],
+                     ['Maaşımız bu ay gecikti efendim.', 'Gecikmedi, faizle bekliyor. Bana teşekkür edeceksin.']],
+            honorable: [['Efendim, düşman lordu pusuya düşürebiliriz.', 'Düşürebiliriz. Düşürmeyeceğiz. Sen kahvaltını et.'],
+                        ['Sözünüzü geri alsanız kârlı çıkardınız efendim.', 'Kârlı çıkmak için söz vermedim ki.']],
+            fawning: [['Efendim, kral mektubunuza cevap vermemiş.', 'Cevap vermemek de bir cevaptır. Olumlu bir cevap.'],
+                      ['Bu misafir önemli biri mi efendim?', 'Öyle davran. Yanılırsak da zararı yok.']],
+            b0: [['Efendim, salon soğuk.', 'Sohbet ısıtır. Odun atma, konuşana kulak ver.'],
+                 ['Yemek hazır efendim.', 'Bekletin. Bu adam ya kısa konuşur ya da yemek soğur.']],
+            b1: [['Bir haberci geldi efendim.', 'Sırasını beklesin. Haber bekler, misafir beklemez... genelde.'],
+                 ['Kılıcınızı bilettim efendim.', 'İyi. Umarım bu sohbette işime yaramaz.']],
+            b2: [['Muhasebeyi getireyim mi efendim?', 'Getirme. Bugün keyfim yerinde, bozmayalım.'],
+                 ['Efendim, köpek yine masaya çıktı.', 'Bırak otursun. Bu salondaki en dürüst konuk o.']]
+        }
+    },
+    RETAINERS: ['Yaşlı çavuş', 'Kâhya', 'Silahtar', 'Danışman', 'Genç uşak', 'Kâtip'],
+
+    // Son N replik tekrar seçilmez (Game.dailyEvent'teki desen). İki fark var:
+    // sayaç tür başına tutulur ve geriye bakış havuzun %60'ıyla sınırlıdır —
+    // 5 replikli bir havuza 12'lik süzgeç uygulanınca havuz boşalıyor ve
+    // seçim tamamen rastgeleye düşüyordu (ölçüldü: bitişik tekrar %16).
+    fresh(pool, kind = 'x') {
+        if(!pool.length) return null;
+        let mem = state.recentLines || (state.recentLines = {});
+        let recent = mem[kind] || (mem[kind] = []);
+        let keep = Math.max(1, Math.min(12, Math.floor(pool.length * 0.6)));
+        let key = x => JSON.stringify(x), tail = recent.slice(-keep);
+        let f = pool.filter(x => tail.indexOf(key(x)) < 0);
+        let use = f.length ? f : pool;
+        let out = use[Math.floor(Math.random() * use.length)];
+        recent.push(key(out));
+        if(recent.length > 12) recent.shift();
+        return out;
+    },
+    // Replik seçimi: türü + lordun karakter özelliği + oyuncunun ağırlık bandı
+    lineFor(kind, id, extra = []) {
+        let src = this.LORD_LINES[kind] || {}, b = this.band(this.standing(id));
+        let mine = src[this.traitOf(id)] || [];
+        if(kind === 'greet') mine = mine[b] || [];
+        return this.fresh(mine.concat(src['b' + b] || [], extra), kind + b);
+    },
+    // Maiyet atışması: her diyalogda değil, üçte bir ihtimalle araya girerler
+    retinueHtml(id) {
+        if(Math.random() > 0.34) return '';
+        let pair = this.lineFor('retinue', id);
+        if(!pair) return '';
+        let who = this.RETAINERS[Math.floor(Math.random() * this.RETAINERS.length)];
+        return `<div id="lord-banter" style="margin-top:0.6rem;font-size:0.86rem;color:var(--text-muted);border-left:2px solid var(--panel-border);padding-left:0.7rem">
+            <div><b>${who}:</b> <i>"${pair[0]}"</i></div>
+            <div style="margin-top:0.2rem"><b>${this.lord(id) ? this.lord(id).name : 'Lord'}:</b> <i>"${pair[1]}"</i></div>
+        </div>`;
+    },
+
+    // Tek repliklik modal: portre + yazı makinesiyle yazılan söz + not, sonra diyaloğa dönüş
+    say(id, line, note = '') {
+        let n = this.lord(id);
+        Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
+                ${this.portraitCss(n, 110)}
+                <div style="flex:1">
+                    <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
+                    <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3.2em"></p>
+                    ${note ? `<div style="font-size:0.85rem;color:var(--text-muted)">${note}</div>` : ''}
+                </div></div>
+            <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">Geri</button>`, '620px');
+        Game.typeIn('lord-line', `"${line}"`);
     },
 
     // Selamlama: önce husumet, sonra dostluk, sonra oyuncunun ağırlığı.
@@ -525,14 +757,13 @@ const Nobles = {
             'Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?'
         ]
     },
+    // Düz metin döner (tırnaksız): yazı makinesi textContent'e yazar (#59)
     greetLine(n, r) {
-        if(r <= -50) return `"Sen hâlâ nefes alıyor musun? Bir gün bu hatayı düzelteceğim."`;
-        if(r <= -15) return `"Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini."`;
-        if(r >= 60)  return `"Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya."`;
-        let pool = this.GREETS[String(this.standing(n.id))] || this.GREETS['0'];
-        // Aynı lordda aynı gün aynı repliği tekrarlama
-        let seed = (state.time.day * 7 + (n.id || '').length * 3) % pool.length;
-        return `"${pool[seed]}"`;
+        if(r <= -50) return 'Sen hâlâ nefes alıyor musun? Bir gün bu hatayı düzelteceğim.';
+        if(r <= -15) return 'Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini.';
+        if(r >= 60)  return 'Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya.';
+        // Karakter özelliği + ağırlık bandı havuzu; eski GREETS kademe havuzu da ekli kalır
+        return this.lineFor('greet', n.id, this.GREETS[String(this.standing(n.id))] || []);
     },
 
     smallTalk(id) {
@@ -550,31 +781,18 @@ const Nobles = {
         Game.trainAttr('int', 0.3);
 
         if(sc <= 0) {
-            let brush = [
-                `"Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz."`,
-                `"Bak evlat, ben her gelene ahbap olsam bu salonda oturacak yer kalmazdı."`,
-                `"Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle."`,
-                `"Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma."`
-            ];
-            alert(`${n.name}: ${brush[Math.floor(Math.random()*brush.length)]}\n\n` +
-                  `(Gözünde ağırlığın: ${this.standingLabel(sc)}${gain ? ` · ${gain} ilişki` : ' · ilişki değişmedi'})\n` +
-                  `Nam kazan, kalabalık bir orduyla gel — kapılar o zaman açılır.`);
-            return this.talk(id);
+            return this.say(id, this.lineFor('brush', id),
+                `Gözünde ağırlığın: <b>${this.standingLabel(sc)}</b>${gain ? ` · ${gain} ilişki` : ' · ilişki değişmedi'}<br>` +
+                `Nam kazan, kalabalık bir orduyla gel — kapılar o zaman açılır.`);
         }
 
-        let topics = [
-            `"${FACTIONS[n.faction].name}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor."`,
-            `"Bu aralar yollarda çapulcu kaynıyor. Kimin beslediğini merak ediyorum."`,
-            `"Duyduğuma göre ${LORDS[Math.floor(Math.random()*LORDS.length)].name} yine bir sınırda dolaşıyormuş."`,
-            `"Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak."`,
-            `"Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor."`
+        // Havuza dünyanın o günkü hâlinden iki replik daha eklenir
+        let world = [
+            `${FACTIONS[n.faction].name}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
+            `Duyduğuma göre ${LORDS[Math.floor(Math.random()*LORDS.length)].name} yine bir sınırda dolaşıyormuş.`
         ];
-        if(sc >= 3) topics.push(
-            `"Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz."`,
-            `"Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın."`);
-        alert(`${n.name}: ${topics[Math.floor(Math.random()*topics.length)]}\n\n` +
-              `(Gözünde ağırlığın: ${this.standingLabel(sc)} · +${gain} ilişki)`);
-        this.talk(id);
+        this.say(id, this.lineFor('chat', id, world),
+            `Gözünde ağırlığın: <b>${this.standingLabel(sc)}</b> · +${gain} ilişki`);
     },
 
     insult(id) {
@@ -584,8 +802,17 @@ const Nobles = {
         // Rakip krallıkların lordları bundan hoşlanır
         LORDS.filter(l => l.faction !== n.faction).forEach(l => this.addRel(l.id, 5));
         Game.updateTopBar();
-        alert(`Sen: "Senin soyağacın bir tereyağı fıçısına sığar ${n.name}."\n\n${n.name} mosmor kesildi.\n−15 ilişki, +2 nam. Rakip krallıkların lordları bunu duyunca keyiflendi (+5).`);
-        Game.closeModal();
+        // Cevap lordun karakter özelliğinden gelir (#59)
+        Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
+                ${this.portraitCss(n, 110)}
+                <div style="flex:1">
+                    <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
+                    <p style="font-style:italic;color:var(--text-muted)">Sen: "Senin soyağacın bir tereyağı fıçısına sığar ${n.name}."</p>
+                    <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3em"></p>
+                    <div style="font-size:0.85rem;color:var(--text-muted)">−15 ilişki, +2 nam. Rakip krallıkların lordları bunu duyunca keyiflendi (+5).</div>
+                </div></div>
+            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Ayrıl</button>`, '620px');
+        Game.typeIn('lord-line', `"${this.lineFor('retort', id)}"`);
     },
 
     // ---------- Hediye ----------

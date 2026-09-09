@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.59', date: '2026-09-09', name: 'Yol Kenarındakiler' };
+const VERSION = { no: '0.60', date: '2026-09-09', name: 'Lordun Dili' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -3886,7 +3886,38 @@ const Game = {
         });
         document.getElementById('modal-overlay').classList.remove('hidden');
     },
-    closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
+    closeModal() { this.skipType(); document.getElementById('modal-overlay').classList.add('hidden'); },
+
+    // --- YAZI MAKİNESİ (#59) ---
+    // Metin kademeli yazılır; herhangi bir tıklama ya da yeni bir çağrı onu tamamlar.
+    // Hareket azaltma açıksa (ya da sistem öyle diyorsa) hiç beklemez, tek karede basar.
+    typeIn(elId, text, then = null, cps = 60) {
+        this.skipType();
+        let el = document.getElementById(elId);
+        if(!el) return;
+        if(this.reduceMotion()) { el.textContent = text; if(then) then(); return; }
+        el.textContent = '';
+        let i = 0, step = 2;
+        this._type = { el, text, then, timer: setInterval(() => {
+            i += step;
+            el.textContent = text.slice(0, i);
+            if(i >= text.length) Game.skipType();
+        }, 1000 / (cps / step)) };
+        // Modalı açan tıklama hâlâ yayılıyor olabilir — dinleyici bir sonraki tur konur
+        setTimeout(() => {
+            if(!Game._type) return;
+            document.addEventListener('click', Game._typeSkip = () => Game.skipType());
+        }, 0);
+    },
+    skipType() {
+        let t = this._type;
+        if(this._typeSkip) { document.removeEventListener('click', this._typeSkip); this._typeSkip = null; }
+        if(!t) return;
+        clearInterval(t.timer);
+        this._type = null;
+        t.el.textContent = t.text;
+        if(t.then) t.then();
+    },
 
     // --- MARKET ---
     openMarket(loc) {

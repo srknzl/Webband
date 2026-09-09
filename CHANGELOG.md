@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.60 — Lordun Dili (2026-09-09)
+
+- **Her lordun bir de huyu var**: kibirli, korkak, zalim, neşeli, paragöz, onurlu, dalkavuk.
+  Diyalog başlığında yazar ve ağzından çıkanı belirler.
+- **Aynı lord sen güçlendikçe başka konuşur**: kapıda tersleyen adam, ordunla geldiğinde
+  yer gösterip yağcılık yapmaya başlar.
+- 119 yeni replik: selam, sohbet, tersleme, görev teklifi, hakarete cevap. Aynı replik
+  kısa aralıkla bir daha çıkmaz.
+- **Maiyet araya giriyor**: kâhya, silahtar ya da yaşlı çavuş bir laf atıyor, lord cevap veriyor.
+- Replikler **kademeli yazılıyor**; tıklayınca anında tamamlanır (hareket azaltma açıksa hiç beklemez).
+
 ## 0.59 — Yol Kenarındakiler (2026-09-09)
 
 - **Arazide keşfedilecek yerler var**: harabe, terk edilmiş çiftlik, gözetleme kulesi,

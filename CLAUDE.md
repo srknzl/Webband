@@ -679,6 +679,58 @@ kontrolünü 420 birim yarıçapla yapar.
 - **Karşılaşma**: düşman olmayan bir soylunun partisine çarpmak savaş değil, diyalog açar
   (`Game.triggerEncounter` içindeki `npc.lordId` dalı).
 
+### Lord kişilikleri ve replik havuzu (#59)
+
+Mizaç (`PERSONALITIES`) lordun **ne yaptığını** belirler (hangi hediyeyi sever, hangi görevi
+verir, drahoma çarpanı). Ona ek olarak her lordun **nasıl konuştuğunu** belirleyen bir
+karakter özelliği vardır (`Nobles.LORD_TRAITS`): 🦚 Kibirli, 🐁 Korkak, 🗡️ Zalim, 🍺 Neşeli,
+💰 Paragöz, ⚜️ Onurlu, 🙇 Dalkavuk.
+
+Özellik **kayda yazılmaz**: `Nobles.traitOf(id)` lordun id'sinin hash'inden türer
+(`h = h*131 + kod`), yani her açılışta ve bütün eski kayıtlarda aynı lorda aynı huy düşer —
+göç kodu, yeni `state` alanı, `Save` değişikliği yok. Ölçüldü (23 lord): çarpan 131 ile
+dağılım **2–4** (7 özelliğin hepsi çıkıyor); ilk denenen 31 ile **1–6** idi.
+
+**Havuz** `Nobles.LORD_LINES`, türe göre bölünmüş: `greet` (selam), `chat` (hâl hatır),
+`brush` (tersleme), `quest` (görev teklifinin ön sözü), `retort` (hakarete cevap),
+`retinue` (maiyet atışması, `[maiyetin sözü, lordun cevabı]` çifti).
+Ölçüldü: **119 replik** (greet 42, chat 20, brush 10, quest 20, retort 7, retinue 20 çift =
+40 cümle) + eski `GREETS` kademe havuzunun 18 satırı, toplam **137 seçilebilir kayıt**.
+
+Seçim üç süzgeçten geçer (`Nobles.lineFor(kind, id, extra)`):
+
+| Süzgeç | Kaynak |
+|---|---|
+| Karakter özelliği | `LORD_LINES[kind][traitOf(id)]` |
+| Oyuncunun ağırlığı | `band(standing(id))` → **0** ciddiye almıyor / **1** normal / **2** çekiniyor–yağcılık. `greet`'te özellik havuzu da banda göre üçe ayrılmıştır, diğerlerinde `b0/b1/b2` havuzu eklenir |
+| Bağlam | çağıran yer `extra` ile o anki dünyadan replik ekler (sohbette fraksiyonun vergisi, rastgele bir lordun adı) |
+
+Nam, ilişki ve kapıya getirdiğin ordu `standing`'e girdiği için **aynı lordun üslubu oyuncu
+güçlendikçe değişir**. Ölçüldü (Neşeli bir lord, ilişki 0): nam 0 / 1 kişi → *"Sen de kimsin?
+Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil."*; nam 600 / 80 kişi →
+*"Ordunu kapımın önünde gördüm. Dostça geldiğini varsayıyorum... değil mi?"*
+
+**Tekrar süzgeci** `Nobles.fresh(pool, kind)` — `Game.dailyEvent`'in "son N" deseni, iki farkla:
+sayaç **tür+bant başına** tutulur (`state.recentLines`) ve geriye bakış **havuzun %60'ı**
+kadardır. Sabit 12'lik pencere küçük havuzu tamamen boşaltıyor ve seçim rastgeleye düşüyordu.
+Ölçüldü (5 replikli havuz, 300 çekiliş): süzgeçle **bitişik tekrar 0**, üç çekilişlik pencerede
+tekrar **0**; süzgeçsiz **66 (%22)** ve **141 (%47)**.
+
+**Maiyet atışması**: `Nobles.retinueHtml(id)` her diyalogda değil, **%34** ihtimalle araya girer;
+konuşan `RETAINERS`'tan rastgele biridir (Yaşlı çavuş / Kâhya / Silahtar / Danışman / Genç uşak /
+Kâtip) ve lordun cevabıyla birlikte iki satır olarak lordun repliğinin altında durur.
+
+**Yazı makinesi** `Game.typeIn(elId, text, then, cps)` / `Game.skipType()` — `textContent`'e
+karakter karakter yazar (kısmi HTML etiketi ihtimali yok). Tek seferde tek metin yazılır:
+yeni çağrı, modalın kapanması ya da **herhangi bir tıklama** onu tamamlar ve `then` kancasını
+çalıştırır (maiyet atışması bu kancayla görünür olur). `Game.reduceMotion()` açıksa hiç
+beklemez. Ölçüldü: 44 karakter **781 ms** (~56 karakter/sn), tıklama 12. karakterde metni
+tamamladı, hareket azaltmada 48 karakter **tek karede** yazıldı.
+
+Bağlandığı yerler: `Nobles.talk` (selam + maiyet + başlıkta özellik rozeti), `Nobles.smallTalk`
+(artık `alert` değil, portreli `Nobles.say` modali), `Nobles.insult` (lordun cevabı),
+`Quests.offerMenu` (lordun ön sözü; lonca ustasının karakter özelliği yoktur, ona çıkmaz).
+
 ### Flört ve evlilik
 - **Kadın oyuncuda hedef leydiler değil bekâr lordlardır** (`SUITORS`): her kral olmayan lord
   `suitor_<lordId>` kimliğiyle "leydi şeklinde" sarılır — vasisi kendi kralı, huyu mizacından

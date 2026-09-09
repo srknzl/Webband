@@ -479,8 +479,10 @@ const Quests = {
                 ${Nobles.portraitCss(giver, 110)}
                 <div style="flex:1">
                     <h3 style="margin:0">📜 ${def.title}</h3>
-                    <div style="font-size:0.8rem;color:var(--text-muted)">${giver.name} · süre ${def.days} gün</div>
+                    <div style="font-size:0.8rem;color:var(--text-muted)">${giver.name} · süre ${def.days} gün${
+                        giver.isGuild ? '' : ` · ${Nobles.traitOb(giverId).icon} ${Nobles.traitOb(giverId).name}`}</div>
                 </div></div>
+            ${giver.isGuild ? '' : `<p id="lord-line" style="margin-top:1rem;font-style:italic;color:var(--primary);min-height:1.5em"></p>`}
             <p style="margin-top:1rem;line-height:1.6;font-style:italic">${def.offer(q, giver)}</p>
             <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:1rem;font-size:0.9rem">
                 Ödül: <b style="color:#ffcc00">${def.reward.money} dinar</b> ·
@@ -491,6 +493,8 @@ const Quests = {
                 <button class="btn primary" onclick="Quests.accept()">Kabul Ediyorum</button>
                 <button class="btn" onclick="Quests.decline('${giverId}')">Reddet</button>
             </div>`, '680px');
+        // Lordun ön sözü: karakter özelliği + oyuncunun ağırlığı (#59)
+        if(!giver.isGuild) Game.typeIn('lord-line', `"${Nobles.lineFor('quest', giverId)}"`);
     },
 
     // Belirli bir lorddan zorla görev üret (drahoma görevi için)
