@@ -85,6 +85,7 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
 - Yollar: doğal güzergâhlı, türlü ve kavşaklı bir ağ (`state.roads`, `state.bridges`) —
   bkz. "Yol ağı (#56)".
 - Nehirler (`RIVERS`) ve ormanlar (`FORESTS`) sabit koordinatlı.
+- Keşif noktaları (`state.sites`): harabe, çiftlik, kule, mağara, kamp — bkz. "Terk edilmiş yapılar (#58)".
 - **Orman oynanışa etki eder**: ormandaki düşman normal görüşle görünmez
   (`Game.spotRange(npc)` = görüş × `min(0.9, 0.25 + Gözcülük×3% + Yol Bulma×2%)`; temel
   yeteneklerle 500 → 125 birim). Render, künye ve tıklama tek `Game.canSee(npc)` kontrolünden
@@ -240,6 +241,59 @@ kutu elemesi kondu ve `sqrt` karşılaştırması kareye çevrildi; yine de ça�
 
 *(Kayıt: `state.roads` ve `state.bridges` `state` ile birlikte yazılır. `#56` öncesi
 kayıtlarda parçaların `kind`'ı yoktur — `Save.apply` bunu görüp ağı baştan örer.)*
+
+### Terk edilmiş yapılar ve keşif noktaları (#58)
+Arazi eskiden yalnız yerleşimlerden ve düşmanlardan ibaretti; iki şehir arası bomboş yol
+demekti. Şimdi haritada **14 keşif noktası** var (`state.sites`, 5 tür). `LOCATIONS`'a
+girmezler — kendi hafif dizileri vardır — ama `type: 'site'` taşıdıkları için hedefleme
+ve varış makinesi (`setTarget` → `update` → `enterLocation`) onları **tek satırlık bir
+kapıyla** taşır: `enterLocation`'ın ilk satırı `if(loc.type === 'site') return this.enterSite(loc)`.
+Yani ekran değil modal açılır, ayrı bir hareket/varış kodu yazılmadı.
+
+**Dağıtım** (`spawnSites`): yerleşimlerden ve birbirlerinden en az `SITE_MIN_GAP` = **520**
+birim uzak, kıtanın içinde. Ölçüldü (200 dünya): yerleşime en yakın nokta en kötü **520**
+medyan 539, iki nokta arası en kötü **522** medyan 581, kıta dışına düşen **0**.
+
+| Tür | Yenilenme | Sonuç havuzu (ölçüldü, 2000 zar) |
+|---|---|---|
+| 🏚️ Harabe | **tek kullanımlık** (araştırılınca haritadan silinir) | para %31, pusu %30, ekipman %20, boş %19 |
+| 🌾 Terk Edilmiş Çiftlik | 25 gün | erzak %46, asker %22, boş %22, pusu %11 |
+| 🗼 Gözetleme Kulesi | 12 gün | uzağı gör %55, boş %24, para %11, tuzak %10 |
+| 🕳️ Mağara | 30 gün | pusu %40, para %21, tuzak %20, ekipman %19 |
+| ⛺ Terk Edilmiş Kamp | 15 gün | erzak %23, para %22, sığınak %21, pusu %21, boş %12 |
+
+Sonuçlar (`Game.SITE_OUTCOMES`) **günlük olay havuzuyla aynı desende** yazıldı: `when`
+süzgeci + metin döndüren `run`. `recruit` yalnız grup kapasitesi varsa havuza girer.
+Ağırlıklar toplamında **%57 ödül, %28 risk, %15 boş** — sonuç girmeden bilinmez, ama
+tür bir ipucudur: mağara ve harabe kumar, çiftlik ve kamp görece güvenli.
+
+| Sonuç | Ne yapar |
+|---|---|
+| `coin` | 60–220 dinar |
+| `gear` | rastgele silah/zırh envantere |
+| `food` | 3–8 tahıl/peynir/et |
+| `shelter` | moral +4 |
+| `recruit` | bölgenin köylüsü gruba katılır (kapasite varsa) |
+| `scout` | 700 birimden uzaktaki en yakın grup **haritaya işaretlenir** — "nerede?" mekaniğinin `state.knownLocations` işareti, 3 gün sonra `Nobles.dailyTick` kendiliğinden siler |
+| `trap` | 8–25 can |
+| `ambush` | noktanın türüne göre çete doğar (mağara → kurt, harabe → dağ eşkıyası, diğeri → çapulcu) ve `triggerEncounter(npc, 'ambush')` |
+| `empty` | üç ayrı boş bulma repliği |
+
+Pusu sonucunun savaşı modalin **kapanışında** açılır: `run` bir `then` döndürür,
+`Game.siteDone()` modali kapatıp onu çalıştırır — yoksa savaş modali sonuç metnini eziyordu.
+
+Yenilenme tek alanla çözülür (`kind.renew`): **0 = tek kullanımlık** (nokta silinir),
+değilse `usedDay`'den o kadar gün sonra yeniden dolar. Ölçüldü: harabe araştırılınca
+14 → 13 nokta, mağara 100. günde araştırıldı → 129. günde hâlâ kapalı, **130. günde açık**.
+Araştırılmış ama silinmemiş nokta haritada **soluk** çizilir ve künyesi kaç gün önce
+boşaltıldığını yazar.
+
+Etiket yalnız `zoom > 0.18`'de çizilir — 14 uzun ad kıta görünümünde yerleşim adlarını
+eziyordu. Ölçüldü: 14 noktanın çizim maliyeti `renderMap` içinde ölçüm gürültüsünün altında
+(sitesiz 1.02–1.26 ms, siteli 1.12–1.16 ms).
+
+*(Kayıt: `state.sites` `state` ile birlikte yazılır, `usedDay` korunur. Eski kayıtlarda
+nokta yoktur — `Save.apply` içindeki `Game.ensureSites()` doldurur, `ensureTraders` gibi.)*
 
 ### Zaman & günlük döngü (`advanceTime` / `dailyUpdate`)
 Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken (veya esirken) akar

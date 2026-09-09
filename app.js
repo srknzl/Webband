@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.58', date: '2026-09-09', name: 'Kurallı Kıta' };
+const VERSION = { no: '0.59', date: '2026-09-09', name: 'Yol Kenarındakiler' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -614,6 +614,7 @@ const Game = {
         }
 
         this.layoutWorld();
+        this.spawnSites();
         this.spawnNPCs();
     },
 
@@ -724,6 +725,186 @@ const Game = {
         let kids = LOCATIONS.filter(l => l.type === 'village' && l.parentId === loc.id);
         return kids.length ? kids
             : LOCATIONS.filter(l => l.type === 'village' && !l.parentId && this.dist(l, loc) < 900);
+    },
+
+    // --- TERK EDİLMİŞ YAPILAR VE KEŞİF NOKTALARI (#58) ---
+    // Harita yalnızca yerleşimler ve düşmanlardan ibaret olmasın: arazide üstüne
+    // gidilebilen, sonucu önceden bilinmeyen noktalar. LOCATIONS'a girmezler
+    // (`state.sites`), ama `type:'site'` taşıdıkları için hedefleme/varış makinesi
+    // (setTarget → update → enterLocation) tek satırlık bir kapıyla onları da taşır.
+    SITE_COUNT: 14,
+    SITE_MIN_GAP: 520,          // yerleşimden ve birbirinden en az bu kadar uzak
+
+    // renew: kaç günde bir yeniden dolar; 0 = tek kullanımlık (araştırılınca haritadan silinir)
+    SITE_KINDS: {
+        ruin:  { icon: '🏚️', name: 'Harabe', renew: 0,
+                 desc: 'Adını kimsenin hatırlamadığı bir kalenin devrilmiş duvarları.',
+                 pool: { coin: 3, gear: 2, ambush: 3, empty: 2 } },
+        farm:  { icon: '🌾', name: 'Terk Edilmiş Çiftlik', renew: 25,
+                 desc: 'Kapısı açık kalmış bir ambar; tarlayı ot basmış.',
+                 pool: { food: 4, recruit: 2, empty: 2, ambush: 1 } },
+        tower: { icon: '🗼', name: 'Gözetleme Kulesi', renew: 12,
+                 desc: 'Yıllar önce nöbet tutulan bir kule. Merdiveni hâlâ sağlam görünüyor.',
+                 pool: { scout: 5, coin: 1, empty: 2, trap: 1 } },
+        cave:  { icon: '🕳️', name: 'Mağara', renew: 30,
+                 desc: 'Ağzından soğuk hava geliyor. İçeride bir şeyin yaşadığı belli.',
+                 pool: { coin: 2, gear: 2, ambush: 4, trap: 2 } },
+        camp:  { icon: '⛺', name: 'Terk Edilmiş Kamp', renew: 15,
+                 desc: 'Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.',
+                 pool: { coin: 2, food: 2, shelter: 2, ambush: 2, empty: 1 } }
+    },
+
+    // Sonuçlar günlük olay havuzuyla (DAY_EVENTS) aynı desende: `when` süzgeci +
+    // `run` metni. Ödül mü risk mi olduğu araştırmadan önce belli değildir.
+    SITE_OUTCOMES: {
+        coin: { run(s) {
+            let n = 60 + Math.floor(Math.random() * 160);
+            state.player.money += n;
+            return { html: `Devrilmiş bir taşın altında toprağa gömülü küçük bir kese buldun.<br><b>+${n} dinar</b>.` };
+        }},
+        gear: { run(s) {
+            let ids = ['sword','axe','mace','lance','bow','shield','mail'];
+            let id = ids[Math.floor(Math.random() * ids.length)];
+            Game.addItem(id, 1);
+            return { html: `Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${ITEMS[id].icon} ${ITEMS[id].name}</b>.<br>Envanterine girdi.` };
+        }},
+        food: { run(s) {
+            let id = ['wheat','cheese','meat'][Math.floor(Math.random() * 3)], n = 3 + Math.floor(Math.random() * 6);
+            Game.addItem(id, n);
+            return { html: `Ambarın bir köşesi farelerden kurtulmuş.<br><b>+${n} ${ITEMS[id].name}</b>.` };
+        }},
+        shelter: { run(s) {
+            Game.addMorale(4);
+            return { html: `Adamlar bir gece olsun çadır kurmadan, hazır barakada uyudu.<br>Moral <b>+4</b>.` };
+        }},
+        recruit: {
+            when: () => state.player.party.length + 1 < Game.getPartyCapacity(),
+            run(s) {
+                let near = LOCATIONS.slice().sort((a, b) => Game.dist(a, s) - Game.dist(b, s))[0];
+                let name = Game.recruitName(near);
+                state.player.party.push({ id: 'troop_' + Math.random().toString(36).substr(2, 9),
+                    name, level: 1, xp: 0, xpNext: 3, type: 'infantry' });
+                return { html: `Samanlıkta saklanan bir <b>${name}</b> çıktı karşına. Gidecek yeri yokmuş, gruba katıldı.` };
+            }
+        },
+        scout: { run(s) {
+            // Kuleden bakınca uzaktaki bir grup görünür — "nerede?" mekaniğinin işaretini
+            // kullanır, yani 3 gün sonra Nobles.dailyTick kendiliğinden siler.
+            let far = state.npcParties.filter(n => Game.dist(n, s) > 700)
+                                      .sort((a, b) => Game.dist(a, s) - Game.dist(b, s))[0];
+            if(!far) return { html: 'Ufukta kıpırdayan bir şey yok. Boşuna tırmandın.' };
+            state.knownLocations[s.id] = { x: far.x, y: far.y, radius: 200,
+                day: state.time.day, name: far.name, live: false };
+            Game.addProficiencyXp('spotting', 40);
+            return { html: `Kuleden bakınca toz bulutu gördün: <b>${far.name}</b>.<br>📍 Haritaya bir işaret düştü (3 gün geçerli).` };
+        }},
+        trap: { run(s) {
+            let dmg = 8 + Math.floor(Math.random() * 18);
+            let st = state.player.stats;
+            st.hp = Math.max(1, st.hp - dmg);
+            return { html: `Çürük döşeme ayağının altında çöktü. Aşağıdaki taşlara kadar yuvarlandın.<br><b>−${dmg} can</b>.` };
+        }},
+        empty: { run(s) {
+            let lines = ['İçeride senden önce gelenlerin izinden başka bir şey yok.',
+                         'Ne varsa yıllar önce taşınmış. Boşuna zahmet.',
+                         'Tek bulduğun, kimin olduğu belli olmayan bir çift eski çizme.'];
+            return { html: lines[Math.floor(Math.random() * lines.length)] };
+        }},
+        ambush: { run(s) {
+            let kind = s.kind === 'cave' ? 'wolf' : s.kind === 'ruin' ? 'mountain' : 'bandit';
+            return {
+                html: `İçeriden çıkan sesi duyduğunda geç kalmıştın — burası boş değilmiş.`,
+                then() {
+                    let npc = Game.spawnBand(kind);
+                    npc.x = npc.targetX = s.x; npc.y = npc.targetY = s.y;
+                    Game.triggerEncounter(npc, 'ambush');
+                }
+            };
+        }}
+    },
+
+    pickWeighted(pool) {
+        let tot = 0;
+        for(let k in pool) tot += pool[k];
+        let r = Math.random() * tot;
+        for(let k in pool) { r -= pool[k]; if(r <= 0) return k; }
+    },
+
+    spawnSites() {
+        state.sites = [];
+        let kinds = Object.keys(this.SITE_KINDS);
+        for(let i = 0; i < this.SITE_COUNT; i++) {
+            for(let k = 0; k < 200; k++) {
+                let a = Math.random() * Math.PI * 2;
+                let R = this.getMapRadius(4500 + Math.cos(a), 4500 + Math.sin(a));
+                let d = R * (0.15 + Math.random() * 0.75);
+                let p = { x: 4500 + Math.cos(a) * d, y: 4500 + Math.sin(a) * d };
+                let clear = LOCATIONS.every(l => this.dist(l, p) >= this.SITE_MIN_GAP)
+                         && state.sites.every(o => this.dist(o, p) >= this.SITE_MIN_GAP);
+                if(!clear && k < 199) continue;
+                state.sites.push({ id: 'site_' + i, kind: kinds[i % kinds.length], type: 'site',
+                    name: this.SITE_KINDS[kinds[i % kinds.length]].name, x: p.x, y: p.y, usedDay: null });
+                break;
+            }
+        }
+    },
+    ensureSites() { if(!(state.sites || []).length) this.spawnSites(); },
+
+    // Araştırılmış nokta yenilenene kadar boştur (renew 0 ise zaten silinmiştir)
+    siteReady(s) {
+        let k = this.SITE_KINDS[s.kind];
+        return !s.usedDay || (k.renew > 0 && state.time.day - s.usedDay >= k.renew);
+    },
+
+    enterSite(s) {
+        let k = this.SITE_KINDS[s.kind];
+        let ready = this.siteReady(s);
+        this.showModal(`<h3>${k.icon} ${k.name}</h3>
+            <p style="font-style:italic;color:var(--text-muted)">${k.desc}</p>
+            <p>${ready ? 'İçeride ne olduğunu ancak girince öğrenirsin.'
+                       : `Burayı ${this.agoText(s.usedDay)} altını üstüne getirdin; daha toparlanmamış.`}</p>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem">
+                ${ready ? `<button class="btn primary" onclick="Game.investigateSite('${s.id}')">🔍 Araştır</button>` : ''}
+                <button class="btn" onclick="Game.closeModal()">🚪 Yoluna Devam Et</button>
+            </div>`);
+    },
+
+    investigateSite(id) {
+        let s = (state.sites || []).find(x => x.id === id);
+        if(!s || !this.siteReady(s)) return this.closeModal();
+        let k = this.SITE_KINDS[s.kind];
+        let pool = {};
+        for(let key in k.pool) {
+            let o = this.SITE_OUTCOMES[key];
+            if(!o.when || o.when(s)) pool[key] = k.pool[key];
+        }
+        let r = this.SITE_OUTCOMES[this.pickWeighted(pool)].run(s);
+        s.usedDay = state.time.day;
+        if(!k.renew) state.sites = state.sites.filter(x => x !== s);
+        this.addProficiencyXp('spotting', 20);
+        this.updateTopBar();
+        this._siteThen = r.then || null;
+        this.showModal(`<h3>${k.icon} ${k.name}</h3><p>${r.html}</p>
+            <button class="btn primary" style="margin-top:1rem" onclick="Game.siteDone()">Tamam</button>`);
+    },
+
+    siteDone() {
+        let f = this._siteThen;
+        this._siteThen = null;
+        this.closeModal();
+        if(f) f();
+    },
+
+    agoText(day) {
+        let n = state.time.day - day;
+        return n <= 0 ? '<b>bugün</b>' : `<b>${n} gün önce</b>`;
+    },
+
+    siteTipHtml(s) {
+        let k = this.SITE_KINDS[s.kind];
+        return `<i>${k.desc}</i><br>${this.siteReady(s)
+            ? '🔍 Henüz araştırılmadı'
+            : `✔️ ${this.agoText(s.usedDay)} araştırıldı${k.renew ? ` (${k.renew} günde bir yenilenir)` : ''}`}`;
     },
 
     // --- YOL AĞI (#56) ---
@@ -3298,6 +3479,22 @@ const Game = {
 
         ctx.restore(); // kıta clip'i biter
 
+        // Keşif noktaları (#58): yerleşimden küçük, soluk — dikkat çeker ama kalabalık etmez
+        (state.sites || []).forEach(site => {
+            let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = 30 * ik;
+            let fresh = this.siteReady(site);
+            ctx.beginPath();
+            ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+            ctx.globalAlpha = fresh ? 0.95 : 0.45;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+            ctx.font = big + 'px Arial';
+            ctx.fillText(k.icon, site.x, site.y + 10);
+            ctx.globalAlpha = 1;
+            // Etiket yalnız yakınlaşınca: 14 uzun ad kıta görünümünde yerleşim adlarını eziyordu
+            if(fresh && this.camera.zoom > 0.18) this.mapLabel(ctx, k.name, site.x, site.y - big*0.75 - 10, '#cbbf9a', '#8a7b52');
+        });
+
         // Draw locations
         LOCATIONS.forEach(loc => {
             let fc = FACTIONS[loc.faction] || {color:'#888'};
@@ -3500,6 +3697,14 @@ const Game = {
                 }
             }
         }
+        if(!found) {
+            for(let site of (state.sites || [])) {
+                if(this.dist(site, {x:mx,y:my}) < 30) {
+                    found = { name: this.SITE_KINDS[site.kind].icon + ' ' + site.name, sub: this.siteTipHtml(site) };
+                    break;
+                }
+            }
+        }
 
         if(found) {
             tooltip.innerHTML = `<strong>${found.name}</strong><br>${found.sub}`;
@@ -3555,6 +3760,9 @@ const Game = {
                 state.player.targetLocation = { ...npc, isNpc: true }; state.player.status = 'moving'; return;
             }
         }
+        for(let site of (state.sites || [])) {
+            if(this.dist(site, m) < 30) { state.player.targetLocation = site; state.player.status = 'moving'; return; }
+        }
         state.player.targetLocation = { x: m.x, y: m.y, name: 'Hedef Bölge', type: null };
         state.player.status = 'moving';
     },
@@ -3569,6 +3777,7 @@ const Game = {
 
     // --- SETTLEMENT ---
     enterLocation(loc) {
+        if(loc.type === 'site') return this.enterSite(loc);   // keşif noktası (#58): ekran değil modal
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById('settlement-view').classList.add('active');
         document.getElementById('settlement-name').innerText = loc.name + (loc.type==='city'?' (Şehir)':loc.type==='castle'?' (Kale)':' (Köy)');
@@ -6184,6 +6393,7 @@ const Save = {
         Game.applyVassals();     // LORDS kayda yazılmaz, vassalların bayrağı burada geri kurulur
         Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
         Game.ensureTraders();    // eski kayıtlarda kervan/kafile yoktu
+        Game.ensureSites();      // eski kayıtlarda keşif noktası yoktu (#58)
         Game.startGameLoop();
     },
 

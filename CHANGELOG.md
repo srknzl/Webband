@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.59 — Yol Kenarındakiler (2026-09-09)
+
+- **Arazide keşfedilecek yerler var**: harabe, terk edilmiş çiftlik, gözetleme kulesi,
+  mağara ve terk edilmiş kamp. Üstüne git, gir, ne çıkacağını gör.
+- İçeriden **para, ekipman, erzak, yola katılan bir asker** çıkabilir — ya da **pusu**,
+  çürük döşeme, hiçbir şey. Kuleye tırmanınca uzaktaki bir grubu görüp haritana işaretlersin.
+- Harabe bir kez soyulur ve haritadan silinir; çiftlik, kule, mağara ve kamp zamanla
+  yeniden dolar.
+
 ## 0.58 — Kurallı Kıta (2026-09-09)
 
 - **Yerleşimler artık üst üste binmiyor**: her şehir/kale/köy çifti için bir asgari aralık var,
