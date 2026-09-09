@@ -881,3 +881,7 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     border-radius: 10px;
     box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.55), 0 4px 14px rgba(0, 0, 0, 0.4);
 }
+
+/* Görev ekranının parşömen zemini (#61): soluk gri `--text-muted` kahverengi kâğıt üstünde
+   3.2:1'e düşüyordu. Değişken ekrana özel sıcak açık tona çekilir — zemin kalır, yazı okunur. */
+#quests-view { --text-muted: #e6dcc2; }

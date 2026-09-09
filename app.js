@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.61', date: '2026-09-09', name: 'Şehrin Kapısı' };
+const VERSION = { no: '0.62', date: '2026-09-09', name: 'Parşömen ve Cephanelik' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -3054,6 +3054,7 @@ const Game = {
         this.renderSiegeUI();   // kuşatma paneli yalnız haritada durur
         this.renderRaidUI();    // yağma paneli de (#49)
         this.renderWaitUI();    // kamp paneli de (#53)
+        this.applyViewBg(screenId);   // tematik zemin, ekran başına bir kez (#61)
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
@@ -4117,14 +4118,189 @@ const Game = {
     // --- İÇ MEKÂN ARKA PLANI (#60) ---
     // Kaleye/hana girince modalin arkasında o mekân durur. Tek seferlik çizim, data URL
     // olarak önbelleklenir; `showModal`'ın üçüncü argümanı (bgImage) zaten hazırdı.
+    BG_DRAW: {
+        hall:      ['drawHallBg', 640, 380],
+        tavern:    ['drawTavernBg', 640, 380],
+        armory:    ['drawArmoryBg', 900, 560],     // karakter ekranı (#61)
+        camp:      ['drawCampBg', 900, 560],       // grup ekranı
+        storage:   ['drawStorageBg', 900, 560],    // envanter
+        parchment: ['drawParchmentBg', 900, 560]   // görevler
+    },
     sceneBg(kind) {
         this._sceneBg = this._sceneBg || {};
         if(this._sceneBg[kind]) return this._sceneBg[kind];
-        let W = 640, H = 380, cv = document.createElement('canvas');
+        let [fn, W, H] = this.BG_DRAW[kind] || this.BG_DRAW.tavern;
+        let cv = document.createElement('canvas');
         cv.width = W; cv.height = H;
-        let ctx = cv.getContext('2d');
-        if(kind === 'hall') this.drawHallBg(ctx, W, H); else this.drawTavernBg(ctx, W, H);
+        this[fn](cv.getContext('2d'), W, H);
         return (this._sceneBg[kind] = cv.toDataURL('image/jpeg', 0.82));
+    },
+    // Menü ekranlarına tematik zemin (#61). Tek kapı `showScreen`; her ekrana bir kez konur,
+    // sonrası CSS. Perde koyu tutulur — zemin metinle yarışmaz.
+    // Perde koyuluğu ekrana göre: parşömen açık renk olduğu için daha ince perde yeter,
+    // koyu çizimler (cephanelik, kamp, ambar) altında yazı için daha kalın perde gerekir.
+    VIEW_BG: {
+        character: ['armory', 0.74, 0.88],
+        party:     ['camp', 0.72, 0.88],
+        inventory: ['storage', 0.70, 0.86],
+        quests:    ['parchment', 0.60, 0.78]
+    },
+    applyViewBg(id) {
+        let cfg = this.VIEW_BG[id], el = document.getElementById(id + '-view');
+        if(!cfg || !el || el.dataset.bg) return;
+        let [kind, a0, a1] = cfg;
+        el.dataset.bg = kind;
+        el.style.backgroundImage = `linear-gradient(rgba(10,10,14,${a0}), rgba(10,10,14,${a1})), url('${this.sceneBg(kind)}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center top';
+    },
+    // Karakter: cephanelik duvarı — taş, asılı kalkan, çapraz kılıç, miğfer, sancak
+    drawArmoryBg(ctx, W, H) {
+        let g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#33343a'); g.addColorStop(1, '#1e1f24');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        for(let y = 0, r = 0; y < H; y += 34, r++)
+            for(let x = (r % 2 ? -34 : 0); x < W; x += 68) {
+                ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 68, 34);
+            }
+        // Çapraz kılıçlar
+        ctx.save(); ctx.translate(W * 0.5, H * 0.42);
+        [-0.5, 0.5].forEach(a => {
+            ctx.save(); ctx.rotate(a);
+            ctx.fillStyle = '#8d939c'; ctx.fillRect(-9, -190, 18, 300);
+            ctx.fillStyle = '#c9ced6'; ctx.fillRect(-9, -190, 6, 300);
+            ctx.fillStyle = '#6a4a24'; ctx.fillRect(-40, 105, 80, 14); ctx.fillRect(-8, 119, 16, 56);
+            ctx.restore();
+        });
+        ctx.restore();
+        // Kalkan
+        let sx = W * 0.5, sy = H * 0.5;
+        ctx.fillStyle = '#5c2630';
+        ctx.beginPath(); ctx.moveTo(sx - 78, sy - 90); ctx.lineTo(sx + 78, sy - 90);
+        ctx.lineTo(sx + 78, sy + 20); ctx.quadraticCurveTo(sx, sy + 130, sx - 78, sy + 20); ctx.fill();
+        ctx.strokeStyle = '#8a7130'; ctx.lineWidth = 7; ctx.stroke();
+        ctx.fillStyle = 'rgba(212,175,55,0.55)'; ctx.beginPath(); ctx.arc(sx, sy - 10, 26, 0, 7); ctx.fill();
+        // Yan sancaklar
+        [W * 0.14, W * 0.86].forEach((bx, i) => {
+            ctx.fillStyle = i ? '#25406f' : '#4a2a5e';
+            ctx.beginPath(); ctx.moveTo(bx - 44, 0); ctx.lineTo(bx + 44, 0);
+            ctx.lineTo(bx + 44, H * 0.6); ctx.lineTo(bx, H * 0.55); ctx.lineTo(bx - 44, H * 0.6); ctx.fill();
+        });
+        // Miğfer rafı
+        ctx.fillStyle = '#3a2b1a'; ctx.fillRect(0, H - 96, W, 16);
+        [W * 0.22, W * 0.78].forEach(hx => {
+            ctx.fillStyle = '#9aa1aa';
+            ctx.beginPath(); ctx.arc(hx, H - 122, 30, Math.PI, 0); ctx.fill();
+            ctx.fillRect(hx - 30, H - 122, 60, 26);
+            ctx.fillStyle = '#20242a'; ctx.fillRect(hx - 5, H - 130, 10, 34);
+        });
+        this.bgVignette(ctx, W, H);
+    },
+    // Grup: gece kampı — çadırlar, ateş, mızrak demeti
+    drawCampBg(ctx, W, H) {
+        let hz = H * 0.55;
+        let g = ctx.createLinearGradient(0, 0, 0, hz);
+        g.addColorStop(0, '#0d1226'); g.addColorStop(1, '#3a2f3c');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, hz);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        for(let i = 0; i < 60; i++) {
+            let r = ((i * 131) % 997) / 997, r2 = ((i * 613) % 991) / 991;
+            ctx.globalAlpha = 0.2 + r2 * 0.6;
+            ctx.fillRect(r * W, r2 * hz * 0.8, 2, 2);
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#1b202c';                          // tepe hattı
+        ctx.beginPath(); ctx.moveTo(0, hz);
+        for(let x = 0; x <= W; x += 60) ctx.lineTo(x, hz - 30 - 26 * Math.sin(x / 130));
+        ctx.lineTo(W, hz); ctx.fill();
+        let fg = ctx.createLinearGradient(0, hz, 0, H);
+        fg.addColorStop(0, '#33301f'); fg.addColorStop(1, '#16150f');
+        ctx.fillStyle = fg; ctx.fillRect(0, hz, W, H - hz);
+        // Çadırlar
+        [[W * 0.18, H * 0.82, 130], [W * 0.82, H * 0.78, 110], [W * 0.5, H * 0.7, 90]].forEach(([tx, ty, tw]) => {
+            ctx.fillStyle = '#d9cdb4';
+            ctx.beginPath(); ctx.moveTo(tx, ty - tw); ctx.lineTo(tx + tw * 0.72, ty); ctx.lineTo(tx - tw * 0.72, ty); ctx.fill();
+            ctx.fillStyle = '#3a2a20';
+            ctx.beginPath(); ctx.moveTo(tx, ty - tw * 0.55); ctx.lineTo(tx + tw * 0.2, ty); ctx.lineTo(tx - tw * 0.2, ty); ctx.fill();
+        });
+        // Ateş
+        let fx = W * 0.5, fy = H * 0.88;
+        let fl = ctx.createRadialGradient(fx, fy, 5, fx, fy, 190);
+        fl.addColorStop(0, 'rgba(255,205,110,0.95)'); fl.addColorStop(0.35, 'rgba(235,130,40,0.5)');
+        fl.addColorStop(1, 'rgba(235,130,40,0)');
+        ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(fx, fy, 190, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#40301f'; ctx.lineWidth = 9;
+        [-0.6, 0.6].forEach(a => {
+            ctx.save(); ctx.translate(fx, fy); ctx.rotate(a);
+            ctx.beginPath(); ctx.moveTo(-46, 0); ctx.lineTo(46, 0); ctx.stroke(); ctx.restore();
+        });
+        // Mızrak demeti
+        ctx.strokeStyle = '#5b4429'; ctx.lineWidth = 5;
+        [-0.18, 0, 0.18].forEach(a => {
+            ctx.save(); ctx.translate(W * 0.66, H); ctx.rotate(a);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -230); ctx.stroke(); ctx.restore();
+        });
+        this.bgVignette(ctx, W, H);
+    },
+    // Envanter: ambar — raflar, sandık, çuvallar, asılı ip
+    drawStorageBg(ctx, W, H) {
+        let g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#42301d'); g.addColorStop(1, '#241a10');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        for(let x = 0; x < W; x += 46) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(x, 0, 3, H); }
+        for(let y = H * 0.28; y < H; y += H * 0.34) {        // raflar
+            ctx.fillStyle = '#6b4a28'; ctx.fillRect(0, y, W, 18);
+            ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, y + 18, W, 12);
+        }
+        // Sandıklar ve çuvallar
+        [[W * 0.16, H * 0.28, 150], [W * 0.72, H * 0.62, 175]].forEach(([bx, by, bw]) => {
+            ctx.fillStyle = '#7a5630'; ctx.fillRect(bx, by - bw * 0.62, bw, bw * 0.62);
+            ctx.fillStyle = '#4c3320'; ctx.fillRect(bx, by - bw * 0.62, bw, 14);
+            ctx.fillStyle = '#c9a44a'; ctx.fillRect(bx + bw / 2 - 11, by - bw * 0.34, 22, 26);
+        });
+        [[W * 0.46, H * 0.62], [W * 0.56, H * 0.62], [W * 0.3, H * 0.96]].forEach(([sx, sy]) => {
+            ctx.fillStyle = '#6e5c3a';
+            ctx.beginPath(); ctx.ellipse(sx, sy - 34, 34, 44, 0, 0, 7); ctx.fill();
+            ctx.fillStyle = '#57482d'; ctx.fillRect(sx - 13, sy - 82, 26, 14);
+        });
+        // Asılı ip ve fener
+        ctx.strokeStyle = '#3a2b1a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(W * 0.88, 0); ctx.lineTo(W * 0.88, 90); ctx.stroke();
+        let lg = ctx.createRadialGradient(W * 0.88, 106, 4, W * 0.88, 106, 90);
+        lg.addColorStop(0, 'rgba(255,215,130,0.9)'); lg.addColorStop(1, 'rgba(255,180,60,0)');
+        ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(W * 0.88, 106, 90, 0, 7); ctx.fill();
+        this.bgVignette(ctx, W, H);
+    },
+    // Görevler: parşömen — lifler, yanık kenar, mühür
+    drawParchmentBg(ctx, W, H) {
+        let g = ctx.createLinearGradient(0, 0, W, H);
+        g.addColorStop(0, '#d9c391'); g.addColorStop(0.5, '#c9b07b'); g.addColorStop(1, '#a98f5d');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        for(let i = 0; i < 220; i++) {                       // lif dokusu
+            let r = ((i * 131) % 9973) / 9973, r2 = ((i * 613) % 9967) / 9967;
+            ctx.globalAlpha = 0.05 + r2 * 0.08;
+            ctx.fillStyle = i % 3 ? '#8a6f42' : '#f0e0b8';
+            ctx.fillRect(r * W, r2 * H, 30 + r2 * 90, 2);
+        }
+        ctx.globalAlpha = 1;
+        for(let y = H * 0.16; y < H * 0.9; y += 46) {        // silik satırlar
+            ctx.fillStyle = 'rgba(90,70,40,0.13)'; ctx.fillRect(W * 0.1, y, W * 0.8, 3);
+        }
+        // Yanık kenar
+        let e = ctx.createLinearGradient(0, 0, 0, H);
+        e.addColorStop(0, 'rgba(70,45,15,0.55)'); e.addColorStop(0.12, 'rgba(70,45,15,0)');
+        e.addColorStop(0.88, 'rgba(70,45,15,0)'); e.addColorStop(1, 'rgba(70,45,15,0.55)');
+        ctx.fillStyle = e; ctx.fillRect(0, 0, W, H);
+        let e2 = ctx.createLinearGradient(0, 0, W, 0);
+        e2.addColorStop(0, 'rgba(70,45,15,0.5)'); e2.addColorStop(0.1, 'rgba(70,45,15,0)');
+        e2.addColorStop(0.9, 'rgba(70,45,15,0)'); e2.addColorStop(1, 'rgba(70,45,15,0.5)');
+        ctx.fillStyle = e2; ctx.fillRect(0, 0, W, H);
+        // Mum mührü
+        ctx.fillStyle = '#8c2230';
+        ctx.beginPath(); ctx.arc(W * 0.8, H * 0.82, 52, 0, 7); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.arc(W * 0.8, H * 0.82, 32, 0, 7); ctx.fill();
+        this.bgVignette(ctx, W, H);
     },
     // Han: ahşap duvar, kirişler, ocak, fıçılar, uzun masa, asma kandiller
     drawTavernBg(ctx, W, H) {

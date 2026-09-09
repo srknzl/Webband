@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.62 — Parşömen ve Cephanelik (2026-09-09)
+
+- **Menü ekranları da bir yere benziyor**: karakter ekranının arkasında çapraz kılıçlar,
+  kalkan ve miğfer rafı olan bir cephanelik duvarı; grup ekranında gece kampı — çadırlar,
+  ocak ateşi, mızrak demeti; envanterde raflar, sandıklar ve çuvallar; görevler ekranı
+  ise yanık kenarlı, mühürlü bir parşömen.
+- Zemin dekoratiftir, yazıyla yarışmaz: her ekranın perdesi kendi çizimine göre ayarlandı.
+  Parşömen açık renk olduğu için görev ekranındaki soluk yazı sıcak ve açık bir tona çekildi.
+
 ## 0.61 — Şehrin Kapısı (2026-09-09)
 
 - **Yerleşimler artık düğme listesi değil, bir manzara**: şehre, kaleye ya da köye girince

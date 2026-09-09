@@ -633,6 +633,40 @@ bir kez), aynı bina üstünde gezinen fare **0.007 ms** (erken çıkış, yenid
 Gök gerçekten değişiyor: aynı şehrin sol üst pikseli öğlen `120,172,222`, gün batımı
 `82,73,100`, gece `14,19,44`. İç mekân JPEG'i **19.8 KB**, ilk açılış **17.3 ms**, sonrası önbellek.
 
+#### Menü ekranlarına tematik zemin (#61)
+Envanter/karakter/grup/görev ekranları düz `.glass-panel`'di. Aynı `Game.sceneBg(kind)`
+makinesi (bkz. yukarıdaki sahne bölümü) bu ekranlara da zemin çiziyor; tek kapı
+`showScreen` → `Game.applyViewBg(id)`, zemin **ekran başına bir kez** konur, sonrası CSS.
+
+| Ekran | Çizim | Ne var |
+|---|---|---|
+| Karakter | `armory` | Taş duvar, çapraz kılıç, kalkan, iki yan sancak, miğfer rafı |
+| Grup | `camp` | Gece göğü + yıldız, tepe hattı, üç çadır, ocak ateşi, mızrak demeti |
+| Envanter | `storage` | Ahşap ambar, raflar, sandık + kilit, çuvallar, asılı fener |
+| Görevler | `parchment` | Lif dokusu, silik satırlar, yanık kenar, mum mührü |
+
+Perde koyuluğu ekrana göre (`VIEW_BG` = `[kind, üstAlfa, altAlfa]`): koyu çizimlerde
+0.70–0.74, açık parşömende 0.60. **Hareketli tuvalin üstünde blur yok** — bunlar statik
+`background-image`, `backdrop-filter` eklenmedi (bkz. "Performans").
+
+**Okunabilirlik ölçüldü** (perde altındaki zemin rengi ile metin rengi arasında WCAG kontrast
+oranı, ekranın üst üçte biri):
+
+| Ekran | Zemin | `--text-muted` | beyaz | altın başlık |
+|---|---|---|---|---|
+| Karakter | `19,20,21` | **7.19** | 18.44 | 8.77 |
+| Grup | `16,16,20` | **7.40** | 18.98 | 9.03 |
+| Envanter | `25,20,15` | **7.13** | 18.29 | 8.70 |
+| Görevler | `88,77,57` | **6.07** | 8.28 | 3.94 |
+
+Görev ekranındaki `--text-muted` (#94a3b8) kahverengi kâğıt üstünde **3.23**'e düşüyordu
+(AA sınırı 4.5). Çözüm tek satır CSS: değişken `#quests-view` içinde `#e6dcc2`'ye çekildi
+→ 6.07. Altın başlıklar büyük ve kalın olduğu için 3.94 AA-large (3:1) sınırını geçer.
+
+Maliyet: ilk açılışta ekran başına **8.2–11.9 ms** (çizim + JPEG kodlama), veri **27–37 KB**;
+aynı ekrana ikinci geçişte `dataset.bg` erken çıkışı **0.3 µs**. Yerleşim ekranına zemin
+konmadı — orada zaten `#scene-canvas` var.
+
 #### Köy yağması (#21)
 `Game.raidVillage(loc)` onay modali → `startRaid` → `Battle.start('Köy Milisi', n, null, faction)`.
 Milis sayısı `max(4, refah/5)` (~7–18) ve `BAND_KINDS.militia` karışımından doğar
