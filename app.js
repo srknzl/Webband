@@ -530,6 +530,9 @@ const Game = {
         this.ctx = this.mapCanvas.getContext('2d', { alpha: false });
         this.mapCanvas.addEventListener('mousemove', e => this.handleMapHover(e));
         this.mapCanvas.addEventListener('click', e => this.handleMapClick(e));
+        // Hedef işareti sürüklenebilir (#35): basılı tut, taşı, bırak — rota anında yeniden kurulur
+        this.mapCanvas.addEventListener('mousedown', e => this.startTargetDrag(e));
+        window.addEventListener('mouseup', e => this.endTargetDrag(e));
         document.getElementById('modal-overlay').addEventListener('click', e => {
             // Karşılaşma (savaş/teslim ol) modali açıkken dışa tıklayarak kapanmasın
             if(e.target.id === 'modal-overlay' && !state.player.currentEncounterNpcId) this.closeModal();
@@ -1651,6 +1654,56 @@ const Game = {
     },
 
     // `ambush`: 'ambush' | 'spotted' | 'raid' — 'raid' yağmayı basan lorddur, sohbet yok
+    // --- SAVAŞ ÖNCESİ ASKER MIRILTISI (#35) ---
+    // Karşılaşma modalinde grubundan biri iki çift laf eder. Hangi havuzdan konuştuğu
+    // güç oranına, morale, açlığa ve maaş borcuna bakar; İdare yeteneği korku eşiğini
+    // yükseltir (iyi komutanın adamı geç panikler).
+    CHATTER: {
+        scared: [
+            'Nereden geldim buraya, anamın evi sıcacıktı...',
+            'Sayarım ha: onlar çok, biz az. Matematik bu, kabahat bende değil.',
+            'Komutanım, ölürsem maaşımı anneme verirsiniz değil mi? ...Vermezsiniz.',
+            'Şimdi kaçsak kimse fark etmez bence. Ben fark etmem mesela.',
+            'Bak şu adamın kılıcına. Benimki tırpandan bozma.'
+        ],
+        hungry: [
+            'Dövüşürüm de önce bir ekmek olsa? İki gündür kayış yiyorum.',
+            'Aç karnına ölmek var mı, o da ayrı zulüm.',
+            'Karnım gurulduyor, düşman duyup yerimizi buluyor.'
+        ],
+        unpaid: [
+            'Maaşı alamadık ama ölmeye ilk biz gidiyoruz, güzel düzen.',
+            'Bugün bedava dövüşüyorum. Yarın hesabı konuşuruz komutanım.',
+            'Borcunu ödemeyen komutanın ardından kılıç sallamak zor iş.'
+        ],
+        bold: [
+            'Bunlar mı? Kahvaltıdan önce toplarız.',
+            'Komutanım, sen izle. Biz hallederiz.',
+            'Ganimeti şimdiden paylaşalım, sonra tartışmayalım.',
+            'Adamları say derseniz sayarım ama gerek yok, hepsi yatacak.'
+        ],
+        grumble: [
+            'Yine mi? Daha dün mızrağımı temizlemiştim.',
+            'Bir gün de kimseyle karşılaşmadan yürüsek.',
+            'Bunlar da bir yerden çıkıyor. Fabrikaları mı var?'
+        ]
+    },
+
+    troopChatter(npc) {
+        let party = state.player.party;
+        if(!party.length) return null;
+        let mine = party.filter(t => !t.wounded).length + 1;
+        let ratio = npc.size / Math.max(1, mine);
+        let fs = this.foodStock(), lead = this.profLvl('leadership'), mo = this.morale();
+        let pool = ratio >= 1.3 + (lead - 1) * 0.08 || mo < 25 ? 'scared'
+                 : fs.total < fs.need ? 'hungry'
+                 : state.player.wageDebt > 0 ? 'unpaid'
+                 : (mo >= 70 || ratio <= 0.6) ? 'bold' : 'grumble';
+        let t = party[Math.floor(Math.random() * party.length)];
+        let line = this.CHATTER[pool][Math.floor(Math.random() * this.CHATTER[pool].length)];
+        return `<span style="color:var(--text-muted)">${this.troopLabel(t)}:</span> <i>"${line}"</i>`;
+    },
+
     triggerEncounter(npc, ambush) {
         state.encounterCooldown = 2;
         state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
@@ -1701,7 +1754,9 @@ const Game = {
             // Ordun rakibin 1.5 katıysa her çapulcu için arenaya inmek zorunda değilsin
             let mine = state.player.party.filter(t => !t.wounded).length + 1;
             let canAuto = !ambush && mine >= npc.size * 1.5;
+            let chat = this.troopChatter(npc);   // adamlarının da söyleyecek bir şeyi var (#35)
             html += `<p><i>${dialog}</i></p>
+            ${chat ? `<p style="margin-top:0.4rem;font-size:0.9rem">${chat}</p>` : ''}
             <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">${canFlee
                 ? `Kaçabilirsin ama hız farkı belirler: kaçış şansın <b>%${flee}</b>.`
                 : 'Kaçış yok — savaş ya da teslim ol!'}</p>
@@ -1869,6 +1924,123 @@ const Game = {
             this.dailyUpdate();
         }
         this.updateTopBar();
+    },
+
+    // --- GÜNLÜK OLAY HAVUZU (#35) ---
+    // Her gün bir olay olmaz: EVENT_CHANCE zar atar (ölçüldü ~3 günde bir). Havuzun
+    // yaklaşık %60'ı olumsuz, %40'ı olumludur ama hiçbirinin bedeli seferi bitirmez.
+    // Her olayın `when` süzgeci vardır (grup, erzak, yakındaki yerleşim, moral) ve
+    // son 5 olay tekrar seçilmez — aynı espri iki gün üst üste komik değil.
+    EVENT_CHANCE: 0.35,
+    DAY_EVENTS: [
+        // --- olumsuz ---
+        { id: 'latrine', bad: 1, when: c => c.party >= 3, run(c) {
+            Game.addMorale(-3);
+            return `Askerlerden biri gece yolunu şaşırıp <b>hela çukuruna</b> düştü. Kokusu sabaha kadar kampta kaldı.<br>Moral <b>−3</b>.`;
+        }},
+        { id: 'foodfight', bad: 1, when: c => c.party >= 4 && c.food > 3, run(c) {
+            let lost = Game.takeFood(2 + Math.floor(Math.random() * 3));
+            Game.addMorale(-2);
+            return `Son peynir yüzünden <b>erzak kavgası</b> çıktı; kavganın ortasında ${lost} birim yiyecek yere döküldü.<br>Moral <b>−2</b>.`;
+        }},
+        { id: 'drunk', bad: 1, when: c => c.party >= 2 && c.near, run(c) {
+            let fine = 20 + Math.floor(Math.random() * 40);
+            state.player.money = Math.max(0, state.player.money - fine);
+            return `${c.near.name} yakınında sarhoş bir askerin <b>yanlış adama</b> meydan okuduğu haberi geldi. Tazminatı sen ödedin.<br><b>−${fine} dinar</b>.`;
+        }},
+        { id: 'thief', bad: 1, when: c => state.player.money > 100, run(c) {
+            let lost = Math.min(250, Math.round(state.player.money * (0.02 + Math.random() * 0.03)));   // tavan: zengin oyuncuyu da sadece kızdırsın
+            state.player.money -= lost;
+            return `Sabah kese hafiflemişti. Kimse bir şey görmemiş, herkes birbirine bakıyor.<br><b>−${lost} dinar</b>.`;
+        }},
+        { id: 'sprain', bad: 1, when: c => c.party >= 2 && state.player.party.some(t => !t.wounded), run(c) {
+            let hurt = state.player.party.filter(t => !t.wounded);
+            let t = hurt[Math.floor(Math.random() * hurt.length)];
+            t.wounded = 2;
+            return `<b>${Game.troopLabel(t)}</b> kendi mızrağına takılıp ayağını burktu. İki gün savaşa giremez.`;
+        }},
+        { id: 'rumor_market', bad: 1, when: c => c.near && c.near.type === 'city', run(c) {
+            return `Yolda duyduğun söylenti: "<i>${c.near.name} esnafı adamı donuna kadar soyar</i>." Cüzdanını sıkı tut.`;
+        }},
+        { id: 'rain', bad: 1, when: c => true, run(c) {
+            Game.addMorale(-2);
+            return `Bütün gün yağmur yağdı. Çadırlar ıslandı, yorganlar ıslandı, herkesin keyfi kaçtı.<br>Moral <b>−2</b>.`;
+        }},
+        { id: 'horseshoe', bad: 1, when: c => !!state.player.equipment.horse, run(c) {
+            let fee = 15 + Math.floor(Math.random() * 25);
+            state.player.money = Math.max(0, state.player.money - fee);
+            return `Atının nalı düştü. Yol kenarındaki nalbant fırsatı kaçırmadı.<br><b>−${fee} dinar</b>.`;
+        }},
+        // --- olumlu ---
+        { id: 'bard', bad: 0, when: c => c.party >= 2, run(c) {
+            Game.addMorale(4);
+            return `Askerlerden biri akşam ateşinde öyle kötü şarkı söyledi ki kamp gülmekten kırıldı.<br>Moral <b>+4</b>.`;
+        }},
+        { id: 'purse', bad: 0, when: c => true, run(c) {
+            let gain = 30 + Math.floor(Math.random() * 60);
+            state.player.money += gain;
+            return `Yol kenarındaki çalılıkta unutulmuş bir kese buldun. Sahibi aramaya gelmedi.<br><b>+${gain} dinar</b>.`;
+        }},
+        { id: 'hunt', bad: 0, when: c => c.party >= 1, run(c) {
+            let n = 2 + Math.floor(Math.random() * 3);
+            Game.addItem('meat', n);
+            return `Avcı çıkışan askerin bu sefer şansı yaver gitti: akşam yemeğine <b>${n} et</b> geldi.`;
+        }},
+        { id: 'deserter', bad: 0, when: c => c.party + 1 < Game.getPartyCapacity(), run(c) {
+            let name = Game.recruitName(c.near || LOCATIONS[0]);
+            state.player.party.push({ id: 'troop_' + Math.random().toString(36).substr(2, 9),
+                name, level: 1, xp: 0, xpNext: 3, type: 'infantry' });
+            return `Yolda başıboş dolaşan bir <b>${name}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`;
+        }},
+        { id: 'blessing', bad: 0, when: c => c.near && c.near.type === 'village', run(c) {
+            Game.addItem('cheese', 2);
+            Game.addMorale(2);
+            return `${c.near.name} köyünden bir kadın "yoldan geçene uğur olsun" deyip iki peynir bıraktı.<br><b>+2 peynir</b>, moral <b>+2</b>.`;
+        }}
+    ],
+
+    // Olay yardımcıları: üçü de tek satır, ayrı ayrı yazılmasınlar diye burada
+    addMorale(n) { state.player.morale = Math.max(0, Math.min(100, this.morale() + n)); },
+    addItem(id, qty) {
+        let ex = state.player.inventory.find(i => i.id === id);
+        if(ex) ex.qty += qty; else state.player.inventory.push({ ...ITEMS[id], qty });
+    },
+    takeFood(n) {
+        let left = n, got = 0;
+        for(let i = 0; i < state.player.inventory.length && left > 0; i++) {
+            let it = state.player.inventory[i];
+            if(!['wheat','bread','meat','cheese'].includes(it.id)) continue;
+            let take = Math.min(it.qty, left);
+            it.qty -= take; left -= take; got += take;
+            if(it.qty <= 0) { state.player.inventory.splice(i, 1); i--; }
+        }
+        return got;
+    },
+
+    dailyEvent() {
+        if(state.player.prisoner || state.player.status === 'besieging') return null;
+        if(Math.random() > this.EVENT_CHANCE) return null;
+        let near = LOCATIONS.filter(l => this.dist(l, state.player) < 900)
+                            .sort((a, b) => this.dist(a, state.player) - this.dist(b, state.player))[0];
+        let ctx = { party: state.player.party.length, near, food: this.foodStock().total, morale: this.morale() };
+        let recent = state.recentEvents || (state.recentEvents = []);
+        let avail = this.DAY_EVENTS.filter(e => e.when(ctx));
+        // Zar iki kez atılır: önce ton (%60 olumsuz), sonra o tondan olay. Tekrar
+        // süzgeci **tonun içinde** çalışır — önce uygulanınca olumlu havuz "son
+        // olaylar"a takılıp boşalıyor ve olumsuz oran %71'e çıkıyordu.
+        let bad = Math.random() < 0.6 ? 1 : 0;
+        let side = avail.filter(e => e.bad === bad);
+        if(!side.length) side = avail;
+        if(!side.length) return null;
+        let pool = side.filter(e => !recent.includes(e.id));
+        if(!pool.length) pool = side;
+        let ev = pool[Math.floor(Math.random() * pool.length)];
+        recent.push(ev.id);
+        if(recent.length > 4) recent.shift();
+        let text = ev.run(ctx);
+        this.updateTopBar();
+        alert(`${ev.bad ? '🌧️' : '🌤️'} <b>Günün Olayı</b><br><br>${text}`);
+        return ev.id;
     },
 
     dailyUpdate() {
@@ -2050,6 +2222,7 @@ const Game = {
             this.spawnBand(this.randomBandKind());
         }
         this.ensureTraders();   // soyulan kafilelerin yerine yenileri yola çıkar
+        this.dailyEvent();      // günlük olay havuzu (#35) — en sonda, günün hesabı kapandıktan sonra
     },
 
     updateTopBar() {
@@ -2198,8 +2371,14 @@ const Game = {
         document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
 
         let c = this.getPartyComposition();
+        // Harcanmamış puan haritadan görünsün, karakter ekranına açılsın (#35)
+        let st = state.player.stats, ap = st.attributePoints || 0, fp = st.focusPoints || 0;
+        let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
+                + ` title="Harcanmamış puanların var — karakter ekranına git (C)">✨ ${ap ? ap + ' nitelik' : ''}`
+                + `${ap && fp ? ' · ' : ''}${fp ? fp + ' odak' : ''}</button>` : '';
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
+            + pts
             + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="Kamerayı bana getir (Boşluk)">🎯 Beni Bul <kbd>Boşluk</kbd></button>`
             + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="Krallıkların savaş/barış hâli (K)">🌍 Diplomasi <kbd>K</kbd></button>`);
     },
@@ -2812,37 +2991,34 @@ const Game = {
                           state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
         }
 
-        // Rota: hedefe akan ince kesikli çizgi + varış halkası + ok başı
-        if(state.player.targetLocation && state.player.status === 'moving') {
-            let t = state.player.targetLocation;
-            let dx = t.x - state.player.x, dy = t.y - state.player.y;
-            let len = Math.sqrt(dx*dx + dy*dy) || 1;
-            let ang = Math.atan2(dy, dx);
-            let flow = (performance.now() / 60) % 26;
-
+        // Rota (#35): ince akan kesik + küçük dolu hedef işareti. Ok başı kaldırıldı —
+        // çizginin kendisi zaten yönü söylüyordu. Sürükleme rotası soluk ve beyazdır,
+        // onaylanmış rota altın: hangisinin geçerli olduğu tek bakışta ayrılır.
+        let route = (t, live) => {
+            let z = this.camera.zoom;
             ctx.save();
             ctx.lineCap = 'round';
-            ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 6;
-            ctx.setLineDash([16, 10]); ctx.lineDashOffset = -flow;
+            ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(performance.now() / 55) % (19 / z) : 0;
+            ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
             ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-
-            ctx.strokeStyle = 'rgba(255,214,102,0.85)'; ctx.lineWidth = 3;
+            ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
+            ctx.lineWidth = 1.6 / z;
             ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
             ctx.setLineDash([]);
 
-            // Varış noktası: nabız atan halka + yön oku
-            let pr = 14 + Math.sin(performance.now()/300) * 3;
-            ctx.strokeStyle = 'rgba(255,214,102,0.9)'; ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.arc(t.x, t.y, pr, 0, Math.PI*2); ctx.stroke();
-
-            if(len > 60) {
-                ctx.translate(t.x - Math.cos(ang)*26, t.y - Math.sin(ang)*26);
-                ctx.rotate(ang);
-                ctx.fillStyle = 'rgba(255,214,102,0.95)';
-                ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-8,-8); ctx.lineTo(-8,8); ctx.closePath(); ctx.fill();
-            }
+            // Hedef işareti: ekran boyutunda (uzaklaşınca erimez) küçük dolu nokta + halka
+            let r = 6 / z, pulse = live ? 1 + Math.sin(performance.now()/380) * 0.12 : 1.15;
+            ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
+            ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
+            ctx.stroke();
+            ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
+            ctx.lineWidth = 1.2 / z;
+            ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
             ctx.restore();
-        }
+        };
+        if(state.player.targetLocation && state.player.status === 'moving') route(state.player.targetLocation, true);
+        if(this.dragTarget) route(this.dragTarget, false);
 
         // Lordlardan öğrenilen konum işaretleri
         Nobles.drawMarkers(ctx);
@@ -2852,11 +3028,17 @@ const Game = {
 
     handleMapHover(e) {
         if(Battle.active || TournamentMinigame.active) return;
-        let rect = this.mapCanvas.getBoundingClientRect();
-        // Ekran -> dünya: tıklamayla aynı dönüşüm. Ortalama payı (rect/2) eksikti,
-        // künye imlecin yarım ekran uzağındaki yerleşimi buluyordu — yani hiç çıkmıyordu.
-        let mx = ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x;
-        let my = ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y;
+        // Ekran -> dünya dönüşümü mapPos'ta; künye imlecin yarım ekran uzağını arıyordu.
+        let m = this.mapPos(e), mx = m.x, my = m.y;
+        if(this.dragTarget) {                       // sürüklerken geçici hedef (#35)
+            this.dragTarget.x = mx; this.dragTarget.y = my;
+            this.dragTarget.moved = true;
+        } else if(state.player.status === 'moving' && state.player.targetLocation
+                  && this.dist(state.player.targetLocation, m) < this.targetGrabRadius()) {
+            this.mapCanvas.style.cursor = 'grab';
+        } else if(this.mapCanvas.style.cursor === 'grab') {
+            this.mapCanvas.style.cursor = '';
+        }
         let tooltip = document.getElementById('map-tooltip');
         let found = null;
 
@@ -2884,31 +3066,58 @@ const Game = {
         }
     },
 
+    // Ekran -> dünya. Üç yerde (tıklama, künye, sürükleme) aynı dönüşüm vardı.
+    mapPos(e) {
+        let rect = this.mapCanvas.getBoundingClientRect();
+        return {
+            x: ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x,
+            y: ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y
+        };
+    },
+
+    // --- HEDEF İŞARETİNİ SÜRÜKLEME (#35) ---
+    // İşaretin yarıçapı ekran boyutundadır (16 px), yani uzaklaşınca da tutulabilir.
+    targetGrabRadius() { return 16 / this.camera.zoom + 6; },
+
+    startTargetDrag(e) {
+        if(e.button !== 0 || Battle.active || TournamentMinigame.active) return;
+        if(state.player.status !== 'moving' || !state.player.targetLocation) return;
+        let m = this.mapPos(e);
+        if(this.dist(state.player.targetLocation, m) > this.targetGrabRadius()) return;
+        this.dragTarget = { x: m.x, y: m.y, moved: false };
+        this.mapCanvas.style.cursor = 'grabbing';
+    },
+
+    endTargetDrag(e) {
+        if(!this.dragTarget) return;
+        let moved = this.dragTarget.moved;
+        this.dragTarget = null;
+        this.mapCanvas.style.cursor = '';
+        if(!moved) return;                        // yerinde bırakıldı: rota aynı kalsın
+        this.setTarget(this.mapPos(e));
+        this.suppressClick = true;                // mouseup'ın ardından gelen click yeni hedef atamasın
+    },
+
+    // Tıklama ve sürükleme aynı hedef seçimini kullanır: yerleşim/NPC yakınsa ona kilitlenir.
+    setTarget(m) {
+        for(let loc of LOCATIONS) {
+            if(this.dist(loc, m) < 36) { state.player.targetLocation = loc; state.player.status = 'moving'; return; }
+        }
+        for(let npc of state.npcParties) {
+            if(this.dist(npc, m) < 30 && this.canSee(npc)) {
+                state.player.targetLocation = { ...npc, isNpc: true }; state.player.status = 'moving'; return;
+            }
+        }
+        state.player.targetLocation = { x: m.x, y: m.y, name: 'Hedef Bölge', type: null };
+        state.player.status = 'moving';
+    },
+
     handleMapClick(e) {
         if(Battle.active || TournamentMinigame.active) return;   // savaş açıkken harita girdisi yok sayılır (#42)
         // Esaret gibi yağma da yerinde tutar: ambarı boşaltırken yürüyemezsin (#49)
         if(state.player.status === 'raiding' || state.player.status === 'prisoner') return;
-        let rect = this.mapCanvas.getBoundingClientRect();
-        let mx = ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x;
-        let my = ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y;
-
-        for(let loc of LOCATIONS) {
-            if(this.dist(loc, {x:mx,y:my}) < 36) {
-                state.player.targetLocation = loc;
-                state.player.status = 'moving';
-                return;
-            }
-        }
-        for(let npc of state.npcParties) {
-            if(this.dist(npc,{x:mx,y:my}) < 30 && this.canSee(npc)) {
-                state.player.targetLocation = { ...npc, isNpc: true };
-                state.player.status = 'moving';
-                return;
-            }
-        }
-        // Boş alana tıklanırsa oraya doğru git (serbest hareket / kaçış)
-        state.player.targetLocation = { x: mx, y: my, name: 'Hedef Bölge', type: null };
-        state.player.status = 'moving';
+        if(this.suppressClick) { this.suppressClick = false; return; }
+        this.setTarget(this.mapPos(e));   // yerleşim / NPC / boş alan ayrımı setTarget'ta
     },
 
     // --- SETTLEMENT ---
@@ -2979,9 +3188,22 @@ const Game = {
     },
 
     addBtn(container, text, cb) {
+        if(!this.btnLabelOk(text, 'addBtn')) return;   // etiketsiz düğme hiç çizilmez (#35)
         let b = document.createElement('button');
         b.className = 'btn'; b.innerHTML = text; b.onclick = cb;
         container.appendChild(b);
+    },
+
+    // Yazısız sarı düğme şikâyetinin tek kapısı (#35): boş/undefined etiket çizilmez,
+    // hangi akıştan geldiği yığınla birlikte Debug raporuna düşer.
+    btnLabelOk(text, where) {
+        let t = (text === null || text === undefined) ? '' : String(text);
+        if(t.replace(/<[^>]*>/g, '').trim()) return true;
+        Debug.log('bosbuton', `Etiketsiz buton (${where})`, {
+            deger: JSON.stringify(text),
+            yigin: ((new Error()).stack || '').split('\n').slice(2, 5).map(l => l.trim()).join(' | ')
+        });
+        return false;
     },
 
     showModal(html, width = '600px', bgImage = null) {
@@ -2996,7 +3218,12 @@ const Game = {
             mc.style.backgroundImage = 'none';
             mc.style.background = 'rgba(20, 20, 25, 0.95)';
         }
-        document.getElementById('modal-body').innerHTML = html;
+        let mb = document.getElementById('modal-body');
+        mb.innerHTML = html;
+        // Modal HTML'i şablon dizesiyle üretiliyor; etiketi boş kalan düğme burada yakalanır (#35)
+        mb.querySelectorAll('button').forEach(b => {
+            if(!this.btnLabelOk(b.textContent, 'showModal')) b.style.display = 'none';
+        });
         document.getElementById('modal-overlay').classList.remove('hidden');
     },
     closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },

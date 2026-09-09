@@ -103,9 +103,18 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   alanı gösteriyor, 25 yerleşimin hepsi ve 36 gruptan yalnızca görüş içindeki 4'ü çizili.
   Uzaklaşınca yerleşim ve grup ikonları dünya biriminde eridiği için `Game.iconScale()`
   = `max(1, 0.55/zoom)` ile büyütülür (etiketler zaten `1/zoom` ile ekran boyutundaydı).
-- **Rota çizgisi**: kalın sarı kesik yerine akan ince kesikli çizgi (gölge + altın kat),
-  hedefte nabız atan halka ve yön oku.
+- **Rota çizgisi ve sürüklenebilir hedef** (#35): akan ince kesikli çizgi (gölge + altın kat)
+  ve hedefte küçük **dolu** nokta + nabız atan halka. Ok başı kaldırıldı — çizgi zaten yönü
+  söylüyor. Çizgi ve işaret ekran boyutundadır (`/zoom`), yani uzaklaşınca kalınlaşıp
+  haritayı ezmez. Hedef işareti **fareyle sürüklenir**: `startTargetDrag` işaretin
+  `targetGrabRadius()` (ekranda 16 px) yakınında basılırsa yakalar, `handleMapHover`
+  sürüklerken `Game.dragTarget`'i taşır, `endTargetDrag` bırakıldığı yeri `setTarget`'a verir.
+  Sürüklenen geçici rota **beyaz ve donuk**, onaylanmış rota **altın ve akar** — hangisinin
+  geçerli olduğu tek bakışta ayrılır. Bırakmanın ardından gelen `click` yutulur
+  (`suppressClick`), yoksa hedef iki kez atanıyordu.
 - Tıklama ile hareket: yerleşim → içeri gir, NPC → karşılaşma, boşluk → serbest hareket.
+  Tıklama, sürükleme ve künye aynı iki kapıdan geçer: `Game.mapPos(e)` (ekran → dünya) ve
+  `Game.setTarget(m)` (yerleşim < 36 → NPC < 30 → boş alan).
 - **Grup ikonları** (Warband'daki gibi grubun neye benzediğini gösterir, `Game.drawPartyIcon`):
   atın varsa **atlı** silüeti (`drawRider`: at + eyer örtüsü + kalkık kılıç), yoksa mızraklı
   yaya (`drawFootman`: mızrak + kalkan + miğfer). Fraksiyon rengi eyer örtüsünde/kalkanda ve
@@ -202,6 +211,10 @@ zafer +5, yenilgi −15.
 - **Harita künyesi** (`#map-hud`): bulunduğun arazi + hız etkisi, altında birlik dağılımı
   (🪖 piyade / 🏹 okçu / 🐎 süvari), **🎯 Beni Bul** ve **🌍 Diplomasi** düğmeleri.
   `Game.updateMapHud()` doldurur.
+  **Harcanmamış puan rozeti** (#35): nitelik/odak puanın varsa aynı satırda
+  `✨ 2 nitelik · 3 odak` düğmesi çıkar, tıklanınca karakter ekranını açar. Sıçramaz,
+  yalnız ışığı nefes alır (`#btn-points`, `@keyframes pointsGlow` 2.2 sn) — puan harcanınca
+  rozet kendiliğinden kaybolur.
   Künye `pointer-events:none` olduğu için düğmeye CSS'te `pointer-events:auto` verilmiştir.
 - `Game.setHtml(id, html)` innerHTML'i sadece metin değiştiyse yazar — `updateTopBar` her
   karede çağrıldığı için gereksiz DOM yazımını önler.
@@ -652,6 +665,15 @@ Yani av davranışı baskını **3.5 katına** çıkarıyor ama haritayı yükl�
   151 kişilikten kaçıyor (300 → 580 birim). Eskiden `isHostile` false dönünce hiç kaçmıyor, dibine girene kadar dolaşıyordu. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
 - Karşılaşma modali: savaş / **askerlerini gönder** / **kaç** / teslim ol (#30). (İlk 14 günde
   çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.) Hayvan sürüsüne teslim olunmaz.
+- **Savaş öncesi asker mırıltısı** (#35, `Game.troopChatter`): düşmanın repliğinin altında
+  kendi adamlarından biri de iki çift laf eder ("Nereden geldim buraya, anamın evi
+  sıcacıktı..."). Havuz koşullara göre seçilir — **korku** (düşman/senin oran ≥ `1.3 +
+  (İdare−1)×0.08` ya da moral < 25), **açlık** (stok günlük ihtiyacın altında), **maaş borcu**,
+  **cesaret** (moral ≥ 70 ya da oran ≤ 0.6), kalanı **homurdanma**. Konuşan rastgele bir grup
+  üyesidir, adı `troopLabel`'den gelir; grup boşsa kimse konuşmaz. Ölçüldü (11 kişilik grup,
+  40'ar örnek): 3 kişilik düşman + moral 80 → hep cesaret, 40 kişilik düşman → hep korku,
+  denk düşman → homurdanma, erzak biterse açlık, borç varsa maaş; 16 kişilik düşmana karşı
+  **İdare 1 korkarken İdare 8 yalnız homurdanıyor**.
 
 #### Kaçış, otomatik çözüm ve dalgalar (#30)
 **Kaçış** (`Game.fleeChance` / `fleeEncounter`): pusu ve yağma baskını dışında her
@@ -1049,6 +1071,28 @@ kuşandığın silahın türüne, ek olarak `riding`/`athletics` XP'nin %60'ı k
 `boss_map` eşyası (pazardan 5000 dinar) kullanılınca **Savaş Tanrısı** savaşı açılır.
 En fazla 4 kez girilebilir, her girişte boss seviyesi +5. Kazanınca lvl 51 nişanı düşer.
 
+### Günlük olay havuzu (#35)
+Sefer sessiz bir tabloya bakmak olmasın diye `Game.dailyEvent()` her günün sonunda
+(`dailyUpdate`'in en altında, günün hesabı kapandıktan sonra) zar atar: `EVENT_CHANCE`
+**0.35**. Olay çıkarsa modal olarak anlatılır ve mekanik sonucu satırında yazar.
+
+- Havuz `Game.DAY_EVENTS` (13 olay, 8 olumsuz / 5 olumlu). Her olayın `when(ctx)` süzgeci
+  var — `ctx` = grup mevcudu, **900 birim içindeki en yakın yerleşim**, erzak toplamı, moral.
+  Böylece "sarhoş asker" yalnız yerleşim yakınında, "nal düştü" yalnız atlıyken,
+  "köylü kadın peynir bıraktı" yalnız köy dibinde çıkar.
+- Zar **iki kez** atılır: önce ton (%60 olumsuz), sonra o tondan olay. Son 4 olay tekrar
+  seçilmez ama bu süzgeç **tonun içinde** çalışır — genel havuza uygulanınca küçük olumlu
+  havuz "son olaylar"a takılıp boşalıyor ve olumsuz oran %71'e çıkıyordu. Ton havuzu
+  tamamen boşsa süzgeç düşer, yoksa ordusuz ve şehirsiz gezen oyuncuya hiç olay çıkmıyordu.
+- Bedeller küçüktür: moral ±2–4, 2–4 birim erzak, 15–60 dinar ceza, bir askerin 2 gün
+  yaralanması; hırsızlık kasanın %2–5'i ama **tavanı 250 dinar** (zengin oyuncuyu da yalnız
+  kızdırsın). Olumlu taraf: +30–90 dinar kese, 2–4 et, moral, kapasite varsa yoldan katılan
+  bir asker, köyden iki peynir.
+- Yardımcılar `Game.addMorale/addItem/takeFood`; esaret ve kuşatma kampında olay çıkmaz.
+
+Ölçüldü (400 gün, gezen ve büyüyen 6 kişilik grup): **156 olay — 2.6 günde bir**, %60'ı
+olumsuz, 13 olayın 12'si çıktı (nal düşmesi at gerektirir).
+
 ### Debug raporu (#52)
 Hata yaşandığında elde ekran görüntüsünden fazlası olsun diye kenar menüsünde
 **🐞 Debug Raporu** düğmesi var (`Debug.open()`). `Debug` objesi `app.js`'in **en başında**
@@ -1068,6 +1112,15 @@ durur ve `Debug.init()` orada çağrılır — oyun kurulurken atılan hata da y
 
 Ölçüldü: `Game.nonexistentFunction()` ve reddedilen bir promise tamponda `error` ve
 `promise` olarak göründü, rapor 1.6 KB, son 30 karenin ortalaması 16.7 ms (68 Hz).
+
+**Yazısız sarı düğme** şikâyetinin (#35) tek kapısı `Game.btnLabelOk(text, where)`:
+etiket boş/`undefined` ya da yalnız etiketten ibaretse düğme **hiç çizilmez** ve
+`Debug.log('bosbuton', …)` çağrının yığınıyla birlikte rapora düşer — hangi akıştan geldiği
+oyuncunun gönderdiği JSON'dan okunur. İki çağıranı var: `addBtn` (yerleşim ekranı) ve
+`showModal`, ki modal HTML'i şablon dizesiyle üretildiği için düğmeleri yazıldıktan sonra
+tarar ve boş olanı `display:none` yapar. Ölçüldü: boş etiketli `addBtn` çizilmedi, modaldeki
+boş düğme gizlendi, dolu düğme dokunulmadan kaldı; pazar (36 düğme), han (11), salon,
+diplomasi ve debug modallerinde tek bir yanlış pozitif yok.
 
 ## Görsel katman (renovasyon)
 

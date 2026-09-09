@@ -726,7 +726,7 @@ body {
 #top-bar .tooltip-content { max-width: min(340px, calc(100vw - 24px)); }
 
 /* Harita künyesindeki "Beni Bul" düğmesi — künye pointer-events:none olduğu için geri açılır */
-#btn-center, #btn-diplo {
+#btn-center, #btn-diplo, #btn-points {
     pointer-events: auto;
     margin-left: 0.4rem;
     display: inline-flex; align-items: center; gap: 4px;
@@ -736,7 +736,18 @@ body {
     font-family: inherit; font-size: 0.72rem;
     padding: 1px 7px; border-radius: 5px; cursor: pointer;
 }
-#btn-center:hover, #btn-diplo:hover { background: rgba(212,175,55,0.25); }
+#btn-center:hover, #btn-diplo:hover, #btn-points:hover { background: rgba(212,175,55,0.25); }
+
+/* Harcanmamış nitelik/odak puanı rozeti (#35): dikkat çeker ama sıçramaz — yalnız ışık nefes alır */
+#btn-points {
+    color: #ffe9a8; font-weight: 600;
+    background: rgba(212,175,55,0.22); border-color: rgba(212,175,55,0.65);
+    animation: pointsGlow 2.2s ease-in-out infinite;
+}
+@keyframes pointsGlow {
+    0%, 100% { box-shadow: 0 0 0 rgba(212,175,55,0); }
+    50%      { box-shadow: 0 0 10px rgba(212,175,55,0.75); }
+}
 #btn-center kbd, #btn-diplo kbd {
     font-size: 0.62rem; padding: 0 4px; border-radius: 3px;
     background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted);
