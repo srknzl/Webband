@@ -1091,3 +1091,22 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 /* Başlangıç ekranındaki sıra daha küçük: oyunu değil ayarı temsil eder */
 #lang-row .lang-btn { min-width: 62px; padding: 0.45rem 0.6rem; font-size: 0.66rem; }
 #lang-row .lang-flag { font-size: 1.3rem; }
+
+/* --- HAFİF MOD (body.lite) ---
+   `Game.applySettings()` sınıfı koyar; tek anahtar `Game.opt('lite')` ("Cihaza göre"
+   telefon/tablette kendiliğinden açar). Buradaki iş tamamen compositor'a bakar:
+   telefonda kasmanın kaynağı JS değil, her karede yeniden hesaplanan blur ve
+   büyük yayılımlı gölgelerdir. Cam görünüm blur yerine daha opak zeminle korunur. */
+body.lite .glass-panel,
+body.lite #modal-overlay,
+body.lite #start-screen .form-group,
+body.lite #top-bar,
+body.lite #sidebar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+body.lite .glass-panel { background: rgba(16,17,22,0.94); box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+body.lite #modal-overlay { background: rgba(6,6,10,0.82); }
+/* Sürekli dönen animasyonlar kare başına bir kompozit katmanı demek */
+body.lite #btn-points, body.lite .fx-flash, body.lite .fx-flash-bad { animation: none; }
+body.lite #map-view, body.lite #battle-view { box-shadow: none; }

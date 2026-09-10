@@ -1453,6 +1453,7 @@ varsayılanlar `Game.OPTS`'ta durur, `state.settings` **yalnızca sapmaları** s
 | Kare atlama kapısı | `opt('frameGate')` false ise `skipFrame` **hiç kare atmaz** (ölçüm yine sürer) — oyuncunun elindeki kaçış yolu |
 | Yazı boyutu | `opt('fontScale')` × 16 px kök yazı boyutu; arayüz `rem` tabanlı |
 | Otomatik kayıt | `Save.auto()`'yu kapatır |
+| 📱 Hafif mod (Cihaza göre/Açık/Kapalı) | `Game.lite()`; bütün oyunu sadeleştirir ve hedefi 30 fps'e indirir — bkz. "Hafif mod" |
 
 Panel ayrıca 💾 Kayıtlar, 🐞 Debug Raporu, ⌨️ Tuşlar (`Game.KEYS` tablosu) ve sürüm satırını
 taşır. Ölçüldü: yazı ölçeği 0.9/1/1.15 → kök **14.4 / 16 / 18.4 px**; `reducedMotion:true`
@@ -1876,6 +1877,69 @@ Bu yüzden kasma aramak için profiler'da JS'e bakmak yanıltıcı. Uygulanan ku
   `_seaGrad`, `_vignette`, `_forestTrees`, `_swordGrad`. Kare başına gradyan üretilmez.
 - Parçacık tavanları: kıvılcım 120, uçan yazı 40, kan lekesi 200, ceset 60.
 - Hedef arama kare başına tam tarama değil — birim başına 0.3–0.5 sn'de bir (`u.tgtId`).
+
+### Hafif mod — tek config, bütün oyun (#80)
+
+"iPhone 14'te bile haritada gezerken 2 dakika sonra kasıyor." İki ayrı iş: **kök
+düzeltme** (her modda geçerli) ve **hafif mod** (tek anahtarla bütün oyunu sadeleştirir).
+
+**1. Kök düzeltme — harita her karede sıfırdan çiziliyordu.** Ölçüldü (900×620 tuval,
+zoom 0.8, kare başına, `CanvasRenderingContext2D` sayaçlarıyla):
+
+| | önce | sonra (vanilla) |
+|---|---|---|
+| `createRadialGradient` | **123** | **0** |
+| `fillText` | **239** | **43** |
+| `measureText` | **42** | **0** |
+| `shadowBlur > 0` | 1 *(kıtanın tamamına 70 px blur)* | **0** |
+| `renderMap` (JS) | 0.66 ms | 0.55 ms |
+
+JS farkı küçüktür ve zaten öyle olmalı — darboğaz compositor (bkz. yukarısı). Asıl
+kazanç telefonda GC'ye giden ~250 kısa ömürlü gradyan nesnesi ve her karede yeniden
+rasterize edilen ~157 dağ emojisidir; ikisi termal kısılmayla birleşince
+"önce iyi, iki dakika sonra kasıyor" tablosunu üretiyordu.
+
+Dört önbellek, hepsi `Game`'de:
+
+| Kapı | Ne yapar |
+|---|---|
+| `Game.emoji(ctx, ch, x, y, size)` | Emojiyi 2'nin kuvveti bir glif boyunda offscreen tuvale bir kez pişirir, sonra `drawImage`. Dağ halkası, yerleşim/keşif ikonları, taç ve zincir buradan geçer |
+| `Game.radial(ctx, r, iç, dış)` | Yarıçap+renk anahtarlı radyal gradyan. **Önbellek bağlamın üstünde** (`ctx._grads`) — `CanvasGradient` onu üreten bağlama bağlıdır |
+| `Game.textW(ctx, text)` | Etiket genişliği metin başına bir kez ölçülür (`mapLabel`) |
+| `Battle.drawTree` | Taç gradyanı artık konuma değil yalnız yarıçapa bağlı: çizim orijine kurulup `translate` ile taşınır, gradyan yarıçap başına bir kez üretilir (`c._treeGrad`) |
+
+Kıyı gölgesindeki `shadowBlur = 70` üç saydam geniş konturla değiştirildi: aynı hâle,
+bedeli yol çizimi kadar.
+
+**2. Hafif mod.** Tek anahtar: `Game.opt('lite')` = `'auto' | true | false`, cevabı
+`Game.lite()` verir ve kare içinde önbelleklenir (`_lite`, `applySettings` tazeler).
+`'auto'` = `Game.isTouch()`, yani `pointer: coarse`. ⚙️ Ayarlar'da **📱 Hafif mod**
+satırı; kendiliğinden açıldığında oyuncuya `Game.liteNotice()` ile **bir kez**
+söylenir (`localStorage.webband_lite_told`) — sessizce kısılan grafik "oyun neden
+böyle görünüyor" sorusu doğurur.
+
+| Alan | Hafif modda ne düşer |
+|---|---|
+| Harita | Deniz dalgası, toprak lekeleri ve ocak ışığı çizilmez; orman ağaçları **3'te 1'e** seyrelir (0'a değil — orman bir oynanış bilgisidir: pusu, görüş, hız), dağ halkası 2'de 1 yerine 4'te 1 |
+| Savaş | `buildGround` yoğunluğu (60→20 leke, 2600→700 çim tutamı, orman ağaçları yarıya); su parıltısı ve birim tozu kalkar; `drawHud` metin gölgesi kalkar; `spark()` 5 yerine 2 parçacık |
+| Parçacık tavanları | kıvılcım 120→**40**, uçan yazı 40→**14**, kan lekesi 200→**60**, ceset 60→**20** |
+| Ekranlar | `Game.sceneBg` null döner: karakter/grup/envanter/görev zeminleri ve han/salon modal resmi çizilmez (perde kalır) |
+| CSS (`body.lite`) | `backdrop-filter` düşer, cam paneller opak zemine geçer, sürekli dönen animasyonlar durur |
+| Kare hızı | `skipFrame` hedefi 60 yerine **30 fps** — telefonda bütçeyi yarıya indirmek çizimi kısmaktan daha çok işe yarar (ve ısınmayı yavaşlatır) |
+
+Ölçüldü (aynı tuval ve aynı kare, vanilla → hafif):
+
+| | vanilla | hafif |
+|---|---|---|
+| `renderMap` | 0.55 ms · arc 285 · fill 501 · drawImage 198 | **0.38 ms · arc 111 · fill 289 · drawImage 119** |
+| Harita ağacı / kare | 59 | **21** |
+| `Battle.buildGround` (savaş başına bir kez) | 2.3 ms | **0.3 ms** |
+| `Battle.render` (49 canlı birim) | 0.39 ms · arc 131 · fill 235 · shadowBlur 1 | **0.29 ms · arc 69 · fill 173 · shadowBlur 0** |
+| 4 menü ekranına ilk giriş | 28.4 ms, zemin verisi 38 KB | **4.7 ms, 63 bayt** |
+| Kare kapısı (60 Hz ekran) | `[f,f,f,f,f,f,f,f]` = 60 fps | **`[t,f,t,f,…]` = 30 fps** |
+
+`applySettings` mod değişince ekran zeminlerinin `dataset.bg` damgasını siler ve açık
+ekranı yeniden kurar — yoksa hafif modda girilen ekran vanilla'ya dönünce zeminsiz kalıyordu.
 
 Hâlâ kasan bir makinede ilk bakılacak yer `chrome://gpu`: tuval hızlandırması kapalıysa
 (sürücü kara listesi) her şey yazılımla rasterize edilir ve buradaki hiçbir önlem yetmez.

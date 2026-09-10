@@ -3,6 +3,25 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.66 — Hafif Mod (2026-09-10)
+
+- **Telefonda oyun artık kasmıyor.** İki dakika sonra başlayan takılmanın sebebi
+  haritanın her karede sıfırdan çizilmesiydi: ~157 dağ emojisi yeniden rasterize
+  ediliyor, ~123 gradyan üretilip çöpe atılıyor, kıyı gölgesi bütün kıtayı piksel
+  piksel bulanıklaştırıyordu. Hepsi bir kez pişirilip önbelleğe alındı — bu düzeltme
+  **her modda** geçerli.
+- **📱 Hafif mod** eklendi (⚙️ Ayarlar → *Cihaza göre / Açık / Kapalı*). Telefon ve
+  tablette kendiliğinden açılır ve sana bir kez haber verir; beğenmezsen tek tıkla
+  kapatırsın. Tek anahtar bütün oyunu kapsar:
+  - **Harita:** deniz dalgası, toprak lekeleri ve ocak ışığı düşer, orman ağaçları
+    seyrelir, dağ halkası aralanır.
+  - **Savaş:** zemin dokusu sadeleşir, kan/ceset/kıvılcım tavanları düşer, su
+    parıltısı ve toz bulutu kalkar.
+  - **Ekranlar:** karakter/grup/envanter/görev zeminleri çizilmez, cam panellerin
+    bulanıklığı kalkar.
+  - Hedef kare hızı 60 yerine **30 fps** — telefonda bütçeyi yarıya indirmek çizimi
+    kısmaktan daha çok işe yarar, ısınmayı da yavaşlatır.
+
 ## 0.65 — Üç Dil (2026-09-10)
 
 - **Oyun üç dilde oynanıyor: Türkçe, İngilizce ve Endonezce.** İlk açılışta bayraklı bir

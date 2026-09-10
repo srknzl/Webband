@@ -502,7 +502,8 @@ const Battle = {
     },
     spark(x, y, angle, color) {
         if(Game.reduceMotion()) return;
-        for(let i = 0; i < 5; i++) {
+        // Hafif modda parçacık sayısı 5 -> 2 (bkz. Game.lite()).
+        for(let i = 0, n = Game.lite() ? 2 : 5; i < n; i++) {
             let a = angle + (Math.random()-0.5) * 1.6;
             let sp = 40 + Math.random()*90;
             this.sparks.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: 0.25 + Math.random()*0.2, color });
@@ -641,10 +642,13 @@ const Battle = {
             sp.vy += 120 * dt; sp.life -= dt;
         });
         this.sparks = this.sparks.filter(sp => sp.life > 0);
-        // Kalabalık savaşta parçacık seli FPS'i düşürüyordu
-        if(this.sparks.length > 120) this.sparks.splice(0, this.sparks.length - 120);
-        if(this.floatingTexts.length > 40) this.floatingTexts.splice(0, this.floatingTexts.length - 40);
-        if(this.bloodStains.length > 200) this.bloodStains.splice(0, this.bloodStains.length - 200);
+        // Kalabalık savaşta parçacık seli FPS'i düşürüyordu. Hafif modda tavanlar
+        // üçte bire iner: telefonda her leke ayrı bir arc + fill demek.
+        let lite = Game.lite();
+        let capSpark = lite ? 40 : 120, capText = lite ? 14 : 40, capBlood = lite ? 60 : 200;
+        if(this.sparks.length > capSpark) this.sparks.splice(0, this.sparks.length - capSpark);
+        if(this.floatingTexts.length > capText) this.floatingTexts.splice(0, this.floatingTexts.length - capText);
+        if(this.bloodStains.length > capBlood) this.bloodStains.splice(0, this.bloodStains.length - capBlood);
         this.units.forEach(u => { if(u.hitFlash > 0) u.hitFlash -= dt; });
 
         // Battle pings
@@ -907,8 +911,12 @@ const Battle = {
         base.addColorStop(1, '#233b21');
         c.fillStyle = base; c.fillRect(0, 0, W, H);
 
+        // Hafif mod: zemin bir kez pişiyor ama telefonda o "bir kez" de takılma
+        // olarak hissediliyor (2600 stroke + 60 gradyan). Yoğunluk üçte bire iner.
+        let lite = Game.lite();
+
         // Yumuşak renk lekeleri — düz yeşil zemin yerine benekli çayır
-        for(let i = 0; i < 60; i++) {
+        for(let i = 0, n = lite ? 20 : 60; i < n; i++) {
             let x = Math.random()*W, y = Math.random()*H, r = 60 + Math.random()*140;
             let rg = c.createRadialGradient(x, y, 0, x, y, r);
             rg.addColorStop(0, Math.random() > 0.5 ? 'rgba(96,134,72,0.16)' : 'rgba(18,38,18,0.18)');
@@ -916,7 +924,7 @@ const Battle = {
             c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
         }
         // Çim tutamları
-        for(let i = 0; i < 2600; i++) {
+        for(let i = 0, n = lite ? 700 : 2600; i < n; i++) {
             let x = Math.random()*W, y = Math.random()*H;
             c.strokeStyle = Math.random() > 0.5 ? 'rgba(126,166,92,0.30)' : 'rgba(28,52,26,0.35)';
             c.lineWidth = 1;
@@ -962,7 +970,7 @@ const Battle = {
         (TR.forests||[]).forEach(f => {
             c.fillStyle = 'rgba(9,24,11,0.5)';
             c.beginPath(); c.arc(f.x, f.y, f.r, 0, Math.PI*2); c.fill();
-            let n = Math.floor(f.r / 9);
+            let n = Math.floor(f.r / (lite ? 18 : 9));
             let trees = [];
             for(let i = 0; i < n; i++) {
                 let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.r * 0.92;
@@ -1039,19 +1047,29 @@ const Battle = {
         c.strokeStyle = 'rgba(20,22,24,0.8)'; c.lineWidth = 2; c.stroke();
     },
 
+    // Savaş zemininde bir kez, haritada HER KARE çağrılır (4 orman × ~15 ağaç).
+    // Taç gradyanı ağacın konumuna değil yalnız yarıçapına bağlı: çizim orijine
+    // kurulup translate ile yerine taşınırsa gradyan yarıçap başına bir kez üretilir.
+    // Gradyan onu üreten bağlama bağlı olduğu için önbellek bağlamın üstünde durur.
     drawTree(c, x, y, r) {
+        let cache = c._treeGrad || (c._treeGrad = {}), key = Math.round(r), rg = cache[key];
+        if(!rg) {
+            rg = c.createRadialGradient(-key*0.35, -key*0.45, key*0.1, 0, -key*0.2, key);
+            rg.addColorStop(0, 'rgba(96,146,72,1)');
+            rg.addColorStop(0.65, 'rgba(46,88,40,1)');
+            rg.addColorStop(1, 'rgba(20,44,20,1)');
+            cache[key] = rg;
+        }
+        c.save(); c.translate(x, y);
         c.fillStyle = 'rgba(0,0,0,0.35)';
-        c.beginPath(); c.ellipse(x + r*0.4, y + r*0.55, r*0.95, r*0.42, 0, 0, Math.PI*2); c.fill();
+        c.beginPath(); c.ellipse(r*0.4, r*0.55, r*0.95, r*0.42, 0, 0, Math.PI*2); c.fill();
         c.fillStyle = '#3b2a18';
-        c.fillRect(x - r*0.13, y - r*0.1, r*0.26, r*0.7);
-        let rg = c.createRadialGradient(x - r*0.35, y - r*0.45, r*0.1, x, y - r*0.2, r);
-        rg.addColorStop(0, 'rgba(96,146,72,1)');
-        rg.addColorStop(0.65, 'rgba(46,88,40,1)');
-        rg.addColorStop(1, 'rgba(20,44,20,1)');
+        c.fillRect(-r*0.13, -r*0.1, r*0.26, r*0.7);
         c.fillStyle = rg;
-        c.beginPath(); c.arc(x, y - r*0.25, r*0.85, 0, Math.PI*2); c.fill();
-        c.beginPath(); c.arc(x - r*0.5, y - r*0.05, r*0.5, 0, Math.PI*2); c.fill();
-        c.beginPath(); c.arc(x + r*0.5, y - r*0.05, r*0.48, 0, Math.PI*2); c.fill();
+        c.beginPath(); c.arc(0, -r*0.25, r*0.85, 0, Math.PI*2); c.fill();
+        c.beginPath(); c.arc(-r*0.5, -r*0.05, r*0.5, 0, Math.PI*2); c.fill();
+        c.beginPath(); c.arc(r*0.5, -r*0.05, r*0.48, 0, Math.PI*2); c.fill();
+        c.restore();
     },
 
     render() {
@@ -1063,7 +1081,7 @@ const Battle = {
         ctx.drawImage(this.ground, 0, 0);
 
         // Su parıltısı (tek canlı arazi efekti)
-        if(this.terrain && this.terrain.rivers) {
+        if(this.terrain && this.terrain.rivers && !Game.lite()) {
             ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 2;
             this.terrain.rivers.forEach(r => {
                 for(let i = 0; i < 7; i++) {
@@ -1238,7 +1256,7 @@ const Battle = {
             ctx.strokeStyle = 'rgba(255,204,0,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
         }
 
-        if(isMoving && Math.random() < 0.25) {
+        if(isMoving && !Game.lite() && Math.random() < 0.25) {
             ctx.fillStyle = 'rgba(196,186,150,0.35)';
             ctx.beginPath(); ctx.arc(u.x + (Math.random()-0.5)*8, u.y + 9, 1.5+Math.random()*2.5, 0, Math.PI*2); ctx.fill();
         }
@@ -1417,7 +1435,7 @@ const Battle = {
         else if(this.tugRatio < 0.2) statusText = T('Eyvah Anam! 😱');
         else if(this.tugRatio < 0.4) statusText = T('Dayak Yiyoruz! 😬');
 
-        ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 6;
+        if(!Game.lite()) { ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 6; }
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#f3e6c0'; ctx.font = 'bold 18px Cinzel, serif';
         ctx.fillText(statusText, W/2, barY - 18);
@@ -1428,7 +1446,8 @@ const Battle = {
     },
     logKill(victim, killer) {
         if(Game.opt('gore')) this.corpses.push({ x: victim.x, y: victim.y, isPlayerTeam: victim.isPlayerTeam, rot: Math.random()*Math.PI*2 });
-        if(this.corpses.length > 60) this.corpses.shift();
+        let capCorpse = Game.lite() ? 20 : 60;
+        while(this.corpses.length > capCorpse) this.corpses.shift();
         if(victim.id === 'player') {
             this.knockedOut = true;
             this.log(T('<span style="color:#ff4444"><b>Yere yığıldın!</b> Adamların savaşa devam ediyor…</span>'), 'right');

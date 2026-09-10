@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.65', date: '2026-09-10', name: 'Üç Dil' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.66', date: '2026-09-10', name: 'Hafif Mod' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -561,6 +561,70 @@ const Game = {
     // Uzaklaşınca yerleşim/grup ikonları ekranda okunur boyutta kalsın (etiketler zaten
     // 1/zoom ile ölçekleniyordu, ikonlar dünya biriminde olduğu için erimişti).
     iconScale() { return Math.max(1, 0.55 / this.camera.zoom); },
+
+    // --- ÇİZİM ÖNBELLEKLERİ VE HAFİF MOD (#80) ---
+    // Harita her karede sıfırdan çiziliyordu: ~150 dağ + 25 yerleşim emojisi yeniden
+    // rasterize ediliyor, ~250 gradyan nesnesi üretilip çöpe atılıyor, kıyı gölgesi
+    // shadowBlur ile piksel piksel bulanıklaştırılıyordu. Masaüstünde JS tarafı ucuz
+    // görünür (0.5 ms) çünkü bedelin tamamı rasterleştirmede; telefonda aynı iş
+    // ısınmayla birlikte kare bütçesini yer. Üçü de aynı ilkeyle çözülür:
+    // **pahalı şeyi bir kez pişir, sonra resmi bas** (Battle.buildGround'un haritadaki eşi).
+
+    // Hafif mod: dokunmatik cihazda kendiliğinden açılır, ayarlardan kapatılır.
+    // 'auto' = cihaza sor. Kare başına birkaç kez sorulduğu için cevap önbelleklenir.
+    lite() {
+        if(this._lite === undefined) {
+            let v = this.opt('lite');
+            this._lite = v === 'auto' ? this.isTouch() : !!v;
+        }
+        return this._lite;
+    },
+
+    // Emoji glifi: iki-üssü bir kovaya bir kez pişirilir, sonra küçültülerek basılır.
+    // (Kova hep istenen boyuttan büyük seçilir, yani her zaman küçültme — bulanmaz.)
+    // x/y ve boyut `fillText(ch, x, y)` + `textBaseline:'alphabetic'` ile aynı anlamda.
+    _sprites: {},
+    emoji(ctx, ch, x, y, size) {
+        let px = Math.min(256, Math.max(16, Math.pow(2, Math.ceil(Math.log2(Math.max(16, size))))));
+        let key = ch + '|' + px, s = this._sprites[key];
+        if(!s) {
+            s = document.createElement('canvas');
+            s.width = Math.ceil(px * 1.6); s.height = Math.ceil(px * 1.7);
+            let c = s.getContext('2d');
+            c.font = px + 'px Arial'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+            c.fillText(ch, s.width / 2, Math.round(px * 1.25));
+            s._base = Math.round(px * 1.25) / px;      // taban çizgisinin glif boyuna oranı
+            s._k = 1 / px;
+            this._sprites[key] = s;
+        }
+        let k = size * s._k;
+        ctx.drawImage(s, x - s.width * k / 2, y - s._base * size, s.width * k, s.height * k);
+    },
+
+    // Merkezi orijinde duran radyal gradyan; çağıran translate ile yerine taşır.
+    // Gradyan onu üreten bağlama bağlıdır, o yüzden önbellek bağlamın üstünde durur.
+    radial(ctx, r, inner, outer) {
+        let cache = ctx._grads || (ctx._grads = {});
+        let key = r + '|' + inner + '|' + outer, g = cache[key];
+        if(!g) {
+            g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+            g.addColorStop(0, inner); g.addColorStop(1, outer);
+            cache[key] = g;
+        }
+        return g;
+    },
+
+    // Etiket genişliği yazı boyutuyla doğru orantılı: 19 px'te bir kez ölçülür,
+    // sonrası çarpma. (Kare başına ~75 measureText çağrısı vardı.)
+    _tw: {},
+    textW(ctx, text) {
+        let w = this._tw[text];
+        if(w === undefined) {
+            ctx.font = 'bold 19px Inter, sans-serif';
+            w = this._tw[text] = ctx.measureText(text).width;
+        }
+        return w;
+    },
 
     getMapRadius(x, y) {
         let dx = x - 4500;
@@ -1427,7 +1491,10 @@ const Game = {
         // Kapı ayarlardan kapatılabilir (#55 madde 7): kapıya güvenmeyen oyuncunun
         // elinde bir kaçış yolu olsun. Ölçüm (Debug.frame) kapalıyken de sürer.
         if(!this.opt('frameGate')) return this._lastSkip = false;
-        let n = Math.max(1, Math.floor(1000 / 60 / this._minStep + 0.01));
+        // Hafif modda hedef 30 fps: telefonda kare bütçesini yarıya indirmek,
+        // çizimi kısmaktan daha çok işe yarar (ve ısınmayı da yavaşlatır).
+        let fps = this.lite() ? 30 : 60;
+        let n = Math.max(1, Math.floor(1000 / fps / this._minStep + 0.01));
         return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
 
@@ -3118,9 +3185,9 @@ const Game = {
     mapLabel(ctx, text, x, y, color, accent) {
         // Yazı boyutu zoom'dan bağımsız: her yakınlıkta aynı ekran boyunda okunur
         let k = 1 / this.camera.zoom;
+        let w = this.textW(ctx, text) * k + 18*k, h = 25*k;
         ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        let w = ctx.measureText(text).width + 18*k, h = 25*k;
 
         if(!this._labelRects) this._labelRects = [];
         for(let tries = 0; tries < 8; tries++) {
@@ -3366,11 +3433,11 @@ const Game = {
         ctx.fillStyle = this._seaGrad;
         ctx.fillRect(-5000, -5000, 20000, 20000);
 
-        // Deniz dalgaları
+        // Deniz dalgaları — 26 polyline × 45 nokta; hafif modda deniz düz durur
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 6;
         let wt = performance.now() / 4000;
-        for(let i = -4; i < 22; i++) {
+        for(let i = -4; i < 22 && !this.lite(); i++) {
             let y = i * 600 + Math.sin(wt + i) * 40;
             ctx.beginPath();
             for(let x = -4000; x < 14000; x += 400) ctx.lineTo(x, y + Math.sin((x/900) + wt*2 + i) * 30);
@@ -3391,9 +3458,11 @@ const Game = {
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke();
         ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
-        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 70;
+        // Kıyı gölgesi: `shadowBlur = 70` kıtanın tamamını her karede piksel piksel
+        // bulanıklaştırıyordu. Üç saydam geniş kontur aynı hâleyi verir, bedeli yol çizimi.
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        for(let bw of [130, 86, 48]) { ctx.lineWidth = bw; ctx.stroke(); }
         ctx.fillStyle = '#2f452c'; ctx.fill();
-        ctx.shadowBlur = 0;
         ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
 
         ctx.clip(); // Bundan sonrası kıtanın dışına taşmaz
@@ -3408,12 +3477,11 @@ const Game = {
             state.dirtPatches = [];
             for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
         }
-        state.dirtPatches.forEach(d => {
-            let g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
-            g.addColorStop(0, 'rgba(30,44,28,0.55)');
-            g.addColorStop(1, 'rgba(30,44,28,0)');
-            ctx.fillStyle = g;
-            ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI*2); ctx.fill();
+        if(!this.lite()) state.dirtPatches.forEach(d => {
+            ctx.save(); ctx.translate(d.x, d.y);
+            ctx.fillStyle = this.radial(ctx, Math.round(d.r), 'rgba(30,44,28,0.55)', 'rgba(30,44,28,0)');
+            ctx.beginPath(); ctx.arc(0, 0, d.r, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
         });
 
         // Nehirler — yatak, su, akıntı
@@ -3493,13 +3561,22 @@ const Game = {
                 return arr;
             });
         }
-        FORESTS.forEach((f, i) => {
+        // Orman lekesi sabit konumda: gradyanı bir kez üretilir. Ağaçlar (4 orman ×
+        // ~15 ağaç, her biri 6 yol + 1 gradyan) hafif modda düşer, leke kalır.
+        if(!this._forestGrad) this._forestGrad = FORESTS.map(f => {
             let g = ctx.createRadialGradient(f.x, f.y, f.radius*0.2, f.x, f.y, f.radius);
             g.addColorStop(0, 'rgba(16,38,18,0.85)');
             g.addColorStop(1, 'rgba(16,38,18,0)');
-            ctx.fillStyle = g;
+            return g;
+        });
+        // Hafif modda ağaçlar seyreltilir ama söndürülmez: karartma diski tek başına
+        // zeminden ayırt edilmiyor, orman görünmez oluyordu — oysa orman bir oynanış
+        // bilgisi (pusu, görüş, hız). Üçte biri kalınca lekesi hâlâ okunuyor.
+        let step = this.lite() ? 3 : 1;
+        FORESTS.forEach((f, i) => {
+            ctx.fillStyle = this._forestGrad[i];
             ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI*2); ctx.fill();
-            this._forestTrees[i].forEach(t => Battle.drawTree(ctx, t.x, t.y, t.r));
+            this._forestTrees[i].forEach((t, j) => { if(j % step === 0) Battle.drawTree(ctx, t.x, t.y, t.r); });
         });
 
         ctx.restore(); // kıta clip'i biter
@@ -3512,9 +3589,7 @@ const Game = {
             ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
             ctx.globalAlpha = fresh ? 0.95 : 0.45;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-            ctx.font = big + 'px Arial';
-            ctx.fillText(k.icon, site.x, site.y + 10);
+            this.emoji(ctx, k.icon, site.x, site.y + 10, big);
             ctx.globalAlpha = 1;
             // Etiket yalnız yakınlaşınca: 14 uzun ad kıta görünümünde yerleşim adlarını eziyordu
             if(fresh && this.camera.zoom > 0.18) this.mapLabel(ctx, k.name, site.x, site.y - big*0.75 - 10, '#cbbf9a', '#8a7b52');
@@ -3532,9 +3607,7 @@ const Game = {
             ctx.ellipse(loc.x, loc.y + 18, big*0.55, big*0.22, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
 
-            ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-            ctx.font = big + 'px Arial';
-            ctx.fillText(icon, loc.x, loc.y + 15);
+            this.emoji(ctx, icon, loc.x, loc.y + 15, big);
 
             // Fraksiyon flaması
             let px = loc.x + big*0.42, py = loc.y - big*0.45;
@@ -3547,8 +3620,7 @@ const Game = {
             ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
 
             if(loc.type === 'city' && state.activeTournaments[loc.id]) {
-                ctx.font = (36*ik) + 'px Arial';
-                ctx.fillText('🏆', loc.x - big*0.55, loc.y - 15);
+                this.emoji(ctx, '🏆', loc.x - big*0.55, loc.y - 15, 36*ik);
             }
 
             this.mapLabel(ctx, loc.name, loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
@@ -3561,16 +3633,18 @@ const Game = {
             ctx.fillStyle = tint;
             ctx.fillRect(-1000, -1000, 11000, 11000);
         }
+        // Ocak ışığı: gradyan tek, şiddeti globalAlpha ile (25 gradyan/kare yerine 0)
         let glow = this.nightGlow();
-        if(glow > 0.02) {
+        if(glow > 0.02 && !this.lite()) {
             ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.30 * glow;
+            ctx.fillStyle = this.radial(ctx, 110, 'rgba(255,170,70,1)', 'rgba(255,140,50,0)');
             LOCATIONS.forEach(loc => {
-                let g = ctx.createRadialGradient(loc.x, loc.y, 0, loc.x, loc.y, 110);
-                g.addColorStop(0, `rgba(255,170,70,${(0.30 * glow).toFixed(3)})`);
-                g.addColorStop(1, 'rgba(255,140,50,0)');
-                ctx.fillStyle = g;
-                ctx.beginPath(); ctx.arc(loc.x, loc.y, 110, 0, Math.PI*2); ctx.fill();
+                ctx.save(); ctx.translate(loc.x, loc.y);
+                ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
             });
+            ctx.globalAlpha = 1;
             ctx.globalCompositeOperation = 'source-over';
         }
 
@@ -3578,13 +3652,13 @@ const Game = {
         // Gizli olan tek şey gruplardır — onlar Game.canSee() ile eleniyor.
 
         // Sınırlar boyunca sıra dağları çiz
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
+        // 315 sınır noktasının yarısı dağdı: kare başına ~157 emoji rasterleştirmesi.
+        // Artık pişmiş sprite basılıyor, hafif modda ayrıca dört noktada bire seyreliyor.
+        let mStep = this.lite() ? 4 : 2;
         state.mapBorder.forEach((pt, index) => {
-            if(index % 2 === 0) { // Çok yoğun olmaması için iki noktada bir dağ çiz
+            if(index % mStep === 0) {
                 let sz = 42 + ((index * 37) % 24); // düzenli tekrar yerine kırık silüet
-                ctx.font = sz + 'px Arial';
-                ctx.fillText('🏔️', pt.x, pt.y + 20 + (index % 3) * 6);
+                this.emoji(ctx, '🏔️', pt.x, pt.y + 20 + (index % 3) * 6, sz);
             }
         });
 
@@ -3619,9 +3693,8 @@ const Game = {
 
             // Taç: kral/vezir
             if(npc.type === 'king' || npc.type === 'vizier') {
-                ctx.font = (npc.type === 'king' ? 30 : 24) + 'px Arial';
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44);
+                let cs = npc.type === 'king' ? 30 : 24;
+                this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
             }
             
             let shortName = this.npcName(npc).split(' ')[0];
@@ -3637,8 +3710,7 @@ const Game = {
         // ve etiketiyle aynı noktaya çiziliyordu (üst üste binen metinler).
         let isPrisoner = !!state.player.prisoner;
         if(isPrisoner) {
-            ctx.font = '30px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('⛓️', state.player.x - 30, state.player.y - 40);
+            this.emoji(ctx, '⛓️', state.player.x - 30, state.player.y - 30, 30);
         } else {
             // Oyuncu tabanı — nabız atan altın halka
             let pp = 1 + Math.sin(performance.now()/450) * 0.1;
@@ -3781,6 +3853,16 @@ const Game = {
             if(ask) ask.classList.remove('hidden');
         }
         I18N.applyDom(document.body);
+        if(saved) this.liteNotice();
+    },
+
+    // Hafif mod kendiliğinden açıldıysa oyuncuya bir kez söylenir: sessizce kısılan
+    // grafik "oyun neden böyle görünüyor" sorusu doğurur. Cevap ⚙️ Ayarlar'da.
+    liteNotice() {
+        if(!this.lite() || this.opt('lite') !== 'auto') return;
+        try { if(localStorage.getItem('webband_lite_told')) return;
+              localStorage.setItem('webband_lite_told', '1'); } catch(e) { return; }
+        setTimeout(() => alert(T`📱 Telefon/tablet algılandı — Hafif Mod açıldı.\nDeniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer; hedef 30 fps.\n⚙️ Ayarlar'dan kapatabilirsin.`), 600);
     },
 
     renderLangRow(id) {
@@ -3794,7 +3876,7 @@ const Game = {
     setLang(lang) {
         I18N.set(lang);
         const ask = document.getElementById('lang-ask');
-        if(ask) ask.classList.add('hidden');
+        if(ask && !ask.classList.contains('hidden')) { ask.classList.add('hidden'); this.liteNotice(); }
         this.renderLangRow('lang-row');
         this.renderLangRow('lang-ask-row');
         I18N.applyDom(document.body);
@@ -4322,6 +4404,10 @@ const Game = {
         parchment: ['drawParchmentBg', 900, 560]   // görevler
     },
     sceneBg(kind) {
+        // Hafif mod: her ekranın zemini bir kez çizilip JPEG'e kodlanıyor (ölçüldü:
+        // ekran başına 8-12 ms + 27-37 KB). Telefonda bu, ekran her açılışında
+        // hissedilen bir takılma. null dönünce çağıranlar perdeyi tek başına kullanır.
+        if(this.lite()) return null;
         this._sceneBg = this._sceneBg || {};
         if(this._sceneBg[kind]) return this._sceneBg[kind];
         let [fn, W, H] = this.BG_DRAW[kind] || this.BG_DRAW.tavern;
@@ -4345,7 +4431,9 @@ const Game = {
         if(!cfg || !el || el.dataset.bg) return;
         let [kind, a0, a1] = cfg;
         el.dataset.bg = kind;
-        el.style.backgroundImage = `linear-gradient(rgba(10,10,14,${a0}), rgba(10,10,14,${a1})), url('${this.sceneBg(kind)}')`;
+        let img = this.sceneBg(kind);
+        el.style.backgroundImage = `linear-gradient(rgba(10,10,14,${a0}), rgba(10,10,14,${a1}))`
+            + (img ? `, url('${img}')` : '');
         el.style.backgroundSize = 'cover';
         el.style.backgroundPosition = 'center top';
     },
@@ -4855,7 +4943,7 @@ const Game = {
     // ============ AYARLAR (#55 madde 7) ============
     // Tek ekran, tek okuma kapısı: her ayarın varsayılanı OPTS'ta durur, sapan
     // anahtar state.settings'e yazılır (yani kayda girer ve eski kayıtta boş kalır).
-    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true },
+    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto' },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
     setOpt(k, v) {
         (state.settings || (state.settings = {}))[k] = v;
@@ -4869,9 +4957,19 @@ const Game = {
         try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e) { return false; }
     },
     applySettings() {
+        this._lite = undefined;   // hafif mod cevabı önbellekli; ayar değişince tazelenir
         // Arayüzün tamamı rem tabanlı; kök boyutu tek noktadan ölçeklenir
         document.documentElement.style.fontSize = (this.opt('fontScale') * 16) + 'px';
         document.body.classList.toggle('reduced-motion', this.reduceMotion());
+        // Cam panellerin backdrop-filter'ı hafif modda düşer (bkz. style.css .lite)
+        document.body.classList.toggle('lite', this.lite());
+        // Ekran zeminleri `dataset.bg` ile bir kez konuyor; mod değişince damga
+        // silinmezse hafif modda girilen ekran vanilla'ya dönünce zeminsiz kalır.
+        document.querySelectorAll('.view[data-bg]').forEach(el => {
+            delete el.dataset.bg; el.style.backgroundImage = '';
+        });
+        let cur = document.querySelector('.view.active');
+        if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
     },
     showSettings() {
         let sw = (k, on, off) => `<button class="btn${this.opt(k) ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.7rem"
@@ -4884,6 +4982,9 @@ const Game = {
         let fs = this.opt('fontScale');
         let fsBtn = [0.9, 1, 1.15].map(v => `<button class="btn${fs === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
             onclick="Game.setOpt('fontScale', ${v})">${v === 0.9 ? T('Küçük') : v === 1 ? T('Normal') : T('Büyük')}</button>`).join(' ');
+        let lt = this.opt('lite');
+        let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('lite', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let hz = this._minStep === Infinity ? T('ölçülmedi') : Math.round(1000 / this._minStep) + T(' Hz');
         this.showModal(`<div id="settings-panel"><h3>${T`⚙️ Ayarlar`}</h3>
         ${row(T('🌍 Dil'), I18N.LANGS.map(l => `<button class="btn${l.id === I18N.lang ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
@@ -4893,6 +4994,7 @@ const Game = {
             oninput="Game.setOpt('volume', this.value / 100)" onchange="Game.sfx('buy')" style="vertical-align:middle">
             <span style="font-size:0.8rem;color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
+        ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}
         ${row(T('🔠 Yazı boyutu'), fsBtn)}
