@@ -6,46 +6,46 @@
 // Kimin hangi hediyeden hoşlandığını, hangi görevi verdiğini ve drahomada
 // ne kadar açgözlü olduğunu belirler.
 const PERSONALITIES = {
-    martial:     { name: T('Savaşçı'),    likes: ['sword','axe','lance','horse'], dowry: 1.0, greet: T('Kılıcın keskin mi delikanlı? Laf değil, çelik konuşur burada.') },
-    cunning:     { name: T('Kurnaz'),     likes: ['iron','salt','velvet'],        dowry: 1.3, greet: T('Her sohbetin bir bedeli vardır. Seninkini henüz hesaplayamadım.') },
-    debauched:   { name: T('Sefahatçi'),  likes: ['velvet','ale','cheese','meat'],dowry: 1.2, greet: T('Kadeh boş, sohbet kuru. Bu ikisinden birini düzelt bari.') },
-    goodnatured: { name: T('İyi Kalpli'), likes: ['bread','wheat','cheese'],      dowry: 0.8, greet: T('Hoş geldin evlat. Yolun uzunsa otur, ekmeğimiz var.') },
-    quarrelsome: { name: T('Huysuz'),     likes: [],                              dowry: 1.15, greet: T('Ne var? Konuşacaksan konuş, dikilip durma karşımda.') }
+    martial:     { name: 'Savaşçı',    likes: ['sword','axe','lance','horse'], dowry: 1.0, greet: 'Kılıcın keskin mi delikanlı? Laf değil, çelik konuşur burada.' },
+    cunning:     { name: 'Kurnaz',     likes: ['iron','salt','velvet'],        dowry: 1.3, greet: 'Her sohbetin bir bedeli vardır. Seninkini henüz hesaplayamadım.' },
+    debauched:   { name: 'Sefahatçi',  likes: ['velvet','ale','cheese','meat'],dowry: 1.2, greet: 'Kadeh boş, sohbet kuru. Bu ikisinden birini düzelt bari.' },
+    goodnatured: { name: 'İyi Kalpli', likes: ['bread','wheat','cheese'],      dowry: 0.8, greet: 'Hoş geldin evlat. Yolun uzunsa otur, ekmeğimiz var.' },
+    quarrelsome: { name: 'Huysuz',     likes: [],                              dowry: 1.15, greet: 'Ne var? Konuşacaksan konuş, dikilip durma karşımda.' }
 };
 
 // --- LEYDİ HUYLARI ---
 // İltifatın tutup tutmayacağını belirler.
 const LADY_TRAITS = {
-    romantic:  { name: T('Hülyalı'),  likes: 'beauty',  hates: 'war',
-                 hint: T('Pencere kenarında oturup uzaklara bakmayı sever.') },
-    ambitious: { name: T('Hırslı'),   likes: 'glory',   hates: 'beauty',
-                 hint: T('Babasının haritalarını ondan daha iyi okur.') },
-    pious:     { name: T('Sofu'),     likes: 'honor',   hates: 'loot',
-                 hint: T('Şafak duasını hiç kaçırmadığı söylenir.') },
-    wild:      { name: T('Deli Dolu'),likes: 'hunt',    hates: 'court',
-                 hint: T('Kardeşlerinden daha iyi ata biner, bunu da saklamaz.') }
+    romantic:  { name: 'Hülyalı',  likes: 'beauty',  hates: 'war',
+                 hint: 'Pencere kenarında oturup uzaklara bakmayı sever.' },
+    ambitious: { name: 'Hırslı',   likes: 'glory',   hates: 'beauty',
+                 hint: 'Babasının haritalarını ondan daha iyi okur.' },
+    pious:     { name: 'Sofu',     likes: 'honor',   hates: 'loot',
+                 hint: 'Şafak duasını hiç kaçırmadığı söylenir.' },
+    wild:      { name: 'Deli Dolu',likes: 'hunt',    hates: 'court',
+                 hint: 'Kardeşlerinden daha iyi ata biner, bunu da saklamaz.' }
 };
 
 const COMPLIMENTS = [
-    { id:'beauty', label:T('Güzelliğinden bahset'),        line:T('"Kalradya\'nın bütün kalelerini gezdim leydim; hiçbirinin penceresinden böyle bir manzara görünmedi."') },
-    { id:'glory',  label:T('Fetihlerinden ve namından bahset'), line:T('"Bir gün bu kıtanın haritasını yeniden çizeceğim. Yanımda kim durursa adı da benimle anılacak."') },
-    { id:'honor',  label:T('Onurdan ve adaletten bahset'), line:T('"Yenilmiş bir adamın kesesini almam leydim. Kılıç şerefi için çekilir, gümüş için değil."') },
-    { id:'hunt',   label:T('Attan ve avdan bahset'),       line:T('"Doludizgin giderken rüzgârın kulakta çıkardığı sesi bilir misiniz? Ben başka müzik dinlemem."') },
-    { id:'court',  label:T('Saray adabından bahset'),      line:T('"Bir soylunun asıl silahı sofradaki duruşudur derler; ben de öyle öğrendim."') },
-    { id:'loot',   label:T('Ganimetten ve zenginlikten bahset'), line:T('"Son baskında öyle bir kese aldım ki, ağırlığından atım topalladı."') }
+    { id:'beauty', label:'Güzelliğinden bahset',        line:'"Kalradya\'nın bütün kalelerini gezdim leydim; hiçbirinin penceresinden böyle bir manzara görünmedi."' },
+    { id:'glory',  label:'Fetihlerinden ve namından bahset', line:'"Bir gün bu kıtanın haritasını yeniden çizeceğim. Yanımda kim durursa adı da benimle anılacak."' },
+    { id:'honor',  label:'Onurdan ve adaletten bahset', line:'"Yenilmiş bir adamın kesesini almam leydim. Kılıç şerefi için çekilir, gümüş için değil."' },
+    { id:'hunt',   label:'Attan ve avdan bahset',       line:'"Doludizgin giderken rüzgârın kulakta çıkardığı sesi bilir misiniz? Ben başka müzik dinlemem."' },
+    { id:'court',  label:'Saray adabından bahset',      line:'"Bir soylunun asıl silahı sofradaki duruşudur derler; ben de öyle öğrendim."' },
+    { id:'loot',   label:'Ganimetten ve zenginlikten bahset', line:'"Son baskında öyle bir kese aldım ki, ağırlığından atım topalladı."' }
 ];
 
 const POEMS = [
-    { id:'poem_butter', name:T('Tereyağı Kasidesi'), cost:200,
-      text:T('"Ekmeğin üstünde eriyen bir sarılık gibisin;\ngörmesem aç kalırım, görsem doyamam."') },
-    { id:'poem_steppe', name:T('Bozkır Ağıdı'), cost:200,
-      text:T('"Bozkırda yol yoktur, iz vardır.\nSen geçtin diye artık her yer yoldur."') },
-    { id:'poem_iron',   name:T('Demirci Türküsü'), cost:250,
-      text:T('"Örsün üstünde ne varsa kırılır;\nsenin adın hariç, o su verilmiş çelik."') },
-    { id:'poem_north',  name:T('Kuzey Kışı'), cost:250,
-      text:T('"Kar yağınca bütün krallıklar aynı beyaza döner.\nBir tek senin saçının rengi kalır."') },
-    { id:'poem_river',  name:T('Nehir Kenarı'), cost:300,
-      text:T('"Nehir hep aynı yerden akar ama hiç aynı su değildir.\nBen her gün başka bir sebeple aynı kapıya geliyorum."') }
+    { id:'poem_butter', name:'Tereyağı Kasidesi', cost:200,
+      text:'"Ekmeğin üstünde eriyen bir sarılık gibisin;\ngörmesem aç kalırım, görsem doyamam."' },
+    { id:'poem_steppe', name:'Bozkır Ağıdı', cost:200,
+      text:'"Bozkırda yol yoktur, iz vardır.\nSen geçtin diye artık her yer yoldur."' },
+    { id:'poem_iron',   name:'Demirci Türküsü', cost:250,
+      text:'"Örsün üstünde ne varsa kırılır;\nsenin adın hariç, o su verilmiş çelik."' },
+    { id:'poem_north',  name:'Kuzey Kışı', cost:250,
+      text:'"Kar yağınca bütün krallıklar aynı beyaza döner.\nBir tek senin saçının rengi kalır."' },
+    { id:'poem_river',  name:'Nehir Kenarı', cost:300,
+      text:'"Nehir hep aynı yerden akar ama hiç aynı su değildir.\nBen her gün başka bir sebeple aynı kapıya geliyorum."' }
 ];
 
 // --- SOYLULAR ---
@@ -502,13 +502,13 @@ const Nobles = {
     // Özellik kayda yazılmaz: id'nin hash'inden türer, yani her açılışta ve her eski
     // kayıtta aynı lorda aynı huy düşer — göç kodu gerekmez.
     LORD_TRAITS: {
-        proud:     { name: T('Kibirli'),  icon: T('\ud83e\udd9a') },
-        craven:    { name: T('Korkak'),   icon: T('\ud83d\udc01') },
-        cruel:     { name: T('Zalim'),    icon: T('\ud83d\udde1\ufe0f') },
-        jolly:     { name: T('Neşeli'),   icon: T('\ud83c\udf7a') },
-        greedy:    { name: T('Paragöz'),  icon: T('\ud83d\udcb0') },
-        honorable: { name: T('Onurlu'),   icon: T('\u269c\ufe0f') },
-        fawning:   { name: T('Dalkavuk'), icon: T('\ud83d\ude47') }
+        proud:     { name: 'Kibirli',  icon: '\ud83e\udd9a' },
+        craven:    { name: 'Korkak',   icon: '\ud83d\udc01' },
+        cruel:     { name: 'Zalim',    icon: '\ud83d\udde1\ufe0f' },
+        jolly:     { name: 'Neşeli',   icon: '\ud83c\udf7a' },
+        greedy:    { name: 'Paragöz',  icon: '\ud83d\udcb0' },
+        honorable: { name: 'Onurlu',   icon: '\u269c\ufe0f' },
+        fawning:   { name: 'Dalkavuk', icon: '\ud83d\ude47' }
     },
     traitOf(id) {
         let keys = Object.keys(this.LORD_TRAITS), str = String(id), h = 0;
@@ -526,83 +526,83 @@ const Nobles = {
     LORD_LINES: {
         greet: {
             proud: [
-                [T('Bu salona girmeden önce ayakkabılarına baktın mı? Ben baktım.'),
-                 T('Konuş. Ama kısa konuş; öğleden sonra kendi portremi izleyeceğim.')],
-                [T('Adını duydum. Bir kere. Belki iki — ikincisinde de ben söylüyordum.'),
-                 T('Otur. Ama o koltuğa değil, o benim büyükbabamın.')],
-                [T('İkimiz de büyük adamız. Aramızdaki tek fark, benim daha eski olmam.'),
-                 T('Seni denk sayıyorum. Bunu kimseye söyleme, itibarım zedelenir.')]
+                ['Bu salona girmeden önce ayakkabılarına baktın mı? Ben baktım.',
+                 'Konuş. Ama kısa konuş; öğleden sonra kendi portremi izleyeceğim.'],
+                ['Adını duydum. Bir kere. Belki iki — ikincisinde de ben söylüyordum.',
+                 'Otur. Ama o koltuğa değil, o benim büyükbabamın.'],
+                ['İkimiz de büyük adamız. Aramızdaki tek fark, benim daha eski olmam.',
+                 'Seni denk sayıyorum. Bunu kimseye söyleme, itibarım zedelenir.']
             ],
             craven: [
-                [T('Silahın var mı? Yok değil mi? Yok de. Lütfen yok de.'),
-                 T('Kapıyı kapat... hayır, açık bırak. Açık ki kaçabileyim. Buyur, dinliyorum.')],
-                [T('Otur, ama kapıya yakın otur. İkimiz için de iyi olur.'),
-                 T('Kötü haber getirmediysen konuş. Getirdiysen otur, önce bir su içeyim.')],
-                [T('Ordunu saydım. İki kere saydım. Sonuç ikisinde de fena çıktı.'),
-                 T('Ne istersen. Gerçekten. Şu masa da senin olsun, ben zaten sevmezdim.')]
+                ['Silahın var mı? Yok değil mi? Yok de. Lütfen yok de.',
+                 'Kapıyı kapat... hayır, açık bırak. Açık ki kaçabileyim. Buyur, dinliyorum.'],
+                ['Otur, ama kapıya yakın otur. İkimiz için de iyi olur.',
+                 'Kötü haber getirmediysen konuş. Getirdiysen otur, önce bir su içeyim.'],
+                ['Ordunu saydım. İki kere saydım. Sonuç ikisinde de fena çıktı.',
+                 'Ne istersen. Gerçekten. Şu masa da senin olsun, ben zaten sevmezdim.']
             ],
             cruel: [
-                [T('Zindanım dolu ama bir kişilik yer her zaman açılır. Sen ne diyordun?'),
-                 T('Adını unutacağım. Yüzünü unutmam — o meslek icabı.')],
-                [T('İşini bitir de git. Akşam bir asmam var, geç kalmak istemem.'),
-                 T('Yararlı adamları severim. Yararsızlara ne yaptığımı köylülere sorabilirsin.')],
-                [T('Sen olmasan çok rahat ederdim. Olduğun için, buyur otur.'),
-                 T('Seni sevmiyorum, yine de iyi davranıyorum. Bu benden büyük bir iltifat.')]
+                ['Zindanım dolu ama bir kişilik yer her zaman açılır. Sen ne diyordun?',
+                 'Adını unutacağım. Yüzünü unutmam — o meslek icabı.'],
+                ['İşini bitir de git. Akşam bir asmam var, geç kalmak istemem.',
+                 'Yararlı adamları severim. Yararsızlara ne yaptığımı köylülere sorabilirsin.'],
+                ['Sen olmasan çok rahat ederdim. Olduğun için, buyur otur.',
+                 'Seni sevmiyorum, yine de iyi davranıyorum. Bu benden büyük bir iltifat.']
             ],
             jolly: [
-                [T('Hoş geldin! Kim olduğunu bilmiyorum ama içki bitmeden öğreniriz.'),
-                 T('Yeni bir yüz! Çavuşum yine kaybedecek, ben hep yeni yüzlere bahse girerim.')],
-                [T('Gel gel! Şu peyniri dene, kokusu ağır ama karakteri var — sana benziyor.'),
-                 T('Anlat bakalım, yollarda kaç kişiyi darladın? Şaka. Yarısını anlat yeter.')],
-                [T('İşte adam dediğin! Hizmetkâr, iyi şaraptan getir — hayır, çok iyi olanından.'),
-                 T('Seninle aynı masada olmak keyifli. Karşı masada olmak da bir o kadar pahalı.')]
+                ['Hoş geldin! Kim olduğunu bilmiyorum ama içki bitmeden öğreniriz.',
+                 'Yeni bir yüz! Çavuşum yine kaybedecek, ben hep yeni yüzlere bahse girerim.'],
+                ['Gel gel! Şu peyniri dene, kokusu ağır ama karakteri var — sana benziyor.',
+                 'Anlat bakalım, yollarda kaç kişiyi darladın? Şaka. Yarısını anlat yeter.'],
+                ['İşte adam dediğin! Hizmetkâr, iyi şaraptan getir — hayır, çok iyi olanından.',
+                 'Seninle aynı masada olmak keyifli. Karşı masada olmak da bir o kadar pahalı.']
             ],
             greedy: [
-                [T('Vaktim paradır. Sen ise şu ana kadar bedavaya konuşuyorsun.'),
-                 T('Kesene baktım, oradan bir ses gelmedi. Yine de dinliyorum.')],
-                [T('Otur. Kadeh başına iki dinar, ama ilk yudum ikramımdır.'),
-                 T('Dostluk güzel şeydir. Faizli olanı daha da güzel.')],
-                [T('Zengin adamla konuşmak bedava. Bu benim tek indirimim.'),
-                 T('Sen ticaret yolu gibisin: yanından geçmek bile kâr.')]
+                ['Vaktim paradır. Sen ise şu ana kadar bedavaya konuşuyorsun.',
+                 'Kesene baktım, oradan bir ses gelmedi. Yine de dinliyorum.'],
+                ['Otur. Kadeh başına iki dinar, ama ilk yudum ikramımdır.',
+                 'Dostluk güzel şeydir. Faizli olanı daha da güzel.'],
+                ['Zengin adamla konuşmak bedava. Bu benim tek indirimim.',
+                 'Sen ticaret yolu gibisin: yanından geçmek bile kâr.']
             ],
             honorable: [
-                [T('Adını bilmiyorum. Ama sözünü tutup tutmadığını öğreneceğim.'),
-                 T('Bir adamı kılıcından değil, borcundan tanırım. Anlat.')],
-                [T('Hoş geldin. Doğru söyle, kısa söyle; ikimiz de kazanalım.'),
-                 T('Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.')],
-                [T('Namın önünden yürüyor. Umarım arkasından da aynısı geliyordur.'),
-                 T('Seni denk görüyorum. Bu benim verebileceğim en pahalı şey.')]
+                ['Adını bilmiyorum. Ama sözünü tutup tutmadığını öğreneceğim.',
+                 'Bir adamı kılıcından değil, borcundan tanırım. Anlat.'],
+                ['Hoş geldin. Doğru söyle, kısa söyle; ikimiz de kazanalım.',
+                 'Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.'],
+                ['Namın önünden yürüyor. Umarım arkasından da aynısı geliyordur.',
+                 'Seni denk görüyorum. Bu benim verebileceğim en pahalı şey.']
             ],
             fawning: [
-                [T('Kimsiniz? Önemli birine benziyorsunuz... değil misiniz? Peki.'),
-                 T('Buyurun oturun. Yani otur. Yani... hangisi rahatsa.')],
-                [T('Ah, ne güzel oldu gelmeniz! Tam da sizden bahsediyordum — iyi şeylerdi tabii.'),
-                 T('Sizi kralın sofrasında görmüştüm sanki. Görmediysem de göreceğim, eminim.')],
-                [T('Efendim! Buyurun, baş köşe zaten sizin adınıza boş duruyordu.'),
-                 T('Ben hep sizin tarafınızdaydım. Sorarsanız herkes doğrular — sorulacaklarla konuştum.')]
+                ['Kimsiniz? Önemli birine benziyorsunuz... değil misiniz? Peki.',
+                 'Buyurun oturun. Yani otur. Yani... hangisi rahatsa.'],
+                ['Ah, ne güzel oldu gelmeniz! Tam da sizden bahsediyordum — iyi şeylerdi tabii.',
+                 'Sizi kralın sofrasında görmüştüm sanki. Görmediysem de göreceğim, eminim.'],
+                ['Efendim! Buyurun, baş köşe zaten sizin adınıza boş duruyordu.',
+                 'Ben hep sizin tarafınızdaydım. Sorarsanız herkes doğrular — sorulacaklarla konuştum.']
             ]
         },
         chat: {
-            proud: [T('Kralın yeni sancağını gördün mü? Rengi berbat. Benimkini kopyalasalar bu kadar konuşulmazdı.'),
-                    T('Şairler beni yeterince yazmıyor. Birine para verdim, üçüncü kıtada beni unuttu.')],
-            craven: [T('Sur nöbetini iki katına çıkardım. Nöbetçiler için değil, benim uykum için.'),
-                     T('Kergitler at üstünde uyuyormuş. Ben yatakta bile uyuyamıyorum, bu nasıl adalet?')],
-            cruel: [T('Vergiyi ödemeyen iki köylüyü kuleye astım. Üçüncüsü ödedi. Sistem işliyor.'),
-                    T('Merhamet pahalı bir maldır. Ambarımda ona yer yok.')],
-            jolly: [T('Geçen ay domuz turnuvası düzenledim. Kazanan domuza çavuşumun adını verdim.'),
-                    T('Şarap bitince savaş başlar derler. Ben o yüzden mahzeni büyüttüm — barış budur.')],
-            greedy: [T('Bir tüccar kadifeyi bana iki katına satmaya kalktı. Şimdi bana çalışıyor.'),
-                     T('Toprak iyidir de, faiz uyumuyor. Ben de uyumuyorum; ikimiz anlaşıyoruz.')],
-            honorable: [T('Yeminimi bozduğumu söyleyene rastlarsan bana getir. Yüzleşmeyi severim.'),
-                        T('Kılıç kuşanmak kolay. Zor olan, kuşanmadan durabilmek.')],
-            fawning: [T('Kral geçen gün bana baktı. Bakışında bir sıcaklık vardı. Belki güneş vuruyordu.'),
-                      T('Ben de tam sizin gibi düşünüyorum. Ne düşündüğünüzü söyleyin, aynısını düşüneyim.')],
-            b1: [T('Bu aralar yollarda çapulcu kaynıyor. Kimin beslediğini merak ediyorum.'),
-                 T('Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak.'),
-                 T('Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor.')],
-            b2: [T('Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz.'),
-                 T('Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın.'),
-                 T('Adamlarım seni konuşuyor, ben de dinliyorum. Bu benim için yeni bir durum.')]
+            proud: ['Kralın yeni sancağını gördün mü? Rengi berbat. Benimkini kopyalasalar bu kadar konuşulmazdı.',
+                    'Şairler beni yeterince yazmıyor. Birine para verdim, üçüncü kıtada beni unuttu.'],
+            craven: ['Sur nöbetini iki katına çıkardım. Nöbetçiler için değil, benim uykum için.',
+                     'Kergitler at üstünde uyuyormuş. Ben yatakta bile uyuyamıyorum, bu nasıl adalet?'],
+            cruel: ['Vergiyi ödemeyen iki köylüyü kuleye astım. Üçüncüsü ödedi. Sistem işliyor.',
+                    'Merhamet pahalı bir maldır. Ambarımda ona yer yok.'],
+            jolly: ['Geçen ay domuz turnuvası düzenledim. Kazanan domuza çavuşumun adını verdim.',
+                    'Şarap bitince savaş başlar derler. Ben o yüzden mahzeni büyüttüm — barış budur.'],
+            greedy: ['Bir tüccar kadifeyi bana iki katına satmaya kalktı. Şimdi bana çalışıyor.',
+                     'Toprak iyidir de, faiz uyumuyor. Ben de uyumuyorum; ikimiz anlaşıyoruz.'],
+            honorable: ['Yeminimi bozduğumu söyleyene rastlarsan bana getir. Yüzleşmeyi severim.',
+                        'Kılıç kuşanmak kolay. Zor olan, kuşanmadan durabilmek.'],
+            fawning: ['Kral geçen gün bana baktı. Bakışında bir sıcaklık vardı. Belki güneş vuruyordu.',
+                      'Ben de tam sizin gibi düşünüyorum. Ne düşündüğünüzü söyleyin, aynısını düşüneyim.'],
+            b1: ['Bu aralar yollarda çapulcu kaynıyor. Kimin beslediğini merak ediyorum.',
+                 'Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak.',
+                 'Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor.'],
+            b2: ['Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz.',
+                 'Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın.',
+                 'Adamlarım seni konuşuyor, ben de dinliyorum. Bu benim için yeni bir durum.']
         },
         brush: {
             proud: ['Hâl hatır mı? Benim hâlim iyi. Senin hatırın yok.'],
@@ -612,31 +612,31 @@ const Nobles = {
             greedy: ['Sohbet bedava değil. Fiyatını da veremezsin; geç.'],
             honorable: ['Tanımadığım adamla ahbaplık etmem. Tanınacak bir iş yap, sonra otur.'],
             fawning: ['Ben şu an büyüklerle konuşuyorum... yani sonra. Siz de büyüksünüz tabii. Neyse.'],
-            b0: [T('Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.'),
-                 T('Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.'),
-                 T('Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma.')]
+            b0: ['Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.',
+                 'Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.',
+                 'Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma.']
         },
         quest: {
-            proud: [T('Sana bir iş vereceğim. Aklında tut, çünkü iki kere anlatmam.'),
-                    T('Bu iş benim seviyeme göre küçük. Yani tam sana göre.')],
-            craven: [T('Bir iş var ama tehlikeli. Ben gidemem; sırtım tutuyor. Ve kalbim. Ve dizlerim.'),
-                     T('Sen gidersin, ben burada senin için endişelenirim. İş bölümü budur.')],
-            cruel: [T('Bir iş var. Beceremezsen ne olacağını anlatmayayım, uyku düzenin bozulur.'),
-                    T('Bu işi bitir. Bitmezse bitirecek birini bulurum, sen de onu izlersin.')],
-            jolly: [T('Bir işim var! Sıkıcı değil, söz. Yani biraz sıkıcı. Ama sonunda içki var.'),
-                    T('Şuna bak, tam sana göre. Kaybedersen de güzel bir hikâye olur.')],
-            greedy: [T('İş var, para var. Benim payım büyük ama seninki de var.'),
-                     T('Ödemeyi peşin isteme. Peşin ödeyen adam iki kere ödemiş sayılır.')],
-            honorable: [T('Bir işim var. Kabul edersen sözünü tut; tutamayacaksan şimdi reddet, kimse gücenmez.'),
-                        T('Bu iş kolay değil. Kolay olsa sana teklif etmezdim.')],
-            fawning: [T('Küçücük bir ricam olacak, sizin gibi biri için hiç iş sayılmaz...'),
-                      T('Bunu kral duyarsa çok memnun olur. Sizin adınızı da anarım. Muhtemelen.')],
-            b0: [T('Sana verecek doğru dürüst bir iş yok ama ayak işi her zaman var.'),
-                 T('Bunu adamlarıma versem gülerler. O yüzden sana veriyorum.'),
-                 T('Beceremezsen kimse şaşırmaz. Bu da bir tür özgürlük.')],
-            b2: [T('Bunu senden rica ediyorum, emretmiyorum. Farkı ikimiz de biliyoruz.'),
-                 T('Bu işi sana veriyorum, çünkü başkası becerse kimsenin haberi olmaz.'),
-                 T('Kabul edersen herkese anlatırım. Etmezsen hiç konuşmadık.')]
+            proud: ['Sana bir iş vereceğim. Aklında tut, çünkü iki kere anlatmam.',
+                    'Bu iş benim seviyeme göre küçük. Yani tam sana göre.'],
+            craven: ['Bir iş var ama tehlikeli. Ben gidemem; sırtım tutuyor. Ve kalbim. Ve dizlerim.',
+                     'Sen gidersin, ben burada senin için endişelenirim. İş bölümü budur.'],
+            cruel: ['Bir iş var. Beceremezsen ne olacağını anlatmayayım, uyku düzenin bozulur.',
+                    'Bu işi bitir. Bitmezse bitirecek birini bulurum, sen de onu izlersin.'],
+            jolly: ['Bir işim var! Sıkıcı değil, söz. Yani biraz sıkıcı. Ama sonunda içki var.',
+                    'Şuna bak, tam sana göre. Kaybedersen de güzel bir hikâye olur.'],
+            greedy: ['İş var, para var. Benim payım büyük ama seninki de var.',
+                     'Ödemeyi peşin isteme. Peşin ödeyen adam iki kere ödemiş sayılır.'],
+            honorable: ['Bir işim var. Kabul edersen sözünü tut; tutamayacaksan şimdi reddet, kimse gücenmez.',
+                        'Bu iş kolay değil. Kolay olsa sana teklif etmezdim.'],
+            fawning: ['Küçücük bir ricam olacak, sizin gibi biri için hiç iş sayılmaz...',
+                      'Bunu kral duyarsa çok memnun olur. Sizin adınızı da anarım. Muhtemelen.'],
+            b0: ['Sana verecek doğru dürüst bir iş yok ama ayak işi her zaman var.',
+                 'Bunu adamlarıma versem gülerler. O yüzden sana veriyorum.',
+                 'Beceremezsen kimse şaşırmaz. Bu da bir tür özgürlük.'],
+            b2: ['Bunu senden rica ediyorum, emretmiyorum. Farkı ikimiz de biliyoruz.',
+                 'Bu işi sana veriyorum, çünkü başkası becerse kimsenin haberi olmaz.',
+                 'Kabul edersen herkese anlatırım. Etmezsen hiç konuşmadık.']
         },
         retort: {
             proud: ['Bunu bir daha söyle. Hayır, söyleme. Kulağım kirlenir.'],
@@ -649,29 +649,29 @@ const Nobles = {
         },
         // Maiyet atışması: [maiyetin repliği, lordun cevabı]
         retinue: {
-            proud: [[T('Efendim, portrenizin boyası hâlâ kurumadı.'), T('Kurusun. Sanat acele etmez; ben ederim.')],
-                    [T('Misafirin adını deftere yazayım mı efendim?'), T('Yaz. Silmesi kolay olur.')]],
-            craven: [[T('Efendim, kapıda bir atlı var.'), T('Kapat! ... Postacı mı? Yine de kapat.')],
-                     [T('Zırhınızı getireyim mi efendim?'), T('Getir ama giymem. Yanımda dursun, moral olur.')]],
-            cruel: [[T('Efendim, zindandaki adam af diliyor.'), T('Dilesin. Dilekçe güzel şeydir, arşivde tutarız.')],
-                    [T('Köylüler vergiyi ödeyemiyor efendim.'), T('Öyleyse iki şey ödesinler: vergi ve özür.')]],
-            jolly: [[T('Efendim, mahzende üç fıçı kaldı.'), T('Üç mü? Felaket. Savaş ilan et, seferde içeriz.')],
-                    [T('Domuz yine bahçeye girdi efendim.'), T('Bırak girsin. Misafirimiz var, kalabalık görünürüz.')]],
-            greedy: [[T('Efendim, tüccar fiyatı düşürmüş.'), T('Demek bir bildiği var. Al hepsini, iki katına satarız.')],
-                     [T('Maaşımız bu ay gecikti efendim.'), T('Gecikmedi, faizle bekliyor. Bana teşekkür edeceksin.')]],
-            honorable: [[T('Efendim, düşman lordu pusuya düşürebiliriz.'), T('Düşürebiliriz. Düşürmeyeceğiz. Sen kahvaltını et.')],
-                        [T('Sözünüzü geri alsanız kârlı çıkardınız efendim.'), T('Kârlı çıkmak için söz vermedim ki.')]],
-            fawning: [[T('Efendim, kral mektubunuza cevap vermemiş.'), T('Cevap vermemek de bir cevaptır. Olumlu bir cevap.')],
-                      [T('Bu misafir önemli biri mi efendim?'), T('Öyle davran. Yanılırsak da zararı yok.')]],
-            b0: [[T('Efendim, salon soğuk.'), T('Sohbet ısıtır. Odun atma, konuşana kulak ver.')],
-                 [T('Yemek hazır efendim.'), T('Bekletin. Bu adam ya kısa konuşur ya da yemek soğur.')]],
-            b1: [[T('Bir haberci geldi efendim.'), T('Sırasını beklesin. Haber bekler, misafir beklemez... genelde.')],
-                 [T('Kılıcınızı bilettim efendim.'), T('İyi. Umarım bu sohbette işime yaramaz.')]],
-            b2: [[T('Muhasebeyi getireyim mi efendim?'), T('Getirme. Bugün keyfim yerinde, bozmayalım.')],
-                 [T('Efendim, köpek yine masaya çıktı.'), T('Bırak otursun. Bu salondaki en dürüst konuk o.')]]
+            proud: [['Efendim, portrenizin boyası hâlâ kurumadı.', 'Kurusun. Sanat acele etmez; ben ederim.'],
+                    ['Misafirin adını deftere yazayım mı efendim?', 'Yaz. Silmesi kolay olur.']],
+            craven: [['Efendim, kapıda bir atlı var.', 'Kapat! ... Postacı mı? Yine de kapat.'],
+                     ['Zırhınızı getireyim mi efendim?', 'Getir ama giymem. Yanımda dursun, moral olur.']],
+            cruel: [['Efendim, zindandaki adam af diliyor.', 'Dilesin. Dilekçe güzel şeydir, arşivde tutarız.'],
+                    ['Köylüler vergiyi ödeyemiyor efendim.', 'Öyleyse iki şey ödesinler: vergi ve özür.']],
+            jolly: [['Efendim, mahzende üç fıçı kaldı.', 'Üç mü? Felaket. Savaş ilan et, seferde içeriz.'],
+                    ['Domuz yine bahçeye girdi efendim.', 'Bırak girsin. Misafirimiz var, kalabalık görünürüz.']],
+            greedy: [['Efendim, tüccar fiyatı düşürmüş.', 'Demek bir bildiği var. Al hepsini, iki katına satarız.'],
+                     ['Maaşımız bu ay gecikti efendim.', 'Gecikmedi, faizle bekliyor. Bana teşekkür edeceksin.']],
+            honorable: [['Efendim, düşman lordu pusuya düşürebiliriz.', 'Düşürebiliriz. Düşürmeyeceğiz. Sen kahvaltını et.'],
+                        ['Sözünüzü geri alsanız kârlı çıkardınız efendim.', 'Kârlı çıkmak için söz vermedim ki.']],
+            fawning: [['Efendim, kral mektubunuza cevap vermemiş.', 'Cevap vermemek de bir cevaptır. Olumlu bir cevap.'],
+                      ['Bu misafir önemli biri mi efendim?', 'Öyle davran. Yanılırsak da zararı yok.']],
+            b0: [['Efendim, salon soğuk.', 'Sohbet ısıtır. Odun atma, konuşana kulak ver.'],
+                 ['Yemek hazır efendim.', 'Bekletin. Bu adam ya kısa konuşur ya da yemek soğur.']],
+            b1: [['Bir haberci geldi efendim.', 'Sırasını beklesin. Haber bekler, misafir beklemez... genelde.'],
+                 ['Kılıcınızı bilettim efendim.', 'İyi. Umarım bu sohbette işime yaramaz.']],
+            b2: [['Muhasebeyi getireyim mi efendim?', 'Getirme. Bugün keyfim yerinde, bozmayalım.'],
+                 ['Efendim, köpek yine masaya çıktı.', 'Bırak otursun. Bu salondaki en dürüst konuk o.']]
         }
     },
-    RETAINERS: [T('Yaşlı çavuş'), T('Kâhya'), T('Silahtar'), T('Danışman'), T('Genç uşak'), T('Kâtip')],
+    RETAINERS: ['Yaşlı çavuş', 'Kâhya', 'Silahtar', 'Danışman', 'Genç uşak', 'Kâtip'],
 
     // Son N replik tekrar seçilmez (Game.dailyEvent'teki desen). İki fark var:
     // sayaç tür başına tutulur ve geriye bakış havuzun %60'ıyla sınırlıdır —
@@ -730,34 +730,34 @@ const Nobles = {
     // Sabit tek cevap yok — her kademenin kendi havuzu var.
     GREETS: {
         '-1': [
-            T('Sen de kimsin? Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil.'),
-            T('Adını duymadım, ordunu görmedim, vaktimi de alma.'),
-            T('Şu üstündekine kılık mı denir? Konuş bakalım, kısa tut.')
+            'Sen de kimsin? Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil.',
+            'Adını duymadım, ordunu görmedim, vaktimi de alma.',
+            'Şu üstündekine kılık mı denir? Konuş bakalım, kısa tut.'
         ],
         '0': [
-            T('Seni bir yerden hatırlar gibiyim. Neyse, derdini söyle.'),
-            T("Bir yolcu daha. Kalradya'da bunlardan bol var."),
-            T('Konuş. Ama ağzından çıkanı kulağın duysun.')
+            'Seni bir yerden hatırlar gibiyim. Neyse, derdini söyle.',
+            "Bir yolcu daha. Kalradya'da bunlardan bol var.",
+            'Konuş. Ama ağzından çıkanı kulağın duysun.'
         ],
         '1': [
-            T('Adını duydum. Küçük işler, ama iş sonuçta.'),
-            T('Otur bakalım. Bir kadeh içimlik vaktim var.'),
-            T('Yollarda gezen çok, iş bitiren az. Sen hangisisin?')
+            'Adını duydum. Küçük işler, ama iş sonuçta.',
+            'Otur bakalım. Bir kadeh içimlik vaktim var.',
+            'Yollarda gezen çok, iş bitiren az. Sen hangisisin?'
         ],
         '2': [
-            T('Hoş geldin. Senin adın bu salonda birkaç kez geçti — kötüsünden değil.'),
-            T('Gel şöyle. Kılıcını duvara as, sohbet uzun sürebilir.'),
-            T('Seni beklemiyordum ama yerim var. Anlat.')
+            'Hoş geldin. Senin adın bu salonda birkaç kez geçti — kötüsünden değil.',
+            'Gel şöyle. Kılıcını duvara as, sohbet uzun sürebilir.',
+            'Seni beklemiyordum ama yerim var. Anlat.'
         ],
         '3': [
-            T('Buyur, baş köşe senin. Böylesi her gün kapımı çalmıyor.'),
-            T('Namın önünden yürüyor. Umarım söyledikleri abartıdır — abartı değilse pahalıya patlar.'),
-            T('Hizmetkâr! İyi şarabı getir. Bu adam ayakta karşılanmaz.')
+            'Buyur, baş köşe senin. Böylesi her gün kapımı çalmıyor.',
+            'Namın önünden yürüyor. Umarım söyledikleri abartıdır — abartı değilse pahalıya patlar.',
+            'Hizmetkâr! İyi şarabı getir. Bu adam ayakta karşılanmaz.'
         ],
         '4': [
-            T('Ordunu kapımın önünde gördüm. Dostça geldiğini varsayıyorum... değil mi?'),
-            T('Sen artık bir maceracı değilsin, bir mesele oldun. Otur, konuşalım.'),
-            T('Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?')
+            'Ordunu kapımın önünde gördüm. Dostça geldiğini varsayıyorum... değil mi?',
+            'Sen artık bir maceracı değilsin, bir mesele oldun. Otur, konuşalım.',
+            'Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?'
         ]
     },
     // Düz metin döner (tırnaksız): yazı makinesi textContent'e yazar (#59)

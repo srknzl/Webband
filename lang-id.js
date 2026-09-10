@@ -1721,4 +1721,9 @@ I18N.dicts.id = {
   "Q": "Q",
   "K": "K",
   "1 2 3": "1 2 3",
+  // Hafif mod (#80) — sözlük üretildikten sonra eklendi (#81)
+  "📱 Telefon/tablet algılandı — Hafif Mod açıldı. Deniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer; hedef 30 fps. ⚙️ Ayarlar'dan kapatabilirsin.": "📱 Ponsel/tablet terdeteksi — Mode Ringan menyala. Ombak laut, pohon hutan, cahaya perapian dan partikel pertempuran dikurangi; targetnya 30 fps. Kamu bisa mematikannya di ⚙️ Pengaturan.",
+  "📱 Hafif mod": "📱 Mode ringan",
+  "Cihaza göre": "Ikut perangkat",
+  "Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.": "Menyederhanakan seluruh permainan: ombak laut, pohon hutan, cahaya perapian, partikel pertempuran dan buram kaca dikurangi, targetnya 30 fps. Menyala sendiri di ponsel.",
 };

@@ -1535,11 +1535,11 @@ const Game = {
     // kılıç sallayarak, zekâ konuşarak, liderlik kalabalık yöneterek,
     // dirayet dayak yiyerek. Fark büyükken hızlı, hedefe yaklaşırken yavaş.
     ATTRS: {
-        str: { name: T('Güç'),      icon: '💪', how: T('Yakın dövüşte isabetli vuruş') },
-        agi: { name: T('Çeviklik'), icon: '🏃', how: T('Haritada yol katetmek') },
-        int: { name: T('Zekâ'),     icon: '🧠', how: T('Soylularla konuşmak, görev almak') },
-        cha: { name: T('Liderlik'), icon: '👑', how: T('Kalabalık bir grubu yönetmek') },
-        vit: { name: T('Dirayet'),  icon: '🫀', how: T('Savaşta hasar yemek ve ayakta kalmak') }
+        str: { name: 'Güç',      icon: '💪', how: 'Yakın dövüşte isabetli vuruş' },
+        agi: { name: 'Çeviklik', icon: '🏃', how: 'Haritada yol katetmek' },
+        int: { name: 'Zekâ',     icon: '🧠', how: 'Soylularla konuşmak, görev almak' },
+        cha: { name: 'Liderlik', icon: '👑', how: 'Kalabalık bir grubu yönetmek' },
+        vit: { name: 'Dirayet',  icon: '🫀', how: 'Savaşta hasar yemek ve ayakta kalmak' }
     },
     // Ölçüldü: 5 puanlık farkı kapatmak ~38 "kayda değer eylem" alıyor —
     // çeviklikte ~11 harita geçişi, güçte ~8 savaş, liderlikte ~38 gün.
@@ -1689,19 +1689,19 @@ const Game = {
     // ve yeni hedefler açılır. Tamamı veri; koşullar state'i okur, olay dinlemez —
     // günlük tik ve Görevler sekmesi aynı `check`'i çağırır.
     AMBITIONS: [
-        { id: 'band',      title: T('Küçük bir bölük'), desc: T('Grubunu 10 kişiye çıkar.'),
+        { id: 'band',      title: 'Küçük bir bölük', desc: 'Grubunu 10 kişiye çıkar.',
           check: p => p.party.length >= 10, renown: 5, opens: ['champion', 'friend'] },
-        { id: 'champion',  title: T('Turnuva şampiyonu'), desc: T('Bir turnuvayı kazan.'),
+        { id: 'champion',  title: 'Turnuva şampiyonu', desc: 'Bir turnuvayı kazan.',
           check: p => (p.tourneyWins || 0) > 0, renown: 10, money: 500, opens: ['fief'] },
-        { id: 'friend',    title: T('Bir lordun dostu'), desc: T('Bir soyluyla ilişkini 30\'a çıkar.'),
+        { id: 'friend',    title: 'Bir lordun dostu', desc: 'Bir soyluyla ilişkini 30\'a çıkar.',
           check: () => Object.keys(state.relations || {}).some(k => state.relations[k] >= 30),
           renown: 5, opens: ['sworn'] },
-        { id: 'sworn',     title: T('Yeminli'), desc: T('Bir krallığa bağlılık yemini et.'),
+        { id: 'sworn',     title: 'Yeminli', desc: 'Bir krallığa bağlılık yemini et.',
           check: p => !!p.vassalOf, renown: 15, opens: ['feud', 'fief'] },
-        { id: 'feud',      title: T('Kan bedeli'), desc: T('Açtığın bir kan davasını kapat (esiri onurla salıver ya da 30 günü doldur).'),
+        { id: 'feud',      title: 'Kan bedeli', desc: 'Açtığın bir kan davasını kapat (esiri onurla salıver ya da 30 günü doldur).',
           check: p => !!p.hadGrudge && Game.grudgeList().length === 0,
           renown: 10, honor: 'release', opens: [] },
-        { id: 'fief',      title: T('Toprak sahibi'), desc: T('Bir tımarın olsun.'),
+        { id: 'fief',      title: 'Toprak sahibi', desc: 'Bir tımarın olsun.',
           check: () => LOCATIONS.some(l => l.owner === 'player'), renown: 20, opens: [] }
     ],
     ambition() { return this.AMBITIONS.find(a => a.id === (state.player.ambition || {}).id); },
@@ -5011,7 +5011,7 @@ const Game = {
             <button class="btn" onclick="Game.showKeys()">${T`⌨️ Tuşlar`}</button>
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>
-        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${T(VERSION.name)} (${VERSION.date})`}</p>
+        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
         </div>`, '620px');
     },
     // Ham durur; gösterimde `T` ile çevrilir (tablo yükleme anında kurulur,
@@ -5991,10 +5991,10 @@ const Game = {
     // günleri geçer (dünya işler, düşman lordu yardıma gelebilir), sonra surun
     // dibinde saldırılır. Yöntem seçimi hem süreyi hem savunanın avantajını belirler.
     SIEGE_PLANS: {
-        ladder: { icon: '🪜', name: T('Merdiven'), days: 1, defBonus: 0.40, gaps: 1,
-                  desc: T('Bir günde hazırlanır ama tek gedikten girersin — savunan surun ardında güçlüdür (+%40).') },
-        tower:  { icon: '🗼', name: T('Kuşatma Kulesi'), days: 3, defBonus: 0.15, gaps: 2,
-                  desc: T('Üç gün marangozluk ister; kule surda ikinci bir gedik açar, savunanın avantajı erir (+%15).') }
+        ladder: { icon: '🪜', name: 'Merdiven', days: 1, defBonus: 0.40, gaps: 1,
+                  desc: 'Bir günde hazırlanır ama tek gedikten girersin — savunan surun ardında güçlüdür (+%40).' },
+        tower:  { icon: '🗼', name: 'Kuşatma Kulesi', days: 3, defBonus: 0.15, gaps: 2,
+                  desc: 'Üç gün marangozluk ister; kule surda ikinci bir gedik açar, savunanın avantajı erir (+%15).' }
     },
     besiegeLocation(loc, founding = false) {
         let g = this.garrisonOf(loc);
@@ -6142,14 +6142,14 @@ const Game = {
     // aynı sayının iki yönlüsüdür (−100..100) ve damga onun eksi tarafının etiketidir —
     // ikinci bir itibar alanı tutulmaz. Günde 0.5 sıfıra doğru söner (bir yağma ~24 gün).
     HONOR: {
-        raid:       [-12, T('köy yağması')],
-        robPeace:   [-5,  T('barıştaki kervanı soymak')],
-        robPeasant: [-8,  T('köylü kafilesini soymak')],
-        ransom:     [-2,  T('soylu esirden fidye')],
-        release:    [ 5,  T('soyluyu onurla salıvermek')],
-        abduct:     [-20, T('kız kaçırma')],
-        oathBroken: [-5,  T('sefer sözünü tutmamak')],
-        questDone:  [ 2,  T('verilen sözü tutmak')]
+        raid:       [-12, 'köy yağması'],
+        robPeace:   [-5,  'barıştaki kervanı soymak'],
+        robPeasant: [-8,  'köylü kafilesini soymak'],
+        ransom:     [-2,  'soylu esirden fidye'],
+        release:    [ 5,  'soyluyu onurla salıvermek'],
+        abduct:     [-20, 'kız kaçırma'],
+        oathBroken: [-5,  'sefer sözünü tutmamak'],
+        questDone:  [ 2,  'verilen sözü tutmak']
     },
     honor() { return Math.max(-100, Math.min(100, Math.round(state.player.honor || 0))); },
     addHonor(kind) {

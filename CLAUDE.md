@@ -2036,11 +2036,11 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **22 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **24 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
-   `foodStock`, `skipFrame` kapısı, `Save.migrate`. Beklenen sayılar
+   `foodStock`, `skipFrame` kapısı, `Save.migrate`, dil katmanı (#81). Beklenen sayılar
    CLAUDE.md'deki "Ölçüldü" satırlarının kendisidir — biri değişirse ya kod ya belge yanlış.
 2. **Eşikler** — 200 günlük oyuncusuz dünya (`sim.js`) ve 60 günlük ekonomi betikleri
    (`economy.js`). Dünya rastgele olduğu için kesin sayı değil **aralık** beklenir:

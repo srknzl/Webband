@@ -1721,4 +1721,9 @@ I18N.dicts.en = {
   "Q": "Q",
   "K": "K",
   "1 2 3": "1 2 3",
+  // Hafif mod (#80) — sözlük üretildikten sonra eklendi (#81)
+  "📱 Telefon/tablet algılandı — Hafif Mod açıldı. Deniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer; hedef 30 fps. ⚙️ Ayarlar'dan kapatabilirsin.": "📱 Phone/tablet detected — Lite Mode is on. Sea waves, forest trees, hearth glow and battle particles are reduced; the target is 30 fps. You can turn it off in ⚙️ Settings.",
+  "📱 Hafif mod": "📱 Lite mode",
+  "Cihaza göre": "By device",
+  "Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.": "Simplifies the whole game: sea waves, forest trees, hearth glow, battle particles and glass blur are reduced, the target is 30 fps. Turns itself on for phones.",
 };

@@ -17,7 +17,7 @@ const QUESTS = {
 
     // 1 — Pazarı şişir
     butter_blockade: {
-        title: T('Tereyağı Ablukası'),
+        title: 'Tereyağı Ablukası',
         givers: ['cunning', 'debauched'],
         minRelation: 0,
         days: 20,
@@ -43,7 +43,7 @@ const QUESTS = {
 
     // 2 — Sisin içinde nokta ara
     fog_dot: {
-        title: T('Sisteki Nokta'),
+        title: 'Sisteki Nokta',
         givers: [],
         minRelation: 0,
         days: 15,
@@ -75,7 +75,7 @@ const QUESTS = {
 
     // 3 — Terfi ağacını kullan
     sergeant_exam: {
-        title: T('Çavuşluk Sınavı'),
+        title: 'Çavuşluk Sınavı',
         givers: ['martial'],
         minRelation: 10,
         days: 30,
@@ -99,7 +99,7 @@ const QUESTS = {
 
     // 4 — Kendi ordun yemeği yerken taşı
     hungry_army: {
-        title: T('Aç Ordu'),
+        title: 'Aç Ordu',
         givers: ['goodnatured', 'martial'],
         minRelation: 0,
         days: 12,
@@ -131,7 +131,7 @@ const QUESTS = {
 
     // 5 — İki çözümü olan görev: kazan ya da bilerek esir düş
     brother_in_chains: {
-        title: T('Zincirdeki Kardeş'),
+        title: 'Zincirdeki Kardeş',
         givers: ['quarrelsome', 'martial', 'goodnatured'],
         minRelation: 15,
         days: 25,
@@ -165,7 +165,7 @@ const QUESTS = {
 
     // 6 — Kaybetmeyi becer
     fixed_match: {
-        title: T('Şike'),
+        title: 'Şike',
         givers: ['cunning', 'debauched'],
         minRelation: 20,
         days: 20,
@@ -188,7 +188,7 @@ const QUESTS = {
 
     // 7 — Yalan bilgi yay
     false_news: {
-        title: T('Yalan Haber'),
+        title: 'Yalan Haber',
         givers: ['cunning'],
         minRelation: 25,
         days: 18,
@@ -228,7 +228,7 @@ const QUESTS = {
 
     // 8 — Deli Hüsnü'nün tavukları (kısa turnuva varyantı)
     crazy_chickens: {
-        title: T('Deli Hüsnü\'nün Tavukları'),
+        title: 'Deli Hüsnü\'nün Tavukları',
         givers: ['goodnatured', 'quarrelsome', 'debauched'],
         minRelation: -10,
         days: 10,
@@ -248,7 +248,7 @@ const QUESTS = {
 
     // 9 — Köyü savun
     harvest_watch: {
-        title: T('Hasat Nöbeti'),
+        title: 'Hasat Nöbeti',
         givers: ['martial', 'goodnatured'],
         minRelation: 0,
         days: 14,
@@ -287,7 +287,7 @@ const QUESTS = {
 
     // 10 — Kayıp mektup
     lost_letter: {
-        title: T('Kayıp Mektup'),
+        title: 'Kayıp Mektup',
         givers: ['cunning', 'goodnatured'],
         minRelation: 5,
         days: 16,
@@ -323,7 +323,7 @@ const QUESTS = {
 
     // 11 — Ozandan şiir öğren
     bring_poem: {
-        title: T('Bir Şiir Getir'),
+        title: 'Bir Şiir Getir',
         givers: ['debauched', 'goodnatured'],
         minRelation: 0,
         days: 20,
@@ -343,7 +343,7 @@ const QUESTS = {
 
 // --- LONCA GÖREVLERİ (giver: 'guild_<locId>') ---
 QUESTS.caravan_escort = {
-    title: T('Kervan Yolu Temizliği'),
+    title: 'Kervan Yolu Temizliği',
     givers: ['guild'],
     minRelation: -100,
     days: 12,
@@ -366,7 +366,7 @@ QUESTS.caravan_escort = {
 };
 
 QUESTS.guild_supply = {
-    title: T('Lonca Siparişi'),
+    title: 'Lonca Siparişi',
     givers: ['guild'],
     minRelation: -100,
     days: 15,

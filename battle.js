@@ -30,9 +30,9 @@ const Battle = {
     // Arena (#26): şehrin kum meydanında ücretsiz pratik dövüşü. Düello altyapısının
     // aynısı — grup sahneye girmez, ganimet/esaret/nam yok, yalnızca yeterlilik XP'si.
     ARENA_FOES: [
-        { name: T('Acemi Dövüşçü'),   dLv: -3, xp: 80,  desc: T('Kolay lokma, az ter.') },
-        { name: T('Arena Gediklisi'), dLv: 2,  xp: 180, desc: T('Senden bir gömlek üstün.') },
-        { name: T('Arena Şampiyonu'), dLv: 8,  xp: 340, desc: T('Dayak yersin ama çok şey öğrenirsin.') }
+        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  desc: 'Kolay lokma, az ter.' },
+        { name: 'Arena Gediklisi', dLv: 2,  xp: 180, desc: 'Senden bir gömlek üstün.' },
+        { name: 'Arena Şampiyonu', dLv: 8,  xp: 340, desc: 'Dayak yersin ama çok şey öğrenirsin.' }
     ],
     startArena(idx) {
         let f = this.ARENA_FOES[idx] || this.ARENA_FOES[1];

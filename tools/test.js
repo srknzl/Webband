@@ -222,6 +222,30 @@ test('Save.migrate: güncel kayda dokunmaz', () => {
     assert.strictEqual(d.state.meta.playtime, 99);
 });
 
+// --- Dil katmanı (#81) ---
+// İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
+// sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.
+test('i18n: koddaki her T anahtarı iki sözlükte de var', () => {
+    const K = require('./i18n-keys');
+    const d = K.dicts(), eksik = [...K.codeKeys()].filter(k => !(k in d.en) || !(k in d.id));
+    assert.ok(eksik.length === 0, `${eksik.length} anahtar sözlükte yok, ilki: ${JSON.stringify(eksik[0])}`);
+});
+
+test('i18n: üst düzey veri tabloları dilden bağımsız', () => {
+    // Aynı tohum, iki dil: tablo kurulurken T(...) çalışıyorsa değerler ayrışır.
+    const tr = H.load({ seed: 7 }), en = H.load({ seed: 7, lang: 'en' });
+    const yollar = [['PERSONALITIES'], ['LADY_TRAITS'], ['COMPLIMENTS'], ['POEMS'], ['QUESTS'],
+                    ['Nobles', 'LORD_TRAITS'], ['Nobles', 'LORD_LINES'], ['Nobles', 'RETAINERS'],
+                    ['Nobles', 'GREETS'], ['Game', 'ATTRS'], ['Game', 'AMBITIONS'],
+                    ['Game', 'SIEGE_PLANS'], ['Game', 'HONOR'], ['Battle', 'ARENA_FOES']];
+    const J = v => JSON.stringify(v, (k, x) => typeof x === 'function' ? 'fn' : x);
+    const donmus = yollar.filter(p => {
+        const al = g => p.reduce((o, k) => o && o[k], g);
+        return J(al(tr)) !== J(al(en));
+    }).map(p => p.join('.'));
+    assert.ok(donmus.length === 0, `donmuş tablo: ${donmus.join(', ')}`);
+});
+
 // ---------- 2. Eşikler ----------
 // Kesin sayı değil aralık: dünya rastgeledir, ama kırılan bir kural aralığın
 // dışına çıkar. Aralıklar ölçülen değerin ~2 katı genişliğinde tutuldu —
