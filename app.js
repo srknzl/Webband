@@ -663,6 +663,8 @@ const Game = {
         this.mapCanvas.addEventListener('pointermove', e => this.onMapMove(e));
         this.mapCanvas.addEventListener('pointerup', e => this.onMapUp(e));
         this.mapCanvas.addEventListener('pointercancel', e => this.onMapUp(e));
+        // Klavyesi olmayan cihazda tuş rozetleri yalan söyler: CSS tek sınıftan okur (#65)
+        document.body.classList.toggle('touch', this.isTouch());
         this.initTouchUI();
         document.getElementById('modal-overlay').addEventListener('click', e => {
             // Karşılaşma (savaş/teslim ol) modali açıkken dışa tıklayarak kapanmasın
@@ -3054,15 +3056,17 @@ const Game = {
         let c = this.getPartyComposition();
         // Harcanmamış puan haritadan görünsün, karakter ekranına açılsın (#35)
         let st = state.player.stats, ap = st.attributePoints || 0, fp = st.focusPoints || 0;
+        const dokun = this.isTouch();   // parmakla oynayana "(K)" demek anlamsız (#65)
         let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
-                + ` title="${T('Harcanmamış puanların var — karakter ekranına git (C)')}">✨ ${ap ? T`${ap} nitelik` : ''}`
+                + ` title="${dokun ? T('Harcanmamış puanların var — karakter ekranına git')
+                                    : T('Harcanmamış puanların var — karakter ekranına git (C)')}">✨ ${ap ? T`${ap} nitelik` : ''}`
                 + `${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
             + pts
             + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${T`⏳ Bekle`}</button>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul <kbd>Boşluk`}</kbd></button>`
-            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`} <kbd>K</kbd></button>`);
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${dokun ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul`}${dokun ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
+            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${dokun ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`}${dokun ? '' : ' <kbd>K</kbd>'}</button>`);
     },
 
     renderPrisonerUI() {
@@ -3937,13 +3941,7 @@ const Game = {
     },
 
     onMapUp(e) {
-        // Fare: ayrı bir 'click' dinleyicisi yok (#65) — tıklamayı pointerup taşır.
-        // endTargetDrag gerçek sürüklemede suppressClick kurar, handleMapClick onu yer.
-        if(e.pointerType === 'mouse') {
-            if(e.button !== 0) return;
-            this.endTargetDrag(e);
-            return this.handleMapClick(e);
-        }
+        if(e.pointerType === 'mouse') return this.endTargetDrag(e);
         let p = this._ptr.get(e.pointerId);
         this._ptr.delete(e.pointerId);
         if(this._ptr.size < 2) this._pinch = 0;
@@ -5008,7 +5006,7 @@ const Game = {
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
             <button class="btn" onclick="Save.open()">${T`💾 Kayıtlar`}</button>
             <button class="btn" onclick="Debug.open()">${T`🐞 Debug Raporu`}</button>
-            <button class="btn" onclick="Game.showKeys()">${T`⌨️ Tuşlar`}</button>
+            <button class="btn" onclick="Game.showKeys()">${this.isTouch() ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</button>
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>
         <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
@@ -5021,9 +5019,18 @@ const Game = {
            ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['Boşluk', 'Kamerayı oyuncuya getir'],
            ['Savaşta W A S D', 'Hareket'], ['Sol tık / Boşluk', 'Vur veya ok at'],
            ['Sağ tık / Shift', 'Blok'], ['1 2 3', 'Taktik emirleri']],
+    // Dokunmatik karşılığı: aynı işleri klavyesiz nasıl yaparsın (#65)
+    TOUCH_HELP: [['👆 Dokun', 'Hedef koy / yerleşime gir'], ['👆 Basılı tut', 'Künyeyi aç'],
+                 ['✋ Sürükle', 'Haritayı kaydır'], ['🤏 İki parmak', 'Yakınlaştır / uzaklaştır'],
+                 ['🎯 Beni Bul', 'Kamerayı sana getirir'], ['📋 Menü', 'Ekranlar arasında geçiş'],
+                 ['🌍 Diplomasi', 'Krallıkların savaş/barış hâli'],
+                 ['🕹️ Çubuk', 'Savaşta hareket — nişan da çubuğun yönü'],
+                 ['⚔️ Düğme', 'Vur veya ok at'], ['🛡️ Düğme', 'Blok — basılı tut'],
+                 ['1 2 3 düğmeleri', 'Taktik emirleri'], ['✖ / Kapat', 'Modali kapatır']],
     showKeys() {
-        this.showModal(`<h3>${T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:0.9rem">
-        ${this.KEYS.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${T(k)}</kbd></td><td style="color:var(--text-muted)">${T(v)}</td></tr>`).join('')}
+        let dokun = this.isTouch(), rows = dokun ? this.TOUCH_HELP : this.KEYS;
+        this.showModal(`<h3>${dokun ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:0.9rem">
+        ${rows.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${T(k)}</kbd></td><td style="color:var(--text-muted)">${T(v)}</td></tr>`).join('')}
         </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">${T`← Ayarlar`}</button>`, '460px');
     },
     flash(el, ok = true) {

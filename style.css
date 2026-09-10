@@ -748,6 +748,9 @@ body {
     0%, 100% { box-shadow: 0 0 0 rgba(212,175,55,0); }
     50%      { box-shadow: 0 0 10px rgba(212,175,55,0.75); }
 }
+/* Klavyesiz cihazda kenar menüsünün tuş rozetleri yalan (#65).
+   Dar ekran kuralı yetmiyordu: tablet geniş ama parmakla sürülür. */
+body.touch .menu-btn kbd { display: none; }
 #btn-center kbd, #btn-diplo kbd {
     font-size: 0.62rem; padding: 0 4px; border-radius: 3px;
     background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted);

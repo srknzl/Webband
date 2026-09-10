@@ -13,7 +13,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `i18n.js` | Dil katmanı: `I18N` + global `T` — anahtar Türkçe kaynak metnin kendisidir |
-| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1721 anahtar); elle düzenlenmez |
+| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1749 anahtar); elle düzenlenmez |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
 | `tools/` | Node ölçüm araçları (`harness.js` + `sim/duel/economy/framegate`) — bkz. "Ölçüm araçları" |
 | `docs/olcum/` | Araçların ürettiği tarihli ölçüm raporları |
@@ -1539,6 +1539,26 @@ Yatay tutulan telefonda (`max-height: 480px`) rozet alt yazıları ve menü etik
   saldırı" yerine "Çubukla hareket · ⚔️ saldırı · 🛡️ blok", künyede "[Sağ tık/Shift]"
   yerine "🛡 düğmesi".
 
+#### Yardım metni de cihazı tanır (#83)
+İlk turda yalnız iki metin cihaza bakıyordu; arayüzün geri kalanı hâlâ klavye diliyle
+konuşuyordu. Şimdi tek kapı yine `Game.isTouch()`:
+
+| Nerede | Klavye | Parmak |
+|---|---|---|
+| Kenar menüsü | `<kbd>M</kbd>` rozetleri | rozet yok (`body.touch .menu-btn kbd { display: none }`) |
+| Harita künyesi | `🌍 Diplomasi <kbd>K</kbd>`, `🎯 Beni Bul <kbd>Boşluk</kbd>` | rozetsiz, künye başlığında da "(K)" / "(Boşluk)" eki yok |
+| Ayarlar | `⌨️ Tuşlar` → `Game.KEYS` (14 satır) | `🎮 Kumanda` → `Game.TOUCH_HELP` (12 satır: dokun / basılı tut / sürükle / iki parmak / çubuk / ⚔️ / 🛡️ / 1-2-3) |
+
+Sınıf `body.touch`'tır, medya sorgusu değil: `@media (max-width: 820px)` tableti kaçırıyordu —
+tablet geniş ekrandır ama parmakla sürülür (#65'in kuralı: **yerleşimi `max-width`, girişi
+`pointer: coarse` belirler**). `Game.init` sınıfı bir kez koyar.
+
+Ölçüldü: 375×812 `pointer: coarse` ile `body.className = "lite touch"`, menü rozetlerinin
+`display` değeri `none`, ayarlar düğmesi `🎮 Kumanda`, tablo **12 satır**; 1280×800 farede
+`isTouch() false`, `body.className` boş, rozet `display: block`, düğme `⌨️ Tuşlar`,
+tablo **14 satır**. 24 yeni anahtar iki sözlüğe de
+girdi (1725 → 1749), tr/en/id üçünde de `I18N.missing` boş.
+
 **Kabul yolu yalnız parmakla yürütüldü** (375×812, `pointer: coarse`): karakter yaratma
 sihirbazı → çapulcu savaşı **"⚔️ Mükemmel Zafer!"** (sanal çubukla dört yön de kullanıldı,
 6–7 savurma, 0 kayıp) → pazarda alışveriş (`🌾 Tahıl x1 alındı · -3₺ · kasa 663₺`).
@@ -1562,7 +1582,7 @@ kullanabilir (`{0}`/`{1}`) — cümle dizilimi dile göre değişir. Şablon bir
 yayılınca anahtara satır sonu + girinti karışacağı için arama `I18N.norm(key)`
 (`/\s*\n\s*/g` → tek boşluk) üzerinden yapılır; sözlük üreteci de aynı dönüşümü uygular.
 
-**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1721 anahtarlık düz
+**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1749 anahtarlık düz
 tablolardır (154 / 157 KB); kaynağı depo dışındaki elle yazılmış Türkçe→(EN, ID) sözlüğüdür.
 Ölçüldü: `anahtar 1728, çeviri 1721, eksik 0, yer-tutucu uyumsuz 0`.
 
