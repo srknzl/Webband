@@ -1,0 +1,17 @@
+# Denge sessizce kaymasın: her itmede oyunun kendi kodu koşturulur (#63).
+name: test
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      # Bağımlılık yok: npm install adımı bilerek yazılmadı.
+      - run: node tools/test.js
+      # #42 regresyonu: kare kapısı iki döngüyü ayırırsa araç 1 ile çıkar
+      - run: node tools/framegate.js

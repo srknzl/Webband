@@ -2033,6 +2033,34 @@ sürede deler"i, düello "bu asker bu askeri yener mi"yi söyler. Elit dengesi a
 baltacı kalkanlıyı yeniyor ama **23 saniyede**, şövalyeyle ise yazı-tura. Orta kademe
 elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutmuyor.
 
+### Test ve CI (#63)
+
+`tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **22 iddia**, iki bölüm:
+
+1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
+   `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
+   `foodStock`, `skipFrame` kapısı, `Save.migrate`. Beklenen sayılar
+   CLAUDE.md'deki "Ölçüldü" satırlarının kendisidir — biri değişirse ya kod ya belge yanlış.
+2. **Eşikler** — 200 günlük oyuncusuz dünya (`sim.js`) ve 60 günlük ekonomi betikleri
+   (`economy.js`). Dünya rastgele olduğu için kesin sayı değil **aralık** beklenir:
+   fetih 1–20, kafile baskını 20–200, silinen krallık 0; boş gezen ordu günlük kâr etmemeli,
+   tımar günde 20₺'nin üstünde getirmeli.
+
+| Komut | Ne koşar | Ölçüldü |
+|---|---|---|
+| `node tools/test.js` | hepsi | **4.5 sn** (sim 200 gün ~4.1 sn, ekonomi 3 betik ~0.4 sn) |
+| `node tools/test.js --hizli` | yalnız saf mantık | **0.13 sn** |
+
+**Kabul yolu ölçüldü**: erzak fiyatları bilerek iki katına çıkarıldığında `node tools/test.js`
+kırmızıya döndü (`tımar geliri çökmüş: 18.8₺/gün`) ve 1 ile çıktı. *Bilinen zayıflık:* aynı
+sabotajı "10 kişilik ordunun günlük erzak faturası" iddiası yakalamıyor — `bos` betiği fakirleşince
+daha az tahıl alıyor, gider aralıkta kalıyor. Yani eşikleri **birlikte** okumak gerekir.
+
+`.github/workflows/test.yml` her `main` itmesinde ve her PR'da `node tools/test.js` +
+`node tools/framegate.js` koşar (ikincisi #42'nin döngü paritesi regresyonu). `npm install`
+adımı yoktur — depo bağımlılıksızdır.
+
 *(Araçlar tarayıcı oyununa hiçbir şey eklemez — `index.html` onları yüklemez.)*
 
 ## Kod tarzı

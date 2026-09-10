@@ -15,7 +15,9 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = ['app.js', 'battle.js', 'nobles.js', 'quests.js'];
+// index.html ile aynı sıra. i18n.js şart: app.js'in üst düzey `state` tablosu
+// T('Maceracı') çağırıyor, dil katmanı yüklenmezse dosya daha okunurken patlıyor.
+const FILES = ['i18n.js', 'lang-en.js', 'lang-id.js', 'app.js', 'battle.js', 'nobles.js', 'quests.js'];
 
 // Tohumlu üreteç (mulberry32): aynı tohum aynı dünyayı verir, ölçüm tekrarlanabilir olur
 function mulberry32(a) {
@@ -111,6 +113,9 @@ function fakeDocument() {
         querySelectorAll() { return []; },
         addEventListener() {}, removeEventListener() {},
         execCommand() { return false; },
+        // index.html yüklenmediği için damgalanacak durağan metin yok:
+        // I18N.prime() boş bir yürüyüşle çıkar (bkz. i18n.js textNodes).
+        createTreeWalker() { return { nextNode: () => null }; },
         _byId: byId
     };
     doc.body = fakeEl('body', doc);
@@ -152,6 +157,7 @@ function load(opts = {}) {
         setInterval: () => 0, clearInterval: () => {},
         navigator: { userAgent: 'node-harness', language: 'tr', clipboard: { writeText: () => Promise.resolve() } },
         screen: { width: 1920, height: 1080 },
+        NodeFilter: { SHOW_TEXT: 4, SHOW_ALL: 0xFFFFFFFF },
         devicePixelRatio: 1,
         innerWidth: 1920, innerHeight: 1080,
         alert: m => { alerts.push(String(m)); },
@@ -172,9 +178,13 @@ function load(opts = {}) {
 
     for(const f of FILES) {
         vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+        // opts.lang: dil katmanı yüklenir yüklenmez seçilir, oyun dosyaları
+        // *ondan sonra* okunur. Üst düzey bir veri tablosunda T(...) varsa
+        // çeviri orada donar — bu bayrak donmayı görünür kılar (bkz. test.js).
+        if(opts.lang && f === 'lang-id.js') vm.runInContext(`I18N.set(${JSON.stringify(opts.lang)});`, ctx);
     }
     // `const` bağlamın sözcüksel kapsamında kalır, sandbox nesnesinde görünmez — buradan alınır
-    const names = ['VERSION', 'Debug', 'Input', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame',
+    const names = ['VERSION', 'Debug', 'Input', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame', 'I18N', 'T',
                    'Nobles', 'Feast', 'Quests', 'FACTIONS', 'LOCATIONS', 'ITEMS', 'TROOP_TYPES',
                    'TROOP_TREES', 'TROOP_UPGRADES', 'BAND_KINDS', 'LORDS', 'LADIES', 'COMPANIONS', 'QUESTS'];
     const out = { _ctx: ctx, _sandbox: sandbox, alerts, seed, reseed: s => vm.runInContext('Math.random = __rng;', ctx) };
