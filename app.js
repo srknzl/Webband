@@ -3937,7 +3937,13 @@ const Game = {
     },
 
     onMapUp(e) {
-        if(e.pointerType === 'mouse') return this.endTargetDrag(e);
+        // Fare: ayrı bir 'click' dinleyicisi yok (#65) — tıklamayı pointerup taşır.
+        // endTargetDrag gerçek sürüklemede suppressClick kurar, handleMapClick onu yer.
+        if(e.pointerType === 'mouse') {
+            if(e.button !== 0) return;
+            this.endTargetDrag(e);
+            return this.handleMapClick(e);
+        }
         let p = this._ptr.get(e.pointerId);
         this._ptr.delete(e.pointerId);
         if(this._ptr.size < 2) this._pinch = 0;
