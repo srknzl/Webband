@@ -939,8 +939,17 @@ Yani av davranışı baskını **3.5 katına** çıkarıyor ama haritayı yükl�
   `size × 1.5`, yani kendinden kalabalık orduya da yürür; ancak belirgin şekilde güçlüysen
   geri çekilir. Ölçüldü (100 kişilik lord): 101 ve 122 kişilik orduya yürüyor (300 → 20 birim),
   151 kişilikten kaçıyor (300 → 580 birim). Eskiden `isHostile` false dönünce hiç kaçmıyor, dibine girene kadar dolaşıyordu. Soylular (`npc.lordId`) yalnızca düşman krallığın vassalıysan ya da ilişki ≤ −50 ise saldırır; aksi halde çarpışma **diyalog** açar.
-- Karşılaşma modali: savaş / **askerlerini gönder** / **kaç** / teslim ol (#30). (İlk 14 günde
-  çapulcular %25 ihtimalle "uzaklaş" seçeneği verir.) Hayvan sürüsüne teslim olunmaz.
+- Karşılaşma modali: savaş / **askerlerini gönder** / **kaç** / teslim ol (#30). Hayvan
+  sürüsüne teslim olunmaz.
+- **Çekilme dalı çetenin cinsine bakar** (#79): haydut çetesi ilk 14 günde %25 ihtimalle
+  "uzaklaş" seçeneği verir — acemiyi hor görür. **Hayvan sürüsü konuşmaz**: kurtlar nam da
+  laf da bilmez, sayı bilir; grubun sürünün **1.5 katıysa** %50 ihtimalle dişini gösterip
+  geri çekilir, altındaysa her zaman saldırır (takvimden bağımsız — hayvanın 14 gün kuralı
+  yoktur). Ayırt edici alan `BAND_KINDS[npc.band].beast`; metin de artık sabit "Çapulcular"
+  değil `Game.npcName(npc)`, yani Orman Haydutları kendi adıyla anılır.
+  Ölçüldü (200'er karşılaşma, 6 kişilik çeteye karşı): kurt — 1 kişi %0, 9 kişi %49,
+  13 kişi %53 (30. günde %56, yani takvim etkisiz); çapulcu — 5. günde %20–24,
+  **30. günde %0**.
 - **Savaş öncesi asker mırıltısı** (#35, `Game.troopChatter`): düşmanın repliğinin altında
   kendi adamlarından biri de iki çift laf eder ("Nereden geldim buraya, anamın evi
   sıcacıktı..."). Havuz koşullara göre seçilir — **korku** (düşman/senin oran ≥ `1.3 +

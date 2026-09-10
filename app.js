@@ -2414,10 +2414,21 @@ const Game = {
                      zamanında fark ettin, seni saramadılar.`}</p>`;
         }
 
-        if(!ambush && npc.type === 'bandit' && state.time.day <= 14 && Math.random() < 0.25) {
-            dialog = T`"Şu çaylağa bak patron, kılıcımızı kirletmeye değmez. Yürü git buradan çömez!"`;
+        // Çete "değmez" deyip çekilebilir. Hayvan sürüsü nam da laf da bilmez, sayı bilir:
+        // küçük gruba atlar, kalabalık orduyu uzaktan tartıp geri çekilir (#79).
+        let bk = BAND_KINDS[npc.band] || {};
+        let strong = state.player.party.filter(t => !t.wounded).length + 1 >= npc.size * 1.5;
+        let backOff = !ambush && npc.type === 'bandit' && (bk.beast
+            ? strong && Math.random() < 0.5
+            : state.time.day <= 14 && Math.random() < 0.25);
+        if(backOff) {
+            dialog = bk.beast
+                ? T`(Alfa dişlerini gösterip homurdanır, sürü ağaçların arasına doğru geri geri çekilir.)`
+                : T`"Şu çaylağa bak patron, kılıcımızı kirletmeye değmez. Yürü git buradan çömez!"`;
             html += `<p><i>${dialog}</i></p>
-            <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">${T`Çapulcular seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
+            <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">${bk.beast
+                ? T`${this.npcName(npc)} sayınızı tartıyor, üstünüze gelmiyor.`
+                : T`${this.npcName(npc)} seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
             <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">${T`Uzaklaş`}</button>
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Yine De Savaş!`}</button>
@@ -2441,7 +2452,7 @@ const Game = {
             <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Savaş!`}</button>
             ${canAuto ? `<button class="btn" style="border-color:#8fd6ff;color:#8fd6ff" onclick="Game.autoBattle('${npc.id}')" title="Sen inmezsin, adamların halleder — kayıp daha yüksektir">${T`🎖️ Askerlerini Gönder`}</button>` : ''}
             ${canFlee ? `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.fleeEncounter('${npc.id}')">${T`🏃 Kaçmayı Dene (%${flee})`}</button>` : ''}
-            ${(BAND_KINDS[npc.band] || {}).beast ? '' :
+            ${bk.beast ? '' :
                 `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">${T`🏳️ Teslim Ol`}</button>`}
             </div>`;
         }
