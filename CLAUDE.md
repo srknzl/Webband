@@ -1940,7 +1940,7 @@ böyle görünüyor" sorusu doğurur.
 
 | Alan | Hafif modda ne düşer |
 |---|---|
-| Harita | Deniz dalgası, toprak lekeleri ve ocak ışığı çizilmez; orman ağaçları **3'te 1'e** seyrelir (0'a değil — orman bir oynanış bilgisidir: pusu, görüş, hız), dağ halkası 2'de 1 yerine 4'te 1 |
+| Harita | Deniz dalgası, toprak lekeleri ve ocak ışığı çizilmez; orman ağaçları **3'te 1'e** seyrelir (0'a değil — orman bir oynanış bilgisidir: pusu, görüş, hız), dağ halkası 2'de 1 yerine 4'te 1. Ekranı boydan boya kaplayan katmanlar da düzleşir — bkz. "Doldurma hızı" (#84) |
 | Savaş | `buildGround` yoğunluğu (60→20 leke, 2600→700 çim tutamı, orman ağaçları yarıya); su parıltısı ve birim tozu kalkar; `drawHud` metin gölgesi kalkar; `spark()` 5 yerine 2 parçacık |
 | Parçacık tavanları | kıvılcım 120→**40**, uçan yazı 40→**14**, kan lekesi 200→**60**, ceset 60→**20** |
 | Ekranlar | `Game.sceneBg` null döner: karakter/grup/envanter/görev zeminleri ve han/salon modal resmi çizilmez (perde kalır) |
@@ -1960,6 +1960,37 @@ böyle görünüyor" sorusu doğurur.
 
 `applySettings` mod değişince ekran zeminlerinin `dataset.bg` damgasını siler ve açık
 ekranı yeniden kurar — yoksa hafif modda girilen ekran vanilla'ya dönünce zeminsiz kalıyordu.
+
+#### Doldurma hızı: hafif modda harita düz boyanır (#84)
+Telefonda hafif mod açıkken bile harita takılıyordu. Ölçüm JS'i temize çıkardı: 30 fps
+kapısı çalışıyor, kare başına yalnız `update` + `renderMap` dönüyor, kare başına DOM yazımı
+yok, tuvalin arka planı zaten 1 CSS px (DPR şişmesi yok), `sceneBg` JPEG kodlaması hafif
+modda zaten atlanıyor. Kalan darboğaz **doldurma hızıdır**: `renderMap` ekranı ve kıtayı
+üst üste birkaç kez boyuyor. Hafif modda o katmanlar düz karşılıklarıyla değişir:
+
+| Katman | vanilla | hafif |
+|---|---|---|
+| Deniz | önbellekli gradyan, `20000×20000` birimlik dikdörtgen | tek renk `#123c58` |
+| Kıta | düz yeşil + üstüne **ikinci kez** doku (pattern) dolgusu | yalnız düz yeşil |
+| Kıyı | kumsal şeridi + 90 birimlik hale + 130/86/48 birimlik üç gölge konturu | yalnız 42 birimlik kumsal şeridi |
+| Nehir | yatak + su + parıltı + her karede kayan kesikli çizgi | tek kat su |
+| Yol | omuz + yüzey + türüne göre kesikli orta çizgi | omuz + yüzey (tür zaten genişlikten okunur) |
+
+Ölçüldü (1058×709 tuval, aynı dünya, aynı karede A/B — kare başına `renderMap`, iki tur):
+
+| zoom | 0.07 | 0.30 | 0.80 | 1.50 | 3.00 |
+|---|---|---|---|---|---|
+| vanilla | 1.16 / 0.99 ms | 1.02 / 0.82 | 0.97 / 0.75 | 0.90 / 0.79 | 0.85 / 0.77 |
+| hafif | **0.49 / 0.49** | **0.46 / 0.38** | **0.40 / 0.37** | **0.44 / 0.34** | **0.39 / 0.43** |
+
+Yani her yakınlıkta **~2 kat** az raster işi. Ölçüm `ctx.getImageData(0,0,1,1)` ile alınır:
+canvas komutları kuyruklanır, yalnız JS süresine bakmak yanıltıcıdır. *(Not: aynı `getImageData`
+tekrarlandığında Chrome tuvali yazılım rasterleştirmeye düşürüyor ve bütün sayılar ~10 kat
+büyüyor — vanilla ve hafif hep aynı pencerede, art arda ölçülmeli.)*
+
+Denenip **elenen** yol: bütün dünyayı (deniz + kıta + yol + nehir) bir kez offscreen tuvale
+pişirip her kare `drawImage` ile basmak. Pişirme tek başına 19.1 ms ve zoom ~1'in üstünde
+görüntü bulanıklaşıyor — kamera zoom'u sürekli değiştiği için önbellek sık sık geçersizleşir.
 
 Hâlâ kasan bir makinede ilk bakılacak yer `chrome://gpu`: tuval hızlandırması kapalıysa
 (sürücü kara listesi) her şey yazılımla rasterize edilir ve buradaki hiçbir önlem yetmez.
