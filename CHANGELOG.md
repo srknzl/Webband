@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.63 — Terazi (2026-09-10)
+
+- Oyunun dengesi artık **ölçülüyor**: `tools/` altındaki dört araç oyunun kendi kodunu
+  Node'da koşturup dünya simülasyonu, 1v1 asker dengesi, para eğrisi ve kare hızı
+  kapısı için sayı üretiyor. Raporlar `docs/olcum/` altına tarihiyle düşüyor.
+- Ölçüm ilk meyvesini verdi: **ticaret tek başına bir orduyu beslemiyor**. Kese
+  büyütmek de işe yaramıyor — darboğaz para değil, pazarın stoğu. Ticaretin ölçeği
+  keseyle değil rota sayısıyla büyür.
+- Yüksek tazeleme hızlı ekranlardaki kare atlama kapısı artık her sürümde otomatik
+  sınanıyor: 144 Hz'te 72, 240 Hz'te 60 fps — ve iki döngü aynı karede asla farklı
+  cevap almıyor (eski siyah ekran hatasının regresyon testi).
+
 ## 0.62 — Parşömen ve Cephanelik (2026-09-09)
 
 - **Menü ekranları da bir yere benziyor**: karakter ekranının arkasında çapraz kılıçlar,

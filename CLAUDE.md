@@ -13,6 +13,8 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
+| `tools/` | Node ölçüm araçları (`harness.js` + `sim/duel/economy/framegate`) — bkz. "Ölçüm araçları" |
+| `docs/olcum/` | Araçların ürettiği tarihli ölçüm raporları |
 | `README.md` | İngilizce depo tanıtımı — kurulum tek satır: `index.html`'i aç |
 | `CHANGELOG.md` | Oyuncu diliyle, tarihli değişiklik listesi; sürüm numarası `VERSION` sabitidir |
 | `.github/ISSUE_TEMPLATE/bug.md` | Hata şablonu: sürüm damgası, **ekran tazeleme hızı**, debug raporu, kayıt JSON'u |
@@ -1189,8 +1191,9 @@ ve ölçümde 4 turun 3'ünde bir krallık haritadan siliniyordu. İki kural ger
 `warTick` bir fraksiyonun **son şehrini/kalesini kuşattırmaz**, ve iki toprağa düşen krallık
 `diplomacyTick`'te 5 günden sonra günde %25 ihtimalle barış imzalar (normalde 15 gün / %6).
 
-Ölçüldü (200 gün × 5 tur, oyuncusuz): **4–11 fetih**, 23–37 sefer (~6 günde bir),
-0–2 ittifak, 10–22 barış antlaşması, **hiçbir turda krallık silinmedi**. Sefer öncesi aynı
+Ölçüldü (`node tools/sim.js --gun 200 --tohum 1-5`, oyuncusuz): **5–15 fetih**,
+29–39 sefer (~6 günde bir), 1–5 ittifak, 17–27 barış antlaşması,
+**hiçbir turda krallık silinmedi**. Sefer öncesi aynı
 sim 8 fetih üretiyordu — cephe belirgin şekilde hareketlendi ama harita çökmedi.
 
 ### Kuşatma & krallık kurma (#25)
@@ -1728,6 +1731,79 @@ anında bitmesi.
 Kalanlar: —
 
 *(Savaş motoru #41'de `battle.js`'e ayrıldı: `app.js` 6276 → 4581 satır, `battle.js` 1701 satır.)*
+
+## Ölçüm araçları (#62)
+
+CLAUDE.md'deki "Ölçüldü" sayıları tarayıcı konsolunda elle yazılan tek seferlik
+betiklerden geliyordu: tekrarlanamıyor, sürüm atlayınca sessizce eskiyordu. `tools/`
+altındaki dört araç **oyunun kendi kodunu** koşturur (yeniden yazmaz) ve çıktıyı
+`docs/olcum/<tarih>-<konu>.md` olarak bırakır.
+
+`tools/harness.js` tek kapıdır: minik bir DOM sahtesi kurar, `app.js` → `battle.js`
+→ `nobles.js` → `quests.js`'i **tek bir `vm` bağlamında** çalıştırır (klasik script'te
+`const Game` sözcüksel globaldir, `window.Game` diye aranamaz) ve `vm.runInContext`
+ile isimleri geri okur. Çizim çağrıları sahte tuval bağlamına düşüp no-op olur.
+Tohumlu üreteç (`mulberry32`) `Math.random`'ın yerine geçtiği için **aynı tohum aynı
+dünyayı** verir. Ortak bayraklar: `--tohum 1-5`, `--json`, `--rapor`.
+
+| Araç | Ne ölçer | Örnek |
+|---|---|---|
+| `sim.js` | Oyuncusuz dünya: fetih, sefer, savaş/barış, kafile baskını, refah, silinen krallık | `node tools/sim.js --gun 200 --tohum 1-5` |
+| `duel.js` | 1v1 asker dengesi — gerçek `Battle.update` adım adım işletilir (blok, kite, hücum dahil) | `node tools/duel.js --n 200` |
+| `economy.js` | Oyuncu betiğinin **servet** eğrisi: kasa + elindeki ticaret malının satış değeri | `node tools/economy.js --gun 60 --asker 10` |
+| `framegate.js` | `Game.skipFrame` kapısı: Hz → geçen fps ve #42 paritesi | `node tools/framegate.js` |
+
+### Kare atlama kapısı — regresyon (`framegate.js`)
+Kapının kendi kodu sahte zaman damgalarıyla sürülür. Ölçüldü (2 sn):
+**60→60, 75→75, 90→90, 120→60, 144→72, 165→82.5, 180→60, 240→60** — yani kural
+("60 fps'in altına düşürmeyen en büyük bölen") tuttu. İkinci tablo #42'nin
+regresyonudur: aynı karede iki döngü sorunca **ayrık cevap 0**, harita ve savaş
+döngüsü aynı fps'i görüyor. Ayrık cevap sıfırdan büyük çıkarsa döngülerden biri
+kalıcı olarak aç kalır ve ekran siyahlanır; araç bu durumda **1 ile çıkar**, yani
+CI kapısı olarak kullanılabilir.
+
+### Ekonomi — meslek seçimi gerçekten bir seçim mi? (`economy.js`)
+Üç oyuncu betiği aynı dünyada, aynı orduyla koşturulur. Ordu aç kalmasın diye her
+gün erzak alınır (yoksa ölçüm "para eğrisi" değil "ordunun firar edişi" oluyordu) ve
+ölçülen şey kasa değil **servettir** — ticaret betiği günü yükle kapattığı için kasa
+tek başına yanıltıyordu.
+
+Ölçüldü (`--gun 60 --asker 10`, 10× sv. 10 Svadya Milisi, 1000 dinar kasa):
+
+| Betik | Bitiş | Gün başına | Günlük maaş | Günlük erzak | Kalan asker |
+|---|---|---|---|---|---|
+| Boş gezen ordu | 127 | **−14.6** | 20₺ | 14₺ | 1/10 |
+| Ticaret rotası | 137 | **−14.4** | 20₺ | 18₺ | 0/10 |
+| Tımar sahibi | 5745 | **+79.1** | 20₺ | 49₺ | 11/10 |
+
+Okunacak sonuç: **10 kişilik ordu geliri olmadan yaşamaz** (maaş + erzak ≈ 35–50₺/gün)
+ve **ticaret tek başına bir orduyu beslemez**. Ordusuz koşturulan aynı ticaret betiği
++11.8₺/gün kazanıyor; kasayı büyütmek işe yaramıyor (`--kasa 5000` → +2.3, `--kasa 20000`
+→ +0.2), çünkü darboğaz para değil **#46'nın arz eğrisidir**: hedef pazarın stoğunun
+dörtte birinden fazlasını boşaltmak fiyatı çökertir. Yani ticaretin ölçeği keseyle değil
+**rota sayısıyla** büyür — Warband'daki gibi. Tımar ise düzenli gelirdir: sefer/savaş
+olmadan bile günde +79₺.
+
+### Düello — araç ölçümü elle ölçümden neden farklı (`duel.js`)
+"Grup & asker" bölümündeki süreler `Battle.dealMelee`'nin **tek yönlü** çağrılmasıyla
+ölçülmüştü (hedef karşılık vermiyor). `duel.js` gerçek düellodur: ikisi de vurur,
+bloklar, kaçar, hücuma kalkar. Ölçüldü (tur başına 200 dövüş; düello rastgeledir,
+tekrarlanan turlarda oran ±%3 oynar):
+
+| A | B | A kazanma | Ort. süre |
+|---|---|---|---|
+| Nord Baltacısı | Rodok Kalkanlısı | **%96.9** | 22.9 sn |
+| Nord Baltacısı | Svadya Şövalyesi | **%50.8** | 15.1 sn |
+| Rodok Mızraklısı | Nord Baltacısı | %0 | 8.8 sn |
+| Svadya Milisi | Rodok Kalkanlısı | %0 | 10 sn |
+| Kergit Atlı Okçusu | Rodok Tatar Yaylısı | %6.5 | 9.6 sn |
+
+İki yöntem çelişmiyor, farklı soru soruyor: tek yönlü ölçüm "bu silah bu zırhı ne kadar
+sürede deler"i, düello "bu asker bu askeri yener mi"yi söyler. Elit dengesi ayakta —
+baltacı kalkanlıyı yeniyor ama **23 saniyede**, şövalyeyle ise yazı-tura. Orta kademe
+elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutmuyor.
+
+*(Araçlar tarayıcı oyununa hiçbir şey eklemez — `index.html` onları yüklemez.)*
 
 ## Kod tarzı
 
