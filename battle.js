@@ -279,13 +279,16 @@ const Battle = {
         // Kısmi katılım: sahaya kapasite kadar birim çıkar, kalanı yedekte bekler (#30)
         this.splitReserves(H, startPlayerX, startEnemyX);
 
+        // Kumanda ipucu cihaza göre yazılır: parmakla oynayanda WASD diye bir şey yok (#65)
+        const ipucu = Game.isTouch() ? 'Çubukla hareket · ⚔️ saldırı · 🛡️ blok'
+                                     : 'WASD hareket · Sol tık saldırı';
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
             + (this.ambushed ? 'Pusuya Düştün! Etrafın sarıldı.' : 'Savaş Başladı!')
-            + '</b><br>WASD hareket · Sol tık saldırı<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
+            + '</b><br>' + ipucu + '<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
         if(this.siege) document.getElementById('battle-log-left').innerHTML =
             `<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>🏰 Kuşatma — ${this.siege.name}</b><br>`
             + `Sur geçilmez; gedikten gireceksin. Savunanın mevzi avantajı +%${Math.round(this.siege.defBonus*100)}.`
-            + `<br>WASD hareket · Sol tık saldırı</div>`;
+            + `<br>${ipucu}</div>`;
         document.getElementById('battle-log-right').innerHTML = '';
 
         setTimeout(() => {
@@ -674,6 +677,7 @@ const Battle = {
             }
 
             if(u.id === 'player') {
+                Input.aimSync(u);   // parmakla oynanıyorsa nişan sanal çubuğun yönünden gelir (#65)
                 // Blok: sağ tık ya da Shift. Blokta savuramaz, yavaş yürür.
                 u.blocking = u.hp > 0 && !u.isAttacking && (this.blockHeld || !!Input.keys['shift']);
                 if(u.blocking) u.blockAngle = Math.atan2(Input.mouse.y - u.y, Input.mouse.x - u.x);
@@ -1327,14 +1331,18 @@ const Battle = {
     drawHud(ctx, W, H, now) {
         // Emir şeridi
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        // Parmakla oynanan cihazda alt yarıyı sanal çubuk, düğmeler ve savaş kütüğü
+        // kaplar: emir şeridi ile oyuncu künyesi güç çubuğunun **altına**, ekranın
+        // üstüne taşınır (#65). Aşağıdaki `B - 40 / -26 / -56 / -76` aynı kalır.
+        const B = Game.isTouch() ? 150 : H;
         let cmdName = this.currentCommand === 'follow' ? 'Takip Et' : this.currentCommand === 'hold' ? 'Mevzini Koru' : 'Hücum Et';
         let hudW = Math.min(360, W - 24);
         ctx.fillStyle = 'rgba(12,14,10,0.72)';
-        ctx.fillRect(12, H - 40, hudW, 28);
+        ctx.fillRect(12, B - 40, hudW, 28);
         ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1;
-        ctx.strokeRect(12, H - 40, hudW, 28);
+        ctx.strokeRect(12, B - 40, hudW, 28);
         ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
-        ctx.fillText(`⚑ ${cmdName}`, 22, H - 26);
+        ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
         // Henüz açılmamış emirler soluk: oyuncu neyin ne zaman geleceğini görür
         ctx.font = '11px Inter, sans-serif';
         let lbl = { '1': 'Takip', '2': 'Hücum', '3': 'Bekle' };
@@ -1342,7 +1350,7 @@ const Battle = {
         (this.cmdSlots || []).forEach(c => {
             ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
             let t = `[${c.key}] ${lbl[c.key]} `;
-            ctx.fillText(t, x, H - 26);
+            ctx.fillText(t, x, B - 26);
             x += ctx.measureText(t).width + 4;
         });
 
@@ -1351,15 +1359,16 @@ const Battle = {
         if(pl && pl.hp > 0) {
             let bits = [pl.type === 'cavalry' ? '🐴 Atlı' : '🥾 Yaya'];
             if(this.playerHasBow()) bits.push(`🏹 ${this.arrows} ok`);
-            bits.push(pl.blocking ? '🛡 BLOK' : (this.playerHasShield() ? '🛡 [Sağ tık/Shift] blok' : '[Sağ tık/Shift] savuştur'));
+            const blokTus = Game.isTouch() ? '🛡 düğmesi' : '[Sağ tık/Shift]';
+            bits.push(pl.blocking ? '🛡 BLOK' : (this.playerHasShield() ? `🛡 ${blokTus} blok` : `${blokTus} savuştur`));
             ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
             ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.fillText(bits.join('   ·   '), 22, H - 56);
+            ctx.fillText(bits.join('   ·   '), 22, B - 56);
         }
 
         if(this.knockedOut) {
             ctx.fillStyle = 'rgba(255,70,70,0.9)'; ctx.font = 'bold 13px Inter, sans-serif';
-            ctx.fillText('☠ Baygınsın — adamların savaşıyor', 22, H - 76);
+            ctx.fillText('☠ Baygınsın — adamların savaşıyor', 22, B - 76);
         }
 
         // Güç çubuğu

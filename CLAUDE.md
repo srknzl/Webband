@@ -1467,7 +1467,77 @@ iken açıkken `[true,true,true,false]`, kapalıyken `[false,false,false,false]`
   `button.primary`'ye, yoksa ilk düğmeye basar. Ölçüldü: Esc kapattı, Enter primary düğmeyi
   seçti (2), primary yokken tek düğmeye bastı (7), karşılaşma modali Esc'e direndi.
 - Yazı boyutu ölçeği ve hareket azaltma yukarıdaki ayarlar tablosunda.
-- Kalan tek büyük parça **dokunmatik/mobil**, kendi issue'sunda.
+- Dokunmatik/mobil kendi turunda yapıldı — aşağıdaki bölüm.
+
+### Dokunmatik ve mobil (#65)
+
+Oyun fare ve klavye olmadan hiç oynanmıyordu. Üç ayrı iş: **giriş yolu**, **yerleşim**,
+**ipucu metni**. Tek kural: giriş yolunu `pointer: coarse` belirler, yerleşimi `max-width` —
+ikisi ayrı sorular, çünkü tabletin geniş ekranı da parmakla sürülür.
+
+**1. Tek giriş kapısı.** `mousemove/mousedown/click` dinleyicileri **pointer olaylarıyla**
+değiştirildi (`Game.onMapDown/onMapMove/onMapUp`); fare de parmak da aynı kapıdan geçer,
+iki ayrı hedefleme yolu tutulmaz. `e.pointerType === 'mouse'` dalı eski davranışı
+(`handleMapHover` / `startTargetDrag` / `endTargetDrag`) aynen çağırır.
+
+| Parmak | Ne yapar |
+|---|---|
+| Tek parmak sürükleme | Kamerayı kaydırır — WASD ile **aynı** kapı (`camera.offset`), ±9000 sınırı `update`'te |
+| İki parmak | Yakınlaştırır: `targetZoom × (yeni açıklık / eski açıklık)`, `minZoom()`–3.0 arası |
+| Kısa dokunuş (<450 ms, <10 px) | `handleMapClick` — hedef koyar / yerleşime girer |
+| Uzun dokunuş (≥450 ms) | `handleMapHover` — künye açılır, **hedef atanmaz** |
+| İşaretin üstünde sürükleme | Hedef işaretini taşır (#35'in kendi kodu) |
+
+Ölçüldü (375×812, zoom 0.8): −60/−30 px sürükleme kamerayı **+75 / +37.5** dünya birimi
+kaydırdı (= piksel/zoom); iki parmak açıklığı 100 → 200 px olunca zoom **0.80 → 1.60**.
+Kısa dokunuş hedefi kurdu, 600 ms'lik dokunuş künyeyi açtı ve **hedefi kurmadı**.
+
+**2. Savaş kumandası** (`#touch-ui`, `Game.initTouchUI`). Sol altta 116 px'lik sanal çubuk,
+sağ altta 74 px'lik ⚔️/🛡️ düğmeleri, ikisinin üstünde tek sıra emir düğmeleri.
+Hiçbiri savaş motoruna yeni bir giriş yolu açmaz:
+
+- Çubuk `Input.keys` içindeki `w/a/s/d`'yi yazar (eşik ±0.38) — motor hâlâ tuş okur.
+- Nişan `Input.aimSync(u)` ile **çubuğun yönünden** türetilip `Input.mouse`'a yazılır;
+  parmakla oynarken imleç diye bir şey yok. Fare kıpırdarsa `Input.stick` sıfırlanır,
+  nişanı yine fare alır.
+- ⚔️ doğrudan `Battle.playerAttack()`, 🛡️ `Battle.blockHeld` bayrağını tutar — sağ tıkla
+  aynı alan.
+- Emirler `Game.touchCommand(key)` ile sentetik `KeyboardEvent('keydown')` gönderir;
+  `Input`'un kendi dinleyicisi çözer.
+
+**Ekran alt yarısı parmaklarındır**, o yüzden çizim ve paneller yukarı taşındı:
+`drawHud`'daki taban `const B = Game.isTouch() ? 150 : H` — künye ve emir şeridi güç
+çubuğunun **altında**, ekranın üstünde durur. Savaş kütüğü `bottom: 236px`'e çıkar.
+Ölçüldü (355×493 tuval): emir şeridi 110–138, kütük 223–319, emir düğmeleri 325–359,
+çubuk 367–483, ⚔️/🛡️ 409–483, Teslim Ol 503–547 — **hiçbir çift kesişmiyor**.
+Kumanda `--tui-lift: calc(72px + env(safe-area-inset-bottom))` ile alt şeridin
+(Teslim Ol) üstünde başlar ve çentikli telefonda ev çubuğunun altına girmez.
+
+**3. Dar ekran yerleşimi** (`@media (max-width: 820px)`): kenar menüsü alta açılan yatay
+şerit olur (ikon üstte, etiket altta, kısayol rozeti gizli), sefer çubuğu rozetleri sarar,
+modal `calc(100vw - 20px)` + `max-height: 88vh` ile kendi içinde kayar, pazarın iki sütunu
+alt alta diner (`#market-cols`), başlangıç ekranının mutlak konumlu düğmeleri akışa girer.
+Yatay tutulan telefonda (`max-height: 480px`) rozet alt yazıları ve menü etiketleri düşer.
+
+- **Künye dokunmayla açılır**: `:hover` parmakta yoktur. `pointerdown` `.tooltip-container`
+  üstünde `.tip-open` sınıfını çevirir, coarse cihazda `:hover` kuralı iptal edilir.
+  Taşma düzeltmesi tek yerde toplandı (`Game.clampTip`) — fareyle gelen de dokunmayla
+  açılan da oradan geçer. Harita künyesi de ölçülüp ekran içine kırpılır
+  (`handleMapHover`): ölçüldü, 375 px ekranda 132 → 361, **taşma yok**.
+  *(Aynı gövdedeki `rect` tanımsızdı: yerleşimin üstüne her gelişte `ReferenceError`
+  atıyor, künye hiç açılmıyordu.)*
+- **Dokunma hedefleri** en az 44 px (WCAG 2.5.5). Ölçüldü: kural öncesi `#map-hud`'da
+  22/22/20/20 px dört düğme vardı, sonrasında ekrandaki görünür düğmelerin **0'ı** 44'ün
+  altında.
+- Üç tuval `touch-action: none` taşır (pan/pinch bizde), `viewport` etiketi
+  `user-scalable=no, viewport-fit=cover`.
+- İpucu metni cihazı tanır (`Game.isTouch()`): savaş kütüğünde "WASD hareket · Sol tık
+  saldırı" yerine "Çubukla hareket · ⚔️ saldırı · 🛡️ blok", künyede "[Sağ tık/Shift]"
+  yerine "🛡 düğmesi".
+
+**Kabul yolu yalnız parmakla yürütüldü** (375×812, `pointer: coarse`): karakter yaratma
+sihirbazı → çapulcu savaşı **"⚔️ Mükemmel Zafer!"** (sanal çubukla dört yön de kullanıldı,
+6–7 savurma, 0 kayıp) → pazarda alışveriş (`🌾 Tahıl x1 alındı · -3₺ · kasa 663₺`).
 
 ### Denge görünürlüğü (#55 madde 9)
 Sayıların kendisi değil, oyuncunun onları **görüp görmediği** düzeltildi.

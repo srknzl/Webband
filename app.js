@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.63', date: '2026-09-10', name: 'Terazi' };
+const VERSION = { no: '0.64', date: '2026-09-10', name: 'Avuç İçi' };
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -479,6 +479,16 @@ const state = {
 const Input = {
     keys: {},
     mouse: { x: 0, y: 0 },
+    stick: null,          // sanal çubuğun son yönü (#65) — parmakla nişan buradan okunur
+
+    // Parmakla oynarken fare imleci yok: nişan çubuğun yönünden türer. Savaş motoru
+    // hâlâ yalnız Input.mouse'a bakar, yani iki ayrı nişan yolu tutulmaz.
+    aimSync(u) {
+        if(!this.stick) return;
+        this.mouse.x = u.x + this.stick.x * 120;
+        this.mouse.y = u.y + this.stick.y * 120;
+    },
+
     init() {
         window.addEventListener('keydown', e => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -518,6 +528,7 @@ const Input = {
         window.addEventListener('mousemove', e => {
             Input.mouse.clientX = e.clientX;
             Input.mouse.clientY = e.clientY;
+            Input.stick = null;      // fare kıpırdadıysa nişanı o alır, sanal çubuk değil
             
             let canvas = document.getElementById('battle-canvas');
             if(canvas && canvas.offsetParent !== null) { // Only track if visible
@@ -581,11 +592,13 @@ const Game = {
         // Opak tuval: deniz her kareyi baştan sona dolduruyor, alfa kanalına gerek yok.
         // alpha:false ile tarayıcı harmanlama geçişini atlar (zayıf GPU'da belirgin).
         this.ctx = this.mapCanvas.getContext('2d', { alpha: false });
-        this.mapCanvas.addEventListener('mousemove', e => this.handleMapHover(e));
-        this.mapCanvas.addEventListener('click', e => this.handleMapClick(e));
+        // Fare ve parmak tek kapıdan geçer (#65): pointer olayı ikisini de taşır.
         // Hedef işareti sürüklenebilir (#35): basılı tut, taşı, bırak — rota anında yeniden kurulur
-        this.mapCanvas.addEventListener('mousedown', e => this.startTargetDrag(e));
-        window.addEventListener('mouseup', e => this.endTargetDrag(e));
+        this.mapCanvas.addEventListener('pointerdown', e => this.onMapDown(e));
+        this.mapCanvas.addEventListener('pointermove', e => this.onMapMove(e));
+        this.mapCanvas.addEventListener('pointerup', e => this.onMapUp(e));
+        this.mapCanvas.addEventListener('pointercancel', e => this.onMapUp(e));
+        this.initTouchUI();
         document.getElementById('modal-overlay').addEventListener('click', e => {
             // Karşılaşma (savaş/teslim ol) modali açıkken dışa tıklayarak kapanmasın
             if(e.target.id === 'modal-overlay' && !state.player.currentEncounterNpcId) this.closeModal();
@@ -3708,10 +3721,16 @@ const Game = {
         }
 
         if(found) {
+            // `rect` bu gövdede tanımlı değildi: yerleşimin üstüne her gelişte
+            // ReferenceError atıyor, künye hiç açılmıyordu. Ölçüm mapPos ile aynı kapıdan.
+            let rect = this.mapCanvas.getBoundingClientRect();
             tooltip.innerHTML = `<strong>${found.name}</strong><br>${found.sub}`;
-            tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
-            tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
+            tooltip.style.left = '0px'; tooltip.style.top = '0px';
             tooltip.classList.remove('hidden');
+            // Ölçüp içeri al: dar ekranda parmağın sağında künye kadar yer yok (#65)
+            let tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+            tooltip.style.left = Math.max(4, Math.min(e.clientX - rect.left + 15, rect.width - tw - 4)) + 'px';
+            tooltip.style.top  = Math.max(4, Math.min(e.clientY - rect.top + 15, rect.height - th - 4)) + 'px';
             this.mapCanvas.style.cursor = 'pointer';
         } else {
             tooltip.classList.add('hidden');
@@ -3726,6 +3745,122 @@ const Game = {
             x: ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x,
             y: ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y
         };
+    },
+
+    // --- DOKUNMATİK (#65) ---
+    // Fare ve parmak ayrı kod yolu tutmaz; ikisi de buradan geçer.
+    //   fare  : hareket = künye, basılı sürükle = hedef işareti, tık = hedef
+    //   parmak: tek parmak = haritayı kaydır, iki parmak = yakınlaştır,
+    //           kısa dokunuş = hedef, uzun dokunuş (450 ms) = künye
+    _ptr: new Map(),          // pointerId -> { x, y, t, moved }
+    _pinch: 0,
+
+    isTouch() {
+        return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    },
+
+    ptrGap() {
+        let a = [...this._ptr.values()];
+        return a.length < 2 ? 0 : Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+    },
+
+    onMapDown(e) {
+        if(e.pointerType === 'mouse') return this.startTargetDrag(e);
+        this._ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 });
+        try { this.mapCanvas.setPointerCapture(e.pointerId); } catch(_) {}
+        // İkinci parmak yakınlaştırmadır: yarım kalan hedef sürüklemesi iptal olur
+        if(this._ptr.size > 1) { this.dragTarget = null; this._pinch = this.ptrGap(); }
+        else this.startTargetDrag(e);
+    },
+
+    onMapMove(e) {
+        if(e.pointerType === 'mouse') return this.handleMapHover(e);
+        let p = this._ptr.get(e.pointerId);
+        if(!p) return;
+        let dx = e.clientX - p.x, dy = e.clientY - p.y;
+        p.x = e.clientX; p.y = e.clientY; p.moved += Math.hypot(dx, dy);
+        if(this._ptr.size > 1) {
+            let gap = this.ptrGap();
+            if(this._pinch > 0 && gap > 0) {
+                this.camera.targetZoom = Math.max(this.minZoom(), Math.min(3.0, this.camera.targetZoom * gap / this._pinch));
+            }
+            this._pinch = gap;
+        } else if(this.dragTarget) {
+            this.handleMapHover(e);                       // işaret parmağın altında taşınır
+        } else {
+            // Kaydırma yalnız offset'i oynatır (WASD ile aynı kapı), ±9000 sınırı update'te
+            this.camera.offsetX -= dx / this.camera.zoom;
+            this.camera.offsetY -= dy / this.camera.zoom;
+        }
+    },
+
+    onMapUp(e) {
+        if(e.pointerType === 'mouse') return this.endTargetDrag(e);
+        let p = this._ptr.get(e.pointerId);
+        this._ptr.delete(e.pointerId);
+        if(this._ptr.size < 2) this._pinch = 0;
+        if(!p) return;
+        if(this.dragTarget) return this.endTargetDrag(e);
+        if(p.moved > 10 || this._ptr.size) return;        // kaydırma/yakınlaştırma hedef atamaz
+        if(performance.now() - p.t > 450) return this.handleMapHover(e);   // uzun dokunuş: künye
+        document.getElementById('map-tooltip').classList.add('hidden');
+        this.handleMapClick(e);
+    },
+
+    // Savaşta sanal çubuk: parmağın yönü WASD'ye çevrilir, yani savaş motoru
+    // hâlâ tek giriş yolu görür (`Input.keys`). Nişan da aynı yönden okunur —
+    // parmakla oynarken fare imleci diye bir şey yok.
+    initTouchUI() {
+        let st = document.getElementById('tstick'), knob = document.getElementById('tstick-knob');
+        if(!st) return;
+        const R = 42;
+        let id = null, cx = 0, cy = 0;
+        const set = (dx, dy) => {
+            let len = Math.hypot(dx, dy);
+            if(len < 12) {
+                ['w', 'a', 's', 'd'].forEach(k => Input.keys[k] = false);
+                knob.style.transform = '';
+                return;                                   // yön korunur: bırakınca nişan dönmesin
+            }
+            let nx = dx / len, ny = dy / len;
+            Input.stick = { x: nx, y: ny };
+            Input.keys['a'] = nx < -0.38; Input.keys['d'] = nx > 0.38;
+            Input.keys['w'] = ny < -0.38; Input.keys['s'] = ny > 0.38;
+            let c = Math.min(1, len / R);
+            knob.style.transform = `translate(${(nx * R * c).toFixed(1)}px, ${(ny * R * c).toFixed(1)}px)`;
+        };
+        st.addEventListener('pointerdown', e => {
+            e.preventDefault(); id = e.pointerId;
+            try { st.setPointerCapture(id); } catch(_) {}
+            let r = st.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+            set(e.clientX - cx, e.clientY - cy);
+        });
+        st.addEventListener('pointermove', e => { if(e.pointerId === id) set(e.clientX - cx, e.clientY - cy); });
+        const off = e => { if(e.pointerId === id) { id = null; set(0, 0); } };
+        st.addEventListener('pointerup', off);
+        st.addEventListener('pointercancel', off);
+
+        let at = document.getElementById('tb-attack'), bl = document.getElementById('tb-block');
+        at.addEventListener('pointerdown', e => { e.preventDefault(); Battle.playerAttack(); });
+        bl.addEventListener('pointerdown', e => { e.preventDefault(); Battle.blockHeld = true; bl.classList.add('on'); });
+        const blOff = () => { Battle.blockHeld = false; bl.classList.remove('on'); };
+        bl.addEventListener('pointerup', blOff);
+        bl.addEventListener('pointercancel', blOff);
+
+        // Künye dokunmayla açılır: `:hover` parmakta yoktur (#65)
+        document.addEventListener('pointerdown', e => {
+            if(e.pointerType === 'mouse') return;
+            let c = e.target.closest && e.target.closest('.tooltip-container');
+            document.querySelectorAll('.tooltip-container.tip-open').forEach(o => { if(o !== c) o.classList.remove('tip-open'); });
+            if(!c) return;
+            c.classList.toggle('tip-open');
+            if(c.classList.contains('tip-open')) this.clampTip(c);
+        });
+    },
+
+    // Savaş emirleri (1/2/3) parmakla: dinleyici zaten klavyede, olayı ona veriyoruz
+    touchCommand(key) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key }));
     },
 
     // --- HEDEF İŞARETİNİ SÜRÜKLEME (#35) ---
@@ -4481,7 +4616,7 @@ const Game = {
     // --- MARKET ---
     openMarket(loc) {
         let html = `<h3>🛒 Pazar - ${loc.name}</h3>
-        <div style="display:flex;gap:2rem;margin-top:1rem;">
+        <div id="market-cols" style="display:flex;gap:2rem;margin-top:1rem;">
         <div style="flex:1;"><h4>Satın Al</h4><ul id="market-buy" style="list-style:none;"></ul></div>
         <div style="flex:1;"><h4>Sat</h4><ul id="market-sell" style="list-style:none;"></ul></div>
         </div>
@@ -6432,15 +6567,19 @@ const Game = {
     initTooltipClamp() {
         document.addEventListener('mouseover', e => {
             let c = e.target.closest && e.target.closest('.tooltip-container');
-            if(!c) return;
-            let t = c.querySelector('.tooltip-content');
-            if(!t) return;
-            t.style.transform = 'translateX(-50%)';
-            let r = t.getBoundingClientRect(), pad = 10;
-            let over = r.right - (window.innerWidth - pad), under = pad - r.left;
-            if(over > 0) t.style.transform = `translateX(calc(-50% - ${Math.ceil(over)}px))`;
-            else if(under > 0) t.style.transform = `translateX(calc(-50% + ${Math.ceil(under)}px))`;
+            if(c) this.clampTip(c);
         });
+    },
+
+    // Taşma düzeltmesi tek yerde: fareyle gelen de dokunmayla açılan da buradan geçer (#65)
+    clampTip(c) {
+        let t = c.querySelector('.tooltip-content');
+        if(!t) return;
+        t.style.transform = 'translateX(-50%)';
+        let r = t.getBoundingClientRect(), pad = 10;
+        let over = r.right - (window.innerWidth - pad), under = pad - r.left;
+        if(over > 0) t.style.transform = `translateX(calc(-50% - ${Math.ceil(over)}px))`;
+        else if(under > 0) t.style.transform = `translateX(calc(-50% + ${Math.ceil(under)}px))`;
     },
 
     // Erzak bozulur: her türün kendi dayanıklılığı var (ITEMS[].spoil = gün).

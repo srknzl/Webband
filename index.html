@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>WebBand - Kalradya</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -181,6 +181,20 @@
                             <div id="battle-log-left" class="battle-logs" style="left:20px; text-align:left;"></div>
                             <div id="battle-log-right" class="battle-logs" style="right:20px; text-align:right;"></div>
                             <button class="btn" id="btn-surrender" onclick="Battle.surrender()">🏳️ Teslim Ol</button>
+                            <!-- Dokunmatik savaş kumandası (#65): CSS `pointer: coarse`
+                                 olmayan cihazda gizler, yani fare kullanıcısı hiç görmez. -->
+                            <div id="touch-ui">
+                                <div id="tstick"><div id="tstick-knob"></div></div>
+                                <div id="tcmds">
+                                    <button onclick="Game.touchCommand('1')">1 Takip</button>
+                                    <button onclick="Game.touchCommand('2')">2 Hücum</button>
+                                    <button onclick="Game.touchCommand('3')">3 Mevzi</button>
+                                </div>
+                                <div id="tbtns">
+                                    <button id="tb-block">🛡️</button>
+                                    <button id="tb-attack">⚔️</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </main>

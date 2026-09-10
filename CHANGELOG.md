@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.64 — Avuç İçi (2026-09-10)
+
+- **Oyun artık telefonda oynanıyor.** Haritayı tek parmakla kaydırıyor, iki parmakla
+  yakınlaştırıyorsun; kısa dokunuş hedef koyar, basılı tutmak künyeyi açar.
+- Savaşta sol altta **sanal çubuk**, sağ altta **⚔️ savur** ve **🛡️ blok** düğmeleri var;
+  emirler (takip / hücum / mevzi) çubuğun üstünde tek sıra hâlinde duruyor. Savaş künyesi
+  ekranın üstüne taşındı, yani parmaklar arenayı kapatmıyor.
+- Kenar menüsü dar ekranda alta açılan bir şerit oluyor, sefer çubuğunun rozetleri sarıyor,
+  pazar iki sütun yerine alt alta diziliyor ve modaller ekranın enini kullanıyor.
+- Bütün dokunma hedefleri en az 44 piksel. İpuçları da cihazı tanıyor: parmakla oynayana
+  artık "WASD" değil "çubukla hareket" yazıyor.
+
 ## 0.63 — Terazi (2026-09-10)
 
 - Oyunun dengesi artık **ölçülüyor**: `tools/` altındaki dört araç oyunun kendi kodunu
