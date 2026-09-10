@@ -1056,3 +1056,38 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     #start-screen .hex-btn-small { font-size: 0.75rem; padding: 0.6rem 0.9rem; }
     #ver-tag { position: static !important; margin-top: 1rem; text-align: center; }
 }
+
+/* ============================================================
+   DİL SEÇİCİ
+   ============================================================ */
+#lang-ask {
+    position: fixed; inset: 0; z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6,8,10,0.92);
+}
+#lang-ask.hidden { display: none; }
+.lang-ask-box { text-align: center; padding: 1.5rem; }
+.lang-ask-box h2 {
+    font-family: 'Cinzel', serif; font-size: 2.6rem;
+    color: var(--primary); letter-spacing: 3px; margin-bottom: 0.3rem;
+}
+.lang-ask-box p { color: var(--text-muted); margin-bottom: 1.6rem; letter-spacing: 1px; }
+#lang-ask-row, #lang-row { display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap; }
+#lang-row { margin-top: 1.2rem; }
+.lang-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+    min-width: 96px; min-height: 44px;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid rgba(212,175,55,0.35);
+    border-radius: 10px;
+    background: rgba(20,18,14,0.6);
+    color: #e8dcc0;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.lang-btn .lang-flag { font-size: 2rem; line-height: 1; }
+.lang-btn:hover { border-color: var(--primary); background: rgba(40,34,20,0.7); }
+.lang-btn.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+/* Başlangıç ekranındaki sıra daha küçük: oyunu değil ayarı temsil eder */
+#lang-row .lang-btn { min-width: 62px; padding: 0.45rem 0.6rem; font-size: 0.66rem; }
+#lang-row .lang-flag { font-size: 1.3rem; }

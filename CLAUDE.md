@@ -12,6 +12,8 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `battle.js` | Savaş arenası ve turnuva minigame'i: `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
+| `i18n.js` | Dil katmanı: `I18N` + global `T` — anahtar Türkçe kaynak metnin kendisidir |
+| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1721 anahtar); elle düzenlenmez |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
 | `tools/` | Node ölçüm araçları (`harness.js` + `sim/duel/economy/framegate`) — bkz. "Ölçüm araçları" |
 | `docs/olcum/` | Araçların ürettiği tarihli ölçüm raporları |
@@ -34,7 +36,8 @@ yeni kare istemez); savaş/turnuva kendi döngüsünü işletir. Döngüyü geri
 `startGameLoop()` çağrılır. Savaştan çıkan her yol (zafer, yenilgi, teslim, düello, arena,
 turnuva) `Game.showScreen('map')`'ten geçtiği için ek kanca gerekmez.
 
-Script yükleme sırası: `app.js` → `battle.js` → `nobles.js` → `quests.js`. Aralarındaki tüm
+Script yükleme sırası: `i18n.js` → `lang-en.js` → `lang-id.js` → `app.js` → `battle.js` →
+`nobles.js` → `quests.js`. Aralarındaki tüm
 referanslar fonksiyon gövdelerinde olduğu için sıra sadece `const` çakışmasını önlemek için
 önemli. *(`const` klasik script'te global sözcüksel kapsama girer, yani `battle.js`'teki
 `Battle` app.js'ten de görünür — `window.Battle` diye aranmamalı.)*
@@ -1538,6 +1541,99 @@ Yatay tutulan telefonda (`max-height: 480px`) rozet alt yazıları ve menü etik
 **Kabul yolu yalnız parmakla yürütüldü** (375×812, `pointer: coarse`): karakter yaratma
 sihirbazı → çapulcu savaşı **"⚔️ Mükemmel Zafer!"** (sanal çubukla dört yön de kullanıldı,
 6–7 savurma, 0 kayıp) → pazarda alışveriş (`🌾 Tahıl x1 alındı · -3₺ · kasa 663₺`).
+
+### Dil katmanı — Türkçe, İngilizce, Endonezce
+
+Oyun üç dilde oynanır. Tek kural: **anahtar Türkçe kaynak metnin kendisidir**
+(`T('Yeni Oyun')`). Sözlükte karşılığı yoksa ekrana Türkçe düşer — yani eksik çeviri boş
+kutu ya da `missing.key` değil, okunabilir bir cümledir; Türkçe modda `T` kimlik
+fonksiyonudur ve hiçbir arama yapılmaz.
+
+İki çağrı biçimi, tek sözlük:
+
+| Biçim | Anahtar |
+|---|---|
+| `T('Kesede')` | `Kesede` |
+| `` T`${n} asker katıldı` `` | `{0} asker katıldı` |
+
+Etiketli biçimde araya giren değerler numaralanır, çeviri onları **istediği sırada**
+kullanabilir (`{0}`/`{1}`) — cümle dizilimi dile göre değişir. Şablon birden çok satıra
+yayılınca anahtara satır sonu + girinti karışacağı için arama `I18N.norm(key)`
+(`/\s*\n\s*/g` → tek boşluk) üzerinden yapılır; sözlük üreteci de aynı dönüşümü uygular.
+
+**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1721 anahtarlık düz
+tablolardır (154 / 157 KB); kaynağı depo dışındaki elle yazılmış Türkçe→(EN, ID) sözlüğüdür.
+Ölçüldü: `anahtar 1728, çeviri 1721, eksik 0, yer-tutucu uyumsuz 0`.
+
+#### Durağan metin: `prime()` / `applyDom()` ayrımı
+`index.html`'deki durağan metnin anahtarı, sayfa daha hiçbir şey çizmeden **bir kez**
+düğümün üstüne damgalanır (`I18N.prime()`, `n._trKey`); `applyDom` yalnız anahtarı olan
+düğüme dokunur. Ayrım şart: tek geçişli bir yürüyüş, ekranı `innerHTML` ile kuran her
+paneli (rozet künyeleri, ekranlar, modal) **çevrilmiş metniyle** yakalıyor, İngilizce
+cümleyi anahtar diye kaydediyor ve TR→EN→ID gezildiğinde o düğüm İngilizce çakılı
+kalıyordu. Ölçüldü: 40 düğüm damgalanıyor, `prime` **0.8 ms**, dil değiştirme
+(`set` + `applyDom`) **0.5–1.3 ms**.
+
+#### Ham dur, gösterimde çevir
+`T(...)`'yi **üst düzey veri tablosunun içine** yazmak çeviriyi dondurur: o satır script
+yüklenirken çalışır, `I18N.load()` ise `Game.init()`'ten (yani `window.onload`'dan)
+çağrılır — tablo kurulurken dil hâlâ `'tr'`dir. Kural bu yüzden tektir: **tablo ham Türkçe
+durur, `T` gösterim yerinde çağrılır.** `CHATTER`, `KEYS`, `WAIT_CHOICES`,
+`Battle.cmdSlots`, `COMPLIMENTS`/`POEMS` böyle çalışır.
+
+Aynı kural `getTerrainInfo().name === 'Orman'` ya da `BAND_KINDS[k].name === enemyName`
+gibi **ada bakan karşılaştırmaları** da ayakta tutuyor: bu alanlar ham kaldığı için
+karşılaştırma dilden bağımsız. Yeni bir veri alanını çevirirken kontrol edilecek şey budur.
+
+Yüzde yazımı dile göre değişir (`%50` / `50%`): tek kapı `Game.pct(n, signed)`.
+
+#### Üç ayrı bozukluk sınıfı ve nasıl yakalandıkları
+| Sınıf | Belirti | Yakalayan |
+|---|---|---|
+| **Eksik çeviri** | Veri alanı `T`ye uğramadan ekrana düşüyor | `I18N.missing` (anahtar sözlükte yok) |
+| **Çift çeviri** | Zaten çevrilmiş değer ikinci kez `T`den geçiyor | `I18N.missing` (İngilizce cümle anahtar diye kaydolur) |
+| **Hiç çevrilmemiş** | Türkçe metin bir şablonun içine gömülü, `T`ye hiç uğramıyor | **Hiçbir sayaç görmez** — tek kanıt ekranda kalan Türkçe kelimedir |
+
+Üçüncüsü tehlikeli olanıdır ve iki şekilde çıkar: (i) şablonun içinde başıboş bir sabit
+(`'yok'`, `<b>zaman</b>.`), (ii) **erken kapatılmış bir `` T`...` `` şablonu** — cümlenin
+kalanı şablonun dışında kalır. Yakalama yöntemi: `showModal` / `setHtml` / `locTipHtml` /
+`npcTipHtml` / `alert` / `Battle.log` / `Game.news` geçici olarak sarmalanır, EN/ID modunda
+oyun baştan sona gezilir ve **çizilen HTML** Türkçe kalıntıya karşı taranır. İlk taramada
+99 EN / 114 ID kalıntı çıktı, 8 ayrı noktaya indi (kuşatma, yağma ve arena modalleri erken
+kapatılmış şablonlardı).
+
+*Endonezce için Türkçe durak-kelime listesi işe yaramaz* — `para`, `dinar`, `sana`, `bir`
+iki dilde de vardır (48 yanlış pozitif). ID'de güvenilir sinyal `[ğşıİĞŞ]` diyakritik
+sınıfı + yalnız-Türkçe kelime listesidir.
+
+#### Dil seçimi
+İlk açılışta bayraklı bir perde çıkar (`#lang-ask`): 🇹🇷 Türkçe · 🇬🇧 English ·
+🇮🇩 Bahasa Indonesia, tarayıcının dili (`I18N.guess()`) işaretli gelir. Seçim
+`localStorage.webband_lang`'a yazılır ve bir daha sorulmaz. Sonrasında başlangıç
+ekranındaki bayrak sırası da ⚙️ Ayarlar'daki satır da aynı `Game.setLang()` kapısından
+geçer; oyun içindeyken açık ekran kendi metnini yeniden kurar, yani **oyunu baştan
+başlatmak gerekmez**.
+
+#### Ölçüldü
+Bütün oyunu gezen bir tarama (karakter yaratma → 5 ekran → 8 modal → şehir/köy/kale →
+pazar/han/salon/arena/lonca → diyalog/kur/iltifat/şiir → görev teklifi → 14 günlük olay →
+meydan savaşı, kuşatma ve yağma) üç dilde de koşturuldu:
+
+| | hata | `I18N.missing` | ekranda Türkçe kalıntı |
+|---|---|---|---|
+| `tr` | 0 | 0 | — |
+| `en` | 0 | **0** | 0 (4 yanlış pozitif: `I've`, `you've`, sürüm adı, dil listesinin kendisi) |
+| `id` | 0 | **0** | 0 (1 yanlış pozitif: sürüm adı) |
+
+Doğrudan yükleme de ayrıca doğrulandı: `localStorage.webband_lang = 'en'` (ve `'id'`) ile
+sayfa **hiç dil değiştirmeden** açılıp aynı tarama koşturuldu — `missing 0`, yani üst düzey
+veri tabloları çift çeviriye düşmüyor.
+
+**Bilinen sınır:** `state.warLog` haberleri **yazıldıkları anda** çevrilmiş olarak saklanır.
+Dili oyunun ortasında değiştirirsen diplomasi ekranındaki eski satırlar eski diliyle kalır;
+yeni haberler yeni dille gelir. Haberleri ham saklayıp gösterimde çevirmek gerekirdi, ama
+haber metni çalışma anında kurulan bir cümle (lord adı + yerleşim adı) — bunun için ayrı bir
+yapılandırılmış haber biçimi gerekir; şimdilik kabul edilmiş bir eksiktir.
 
 ### Denge görünürlüğü (#55 madde 9)
 Sayıların kendisi değil, oyuncunun onları **görüp görmediği** düzeltildi.

@@ -10,6 +10,15 @@
 <body>
     <div id="game-container">
         <!-- Character Creation / Start Screen -->
+        <!-- İlk açılışta dil sorulur; seçim localStorage'da durur, bir daha sorulmaz -->
+        <div id="lang-ask" class="hidden">
+            <div class="lang-ask-box">
+                <h2>WebBand</h2>
+                <p>Dil · Language · Bahasa</p>
+                <div id="lang-ask-row"></div>
+            </div>
+        </div>
+
         <div id="start-screen" class="screen active">
             <div class="title-container">
                 <div class="ornament top-ornament"></div>
@@ -20,7 +29,7 @@
             <div class="form-group">
                 <label>Karakter Adı:</label>
                 <div class="input-container">
-                    <input type="text" id="char-name" value="Maceracı" placeholder="İsmini gir...">
+                    <input type="text" id="char-name" data-tr-value="Maceracı" value="Maceracı" placeholder="İsmini gir...">
                 </div>
                 <button id="start-btn" class="btn primary">Maceraya Başla</button>
             </div>
@@ -31,6 +40,9 @@
                 <button class="btn hex-btn-small" onclick="Save.continueGame()">📂 Kayıttan Devam</button>
                 <button class="btn hex-btn-small" onclick="Save.open()">💾 Kayıtlar</button>
             </div>
+            <!-- Dil seçimi: ilk açılışta `#lang-ask` perdesi sorar, sonrasında
+                 bu sıra başlangıç ekranında durur ve her an değiştirilebilir. -->
+            <div id="lang-row"></div>
             <!-- Sürüm damgası (#55 madde 8): hata raporunda hangi kod konuşuluyor -->
             <div id="ver-tag"></div>
         </div>
@@ -42,7 +54,7 @@
                 <div class="hud-chip tooltip-container" id="chip-time" onclick="Game.cycleTimeScale()">
                     <span class="hud-ico" id="ui-daypart">🌅</span>
                     <span class="hud-col">
-                        <span class="hud-val"><span id="ui-day">1</span>. Gün</span>
+                        <span class="hud-val" id="ui-day">—</span>
                         <span class="hud-sub" id="ui-clock">08:00</span>
                     </span>
                     <div class="tooltip-content" id="tip-time"></div>
@@ -247,6 +259,9 @@
         </div>
     </div>
 
+    <script src="i18n.js"></script>
+    <script src="lang-en.js"></script>
+    <script src="lang-id.js"></script>
     <script src="app.js"></script>
     <script src="battle.js"></script>
     <script src="nobles.js"></script>

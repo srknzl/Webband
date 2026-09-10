@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.64', date: '2026-09-10', name: 'Avuç İçi' };
+const VERSION = { no: '0.65', date: '2026-09-10', name: 'Üç Dil' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -25,7 +25,7 @@ const Debug = {
     badge() {
         let el = document.getElementById('err-badge');
         if(!el) return;
-        el.textContent = `⚠️ ${this.seen} hata — tıkla ve kopyala`;
+        el.textContent = T`⚠️ ${this.seen} hata — tıkla ve kopyala`;
         el.classList.toggle('hidden', !this.seen);
     },
     // Döngü gövdesini saran tek kapı: içeride atılan istisna rAF zincirini
@@ -38,7 +38,7 @@ const Debug = {
             let sig = where + '|' + (e && e.message);
             if(this._sig[sig]) { this._sig[sig]++; return; }
             this._sig[sig] = 1;
-            this.log('döngü', where + ': ' + ((e && e.message) || e), {
+            this.log(T('döngü'), where + ': ' + ((e && e.message) || e), {
                 yigin: ((e && e.stack) || '').split('\n').slice(1, 4).map(l => l.trim()).join(' | ')
             });
         }
@@ -55,8 +55,8 @@ const Debug = {
     // skipFrame her rAF'ta çağırır: siyah ekran/donma şikâyetinde kare aralıkları belge olur
     frame(ms) { this.frames.push(Math.round(ms * 10) / 10); if(this.frames.length > 30) this.frames.shift(); },
     report() {
-        let g = (f, d) => { try { let v = f(); return v === undefined ? d : v; } catch(e) { return 'hata: ' + e.message; } };
-        let cv = id => g(() => { let c = document.getElementById(id); return c ? `${c.width}x${c.height} (css ${Math.round(c.clientWidth)}x${Math.round(c.clientHeight)})` : 'yok'; });
+        let g = (f, d) => { try { let v = f(); return v === undefined ? d : v; } catch(e) { return T('hata: ') + e.message; } };
+        let cv = id => g(() => { let c = document.getElementById(id); return c ? T`${c.width}x${c.height} (css ${Math.round(c.clientWidth)}x${Math.round(c.clientHeight)})` : 'yok'; });
         return {
             surum: { oyun: VERSION.no + ' — ' + VERSION.name, tarih: VERSION.date,
                      dosya: document.lastModified, adres: location.href.split('?')[0], zaman: new Date().toISOString() },
@@ -73,19 +73,19 @@ const Debug = {
                     kusatma: p.siege || null, yagma: p.raid || null, esaret: p.prisoner ? p.prisoner.npcName : null,
                     savaslar: Object.keys(state.wars || {}), gorevler: (p.quests || []).map(q => q.id)
                 };
-            }, 'oyun başlamamış'),
+            }, T('oyun başlamamış')),
             cizim: {
                 savasAktif: g(() => Battle.active), turnuvaAktif: g(() => TournamentMinigame.active),
                 haritaDonguId: g(() => Game._loopId), savasDonguId: g(() => Battle.loopId),
                 kareBoleni: g(() => Math.max(1, Math.floor(1000 / 60 / Game._minStep + 0.01))),
-                olculenTazeleme: g(() => Game._minStep === Infinity ? 'ölçülmedi' : Math.round(1000 / Game._minStep) + ' Hz'),
+                olculenTazeleme: g(() => Game._minStep === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._minStep) + T(' Hz')),
                 haritaTuval: cv('map-canvas'), savasTuvali: cv('battle-canvas'),
                 sonKareler: this.frames.slice()
             },
             tarayici: {
                 ua: navigator.userAgent, dil: navigator.language, dpr: window.devicePixelRatio,
                 pencere: innerWidth + 'x' + innerHeight, ekran: screen.width + 'x' + screen.height,
-                bellek: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : 'bilinmiyor')
+                bellek: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + T(' MB') : 'bilinmiyor')
             },
             hatalar: this.errors.slice(),
             yutulanTekrar: Object.keys(this._sig).map(k => `${k} x${this._sig[k]}`)
@@ -94,19 +94,19 @@ const Debug = {
     text() { return JSON.stringify(this.report(), null, 1); },
     open() {
         let n = this.errors.length;
-        Game.showModal(`<h3>🐞 Debug Raporu</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted)">Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.</p>
+        Game.showModal(`<h3>${T`🐞 Debug Raporu`}</h3>
+            <p style="font-size:0.85rem;color:var(--text-muted)">${T`Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.`}</p>
             <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
             <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
-                <button class="btn primary" onclick="Debug.copy()">📋 Panoya Kopyala</button>
-                <button class="btn" onclick="Debug.download()">💾 Dosya Olarak İndir</button>
-                <button class="btn" onclick="Game.closeModal()">Kapat</button>
+                <button class="btn primary" onclick="Debug.copy()">${T`📋 Panoya Kopyala`}</button>
+                <button class="btn" onclick="Debug.download()">${T`💾 Dosya Olarak İndir`}</button>
+                <button class="btn" onclick="Game.closeModal()">${T`Kapat`}</button>
             </div>
             <div id="debug-msg" style="text-align:center;margin-top:0.5rem;font-size:0.85rem;color:var(--success)"></div>`, '720px');
     },
     copy() {
         let ta = document.getElementById('debug-text');
-        let done = () => { let m = document.getElementById('debug-msg'); if(m) m.textContent = '✅ Panoya kopyalandı.'; };
+        let done = () => { let m = document.getElementById('debug-msg'); if(m) m.textContent = T('✅ Panoya kopyalandı.'); };
         // Pano izni yoksa (file:// veya eski tarayıcı) seçip execCommand'a düş
         if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
         else { ta.select(); document.execCommand('copy'); done(); }
@@ -238,7 +238,7 @@ window.alert = function(msg) {
     // `const Game` window'a takılmaz (sözcüksel global bağ), bu yüzden window.Game
     // her zaman undefined'dı ve oyundaki BÜTÜN alert'ler sessizce yutuluyordu.
     if(typeof Game !== 'undefined' && Game.showModal) {
-        Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">Bildirim</h3><p style="font-size:1.1rem;line-height:1.5">${String(msg).replace(/\n/g, '<br>')}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.closeModal()">Tamam</button></div>`);
+        Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">${T`Bildirim`}</h3><p style="font-size:1.1rem;line-height:1.5">${String(msg).replace(/\n/g, '<br>')}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.closeModal()">${T`Tamam`}</button></div>`);
     }
 };
 
@@ -395,7 +395,7 @@ const state = {
     mercPools: {},           // { locId: { day, list:[{name, level, count}] } }
     encounterCooldown: 0,
     player: {
-        name: 'Maceracı',
+        name: T('Maceracı'),
         gender: 'male',        // 'female' -> lordlarla ilişki −5 başlar, evlilik yolu lordlardan geçer
         banner: 5,             // BANNERS dizini: arma + krallık rengi
         background: {},        // karakter yaratmada verilen cevaplar { birth, father, youth, job }
@@ -582,10 +582,11 @@ const Game = {
     },
 
     init() {
+        this.initLang();
         Input.init();
         this.initTooltipClamp();
         let vt = document.getElementById('ver-tag');
-        if(vt) vt.textContent = `WebBand ${VERSION.no} · ${VERSION.name} · ${VERSION.date}`;
+        if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${T(VERSION.name)} · ${VERSION.date}`;
         this.applySettings();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         this.mapCanvas = document.getElementById('map-canvas');
@@ -659,7 +660,7 @@ const Game = {
             bad = this.validateLocations();
             if(!bad.length) return;
         }
-        console.warn('Yerleşim dağıtımı 12 denemede kurallara oturmadı:', bad);
+        console.warn(T('Yerleşim dağıtımı 12 denemede kurallara oturmadı:'), bad);
     },
 
     placeLocations() {
@@ -713,15 +714,15 @@ const Game = {
         let bad = [];
         LOCATIONS.forEach((a, i) => {
             if(Math.hypot(a.x - 4500, a.y - 4500) > this.getMapRadius(a.x, a.y) - 200)
-                bad.push(a.name + ' kıta sınırının dışında');
+                bad.push(a.name + T(' kıta sınırının dışında'));
             for(let j = i + 1; j < LOCATIONS.length; j++) {
                 let b = LOCATIONS[j], need = this.minGap(a.type, b.type), d = this.dist(a, b);
-                if(d < need) bad.push(`${a.name}–${b.name} çok yakın (${Math.round(d)} < ${need})`);
+                if(d < need) bad.push(T`${T(a.name)}–${T(b.name)} çok yakın (${Math.round(d)} < ${need})`);
             }
             if(a.type === 'village') {
                 let h = LOCATIONS.find(l => l.id === a.parentId);
-                if(!h) bad.push(a.name + ' köyünün bağlı merkezi yok');
-                else if(this.dist(a, h) > this.VILLAGE_RANGE[1] + 1) bad.push(a.name + ' merkezinden kopuk');
+                if(!h) bad.push(a.name + T(' köyünün bağlı merkezi yok'));
+                else if(this.dist(a, h) > this.VILLAGE_RANGE[1] + 1) bad.push(a.name + T(' merkezinden kopuk'));
             }
         });
         // Kopuk yerleşim kalmasın: her yerleşim en az bir yol parçasının ucunda olmalı
@@ -729,7 +730,7 @@ const Game = {
         (state.roads || []).forEach(r => LOCATIONS.forEach(l => {
             if(Math.hypot(l.x - r.x1, l.y - r.y1) < 40 || Math.hypot(l.x - r.x2, l.y - r.y2) < 40) touched.add(l.id);
         }));
-        LOCATIONS.filter(l => !touched.has(l.id)).forEach(l => bad.push(l.name + ' yol ağına bağlı değil'));
+        LOCATIONS.filter(l => !touched.has(l.id)).forEach(l => bad.push(l.name + T(' yol ağına bağlı değil')));
         return bad;
     },
 
@@ -750,20 +751,20 @@ const Game = {
 
     // renew: kaç günde bir yeniden dolar; 0 = tek kullanımlık (araştırılınca haritadan silinir)
     SITE_KINDS: {
-        ruin:  { icon: '🏚️', name: 'Harabe', renew: 0,
-                 desc: 'Adını kimsenin hatırlamadığı bir kalenin devrilmiş duvarları.',
+        ruin:  { icon: '🏚️', name: T('Harabe'), renew: 0,
+                 desc: T('Adını kimsenin hatırlamadığı bir kalenin devrilmiş duvarları.'),
                  pool: { coin: 3, gear: 2, ambush: 3, empty: 2 } },
-        farm:  { icon: '🌾', name: 'Terk Edilmiş Çiftlik', renew: 25,
-                 desc: 'Kapısı açık kalmış bir ambar; tarlayı ot basmış.',
+        farm:  { icon: '🌾', name: T('Terk Edilmiş Çiftlik'), renew: 25,
+                 desc: T('Kapısı açık kalmış bir ambar; tarlayı ot basmış.'),
                  pool: { food: 4, recruit: 2, empty: 2, ambush: 1 } },
-        tower: { icon: '🗼', name: 'Gözetleme Kulesi', renew: 12,
-                 desc: 'Yıllar önce nöbet tutulan bir kule. Merdiveni hâlâ sağlam görünüyor.',
+        tower: { icon: '🗼', name: T('Gözetleme Kulesi'), renew: 12,
+                 desc: T('Yıllar önce nöbet tutulan bir kule. Merdiveni hâlâ sağlam görünüyor.'),
                  pool: { scout: 5, coin: 1, empty: 2, trap: 1 } },
-        cave:  { icon: '🕳️', name: 'Mağara', renew: 30,
-                 desc: 'Ağzından soğuk hava geliyor. İçeride bir şeyin yaşadığı belli.',
+        cave:  { icon: '🕳️', name: T('Mağara'), renew: 30,
+                 desc: T('Ağzından soğuk hava geliyor. İçeride bir şeyin yaşadığı belli.'),
                  pool: { coin: 2, gear: 2, ambush: 4, trap: 2 } },
-        camp:  { icon: '⛺', name: 'Terk Edilmiş Kamp', renew: 15,
-                 desc: 'Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.',
+        camp:  { icon: '⛺', name: T('Terk Edilmiş Kamp'), renew: 15,
+                 desc: T('Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.'),
                  pool: { coin: 2, food: 2, shelter: 2, ambush: 2, empty: 1 } }
     },
 
@@ -773,22 +774,22 @@ const Game = {
         coin: { run(s) {
             let n = 60 + Math.floor(Math.random() * 160);
             state.player.money += n;
-            return { html: `Devrilmiş bir taşın altında toprağa gömülü küçük bir kese buldun.<br><b>+${n} dinar</b>.` };
+            return { html: `${T`Devrilmiş bir taşın altında toprağa gömülü küçük bir kese buldun.<br><b>+${n} dinar`}</b>.` };
         }},
         gear: { run(s) {
             let ids = ['sword','axe','mace','lance','bow','shield','mail'];
             let id = ids[Math.floor(Math.random() * ids.length)];
             Game.addItem(id, 1);
-            return { html: `Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${ITEMS[id].icon} ${ITEMS[id].name}</b>.<br>Envanterine girdi.` };
+            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${ITEMS[id].icon} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
         }},
         food: { run(s) {
             let id = ['wheat','cheese','meat'][Math.floor(Math.random() * 3)], n = 3 + Math.floor(Math.random() * 6);
             Game.addItem(id, n);
-            return { html: `Ambarın bir köşesi farelerden kurtulmuş.<br><b>+${n} ${ITEMS[id].name}</b>.` };
+            return { html: `${T`Ambarın bir köşesi farelerden kurtulmuş.`}<br><b>+${n} ${T(ITEMS[id].name)}</b>.` };
         }},
         shelter: { run(s) {
             Game.addMorale(4);
-            return { html: `Adamlar bir gece olsun çadır kurmadan, hazır barakada uyudu.<br>Moral <b>+4</b>.` };
+            return { html: `${T`Adamlar bir gece olsun çadır kurmadan, hazır barakada uyudu.<br>Moral`} <b>+4</b>.` };
         }},
         recruit: {
             when: () => state.player.party.length + 1 < Game.getPartyCapacity(),
@@ -797,7 +798,7 @@ const Game = {
                 let name = Game.recruitName(near);
                 state.player.party.push({ id: 'troop_' + Math.random().toString(36).substr(2, 9),
                     name, level: 1, xp: 0, xpNext: 3, type: 'infantry' });
-                return { html: `Samanlıkta saklanan bir <b>${name}</b> çıktı karşına. Gidecek yeri yokmuş, gruba katıldı.` };
+                return { html: `${T`Samanlıkta saklanan bir <b>${T(name)}</b> çıktı karşına. Gidecek yeri yokmuş, gruba katıldı.`}` };
             }
         },
         scout: { run(s) {
@@ -805,28 +806,28 @@ const Game = {
             // kullanır, yani 3 gün sonra Nobles.dailyTick kendiliğinden siler.
             let far = state.npcParties.filter(n => Game.dist(n, s) > 700)
                                       .sort((a, b) => Game.dist(a, s) - Game.dist(b, s))[0];
-            if(!far) return { html: 'Ufukta kıpırdayan bir şey yok. Boşuna tırmandın.' };
+            if(!far) return { html: T('Ufukta kıpırdayan bir şey yok. Boşuna tırmandın.') };
             state.knownLocations[s.id] = { x: far.x, y: far.y, radius: 200,
                 day: state.time.day, name: far.name, live: false };
             Game.addProficiencyXp('spotting', 40);
-            return { html: `Kuleden bakınca toz bulutu gördün: <b>${far.name}</b>.<br>📍 Haritaya bir işaret düştü (3 gün geçerli).` };
+            return { html: `${T`Kuleden bakınca toz bulutu gördün: <b>${T(far.name)}</b>.<br>📍 Haritaya bir işaret düştü (3 gün geçerli).`}` };
         }},
         trap: { run(s) {
             let dmg = 8 + Math.floor(Math.random() * 18);
             let st = state.player.stats;
             st.hp = Math.max(1, st.hp - dmg);
-            return { html: `Çürük döşeme ayağının altında çöktü. Aşağıdaki taşlara kadar yuvarlandın.<br><b>−${dmg} can</b>.` };
+            return { html: `${T`Çürük döşeme ayağının altında çöktü. Aşağıdaki taşlara kadar yuvarlandın.<br><b>−${dmg} can`}</b>.` };
         }},
         empty: { run(s) {
-            let lines = ['İçeride senden önce gelenlerin izinden başka bir şey yok.',
-                         'Ne varsa yıllar önce taşınmış. Boşuna zahmet.',
-                         'Tek bulduğun, kimin olduğu belli olmayan bir çift eski çizme.'];
+            let lines = [T('İçeride senden önce gelenlerin izinden başka bir şey yok.'),
+                         T('Ne varsa yıllar önce taşınmış. Boşuna zahmet.'),
+                         T('Tek bulduğun, kimin olduğu belli olmayan bir çift eski çizme.')];
             return { html: lines[Math.floor(Math.random() * lines.length)] };
         }},
         ambush: { run(s) {
             let kind = s.kind === 'cave' ? 'wolf' : s.kind === 'ruin' ? 'mountain' : 'bandit';
             return {
-                html: `İçeriden çıkan sesi duyduğunda geç kalmıştın — burası boş değilmiş.`,
+                html: T`İçeriden çıkan sesi duyduğunda geç kalmıştın — burası boş değilmiş.`,
                 then() {
                     let npc = Game.spawnBand(kind);
                     npc.x = npc.targetX = s.x; npc.y = npc.targetY = s.y;
@@ -872,13 +873,13 @@ const Game = {
     enterSite(s) {
         let k = this.SITE_KINDS[s.kind];
         let ready = this.siteReady(s);
-        this.showModal(`<h3>${k.icon} ${k.name}</h3>
-            <p style="font-style:italic;color:var(--text-muted)">${k.desc}</p>
-            <p>${ready ? 'İçeride ne olduğunu ancak girince öğrenirsin.'
-                       : `Burayı ${this.agoText(s.usedDay)} altını üstüne getirdin; daha toparlanmamış.`}</p>
+        this.showModal(`<h3>${k.icon} ${T(k.name)}</h3>
+            <p style="font-style:italic;color:var(--text-muted)">${T(k.desc)}</p>
+            <p>${ready ? T('İçeride ne olduğunu ancak girince öğrenirsin.')
+                       : T`Burayı ${this.agoText(s.usedDay)} altını üstüne getirdin; daha toparlanmamış.`}</p>
             <div style="display:flex;gap:0.5rem;margin-top:1rem">
-                ${ready ? `<button class="btn primary" onclick="Game.investigateSite('${s.id}')">🔍 Araştır</button>` : ''}
-                <button class="btn" onclick="Game.closeModal()">🚪 Yoluna Devam Et</button>
+                ${ready ? `<button class="btn primary" onclick="Game.investigateSite('${s.id}')">${T`🔍 Araştır`}</button>` : ''}
+                <button class="btn" onclick="Game.closeModal()">${T`🚪 Yoluna Devam Et`}</button>
             </div>`);
     },
 
@@ -897,8 +898,8 @@ const Game = {
         this.addProficiencyXp('spotting', 20);
         this.updateTopBar();
         this._siteThen = r.then || null;
-        this.showModal(`<h3>${k.icon} ${k.name}</h3><p>${r.html}</p>
-            <button class="btn primary" style="margin-top:1rem" onclick="Game.siteDone()">Tamam</button>`);
+        this.showModal(`<h3>${k.icon} ${T(k.name)}</h3><p>${r.html}</p>
+            <button class="btn primary" style="margin-top:1rem" onclick="Game.siteDone()">${T`Tamam`}</button>`);
     },
 
     siteDone() {
@@ -910,14 +911,14 @@ const Game = {
 
     agoText(day) {
         let n = state.time.day - day;
-        return n <= 0 ? '<b>bugün</b>' : `<b>${n} gün önce</b>`;
+        return n <= 0 ? '<b>bugün</b>' : `<b>${T`${n} gün önce`}</b>`;
     },
 
     siteTipHtml(s) {
         let k = this.SITE_KINDS[s.kind];
-        return `<i>${k.desc}</i><br>${this.siteReady(s)
-            ? '🔍 Henüz araştırılmadı'
-            : `✔️ ${this.agoText(s.usedDay)} araştırıldı${k.renew ? ` (${k.renew} günde bir yenilenir)` : ''}`}`;
+        return `<i>${T(k.desc)}</i><br>${this.siteReady(s)
+            ? T('🔍 Henüz araştırılmadı')
+            : T`✔️ ${this.agoText(s.usedDay)} araştırıldı${k.renew ? T` (${k.renew} günde bir yenilenir)` : ''}`}`;
     },
 
     // --- YOL AĞI (#56) ---
@@ -925,9 +926,9 @@ const Game = {
     // keçi yolu (köyler). Hepsi aynı `state.roads` dizisinde kısa parçalar hâlinde
     // durur — getTerrainInfo ve renderMap tek veri şeklini okumaya devam eder.
     ROAD_KINDS: {
-        stone: { half: 26, mult: 1.18, name: 'Taş Yol',   icon: '🛣️' },
-        dirt:  { half: 22, mult: 1.10, name: 'Toprak Yol', icon: '🛤️' },
-        track: { half: 15, mult: 1.04, name: 'Keçi Yolu',  icon: '🥾' }
+        stone: { half: 26, mult: 1.18, name: T('Taş Yol'),   icon: '🛣️' },
+        dirt:  { half: 22, mult: 1.10, name: T('Toprak Yol'), icon: '🛤️' },
+        track: { half: 15, mult: 1.04, name: T('Keçi Yolu'),  icon: '🥾' }
     },
     roadKind(loc) { return loc.type === 'city' ? 'stone' : loc.type === 'castle' ? 'dirt' : 'track'; },
 
@@ -1050,7 +1051,7 @@ const Game = {
         let npc = this.createNPC(name, kind, size, k.color, home.faction, 1);
         npc.band = kind;
         npc.speed = kind === 'caravan' ? 58 : 52;
-        npc.trade = { kind, homeId: home.id, fromId: home.id, toId: home.id };
+        npc.trade = { kind, homeId: home.id, homeName: home.name, fromId: home.id, toId: home.id };
         if(kind === 'villager') {
             let market = LOCATIONS.filter(l => l.type === 'city')
                                   .sort((a, b) => this.dist(a, home) - this.dist(b, home))[0];
@@ -1111,17 +1112,17 @@ const Game = {
         let bk = BAND_KINDS[npc.band] || {};
         let war = this.atWar(this.playerFaction(), npc.faction) ;
         let cargo = (npc.cargo || []).filter(c => ITEMS[c.id])
-                    .map(c => `${ITEMS[c.id].icon} ${ITEMS[c.id].name} ×${c.qty}`).join(' · ') || 'boş';
+                    .map(c => `${ITEMS[c.id].icon} ${T(ITEMS[c.id].name)} ×${c.qty}`).join(' · ') || T('boş');
         let dest = LOCATIONS.find(l => l.id === npc.trade.toId);
-        this.showModal(`<h3>${npc.trade.kind === 'caravan' ? '🐪' : '🧺'} ${npc.name}</h3>
-        <p><i>${bk.lore || ''}</i></p>
-        <p>${this.factionName(npc.faction)} · <b>${npc.size}</b> kişi${dest ? ` · ${dest.name} yolunda` : ''}</p>
-        <p style="color:var(--text-muted)">Yük: ${cargo}${npc.purse ? ` · 💰 kese` : ''}</p>
-        ${war ? `<p style="color:#2ecc71">Krallığın ${this.factionName(npc.faction)} ile savaşta — bu yük meşru ganimet.</p>`
-              : `<p style="color:var(--danger)">Soyarsan eşkıyalık sayılır: ${this.factionName(npc.faction)} lordları <b>−4</b>, namın <b>−5</b>.</p>`}
+        this.showModal(`<h3>${npc.trade.kind === 'caravan' ? '🐪' : '🧺'} ${this.npcName(npc)}</h3>
+        <p><i>${bk.lore ? T(bk.lore) : ''}</i></p>
+        <p>${this.factionName(npc.faction)} · <b>${npc.size}</b> ${T`kişi${dest ? T` · ${T(dest.name)} yolunda` : ''}`}</p>
+        <p style="color:var(--text-muted)">${T`Yük: ${cargo}${npc.purse ? T` · 💰 kese` : ''}`}</p>
+        ${war ? `<p style="color:#2ecc71">${T`Krallığın ${this.factionName(npc.faction)} ile savaşta — bu yük meşru ganimet.`}</p>`
+              : `<p style="color:var(--danger)">${T`Soyarsan eşkıyalık sayılır: ${this.factionName(npc.faction)} lordları <b>−4</b>, namın <b>−5</b>.`}</p>`}
         <div style="display:flex;gap:1rem;margin-top:1rem;">
-        <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.robTrader('${npc.id}')">🗡️ Soy</button>
-        <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 6; state.player.currentEncounterNpcId = null;">🚪 Yoluna Bırak</button>
+        <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.robTrader('${npc.id}')">${T`🗡️ Soy`}</button>
+        <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 6; state.player.currentEncounterNpcId = null;">${T`🚪 Yoluna Bırak`}</button>
         </div>`);
     },
     robTrader(npcId) {
@@ -1157,7 +1158,7 @@ const Game = {
             if(pw(t) * (t.trade.kind === 'caravan' ? 1.15 : 0.5) > pw(b)) {
                 b.size = Math.round(b.size * (0.5 + Math.random() * 0.3));
                 t.size = Math.max(2, Math.round(t.size * (0.75 + Math.random() * 0.2)));
-                if(b.size < 4) { b.size = 0; this.news(`🛡️ ${t.name}, ${b.name} baskınını püskürttü.`); }
+                if(b.size < 4) { b.size = 0; this.news(T`🛡️ ${this.npcName(t)}, ${T(b.name)} baskınını püskürttü.`); }
                 return;
             }
             b.cargo = b.cargo || [];
@@ -1171,7 +1172,7 @@ const Game = {
             // Ulaşamayan yük varılacak yerin refahını düşürür
             let dest = LOCATIONS.find(l => l.id === t.trade.toId);
             if(dest) dest.prosperity = Math.max(10, (dest.prosperity || 50) - (t.trade.kind === 'caravan' ? 1.5 : 0.5));
-            this.news(`🗡️ ${b.name}, ${t.name} kafilesini bastı — yük çetenin elinde.`);
+            this.news(T`🗡️ ${T(b.name)}, ${this.npcName(t)} kafilesini bastı — yük çetenin elinde.`);
         });
         state.npcParties = state.npcParties.filter(n => n.size > 0 || n.lordId);
     },
@@ -1190,6 +1191,17 @@ const Game = {
             if(home) { npc.x = home.x; npc.y = home.y; npc.targetX = home.x; npc.targetY = home.y; }
             state.npcParties.push(npc);
         });
+    },
+
+    // Parti adının tek gösterim kapısı. Çete/soylu adı veri tablosundan gelir
+    // (sözlükte anahtarı var); kervan ve köylü kafilesinin adı ise bileşiktir,
+    // o yüzden anahtar değil şablon olarak çevrilir.
+    npcName(npc) {
+        if(!npc) return '';
+        if(npc.trade) return npc.trade.kind === 'caravan'
+            ? T`${this.factionName(npc.faction)} Kervanı`
+            : T`${T(npc.trade.homeName || '')} Köylüleri`;
+        return T(npc.name);
     },
 
     createNPC(name, type, size, color, faction = null, level = 1) {
@@ -1220,13 +1232,13 @@ const Game = {
     // Bir seçeneğin etkisini insan diline çevirir (hem sihirbazda hem özette).
     bonusText(o) {
         let out = [];
-        for(let k in (o.attr || {}))  out.push(`${this.ATTRS[k].icon} ${this.ATTRS[k].name} +${o.attr[k]}`);
+        for(let k in (o.attr || {}))  out.push(`${this.ATTRS[k].icon} ${T(this.ATTRS[k].name)} +${o.attr[k]}`);
         for(let k in (o.prof || {}))  out.push(`${this.profName(k)} +${o.prof[k]}`);
-        if(o.money)   out.push(`${o.money > 0 ? '+' : ''}${o.money} dinar`);
-        if(o.renown)  out.push(`${o.renown > 0 ? '+' : ''}${o.renown} nam`);
-        if(o.item)    out.push(`${ITEMS[o.item].icon} ${ITEMS[o.item].name} (kuşanılmış)`);
-        if(o.relAll)  out.push(`bütün lordlarla ${o.relAll} ilişki`);
-        if(o.relFaction) out.push(`${FACTIONS[o.relFaction.id].name} lordlarıyla +${o.relFaction.n} ilişki`);
+        if(o.money)   out.push(T`${o.money > 0 ? '+' : ''}${o.money} dinar`);
+        if(o.renown)  out.push(T`${o.renown > 0 ? '+' : ''}${o.renown} nam`);
+        if(o.item)    out.push(T`${ITEMS[o.item].icon} ${T(ITEMS[o.item].name)} (kuşanılmış)`);
+        if(o.relAll)  out.push(T`bütün lordlarla ${o.relAll} ilişki`);
+        if(o.relFaction) out.push(T`${T(FACTIONS[o.relFaction.id].name)} lordlarıyla +${o.relFaction.n} ilişki`);
         return out.join(' · ');
     },
 
@@ -1236,19 +1248,19 @@ const Game = {
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
-        let html = `<h3>${q.q}</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">Adım ${step+1}/${BACKGROUND.length+1} — ${q.hint}</p>
+        let html = `<h3>${T(q.q)}</h3>
+            <p style="color:var(--text-muted);font-size:0.85rem">${T`Adım ${step+1}/${BACKGROUND.length+1} — ${T(q.hint)}`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
-                <b>${o.label}</b>
-                <div style="font-size:0.8rem;color:var(--text-muted);font-style:italic">${o.desc}</div>
-                <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || 'ek bir getirisi yok'}</div>
+                <b>${T(o.label)}</b>
+                <div style="font-size:0.8rem;color:var(--text-muted);font-style:italic">${T(o.desc)}</div>
+                <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || T('ek bir getirisi yok')}</div>
             </button>`;
         });
         html += `</div>`;
-        if(step > 0) html += `<button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">← Geri</button>`;
+        if(step > 0) html += `<button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
     },
 
@@ -1275,19 +1287,18 @@ const Game = {
     },
 
     renderBannerStep() {
-        let html = `<h3>Sancağını seç</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">Adım ${BACKGROUND.length+1}/${BACKGROUND.length+1} —
-            Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.</p>
+        let html = `<h3>${T`Sancağını seç`}</h3>
+            <p style="color:var(--text-muted);font-size:0.85rem">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+1} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
             html += `<div onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
                 border-radius:8px;border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
                 <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
-                <div style="font-size:0.8rem;margin-top:0.4rem;color:${b.color}">${b.name}</div>
+                <div style="font-size:0.8rem;margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
             </div>`;
         });
-        html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">← Geri</button>`;
+        html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
     },
 
@@ -1301,7 +1312,7 @@ const Game = {
         let sel = this.creation.sel;
         let rows = BACKGROUND.map(q => {
             let o = q.opts.find(x => x.id === sel[q.key]);
-            return `<div style="margin-bottom:0.4rem"><b>${q.q}</b> ${o.label}
+            return `<div style="margin-bottom:0.4rem"><b>${T(q.q)}</b> ${T(o.label)}
                 <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || '—'}</div></div>`;
         }).join('');
         let b = BANNERS[sel.banner || 0];
@@ -1309,13 +1320,13 @@ const Game = {
             <div style="display:flex;gap:1.2rem;align-items:flex-start;margin-top:0.6rem">
                 ${this.bannerCss(sel.banner || 0, 96)}
                 <div style="flex:1;font-size:0.9rem;line-height:1.5">
-                    <div style="color:${b.color};font-weight:bold">${b.name} sancağı</div>
+                    <div style="color:${b.color};font-weight:bold">${T`${T(b.name)} sancağı`}</div>
                     ${rows}
                 </div>
             </div>
             <div style="display:flex;gap:0.6rem;margin-top:1.2rem">
-                <button class="btn primary" style="flex:1" onclick="Game.finishCreation()">⚔️ Maceraya Başla</button>
-                <button class="btn" onclick="Game.creationBack()">← Geri</button>
+                <button class="btn primary" style="flex:1" onclick="Game.finishCreation()">${T`⚔️ Maceraya Başla`}</button>
+                <button class="btn" onclick="Game.creationBack()">${T`← Geri`}</button>
             </div>`;
         this.showModal(html, '660px');
     },
@@ -1356,8 +1367,8 @@ const Game = {
     backgroundLine() {
         let bg = state.player.background || {};
         return BACKGROUND.filter(q => q.key !== 'gender')
-            .map(q => (q.opts.find(o => o.id === bg[q.key]) || {}).label)
-            .filter(Boolean).join(' · ') || 'Bilinmeyen bir geçmiş';
+            .map(q => { let o = q.opts.find(x => x.id === bg[q.key]); return o && T(o.label); })
+            .filter(Boolean).join(' · ') || T('Bilinmeyen bir geçmiş');
     },
 
     enterWorld() {
@@ -1426,7 +1437,7 @@ const Game = {
     battleCtx() {
         let c = document.getElementById('battle-canvas');
         let ctx = c.getContext('2d', { alpha: false });
-        if(!ctx) Debug.log('tuval', 'battle-canvas 2d bağlamı alınamadı — ekran siyah kalır');
+        if(!ctx) Debug.log('tuval', T('battle-canvas 2d bağlamı alınamadı — ekran siyah kalır'));
         return ctx;
     },
 
@@ -1457,11 +1468,11 @@ const Game = {
     // kılıç sallayarak, zekâ konuşarak, liderlik kalabalık yöneterek,
     // dirayet dayak yiyerek. Fark büyükken hızlı, hedefe yaklaşırken yavaş.
     ATTRS: {
-        str: { name: 'Güç',      icon: '💪', how: 'Yakın dövüşte isabetli vuruş' },
-        agi: { name: 'Çeviklik', icon: '🏃', how: 'Haritada yol katetmek' },
-        int: { name: 'Zekâ',     icon: '🧠', how: 'Soylularla konuşmak, görev almak' },
-        cha: { name: 'Liderlik', icon: '👑', how: 'Kalabalık bir grubu yönetmek' },
-        vit: { name: 'Dirayet',  icon: '🫀', how: 'Savaşta hasar yemek ve ayakta kalmak' }
+        str: { name: T('Güç'),      icon: '💪', how: T('Yakın dövüşte isabetli vuruş') },
+        agi: { name: T('Çeviklik'), icon: '🏃', how: T('Haritada yol katetmek') },
+        int: { name: T('Zekâ'),     icon: '🧠', how: T('Soylularla konuşmak, görev almak') },
+        cha: { name: T('Liderlik'), icon: '👑', how: T('Kalabalık bir grubu yönetmek') },
+        vit: { name: T('Dirayet'),  icon: '🫀', how: T('Savaşta hasar yemek ve ayakta kalmak') }
     },
     // Ölçüldü: 5 puanlık farkı kapatmak ~38 "kayda değer eylem" alıyor —
     // çeviklikte ~11 harita geçişi, güçte ~8 savaş, liderlikte ~38 gün.
@@ -1516,7 +1527,7 @@ const Game = {
         if(!(p.wageDebt > 0)) { p.wageLateHours = 0; return; }
         if(p.money >= p.wageDebt) {
             p.money -= p.wageDebt;
-            alert(`💰 Birikmiş <b>${Math.ceil(p.wageDebt)} dinar</b> maaş borcu ödendi. Askerler homurdanmayı bıraktı.`);
+            alert(`${T`💰 Birikmiş <b>${Math.ceil(p.wageDebt)} dinar</b> maaş borcu ödendi. Askerler homurdanmayı bıraktı.`}`);
             p.wageDebt = 0; p.wageLateHours = 0;
             return;
         }
@@ -1611,19 +1622,19 @@ const Game = {
     // ve yeni hedefler açılır. Tamamı veri; koşullar state'i okur, olay dinlemez —
     // günlük tik ve Görevler sekmesi aynı `check`'i çağırır.
     AMBITIONS: [
-        { id: 'band',      title: 'Küçük bir bölük', desc: 'Grubunu 10 kişiye çıkar.',
+        { id: 'band',      title: T('Küçük bir bölük'), desc: T('Grubunu 10 kişiye çıkar.'),
           check: p => p.party.length >= 10, renown: 5, opens: ['champion', 'friend'] },
-        { id: 'champion',  title: 'Turnuva şampiyonu', desc: 'Bir turnuvayı kazan.',
+        { id: 'champion',  title: T('Turnuva şampiyonu'), desc: T('Bir turnuvayı kazan.'),
           check: p => (p.tourneyWins || 0) > 0, renown: 10, money: 500, opens: ['fief'] },
-        { id: 'friend',    title: 'Bir lordun dostu', desc: 'Bir soyluyla ilişkini 30\'a çıkar.',
+        { id: 'friend',    title: T('Bir lordun dostu'), desc: T('Bir soyluyla ilişkini 30\'a çıkar.'),
           check: () => Object.keys(state.relations || {}).some(k => state.relations[k] >= 30),
           renown: 5, opens: ['sworn'] },
-        { id: 'sworn',     title: 'Yeminli', desc: 'Bir krallığa bağlılık yemini et.',
+        { id: 'sworn',     title: T('Yeminli'), desc: T('Bir krallığa bağlılık yemini et.'),
           check: p => !!p.vassalOf, renown: 15, opens: ['feud', 'fief'] },
-        { id: 'feud',      title: 'Kan bedeli', desc: 'Açtığın bir kan davasını kapat (esiri onurla salıver ya da 30 günü doldur).',
+        { id: 'feud',      title: T('Kan bedeli'), desc: T('Açtığın bir kan davasını kapat (esiri onurla salıver ya da 30 günü doldur).'),
           check: p => !!p.hadGrudge && Game.grudgeList().length === 0,
           renown: 10, honor: 'release', opens: [] },
-        { id: 'fief',      title: 'Toprak sahibi', desc: 'Bir tımarın olsun.',
+        { id: 'fief',      title: T('Toprak sahibi'), desc: T('Bir tımarın olsun.'),
           check: () => LOCATIONS.some(l => l.owner === 'player'), renown: 20, opens: [] }
     ],
     ambition() { return this.AMBITIONS.find(a => a.id === (state.player.ambition || {}).id); },
@@ -1653,24 +1664,24 @@ const Game = {
         if(a.money) state.player.money += a.money;
         if(a.honor) this.addHonor(a.honor);
         this.updateTopBar();
-        alert(`🎯 Hedefe ulaştın: ${a.title}\n+${a.renown} nam${a.money ? `, +${a.money} dinar` : ''}.`
-            + (this.openAmbitions().length ? '\n\nGörevler sekmesinde yeni hedefler açıldı.' : ''));
+        alert(T`🎯 Hedefe ulaştın: ${T(a.title)}\n+${a.renown} nam${a.money ? T`, +${a.money} dinar` : ''}.`
+            + (this.openAmbitions().length ? T('\n\nGörevler sekmesinde yeni hedefler açıldı.') : ''));
     },
     ambitionHtml() {
         let a = this.ambition(), open = this.openAmbitions();
         let done = (state.player.ambitionsDone || []).length;
         return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid #e0b062;
                 border-radius:8px;padding:1rem;margin-bottom:1rem">
-            <b style="font-size:1.1rem">🎯 Hedefin</b>
-            <span style="float:right;color:var(--text-muted);font-size:0.85rem">${done} hedef tamamlandı</span>
-            ${a ? `<div style="margin-top:0.5rem"><b>${a.title}</b> — ${a.desc}</div>
+            <b style="font-size:1.1rem">${T`🎯 Hedefin`}</b>
+            <span style="float:right;color:var(--text-muted);font-size:0.85rem">${T`${done} hedef tamamlandı`}</span>
+            ${a ? `<div style="margin-top:0.5rem"><b>${T(a.title)}</b> — ${T(a.desc)}</div>
                    <button class="btn" style="margin-top:0.6rem;font-size:0.8rem;padding:0.3rem 0.8rem"
-                           onclick="Game.pickAmbition('');Quests.render()">Vazgeç</button>`
-                : open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">Aynı anda tek hedef seçilir.</div>`
+                           onclick="Game.pickAmbition('');Quests.render()">${T`Vazgeç`}</button>`
+                : open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">${T`Aynı anda tek hedef seçilir.`}</div>`
                    + open.map(o => `<button class="btn" style="display:block;width:100%;text-align:left;margin-top:0.4rem"
-                        onclick="Game.pickAmbition('${o.id}')"><b>${o.title}</b> — <span style="color:var(--text-muted)">${o.desc}</span>
-                        <span style="color:#e0b062">+${o.renown} nam</span></button>`).join('')
-                : `<div style="color:var(--text-muted);margin-top:0.4rem">Bütün hedefleri kapattın.</div>`}
+                        onclick="Game.pickAmbition('${o.id}')"><b>${T(o.title)}</b> — <span style="color:var(--text-muted)">${T(o.desc)}</span>
+                        <span style="color:#e0b062">${T`+${o.renown} nam`}</span></button>`).join('')
+                : `<div style="color:var(--text-muted);margin-top:0.4rem">${T`Bütün hedefleri kapattın.`}</div>`}
         </div>`;
     },
 
@@ -1701,13 +1712,13 @@ const Game = {
     // hesaplanır — bkz. dayTint()/nightGlow().
     getDayPart() {
         let h = state.time.hour;
-        if(h < 5)  return { key: 'night',   name: 'Gece',       icon: '🌙' };
-        if(h < 8)  return { key: 'dawn',    name: 'Şafak',      icon: '🌅' };
-        if(h < 11) return { key: 'morning', name: 'Sabah',      icon: '🌄' };
-        if(h < 15) return { key: 'day',     name: 'Öğle',       icon: '🌞' };
-        if(h < 18) return { key: 'noon',    name: 'İkindi',     icon: '🌇' };
-        if(h < 20) return { key: 'dusk',    name: 'Gün Batımı', icon: '🌆' };
-        return { key: 'night', name: 'Gece', icon: '🌙' };
+        if(h < 5)  return { key: 'night',   name: T('Gece'),       icon: '🌙' };
+        if(h < 8)  return { key: 'dawn',    name: T('Şafak'),      icon: '🌅' };
+        if(h < 11) return { key: 'morning', name: T('Sabah'),      icon: '🌄' };
+        if(h < 15) return { key: 'day',     name: T('Öğle'),       icon: '🌞' };
+        if(h < 18) return { key: 'noon',    name: T('İkindi'),     icon: '🌇' };
+        if(h < 20) return { key: 'dusk',    name: T('Gün Batımı'), icon: '🌆' };
+        return { key: 'night', name: T('Gece'), icon: '🌙' };
     },
 
     // Harita tonu saat başında sıçramaz: anahtar saatler arasında lineer geçer.
@@ -1779,7 +1790,7 @@ const Game = {
         let ico = document.getElementById('ui-speed-ico');
         if(ico) ico.innerText = mounted ? '🐎' : '🥾';
         let mode = document.getElementById('ui-speed-mode');
-        if(mode) mode.innerText = mounted ? 'atlı' : 'yaya';
+        if(mode) mode.innerText = mounted ? T('atlı') : T('yaya');
 
         let row = (label, val, good) =>
             `<div style="display:flex;justify-content:space-between;gap:1.2rem">
@@ -1788,17 +1799,17 @@ const Game = {
              </div>`;
 
         this.setHtml('ui-speed-breakdown', `
-            <b style="font-family:Cinzel,serif">Yol Alma Hızı</b>
+            <b style="font-family:Cinzel,serif">${T`Yol Alma Hızı`}</b>
             <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
-            ${row(`Temel (${mounted ? 'atlı' : 'yaya'})`, spdData.base, true)}
-            ${row('Çeviklik', '+' + spdData.agiBonus.toFixed(1), true)}
-            ${row('Grup büyüklüğü', (spdData.partyMult >= 0 ? '+' : '') + '%' + (spdData.partyMult*100).toFixed(0), spdData.partyMult >= 0)}
-            ${row('Atlı oranı', '+%' + (spdData.mountBonus*100).toFixed(0), true)}
-            ${row(`Arazi (${spdData.terrain.name})`, (spdData.terrainMult >= 1 ? '+' : '') + '%' + ((spdData.terrainMult-1)*100).toFixed(0), spdData.terrainMult >= 1)}
-            ${spdData.nightMult < 1 ? row('Gece yürüyüşü', '-%15', false) : ''}
-            ${spdData.pathMult > 1 ? row('Yol Bulma', '+%' + ((spdData.pathMult-1)*100).toFixed(0), true) : ''}
+            ${row(T`Temel (${mounted ? T('atlı') : T('yaya')})`, spdData.base, true)}
+            ${row(T('Çeviklik'), '+' + spdData.agiBonus.toFixed(1), true)}
+            ${row(T('Grup büyüklüğü'), this.pct(spdData.partyMult*100, true), spdData.partyMult >= 0)}
+            ${row(T('Atlı oranı'), this.pct(spdData.mountBonus*100, true), true)}
+            ${row(T`Arazi (${T(spdData.terrain.name)})`, this.pct((spdData.terrainMult-1)*100, true), spdData.terrainMult >= 1)}
+            ${spdData.nightMult < 1 ? row(T('Gece yürüyüşü'), this.pct(-15, true), false) : ''}
+            ${spdData.pathMult > 1 ? row(T('Yol Bulma'), this.pct((spdData.pathMult-1)*100, true), true) : ''}
             <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
-            ${row('<b>Toplam</b>', '<b>' + spdData.value.toFixed(1) + '</b>', true)}
+            ${row('<b>' + T('Toplam') + '</b>', '<b>' + spdData.value.toFixed(1) + '</b>', true)}
         `);
     },
 
@@ -1811,33 +1822,33 @@ const Game = {
             // Köylü kimin karşısında durduğunu bilir: yağmacı / düşman / misafir (#50)
             let loc = npc, pick = a => a[Math.floor(Math.random() * a.length)];
             if(this.raidedRecently(loc)) return pick([
-                `"Yine mi sen?! Ambarımızı boşalttın, damları yaktın... Defol! (Arkadan bir taş vızıldayıp geçer.)"`,
-                `"Allah belanı versin. Kızım o gece ağlamaktan sesini kaybetti. Bir daha ağzını açma bana."`,
-                `"Köpek. Hasadımızı yiyip 'köy yaşlısıyla konuşayım' diyor. Ne yüzle geliyorsun?"`,
-                `"Konuşacak bir şeyimiz yok. Sen gittikten sonra üç ev boş kaldı — say bakalım kaç tane."`
+                T`"Yine mi sen?! Ambarımızı boşalttın, damları yaktın... Defol! (Arkadan bir taş vızıldayıp geçer.)"`,
+                T`"Allah belanı versin. Kızım o gece ağlamaktan sesini kaybetti. Bir daha ağzını açma bana."`,
+                T`"Köpek. Hasadımızı yiyip 'köy yaşlısıyla konuşayım' diyor. Ne yüzle geliyorsun?"`,
+                T`"Konuşacak bir şeyimiz yok. Sen gittikten sonra üç ev boş kaldı — say bakalım kaç tane."`
             ]);
             if(loc && this.atWar(this.playerFaction(), loc.faction)) return pick([
-                `"...Bizim lordumuzla savaştasın. Sana ne ekmek var ne asker. Yolun açık olsun — çabuk olsun."`,
-                `"Kılıcını görüyorum yabancı. Kadınlar çoktan ambara saklandı. Ne istiyorsan al da git."`,
-                `"Bu köy ${this.factionName(loc.faction)}'ın. Senin gibi birine kuyudan su bile vermeyiz."`
+                T`"...Bizim lordumuzla savaştasın. Sana ne ekmek var ne asker. Yolun açık olsun — çabuk olsun."`,
+                T`"Kılıcını görüyorum yabancı. Kadınlar çoktan ambara saklandı. Ne istiyorsan al da git."`,
+                T`"Bu köy ${this.factionName(loc.faction)}'ın. Senin gibi birine kuyudan su bile vermeyiz."`
             ]);
-            if(this.infamyTier() >= 2) return `"Adını duyduk. Köy yakanmışsın. ...Hoşgeldin de deme bana, sadece çabuk git."`;
-            if(p.party.length < 5 && p.stats.level < 5) return `"Şu cılız delikanlıya bakın, Deli Hüsnü'ye söyleyin belki gönüllü olur, bununla giderse biz de kurtuluruz."`;
-            if(p.money > 5000) return `"Lordum, şu yaşlıya köydeki fakfakirler için biraz dinar atsanız da ortalık şenlense..."`;
-            if(lastDefeatDaysAgo < 3) return `"Duyduğuma göre geçenlerde biri buralarda çapulculardan fena dayak yemiş... Umarım o sen değilsindir yabancı."`;
-            return `"Köyümüze hoşgeldin yabancı. Hasat bu aralar fena değil, Deli Hüsnü yine tavukları kovalıyor."`;
+            if(this.infamyTier() >= 2) return T`"Adını duyduk. Köy yakanmışsın. ...Hoşgeldin de deme bana, sadece çabuk git."`;
+            if(p.party.length < 5 && p.stats.level < 5) return T`"Şu cılız delikanlıya bakın, Deli Hüsnü'ye söyleyin belki gönüllü olur, bununla giderse biz de kurtuluruz."`;
+            if(p.money > 5000) return T`"Lordum, şu yaşlıya köydeki fakfakirler için biraz dinar atsanız da ortalık şenlense..."`;
+            if(lastDefeatDaysAgo < 3) return T`"Duyduğuma göre geçenlerde biri buralarda çapulculardan fena dayak yemiş... Umarım o sen değilsindir yabancı."`;
+            return T`"Köyümüze hoşgeldin yabancı. Hasat bu aralar fena değil, Deli Hüsnü yine tavukları kovalıyor."`;
         } else if(type === 'lord' || type === 'king' || type === 'vizier') {
-            if(p.party.length < 10) return `"Hah! Bu çapulcu sürüsüyle mi karşıma çıkıyorsun? Seni ezip geçeceğim!"`;
-            if(lastDefeatDaysAgo < 3) return `"Daha dünün dayak yemiş eziği gelmiş kafa tutuyor... Askerler, şunların işini bitirin!"`;
-            return `"Kılıcımın tadına bakma vakti geldi. Teslim ol ya da öl!"`;
+            if(p.party.length < 10) return T`"Hah! Bu çapulcu sürüsüyle mi karşıma çıkıyorsun? Seni ezip geçeceğim!"`;
+            if(lastDefeatDaysAgo < 3) return T`"Daha dünün dayak yemiş eziği gelmiş kafa tutuyor... Askerler, şunların işini bitirin!"`;
+            return T`"Kılıcımın tadına bakma vakti geldi. Teslim ol ya da öl!"`;
         } else if(type === 'bandit') {
             let band = npc && npc.band ? BAND_KINDS[npc.band] : null;
-            if(band && band.beast) return band.lore;
-            if(p.party.length > 50) return `"Aman abi, biz kendi halimizde garip çapulcularız... (Ama yine de saldırırlar!)"`;
-            if(band && band.lore && npc.band !== 'bandit') return band.lore;
-            return `"Ya paranı, ya canını! Gerçi üstündekiler beş para etmez ama..."`;
+            if(band && band.beast) return T(band.lore);
+            if(p.party.length > 50) return T`"Aman abi, biz kendi halimizde garip çapulcularız... (Ama yine de saldırırlar!)"`;
+            if(band && band.lore && npc.band !== 'bandit') return T(band.lore);
+            return T`"Ya paranı, ya canını! Gerçi üstündekiler beş para etmez ama..."`;
         }
-        return `"Sana nasıl yardım edebilirim?"`;
+        return T`"Sana nasıl yardım edebilirim?"`;
     },
 
     update(dt) {
@@ -1935,7 +1946,7 @@ const Game = {
                 }
                 
                 let el = document.getElementById('ui-escape-chance');
-                if(el) el.innerText = state.player.prisoner.escapeChance.toFixed(1) + '%';
+                if(el) el.innerText = this.pct(state.player.prisoner.escapeChance);
             }
             
             return; // Esir iken başka hiçbir şey yapma
@@ -2018,21 +2029,21 @@ const Game = {
     // tazelenmesi, turnuva/şölen beklemek, kervan beklemek hep bunun müşterisi.
     WAIT_SCALE: 4,
     // Beklemenin bir bedeli var: maaş, erzak, bozulma zaten saatle işliyor
-    WAIT_CHOICES: [[1, '1 saat'], [8, '8 saat'], [24, '1 gün'], [72, '3 gün']],
+    WAIT_CHOICES: [[1, '1 saat'], [8, '8 saat'], [24, '1 gün'], [72, '3 gün']],   // ham; gösterimde çevrilir
     askWait() {
         if(state.player.prisoner || state.player.raid) return;
         let terr = this.getTerrainInfo(state.player.x, state.player.y);
         let risk = terr.name === 'Orman'
-            ? '<div style="color:var(--danger)">Ormanda kamp: pusuya düşebilirsin.</div>' : '';
-        this.showModal(`<h2>⏳ Kamp Kur</h2>
+            ? T('<div style="color:var(--danger)">Ormanda kamp: pusuya düşebilirsin.</div>') : '';
+        this.showModal(`<h2>${T`⏳ Kamp Kur</h2>
             <p>Burada durup zamanı geçir. Zaman <b>${this.WAIT_SCALE} kat</b> hızlı akar; can yenilenir,
-               maaş ve erzak işler, karşılaşma olursa kamp bozulur.</p>
-            <div style="color:var(--text-muted)">Arazi: ${terr.icon} ${terr.name}</div>${risk}
+               maaş ve erzak işler, karşılaşma olursa kamp bozulur.`}</p>
+            <div style="color:var(--text-muted)">${T`Arazi: ${terr.icon} ${T(terr.name)}`}</div>${risk}
             <div class="action-list" style="margin-top:0.8rem">`
             + this.WAIT_CHOICES.map(([h, lbl]) =>
-                `<button class="btn" onclick="Game.startWait(${h})">${lbl}</button>`).join('')
-            + `<button class="btn" onclick="Game.startWait(${this.hoursUntilDawn()})">Sabahı bekle</button>
-               <button class="btn" onclick="Game.closeModal()">Vazgeç</button></div>`, 420);
+                `<button class="btn" onclick="Game.startWait(${h})">${T(lbl)}</button>`).join('')
+            + `<button class="btn" onclick="Game.startWait(${this.hoursUntilDawn()})">${T`Sabahı bekle`}</button>
+               <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button></div>`, 420);
     },
     hoursUntilDawn() { let h = state.time.hour; return h < 6 ? Math.ceil(6 - h) : Math.ceil(30 - h); },
     startWait(hours) {
@@ -2068,9 +2079,9 @@ const Game = {
         let left = Math.max(0, w.until - (state.time.day * 24 + state.time.hour));
         let p = state.player;
         this.setHtml('wait-info',
-            `<div>Kalan: <b>${left < 1 ? Math.round(left * 60) + ' dakika' : left.toFixed(1) + ' saat'}</b></div>
+            `<div>${T`Kalan:`} <b>${left < 1 ? Math.round(left * 60) + ' dakika' : left.toFixed(1) + ' saat'}</b></div>
              <div style="color:var(--text-muted);font-size:0.85rem">
-                ❤️ ${Math.round(p.stats.hp)}/${Math.round(p.stats.maxHp)} · 🎺 ${Math.round(this.morale())} · zaman ×${this.WAIT_SCALE}</div>`);
+                ${T`❤️ ${Math.round(p.stats.hp)}/${Math.round(p.stats.maxHp)} · 🎺 ${Math.round(this.morale())} · zaman ×${this.WAIT_SCALE}`}</div>`);
     },
 
     // Hayvan sürüsüne teslim olunmaz — hızın yeterse sıyrılırsın
@@ -2090,9 +2101,9 @@ const Game = {
         if(Math.random() < chance) {
             state.encounterCooldown = 6;
             state.player.status = 'idle'; state.player.targetLocation = null;
-            alert(`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
+            alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
         } else {
-            alert(`Kaçamadın, yolunu kestiler! (Kaçış şansı %${Math.round(chance*100)})`);
+            alert(T`Kaçamadın, yolunu kestiler! (Kaçış şansı %${Math.round(chance*100)})`);
             Battle.start(npc ? npc.name : 'Kurt Sürüsü', npc ? npc.size : 6, null, (npc && npc.faction) || '');
         }
     },
@@ -2174,7 +2185,7 @@ const Game = {
                     if(lord && !this.hasGrudge(lord.id)) delete npc.hunting;   // dava bitince peşini bırakır
                     if(lord && this.hasGrudge(lord.id) && state.player.status !== 'prisoner' && Math.random() < 0.5) {
                         npc.targetX = state.player.x; npc.targetY = state.player.y;
-                        npc.hunting = state.player.name;
+                        npc.hunting = 'player';
                         return;
                     }
                     // Savaştaki lord evinde oturmaz: yakın düşman yerleşimlerinden
@@ -2214,7 +2225,7 @@ const Game = {
                 npc.hunting = null;
                 if(prey && prey.size * (prey.trade.kind === 'caravan' ? 1.15 : 0.5) < npc.size * 1.2) {
                     npc.targetX = prey.x; npc.targetY = prey.y;
-                    npc.hunting = prey.name;
+                    npc.hunting = prey.id;   // kimlik saklanır, ad gösterim anında çevrilir
                 }
             }
 
@@ -2285,7 +2296,7 @@ const Game = {
                  : state.player.wageDebt > 0 ? 'unpaid'
                  : (mo >= 70 || ratio <= 0.6) ? 'bold' : 'grumble';
         let t = party[Math.floor(Math.random() * party.length)];
-        let line = this.CHATTER[pool][Math.floor(Math.random() * this.CHATTER[pool].length)];
+        let line = T(this.CHATTER[pool][Math.floor(Math.random() * this.CHATTER[pool].length)]);
         return `<span style="color:var(--text-muted)">${this.troopLabel(t)}:</span> <i>"${line}"</i>`;
     },
 
@@ -2294,7 +2305,7 @@ const Game = {
     preyWarning(npc) {
         if(!npc || npc.trade) return '';
         let sc = Battle.rewardScale(npc.size * ((npc.level || 1) + 1));
-        return sc < 0.95 ? `🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.` : '';
+        return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.`}` : '';
     },
 
     triggerEncounter(npc, ambush) {
@@ -2320,27 +2331,27 @@ const Game = {
 
         let dialog = this.getHumorousDialog(npc.type, npc);
 
-        let html = `<h3>${ambush === 'ambush' ? '🌲 Pusu!' : ambush === 'raid' ? '🔥 Baskın!' : '⚔️ Karşılaşma:'} ${npc.name}</h3>
-        <p style="margin-top:0.5rem;">Düşman grup büyüklüğü: <b>${npc.size}</b> kişi</p>
-        <p>Senin grubun: <b>${state.player.party.length + 1}</b> kişi</p>`;
+        let html = `<h3>${ambush === 'ambush' ? T('🌲 Pusu!') : ambush === 'raid' ? T('🔥 Baskın!') : T('⚔️ Karşılaşma:')} ${this.npcName(npc)}</h3>
+        <p style="margin-top:0.5rem;">${T`Düşman grup büyüklüğü: <b>${npc.size}</b> kişi</p>
+        <p>Senin grubun: <b>${state.player.party.length + 1}</b> kişi`}</p>`;
 
         if(ambush === 'ambush') {
             // Fark edemedin: savaş etrafın sarılmış hâlde başlar (Battle.start okur)
             state.ambush = true;
-            html += `<p style="color:#e0463a;margin-top:0.5rem">Ağaçların arasından üstünüze
-                     atladılar — kaçacak yer yok, adamların dağılmış durumda!</p>`;
+            html += `<p style="color:#e0463a;margin-top:0.5rem">${T`Ağaçların arasından üstünüze
+                     atladılar — kaçacak yer yok, adamların dağılmış durumda!`}</p>`;
         } else if(ambush === 'spotted') {
-            html += `<p style="color:#2ecc71;margin-top:0.5rem">Kırılan dalı duydun: pusuyu
-                     zamanında fark ettin, seni saramadılar.</p>`;
+            html += `<p style="color:#2ecc71;margin-top:0.5rem">${T`Kırılan dalı duydun: pusuyu
+                     zamanında fark ettin, seni saramadılar.`}</p>`;
         }
 
         if(!ambush && npc.type === 'bandit' && state.time.day <= 14 && Math.random() < 0.25) {
-            dialog = `"Şu çaylağa bak patron, kılıcımızı kirletmeye değmez. Yürü git buradan çömez!"`;
+            dialog = T`"Şu çaylağa bak patron, kılıcımızı kirletmeye değmez. Yürü git buradan çömez!"`;
             html += `<p><i>${dialog}</i></p>
-            <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">Çapulcular seninle savaşmaya değmeyeceğini düşünüyor.</p>
+            <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">${T`Çapulcular seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
-            <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">Uzaklaş</button>
-            <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Yine De Savaş!</button>
+            <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">${T`Uzaklaş`}</button>
+            <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Yine De Savaş!`}</button>
             </div>`;
         } else {
             // Pusuda ve yağma baskınında kaçış yok — etrafın sarılı, suçüstü yakalandın
@@ -2355,14 +2366,14 @@ const Game = {
             ${chat ? `<p style="margin-top:0.4rem;font-size:0.9rem">${chat}</p>` : ''}
             ${prey ? `<p style="margin-top:0.4rem;font-size:0.85rem;color:#cc8800">${prey}</p>` : ''}
             <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">${canFlee
-                ? `Kaçabilirsin ama hız farkı belirler: kaçış şansın <b>%${flee}</b>.`
-                : 'Kaçış yok — savaş ya da teslim ol!'}</p>
+                ? `${T`Kaçabilirsin ama hız farkı belirler: kaçış şansın`} <b>%${flee}</b>.`
+                : T('Kaçış yok — savaş ya da teslim ol!')}</p>
             <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
-            <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">⚔️ Savaş!</button>
-            ${canAuto ? `<button class="btn" style="border-color:#8fd6ff;color:#8fd6ff" onclick="Game.autoBattle('${npc.id}')" title="Sen inmezsin, adamların halleder — kayıp daha yüksektir">🎖️ Askerlerini Gönder</button>` : ''}
-            ${canFlee ? `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.fleeEncounter('${npc.id}')">🏃 Kaçmayı Dene (%${flee})</button>` : ''}
+            <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Savaş!`}</button>
+            ${canAuto ? `<button class="btn" style="border-color:#8fd6ff;color:#8fd6ff" onclick="Game.autoBattle('${npc.id}')" title="Sen inmezsin, adamların halleder — kayıp daha yüksektir">${T`🎖️ Askerlerini Gönder`}</button>` : ''}
+            ${canFlee ? `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.fleeEncounter('${npc.id}')">${T`🏃 Kaçmayı Dene (%${flee})`}</button>` : ''}
             ${(BAND_KINDS[npc.band] || {}).beast ? '' :
-                `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">🏳️ Teslim Ol</button>`}
+                `<button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); Game.surrender('${npc.id}', '${npc.name.replace(/'/g,"\\'")}')">${T`🏳️ Teslim Ol`}</button>`}
             </div>`;
         }
         this.showModal(html);
@@ -2391,8 +2402,8 @@ const Game = {
         state.player.siege = null;
         state.player.currentRaid = null;
 
-        alert(`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-${moneyLost} Dinar`
-            + (renownLost ? `<br>-${renownLost} nam` : ''));
+        alert(`${T`Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-${moneyLost} Dinar`}`
+            + (renownLost ? `<br>${T`-${renownLost} nam`}` : ''));
         this.updateTopBar();
     },
 
@@ -2418,7 +2429,7 @@ const Game = {
     // Hayvan sürüsü esir tutmaz; çete birkaç talihsizi daha sürüklüyor olabilir
     rollFellows(band) {
         if(band && band.beast) return [];
-        let pool = ['Köylü', 'Kervancı', 'Gezgin Tüccar', 'Yaralı Asker', 'Değirmenci', 'Ozan', 'Çırak'];
+        let pool = [T('Köylü'), T('Kervancı'), T('Gezgin Tüccar'), T('Yaralı Asker'), T('Değirmenci'), T('Ozan'), T('Çırak')];
         let out = [];
         for(let i = Math.floor(Math.random()*4); i > 0; i--) {
             out.push(pool[Math.floor(Math.random()*pool.length)]);
@@ -2431,11 +2442,11 @@ const Game = {
         if(state.player.money < amount) {
             // Parası yetmiyorsa elindeki her şeyi alıp salıverirler
             state.player.money = 0;
-            this.releaseFromCaptivity('Kesenin dibi göründü. Ellerindeki son dinarı da alıp seni yol kenarına attılar.');
+            this.releaseFromCaptivity(T('Kesenin dibi göründü. Ellerindeki son dinarı da alıp seni yol kenarına attılar.'));
             return;
         }
         state.player.money -= amount;
-        this.releaseFromCaptivity(`${amount} Dinar ödedin. Zincirlerin çözüldü.`);
+        this.releaseFromCaptivity(T`${amount} Dinar ödedin. Zincirlerin çözüldü.`);
     },
 
     refuseRansom(ratio) {
@@ -2447,7 +2458,7 @@ const Game = {
         if(p.ransomRefusals >= 3) {
             // Üçüncü retten sonra ellerinde tutmanın anlamı kalmaz
             state.player.money = Math.floor(state.player.money * 0.5);
-            this.releaseFromCaptivity('"Bu adamı beslemek fidyesinden pahalıya geliyor." Yarı paranı alıp seni kovdular.');
+            this.releaseFromCaptivity(T('"Bu adamı beslemek fidyesinden pahalıya geliyor." Yarı paranı alıp seni kovdular.'));
             return;
         }
 
@@ -2457,7 +2468,7 @@ const Game = {
         p.escapeChance = Math.max(0, (p.escapeChance || 0) - 25);
         p.isPlanning = false;
         this.renderPrisonerUI();
-        alert(`Reddettin. Bir güzel dayak yedin ve zindana geri atıldın. (${p.daysLeft} gün daha)`);
+        alert(T`Reddettin. Bir güzel dayak yedin ve zindana geri atıldın. (${p.daysLeft} gün daha)`);
     },
 
     releaseFromCaptivity(msg) {
@@ -2536,66 +2547,66 @@ const Game = {
         // --- olumsuz ---
         { id: 'latrine', bad: 1, when: c => c.party >= 3, run(c) {
             Game.addMorale(-3);
-            return `Askerlerden biri gece yolunu şaşırıp <b>hela çukuruna</b> düştü. Kokusu sabaha kadar kampta kaldı.<br>Moral <b>−3</b>.`;
+            return `${T`Askerlerden biri gece yolunu şaşırıp <b>hela çukuruna</b> düştü. Kokusu sabaha kadar kampta kaldı.<br>Moral`} <b>−3</b>.`;
         }},
         { id: 'foodfight', bad: 1, when: c => c.party >= 4 && c.food > 3, run(c) {
             let lost = Game.takeFood(2 + Math.floor(Math.random() * 3));
             Game.addMorale(-2);
-            return `Son peynir yüzünden <b>erzak kavgası</b> çıktı; kavganın ortasında ${lost} birim yiyecek yere döküldü.<br>Moral <b>−2</b>.`;
+            return `${T`Son peynir yüzünden <b>erzak kavgası</b> çıktı; kavganın ortasında ${lost} birim yiyecek yere döküldü.<br>Moral`} <b>−2</b>.`;
         }},
         { id: 'drunk', bad: 1, when: c => c.party >= 2 && c.near, run(c) {
             let fine = 20 + Math.floor(Math.random() * 40);
             state.player.money = Math.max(0, state.player.money - fine);
-            return `${c.near.name} yakınında sarhoş bir askerin <b>yanlış adama</b> meydan okuduğu haberi geldi. Tazminatı sen ödedin.<br><b>−${fine} dinar</b>.`;
+            return `${T`${T(c.near.name)} yakınında sarhoş bir askerin <b>yanlış adama</b> meydan okuduğu haberi geldi. Tazminatı sen ödedin.<br><b>−${fine} dinar`}</b>.`;
         }},
         { id: 'thief', bad: 1, when: c => state.player.money > 100, run(c) {
             let lost = Math.min(250, Math.round(state.player.money * (0.02 + Math.random() * 0.03)));   // tavan: zengin oyuncuyu da sadece kızdırsın
             state.player.money -= lost;
-            return `Sabah kese hafiflemişti. Kimse bir şey görmemiş, herkes birbirine bakıyor.<br><b>−${lost} dinar</b>.`;
+            return `${T`Sabah kese hafiflemişti. Kimse bir şey görmemiş, herkes birbirine bakıyor.<br><b>−${lost} dinar`}</b>.`;
         }},
         { id: 'sprain', bad: 1, when: c => c.party >= 2 && state.player.party.some(t => !t.wounded), run(c) {
             let hurt = state.player.party.filter(t => !t.wounded);
             let t = hurt[Math.floor(Math.random() * hurt.length)];
             t.wounded = 2;
-            return `<b>${Game.troopLabel(t)}</b> kendi mızrağına takılıp ayağını burktu. İki gün savaşa giremez.`;
+            return `<b>${Game.troopLabel(t)}</b> ${T`kendi mızrağına takılıp ayağını burktu. İki gün savaşa giremez.`}`;
         }},
         { id: 'rumor_market', bad: 1, when: c => c.near && c.near.type === 'city', run(c) {
-            return `Yolda duyduğun söylenti: "<i>${c.near.name} esnafı adamı donuna kadar soyar</i>." Cüzdanını sıkı tut.`;
+            return `${T`Yolda duyduğun söylenti: "<i>${T(c.near.name)} esnafı adamı donuna kadar soyar</i>." Cüzdanını sıkı tut.`}`;
         }},
         { id: 'rain', bad: 1, when: c => true, run(c) {
             Game.addMorale(-2);
-            return `Bütün gün yağmur yağdı. Çadırlar ıslandı, yorganlar ıslandı, herkesin keyfi kaçtı.<br>Moral <b>−2</b>.`;
+            return `${T`Bütün gün yağmur yağdı. Çadırlar ıslandı, yorganlar ıslandı, herkesin keyfi kaçtı.<br>Moral`} <b>−2</b>.`;
         }},
         { id: 'horseshoe', bad: 1, when: c => !!state.player.equipment.horse, run(c) {
             let fee = 15 + Math.floor(Math.random() * 25);
             state.player.money = Math.max(0, state.player.money - fee);
-            return `Atının nalı düştü. Yol kenarındaki nalbant fırsatı kaçırmadı.<br><b>−${fee} dinar</b>.`;
+            return `${T`Atının nalı düştü. Yol kenarındaki nalbant fırsatı kaçırmadı.<br><b>−${fee} dinar`}</b>.`;
         }},
         // --- olumlu ---
         { id: 'bard', bad: 0, when: c => c.party >= 2, run(c) {
             Game.addMorale(4);
-            return `Askerlerden biri akşam ateşinde öyle kötü şarkı söyledi ki kamp gülmekten kırıldı.<br>Moral <b>+4</b>.`;
+            return `${T`Askerlerden biri akşam ateşinde öyle kötü şarkı söyledi ki kamp gülmekten kırıldı.<br>Moral`} <b>+4</b>.`;
         }},
         { id: 'purse', bad: 0, when: c => true, run(c) {
             let gain = 30 + Math.floor(Math.random() * 60);
             state.player.money += gain;
-            return `Yol kenarındaki çalılıkta unutulmuş bir kese buldun. Sahibi aramaya gelmedi.<br><b>+${gain} dinar</b>.`;
+            return `${T`Yol kenarındaki çalılıkta unutulmuş bir kese buldun. Sahibi aramaya gelmedi.<br><b>+${gain} dinar`}</b>.`;
         }},
         { id: 'hunt', bad: 0, when: c => c.party >= 1, run(c) {
             let n = 2 + Math.floor(Math.random() * 3);
             Game.addItem('meat', n);
-            return `Avcı çıkışan askerin bu sefer şansı yaver gitti: akşam yemeğine <b>${n} et</b> geldi.`;
+            return `${T`Avcı çıkışan askerin bu sefer şansı yaver gitti: akşam yemeğine <b>${n} et</b> geldi.`}`;
         }},
         { id: 'deserter', bad: 0, when: c => c.party + 1 < Game.getPartyCapacity(), run(c) {
             let name = Game.recruitName(c.near || LOCATIONS[0]);
             state.player.party.push({ id: 'troop_' + Math.random().toString(36).substr(2, 9),
                 name, level: 1, xp: 0, xpNext: 3, type: 'infantry' });
-            return `Yolda başıboş dolaşan bir <b>${name}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`;
+            return `${T`Yolda başıboş dolaşan bir <b>${T(name)}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`}`;
         }},
         { id: 'blessing', bad: 0, when: c => c.near && c.near.type === 'village', run(c) {
             Game.addItem('cheese', 2);
             Game.addMorale(2);
-            return `${c.near.name} köyünden bir kadın "yoldan geçene uğur olsun" deyip iki peynir bıraktı.<br><b>+2 peynir</b>, moral <b>+2</b>.`;
+            return `${T`${T(c.near.name)} köyünden bir kadın "yoldan geçene uğur olsun" deyip iki peynir bıraktı.<br><b>+2 peynir</b>, moral`} <b>+2</b>.`;
         }}
     ],
 
@@ -2639,7 +2650,7 @@ const Game = {
         if(recent.length > 4) recent.shift();
         let text = ev.run(ctx);
         this.updateTopBar();
-        alert(`${ev.bad ? '🌧️' : '🌤️'} <b>Günün Olayı</b><br><br>${text}`);
+        alert(`${ev.bad ? '🌧️' : '🌤️'} <b>${T`Günün Olayı`}</b><br><br>${text}`);
         return ev.id;
     },
 
@@ -2653,16 +2664,16 @@ const Game = {
                     Quests.emit('escaped_captivity', { npcId: state.player.prisoner.npcId });
                     state.player.prisoner = null; state.player.status = 'idle'; state.encounterCooldown = 5;
                     this.renderPrisonerUI();
-                    alert('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!');
+                    alert(T('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!'));
                 } else {
                     let ratio = state.player.prisoner.ransomRequired;
                     let amount = Math.floor(state.player.money * ratio);
                     this.showModal(`<div style="text-align:center">
-                        <h3 style="margin-bottom:1rem;color:#ffaa00">Fidye İsteği</h3>
-                        <p style="font-size:1.1rem;margin-bottom:1.5rem">Seni esir edenler özgürlüğün karşılığında senden <b>${amount} Dinar</b> istiyor. Kabul ediyor musun?</p>
+                        <h3 style="margin-bottom:1rem;color:#ffaa00">${T`Fidye İsteği`}</h3>
+                        <p style="font-size:1.1rem;margin-bottom:1.5rem">${T`Seni esir edenler özgürlüğün karşılığında senden <b>${amount} Dinar</b> istiyor. Kabul ediyor musun?`}</p>
                         <div style="display:flex;gap:1rem;justify-content:center;">
-                            <button class="btn primary" onclick="Game.payRansom(${amount})">Öde ve Kurtul</button>
-                            <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.refuseRansom(${ratio})">Reddet</button>
+                            <button class="btn primary" onclick="Game.payRansom(${amount})">${T`Öde ve Kurtul`}</button>
+                            <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.refuseRansom(${ratio})">${T`Reddet`}</button>
                         </div>
                     </div>`);
                 }
@@ -2723,12 +2734,12 @@ const Game = {
             // burada hiç gelmiyordu, oyuncu moral çöküşünün sebebini anlamıyordu.
             let hungry = missingLow > 0;
             if(hungry && !state.player.wasHungry) {
-                alert(`🍽️ <b>Ordu aç kaldı!</b><br>Günlük ihtiyaç <b>${Math.ceil(foodRequiredLow)} birim</b> yemekti, ` +
-                      `<b>${Math.ceil(foodRequiredLow) - missingLow} birim</b> bulundu.<br>` +
-                      `Moral <b>−30</b> — moral 25'in altına inerse asker firar etmeye başlar.<br>` +
-                      `<i>Köylerin erzak pazarı en ucuz kaynaktır.</i>`);
+                alert(`🍽️ <b>${T`Ordu aç kaldı!</b><br>Günlük ihtiyaç <b>${Math.ceil(foodRequiredLow)} birim</b> yemekti,`} ` +
+                      T`<b>${Math.ceil(foodRequiredLow) - missingLow} birim</b> bulundu.<br>` +
+                      `${T`Moral <b>−30</b> — moral 25'in altına inerse asker firar etmeye başlar.`}<br>` +
+                      `<i>${T`Köylerin erzak pazarı en ucuz kaynaktır.`}</i>`);
             } else if(!hungry && state.player.wasHungry) {
-                alert('🍞 Ordu doydu, açlık cezası kalktı.');
+                alert(T('🍞 Ordu doydu, açlık cezası kalktı.'));
             }
             state.player.wasHungry = hungry;
 
@@ -2736,9 +2747,9 @@ const Game = {
             // Oyuncu "envanterde ekmek var, neden debuff yiyorum" diye haklı olarak şaşırıyordu.
             let elite = state.player.party.filter(t => t.level >= 30 && t.level < 51).length;
             if(missingHighQuality > 0 && elite && !state.player.wasLowQuality) {
-                alert(`🥩 <b>${elite} seçkin askerin</b> et/peynir bulamadı.<br>` +
-                      `Ekmek ve tahıl karınlarını doyurur ama <b>savaşta ×0.7</b> güçle dövüşürler.<br>` +
-                      `Bu açlık değil, <b>kalite</b> meselesi: günde ${Math.ceil(foodRequiredHigh)} birim et ya da peynir gerekiyor.`);
+                alert(`🥩 <b>${T`${elite} seçkin askerin</b> et/peynir bulamadı.`}<br>` +
+                      `${T`Ekmek ve tahıl karınlarını doyurur ama <b>savaşta ×0.7</b> güçle dövüşürler.`}<br>` +
+                      T`Bu açlık değil, <b>kalite</b> meselesi: günde ${Math.ceil(foodRequiredHigh)} birim et ya da peynir gerekiyor.`);
             }
             state.player.wasLowQuality = missingHighQuality > 0 && elite > 0;
 
@@ -2834,13 +2845,13 @@ const Game = {
         let cap = this.getPartyCapacity();
         let dp = this.getDayPart();
 
-        set('ui-day', state.time.day);
+        set('ui-day', T`${state.time.day}. Gün`);
         set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
         set('ui-daypart', dp.icon);
         set('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
         set('ui-food', fs.need ? (fs.days === Infinity ? '∞' : fs.days) : '—');
-        set('ui-food-sub', fs.need ? (fs.total ? 'gün erzak' : 'erzak yok') : 'erzak');
+        set('ui-food-sub', fs.need ? (fs.total ? T('gün erzak') : T('erzak yok')) : T('erzak'));
         let fe = document.getElementById('chip-food');
         if(fe) fe.classList.toggle('warn', fs.need > 0 && fs.days < 3);
         set('ui-renown', p.renown);
@@ -2874,86 +2885,86 @@ const Game = {
     updateTips(cap) {
         let p = state.player, R = (l, v, g) => this.tipRow(l, v, g);
 
-        this.setHtml('tip-time', this.tipBox('Sefer Takvimi',
-            R('Gün', p.quests && p.quests.length ? `${state.time.day}. gün` : state.time.day, null) +
-            R('Saat', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${this.getDayPart().name}`, null) +
-            R('Zaman akışı', '×' + this.timeScale(), null),
-            'Zaman yalnızca haritada, sen yol alırken işler. Gece yol alma hızı −%15, görüş ×0.7. Rozete tıkla → akış hızını değiştir.'));
+        this.setHtml('tip-time', this.tipBox(T('Sefer Takvimi'),
+            R(T('Gün'), p.quests && p.quests.length ? T`${state.time.day}. gün` : state.time.day, null) +
+            R(T('Saat'), `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${this.getDayPart().name}`, null) +
+            R(T('Zaman akışı'), '×' + this.timeScale(), null),
+            T('Zaman yalnızca haritada, sen yol alırken işler. Gece yol alma hızı −%15, görüş ×0.7. Rozete tıkla → akış hızını değiştir.')));
 
         let up = this.upkeep();
-        this.setHtml('tip-money', this.tipBox('Hazine',
-            R('Kesede', Math.floor(p.money) + ' dinar', null) +
-            R('Günlük asker maaşı', '-' + up.wage, false) +
-            R('Günlük yemek', `-${Math.ceil(up.foodLow)} birim${up.foodHigh ? ` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
-            (this.myFiefs().length ? R('Tımar vergisi', `+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
-            (this.myEnterprises().length ? R('İşletme', `+${this.fiefIncome().trade} (${this.myEnterprises().length} işletme)`, true) : '') +
-            (p.spouse ? R('Evlilik geliri', '+50', true) : '') +
-            (p.wageDebt > 0 ? R('Gecikmiş maaş', `${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
-            (p.wageDebt > 0 ? R('Saatlik moral kaybı', '-1', false) : ''),
-            'Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.'));
+        this.setHtml('tip-money', this.tipBox(T('Hazine'),
+            R(T('Kesede'), T`${Math.floor(p.money)} dinar`, null) +
+            R(T('Günlük asker maaşı'), '-' + up.wage, false) +
+            R(T('Günlük yemek'), T`-${Math.ceil(up.foodLow)} birim${up.foodHigh ? T` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
+            (this.myFiefs().length ? R(T('Tımar vergisi'), T`+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
+            (this.myEnterprises().length ? R(T('İşletme'), T`+${this.fiefIncome().trade} (${this.myEnterprises().length} işletme)`, true) : '') +
+            (p.spouse ? R(T('Evlilik geliri'), '+50', true) : '') +
+            (p.wageDebt > 0 ? R(T('Gecikmiş maaş'), T`${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
+            (p.wageDebt > 0 ? R(T('Saatlik moral kaybı'), '-1', false) : ''),
+            T('Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.')));
 
         let fs = this.foodStock();
-        this.setHtml('tip-food', this.tipBox('Erzak',
-            R('Elde', `${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
-            R('Günlük tüketim', `-${fs.need} birim`, false) +
-            (fs.spoil >= 0.05 ? R('Bozulma', `-${fs.spoil.toFixed(1)} birim/gün`, false) : '') +
-            R('Yeter', fs.need ? `${fs.days} gün` : 'ordu yok', fs.days >= 3) +
-            (fs.needHigh ? R('Seçkin asker payı', `${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
-            R('Yemek çeşidi', `${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
-            'Erzak biterse moral −30 ve firar başlar. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).'));
+        this.setHtml('tip-food', this.tipBox(T('Erzak'),
+            R(T('Elde'), T`${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
+            R(T('Günlük tüketim'), T`-${fs.need} birim`, false) +
+            (fs.spoil >= 0.05 ? R(T('Bozulma'), T`-${fs.spoil.toFixed(1)} birim/gün`, false) : '') +
+            R(T('Yeter'), fs.need ? T`${fs.days} gün` : T('ordu yok'), fs.days >= 3) +
+            (fs.needHigh ? R(T('Seçkin asker payı'), T`${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
+            R(T('Yemek çeşidi'), T`${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
+            T('Erzak biterse moral −30 ve firar başlar. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).')));
 
-        this.setHtml('tip-renown', this.tipBox('Nam',
-            R('Namın', p.renown, null) +
-            R('Ulaşılan en yüksek', this.peakRenown(), null) +
-            R('Salon konukları', '80 nam', this.peakRenown() >= 80) +
-            R('Kız isteme', '120 nam', this.peakRenown() >= 120) +
-            R('Şölen daveti', '150 nam', this.peakRenown() >= 150),
-            'Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.'));
+        this.setHtml('tip-renown', this.tipBox(T('Nam'),
+            R(T('Namın'), p.renown, null) +
+            R(T('Ulaşılan en yüksek'), this.peakRenown(), null) +
+            R(T('Salon konukları'), T('80 nam'), this.peakRenown() >= 80) +
+            R(T('Kız isteme'), T('120 nam'), this.peakRenown() >= 120) +
+            R(T('Şölen daveti'), T('150 nam'), this.peakRenown() >= 150),
+            T('Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.')));
 
-        this.setHtml('tip-hp', this.tipBox('Can',
-            R('Şu an', `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`, p.stats.hp > p.stats.maxHp * 0.4) +
-            R('Seviyeden', 50 + (p.stats.level - 1) * 10, true) +
-            (p.equipment.armor ? R(`Zırh (${p.equipment.armor.name})`, '+' + p.equipment.armor.armor, true) : R('Zırh', 'yok', false)),
-            'Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.'));
+        this.setHtml('tip-hp', this.tipBox(T('Can'),
+            R(T('Şu an'), `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`, p.stats.hp > p.stats.maxHp * 0.4) +
+            R(T('Seviyeden'), 50 + (p.stats.level - 1) * 10, true) +
+            (p.equipment.armor ? R(T`Zırh (${T(p.equipment.armor.name)})`, '+' + p.equipment.armor.armor, true) : R(T('Zırh'), T('yok'), false)),
+            T('Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.')));
 
         this.setHtml('mute-ico', this.opt('muted') ? '🔇' : '🔊');
-        this.setHtml('mute-lbl', this.opt('muted') ? 'Ses Kapalı' : 'Ses Açık');
+        this.setHtml('mute-lbl', this.opt('muted') ? T('Ses Kapalı') : T('Ses Açık'));
 
         let comp = this.getPartyComposition();
         // Kapasite oyuncunun KENDİ İdare seviyesinden gelir; künye profLvl (gruptaki en
         // yüksek) okuduğu için yoldaş varken döküm toplama uymuyordu (#43).
         let lead = (state.player.proficiencies.leadership || { level: 1 }).level;
-        this.setHtml('tip-party', this.tipBox('Grup',
-            R('Mevcut', `${p.party.length}/${cap}`, p.party.length <= cap) +
-            R('Temel kapasite', 12, null) +
-            R('Liderlik (efektif)', `+${Math.floor((this.attr('cha') - 10) * 3)}`, this.attr('cha') >= 10) +
-            R('İdare yeteneği', `+${(lead - 1) * 4}`, true) +
-            R('Nam', `+${Math.floor(p.renown / 40)}`, p.renown >= 40) +
-            R('Dağılım', `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +
-            R('Atlı oranı', '%' + Math.round(this.getMountedRatio() * 100), null),
-            'Kapasiteyi aşarsan moral düşer. Kalabalık ordu haritada yavaş yol alır; atlı oranı bu cezayı hafifletir.'));
+        this.setHtml('tip-party', this.tipBox(T('Grup'),
+            R(T('Mevcut'), `${p.party.length}/${cap}`, p.party.length <= cap) +
+            R(T('Temel kapasite'), 12, null) +
+            R(T('Liderlik (efektif)'), `+${Math.floor((this.attr('cha') - 10) * 3)}`, this.attr('cha') >= 10) +
+            R(T('İdare yeteneği'), `+${(lead - 1) * 4}`, true) +
+            R(T('Nam'), `+${Math.floor(p.renown / 40)}`, p.renown >= 40) +
+            R(T('Dağılım'), `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +
+            R(T('Atlı oranı'), this.pct(this.getMountedRatio() * 100), null),
+            T('Kapasiteyi aşarsan moral düşer. Kalabalık ordu haritada yavaş yol alır; atlı oranı bu cezayı hafifletir.')));
 
         this.setHtml('tip-morale', this.moraleTip());
 
-        this.setHtml('tip-level', this.tipBox('Seviye',
-            R('Seviye', p.stats.level, null) +
-            R('Tecrübe', `${Math.floor(p.stats.xp)}/${p.stats.xpNext}`, null) +
-            R('Bekleyen nitelik puanı', p.stats.attributePoints || 0, (p.stats.attributePoints || 0) > 0) +
-            R('Bekleyen odak puanı', p.stats.focusPoints || 0, (p.stats.focusPoints || 0) > 0),
-            'Her seviye: +10 can, tam iyileşme, 2 nitelik + 3 odak puanı. Seninle boy ölçüşemeyecek düşmandan alınan tecrübe ve ganimet azalır.'));
+        this.setHtml('tip-level', this.tipBox(T('Seviye'),
+            R(T('Seviye'), p.stats.level, null) +
+            R(T('Tecrübe'), `${Math.floor(p.stats.xp)}/${p.stats.xpNext}`, null) +
+            R(T('Bekleyen nitelik puanı'), p.stats.attributePoints || 0, (p.stats.attributePoints || 0) > 0) +
+            R(T('Bekleyen odak puanı'), p.stats.focusPoints || 0, (p.stats.focusPoints || 0) > 0),
+            T('Her seviye: +10 can, tam iyileşme, 2 nitelik + 3 odak puanı. Seninle boy ölçüşemeyecek düşmandan alınan tecrübe ve ganimet azalır.')));
     },
     // Moral künyesi: moraleHtml ile aynı kalemler, rozete sığan biçimde
     moraleTip() {
         let m = Math.round(this.morale());
         let info = state.player.moraleInfo || {};
         let rows = Object.keys(info).filter(k => info[k] !== 0)
-            .map(k => this.tipRow(k, (info[k] > 0 ? '+' : '') + info[k], info[k] > 0)).join('');
-        return this.tipBox(`Moral ${m}/100 — ${this.moraleLabel(m)}`,
-            (rows || '<i>Henüz hesaplanmadı (bir gün geçmeli).</i>') +
-            this.tipRow('Savaş gücü çarpanı', '×' + this.moraleMult().toFixed(2), this.moraleMult() >= 1) +
+            .map(k => this.tipRow(T(k), (info[k] > 0 ? '+' : '') + info[k], info[k] > 0)).join('');
+        return this.tipBox(T`Moral ${m}/100 — ${this.moraleLabel(m)}`,
+            (rows || `<i>${T('Henüz hesaplanmadı (bir gün geçmeli).')}</i>`) +
+            this.tipRow(T('Savaş gücü çarpanı'), '×' + this.moraleMult().toFixed(2), this.moraleMult() >= 1) +
             (state.player.wageDebt > 0
-                ? this.tipRow('Maaş gecikmesi', `${state.player.wageLateHours || 0} saat · -1/saat`, false) : ''),
-            'Moral tüm askerlerinin canını ve saldırısını ölçekler. 25\'in altında her gece asker firar eder. Hızlı düşer, yavaş toparlanır.');
+                ? this.tipRow(T('Maaş gecikmesi'), T`${state.player.wageLateHours || 0} saat · -1/saat`, false) : ''),
+            T('Moral tüm askerlerinin canını ve saldırısını ölçekler. 25\'in altında her gece asker firar eder. Hızlı düşer, yavaş toparlanır.'));
     },
 
     // innerHTML her karede yeniden yazılmasın — sadece metin değiştiyse
@@ -2970,21 +2981,21 @@ const Game = {
         let t = document.getElementById('map-terrain-txt');
         if(!t) return;
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
-        t.innerText = terrain.name + (terrain.mult !== 1 ? `  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
+        t.innerText = T(terrain.name) + (terrain.mult !== 1 ? T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
         document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
 
         let c = this.getPartyComposition();
         // Harcanmamış puan haritadan görünsün, karakter ekranına açılsın (#35)
         let st = state.player.stats, ap = st.attributePoints || 0, fp = st.focusPoints || 0;
         let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
-                + ` title="Harcanmamış puanların var — karakter ekranına git (C)">✨ ${ap ? ap + ' nitelik' : ''}`
-                + `${ap && fp ? ' · ' : ''}${fp ? fp + ' odak' : ''}</button>` : '';
+                + ` title="${T('Harcanmamış puanların var — karakter ekranına git (C)')}">✨ ${ap ? T`${ap} nitelik` : ''}`
+                + `${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
             + pts
-            + `<button id="btn-wait" onclick="Game.askWait()" title="Kamp kur, zamanı geçir">⏳ Bekle</button>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="Kamerayı bana getir (Boşluk)">🎯 Beni Bul <kbd>Boşluk</kbd></button>`
-            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="Krallıkların savaş/barış hâli (K)">🌍 Diplomasi <kbd>K</kbd></button>`);
+            + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${T`⏳ Bekle`}</button>`
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul <kbd>Boşluk`}</kbd></button>`
+            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`} <kbd>K</kbd></button>`);
     },
 
     renderPrisonerUI() {
@@ -2994,21 +3005,21 @@ const Game = {
 
         let p = state.player.prisoner;
         this.setHtml('prisoner-info',
-              `Seni tutan: <b>${p.npcName}</b><br>`
-            + `Muhafız: <b>${p.troops || '?'}</b> kişi<br>`
-            + `Kalan süre: <b>${Math.max(0, p.daysLeft)}</b> gün<br>`
+              `${T`Seni tutan:`} <b>${T(p.npcName)}</b><br>`
+            + `${T`Muhafız: <b>${p.troops || '?'}</b> kişi`}<br>`
+            + `${T`Kalan süre: <b>${Math.max(0, p.daysLeft)}</b> gün`}<br>`
             + (p.fellows && p.fellows.length
-                ? `Diğer esirler: <b>${p.fellows.join(', ')}</b>`
-                : `Zincirdeki tek esir sensin.`));
-        document.getElementById('ui-escape-chance').innerText = `${Math.round(p.escapeChance)}%`;
+                ? `${T`Diğer esirler:`} <b>${p.fellows.join(', ')}</b>`
+                : T`Zincirdeki tek esir sensin.`));
+        document.getElementById('ui-escape-chance').innerText = this.pct(p.escapeChance);
         
         let btn = document.getElementById('btn-escape-plan');
         if(p.isPlanning) {
             btn.classList.add('planning-active');
-            btn.innerText = 'Plan Yapılıyor... (Vazgeç)';
+            btn.innerText = T('Plan Yapılıyor... (Vazgeç)');
         } else {
             btn.classList.remove('planning-active');
-            btn.innerText = 'Kaçış Planı Yap';
+            btn.innerText = T('Kaçış Planı Yap');
         }
     },
 
@@ -3023,19 +3034,19 @@ const Game = {
         let p = state.player.prisoner;
         
         if(p.lastAttemptDay === state.time.day) {
-            alert('Günde sadece 1 kez kaçmayı deneyebilirsin! Plan yapmaya devam et veya yarını bekle.');
+            alert(T('Günde sadece 1 kez kaçmayı deneyebilirsin! Plan yapmaya devam et veya yarını bekle.'));
             return;
         }
         
         p.lastAttemptDay = state.time.day;
         
         if(Math.random() * 100 <= p.escapeChance) {
-            alert('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!');
+            alert(T('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!'));
             Quests.emit('escaped_captivity', { npcId: p.npcId });
             state.player.prisoner = null;
             state.player.status = 'idle';
         } else {
-            alert('Kahretsin! Kaçış girişimin fark edildi. Tüm planların suya düştü ve ceza aldın!');
+            alert(T('Kahretsin! Kaçış girişimin fark edildi. Tüm planların suya düştü ve ceza aldın!'));
             p.escapeChance = Math.max(0, p.escapeChance - 60);
             p.isPlanning = false;
         }
@@ -3613,9 +3624,9 @@ const Game = {
                 ctx.fillText(npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44);
             }
             
-            let shortName = npc.name.split(' ')[0];
+            let shortName = this.npcName(npc).split(' ')[0];
             if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
-                shortName = npc.name.replace(' Ordusu', '').replace(' Birliği', '');
+                shortName = this.npcName(npc).replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
             }
             this.mapLabel(ctx, `${shortName} (${npc.size})`, npc.x, npc.y + 50, '#ffffff', nCol);
         });
@@ -3706,7 +3717,7 @@ const Game = {
         if(!found) {
             for(let npc of state.npcParties) {
                 if(this.dist(npc,{x:mx,y:my}) < 30 && this.canSee(npc)) {
-                    found = { name: npc.name, sub: this.npcTipHtml(npc) };
+                    found = { name: this.npcName(npc), sub: this.npcTipHtml(npc) };
                     break;
                 }
             }
@@ -3724,7 +3735,7 @@ const Game = {
             // `rect` bu gövdede tanımlı değildi: yerleşimin üstüne her gelişte
             // ReferenceError atıyor, künye hiç açılmıyordu. Ölçüm mapPos ile aynı kapıdan.
             let rect = this.mapCanvas.getBoundingClientRect();
-            tooltip.innerHTML = `<strong>${found.name}</strong><br>${found.sub}`;
+            tooltip.innerHTML = `<strong>${T(found.name)}</strong><br>${found.sub}`;
             tooltip.style.left = '0px'; tooltip.style.top = '0px';
             tooltip.classList.remove('hidden');
             // Ölçüp içeri al: dar ekranda parmağın sağında künye kadar yer yok (#65)
@@ -3745,6 +3756,55 @@ const Game = {
             x: ((e.clientX - rect.left) - rect.width/2) / this.camera.zoom + this.camera.x,
             y: ((e.clientY - rect.top) - rect.height/2) / this.camera.zoom + this.camera.y
         };
+    },
+
+    // Yüzde işareti Türkçede sayının önünde (%50), İngilizce ve Endonezcede
+    // arkasında (50%) durur. `T` şablonuna giren yüzdeleri sözlük hallediyor;
+    // bu kapı şablona girmeyen, koda gömülü sayılar içindir.
+    pct(n, signed = false) {
+        let v = Math.round(n * 10) / 10, sign = signed && v > 0 ? '+' : v < 0 ? '−' : '';
+        v = Math.abs(v);
+        return I18N.lang === 'tr' ? `${sign}%${v}` : `${sign}${v}%`;
+    },
+
+    // --- DİL ---
+    // İlk açılışta perde sorar (tarayıcı dili önerilir); seçim localStorage'da
+    // durur, bir daha sorulmaz. Sonrasında başlangıç ekranındaki bayrak sırası
+    // ve ⚙️ Ayarlar aynı `setLang` kapısından geçer.
+    initLang() {
+        const saved = I18N.load();
+        this.renderLangRow('lang-row');
+        if(!saved) {
+            const ask = document.getElementById('lang-ask');
+            I18N.set(I18N.guess());
+            this.renderLangRow('lang-ask-row');
+            if(ask) ask.classList.remove('hidden');
+        }
+        I18N.applyDom(document.body);
+    },
+
+    renderLangRow(id) {
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.innerHTML = I18N.LANGS.map(l =>
+            `<button class="lang-btn${l.id === I18N.lang ? ' on' : ''}" onclick="Game.setLang('${l.id}')">
+                <span class="lang-flag">${l.flag}</span>${T(l.name)}</button>`).join('');
+    },
+
+    setLang(lang) {
+        I18N.set(lang);
+        const ask = document.getElementById('lang-ask');
+        if(ask) ask.classList.add('hidden');
+        this.renderLangRow('lang-row');
+        this.renderLangRow('lang-ask-row');
+        I18N.applyDom(document.body);
+        if(document.getElementById('settings-panel')) return this.showSettings();
+        // Oyun içindeyken açık ekran kendi metnini yeniden kurar
+        const open = document.querySelector('.view.active');
+        if(open && document.getElementById('main-ui').classList.contains('active')) {
+            this.showScreen(open.id.replace('-view', ''));
+            this.updateTopBar();
+        }
     },
 
     // --- DOKUNMATİK (#65) ---
@@ -3899,7 +3959,7 @@ const Game = {
         for(let site of (state.sites || [])) {
             if(this.dist(site, m) < 30) { state.player.targetLocation = site; state.player.status = 'moving'; return; }
         }
-        state.player.targetLocation = { x: m.x, y: m.y, name: 'Hedef Bölge', type: null };
+        state.player.targetLocation = { x: m.x, y: m.y, name: T('Hedef Bölge'), type: null };
         state.player.status = 'moving';
     },
 
@@ -3916,7 +3976,7 @@ const Game = {
         if(loc.type === 'site') return this.enterSite(loc);   // keşif noktası (#58): ekran değil modal
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById('settlement-view').classList.add('active');
-        document.getElementById('settlement-name').innerText = loc.name + (loc.type==='city'?' (Şehir)':loc.type==='castle'?' (Kale)':' (Köy)');
+        document.getElementById('settlement-name').innerText = loc.name + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
@@ -3929,58 +3989,58 @@ const Game = {
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
             // Düşman kapısında hiçbir sivil hizmet yok: pazar, han, salon, gönüllü — hepsi kapalı.
             // Bağımsızsan aynı kuşatma kendi krallığını kurar, iki ayrı düğme çıkmaz.
-            this.addBtn(ac, state.player.vassalOf ? '⚔️ Kuşatma Kampı Kur' : '⚔️ Kuşat! (Kendi Krallığını Kur)',
+            this.addBtn(ac, state.player.vassalOf ? T('⚔️ Kuşatma Kampı Kur') : T('⚔️ Kuşat! (Kendi Krallığını Kur)'),
                         () => this.besiegeLocation(loc, !state.player.vassalOf));
         } else {
             let chickenQ = state.player.quests.find(q => q.id === 'crazy_chickens' && q.data.locId === loc.id);
-            if(chickenQ) this.addBtn(ac, '🐔 Tavukları Kovala (15 sn)', () => TournamentMinigame.start({ mode:'chicken', goal:8, time:15 }));
+            if(chickenQ) this.addBtn(ac, T('🐔 Tavukları Kovala (15 sn)'), () => TournamentMinigame.start({ mode:'chicken', goal:8, time:15 }));
             if(loc.owner === 'player' && loc.type !== 'village') {
-                this.addBtn(ac, `🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
-                this.addBtn(ac, `📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));
+                this.addBtn(ac, T`🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
+                this.addBtn(ac, T`📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));
             }
             if(loc.type === 'city') {
-                this.addBtn(ac, '🛒 Pazara Git', () => this.openMarket(loc));
+                this.addBtn(ac, T('🛒 Pazara Git'), () => this.openMarket(loc));
                 // İşletme: 20. günün "bu parayla ne yapayım" cevabı (#53 madde 1.6)
                 this.addBtn(ac, loc.enterprise
-                    ? `🏭 İşletmen (+${this.enterpriseIncome(loc)} dinar/gün)`
-                    : `🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`, () => this.buyEnterprise(loc));
-                this.addBtn(ac, '🍺 Hana Gir', () => this.openTavern(loc));
-                this.addBtn(ac, '⛓️ Köle Tüccarı', () => this.openSlaveTrader());
-                this.addBtn(ac, '🤺 Arenada Dövüş', () => this.openArena(loc));
+                    ? T`🏭 İşletmen (+${this.enterpriseIncome(loc)} dinar/gün)`
+                    : T`🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`, () => this.buyEnterprise(loc));
+                this.addBtn(ac, T('🍺 Hana Gir'), () => this.openTavern(loc));
+                this.addBtn(ac, T('⛓️ Köle Tüccarı'), () => this.openSlaveTrader());
+                this.addBtn(ac, T('🤺 Arenada Dövüş'), () => this.openArena(loc));
                 if(state.activeTournaments[loc.id]) {
-                    this.addBtn(ac, '🏆 Turnuvaya Katıl', () => this.joinTournament(loc));
+                    this.addBtn(ac, T('🏆 Turnuvaya Katıl'), () => this.joinTournament(loc));
                 }
-                this.addBtn(ac, '👑 Lordlar Salonuna Git', () => Nobles.openHall(loc));
+                this.addBtn(ac, T('👑 Lordlar Salonuna Git'), () => Nobles.openHall(loc));
                 if(state.feast && state.feast.locId === loc.id) {
-                    this.addBtn(ac, '🍷 Şölene Katıl', () => Feast.open(loc));
+                    this.addBtn(ac, T('🍷 Şölene Katıl'), () => Feast.open(loc));
                 } else if(state.player.vassalOf && loc.faction === state.player.vassalOf) {
-                    this.addBtn(ac, '🍷 Şölen Ver (3000 Dinar + 30 et/peynir)', () => Feast.host(loc));
+                    this.addBtn(ac, T('🍷 Şölen Ver (3000 Dinar + 30 et/peynir)'), () => Feast.host(loc));
                 }
                 if(loc.volunteersAvailable > 0) {
-                    this.addBtn(ac, '🪖 Gönüllü Topla', () => this.recruitVolunteers(loc));
+                    this.addBtn(ac, T('🪖 Gönüllü Topla'), () => this.recruitVolunteers(loc));
                 }
             } else if(loc.type === 'castle') {
-                this.addBtn(ac, '👑 Lordlar Salonuna Git', () => Nobles.openHall(loc));
+                this.addBtn(ac, T('👑 Lordlar Salonuna Git'), () => Nobles.openHall(loc));
                 if(state.feast && state.feast.locId === loc.id) {
-                    this.addBtn(ac, '🍷 Şölene Katıl', () => Feast.open(loc));
+                    this.addBtn(ac, T('🍷 Şölene Katıl'), () => Feast.open(loc));
                 }
             } else if(loc.type === 'village') {
                 // Düşman köyü sana ne asker ne erzak verir — ama söyleyecek iki çift lafı vardır (#50)
-                this.addBtn(ac, '🧓 Köy Yaşlısıyla Konuş', () => this.talkToElder(loc));
+                this.addBtn(ac, T('🧓 Köy Yaşlısıyla Konuş'), () => this.talkToElder(loc));
                 // Küfrettiği adama peynir de satmaz: yağmaladığın köy hizmet vermez (#50)
                 if(!isEnemy && !this.raidedRecently(loc)) {
                     if(loc.volunteersAvailable > 0) {
-                        this.addBtn(ac, '🪖 Gönüllü Topla', () => this.recruitVolunteers(loc));
+                        this.addBtn(ac, T('🪖 Gönüllü Topla'), () => this.recruitVolunteers(loc));
                     }
-                    this.addBtn(ac, '🛒 Erzak Al', () => this.openMarket(loc));
+                    this.addBtn(ac, T('🛒 Erzak Al'), () => this.openMarket(loc));
                 }
-                this.addBtn(ac, '🔥 Köyü Yağmala', () => this.raidVillage(loc));
+                this.addBtn(ac, T('🔥 Köyü Yağmala'), () => this.raidVillage(loc));
             }
         }
         if(!isEnemy && !state.player.vassalOf && (loc.type==='city'||loc.type==='castle')) {
-            this.addBtn(ac, '⚔️ Kuşat! (Kendi Krallığını Kur)', () => this.besiegeLocation(loc, true));
+            this.addBtn(ac, T('⚔️ Kuşat! (Kendi Krallığını Kur)'), () => this.besiegeLocation(loc, true));
         }
-        this.addBtn(ac, '🚪 Ayrıl', () => this.showScreen('map'));
+        this.addBtn(ac, T('🚪 Ayrıl'), () => this.showScreen('map'));
         this.renderScene(loc);   // düğmeler hazır: sahne onların üstüne kurulur (#60)
     },
 
@@ -4552,7 +4612,7 @@ const Game = {
     btnLabelOk(text, where) {
         let t = (text === null || text === undefined) ? '' : String(text);
         if(t.replace(/<[^>]*>/g, '').trim()) return true;
-        Debug.log('bosbuton', `Etiketsiz buton (${where})`, {
+        Debug.log('bosbuton', T`Etiketsiz buton (${where})`, {
             deger: JSON.stringify(text),
             yigin: ((new Error()).stack || '').split('\n').slice(2, 5).map(l => l.trim()).join(' | ')
         });
@@ -4615,10 +4675,10 @@ const Game = {
 
     // --- MARKET ---
     openMarket(loc) {
-        let html = `<h3>🛒 Pazar - ${loc.name}</h3>
+        let html = `<h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
         <div id="market-cols" style="display:flex;gap:2rem;margin-top:1rem;">
-        <div style="flex:1;"><h4>Satın Al</h4><ul id="market-buy" style="list-style:none;"></ul></div>
-        <div style="flex:1;"><h4>Sat</h4><ul id="market-sell" style="list-style:none;"></ul></div>
+        <div style="flex:1;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
+        <div style="flex:1;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
         </div>
         <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:0.9rem"></div>`;
         this.showModal(html);
@@ -4693,8 +4753,8 @@ const Game = {
     priceTag(loc, id) {
         let rel = Math.round((this.priceMult(loc, id) - 1) * 100);
         let c = rel <= -12 ? '#2ecc71' : rel >= 12 ? '#e0463a' : 'var(--text-muted)';
-        let w = rel <= -12 ? 'ucuz' : rel >= 12 ? 'pahalı' : 'normal';
-        return `<span style="color:${c}">${w} ${rel > 0 ? '+' : ''}${rel}%</span>`;
+        let w = rel <= -12 ? T('ucuz') : rel >= 12 ? T('pahalı') : T('normal');
+        return `<span style="color:${c}">${w} ${this.pct(rel, true)}</span>`;
     },
     // Lonca ustasının defteri: hangi mal nerede ucuz, nerede pahalı (Warband'daki
     // "ticaret malları fiyatları" ekranı). Rota kurmanın tek bilgi kaynağı.
@@ -4703,17 +4763,17 @@ const Game = {
         let towns = LOCATIONS.filter(l => l.type === 'city')
                              .sort((a, b) => this.dist(a, here) - this.dist(b, here)).slice(0, 5);
         let goods = Object.values(ITEMS).filter(i => i.type === 'trade' || i.type === 'food');
-        let head = towns.map(t => `<th style="padding:0.2rem 0.4rem;font-weight:600;color:${(FACTIONS[t.faction]||{}).color||'#fff'}">${t.name}${t.id === here.id ? ' *' : ''}</th>`).join('');
-        let rows = goods.map(g => `<tr><td style="padding:0.2rem 0.4rem">${g.icon} ${g.name}</td>` +
+        let head = towns.map(t => `<th style="padding:0.2rem 0.4rem;font-weight:600;color:${(FACTIONS[t.faction]||{}).color||'#fff'}">${T(t.name)}${t.id === here.id ? ' *' : ''}</th>`).join('');
+        let rows = goods.map(g => `<tr><td style="padding:0.2rem 0.4rem">${g.icon} ${T(g.name)}</td>` +
             towns.map(t => `<td style="padding:0.2rem 0.4rem;text-align:right">${Math.max(1, Math.floor(g.basePrice * this.priceMult(t, g.id)))}₺<br>
                 <span style="font-size:0.7rem">${this.priceTag(t, g.id)}</span></td>`).join('') + '</tr>').join('');
-        this.showModal(`<h3>📈 Lonca Fiyat Defteri</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem">"En yakın beş şehrin fiyatları bunlar. Ucuz aldığın malı
+        this.showModal(`<h3>${T`📈 Lonca Fiyat Defteri`}</h3>
+            <p style="color:var(--text-muted);font-size:0.9rem">${T`"En yakın beş şehrin fiyatları bunlar. Ucuz aldığın malı
             pahalı olduğu yerde satarsan kâr edersin — ama sen aldıkça fiyat yükselir, sattıkça düşer."<br>
-            Satış fiyatı bu rakamın <b>%70</b>'i (Ticaret yeteneği payını iyileştirir). <i>*</i> bulunduğun şehir.</p>
+            Satış fiyatı bu rakamın <b>%70</b>'i (Ticaret yeteneği payını iyileştirir). <i>*</i> bulunduğun şehir.`}</p>
             <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-            <tr><th style="text-align:left;padding:0.2rem 0.4rem">Mal</th>${head}</tr>${rows}</table></div>
-            <button class="btn" style="margin-top:1rem" onclick="Game.openTavern(LOCATIONS.find(l=>l.id==='${locId}'))">Geri</button>`, '760px');
+            <tr><th style="text-align:left;padding:0.2rem 0.4rem">${T`Mal`}</th>${head}</tr>${rows}</table></div>
+            <button class="btn" style="margin-top:1rem" onclick="Game.openTavern(LOCATIONS.find(l=>l.id==='${locId}'))">${T('Geri')}</button>`, '760px');
     },
     // Fiyat butonun HTML'inden parametre olarak gelmemeli: DOM'dan değiştirilerek
     // bedavaya alışveriş yapılabiliyor, eksik parametrede para NaN oluyordu.
@@ -4736,11 +4796,11 @@ const Game = {
             // Stok (#46): sınırlı mal kaç tane kalmış, tükendiyse buton yok
             let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
             let empty = st <= 0;
-            li.innerHTML = `${item.icon} ${item.name} - <b>${price}₺</b> `
+            li.innerHTML = `${item.icon} ${T(item.name)} - <b>${price}₺</b> `
                 + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                + (isFinite(st) ? `<span style="font-size:0.72rem;color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">stok ${st}</span> ` : '')
-                + (empty ? `<i style="font-size:0.8rem;color:var(--text-muted)">tükendi</i>`
-                    : `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">Al</button> `
+                + (isFinite(st) ? `<span style="font-size:0.72rem;color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${T`stok ${st}`}</span> ` : '')
+                + (empty ? `<i style="font-size:0.8rem;color:var(--text-muted)">${T`tükendi`}</i>`
+                    : `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">${T`Al`}</button> `
                     + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',5)">x5</button>`)
                 + (note ? `<div style="font-size:0.7rem;color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
@@ -4751,9 +4811,9 @@ const Game = {
                 let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
                 li.id = 'mrow-sell-' + item.id;
-                li.innerHTML = `${item.icon||'📦'} ${item.name} x${item.qty} - <b>${price}₺</b> `
+                li.innerHTML = `${item.icon||'📦'} ${T(item.name)} x${item.qty} - <b>${price}₺</b> `
                     + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">Sat</button> `
+                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">${T`Sat`}</button> `
                     + (item.qty >= 5 ? `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}',5)">x5</button>` : '');
                 sell.appendChild(li);
             }
@@ -4820,39 +4880,43 @@ const Game = {
             <div><div>${label}</div>${note ? `<div style="font-size:0.75rem;color:var(--text-muted)">${note}</div>` : ''}</div><div style="white-space:nowrap">${ctrl}</div></div>`;
         let rm = this.opt('reducedMotion');
         let rmBtn = ['auto', true, false].map(v => `<button class="btn${rm === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
-            onclick="Game.setOpt('reducedMotion', ${JSON.stringify(v)})">${v === 'auto' ? 'Sistem' : v ? 'Açık' : 'Kapalı'}</button>`).join(' ');
+            onclick="Game.setOpt('reducedMotion', ${JSON.stringify(v)})">${v === 'auto' ? T('Sistem') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let fs = this.opt('fontScale');
         let fsBtn = [0.9, 1, 1.15].map(v => `<button class="btn${fs === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
-            onclick="Game.setOpt('fontScale', ${v})">${v === 0.9 ? 'Küçük' : v === 1 ? 'Normal' : 'Büyük'}</button>`).join(' ');
-        let hz = this._minStep === Infinity ? 'ölçülmedi' : Math.round(1000 / this._minStep) + ' Hz';
-        this.showModal(`<div id="settings-panel"><h3>⚙️ Ayarlar</h3>
-        ${row('🔊 Ses', sw('muted', 'Kapalı', 'Açık'))}
-        ${row('🎚️ Ses seviyesi', `<input type="range" min="0" max="100" value="${Math.round(this.opt('volume') * 100)}"
+            onclick="Game.setOpt('fontScale', ${v})">${v === 0.9 ? T('Küçük') : v === 1 ? T('Normal') : T('Büyük')}</button>`).join(' ');
+        let hz = this._minStep === Infinity ? T('ölçülmedi') : Math.round(1000 / this._minStep) + T(' Hz');
+        this.showModal(`<div id="settings-panel"><h3>${T`⚙️ Ayarlar`}</h3>
+        ${row(T('🌍 Dil'), I18N.LANGS.map(l => `<button class="btn${l.id === I18N.lang ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+            onclick="Game.setLang('${l.id}')">${l.flag} ${T(l.name)}</button>`).join(' '))}
+        ${row(T('🔊 Ses'), sw('muted', T('Kapalı'), T('Açık')))}
+        ${row(T('🎚️ Ses seviyesi'), `<input type="range" min="0" max="100" value="${Math.round(this.opt('volume') * 100)}"
             oninput="Game.setOpt('volume', this.value / 100)" onchange="Game.sfx('buy')" style="vertical-align:middle">
-            <span style="font-size:0.8rem;color:var(--text-muted)">%${Math.round(this.opt('volume') * 100)}</span>`)}
-        ${row('🎞️ Hareketi azalt', rmBtn, 'Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır')}
-        ${row('🩸 Kan ve cesetler', sw('gore', 'Açık', 'Kapalı'), 'Kapatmak zayıf makinede kare hızını rahatlatır')}
-        ${row('🖼️ Kare atlama kapısı', sw('frameGate', 'Açık', 'Kapalı'), `Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen: <b>${hz}</b>`)}
-        ${row('🔠 Yazı boyutu', fsBtn)}
-        ${row('💾 Otomatik kayıt', sw('autosave', 'Açık', 'Kapalı'), 'Her oyun günü başında, halkasal 5 slot')}
+            <span style="font-size:0.8rem;color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
+        ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
+        ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
+        ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}
+        ${row(T('🔠 Yazı boyutu'), fsBtn)}
+        ${row(T('💾 Otomatik kayıt'), sw('autosave', T('Açık'), T('Kapalı')), T('Her oyun günü başında, halkasal 5 slot'))}
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
-            <button class="btn" onclick="Save.open()">💾 Kayıtlar</button>
-            <button class="btn" onclick="Debug.open()">🐞 Debug Raporu</button>
-            <button class="btn" onclick="Game.showKeys()">⌨️ Tuşlar</button>
-            <button class="btn primary" onclick="Game.closeModal()">Kapat</button>
+            <button class="btn" onclick="Save.open()">${T`💾 Kayıtlar`}</button>
+            <button class="btn" onclick="Debug.open()">${T`🐞 Debug Raporu`}</button>
+            <button class="btn" onclick="Game.showKeys()">${T`⌨️ Tuşlar`}</button>
+            <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>
-        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})</p>
+        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${T(VERSION.name)} (${VERSION.date})`}</p>
         </div>`, '620px');
     },
+    // Ham durur; gösterimde `T` ile çevrilir (tablo yükleme anında kurulur,
+    // o sırada dil hâlâ 'tr' olduğu için burada çevirmek çeviriyi dondururdu)
     KEYS: [['M', 'Harita'], ['C', 'Karakter'], ['P', 'Grup'], ['I', 'Envanter'], ['Q', 'Görevler'],
            ['K', 'Diplomasi'], ['Esc', 'Haritaya dön / modalı kapat'], ['Enter', 'Modaldeki ana düğme'],
            ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['Boşluk', 'Kamerayı oyuncuya getir'],
            ['Savaşta W A S D', 'Hareket'], ['Sol tık / Boşluk', 'Vur veya ok at'],
            ['Sağ tık / Shift', 'Blok'], ['1 2 3', 'Taktik emirleri']],
     showKeys() {
-        this.showModal(`<h3>⌨️ Tuşlar</h3><table style="width:100%;font-size:0.9rem">
-        ${this.KEYS.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${k}</kbd></td><td style="color:var(--text-muted)">${v}</td></tr>`).join('')}
-        </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">← Ayarlar</button>`, '460px');
+        this.showModal(`<h3>${T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:0.9rem">
+        ${this.KEYS.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${T(k)}</kbd></td><td style="color:var(--text-muted)">${T(v)}</td></tr>`).join('')}
+        </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">${T`← Ayarlar`}</button>`, '460px');
     },
     flash(el, ok = true) {
         if(!el) return;
@@ -4884,7 +4948,7 @@ const Game = {
         this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
     },
     buyItem(id, n = 1) {
-        if(this.marketPrice(id) === null) return alert('Bu eşya pazarda yok.');
+        if(this.marketPrice(id) === null) return alert(T('Bu eşya pazarda yok.'));
         let loc = this._marketLoc, out = false, cost = 0, can = 0;
         // Fiyat birim birim hesaplanır: her alınan mal stoku düşürür, düşen stok bir sonrakini
         // pahalılaştırır. (Tek fiyatla toplu almak ucuza gelirdi — teker teker al/toplu al farkı.)
@@ -4897,8 +4961,8 @@ const Game = {
         }
         if(can <= 0) {
             this.feedback('error', document.getElementById('mrow-buy-' + id));
-            return this.marketMsg(out ? `${ITEMS[id].name} kalmadı — pazarın stoku tükendi, birkaç gün sonra gel.`
-                : `Yeterli dinarın yok — ${ITEMS[id].name} ${this.marketPrice(id)}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
+            return this.marketMsg(out ? T`${T(ITEMS[id].name)} kalmadı — pazarın stoku tükendi, birkaç gün sonra gel.`
+                : T`Yeterli dinarın yok — ${T(ITEMS[id].name)} ${this.marketPrice(id)}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
         }
         state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
@@ -4906,8 +4970,8 @@ const Game = {
         this.addProficiencyXp('trade', 4 * can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
-        this.marketMsg(`${ITEMS[id].icon} <b>${ITEMS[id].name} x${can}</b> alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`
-            + (can < n ? ` <i>(${out ? 'stok bitti' : `paran ${n} taneye yetmedi`})</i>` : ''));
+        this.marketMsg(`${ITEMS[id].icon} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
+            + (can < n ? ` <i>(${out ? T('stok bitti') : T`paran ${n} taneye yetmedi`})</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
         // Parlatma yenilemeden SONRA: satır elemanı yeniden kuruluyor
         this.feedback('buy', document.getElementById('mrow-buy-' + id), -cost);
@@ -4917,7 +4981,7 @@ const Game = {
         let idx = state.player.inventory.findIndex(i => i.id === id);
         if(idx === -1) return;
         let item = state.player.inventory[idx];
-        if(item.type !== 'trade') { this.sfx('error'); return alert('Bu eşya pazarda satılmıyor.'); }
+        if(item.type !== 'trade') { this.sfx('error'); return alert(T('Bu eşya pazarda satılmıyor.')); }
         let can = Math.min(n, item.qty), gain = 0;
         // Sattığın mal pazarın stokuna girer: her satılan birim bir sonrakinin fiyatını düşürür.
         for(let i = 0; i < can; i++) {
@@ -4928,7 +4992,7 @@ const Game = {
         this.addProficiencyXp('trade', 4 * can);
         item.qty -= can;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
-        this.marketMsg(`${item.icon||'📦'} <b>${item.name} x${can}</b> satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`);
+        this.marketMsg(`${item.icon||'📦'} <b>${T(item.name)} x${can}</b> ${T`satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`}`);
         this.updateTopBar(); this.refreshMarket();
         this.feedback('sell', document.getElementById('mrow-sell-' + id) || document.getElementById('mrow-buy-' + id), gain);
         this.flash(document.getElementById('mrow-buy-' + id));
@@ -4936,62 +5000,62 @@ const Game = {
 
     // --- TAVERN ---
     openTavern(loc) {
-        let html = `<h3>🍺 Han - ${loc.name}</h3><p>Hancı sana gülümsüyor. "Hoşgeldin yolcu!"</p>
-        <p>Burada dinlenip canını yenileyebilirsin. (10 Dinar)</p>
-        <button class="btn primary" onclick="Game.restAtTavern()">Dinlen</button>
+        let html = `<h3>${T`🍺 Han - ${T(loc.name)}</h3><p>Hancı sana gülümsüyor. "Hoşgeldin yolcu!"</p>
+        <p>Burada dinlenip canını yenileyebilirsin. (10 Dinar)`}</p>
+        <button class="btn primary" onclick="Game.restAtTavern()">${T`Dinlen`}</button>
         <hr style="border-color:var(--panel-border);margin:1.2rem 0">
-        <h4 style="color:var(--primary)">🎵 Köşedeki Ozan</h4>
-        <p style="font-size:0.9rem;color:var(--text-muted)">"Bir kadeh ve biraz gümüş, sana bir dize öğretirim. Kime okuyacağın seni ilgilendirir."</p>
+        <h4 style="color:var(--primary)">${T`🎵 Köşedeki Ozan`}</h4>
+        <p style="font-size:0.9rem;color:var(--text-muted)">${T`"Bir kadeh ve biraz gümüş, sana bir dize öğretirim. Kime okuyacağın seni ilgilendirir."`}</p>
         <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.6rem">`;
         POEMS.forEach(p => {
             html += state.player.poems.includes(p.id)
-                ? `<button class="btn" disabled style="opacity:0.4;font-size:0.85rem">${p.name} (ezberinde)</button>`
-                : `<button class="btn" style="font-size:0.85rem" onclick="Game.learnPoem('${p.id}')">${p.name} — ${p.cost} Dinar</button>`;
+                ? `<button class="btn" disabled style="opacity:0.4;font-size:0.85rem">${T`${T(p.name)} (ezberinde)`}</button>`
+                : `<button class="btn" style="font-size:0.85rem" onclick="Game.learnPoem('${p.id}')">${T`${T(p.name)} — ${p.cost} Dinar`}</button>`;
         });
         html += `</div>`;
 
         // Paralı askerler — parayı doğrudan hazır seviyeli askere çevirmenin tek yolu
         let pool = this.mercPool(loc);
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
-            <h4 style="color:var(--primary)">🗡️ Paralı Askerler</h4>
-            <p style="font-size:0.9rem;color:var(--text-muted)">"Sadakat pahalıdır, biz peşin çalışırız."</p>`;
-        if(!pool.list.length) html += `<p style="color:var(--text-muted)">Bu şehirde şu an boşta adam yok.</p>`;
+            <h4 style="color:var(--primary)">${T`🗡️ Paralı Askerler`}</h4>
+            <p style="font-size:0.9rem;color:var(--text-muted)">${T`"Sadakat pahalıdır, biz peşin çalışırız."`}</p>`;
+        if(!pool.list.length) html += `<p style="color:var(--text-muted)">${T`Bu şehirde şu an boşta adam yok.`}</p>`;
         pool.list.forEach((m, i) => {
             let price = this.mercPrice(m);
             let space = Math.max(0, this.getPartyCapacity() - state.player.party.length);
             let max = Math.min(m.count, space, Math.floor(state.player.money / price));
             let st = this.troopStats({ name: m.name });
             html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.7rem;margin-bottom:0.5rem">
-                <b>${st.icon} ${m.name}</b> <span style="font-size:0.8rem;color:var(--text-muted)">· seviye ${m.level} · ${m.count} kişi · kişi başı ${price} dinar</span>`;
+                <b>${st.icon} ${T(m.name)}</b> <span style="font-size:0.8rem;color:var(--text-muted)">${T`· seviye ${m.level} · ${m.count} kişi · kişi başı ${price} dinar`}</span>`;
             html += max > 0
                 ? `<input type="range" id="merc-n-${i}" min="1" max="${max}" value="${max}" style="width:100%;margin:0.5rem 0"
                         oninput="Game.updateMercLabel(${i}, ${price})">
                    <button class="btn primary" id="merc-btn-${i}" style="font-size:0.85rem"
-                        onclick="Game.hireMercs('${loc.id}', ${i}, +document.getElementById('merc-n-${i}').value)">Tut: ${max} kişi (${max * price} Dinar)</button>`
-                : `<div style="font-size:0.85rem;color:var(--danger);margin-top:0.4rem">${space <= 0 ? 'Grubunda yer yok.' : 'Kesen yetmiyor.'}</div>`;
+                        onclick="Game.hireMercs('${loc.id}', ${i}, +document.getElementById('merc-n-${i}').value)">${T`Tut: ${max} kişi (${max * price} Dinar)`}</button>`
+                : `<div style="font-size:0.85rem;color:var(--danger);margin-top:0.4rem">${space <= 0 ? T('Grubunda yer yok.') : T('Kesen yetmiyor.')}</div>`;
             html += `</div>`;
         });
 
         // Lonca ustası
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
-            <h4 style="color:var(--primary)">⚖️ Lonca Ustası</h4>
-            <p style="font-size:0.9rem;color:var(--text-muted)">Köşedeki masada, defterine bir şeyler yazıyor.</p>
-            <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">İşi Sor</button>
-            <button class="btn" onclick="Game.guildPrices('${loc.id}')">📈 Fiyat Defterine Bak</button>`;
+            <h4 style="color:var(--primary)">${T`⚖️ Lonca Ustası`}</h4>
+            <p style="font-size:0.9rem;color:var(--text-muted)">${T`Köşedeki masada, defterine bir şeyler yazıyor.`}</p>
+            <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">${T`İşi Sor`}</button>
+            <button class="btn" onclick="Game.guildPrices('${loc.id}')">${T`📈 Fiyat Defterine Bak`}</button>`;
 
         // Handaki yoldaşlar
         let here = COMPANIONS.filter(c => c.city === loc.id && !state.player.party.some(t => t.companionId === c.id));
         if(here.length) {
             html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
-                <h4 style="color:var(--primary)">🎖️ Köşedeki Yabancılar</h4>`;
+                <h4 style="color:var(--primary)">${T`🎖️ Köşedeki Yabancılar`}</h4>`;
             here.forEach(c => {
                 let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
                 html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.8rem;margin-bottom:0.5rem">
-                    <b>${c.icon} ${c.name}</b> <span style="font-size:0.8rem;color:var(--text-muted)">· ${this.profName(c.skill)} ${c.level}</span>
-                    <div style="font-size:0.85rem;font-style:italic;color:var(--text-muted);margin:0.3rem 0">${c.lore}</div>
+                    <b>${c.icon} ${T(c.name)}</b> <span style="font-size:0.8rem;color:var(--text-muted)">· ${this.profName(c.skill)} ${c.level}</span>
+                    <div style="font-size:0.85rem;font-style:italic;color:var(--text-muted);margin:0.3rem 0">${T(c.lore)}</div>
                     ${rival
-                        ? `<button class="btn" disabled style="opacity:0.5;font-size:0.85rem">${rival.name} grubundayken katılmaz</button>`
-                        : `<button class="btn primary" style="font-size:0.85rem" onclick="Game.hireCompanion('${c.id}')">Gruba Kat (${c.cost} Dinar)</button>`}
+                        ? `<button class="btn" disabled style="opacity:0.5;font-size:0.85rem">${T`${T(rival.name)} grubundayken katılmaz`}</button>`
+                        : `<button class="btn primary" style="font-size:0.85rem" onclick="Game.hireCompanion('${c.id}')">${T`Gruba Kat (${c.cost} Dinar)`}</button>`}
                 </div>`;
             });
         }
@@ -5030,7 +5094,7 @@ const Game = {
 
     updateMercLabel(i, price) {
         let n = +document.getElementById('merc-n-' + i).value;
-        this.setHtml('merc-btn-' + i, `Tut: ${n} kişi (${n * price} Dinar)`);
+        this.setHtml('merc-btn-' + i, T`Tut: ${n} kişi (${n * price} Dinar)`);
     },
 
     hireMercs(locId, idx, n) {
@@ -5040,7 +5104,7 @@ const Game = {
         if(!m) return;
         let price = this.mercPrice(m);
         n = Math.min(n, m.count, Math.max(0, this.getPartyCapacity() - state.player.party.length), Math.floor(state.player.money / price));
-        if(n < 1) return alert('Alacak adam yok.');
+        if(n < 1) return alert(T('Alacak adam yok.'));
         state.player.money -= n * price;
         m.count -= n;
         for(let i = 0; i < n; i++) {
@@ -5056,40 +5120,40 @@ const Game = {
     },
 
     profName(id) {
-        let m = { surgery:'Cerrahlık', spotting:'Gözcülük', pathfinding:'Yol Bulma', trade:'Ticaret',
-                  looting:'Yağma', trainer:'Eğitim', prisonerMgmt:'Esir Yönetimi',
-                  oneHanded:'Tek El', twoHanded:'Çift El', polearm:'Mızrak', bow:'Okçuluk',
-                  riding:'Binicilik', athletics:'Atletizm', leadership:'İdare', persuasion:'İkna' };
+        let m = { surgery:T('Cerrahlık'), spotting:T('Gözcülük'), pathfinding:T('Yol Bulma'), trade:T('Ticaret'),
+                  looting:T('Yağma'), trainer:T('Eğitim'), prisonerMgmt:T('Esir Yönetimi'),
+                  oneHanded:T('Tek El'), twoHanded:T('Çift El'), polearm:T('Mızrak'), bow:T('Okçuluk'),
+                  riding:T('Binicilik'), athletics:T('Atletizm'), leadership:T('İdare'), persuasion:T('İkna') };
         return m[id] || id;
     },
 
     hireCompanion(cid) {
         let c = COMPANIONS.find(x => x.id === cid);
         if(!c || state.player.party.some(t => t.companionId === cid)) return;
-        if(state.player.party.length >= this.getPartyCapacity()) return alert('Grubun dolu. "Kalabalığa karışmam ben."');
+        if(state.player.party.length >= this.getPartyCapacity()) return alert(T('Grubun dolu. "Kalabalığa karışmam ben."'));
         let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
         // ponytail: husumet katılmayı engeller; Warband'daki "sonradan çekip gitme"
         // için grup içi olay sistemi gerekirdi, bu kadarı hikâyeyi veriyor.
-        if(rival) return alert(`"${rival.name} mi? O adamla aynı çadırda uyumam." (Katılmadı)`);
-        if(state.player.money < c.cost) return alert('Kesen yetmiyor. "Bedavaya kimse kılıç sallamaz."');
+        if(rival) return alert(T`"${T(rival.name)} mi? O adamla aynı çadırda uyumam." (Katılmadı)`);
+        if(state.player.money < c.cost) return alert(T('Kesen yetmiyor. "Bedavaya kimse kılıç sallamaz."'));
         state.player.money -= c.cost;
         state.player.party.push({
             id: 'comp_' + c.id, companionId: c.id, isCompanion: true,
             name: c.name, level: c.level, xp: 0, xpNext: 3 + c.level
         });
         this.updateTopBar();
-        alert(`${c.name} gruba katıldı. ${this.profName(c.skill)} yeteneği artık grubuna işliyor (seviye ${c.level}).`);
+        alert(T`${T(c.name)} gruba katıldı. ${this.profName(c.skill)} yeteneği artık grubuna işliyor (seviye ${c.level}).`);
         if(this._tavernLoc) this.openTavern(this._tavernLoc);
     },
 
     learnPoem(pid) {
         let p = POEMS.find(x => x.id === pid);
         if(state.player.poems.includes(pid)) return;
-        if(state.player.money < p.cost) return alert('Ozan kadehini kaldırmadı. Paran yetmiyor.');
+        if(state.player.money < p.cost) return alert(T('Ozan kadehini kaldırmadı. Paran yetmiyor.'));
         state.player.money -= p.cost;
         state.player.poems.push(pid);
         this.updateTopBar();
-        alert(`${p.text}\n\nOzan üç kez tekrarlattı. Artık ezberinde.`);
+        alert(T`${T(p.text)}\n\nOzan üç kez tekrarlattı. Artık ezberinde.`);
         if(this._tavernLoc) this.openTavern(this._tavernLoc);
     },
     restAtTavern() {
@@ -5098,8 +5162,8 @@ const Game = {
             state.player.stats.hp = state.player.stats.maxHp;
             this.advanceTime(8);   // dinlenmek de zaman yer (#53/1.1)
             this.updateTopBar(); this.closeModal();
-            alert('Bir gece handa kaldın (8 saat). Canın tamamen yenilendi.');
-        } else alert('Yeterli dinarın yok!');
+            alert(T('Bir gece handa kaldın (8 saat). Canın tamamen yenilendi.'));
+        } else alert(T('Yeterli dinarın yok!'));
     },
 
     // --- ARENA (#26) ---
@@ -5108,13 +5172,13 @@ const Game = {
     ARENA_BET_MAX: 1000,
     openArena(loc) {
         let lv = state.player.stats.level;
-        this.showModal(`<h3>🤺 ${loc.name} Arenası</h3>
-        <p style="color:var(--text-muted)">Kum meydanında tahta silahlarla dövüşülür. Ganimet, nam ve esaret yok —
-        kazanan da kaybeden de kendi ayağıyla çıkar. Kazandığın tek şey <b>yeterlilik</b>, ödediğin tek bedel <b>zaman</b>.</p>
+        this.showModal(`<h3>${T`🤺 ${T(loc.name)} Arenası`}</h3>
+        <p style="color:var(--text-muted)">${T`Kum meydanında tahta silahlarla dövüşülür. Ganimet, nam ve esaret yok —
+        kazanan da kaybeden de kendi ayağıyla çıkar. Kazandığın tek şey <b>yeterlilik</b>, ödediğin tek bedel <b>zaman</b>.`}</p>
         <div class="action-list" style="margin-top:1rem">
             ${Battle.ARENA_FOES.map((f, i) => `<button class="btn" onclick="Game.startArena(${i})">
-                <b>${f.name}</b> <span style="color:var(--text-muted)">· Sv. ${Math.max(1, lv + f.dLv)} · ~${f.xp} XP</span>
-                <div style="font-size:0.8rem;color:var(--text-muted)">${f.desc}</div></button>`).join('')}
+                <b>${T(f.name)}</b> <span style="color:var(--text-muted)">${T`· Sv. ${Math.max(1, lv + f.dLv)} · ~${f.xp} XP`}</span>
+                <div style="font-size:0.8rem;color:var(--text-muted)">${T(f.desc)}</div></button>`).join('')}
         </div>`);
     },
     startArena(idx) { this.closeModal(); Battle.startArena(idx); },
@@ -5128,33 +5192,33 @@ const Game = {
         // Bedeli zamandır: kazanınca birkaç saat, kaybedince bir gün hasta yatağı.
         this.advanceTime(won ? 3 : 24);
         this.updateTopBar();
-        alert((won ? `${foe.name} kumun üstünde kaldı, kalabalık ıslık çalıyor.`
-                   : `${foe.name} seni yere serdi. Bir gün kendine gelemedin.`)
-            + `\n\n+${xp} ${this.profName(wp)}, +${Math.round(xp * 0.6)} ${this.profName(moveProf)} yeterlilik XP'si.`
-            + `\nArena para vermez — burada yalnız ustalık kazanılır.`);
+        alert((won ? T`${T(foe.name)} kumun üstünde kaldı, kalabalık ıslık çalıyor.`
+                   : T`${T(foe.name)} seni yere serdi. Bir gün kendine gelemedin.`)
+            + T`\n\n+${xp} ${this.profName(wp)}, +${Math.round(xp * 0.6)} ${this.profName(moveProf)} yeterlilik XP'si.`
+            + T`\nArena para vermez — burada yalnız ustalık kazanılır.`);
     },
 
     // --- TOURNAMENT ---
     joinTournament(loc) {
         if(!state.activeTournaments[loc.id]) {
-            this.showModal(`<h3>🏆 Turnuva Alanı</h3><p>Şu anda bu şehirde turnuva düzenlenmiyor.</p>`);
+            this.showModal(`<h3>${T`🏆 Turnuva Alanı</h3><p>Şu anda bu şehirde turnuva düzenlenmiyor.`}</p>`);
             return;
         }
         let max = Math.min(this.ARENA_BET_MAX, state.player.money);
-        let T = TournamentMinigame;
-        this.showModal(`<h3>🏆 ${loc.name} Turnuvası!</h3>
-        <p><b>${T.ROUNDS} tur</b> — her turda kuradan <b>rastgele bir ekipman</b> çıkar; kiminde hedef küçülür, kiminde büyür.</p>
-        <p>Şampiyonluk ödülü: <b>500 Dinar</b> ve <b>+20 Nam</b>. Elenirsen turnuva sona erer.</p>
+        let TM = TournamentMinigame;
+        this.showModal(`<h3>${T`🏆 ${T(loc.name)} Turnuvası!</h3>
+        <p><b>${TM.ROUNDS} tur</b> — her turda kuradan <b>rastgele bir ekipman</b> çıkar; kiminde hedef küçülür, kiminde büyür.</p>
+        <p>Şampiyonluk ödülü: <b>500 Dinar</b> ve <b>+20 Nam</b>. Elenirsen turnuva sona erer.`}</p>
         <div style="margin-top:1rem;padding:0.8rem;border:1px solid var(--panel-border);border-radius:8px">
-            <b>🎲 Bahis</b> <span style="color:var(--text-muted);font-size:0.85rem">— kendi kazanmana yatırırsın, oran tur ilerledikçe katlanır.</span>
+            <b>${T`🎲 Bahis`}</b> <span style="color:var(--text-muted);font-size:0.85rem">${T`— kendi kazanmana yatırırsın, oran tur ilerledikçe katlanır.`}</span>
             <div style="display:flex;gap:0.5rem;margin:0.5rem 0;font-size:0.85rem;color:var(--text-muted);flex-wrap:wrap">
-                ${T.ODDS.map((o, i) => `<span>${i === T.ROUNDS ? '🏆 Şampiyon' : `${i + 1}. turda elenme`}: <b style="color:${o >= 1 ? 'var(--success)' : 'var(--danger)'}">×${o}</b></span>`).join(' · ')}
+                ${TM.ODDS.map((o, i) => `<span>${i === TM.ROUNDS ? T('🏆 Şampiyon') : T`${i + 1}. turda elenme`}: <b style="color:${o >= 1 ? 'var(--success)' : 'var(--danger)'}">×${o}</b></span>`).join(' · ')}
             </div>
-            <label>Yatırılacak: <input type="number" id="tourney-bet" value="0" min="0" max="${max}" step="50"
+            <label>${T`Yatırılacak:`} <input type="number" id="tourney-bet" value="0" min="0" max="${max}" step="50"
                 style="width:110px;padding:0.3rem"></label>
-            <span style="color:var(--text-muted);font-size:0.85rem">(en fazla ${max} dinar)</span>
+            <span style="color:var(--text-muted);font-size:0.85rem">${T`(en fazla ${max} dinar)`}</span>
         </div>
-        <button class="btn primary" style="margin-top:1rem" onclick="Game.startTournament('${loc.id}')">⚔️ Arenaya Çık!</button>`);
+        <button class="btn primary" style="margin-top:1rem" onclick="Game.startTournament('${loc.id}')">${T`⚔️ Arenaya Çık!`}</button>`);
     },
     startTournament(locId) {
         let el = document.getElementById('tourney-bet');
@@ -5181,8 +5245,8 @@ const Game = {
     // düşman şehrin pazarı açık kalıyor ve düşman lord yanından geçip gidiyordu (#48).
     playerFaction() { return state.player.vassalOf || 'player'; },
     factionName(f) {
-        if(f === 'player') return (state.player.name || 'Bağımsız') + ' Bölüğü';
-        return (FACTIONS[f] || { name: f || 'Bağımsız' }).name;
+        if(f === 'player') return (state.player.name || T('Bağımsız')) + T(' Bölüğü');
+        return T((FACTIONS[f] || { name: f || T('Bağımsız') }).name);
     },
     // Haber akışı; oyuncunun krallığını ilgilendiren olay ayrıca bildirim olur
     news(msg, mine) {
@@ -5194,13 +5258,13 @@ const Game = {
         if(!a || !b || a === b || this.atWar(a, b) || this.allied(a, b)) return;
         state.wars[this.warKey(a, b)] = state.time.day;
         let mine = this.playerFaction() === a || this.playerFaction() === b;
-        this.news(`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaşa girdi.`, mine);
+        this.news(T`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaşa girdi.`, mine);
     },
     makePeace(a, b) {
         if(!this.atWar(a, b)) return;
         delete state.wars[this.warKey(a, b)];
         let mine = this.playerFaction() === a || this.playerFaction() === b;
-        this.news(`🕊️ ${this.factionName(a)} ile ${this.factionName(b)} barış imzaladı.`, mine);
+        this.news(T`🕊️ ${this.factionName(a)} ile ${this.factionName(b)} barış imzaladı.`, mine);
     },
     // ---- İTTİFAK ----
     // Müttefikler birbirine savaş açmaz; birinin düşmanı diğerinin de düşmanı olur.
@@ -5214,7 +5278,7 @@ const Game = {
         if(!a || !b || a === b || this.allied(a, b) || this.atWar(a, b)) return;
         state.allies[this.warKey(a, b)] = state.time.day;
         let mine = this.playerFaction() === a || this.playerFaction() === b;
-        this.news(`🤝 ${this.factionName(a)} ile ${this.factionName(b)} ittifak kurdu.`, mine);
+        this.news(T`🤝 ${this.factionName(a)} ile ${this.factionName(b)} ittifak kurdu.`, mine);
         // İttifakın bedeli: müttefikin cephesi senin cephen olur
         this.warsOf(a).concat(this.warsOf(b)).forEach(f => {
             if(f === a || f === b) return;
@@ -5224,7 +5288,7 @@ const Game = {
     breakAlliance(a, b) {
         if(!this.allied(a, b)) return;
         delete state.allies[this.warKey(a, b)];
-        this.news(`💔 ${this.factionName(a)} ile ${this.factionName(b)} ittifakı bozuldu.`,
+        this.news(T`💔 ${this.factionName(a)} ile ${this.factionName(b)} ittifakı bozuldu.`,
                   this.playerFaction() === a || this.playerFaction() === b);
     },
 
@@ -5247,7 +5311,7 @@ const Game = {
             if(!loc || !this.atWar(f, loc.faction) || state.time.day - c.day > 25) { this.endCampaign(f); continue; }
             // Sefer işareti haritada durur (Nobles.drawMarkers 3 günde siler, her gün tazeleniyor)
             if(c.pledged) state.knownLocations['campaign'] =
-                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, name: `Sefer: ${loc.name}` };
+                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, name: T`Sefer: ${T(loc.name)}` };
         }
         Object.keys(FACTIONS).forEach(f => {
             // Biten seferin ödül modalini yeni sefer çağrısı ezmesin
@@ -5260,7 +5324,7 @@ const Game = {
             if(!target) return;
             state.campaigns[f] = { marshalId: marshal.lordId, marshalName: marshal.name,
                                    targetLocId: target.id, day: state.time.day };
-            this.news(`🎖️ ${marshal.name} mareşal seçildi — ${this.factionName(f)} ordusu ${target.name} üzerine yürüyor.`);
+            this.news(T`🎖️ ${T(marshal.name)} mareşal seçildi — ${this.factionName(f)} ordusu ${T(target.name)} üzerine yürüyor.`);
             if(f === this.playerFaction() && f !== 'player_kingdom') this.summonToArms(f);
         });
     },
@@ -5271,8 +5335,8 @@ const Game = {
         state.campaignCooldown[f] = state.time.day;
         let loc = LOCATIONS.find(l => l.id === c.targetLocId);
         let won = loc && loc.faction === f;
-        this.news(won ? `🎖️ ${this.factionName(f)} seferi ${loc.name} ile taçlandı.`
-                      : `🏳️ ${this.factionName(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
+        this.news(won ? T`🎖️ ${this.factionName(f)} seferi ${T(loc.name)} ile taçlandı.`
+                      : T`🏳️ ${this.factionName(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
         if(c.pledged === undefined || f !== this.playerFaction()) return;
         delete state.knownLocations['campaign'];
         if(!c.pledged) return;                       // reddedenin bedeli çağrı anında ödendi
@@ -5281,39 +5345,39 @@ const Game = {
         if(c.helped && won) {
             state.player.renown += 15;
             lords.forEach(l => Nobles.addRel(l.id, 8));
-            alert(`Sefer taçlandı: ${loc.name} alındı ve sen oradaydın.\n+15 nam, ${this.factionName(f)} lordlarıyla +8 ilişki.`);
+            alert(T`Sefer taçlandı: ${T(loc.name)} alındı ve sen oradaydın.\n+15 nam, ${this.factionName(f)} lordlarıyla +8 ilişki.`);
         } else if(c.helped) {
             state.player.renown += 5;
             lords.forEach(l => Nobles.addRel(l.id, 3));
-            alert(`Sefer sonuç vermedi ama sancağın ordunun yanındaydı.\n+5 nam, lordlarla +3 ilişki.`);
+            alert(T`Sefer sonuç vermedi ama sancağın ordunun yanındaydı.\n+5 nam, lordlarla +3 ilişki.`);
         } else {
             if(king) Nobles.addRel(king.id, -8);
             lords.forEach(l => Nobles.addRel(l.id, -3));
             this.addHonor('oathBroken');   // tutulmayan söz şerefi yer (#53/1.5)
-            alert(`Sefere katılacağını söyleyip ordunun yanına hiç gitmedin.\n${king ? king.name : 'Kralın'} −8, diğer lordlar −3 ilişki, −5 şeref.`);
+            alert(T`Sefere katılacağını söyleyip ordunun yanına hiç gitmedin.\n${king ? T(king.name) : T('Kralın')} −8, diğer lordlar −3 ilişki, −5 şeref.`);
         }
     },
     summonToArms(f) {
         let c = state.campaigns[f];
         let loc = LOCATIONS.find(l => l.id === c.targetLocId);
         let king = LORDS.find(l => l.faction === f && l.rank === 'king');
-        this.showModal(`<h3>🎖️ Sefer Çağrısı</h3>
-        <p>${king ? king.name : 'Kralın'} bütün derebeylerini sancağı altında topluyor.
-        <b>${c.marshalName}</b> mareşal seçildi; ordu <b>${loc.name}</b> üzerine yürüyor.</p>
-        <p style="color:var(--text-muted)">Katılırsan hedefin yakınında bulunman gerekir — harita
-        sefer işaretini gösterir. Söz verip gitmemek, çağrıyı baştan reddetmekten pahalıdır.</p>
+        this.showModal(`<h3>${T`🎖️ Sefer Çağrısı</h3>
+        <p>${king ? T(king.name) : T('Kralın')} bütün derebeylerini sancağı altında topluyor.
+        <b>${T(c.marshalName)}</b> mareşal seçildi; ordu <b>${T(loc.name)}</b> üzerine yürüyor.`}</p>
+        <p style="color:var(--text-muted)">${T`Katılırsan hedefin yakınında bulunman gerekir — harita
+        sefer işaretini gösterir. Söz verip gitmemek, çağrıyı baştan reddetmekten pahalıdır.`}</p>
         <div style="display:flex;gap:1rem;margin-top:1rem">
-        <button class="btn primary" onclick="Game.answerSummons(true)">⚔️ Sefere Katıl</button>
-        <button class="btn" onclick="Game.answerSummons(false)">🚪 Reddet</button></div>`);
+        <button class="btn primary" onclick="Game.answerSummons(true)">${T`⚔️ Sefere Katıl`}</button>
+        <button class="btn" onclick="Game.answerSummons(false)">${T`🚪 Reddet`}</button></div>`);
     },
     answerSummons(join) {
         let f = this.playerFaction(), c = state.campaigns[f];
         this.closeModal();
         if(!c) return;
         c.pledged = !!join;
-        if(join) return alert('Sancağını kaldırdın. Ordunun hedefine yürü — sefer işareti haritada.');
+        if(join) return alert(T('Sancağını kaldırdın. Ordunun hedefine yürü — sefer işareti haritada.'));
         LORDS.filter(l => l.faction === f).forEach(l => Nobles.addRel(l.id, -5));
-        alert('Çağrıyı geri çevirdin. Krallığın bütün lordlarıyla ilişkin −5.');
+        alert(T('Çağrıyı geri çevirdin. Krallığın bütün lordlarıyla ilişkin −5.'));
     },
 
     // Dünya kurulurken bir cephe açık başlar (Kalradya hiç sakin değildir)
@@ -5324,7 +5388,7 @@ const Game = {
         let a = fs[Math.floor(Math.random() * fs.length)];
         let b = fs.filter(f => f !== a)[Math.floor(Math.random() * (fs.length - 1))];
         state.wars[this.warKey(a, b)] = 1;
-        state.warLog.unshift({ day: 1, msg: `⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaş hâlinde.` });
+        state.warLog.unshift({ day: 1, msg: T`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaş hâlinde.` });
     },
     // Günlük zar: uzayan savaşlar barışla biter, iki cepheden fazlası açılmaz
     diplomacyTick() {
@@ -5410,7 +5474,7 @@ const Game = {
         // habere girer, bildirim hiç çıkmaz (yoksa savaşta her gün modal yerdin).
         if(lose.size < 8) {
             lose.size = 0;
-            this.news(`🩸 ${win.name} (${this.factionName(win.faction)}), ${lose.name} kuvvetlerini dağıttı.`);
+            this.news(T`🩸 ${T(win.name)} (${this.factionName(win.faction)}), ${T(lose.name)} kuvvetlerini dağıttı.`);
         }
     },
     captureSettlement(loc, atk) {
@@ -5428,11 +5492,11 @@ const Game = {
         if(wasMine) {
             let lost = (loc.garrison || []).length;
             loc.owner = null; loc.garrison = [];
-            lostFief = `<br><b style="color:#e0463a">⚔️ ${loc.name} senin tımarındı!</b> `
-                + (lost ? `${lost} kişilik garnizonun kılıçtan geçti.` : 'Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.');
+            lostFief = `<br><b style="color:#e0463a">${T`⚔️ ${T(loc.name)} senin tımarındı!`}</b> `
+                + (lost ? T`${lost} kişilik garnizonun kılıçtan geçti.` : T('Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.'));
         }
         let mine = wasMine || [old, atk.faction].indexOf(this.playerFaction()) !== -1;
-        this.news(`🏰 ${loc.name}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.${lostFief}`, mine);
+        this.news(T`🏰 ${T(loc.name)}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.${lostFief}`, mine);
     },
     // Diplomasi ekranı: kim kiminle savaşta, kimin kaç toprağı var, son haberler
     showDiplomacy() {
@@ -5440,10 +5504,10 @@ const Game = {
             let foes = this.warsOf(f);
             let holds = LOCATIONS.filter(l => l.faction === f).length;
             return `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
-                <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${FACTIONS[f].name}</span>
-                <span style="color:var(--text-muted);min-width:70px">${holds} toprak</span>
+                <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${T(FACTIONS[f].name)}</span>
+                <span style="color:var(--text-muted);min-width:70px">${T`${holds} toprak`}</span>
                 <span>${foes.length ? '⚔️ ' + foes.map(x => this.factionName(x)).join(', ')
-                                    : '<span style="color:#2ecc71">🕊️ Barış içinde</span>'}${
+                                    : T('<span style="color:#2ecc71">🕊️ Barış içinde</span>')}${
                     this.alliesOf(f).length ? ` <span style="color:#6fc3ff">🤝 ${this.alliesOf(f).map(x => this.factionName(x)).join(', ')}</span>` : ''
                 }</span></div>`;
         }).join('');
@@ -5452,46 +5516,46 @@ const Game = {
             let c = state.campaigns[f], t = LOCATIONS.find(l => l.id === c.targetLocId);
             return `<div style="padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="color:${(FACTIONS[f]||{}).color||'#fff'};font-weight:600">${this.factionName(f)}</span>
-                — 🎖️ ${c.marshalName} → <b>${t ? t.name : '?'}</b>
-                ${c.pledged ? '<span style="color:#2ecc71">· sancağın orada</span>'
-                            : c.pledged === false ? '<span style="color:var(--danger)">· çağrıyı reddettin</span>' : ''}</div>`;
+                — 🎖️ ${T(c.marshalName)} → <b>${t ? T(t.name) : '?'}</b>
+                ${c.pledged ? T('<span style="color:#2ecc71">· sancağın orada</span>')
+                            : c.pledged === false ? T('<span style="color:var(--danger)">· çağrıyı reddettin</span>') : ''}</div>`;
         }).join('');
         let log = state.warLog.length
-            ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${n.day}. gün</span> — ${n.msg}</div>`).join('')
-            : '<p style="color:var(--text-muted)">Henüz haber yok.</p>';
+            ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${T`${n.day}. gün`}</span> — ${n.msg}</div>`).join('')
+            : T('<p style="color:var(--text-muted)">Henüz haber yok.</p>');
         let mine = this.playerFaction();
-        this.showModal(`<h3>🌍 Kalradya'nın Hâli</h3>
+        this.showModal(`<h3>${T`🌍 Kalradya'nın Hâli`}</h3>
             ${mine === 'player'
-                ? `<p style="color:var(--text-muted)">Bağımsızsın — kimseye yemin etmedin.${this.warsOf('player').length
-                    ? ` <b style="color:var(--danger)">Düşmanın: ${this.warsOf('player').map(x => this.factionName(x)).join(', ')}</b> — şehirlerine giremezsin, lordları üstüne gelir.` : ''}</p>`
-                : `<p style="color:var(--text-muted)">Bağlılığın: <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? ' — savaştasın!' : ''}</p>`}
+                ? `<p style="color:var(--text-muted)">${T`Bağımsızsın — kimseye yemin etmedin.${this.warsOf('player').length
+                    ? ` <b style="color:var(--danger)">${T`Düşmanın: ${this.warsOf('player').map(x => this.factionName(x)).join(', ')}`}</b> ${T`— şehirlerine giremezsin, lordları üstüne gelir.`}` : ''}`}</p>`
+                : `<p style="color:var(--text-muted)">${T`Bağlılığın:`} <b style="color:${(FACTIONS[mine]||{}).color||'#fff'}">${this.factionName(mine)}</b>${this.warsOf(mine).length ? T(' — savaştasın!') : ''}</p>`}
             ${rows}
-            ${this.grudgeList().length ? `<h3 style="margin-top:1rem">🩸 Kan Davaları</h3>`
+            ${this.grudgeList().length ? `<h3 style="margin-top:1rem">${T`🩸 Kan Davaları`}</h3>`
                 + this.grudgeList().map(id => {
                     let l = (typeof LORDS !== 'undefined' ? LORDS.find(x => x.id === id) : null) || { name: id };
                     let left = this.GRUDGE_DAYS - (state.time.day - state.grudges[id]);
                     return `<div style="padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
-                        <b style="color:var(--danger)">${l.name}</b> seni arıyor — <span style="color:var(--text-muted)">${left} gün daha</span></div>`;
+                        ${T`<b style="color:var(--danger)">${T(l.name)}</b> seni arıyor — <span style="color:var(--text-muted)">${left} gün daha</span>`}</div>`;
                 }).join('') : ''}
-            ${this.myFiefs().length ? `<h3 style="margin-top:1rem">🏰 Tımarların</h3>` + this.myFiefs().map(l =>
+            ${this.myFiefs().length ? `<h3 style="margin-top:1rem">${T`🏰 Tımarların`}</h3>` + this.myFiefs().map(l =>
                 `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
-                    <span style="min-width:150px;font-weight:600">${l.name}</span>
-                    <span style="color:var(--text-muted);min-width:70px">${l.type === 'city' ? 'Şehir' : l.type === 'castle' ? 'Kale' : 'Köy'}</span>
-                    <span style="color:#ffcc00;min-width:110px">+${this.fiefTax(l)} dinar/gün</span>
-                    <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">🛡️ ${(l.garrison || []).length} garnizon</span>
-                    ${this.vassals().length && l.type !== 'village' ? `<button class="btn" style="padding:0.1rem 0.5rem;font-size:0.75rem" onclick="Game.grantFiefMenu('${l.id}')">👑 Vassala ver</button>` : ''}
-                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi${this.fiefIncome().tribute ? ` · +${this.fiefIncome().tribute} haraç` : ''} · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> dinar/gün</div>` : ''}
-            ${this.vassals().length ? `<h3 style="margin-top:1rem">👑 Vassalların</h3>` + this.vassals().map(v =>
+                    <span style="min-width:150px;font-weight:600">${T(l.name)}</span>
+                    <span style="color:var(--text-muted);min-width:70px">${l.type === 'city' ? T('Şehir') : l.type === 'castle' ? T('Kale') : T('Köy')}</span>
+                    <span style="color:#ffcc00;min-width:110px">${T`+${this.fiefTax(l)} dinar/gün`}</span>
+                    <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">${T`🛡️ ${(l.garrison || []).length} garnizon`}</span>
+                    ${this.vassals().length && l.type !== 'village' ? `<button class="btn" style="padding:0.1rem 0.5rem;font-size:0.75rem" onclick="Game.grantFiefMenu('${l.id}')">${T`👑 Vassala ver`}</button>` : ''}
+                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi${this.fiefIncome().tribute ? T` · +${this.fiefIncome().tribute} haraç` : ''} · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> ${T`dinar/gün`}</div>` : ''}
+            ${this.vassals().length ? `<h3 style="margin-top:1rem">${T`👑 Vassalların`}</h3>` + this.vassals().map(v =>
                 `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
-                    <span style="min-width:150px;font-weight:600">${v.name}</span>
-                    <span style="color:var(--text-muted);min-width:110px">İlişki: ${Nobles.rel(v.id)}</span>
-                    <span>${this.fiefsOf(v.id).length ? this.fiefsOf(v.id).map(l => l.name).join(', ')
-                        : '<span style="color:#e0463a">topraksız — küskün</span>'}</span>
+                    <span style="min-width:150px;font-weight:600">${T(v.name)}</span>
+                    <span style="color:var(--text-muted);min-width:110px">${T`İlişki: ${Nobles.rel(v.id)}`}</span>
+                    <span>${this.fiefsOf(v.id).length ? this.fiefsOf(v.id).map(l => T(l.name)).join(', ')
+                        : T('<span style="color:#e0463a">topraksız — küskün</span>')}</span>
                 </div>`).join('') : ''}
-            ${camps ? `<h3 style="margin-top:1rem">🎖️ Yürüyen Seferler</h3>${camps}` : ''}
-            <h3 style="margin-top:1rem">📜 Haberler</h3>
+            ${camps ? `<h3 style="margin-top:1rem">${T`🎖️ Yürüyen Seferler`}</h3>${camps}` : ''}
+            <h3 style="margin-top:1rem">${T`📜 Haberler`}</h3>
             <div style="max-height:220px;overflow:auto;font-size:0.92rem">${log}</div>
-            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Kapat</button>`, '640px');
+            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '640px');
     },
 
     garrisonOf(loc) {
@@ -5516,15 +5580,15 @@ const Game = {
     enterpriseWorks(loc) { return !!loc.enterprise && !this.atWar(this.playerFaction(), loc.faction); },
     buyEnterprise(loc) {
         if(loc.enterprise) {
-            return alert(`${loc.name}'daki işletmen günde +${this.enterpriseIncome(loc)} dinar getiriyor.`
-                + (this.enterpriseWorks(loc) ? '' : '\nAma şehirle savaştasın: kapılar kapalı, kazanç duruyor.'));
+            return alert(T`${T(loc.name)}'daki işletmen günde +${this.enterpriseIncome(loc)} dinar getiriyor.`
+                + (this.enterpriseWorks(loc) ? '' : T('\nAma şehirle savaştasın: kapılar kapalı, kazanç duruyor.')));
         }
-        if(state.player.money < this.ENTERPRISE_COST) return alert('Yeterli dinarın yok!');
+        if(state.player.money < this.ENTERPRISE_COST) return alert(T('Yeterli dinarın yok!'));
         state.player.money -= this.ENTERPRISE_COST;
         loc.enterprise = true;
         this.updateTopBar(); this.enterLocation(loc);
         let inc = this.enterpriseIncome(loc);
-        alert(`${loc.name}'da bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
+        alert(T`${T(loc.name)}'da bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
     },
 
     fiefTax(loc) { return Math.round((loc.prosperity || 50) * (loc.type === 'city' ? 2 : loc.type === 'castle' ? 0.7 : 1)); },
@@ -5575,27 +5639,27 @@ const Game = {
         let lord = Nobles.lord(lordId), rel = Nobles.rel(lordId);
         let free = this.myFiefs().filter(l => l.type !== 'village');
         if(rel < this.VASSAL_REL)
-            return alert(`${lord.name} sana bağlanacak kadar güvenmiyor.\nGereken ilişki: ${this.VASSAL_REL} (şu an ${rel}).`);
+            return alert(T`${T(lord.name)} sana bağlanacak kadar güvenmiyor.\nGereken ilişki: ${this.VASSAL_REL} (şu an ${rel}).`);
         if(!free.length)
-            return alert('Toprağı olmayan krala kimse yemin etmez. Önce bir şehir ya da kale fethet — vassal ancak tımar karşılığı gelir.');
-        this.showModal(`<h3>👑 ${lord.name}'e Bağlılık Teklifi</h3>
-            <p style="color:var(--text-muted)">Hangi tımarı ona veriyorsun? Toprak onun olur:
+            return alert(T('Toprağı olmayan krala kimse yemin etmez. Önce bir şehir ya da kale fethet — vassal ancak tımar karşılığı gelir.'));
+        this.showModal(`<h3>${T`👑 ${T(lord.name)}'e Bağlılık Teklifi`}</h3>
+            <p style="color:var(--text-muted)">${T`Hangi tımarı ona veriyorsun? Toprak onun olur:
             vergisinin <b>%${Math.round(this.VASSAL_TRIBUTE * 100)}</b>'i haraç olarak sana gelir, kalanı ve garnizon
-            derdi ona kalır. Partisi bundan sonra senin bayrağınla savaşır.</p>
+            derdi ona kalır. Partisi bundan sonra senin bayrağınla savaşır.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
-            ${free.map(l => `<button class="btn" onclick="Game.grantFiefTo('${l.id}','${lordId}',1)">🏰 ${l.name} (${l.type === 'city' ? 'Şehir' : 'Kale'}) — +${this.fiefTax(l)} dinar/gün</button>`).join('')}
-            <button class="btn" onclick="Nobles.talk('${lordId}')">Vazgeç</button></div>`, '560px');
+            ${free.map(l => `<button class="btn" onclick="Game.grantFiefTo('${l.id}','${lordId}',1)">${T`🏰 ${T(l.name)} (${l.type === 'city' ? T('Şehir') : T('Kale')}) — +${this.fiefTax(l)} dinar/gün`}</button>`).join('')}
+            <button class="btn" onclick="Nobles.talk('${lordId}')">${T`Vazgeç`}</button></div>`, '560px');
     },
     grantFiefMenu(locId) {
         let loc = LOCATIONS.find(l => l.id === locId);
         let vs = this.vassals();
-        if(!vs.length) return alert('Henüz vassalın yok. Lordlarla konuşup krallığına davet et.');
-        this.showModal(`<h3>🏰 ${loc.name} kime veriliyor?</h3>
-            <p style="color:var(--text-muted)">Tımar vassalın olur; vergisinin %${Math.round(this.VASSAL_TRIBUTE * 100)}'i haraç
-            olarak sana gelir. Buradaki <b>${(loc.garrison || []).length}</b> asker onun emrine geçer.</p>
+        if(!vs.length) return alert(T('Henüz vassalın yok. Lordlarla konuşup krallığına davet et.'));
+        this.showModal(`<h3>${T`🏰 ${T(loc.name)} kime veriliyor?`}</h3>
+            <p style="color:var(--text-muted)">${T`Tımar vassalın olur; vergisinin %${Math.round(this.VASSAL_TRIBUTE * 100)}'i haraç
+            olarak sana gelir. Buradaki <b>${(loc.garrison || []).length}</b> asker onun emrine geçer.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
-            ${vs.map(v => `<button class="btn" onclick="Game.grantFiefTo('${locId}','${v.id}')">👑 ${v.name} — ${this.fiefsOf(v.id).length} tımar · ilişki ${Nobles.rel(v.id)}</button>`).join('')}
-            <button class="btn" onclick="Game.showDiplomacy()">Vazgeç</button></div>`, '560px');
+            ${vs.map(v => `<button class="btn" onclick="Game.grantFiefTo('${locId}','${v.id}')">${T`👑 ${T(v.name)} — ${this.fiefsOf(v.id).length} tımar · ilişki ${Nobles.rel(v.id)}`}</button>`).join('')}
+            <button class="btn" onclick="Game.showDiplomacy()">${T`Vazgeç`}</button></div>`, '560px');
     },
     grantFiefTo(locId, lordId, swear) {
         let loc = LOCATIONS.find(l => l.id === locId), lord = Nobles.lord(lordId);
@@ -5605,7 +5669,7 @@ const Game = {
             state.vassals.push(lordId);
             this.applyVassals();
             LORDS.filter(l => l.faction === old).forEach(l => Nobles.addRel(l.id, -10));
-            this.news(`👑 ${lord.name}, ${this.factionName(old)}'dan ayrılıp senin krallığına katıldı.`, true);
+            this.news(T`👑 ${T(lord.name)}, ${this.factionName(old)}'dan ayrılıp senin krallığına katıldı.`, true);
         }
         let n = (loc.garrison || []).length;
         loc.owner = lordId;
@@ -5615,9 +5679,9 @@ const Game = {
         // Warband'daki kıskançlık: toprak dağıtılırken eli boş kalan vassal küser
         this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
                       .forEach(v => Nobles.addRel(v.id, -5));
-        this.news(`🏰 ${loc.name} tımarı ${lord.name}'e verildi.`, true);
+        this.news(T`🏰 ${T(loc.name)} tımarı ${T(lord.name)}'e verildi.`, true);
         this.closeModal();
-        alert(`${loc.name} artık ${lord.name}'in tımarı.\n+20 ilişki${n ? `, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
+        alert(T`${T(loc.name)} artık ${T(lord.name)}'in tımarı.\n+20 ilişki${n ? T`, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
         this.updateTopBar();
     },
     troopGroups(list) {
@@ -5633,14 +5697,14 @@ const Game = {
         loc.garrison = loc.garrison || [];
         let cap = this.getPartyCapacity();
         let btns = (label, dir, max) => [1, 5, max].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
-            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveGarrison('${loc.id}','${label.replace(/'/g,"\\'")}',${v},'${dir}')">${v === max && max > 5 ? 'Hepsi' : v}</button>`).join(' ');
+            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveGarrison('${loc.id}','${label.replace(/'/g,"\\'")}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
         let col = (title, groups, dir, empty) => {
             let rows = Object.keys(groups).map(k => {
                 let g = groups[k];
                 let blocked = dir === 'in' && g.sample.isCompanion;
                 return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
                     <span>${this.troopStats(g.sample).icon} ${k} <b>x${g.n}</b></span>
-                    <span>${blocked ? '<span style="color:var(--text-muted);font-size:0.75rem">yoldaş kalamaz</span>' : btns(k, dir, g.n)}</span></li>`;
+                    <span>${blocked ? T('<span style="color:var(--text-muted);font-size:0.75rem">yoldaş kalamaz</span>') : btns(k, dir, g.n)}</span></li>`;
             }).join('');
             return `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${rows || `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         };
@@ -5648,17 +5712,17 @@ const Game = {
         // Günlük net tek satırda yazsın (#55 madde 9): "elit garnizon zarardır" kuralı
         // belgede duruyordu ama oyuncu ekranda hiçbir yerde görmüyordu.
         let wage = loc.garrison.reduce((a, t) => a + this.troopWage(t), 0), net = this.fiefTax(loc) - wage;
-        this.showModal(`<h3>🛡️ ${loc.name} Garnizonu</h3>
-        <p style="color:var(--text-muted)">Vergi <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> − garnizon maaşı <b>${wage}</b> =
-           <b style="color:${net >= 0 ? 'var(--success)' : 'var(--danger)'}">${net >= 0 ? '+' : ''}${net} dinar/gün</b>
-           (${loc.garrison.length} asker).${net < 0 ? ' <b>Bu tımar zarar ediyor</b> — ucuz askerle doldurmak doğru hamledir.' : ''}
-           <br>Garnizon grup kapasitenden düşmez ama maaşını sen ödersin; düşman kuşatması bu sayıya bakar.</p>
+        this.showModal(`<h3>${T`🛡️ ${T(loc.name)} Garnizonu`}</h3>
+        <p style="color:var(--text-muted)">${T`Vergi`} <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> ${T`− garnizon maaşı`} <b>${wage}</b> =
+           <b style="color:${net >= 0 ? 'var(--success)' : 'var(--danger)'}">${T`${net >= 0 ? '+' : ''}${net} dinar/gün</b>
+           (${loc.garrison.length} asker).${net < 0 ? T(' <b>Bu tımar zarar ediyor</b> — ucuz askerle doldurmak doğru hamledir.') : ''}
+           <br>Garnizon grup kapasitenden düşmez ama maaşını sen ödersin; düşman kuşatması bu sayıya bakar.`}</p>
         <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
-            ${col('Grubun (' + state.player.party.length + '/' + cap + ')', this.troopGroups(state.player.party), 'in', 'Yanında asker yok.')}
-            ${col('Garnizon', this.troopGroups(loc.garrison), 'out', 'Kale boş — ilk saldırıda düşer.')}
+            ${col(T('Grubun (') + state.player.party.length + '/' + cap + ')', this.troopGroups(state.player.party), 'in', T('Yanında asker yok.'))}
+            ${col(T('Garnizon'), this.troopGroups(loc.garrison), 'out', T('Kale boş — ilk saldırıda düşer.'))}
         </div>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.8rem">Tüm tımarlarının garnizonu: ${inc.troops} asker · ${inc.wage} dinar/gün</p>
-        <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">Kapat</button>`, '700px');
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.8rem">${T`Tüm tımarlarının garnizonu: ${inc.troops} asker · ${inc.wage} dinar/gün`}</p>
+        <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '700px');
     },
     moveGarrison(locId, label, n, dir) {
         let loc = LOCATIONS.find(l => l.id === locId);
@@ -5678,28 +5742,28 @@ const Game = {
     openStorage(loc) {
         loc.storage = loc.storage || [];
         let btns = (id, dir, max) => [1, 5, max].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
-            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? 'Hepsi' : v}</button>`).join(' ');
+            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
         let col = (title, list, dir, empty) => `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${
             list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
-                <span>${i.icon} ${i.name} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
+                <span>${i.icon} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
             : `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         // Kasa: yenilgide yağmalanmayan tek para (#53 madde 1.2). Depoya para taşımak
         // bir sigortadır — yanında taşıdığın kese ne kadar küçükse yenilgi o kadar ucuz.
         let tre = loc.treasury || 0;
         let money = [100, 500, Math.floor(state.player.money)].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
         let back = [100, 500, tre].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
-        this.showModal(`<h3>📦 ${loc.name} Deposu</h3>
-        <p style="color:var(--text-muted)">Depodaki erzak bozulmaz (bozulma yalnız yanında taşıdığına işler) ve yenilgide yağmalanmaz.</p>
+        this.showModal(`<h3>${T`📦 ${T(loc.name)} Deposu`}</h3>
+        <p style="color:var(--text-muted)">${T`Depodaki erzak bozulmaz (bozulma yalnız yanında taşıdığına işler) ve yenilgide yağmalanmaz.`}</p>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.5rem 0;border-top:1px solid var(--panel-border);border-bottom:1px solid var(--panel-border)">
-            <span>🏦 Kasa: <b>${tre}</b> dinar <span style="color:var(--text-muted);font-size:0.8rem">(yenilgide yağmalanmaz)</span></span>
-            <span>Yatır: ${money.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'in')">${v === money[money.length-1] && money.length > 1 ? 'Hepsi' : v}</button>`).join(' ')}
-                  ${tre ? ' · Çek: ' + back.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'out')">${v === back[back.length-1] && back.length > 1 ? 'Hepsi' : v}</button>`).join(' ') : ''}</span>
+            <span>${T`🏦 Kasa:`} <b>${tre}</b> dinar <span style="color:var(--text-muted);font-size:0.8rem">${T`(yenilgide yağmalanmaz)</span></span>
+            <span>Yatır: ${money.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'in')">${v === money[money.length-1] && money.length > 1 ? T('Hepsi') : v}</button>`).join(' ')}
+                  ${tre ? T(' · Çek: ') + back.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'out')">${v === back[back.length-1] && back.length > 1 ? T('Hepsi') : v}</button>`).join(' ') : ''}`}</span>
         </div>
         <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
-            ${col('Yanındakiler', state.player.inventory, 'in', 'Çantan boş.')}
-            ${col('Depo', loc.storage, 'out', 'Depo boş.')}
+            ${col(T('Yanındakiler'), state.player.inventory, 'in', T('Çantan boş.'))}
+            ${col(T('Depo'), loc.storage, 'out', T('Depo boş.'))}
         </div>
-        <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">Kapat</button>`, '700px');
+        <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '700px');
     },
     moveTreasury(locId, n, dir) {
         let loc = LOCATIONS.find(l => l.id === locId);
@@ -5749,26 +5813,30 @@ const Game = {
     // yanındaki diğer esirler de görünür (esaret modeli: state.player.prisoner).
     npcTipHtml(npc) {
         let bk = BAND_KINDS[npc.band];
-        let fname = (FACTIONS[npc.faction] || { name: 'Bağımsız' }).name;
-        let what = bk ? (bk.trade ? `${fname} · ${npc.trade && npc.trade.kind === 'caravan' ? 'Kervan' : 'Köylü kafilesi'}`
-                                  : (bk.beast ? 'Yaratık sürüsü' : 'Haydut çetesi'))
+        let fname = T((FACTIONS[npc.faction] || { name: 'Bağımsız' }).name);
+        let what = bk ? (bk.trade ? `${fname} · ${npc.trade && npc.trade.kind === 'caravan' ? T('Kervan') : T('Köylü kafilesi')}`
+                                  : (bk.beast ? T('Yaratık sürüsü') : T('Haydut çetesi')))
                       : fname;
-        let unitWord = bk && bk.trade ? (npc.trade && npc.trade.kind === 'caravan' ? 'Muhafız' : 'Kişi') : 'Asker';
+        let unitWord = bk && bk.trade ? (npc.trade && npc.trade.kind === 'caravan' ? T('Muhafız') : T('Kişi')) : T('Asker');
         let html = `${what}<br>${unitWord}: ${npc.size}`;
         if(npc.trade) {
             let d = LOCATIONS.find(l => l.id === npc.trade.toId);
-            html += d ? `<br>Hedef: ${d.name}` : '';
+            html += d ? `<br>${T`Hedef: ${T(d.name)}`}` : '';
         }
-        if(npc.hunting) html += `<br><span style="color:#ffb347">🎯 Peşinde:</span> ${npc.hunting}`;
+        if(npc.hunting) {
+            let h = npc.hunting === 'player' ? state.player.name
+                  : this.npcName(state.npcParties.find(x => x.id === npc.hunting));
+            if(h) html += `<br><span style="color:#ffb347">${T`🎯 Peşinde:`}</span> ${h}`;
+        }
         // Üstüne gitmeden önce gör: bu çete senin için doyurucu mu (#55 madde 9)
         let prey = this.preyWarning(npc);
         if(prey) html += `<br><span style="color:#cc8800;font-size:0.85em">${prey.replace(/<\/?b>/g, '')}</span>`;
         // Yük yalnız kafilelerde değil, onları soymuş çetede de görünür
         if((npc.cargo || []).filter(c => ITEMS[c.id]).length)
-            html += `<br>Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}`;
+            html += `<br>${T`Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}`}`;
         let pr = state.player.prisoner;
         if(pr && pr.npcId === npc.id) {
-            html += `<br><span style="color:#ff8f82">⛓️ Esirleri:</span> ${state.player.name} (sen)`
+            html += `<br><span style="color:#ff8f82">${T`⛓️ Esirleri:</span> ${state.player.name} (sen)`}`
                   + (pr.fellows && pr.fellows.length ? `, ${pr.fellows.join(', ')}` : '');
         }
         return html;
@@ -5776,20 +5844,20 @@ const Game = {
     // Harita künyesi: kimin toprağı, kim yönetiyor, ne kadar zengin, kaç asker bekliyor
     locTipHtml(loc) {
         let f = FACTIONS[loc.faction] || { name: '?' };
-        let type = loc.type === 'city' ? 'Şehir' : loc.type === 'castle' ? 'Kale' : 'Köy';
+        let type = loc.type === 'city' ? T('Şehir') : loc.type === 'castle' ? T('Kale') : T('Köy');
         let pr = Math.round(loc.prosperity || 50);
-        let prLbl = pr >= 75 ? 'Zengin' : pr >= 58 ? 'Müreffeh' : pr >= 42 ? 'İdare eder' : 'Yoksul';
+        let prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul');
         let g = this.garrisonOf(loc);
         let lord = this.ownerLord(loc);
         let rel = lord && typeof Nobles !== 'undefined' ? Nobles.rel(lord.id) : 0;
         let hostile = this.atWar(this.playerFaction(), loc.faction);
-        return `${f.name} · ${type}<br>`
-            + (lord ? `Sahibi: ${lord.name} (${Nobles.relLabel(rel)})<br>` : '')
-            + `Refah: ${prLbl} <span style="color:var(--text-muted)">(${pr})</span><br>`
-            + (g ? `Garnizon: ~${g} asker<br>` : '')
-            + (loc.volunteersAvailable !== undefined ? `Gönüllü: ${loc.volunteersAvailable} kişi<br>` : '')
-            + (hostile ? `<span style="color:#e0463a">⚔️ Düşman toprağı — sadece kuşatma</span>`
-                       : `<span style="color:#2ecc71">Kapılar sana açık</span>`);
+        return `${T(f.name)} · ${type}<br>`
+            + (lord ? `${T`Sahibi: ${T(lord.name)} (${Nobles.relLabel(rel)})`}<br>` : '')
+            + `${T`Refah: ${prLbl}`} <span style="color:var(--text-muted)">(${pr})</span><br>`
+            + (g ? `${T`Garnizon: ~${g} asker`}<br>` : '')
+            + (loc.volunteersAvailable !== undefined ? `${T`Gönüllü: ${loc.volunteersAvailable} kişi`}<br>` : '')
+            + (hostile ? `<span style="color:#e0463a">${T`⚔️ Düşman toprağı — sadece kuşatma`}</span>`
+                       : `<span style="color:#2ecc71">${T`Kapılar sana açık`}</span>`);
     },
     // Yenilgide nam kaybı: düşman senden ne kadar zayıfsa rezillik o kadar büyük.
     // pow = düşmanın güç puanı (asker başına seviye+1)
@@ -5815,10 +5883,10 @@ const Game = {
     // günleri geçer (dünya işler, düşman lordu yardıma gelebilir), sonra surun
     // dibinde saldırılır. Yöntem seçimi hem süreyi hem savunanın avantajını belirler.
     SIEGE_PLANS: {
-        ladder: { icon: '🪜', name: 'Merdiven', days: 1, defBonus: 0.40, gaps: 1,
-                  desc: 'Bir günde hazırlanır ama tek gedikten girersin — savunan surun ardında güçlüdür (+%40).' },
-        tower:  { icon: '🗼', name: 'Kuşatma Kulesi', days: 3, defBonus: 0.15, gaps: 2,
-                  desc: 'Üç gün marangozluk ister; kule surda ikinci bir gedik açar, savunanın avantajı erir (+%15).' }
+        ladder: { icon: '🪜', name: T('Merdiven'), days: 1, defBonus: 0.40, gaps: 1,
+                  desc: T('Bir günde hazırlanır ama tek gedikten girersin — savunan surun ardında güçlüdür (+%40).') },
+        tower:  { icon: '🗼', name: T('Kuşatma Kulesi'), days: 3, defBonus: 0.15, gaps: 2,
+                  desc: T('Üç gün marangozluk ister; kule surda ikinci bir gedik açar, savunanın avantajı erir (+%15).') }
     },
     besiegeLocation(loc, founding = false) {
         let g = this.garrisonOf(loc);
@@ -5826,16 +5894,16 @@ const Game = {
             let p = this.SIEGE_PLANS[k];
             return `<button class="btn" style="display:block;width:100%;text-align:left;margin-bottom:0.5rem"
                 onclick="Game.closeModal(); Game.beginSiege('${loc.id}','${k}',${founding})">
-                ${p.icon} <b>${p.name}</b> — ${p.days} gün hazırlık
-                <br><span style="color:var(--text-muted);font-size:0.82rem">${p.desc}</span></button>`;
+                ${p.icon} <b>${T(p.name)}</b> ${T`— ${p.days} gün hazırlık`}
+                <br><span style="color:var(--text-muted);font-size:0.82rem">${T(p.desc)}</span></button>`;
         }).join('');
-        this.showModal(`<h3>🏰 ${loc.name} Kuşatması</h3>
+        this.showModal(`<h3>${T`🏰 ${T(loc.name)} Kuşatması</h3>
         <p>Garnizonda tahmini <b>${g}</b> asker var. Kampı kurunca ordun kapıda bekler:
-        hazırlık bitene kadar zaman akar, ${this.factionName(loc.faction)} lordları kuşatmayı yarmaya gelebilir.</p>
-        <p style="color:var(--text-muted);font-size:0.85rem">Hazırlık bitince beklemeye devam edersen garnizonu
-        <b>açlığa mahkûm</b> edersin: her gün erir — ama senin ordun da kapıda erzak yer.</p>
+        hazırlık bitene kadar zaman akar, ${this.factionName(loc.faction)} lordları kuşatmayı yarmaya gelebilir.`}</p>
+        <p style="color:var(--text-muted);font-size:0.85rem">${T`Hazırlık bitince beklemeye devam edersen garnizonu
+        <b>açlığa mahkûm</b> edersin: her gün erir — ama senin ordun da kapıda erzak yer.`}</p>
         ${plans}
-        <button class="btn" onclick="Game.closeModal()">Vazgeç</button>`);
+        <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`);
     },
     beginSiege(locId, plan, founding) {
         let loc = LOCATIONS.find(l => l.id === locId);
@@ -5845,7 +5913,7 @@ const Game = {
         state.player.targetLocation = null;
         state.player.status = 'besieging';
         this.showScreen('map');
-        this.news(`${loc.name} kuşatma altında.`);   // panel zaten görünür, modal bildirim gereksiz
+        this.news(T`${T(loc.name)} kuşatma altında.`);   // panel zaten görünür, modal bildirim gereksiz
         this.renderSiegeUI();
     },
     // Günlük kuşatma işleyişi (dailyUpdate)
@@ -5856,7 +5924,7 @@ const Game = {
         if(!loc || loc.faction === this.playerFaction()) return this.liftSiege(true);
         if(s.daysLeft > 0) {
             s.daysLeft--;
-            if(s.daysLeft === 0) alert(`${this.SIEGE_PLANS[s.plan].name} hazır — ${loc.name} surlarına saldırabilirsin.`);
+            if(s.daysLeft === 0) alert(T`${T(this.SIEGE_PLANS[s.plan].name)} hazır — ${T(loc.name)} surlarına saldırabilirsin.`);
         } else {
             // Açlığa mahkûm etme: bekledikçe garnizon erir, şehrin refahı düşer
             s.weaken = Math.min(0.55, (s.weaken || 0) + 0.07);
@@ -5871,11 +5939,11 @@ const Game = {
         if(!foes.length || Math.random() > 0.25) return;
         let n = foes.reduce((a, b) => this.dist(a, loc) <= this.dist(b, loc) ? a : b);
         n.x = loc.x + 40; n.y = loc.y + 40;
-        this.showModal(`<h3>🚩 Yardım Ordusu!</h3>
-        <p><b>${n.name}</b> ${n.size} kişiyle kuşatmayı yarmaya geldi. Surun dibinde iki ateş arasında
-        kalamazsın: ya bu orduyu karşılarsın ya da kampı toplarsın.</p>
-        <button class="btn primary" onclick="Game.closeModal(); Game.meetRelief('${n.id}')">⚔️ Karşıla</button>
-        <button class="btn" onclick="Game.closeModal(); Game.liftSiege()">🚪 Kuşatmayı Kaldır</button>`);
+        this.showModal(`<h3>${T`🚩 Yardım Ordusu!</h3>
+        <p><b>${this.npcName(n)}</b> ${n.size} kişiyle kuşatmayı yarmaya geldi. Surun dibinde iki ateş arasında
+        kalamazsın: ya bu orduyu karşılarsın ya da kampı toplarsın.`}</p>
+        <button class="btn primary" onclick="Game.closeModal(); Game.meetRelief('${n.id}')">${T`⚔️ Karşıla`}</button>
+        <button class="btn" onclick="Game.closeModal(); Game.liftSiege()">${T`🚪 Kuşatmayı Kaldır`}</button>`);
     },
     meetRelief(npcId) {
         let n = state.npcParties.find(p => p.id === npcId);
@@ -5885,12 +5953,12 @@ const Game = {
         state.player.siege = null;
         if(state.player.status === 'besieging') state.player.status = 'idle';
         this.renderSiegeUI();
-        if(!silent) alert('Kuşatma kaldırıldı. Ordun kampı toplayıp çekildi.');
+        if(!silent) alert(T('Kuşatma kaldırıldı. Ordun kampı toplayıp çekildi.'));
     },
     assaultSiege() {
         let s = state.player.siege;
         if(!s) return;
-        if(s.daysLeft > 0) return alert(`Hazırlık bitmedi — ${s.daysLeft} gün daha gerek.`);
+        if(s.daysLeft > 0) return alert(T`Hazırlık bitmedi — ${s.daysLeft} gün daha gerek.`);
         let loc = LOCATIONS.find(l => l.id === s.locId);
         if(!loc) return this.liftSiege(true);
         let count = this.siegeGarrison(loc, s);
@@ -5913,11 +5981,11 @@ const Game = {
         let loc = LOCATIONS.find(l => l.id === s.locId) || { name: '?' };
         let p = this.SIEGE_PLANS[s.plan];
         this.setHtml('siege-info',
-              `Kuşatılan: <b>${loc.name}</b><br>`
-            + `Yöntem: <b>${p.icon} ${p.name}</b><br>`
-            + (s.daysLeft > 0 ? `Hazırlık: <b>${s.daysLeft}</b> gün kaldı<br>`
-                              : `Hazırlık tamam — açlık garnizonu <b>%${Math.round((s.weaken || 0) * 100)}</b> eritti<br>`)
-            + `Garnizon: <b>${this.siegeGarrison(loc, s)}</b> asker`);
+              `${T`Kuşatılan:`} <b>${T(loc.name)}</b><br>`
+            + `${T`Yöntem:`} <b>${p.icon} ${T(p.name)}</b><br>`
+            + (s.daysLeft > 0 ? `${T`Hazırlık: <b>${s.daysLeft}</b> gün kaldı`}<br>`
+                              : `${T`Hazırlık tamam — açlık garnizonu`} <b>%${Math.round((s.weaken || 0) * 100)}</b> eritti<br>`)
+            + `${T`Garnizon:`} <b>${this.siegeGarrison(loc, s)}</b> asker`);
         let btn = document.getElementById('btn-siege-assault');
         btn.disabled = s.daysLeft > 0;
         btn.style.opacity = s.daysLeft > 0 ? 0.5 : 1;
@@ -5925,7 +5993,7 @@ const Game = {
     startSiege(locId, count, founding, plan = 'ladder') {
         state.player.currentSiege = { locId, foundingKingdom: founding };
         let loc = LOCATIONS.find(l => l.id === locId);
-        Battle.start('Garnizon', count, null, loc ? loc.faction : null, this.SIEGE_PLANS[plan]);
+        Battle.start(T('Garnizon'), count, null, loc ? loc.faction : null, this.SIEGE_PLANS[plan]);
     },
 
     // --- VILLAGE ---
@@ -5937,21 +6005,21 @@ const Game = {
         let peace = !this.atWar(this.playerFaction(), loc.faction) && loc.faction !== this.playerFaction();
         // Yakılan köyün ambarı hemen dolmaz (#49)
         let wait = loc.raidedDay !== undefined ? this.RAID_COOLDOWN - (state.time.day - loc.raidedDay) : 0;
-        if(wait > 0) return this.showModal(`<h3>🔥 ${loc.name}</h3>
-        <p>Burası daha yeni yağmalandı — ambar boş, ahır boş, sağ kalanlar ormanda.
-        Alacak bir şey kalması için <b>${Math.ceil(wait)} gün</b> daha geçmeli.</p>
-        <button class="btn" onclick="Game.closeModal()">Geri</button>`);
-        this.showModal(`<h3>🔥 ${loc.name} Yağması</h3>
+        if(wait > 0) return this.showModal(`<h3>🔥 ${T(loc.name)}</h3>
+        <p>${T`Burası daha yeni yağmalandı — ambar boş, ahır boş, sağ kalanlar ormanda.
+        Alacak bir şey kalması için <b>${Math.ceil(wait)} gün</b> daha geçmeli.`}</p>
+        <button class="btn" onclick="Game.closeModal()">${T`Geri`}</button>`);
+        this.showModal(`<h3>${T`🔥 ${T(loc.name)} Yağması</h3>
         <p>Köy milisi tahminen <b>${militia}</b> kişi. Dağıtırsan ambarı boşaltmak
         <b>${this.RAID_SECONDS} saniye</b> sürer — o sürede kıpırdayamazsın ve dumanı gören
-        ${this.factionName(loc.faction)} lordları üstüne yürür. Yetişirlerse ganimet yok.</p>
-        <p style="color:var(--danger);line-height:1.5">Bedeli:
-            ${owner ? `${owner.name} ile ilişki <b>−30</b>, ` : ''}${this.factionName(loc.faction)} lordları <b>−6</b>,
+        ${this.factionName(loc.faction)} lordları üstüne yürür. Yetişirlerse ganimet yok.`}</p>
+        <p style="color:var(--danger);line-height:1.5">${T`Bedeli:`}
+            ${owner ? `${T`${T(owner.name)} ile ilişki`} <b>−30</b>, ` : ''}${T`${this.factionName(loc.faction)} lordları <b>−6</b>,
             köyün refahı çöker ve günlerce gönüllü vermez, namın <b>−6</b>,
             <b>yağmacı damgası +${this.RAID_INFAMY}</b> (gönüllü ve paralı asker pahalanır, lordlar yüz vermez).
-            ${peace ? `<br>Bu köy barıştaki bir krallığın — yağma <b>savaş sebebi</b> sayılır.` : ''}</p>
-        <button class="btn primary" onclick="Game.closeModal(); Game.startRaid('${loc.id}', ${militia})">🔥 Yak ve Yağmala</button>
-        <button class="btn" onclick="Game.closeModal()">Vazgeç</button>`);
+            ${peace ? `<br>${T`Bu köy barıştaki bir krallığın — yağma <b>savaş sebebi</b> sayılır.`}` : ''}`}</p>
+        <button class="btn primary" onclick="Game.closeModal(); Game.startRaid('${loc.id}', ${militia})">${T`🔥 Yak ve Yağmala`}</button>
+        <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`);
     },
     startRaid(locId, count) {
         state.player.currentRaid = { locId };
@@ -5966,14 +6034,14 @@ const Game = {
     // aynı sayının iki yönlüsüdür (−100..100) ve damga onun eksi tarafının etiketidir —
     // ikinci bir itibar alanı tutulmaz. Günde 0.5 sıfıra doğru söner (bir yağma ~24 gün).
     HONOR: {
-        raid:       [-12, 'köy yağması'],
-        robPeace:   [-5,  'barıştaki kervanı soymak'],
-        robPeasant: [-8,  'köylü kafilesini soymak'],
-        ransom:     [-2,  'soylu esirden fidye'],
-        release:    [ 5,  'soyluyu onurla salıvermek'],
-        abduct:     [-20, 'kız kaçırma'],
-        oathBroken: [-5,  'sefer sözünü tutmamak'],
-        questDone:  [ 2,  'verilen sözü tutmak']
+        raid:       [-12, T('köy yağması')],
+        robPeace:   [-5,  T('barıştaki kervanı soymak')],
+        robPeasant: [-8,  T('köylü kafilesini soymak')],
+        ransom:     [-2,  T('soylu esirden fidye')],
+        release:    [ 5,  T('soyluyu onurla salıvermek')],
+        abduct:     [-20, T('kız kaçırma')],
+        oathBroken: [-5,  T('sefer sözünü tutmamak')],
+        questDone:  [ 2,  T('verilen sözü tutmak')]
     },
     honor() { return Math.max(-100, Math.min(100, Math.round(state.player.honor || 0))); },
     addHonor(kind) {
@@ -5992,12 +6060,12 @@ const Game = {
         return Math.max(-2, Math.min(2, Math.round(w)));
     },
     honorTier() { let h = this.honor(); return h >= 40 ? 2 : h >= 15 ? 1 : h <= -36 ? -2 : h <= -10 ? -1 : 0; },
-    honorLabel() { return { '-2': '💀 Köy Yakan', '-1': '🔥 Yağmacı', '0': '—', '1': '🕊️ Sözünün Eri', '2': '⚜️ Şerefli' }[this.honorTier()]; },
+    honorLabel() { return { '-2': T('💀 Köy Yakan'), '-1': T('🔥 Yağmacı'), '0': '—', '1': T('🕊️ Sözünün Eri'), '2': T('⚜️ Şerefli') }[this.honorTier()]; },
     // Eski infamy kapıları şerefin eksi tarafından okur — çağıranların hiçbiri değişmedi
     RAID_INFAMY: 12,
     infamy() { return Math.max(0, -this.honor()); },
     infamyTier() { return Math.max(0, -this.honorTier()); },
-    infamyLabel() { return ['—', '🔥 Yağmacı', '💀 Köy Yakan'][this.infamyTier()]; },
+    infamyLabel() { return ['—', T('🔥 Yağmacı'), T('💀 Köy Yakan')][this.infamyTier()]; },
     // Fiyat/gönüllü çarpanı: 60 onursuzlukta gönüllü yarıya iner, paralı asker %60 pahalanır
     // Artık iki yönlü: eksi şeref köylüyü kaçırır, artı şeref kapıyı açar (#53/1.5).
     // Eksi tarafı eski yağmacı cezasının aynısı, yani #49'un ölçümleri geçerli.
@@ -6058,7 +6126,7 @@ const Game = {
             this.abortRaid(true);
             // Ambarı basılmış lordun sana diyeceği yok: ganimet gitti, kılıç kaldı
             if(typeof Nobles !== 'undefined') Nobles.addRel(responder.lordId, -15);
-            alert(`${responder.name} dumanı görüp yetişti — yağma yarıda kaldı, ganimet yok.`);
+            alert(T`${T(responder.name)} dumanı görüp yetişti — yağma yarıda kaldı, ganimet yok.`);
             return this.triggerEncounter(responder, 'raid');
         }
         if(r.t >= this.RAID_SECONDS) return this.finishRaid(loc);
@@ -6069,7 +6137,7 @@ const Game = {
         if(state.player.status === 'raiding') state.player.status = 'idle';
         state.npcParties.forEach(n => delete n.raidResponder);
         this.renderRaidUI();
-        if(!silent) alert('Yağmayı bıraktın. Ambara dokunmadan çekildin — köylü ucuz kurtuldu.');
+        if(!silent) alert(T('Yağmayı bıraktın. Ambara dokunmadan çekildin — köylü ucuz kurtuldu.'));
     },
     renderRaidUI() {
         let ui = document.getElementById('raid-ui');
@@ -6084,11 +6152,11 @@ const Game = {
         let near = state.npcParties.filter(n => n.raidResponder)
                     .sort((a, b) => this.dist(a, loc) - this.dist(b, loc))[0];
         this.setHtml('raid-info',
-            `<div><b>${loc.name}</b> yağmalanıyor — ${(this.RAID_SECONDS - r.t).toFixed(1)} sn</div>
+            `<div><b>${T(loc.name)}</b> ${T`yağmalanıyor — ${(this.RAID_SECONDS - r.t).toFixed(1)} sn`}</div>
              <div class="hud-bar" style="margin:0.4rem 0"><i class="fill-hp" style="width:${pct}%"></i></div>
              <div style="color:${near ? 'var(--danger)' : 'var(--text-muted)'};font-size:0.85rem">
-                ${near ? `🚩 ${near.name} yaklaşıyor — ${Math.round(this.dist(near, loc))} birim`
-                       : 'Ufukta kimse yok. Ambarı boşalt.'}</div>`);
+                ${near ? T`🚩 ${T(near.name)} yaklaşıyor — ${Math.round(this.dist(near, loc))} birim`
+                       : T('Ufukta kimse yok. Ambarı boşalt.')}</div>`);
     },
     finishRaid(loc) {
         state.player.raid = null;
@@ -6121,13 +6189,13 @@ const Game = {
         // Barıştaki krallığın köyünü yakmak savaş sebebidir
         if(this.playerFaction() && loc.faction !== this.playerFaction()) this.declareWar(this.playerFaction(), loc.faction);
         this.addProficiencyXp('looting', 60);
-        alert(`${loc.name} yağmalandı!\n\n💰 ${loot} dinar\n${food.map(([id, q]) => `${ITEMS[id].icon} ${ITEMS[id].name} x${q}`).join('\n')}`
-            + `\n\nKöyün refahı ${Math.round(loc.prosperity)}'e düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
+        alert(T`${T(loc.name)} yağmalandı!\n\n💰 ${loot} dinar\n${food.map(([id, q]) => `${ITEMS[id].icon} ${T(ITEMS[id].name)} x${q}`).join('\n')}`
+            + T`\n\nKöyün refahı ${Math.round(loc.prosperity)}'e düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
     },
 
     talkToElder(loc) {
         let dialog = this.getHumorousDialog('elder', loc);
-        this.showModal(`<h3>🧓 Köy Yaşlısı</h3><p><i>${dialog}</i></p>`);
+        this.showModal(`<h3>${T`🧓 Köy Yaşlısı`}</h3><p><i>${dialog}</i></p>`);
     },
     // Kaç gönüllü alınacağı seçilebilir. Eskiden hepsini almak zorunluydu:
     // kapasitede 3 yer varken 5 gönüllülük köyden tek asker bile alınamıyordu.
@@ -6141,32 +6209,32 @@ const Game = {
         let max = Math.min(avail, space, afford);
 
         if(max <= 0) {
-            return this.showModal(`<h3>🪖 Gönüllü Topla</h3>
-            <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar.</p>
-            <p style="color:var(--danger)">${space <= 0 ? 'Grubunda yer yok.' : 'Bir gönüllüye bile yetecek dinarın yok.'}</p>`);
+            return this.showModal(`<h3>${T`🪖 Gönüllü Topla</h3>
+            <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar.`}</p>
+            <p style="color:var(--danger)">${space <= 0 ? T('Grubunda yer yok.') : T('Bir gönüllüye bile yetecek dinarın yok.')}</p>`);
         }
 
-        this.showModal(`<h3>🪖 Gönüllü Topla</h3>
-        <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar. En fazla <b>${max}</b> kişi alabilirsin.</p>
-        ${pen > 0 ? `<p style="color:var(--danger);font-size:0.85rem">${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).</p>`
-          : pen < 0 ? `<p style="color:#7fd8a0;font-size:0.85rem">${this.honorLabel()} adın buraya da ulaşmış: fazladan gönüllü çıktı, ücreti de kırdılar (+%${Math.round(-pen*100)} gönüllü, −%${Math.round(-pen*100)} ücret).</p>` : ''}
+        this.showModal(`<h3>${T`🪖 Gönüllü Topla</h3>
+        <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar. En fazla <b>${max}</b> kişi alabilirsin.`}</p>
+        ${pen > 0 ? `<p style="color:var(--danger);font-size:0.85rem">${T`${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).`}</p>`
+          : pen < 0 ? `<p style="color:#7fd8a0;font-size:0.85rem">${T`${this.honorLabel()} adın buraya da ulaşmış: fazladan gönüllü çıktı, ücreti de kırdılar (+%${Math.round(-pen*100)} gönüllü, −%${Math.round(-pen*100)} ücret).`}</p>` : ''}
         <input type="range" id="recruit-n" min="1" max="${max}" value="${max}" style="width:100%;margin:0.8rem 0"
                oninput="Game.updateRecruitLabel(${cost})">
         <button class="btn primary" id="recruit-btn"
-                onclick="Game.doRecruit('${loc.id}', +document.getElementById('recruit-n').value, ${cost})"></button>`);
-        this.updateRecruitLabel(cost);
+                onclick="Game.doRecruit('${loc.id}', +document.getElementById('recruit-n').value, ${cost})">${
+                    T`İşe Al: ${max} kişi (${max * cost} Dinar)`}</button>`);
     },
     updateRecruitLabel(cost) {
         let n = +document.getElementById('recruit-n').value;
-        this.setHtml('recruit-btn', `İşe Al: ${n} kişi (${n * cost} Dinar)`);
+        this.setHtml('recruit-btn', T`İşe Al: ${n} kişi (${n * cost} Dinar)`);
     },
     doRecruit(locId, amount, cost) {
         let loc = LOCATIONS.find(l => l.id === locId);
         amount = Math.min(amount, loc ? Math.floor(loc.volunteersAvailable * (1 - this.infamyPenalty())) : amount);
         let total = amount * cost;
-        if(amount < 1) { this.sfx('error'); return alert('Alınacak gönüllü yok!'); }
-        if(state.player.money < total) { this.sfx('error'); return alert('Yeterli dinarın yok!'); }
-        if(state.player.party.length + amount > this.getPartyCapacity()) { this.sfx('error'); return alert('Grubunda yer yok!'); }
+        if(amount < 1) { this.sfx('error'); return alert(T('Alınacak gönüllü yok!')); }
+        if(state.player.money < total) { this.sfx('error'); return alert(T('Yeterli dinarın yok!')); }
+        if(state.player.party.length + amount > this.getPartyCapacity()) { this.sfx('error'); return alert(T('Grubunda yer yok!')); }
         state.player.money -= total;
         if(loc) {
             loc.volunteersAvailable -= amount;
@@ -6186,12 +6254,12 @@ const Game = {
         this.closeModal(); this.updateTopBar();
         if(loc) this.enterLocation(loc); // Arayüzü yenile
         this.feedback('recruit', null, -total);
-        alert(`${amount} gönüllü gruba katıldı!`);
+        alert(T`${amount} gönüllü gruba katıldı!`);
     },
 
     // --- LORE ---
     showLore(type) {
-        let title = type === 'lords' ? 'Kalradya Lordları' : 'Kalradya Krallıkları';
+        let title = type === 'lords' ? T('Kalradya Lordları') : T('Kalradya Krallıkları');
         let modalHtml = `<div style="text-align:center;">
             <h2 style="font-family:'Cinzel',serif;color:#ffcc00;font-size:2.5rem;margin-bottom:2rem;text-shadow:0 0 10px rgba(255,204,0,0.5);">${title}</h2>
             <div style="display:flex;flex-direction:column;gap:1.5rem;text-align:left;max-height:65vh;overflow-y:auto;padding-right:1rem;">`;
@@ -6212,15 +6280,15 @@ const Game = {
 
         if(type === 'lords') {
             LORDS.forEach(l => {
-                let f = FACTIONS[l.faction] || { name:'Bilinmiyor', color:'#fff' };
+                let f = FACTIONS[l.faction] || { name:T('Bilinmiyor'), color:'#fff' };
                 let home = LOCATIONS.find(x => x.id === l.homeLocId);
-                modalHtml += row(frame(Nobles.portraitCss(l, 140)), f.color, l.name,
-                    `${f.name} · ${PERSONALITIES[l.personality].name}${home ? ' · ' + home.name : ''}`, l.lore);
+                modalHtml += row(frame(Nobles.portraitCss(l, 140)), f.color, T(l.name),
+                    `${T(f.name)} · ${T(PERSONALITIES[l.personality].name)}${home ? ' · ' + T(home.name) : ''}`, T(l.lore));
             });
             LADIES.forEach(L => {
-                let f = FACTIONS[L.faction] || { name:'Bilinmiyor', color:'#fff' };
-                modalHtml += row(frame(Nobles.portraitCss(L, 140)), '#ff9ec4', L.name,
-                    `${f.name} · ${LADY_TRAITS[L.trait].name} · Vasisi: ${(Nobles.lord(L.guardianId)||{name:'?'}).name}`, L.lore);
+                let f = FACTIONS[L.faction] || { name:T('Bilinmiyor'), color:'#fff' };
+                modalHtml += row(frame(Nobles.portraitCss(L, 140)), '#ff9ec4', T(L.name),
+                    T`${T(f.name)} · ${T(LADY_TRAITS[L.trait].name)} · Vasisi: ${T((Nobles.lord(L.guardianId)||{name:'?'}).name)}`, T(L.lore));
             });
         } else {
             let i = 0;
@@ -6229,12 +6297,12 @@ const Game = {
                 let crest = `<div style="width:140px;height:140px;background-image:url('kingdom_crests.jpg');
                     background-size:300% 300%;background-position:${(i%3)*50}% ${Math.floor(i/3)*50}%;filter:sepia(0.2) contrast(1.1);"></div>`;
                 i++;
-                modalHtml += row(frame(crest), f.color, f.name, `${f.ruler} · ${f.vizier}`, f.lore);
+                modalHtml += row(frame(crest), f.color, T(f.name), `${T(f.ruler)} · ${T(f.vizier)}`, T(f.lore));
             });
         }
 
         modalHtml += `</div>
-            <button class="btn primary" style="margin-top:2rem;width:200px;" onclick="Game.closeModal()">Kapat</button>
+            <button class="btn primary" style="margin-top:2rem;width:200px;" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>`;
         this.showModal(modalHtml, '1000px', 'bg_hdr.jpg');
     },
@@ -6245,11 +6313,11 @@ const Game = {
     attrEffect(k) {
         let v = this.attr(k);
         switch(k) {
-            case 'str': return `Yakın dövüş saldırısı +${v.toFixed(1)}`;
-            case 'agi': return `Harita hızı +${(v * 1.5).toFixed(1)} · savaş hızı +${(v * 0.5).toFixed(1)}`;
-            case 'int': return `Görüş ${Math.round(this.getVisibility())} birim`;
-            case 'cha': return `Grup kapasitesi +${Math.round((v - 10) * 3)}`;
-            case 'vit': return `Max can +${Math.round((v - 10) * 5)} · ${this.hpRegenHours()} saatte 1 can`;
+            case 'str': return T`Yakın dövüş saldırısı +${v.toFixed(1)}`;
+            case 'agi': return T`Harita hızı +${(v * 1.5).toFixed(1)} · savaş hızı +${(v * 0.5).toFixed(1)}`;
+            case 'int': return T`Görüş ${Math.round(this.getVisibility())} birim`;
+            case 'cha': return T`Grup kapasitesi +${Math.round((v - 10) * 3)}`;
+            case 'vit': return T`Max can +${Math.round((v - 10) * 5)} · ${this.hpRegenHours()} saatte 1 can`;
         }
         return '';
     },
@@ -6259,14 +6327,14 @@ const Game = {
         let pct = tgt > 10 ? Math.max(0, Math.min(100, (eff - 10) / (tgt - 10) * 100)) : 100;
         let done = eff >= tgt - 0.001;
         return `<li>
-            ${a.icon} <strong>${a.name}:</strong>
+            ${a.icon} <strong>${T(a.name)}:</strong>
             <span style="color:${done ? '#fff' : 'var(--primary)'};font-size:1.05rem">${eff.toFixed(1)}</span>
-            <span style="color:var(--text-muted)"> / ${tgt} hedef</span>
+            <span style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
             ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
             ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:3px;height:5px;margin:0.3rem 0;max-width:220px">
                 <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:3px"></div></div>`}
             <div style="font-size:0.75rem;color:var(--text-muted)">${this.attrEffect(k)}</div>
-            ${done ? '' : `<div style="font-size:0.72rem;color:#cbb26b">Gelişimi: ${a.how}</div>`}
+            ${done ? '' : `<div style="font-size:0.72rem;color:#cbb26b">${T`Gelişimi: ${a.how}`}</div>`}
         </li>`;
     },
     renderCharacterScreen() {
@@ -6278,29 +6346,29 @@ const Game = {
         <div style="display:flex;gap:2rem;">
         <div style="flex:1;">
             <h3 style="color:var(--primary)">${p.name}</h3>
-            <p>Seviye: ${s.level} (XP: ${s.xp}/${s.xpNext})</p>
+            <p>${T`Seviye: ${s.level} (XP: ${s.xp}/${s.xpNext})`}</p>
             <div style="background:rgba(0,0,0,0.3);border-radius:4px;height:8px;width:200px;margin:0.5rem 0;">
                 <div style="background:var(--primary);height:100%;width:${xpBar}%;border-radius:4px;"></div>
             </div>
-            <p>Can: ${Math.round(s.hp)}/${Math.round(s.maxHp)}</p>
-            <p>Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}${this.honorTier()
+            <p>${T`Can: ${Math.round(s.hp)}/${Math.round(s.maxHp)}`}</p>
+            <p>${T`Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}`}${this.honorTier()
                 ? ` | <span style="color:${this.honor() < 0 ? 'var(--danger)' : '#7fd8a0'}"
-                     title="Şeref: eylemlerinin ikinci itibar ekseni (−100..100)">${this.honorLabel()} (${this.honor()})</span>` : ''}</p>
-            <p>Bağlılık: ${p.vassalOf ? (FACTIONS[p.vassalOf]||{name:p.vassalOf}).name : 'Bağımsız'}</p>
-            <p>Eş: ${p.spouse ? (Nobles.any(p.spouse) || {name:p.spouse}).name : 'Yok'}</p>
+                     title="${T('Şeref: eylemlerinin ikinci itibar ekseni (−100..100)')}">${this.honorLabel()} (${this.honor()})</span>` : ''}</p>
+            <p>${T`Bağlılık: ${p.vassalOf ? T((FACTIONS[p.vassalOf]||{name:p.vassalOf}).name) : T('Bağımsız')}</p>
+            <p>Eş: ${p.spouse ? T((Nobles.any(p.spouse) || {name:p.spouse}).name) : T('Yok')}`}</p>
             <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.8rem">
                 ${this.bannerCss(p.banner || 0, 64)}
                 <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5">
-                    <b style="color:${this.bannerColor()}">${(BANNERS[p.banner] || BANNERS[0]).name}</b> sancağı<br>
-                    ${p.gender === 'female' ? '👩 Kadın' : '👨 Erkek'}<br>${this.backgroundLine()}
+                    <b style="color:${this.bannerColor()}">${T((BANNERS[p.banner] || BANNERS[0]).name)}</b> ${T`sancağı`}<br>
+                    ${p.gender === 'female' ? T('👩 Kadın') : T('👨 Erkek')}<br>${this.backgroundLine()}
                 </div>
             </div>
         </div>
         <div style="flex:1;">
-            <h3 style="color:var(--primary)">Nitelikler ${pts > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${pts} Puan Dağıtılabilir)</span>` : ''}</h3>
+            <h3 style="color:var(--primary)">${T`Nitelikler ${pts > 0 ? `<span style="color:#2d2;font-size:0.9rem;">${T`(${pts} Puan Dağıtılabilir)`}</span>` : ''}`}</h3>
             <p style="font-size:0.75rem;color:var(--text-muted);margin:-0.4rem 0 0.6rem">
-                Puan vermek <b>hedefi</b> yükseltir. Sayının solundaki <b>efektif</b> değer, o niteliğe
-                uygun oynadıkça hedefe yaklaşır — beklemek işe yaramaz.</p>
+                ${T`Puan vermek <b>hedefi</b> yükseltir. Sayının solundaki <b>efektif</b> değer, o niteliğe
+                uygun oynadıkça hedefe yaklaşır — beklemek işe yaramaz.`}</p>
             <ul style="list-style:none;display:flex;flex-direction:column;gap:0.8rem;">
                 ${Object.keys(this.ATTRS).map(k => this.attrRowHtml(k, pts)).join('')}
             </ul>
@@ -6311,25 +6379,25 @@ const Game = {
         // Her yetenek ne yapıyor + şu anki değeri (geri bildirim: etkiler görünmüyordu)
         const L = id => this.profLvl(id);
         let profs = [
-            { id: 'oneHanded', name: 'Tek Elli Silahlar', d: l => `Kılıç hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
-            { id: 'twoHanded', name: 'Çift Elli Silahlar', d: l => `Çift elli silah hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
-            { id: 'polearm', name: 'Göndergeli Silahlar', d: l => `Mızrak hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)} (atlı şarjda ×2.6'ya kadar)` },
-            { id: 'bow', name: 'Okçuluk', d: l => `Ok hasarı ×${(0.5 + Math.min(0.5, l*0.005)).toFixed(2)}, savaş başına ${24 + l*2} ok` },
-            { id: 'riding', name: 'Binicilik', d: l => `Atlı savaş hızı ${Math.round(95 + this.attr('agi')*0.5 + (l-1)*3)}` },
-            { id: 'athletics', name: 'Atletizm', d: l => `Yaya savaş hızı ${Math.round(50 + this.attr('agi')*0.5 + (l-1)*1.5)}` },
-            { id: 'leadership', name: 'İdare', d: l => `Grup kapasitesi +${(L('leadership')-1)*4}, moral +${(L('leadership')-1)*3}` },
-            { id: 'persuasion', name: 'İkna Kabiliyeti', d: () => 'Drahoma pazarlığı ve diyalog seçenekleri' },
-            { id: 'surgery', name: 'Cerrahlık', d: () => `Ölen askerin yaralı kurtulma şansı %${Math.round(Math.min(0.75, 0.35 + L('surgery')*0.03)*100)}` },
-            { id: 'prisonerMgmt', name: 'Esir Yönetimi', d: () => `Esir kapasitesi ${this.prisonerCapacity()}, kaçış şansı %${Math.max(1, 6 - L('prisonerMgmt')*0.5).toFixed(1)}` },
-            { id: 'pathfinding', name: 'Yol Bulma', d: () => `Harita hızı +%${((L('pathfinding')-1)*2).toFixed(0)}` },
-            { id: 'spotting', name: 'Gözcülük', d: () => `Görüş ${Math.round(this.getVisibility())} birim` },
-            { id: 'trade', name: 'Ticaret', d: () => `Alışta indirim / satışta prim %${Math.round(Math.min(0.25, (L('trade')-1)*0.02)*100)}` },
-            { id: 'looting', name: 'Yağma', d: () => `Savaş ganimeti +%${((L('looting')-1)*4).toFixed(0)}` },
-            { id: 'trainer', name: 'Eğitim', d: () => `Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` }
+            { id: 'oneHanded', name: T('Tek Elli Silahlar'), d: l => T`Kılıç hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
+            { id: 'twoHanded', name: T('Çift Elli Silahlar'), d: l => T`Çift elli silah hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
+            { id: 'polearm', name: T('Göndergeli Silahlar'), d: l => T`Mızrak hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)} (atlı şarjda ×2.6'ya kadar)` },
+            { id: 'bow', name: T('Okçuluk'), d: l => T`Ok hasarı ×${(0.5 + Math.min(0.5, l*0.005)).toFixed(2)}, savaş başına ${24 + l*2} ok` },
+            { id: 'riding', name: T('Binicilik'), d: l => T`Atlı savaş hızı ${Math.round(95 + this.attr('agi')*0.5 + (l-1)*3)}` },
+            { id: 'athletics', name: T('Atletizm'), d: l => T`Yaya savaş hızı ${Math.round(50 + this.attr('agi')*0.5 + (l-1)*1.5)}` },
+            { id: 'leadership', name: T('İdare'), d: l => T`Grup kapasitesi +${(L('leadership')-1)*4}, moral +${(L('leadership')-1)*3}` },
+            { id: 'persuasion', name: T('İkna Kabiliyeti'), d: () => T('Drahoma pazarlığı ve diyalog seçenekleri') },
+            { id: 'surgery', name: T('Cerrahlık'), d: () => T`Ölen askerin yaralı kurtulma şansı %${Math.round(Math.min(0.75, 0.35 + L('surgery')*0.03)*100)}` },
+            { id: 'prisonerMgmt', name: T('Esir Yönetimi'), d: () => T`Esir kapasitesi ${this.prisonerCapacity()}, kaçış şansı %${Math.max(1, 6 - L('prisonerMgmt')*0.5).toFixed(1)}` },
+            { id: 'pathfinding', name: T('Yol Bulma'), d: () => T`Harita hızı +%${((L('pathfinding')-1)*2).toFixed(0)}` },
+            { id: 'spotting', name: T('Gözcülük'), d: () => T`Görüş ${Math.round(this.getVisibility())} birim` },
+            { id: 'trade', name: T('Ticaret'), d: () => T`Alışta indirim / satışta prim %${Math.round(Math.min(0.25, (L('trade')-1)*0.02)*100)}` },
+            { id: 'looting', name: T('Yağma'), d: () => T`Savaş ganimeti +%${((L('looting')-1)*4).toFixed(0)}` },
+            { id: 'trainer', name: T('Eğitim'), d: () => T`Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` }
         ];
 
-        let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">(${fp} Odak Puanı Dağıtılabilir)</span>` : ''}</h3>
-        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;">Odak puanları yeteneklerin öğrenme hızını artırır (Bannerlord sistemi). Savaşarak gelişir.</p>
+        let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">${T`Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">${T`(${fp} Odak Puanı Dağıtılabilir)`}</span>` : ''}`}</h3>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;">${T`Odak puanları yeteneklerin öğrenme hızını artırır (Bannerlord sistemi). Savaşarak gelişir.`}</p>
         <div style="display:flex;flex-wrap:wrap;gap:1rem;">`;
         
         profs.forEach(pr => {
@@ -6339,9 +6407,9 @@ const Game = {
             let mult = 0.5 + (pData.focus||0);
             profHtml += `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;width:48%;display:flex;justify-content:space-between;align-items:center;">
                 <div style="flex:1">
-                    <div style="font-weight:bold">${pr.name} (Seviye ${pData.level})</div>
+                    <div style="font-weight:bold">${T`${pr.name} (Seviye ${pData.level})`}</div>
                     <div style="font-size:0.75rem;color:#cbb26b">${pr.d(pData.level)}</div>
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Öğrenme Hızı: x${mult} | Odak: ${pData.focus||0}/5</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">${T`Öğrenme Hızı: x${mult} | Odak: ${pData.focus||0}/5`}</div>
                     <div style="background:rgba(0,0,0,0.5);border-radius:2px;height:4px;margin-top:4px;width:90%;">
                         <div style="background:var(--primary);height:100%;width:${fill}%;"></div>
                     </div>
@@ -6402,7 +6470,7 @@ const Game = {
             pData.level++;
             pData.next = Math.floor(pData.next * 1.2);
             // Savaş içinde alert rahatsız eder, bu yüzden loglara eklenebilir veya console.
-            console.log(`Yeteneğin gelişti: ${id} (Lvl ${pData.level})`);
+            console.log(T`Yeteneğin gelişti: ${id} (Lvl ${pData.level})`);
         }
     },
     // Görüş tek kaynaktan: zeka + Gözcülük yeteneği. Eskiden state.player.visibility
@@ -6425,9 +6493,9 @@ const Game = {
     // --- PARTY ---
     renderPartyScreen() {
         let wounded = state.player.party.filter(t => t.wounded).length;
-        let html = `<p>Kapasite: ${state.player.party.length}/${this.getPartyCapacity()}` +
-            (wounded ? ` · <span style="color:#ffaa00">🩹 ${wounded} yaralı</span> (savaşa giremez)` : '') + `</p><hr style="margin:0.8rem 0;border-color:var(--panel-border)">`;
-        if(state.player.party.length === 0) html += '<p>Grubunda hiç asker yok.</p>';
+        let html = `<p>${T('Kapasite')}: ${state.player.party.length}/${this.getPartyCapacity()}` +
+            (wounded ? ` · <span style="color:#ffaa00">${T`🩹 ${wounded} yaralı</span> (savaşa giremez)`}` : '') + `</p><hr style="margin:0.8rem 0;border-color:var(--panel-border)">`;
+        if(state.player.party.length === 0) html += `<p>${T('Grubunda hiç asker yok.')}</p>`;
         else {
             let groups = {};
             state.player.party.forEach(t => {
@@ -6453,8 +6521,8 @@ const Game = {
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">Tür: ${this.troopClassName(typeInfo)}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + DMG_TYPES[typeInfo.dmgType].name : ''}${g.sample.isCompanion ? ` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? ` · savaşamaz, ${g.wounded} gün` : ''}</div>
-                    ${g.sample.debuff ? '<div style="font-size:0.75rem;color:#e0463a">🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7</div>' : ''}
+                    <div style="font-size:0.75rem;color:var(--text-muted)">${T`Tür: ${this.troopClassName(typeInfo)}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + T(DMG_TYPES[typeInfo.dmgType].name) : ''}${g.sample.isCompanion ? T` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? T` · savaşamaz, ${g.wounded} gün` : ''}`}</div>
+                    ${g.sample.debuff ? T('<div style="font-size:0.75rem;color:#e0463a">🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7</div>') : ''}
                 </div>`;
 
                 // Sıra değiştirme + gruptan çıkarma (#51)
@@ -6471,9 +6539,9 @@ const Game = {
                     upgradeChoices.forEach(choice => {
                         // Hangi seçenek piyade, hangisi atlı okçu — terfi kör tercih olmasın (#51)
                         let ci = this.troopStats({ name: choice.name });
-                        html += `<button class="btn primary" style="font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${choice.name.replace(/'/g,"\\'")}', ${choice.cost})">
-                            Sınıf Terfisi: ${ci.icon} ${choice.name} (${choice.cost} Dinar)
-                            <div style="font-size:0.7rem;opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + DMG_TYPES[ci.dmgType].name : ''}</div>
+                        html += `<button class="btn primary" style="font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name.replace(/'/g,"\\'"))}', ${choice.cost})">
+                            ${T`Sınıf Terfisi: ${ci.icon} ${T(choice.name)} (${choice.cost} Dinar)`}
+                            <div style="font-size:0.7rem;opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + T(DMG_TYPES[ci.dmgType].name) : ''}</div>
                         </button>`;
                     });
                     html += `</div>`;
@@ -6482,7 +6550,7 @@ const Game = {
                 let maxLevelTroop = g.normal.find(t => t.level === 50) || g.ready.find(t => t.level === 50);
                 let hasToken = state.player.inventory.some(i => i.id === 'lvl51_token');
                 if(maxLevelTroop && hasToken) {
-                    html += `<div style="margin-top:0.5rem"><button class="btn" style="border-color:#aa00ff;color:#aa00ff;font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTo51('${maxLevelTroop.id}')">🌟 Savaş Tanrısı Nişanı Kullan (Lvl 51 Yap)</button></div>`;
+                    html += `<div style="margin-top:0.5rem"><button class="btn" style="border-color:#aa00ff;color:#aa00ff;font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTo51('${maxLevelTroop.id}')">${T`🌟 Savaş Tanrısı Nişanı Kullan (Lvl 51 Yap)`}</button></div>`;
                 }
 
                 html += `</li>`;
@@ -6494,15 +6562,15 @@ const Game = {
         document.getElementById('party-list').innerHTML = html;
     },
     // Efsanevi öneki yalnızca ekranda görünür, veride ad temiz kalır
-    troopLabel(t) { return (t.legendary ? 'Efsanevi ' : '') + t.name; },
+    troopLabel(t) { return (t.legendary ? T('Efsanevi ') : '') + T(t.name); },
     // Grup ekranı askerleri bu anahtarla toplar; sıra ve çıkarma da aynı anahtarı kullanır (#51)
-    troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? ' 🩹 (yaralı)' : ''); },
+    troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? T(' 🩹 (yaralı)') : ''); },
     troopClassName(st) {
         // Kergit atlı okçusu ağaçta 'archer' ama 108 hızla gezer — sınıfı hıza bakarak yaz,
         // yoksa listede yaya okçularla aynı görünüyor. Yaya tavanı 66, süvari tabanı 95.
         let mounted = st.type === 'cavalry' || st.speed >= 90;
-        if(st.type === 'archer') return mounted ? 'Atlı Okçu' : 'Okçu';
-        return mounted ? 'Süvari' : 'Piyade';
+        if(st.type === 'archer') return mounted ? T('Atlı Okçu') : T('Okçu');
+        return mounted ? T('Süvari') : T('Piyade');
     },
     // Sırayı grup grup değiştir: aynı ada sahip askerler bloğu komşu blokla yer değiştirir
     moveTroopGroup(key, dir) {
@@ -6518,12 +6586,12 @@ const Game = {
     dismissTroops(key) {
         let n = state.player.party.filter(t => this.troopGroupKey(t) === key).length;
         if(!n) return;
-        this.showModal(`<h3>➖ Gruptan Çıkar</h3>
-            <p><b>${key}</b> — elinde ${n} tane var. Çıkardığın asker yoluna gider, geri gelmez.</p>
+        this.showModal(`<h3>${T`➖ Gruptan Çıkar</h3>
+            <p><b>${key}</b> — elinde ${n} tane var. Çıkardığın asker yoluna gider, geri gelmez.`}</p>
             <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem">
-                <button class="btn" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', 1)">Bir Tane</button>
-                ${n > 1 ? `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', ${n})">Hepsi (${n})</button>` : ''}
-                <button class="btn" onclick="Game.closeModal()">Vazgeç</button>
+                <button class="btn" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', 1)">${T`Bir Tane`}</button>
+                ${n > 1 ? `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', ${n})">${T`Hepsi (${n})`}</button>` : ''}
+                <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>
             </div>`);
     },
     doDismiss(key, n) {
@@ -6534,7 +6602,7 @@ const Game = {
         this.closeModal();
         this.renderPartyScreen();
         this.updateTopBar();
-        alert(`${key} × ${gone} gruptan ayrıldı.`);
+        alert(T`${key} × ${gone} gruptan ayrıldı.`);
     },
 
     // --- MORAL ---
@@ -6654,16 +6722,16 @@ const Game = {
             let n = Math.min(p.party.length, 1 + Math.floor((25 - p.morale) / 8));
             // ponytail: en son katılanlar ilk firar eder; rastgele seçim bir şey katmıyor
             let gone = p.party.splice(p.party.length - n, n);
-            alert(`Moral çöktü! ${gone.length} asker gece kamptan kaçtı. (Moral ${Math.round(p.morale)})`);
+            alert(T`Moral çöktü! ${gone.length} asker gece kamptan kaçtı. (Moral ${Math.round(p.morale)})`);
         }
     },
 
     moraleLabel(m) {
-        if(m >= 80) return '<span style="color:#2ecc71">Coşkulu</span>';
-        if(m >= 60) return '<span style="color:#8ecf5a">Yüksek</span>';
-        if(m >= 40) return '<span style="color:#ccc">Normal</span>';
-        if(m >= 25) return '<span style="color:#e59b3d">Düşük</span>';
-        return '<span style="color:#e74c3c">Çökmüş</span>';
+        if(m >= 80) return T('<span style="color:#2ecc71">Coşkulu</span>');
+        if(m >= 60) return T('<span style="color:#8ecf5a">Yüksek</span>');
+        if(m >= 40) return T('<span style="color:#ccc">Normal</span>');
+        if(m >= 25) return T('<span style="color:#e59b3d">Düşük</span>');
+        return T('<span style="color:#e74c3c">Çökmüş</span>');
     },
 
     // Moral savaşta bütün birliğin gücünü ölçekler (0 -> x0.8, 50 -> x1.0, 100 -> x1.2)
@@ -6673,11 +6741,11 @@ const Game = {
         let m = Math.round(this.morale());
         let info = state.player.moraleInfo || {};
         let rows = Object.keys(info).filter(k => info[k] !== 0)
-            .map(k => `<div style="display:flex;justify-content:space-between"><span>${k}</span><span style="color:${info[k] > 0 ? '#2ecc71' : '#e74c3c'}">${info[k] > 0 ? '+' : ''}${info[k]}</span></div>`).join('');
-        return `<h3 style="color:var(--primary);margin-top:1.5rem">🎺 Moral ${m}/100 — ${this.moraleLabel(m)}</h3>
+            .map(k => `<div style="display:flex;justify-content:space-between"><span>${T(k)}</span><span style="color:${info[k] > 0 ? '#2ecc71' : '#e74c3c'}">${info[k] > 0 ? '+' : ''}${info[k]}</span></div>`).join('');
+        return `<h3 style="color:var(--primary);margin-top:1.5rem">${T`🎺 Moral ${m}/100 — ${this.moraleLabel(m)}`}</h3>
             <div style="background:rgba(0,0,0,0.25);padding:0.8rem;border-radius:6px;font-size:0.85rem;line-height:1.6">
-            ${rows || '<i>Henüz hesaplanmadı (bir gün geçmeli).</i>'}
-            <div style="color:var(--text-muted);margin-top:0.4rem">Savaş gücü çarpanı: ×${this.moraleMult().toFixed(2)}${m < 25 ? ' · <span style="color:#e74c3c">firar başladı!</span>' : ''}</div>
+            ${rows || `<i>${T('Henüz hesaplanmadı (bir gün geçmeli).')}</i>`}
+            <div style="color:var(--text-muted);margin-top:0.4rem">${T`Savaş gücü çarpanı: ×${this.moraleMult().toFixed(2)}${m < 25 ? T(' · <span style="color:#e74c3c">firar başladı!</span>') : ''}`}</div>
             </div>`;
     },
 
@@ -6695,11 +6763,11 @@ const Game = {
 
     openSlaveTrader(note) {
         let ps = state.player.prisoners;
-        let html = `<h2 style="color:var(--primary);margin-top:0">⛓️ Köle Tüccarı</h2>`;
+        let html = `<h2 style="color:var(--primary);margin-top:0">${T`⛓️ Köle Tüccarı`}</h2>`;
         if(note) html += `<p style="color:#ffcc00">${note}</p>`;
         let troops = ps.filter(p => !p.noble);
         if(troops.length === 0) {
-            html += `<p style="color:var(--text-muted)">Tüccar boş ranzalarını gösteriyor: "Zincirim bol, malın yok. Git birkaç çapulcu topla da konuşalım."</p>`;
+            html += `<p style="color:var(--text-muted)">${T`Tüccar boş ranzalarını gösteriyor: "Zincirim bol, malın yok. Git birkaç çapulcu topla da konuşalım."`}</p>`;
         } else {
             let groups = {};
             troops.forEach(t => {
@@ -6708,18 +6776,18 @@ const Game = {
                 groups[key].count++;
             });
             let total = troops.reduce((a, t) => a + this.prisonerValue(t), 0);
-            html += `<p style="color:var(--text-muted)">Tüccar esirlerini tek tek süzüyor.</p><ul style="list-style:none;padding:0">`;
+            html += `<p style="color:var(--text-muted)">${T`Tüccar esirlerini tek tek süzüyor.`}</p><ul style="list-style:none;padding:0">`;
             for(let name in groups) {
                 let g = groups[name];
                 html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
-                    <span>⛓️ <b>${name}</b> x${g.count} <span style="color:var(--text-muted);font-size:0.8rem">(tanesi ${g.value} dinar)</span></span>
-                    <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">Sat (+${g.count * g.value})</button>
+                    <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:0.8rem">${T`(tanesi ${g.value} dinar)`}</span></span>
+                    <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
             }
-            html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">Hepsini Sat (+${total} Dinar)</button>`;
+            html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">${T`Hepsini Sat (+${total} Dinar)`}</button>`;
         }
-        if(ps.some(p => p.noble)) html += `<p style="color:#e59b3d;font-size:0.85rem;margin-top:0.8rem">Tüccar soylulara elini sürmez: "Onların fidyesi benim değil, senin işin." (Grup ekranından fidye iste)</p>`;
-        html += `<button class="btn" style="width:100%;margin-top:0.8rem" onclick="Game.closeModal()">Ayrıl</button>`;
+        if(ps.some(p => p.noble)) html += `<p style="color:#e59b3d;font-size:0.85rem;margin-top:0.8rem">${T`Tüccar soylulara elini sürmez: "Onların fidyesi benim değil, senin işin." (Grup ekranından fidye iste)`}</p>`;
+        html += `<button class="btn" style="width:100%;margin-top:0.8rem" onclick="Game.closeModal()">${T`Ayrıl`}</button>`;
         this.showModal(html);
     },
 
@@ -6735,7 +6803,7 @@ const Game = {
         this.addProficiencyXp('prisonerMgmt', 8 * sold);
         this.updateTopBar();
         // Not modalın içinde gösterilir; alert() showModal ile üst üste binerdi
-        this.openSlaveTrader(`${sold} esir satıldı. +${money} dinar.`);
+        this.openSlaveTrader(T`${sold} esir satıldı. +${money} dinar.`);
     },
 
     releasePrisoners(name) {
@@ -6744,7 +6812,7 @@ const Game = {
             if(p.noble || p.name !== name) return true;
             n++; return false;
         });
-        if(n) { this.renderPartyScreen(); alert(`${n} esir salıverildi.`); }
+        if(n) { this.renderPartyScreen(); alert(T`${n} esir salıverildi.`); }
     },
 
     // Fidye alınan ya da salıverilen lord haritaya döner — yoksa yenilen soylu
@@ -6772,7 +6840,7 @@ const Game = {
         this.addProficiencyXp('prisonerMgmt', 40);
         this.updateTopBar();
         this.renderPartyScreen();
-        alert(`${pr.name} için ${pr.ransom} dinar fidye alındı. Serbest bıraktın ama bunu unutmayacak.`);
+        alert(T`${T(pr.name)} için ${pr.ransom} dinar fidye alındı. Serbest bıraktın ama bunu unutmayacak.`);
     },
 
     releaseLord(id) {
@@ -6786,25 +6854,25 @@ const Game = {
         this.respawnLordParty(pr);
         this.updateTopBar();
         this.renderPartyScreen();
-        alert(`${pr.name}'i fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
+        alert(T`${T(pr.name)}'i fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
     },
 
     prisonersHtml() {
         let ps = state.player.prisoners || [];
         let pm = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
         let risk = Math.max(1, 6 - pm * 0.5).toFixed(1);
-        let html = `<h3 style="color:var(--primary);margin-top:1.5rem">⛓️ Esirler ${ps.length}/${this.prisonerCapacity()}</h3>
-            <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.5rem">Esir Yönetimi ${pm} · her esir günde <b>%${risk}</b> ihtimalle kaçar (soylular kaçmaz) · toplam değer ~${ps.reduce((a, p) => a + (p.noble ? p.ransom : this.prisonerValue(p)), 0)} dinar</p>`;
-        if(ps.length === 0) return html + `<p style="color:var(--text-muted);font-size:0.85rem">Zincirlerin boş. Kazandığın savaşlarda düşen düşmanların bir kısmı esir alınır; şehirdeki köle tüccarına satılır.</p>`;
+        let html = `<h3 style="color:var(--primary);margin-top:1.5rem">${T`⛓️ Esirler ${ps.length}/${this.prisonerCapacity()}`}</h3>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.5rem">${T`Esir Yönetimi ${pm} · her esir günde <b>%${risk}</b> ihtimalle kaçar (soylular kaçmaz) · toplam değer ~${ps.reduce((a, p) => a + (p.noble ? p.ransom : this.prisonerValue(p)), 0)} dinar`}</p>`;
+        if(ps.length === 0) return html + `<p style="color:var(--text-muted);font-size:0.85rem">${T`Zincirlerin boş. Kazandığın savaşlarda düşen düşmanların bir kısmı esir alınır; şehirdeki köle tüccarına satılır.`}</p>`;
         let groups = {};
         html += '<ul style="list-style:none;padding:0">';
         ps.forEach(p => {
             if(p.noble) {
                 html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:6px;margin-bottom:0.5rem">
-                    <b style="color:#e59b3d">👑 ${p.name}</b> <span style="font-size:0.8rem;color:var(--text-muted)">${(FACTIONS[p.faction]||{name:''}).name} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}</span>
+                    <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:0.8rem;color:var(--text-muted)">${T`${T((FACTIONS[p.faction]||{name:''}).name)} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
                     <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
-                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">💰 Fidye İste (${p.ransom} Dinar)</button>
-                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">🕊️ Onurunla Salıver</button>
+                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">${T`💰 Fidye İste (${p.ransom} Dinar)`}</button>
+                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">${T`🕊️ Onurunla Salıver`}</button>
                     </div></li>`;
                 return;
             }
@@ -6814,8 +6882,8 @@ const Game = {
         for(let name in groups) {
             let g = groups[name];
             html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
-                <span>⛓️ <b>${name}</b> x${g.count} <span style="font-size:0.8rem;color:var(--text-muted)">(tanesi ~${g.value} dinar)</span></span>
-                <button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${name.replace(/'/g,"\\'")}')">Salıver</button>
+                <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:0.8rem;color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
+                <button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Salıver`}</button>
             </li>`;
         }
         return html + '</ul>';
@@ -6834,13 +6902,13 @@ const Game = {
             // anahtarını bozuyordu; önek artık yalnızca gösterimde.
             t.legendary = true;
 
-            alert(`${this.troopLabel(t)} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!`);
+            alert(T`${this.troopLabel(t)} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!`);
             this.renderPartyScreen();
             this.updateTopBar();
         }
     },
     promoteTroop(oldName, newName, cost) {
-        if(state.player.money < cost) { this.sfx('error'); return alert('Yeterli dinarın yok!'); }
+        if(state.player.money < cost) { this.sfx('error'); return alert(T('Yeterli dinarın yok!')); }
         let troopIdx = state.player.party.findIndex(t => t.name === oldName && t.xp >= t.xpNext);
         if(troopIdx !== -1) {
             state.player.money -= cost;
@@ -6855,7 +6923,7 @@ const Game = {
             this.updateTopBar();
             this.renderPartyScreen();
             this.feedback('upgrade', null, -cost);
-            alert(`Asker başarıyla ${newName} sınıfına terfi ettirildi!`);
+            alert(T`Asker başarıyla ${newName} sınıfına terfi ettirildi!`);
         }
     },
 
@@ -6864,14 +6932,14 @@ const Game = {
         let e = state.player.equipment;
         let html = `<div style="display:flex;gap:2rem;">
         <div style="flex:1;">
-            <h3 style="color:var(--primary)">Kuşanılan</h3>
-            ${this._eqSlot('Silah','weapon',e.weapon)}
-            ${this._eqSlot('Zırh','armor',e.armor)}
-            ${this._eqSlot('At','horse',e.horse)}
+            <h3 style="color:var(--primary)">${T`Kuşanılan`}</h3>
+            ${this._eqSlot(T('Silah'),'weapon',e.weapon)}
+            ${this._eqSlot(T('Zırh'),'armor',e.armor)}
+            ${this._eqSlot(T('At'),'horse',e.horse)}
         </div>
         <div style="flex:2;">
-            <h3 style="color:var(--primary)">Çanta</h3>`;
-        if(state.player.inventory.length === 0) html += '<p>Envanterin boş.</p>';
+            <h3 style="color:var(--primary)">${T`Çanta`}</h3>`;
+        if(state.player.inventory.length === 0) html += `<p>${T('Envanterin boş.')}</p>`;
         else {
             html += '<div style="display:flex;gap:0.8rem;flex-wrap:wrap;">';
             state.player.inventory.forEach((item,i) => {
@@ -6879,11 +6947,11 @@ const Game = {
                 let isUse = item.type === 'special' && item.id === 'boss_map';
                 html += `<div style="padding:0.8rem;background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-radius:6px;width:120px;text-align:center;">
                 <div style="font-size:1.5rem">${item.icon||'📦'}</div>
-                <div style="font-weight:bold;font-size:0.9rem;margin-top:0.3rem">${item.name}</div>
+                <div style="font-weight:bold;font-size:0.9rem;margin-top:0.3rem">${T(item.name)}</div>
                 <div style="color:var(--text-muted);font-size:0.8rem">x${item.qty}</div>
                 ${this.itemNote(item) ? `<div style="font-size:0.68rem;color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
-                ${canEquip ? `<button class="btn primary" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">Kuşan</button>` : ''}
-                ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">Kullan</button>` : ''}
+                ${canEquip ? `<button class="btn primary" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">${T`Kuşan`}</button>` : ''}
+                ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">${T`Kullan`}</button>` : ''}
                 </div>`;
             });
             html += '</div>';
@@ -6895,21 +6963,21 @@ const Game = {
     // Silahın hasar türü künyesi — zırha karşı davranışı burada görünür
     itemNote(item) {
         if(!item) return '';
-        if(item.id === 'boss_map') return `Kullanmak için ${this.BOSS_RENOWN} nam gerekir (sende ${this.peakRenown()})`;
+        if(item.id === 'boss_map') return T`Kullanmak için ${this.BOSS_RENOWN} nam gerekir (sende ${this.peakRenown()})`;
         let bits = [];
-        if(item.attack) bits.push(`+${item.attack} saldırı`);
-        if(item.defense) bits.push(`+${item.defense} savunma`);
+        if(item.attack) bits.push(T`+${item.attack} saldırı`);
+        if(item.defense) bits.push(T`+${item.defense} savunma`);
         let t = DMG_TYPES[item.dmgType];
-        if(t) bits.push(`${t.name} — düşman savunması %${Math.round(t.armor*100)} etkili, hasar ×${t.mult}${t.knock ? ', bayıltır (esir)' : ''}`);
+        if(t) bits.push(T`${T(t.name)} — düşman savunması %${Math.round(t.armor*100)} etkili, hasar ×${t.mult}${t.knock ? T(', bayıltır (esir)') : ''}`);
         return bits.join(' · ');
     },
 
     _eqSlot(label, slot, item) {
         return `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
         <div><div style="font-size:0.75rem;color:var(--text-muted)">${label}</div>
-        <div style="font-weight:bold">${item ? (item.icon||'')+' '+item.name : 'Yok'}</div>
+        <div style="font-weight:bold">${item ? (item.icon||'')+' '+T(item.name) : T('Yok')}</div>
         ${item ? `<div style="font-size:0.72rem;color:#cbb26b">${this.itemNote(item)}</div>` : ''}</div>
-        ${item ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.4rem" onclick="Game.unequipItem('${slot}')">Çıkar</button>` : ''}
+        ${item ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.4rem" onclick="Game.unequipItem('${slot}')">${T`Çıkar`}</button>` : ''}
         </div>`;
     },
     equipItem(idx) {
@@ -6927,18 +6995,18 @@ const Game = {
         if(item.id === 'boss_map') {
             // Oyunun en güçlü ödülü yalnız parayla alınmasın (#55 madde 9): kapı nam da ister
             if(this.peakRenown() < this.BOSS_RENOWN) {
-                alert(`🗺️ Harita bir yol tarif ediyor ama sonundaki kapı herkese açılmıyor.<br><br>`
-                    + `Savaş Tanrısı'nın önüne çıkmak için <b>${this.BOSS_RENOWN} nam</b> gerekir (sende ${this.peakRenown()}).`);
+                alert(`${T`🗺️ Harita bir yol tarif ediyor ama sonundaki kapı herkese açılmıyor.`}<br><br>`
+                    + `${T`Savaş Tanrısı'nın önüne çıkmak için <b>${this.BOSS_RENOWN} nam</b> gerekir (sende ${this.peakRenown()}).`}`);
                 return;
             }
             state.bossEntries = (state.bossEntries || 0) + 1;
-            if(state.bossEntries > 4) { alert("Boss haritasını daha fazla kullanamazsın!"); return; }
+            if(state.bossEntries > 4) { alert(T("Boss haritasını daha fazla kullanamazsın!")); return; }
             item.qty--;
             if(item.qty <= 0) state.player.inventory.splice(idx, 1);
             this.renderInventoryScreen();
             
             let bossLevel = 30 + (state.bossEntries - 1) * 5; // İlk giriş 30, sonra zorlaşır
-            Battle.start('Savaş Tanrısı (Boss)', 15 + state.bossEntries * 5, bossLevel);
+            Battle.start(T('Savaş Tanrısı (Boss)'), 15 + state.bossEntries * 5, bossLevel);
         }
     },
     unequipItem(slot, reRender = true) {
@@ -6971,8 +7039,8 @@ const Game = {
             s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord tarzı seviye başına 3 odak puanı
             this.updateStatsFromEquip(); // seviye +10 max can — tek formülden
             s.hp = s.maxHp;
-            alert(`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.<br>` +
-                  `Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`);
+            alert(`${T`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.`}<br>` +
+                  `${T`Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`}`);
         }
         this.updateTopBar();
     },
@@ -6994,7 +7062,7 @@ const Save = {
     SLOTS: ['1', '2', '3'],
     AUTOS: ['a1', 'a2', 'a3', 'a4', 'a5'],
     key(slot) { return slot === 'legacy' ? this.LEGACY : 'webband_save_' + slot; },
-    slotName(slot) { return slot === 'legacy' ? 'Eski kayıt' : slot[0] === 'a' ? 'Oto ' + slot[1] : 'Slot ' + slot; },
+    slotName(slot) { return slot === 'legacy' ? T('Eski kayıt') : slot[0] === 'a' ? T('Oto ') + slot[1] : T('Slot ') + slot; },
 
     snapshot() {
         state.meta = Object.assign({ createdAt: Date.now(), playtime: 0 }, state.meta, { v: this.V, surum: VERSION.no });
@@ -7017,14 +7085,14 @@ const Save = {
             return true;
         } catch(e) {
             // Kota dolduysa oyunu kilitlemek yerine söyle: oyuncu eski slotu silebilsin
-            Debug.log('kayit', 'Kayıt yazılamadı: ' + e.message, { slot });
+            Debug.log('kayit', T('Kayıt yazılamadı: ') + e.message, { slot });
             return false;
         }
     },
     save(slot) {
         let ok = this.write(slot || '1');
-        if(document.getElementById('save-panel')) return this.open(ok ? `✅ ${this.slotName(slot || '1')} kaydedildi.` : '❌ Kayıt başarısız — yer kalmamış olabilir, bir slot sil.');
-        alert(ok ? 'Oyun kaydedildi.' : 'Kayıt başarısız: tarayıcı deposu dolu olabilir.');
+        if(document.getElementById('save-panel')) return this.open(ok ? T`✅ ${this.slotName(slot || '1')} kaydedildi.` : T('❌ Kayıt başarısız — yer kalmamış olabilir, bir slot sil.'));
+        alert(ok ? T('Oyun kaydedildi.') : T('Kayıt başarısız: tarayıcı deposu dolu olabilir.'));
     },
     // Her oyun günü başında halkasal otomatik kayıt (ayarlardan kapatılabilir)
     auto() {
@@ -7042,8 +7110,8 @@ const Save = {
         catch(e) {
             let bak = 'webband_broken_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '');
             try { localStorage.setItem(bak, raw); localStorage.removeItem(this.key(slot)); } catch(e2) {}
-            Debug.log('kayit', 'Bozuk kayıt: ' + e.message, { slot, yedek: bak });
-            alert(`Kayıt bozuk (${this.slotName(slot)}).<br>Silmedim, <b>${bak}</b> anahtarına taşıdım.`);
+            Debug.log('kayit', T('Bozuk kayıt: ') + e.message, { slot, yedek: bak });
+            alert(`${T`Kayıt bozuk (${this.slotName(slot)}).<br>Silmedim, <b>${bak}</b> anahtarına taşıdım.`}`);
             return null;
         }
     },
@@ -7055,7 +7123,7 @@ const Save = {
             delete d.state.explored;   // savaş sisi kaldırıldı, ızgara artık okunmuyor
             // Efsanevi askerin adı 'Efsanevi ' önekiyle saklanıyordu
             (d.state.player.party || []).forEach(t => {
-                if(t.name && t.name.startsWith('Efsanevi ')) { t.name = t.name.slice(9); t.legendary = true; }
+                if(t.name && t.name.startsWith(T('Efsanevi '))) { t.name = t.name.slice(9); t.legendary = true; }
             });
             if(d.state.muted !== undefined) { d.state.settings = d.state.settings || {}; d.state.settings.muted = d.state.muted; }
             d.state.meta = { v: 2, createdAt: d.savedAt || Date.now(), playtime: 0, gocEdildi: true };
@@ -7079,17 +7147,17 @@ const Save = {
     // Başlangıç ekranındaki "Kayıttan Devam": en yeni kayıt hangisiyse o
     continueGame() {
         let rows = this.list().filter(r => !r.bozuk).sort((a, b) => b.savedAt - a.savedAt);
-        if(!rows.length) return alert('Kayıtlı oyun yok.');
+        if(!rows.length) return alert(T('Kayıtlı oyun yok.'));
         this.load(rows[0].slot);
     },
 
     load(slot) {
         let d = this.read(slot || '1');
-        if(!d) return alert('Bu slotta kayıt yok.');
-        if(d.v > this.V) return alert('Bu kayıt oyunun daha yeni bir sürümünden; yüklenemiyor.');
+        if(!d) return alert(T('Bu slotta kayıt yok.'));
+        if(d.v > this.V) return alert(T('Bu kayıt oyunun daha yeni bir sürümünden; yüklenemiyor.'));
         this.migrate(d);
         this.apply(d);
-        alert(`Kayıt yüklendi (${this.slotName(slot || '1')}). Gün ${state.time.day}.`);
+        alert(T`Kayıt yüklendi (${this.slotName(slot || '1')}). Gün ${state.time.day}.`);
     },
 
     apply(d) {
@@ -7142,7 +7210,7 @@ const Save = {
 
     del(slot) {
         localStorage.removeItem(this.key(slot));
-        this.open(`🗑️ ${this.slotName(slot)} silindi.`);
+        this.open(T`🗑️ ${this.slotName(slot)} silindi.`);
     },
     wipe() { this.SLOTS.concat(this.AUTOS, ['legacy']).forEach(s => localStorage.removeItem(this.key(s))); },
 
@@ -7153,66 +7221,66 @@ const Save = {
         let inGame = document.getElementById('main-ui').classList.contains('active');
         let line = (slot) => {
             let r = byId[slot];
-            let info = !r ? '<span style="color:var(--text-muted)">boş</span>'
-                : r.bozuk ? `<span style="color:var(--danger)">bozuk (${r.kb} KB)</span>`
-                : `<b>${r.ad || '—'}</b> · ${r.gun}. gün · Sv.${r.seviye || 1}
-                   <span style="color:var(--text-muted);font-size:0.78rem">${new Date(r.savedAt).toLocaleString('tr-TR')} · ${r.kb} KB · v${r.surum}</span>`;
+            let info = !r ? T('<span style="color:var(--text-muted)">boş</span>')
+                : r.bozuk ? `<span style="color:var(--danger)">${T`bozuk (${r.kb} KB)`}</span>`
+                : `<b>${r.ad || '—'}</b> ${T`· ${r.gun}. gün · Sv.${r.seviye || 1}`}
+                   <span style="color:var(--text-muted);font-size:0.78rem">${T`${new Date(r.savedAt).toLocaleString(I18N.lang)} · ${r.kb} KB · v${r.surum}`}</span>`;
             return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="min-width:5rem">${this.slotName(slot)}</span>
                 <span style="flex:1;font-size:0.9rem">${info}</span>
                 <span style="white-space:nowrap">
-                    ${inGame && slot[0] !== 'a' && slot !== 'legacy' ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.save('${slot}')">Kaydet</button>` : ''}
-                    ${r && !r.bozuk ? `<button class="btn primary" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.load('${slot}')">Yükle</button>` : ''}
-                    ${r ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem;border-color:var(--danger);color:var(--danger)" onclick="Save.del('${slot}')">Sil</button>` : ''}
+                    ${inGame && slot[0] !== 'a' && slot !== 'legacy' ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.save('${slot}')">${T`Kaydet`}</button>` : ''}
+                    ${r && !r.bozuk ? `<button class="btn primary" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.load('${slot}')">${T`Yükle`}</button>` : ''}
+                    ${r ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem;border-color:var(--danger);color:var(--danger)" onclick="Save.del('${slot}')">${T`Sil`}</button>` : ''}
                 </span></li>`;
         };
-        Game.showModal(`<div id="save-panel"><h3>💾 Kayıtlar</h3>
+        Game.showModal(`<div id="save-panel"><h3>${T`💾 Kayıtlar`}</h3>
         ${msg ? `<p style="color:var(--success)">${msg}</p>` : ''}
         <ul style="list-style:none">${this.SLOTS.map(line).join('')}</ul>
-        <h4 style="margin-top:0.8rem;color:var(--text-muted);font-size:0.85rem">Otomatik kayıtlar (her oyun günü)</h4>
+        <h4 style="margin-top:0.8rem;color:var(--text-muted);font-size:0.85rem">${T`Otomatik kayıtlar (her oyun günü)`}</h4>
         <ul style="list-style:none">${this.AUTOS.map(line).join('')}${byId['legacy'] ? line('legacy') : ''}</ul>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
-            ${inGame ? '<button class="btn" onclick="Save.exportSave()">📤 Dışa Aktar</button>' : ''}
-            <button class="btn" onclick="Save.importSave()">📥 İçe Aktar</button>
-            <button class="btn primary" onclick="Game.closeModal()">Kapat</button>
+            ${inGame ? `<button class="btn" onclick="Save.exportSave()">${T('📤 Dışa Aktar')}</button>` : ''}
+            <button class="btn" onclick="Save.importSave()">${T`📥 İçe Aktar`}</button>
+            <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div></div>`, '660px');
     },
     // file:// altında dosya indirmek sorunlu; metin panoya kopyalanır (#52 raporuyla aynı desen)
     exportSave() {
         let txt = JSON.stringify(this.snapshot());
-        Game.showModal(`<h3>📤 Kaydı Dışa Aktar</h3>
-        <p style="font-size:0.85rem;color:var(--text-muted)">Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).</p>
+        Game.showModal(`<h3>${T`📤 Kaydı Dışa Aktar`}</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted)">${T`Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).`}</p>
         <textarea id="save-text" readonly style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem">${txt.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
         <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
-            <button class="btn primary" onclick="Save.copyText()">📋 Panoya Kopyala</button>
-            <button class="btn" onclick="Save.open()">← Kayıtlar</button>
+            <button class="btn primary" onclick="Save.copyText()">${T`📋 Panoya Kopyala`}</button>
+            <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
         </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--success);font-size:0.85rem"></div>`, '660px');
     },
     copyText() {
         let ta = document.getElementById('save-text');
-        let done = () => { let m = document.getElementById('save-msg'); if(m) m.textContent = '✅ Panoya kopyalandı.'; };
+        let done = () => { let m = document.getElementById('save-msg'); if(m) m.textContent = T('✅ Panoya kopyalandı.'); };
         if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
         else { ta.select(); document.execCommand('copy'); done(); }
     },
     importSave() {
-        Game.showModal(`<h3>📥 Kaydı İçe Aktar</h3>
-        <p style="font-size:0.85rem;color:var(--text-muted)">Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.</p>
+        Game.showModal(`<h3>${T`📥 Kaydı İçe Aktar`}</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted)">${T`Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.`}</p>
         <textarea id="save-text" style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem"></textarea>
         <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
-            <button class="btn primary" onclick="Save.doImport()">Yükle</button>
-            <button class="btn" onclick="Save.open()">← Kayıtlar</button>
+            <button class="btn primary" onclick="Save.doImport()">${T`Yükle`}</button>
+            <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
         </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--danger);font-size:0.85rem"></div>`, '660px');
     },
     doImport() {
         let ta = document.getElementById('save-text'), msg = document.getElementById('save-msg');
         let d;
-        try { d = JSON.parse(ta.value); } catch(e) { msg.textContent = 'Metin geçerli JSON değil.'; return; }
-        if(!d || !d.state || !d.state.player) { msg.textContent = 'Bu bir WebBand kaydı değil.'; return; }
-        if(d.v > this.V) { msg.textContent = 'Kayıt oyunun daha yeni bir sürümünden.'; return; }
+        try { d = JSON.parse(ta.value); } catch(e) { msg.textContent = T('Metin geçerli JSON değil.'); return; }
+        if(!d || !d.state || !d.state.player) { msg.textContent = T('Bu bir WebBand kaydı değil.'); return; }
+        if(d.v > this.V) { msg.textContent = T('Kayıt oyunun daha yeni bir sürümünden.'); return; }
         this.migrate(d);
-        try { localStorage.setItem(this.key('1'), JSON.stringify(d)); } catch(e) { msg.textContent = 'Yazılamadı: ' + e.message; return; }
+        try { localStorage.setItem(this.key('1'), JSON.stringify(d)); } catch(e) { msg.textContent = T('Yazılamadı: ') + e.message; return; }
         this.apply(d);
-        alert(`Kayıt içe aktarıldı ve 1. slota yazıldı. Gün ${state.time.day}.`);
+        alert(T`Kayıt içe aktarıldı ve 1. slota yazıldı. Gün ${state.time.day}.`);
     }
 };
 

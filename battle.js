@@ -24,15 +24,15 @@ const Battle = {
             e.name = lord.name; e.type = 'infantry';
             e.defense = 8; e.speed = 70; e.radius = 9; e.color = '#ff8800';
         }
-        document.getElementById('battle-log-left').innerHTML = `<b>🗡️ Şeref Düellosu:</b> ${lord.name}`;
+        document.getElementById('battle-log-left').innerHTML = `<b>${T`🗡️ Şeref Düellosu:`}</b> ${T(lord.name)}`;
     },
 
     // Arena (#26): şehrin kum meydanında ücretsiz pratik dövüşü. Düello altyapısının
     // aynısı — grup sahneye girmez, ganimet/esaret/nam yok, yalnızca yeterlilik XP'si.
     ARENA_FOES: [
-        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  desc: 'Kolay lokma, az ter.' },
-        { name: 'Arena Gediklisi', dLv: 2,  xp: 180, desc: 'Senden bir gömlek üstün.' },
-        { name: 'Arena Şampiyonu', dLv: 8,  xp: 340, desc: 'Dayak yersin ama çok şey öğrenirsin.' }
+        { name: T('Acemi Dövüşçü'),   dLv: -3, xp: 80,  desc: T('Kolay lokma, az ter.') },
+        { name: T('Arena Gediklisi'), dLv: 2,  xp: 180, desc: T('Senden bir gömlek üstün.') },
+        { name: T('Arena Şampiyonu'), dLv: 8,  xp: 340, desc: T('Dayak yersin ama çok şey öğrenirsin.') }
     ],
     startArena(idx) {
         let f = this.ARENA_FOES[idx] || this.ARENA_FOES[1];
@@ -51,7 +51,7 @@ const Battle = {
             e.name = f.name; e.type = 'infantry'; e.dmgType = 'blunt';
             e.speed = 70; e.radius = 9; e.color = '#ffcc55';
         }
-        document.getElementById('battle-log-left').innerHTML = `<b>🤺 Arena:</b> ${f.name} — kum meydanı, tahta silahlar, ganimet yok.`;
+        document.getElementById('battle-log-left').innerHTML = `<b>${T`🤺 Arena:</b> ${T(f.name)} — kum meydanı, tahta silahlar, ganimet yok.`}`;
     },
 
     start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null, auto = false) {
@@ -194,7 +194,7 @@ const Battle = {
         let band = BAND_KINDS[bandKey];
         let isBandit = !!band;
         for(let i=0; i<enemyCount; i++) {
-            let name = 'Çapulcu';
+            let name = 'Çapulcu';   // BAND_KINDS/TROOP_TYPES anahtarı — ekranda T() ile çevrilir
             let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
             let dmgType = (band && band.dmg) || 'cut';
 
@@ -280,44 +280,44 @@ const Battle = {
         this.splitReserves(H, startPlayerX, startEnemyX);
 
         // Kumanda ipucu cihaza göre yazılır: parmakla oynayanda WASD diye bir şey yok (#65)
-        const ipucu = Game.isTouch() ? 'Çubukla hareket · ⚔️ saldırı · 🛡️ blok'
-                                     : 'WASD hareket · Sol tık saldırı';
+        const ipucu = Game.isTouch() ? T('Çubukla hareket · ⚔️ saldırı · 🛡️ blok')
+                                     : T('WASD hareket · Sol tık saldırı');
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
-            + (this.ambushed ? 'Pusuya Düştün! Etrafın sarıldı.' : 'Savaş Başladı!')
-            + '</b><br>' + ipucu + '<br>[1] Takip · [2] Hücum · [3] Bekle</div>';
+            + (this.ambushed ? T('Pusuya Düştün! Etrafın sarıldı.') : T('Savaş Başladı!'))
+            + '</b><br>' + ipucu + '<br>' + T('[1] Takip · [2] Hücum · [3] Bekle') + '</div>';
         if(this.siege) document.getElementById('battle-log-left').innerHTML =
-            `<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>🏰 Kuşatma — ${this.siege.name}</b><br>`
-            + `Sur geçilmez; gedikten gireceksin. Savunanın mevzi avantajı +%${Math.round(this.siege.defBonus*100)}.`
+            `<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>${T`🏰 Kuşatma — ${T(this.siege.name)}`}</b><br>`
+            + T`Sur geçilmez; gedikten gireceksin. Savunanın mevzi avantajı +%${Math.round(this.siege.defBonus*100)}.`
             + `<br>${ipucu}</div>`;
         document.getElementById('battle-log-right').innerHTML = '';
 
         setTimeout(() => {
             if(this.active) {
-                let names = ["Antonius", "John", "Ragnar", "Kel Mahmut", "Bozkurt", "Topal Rıza", "Deli Yürek", "Kemikkıran", "Kanlı Hasan", "Gaius", "Bjorn", "Dilsiz Suikastçi", "Kör Hafız", "Barbaros", "Turgut"];
+                let names = [T("Antonius"), T("John"), T("Ragnar"), T("Kel Mahmut"), T("Bozkurt"), T("Topal Rıza"), T("Deli Yürek"), T("Kemikkıran"), T("Kanlı Hasan"), T("Gaius"), T("Bjorn"), T("Dilsiz Suikastçi"), T("Kör Hafız"), T("Barbaros"), T("Turgut")];
                 let n1 = names[Math.floor(Math.random()*names.length)];
                 let n2 = names[Math.floor(Math.random()*names.length)];
                 while(n1 === n2) n2 = names[Math.floor(Math.random()*names.length)];
 
                 let quotes = [
-                    `Bu ezikleri ezelim! ${n1} soldan ilerle, ${n2} sen sağdan dalacaksın!`,
-                    `Bu gerizekalılar bizi yeneceğini mi düşündü gerçekten? ${n1}, ${n2}, parçalayın şunları!`,
-                    `Bugün kılıçlarımız kan içecek! ${n1} okçuları koru, ${n2} hücuma geç!`,
-                    `Haha! Akşama ziyafet var çocuklar! ${n1} sağ kanadı tut, ${n2} esir alma!`,
-                    `Sadece zırhları para eder, kendileri çöp! ${n1}, ${n2}, saldırın!`,
-                    `Şu zavallılara bakın... ${n1} sen soldan vur, ${n2} sen arkadan dolaş!`,
-                    `Yemek molasından önce şunları halledelim! ${n1} önden git, ${n2} destek çık!`,
-                    `Analarını ağlatmaya geldik! ${n1} sol taraftan sar, ${n2} kaçmalarına izin verme!`,
-                    `Bunlar savaşmayı oyun sanıyor herhalde! ${n1}, ${n2}, onlara gerçek savaşı gösterin!`
+                    T`Bu ezikleri ezelim! ${n1} soldan ilerle, ${n2} sen sağdan dalacaksın!`,
+                    T`Bu gerizekalılar bizi yeneceğini mi düşündü gerçekten? ${n1}, ${n2}, parçalayın şunları!`,
+                    T`Bugün kılıçlarımız kan içecek! ${n1} okçuları koru, ${n2} hücuma geç!`,
+                    T`Haha! Akşama ziyafet var çocuklar! ${n1} sağ kanadı tut, ${n2} esir alma!`,
+                    T`Sadece zırhları para eder, kendileri çöp! ${n1}, ${n2}, saldırın!`,
+                    T`Şu zavallılara bakın... ${n1} sen soldan vur, ${n2} sen arkadan dolaş!`,
+                    T`Yemek molasından önce şunları halledelim! ${n1} önden git, ${n2} destek çık!`,
+                    T`Analarını ağlatmaya geldik! ${n1} sol taraftan sar, ${n2} kaçmalarına izin verme!`,
+                    T`Bunlar savaşmayı oyun sanıyor herhalde! ${n1}, ${n2}, onlara gerçek savaşı gösterin!`
                 ];
                 let q = quotes[Math.floor(Math.random()*quotes.length)];
 
-                this.log(`<span style="color:#ffaa00;font-size:1.1rem;display:block;margin-bottom:5px"><b>Düşman Komutanı:</b></span><span style="color:#fff;font-style:italic">"${q}"</span>`, 'right');
+                this.log(`<span style="color:#ffaa00;font-size:1.1rem;display:block;margin-bottom:5px"><b>${T`Düşman Komutanı:`}</b></span><span style="color:#fff;font-style:italic">"${q}"</span>`, 'right');
                 
                 // Grupların ilerleme yerlerine ping animasyonu
                 let W = this.canvas.width, H = this.canvas.height;
                 this.battlePings.push({ x: W/3, y: 150, life: 3.0, label: n1 });
                 this.battlePings.push({ x: W/3, y: H-150, life: 3.0, label: n2 });
-                this.battlePings.push({ x: W/2, y: H/2, life: 3.0, label: 'Ana Grup' });
+                this.battlePings.push({ x: W/2, y: H/2, life: 3.0, label: T('Ana Grup') });
             }
         }, 1000);
 
@@ -335,6 +335,7 @@ const Battle = {
         // Emirler savaşın başında hazır beklemez: her biri kendi rastgele anında
         // "fırsat" olarak doğar. Boru sesi savaşın içinden gelir, menüden değil.
         this.cmdSlots = [
+            // Ad ham durur; her gösterim yerinde `T` ile çevrilir (yoksa çeviri iki kez geçer)
             { key: '2', cmd: 'charge', name: 'Hücum Edin',      at: 1.0 + Math.random() * 1.5 },
             { key: '1', cmd: 'follow', name: 'Beni Takip Edin', at: 2.5 + Math.random() * 2.5 },
             { key: '3', cmd: 'hold',   name: 'Mevzi Koruyun',   at: 4.0 + Math.random() * 3.5 }
@@ -344,11 +345,11 @@ const Battle = {
         this.commandListener = (e) => {
             let slot = this.cmdSlots.find(c => c.key === e.key);
             if(!slot) return;
-            if(!slot.open) return this.log(`<span style="opacity:0.7">Şu an "${slot.name}" emrini verecek durumda değilsin.</span>`);
+            if(!slot.open) return this.log(`<span style="opacity:0.7">${T`Şu an "${T(slot.name)}" emrini verecek durumda değilsin.`}</span>`);
             // Aynı emri üst üste bağırmak anlamsız
             if(this.currentCommand === slot.cmd) return;
             this.currentCommand = slot.cmd;
-            this.log(`🔊 Emir: <b>${slot.name}!</b>`);
+            this.log(`${T`🔊 Emir:`} <b>${T(slot.name)}!</b>`);
         };
         window.addEventListener('keydown', this.commandListener);
 
@@ -372,7 +373,7 @@ const Battle = {
         clearTimeout(this._pulseT);
         this._pulseT = setTimeout(() => {
             if(!this.active || this.lastRender || document.hidden) return;   // gizli sekmede rAF zaten duruyor, yanlış alarm olmasın
-            Debug.log('nabiz', 'Savaş döngüsü 700 ms boyunca hiç kare çizmedi — döngü yeniden kuruldu');
+            Debug.log('nabiz', T('Savaş döngüsü 700 ms boyunca hiç kare çizmedi — döngü yeniden kuruldu'));
             cancelAnimationFrame(this.loopId);
             this.loopId = requestAnimationFrame(loop);
         }, 700);
@@ -416,7 +417,7 @@ const Battle = {
         let lv = this.prof('bow');
         p.swingCd = Math.max(0.5, 1.15 - lv * 0.006);
         if(this.arrows <= 0) {
-            this.floatingTexts.push({ x: p.x, y: p.y - 20, text: 'ok bitti', color: '#999', life: 0.6 });
+            this.floatingTexts.push({ x: p.x, y: p.y - 20, text: T('ok bitti'), color: '#999', life: 0.6 });
             return;
         }
         this.arrows--;
@@ -452,7 +453,7 @@ const Battle = {
     },
     blockedFx(tgt, sx, sy) {
         this.spark(tgt.x, tgt.y, Math.atan2(sy - tgt.y, sx - tgt.x), '#dfe6ef');
-        this.floatingTexts.push({ x: tgt.x, y: tgt.y - 14, text: '🛡 blok', color: '#cfe3ff', life: 0.6 });
+        this.floatingTexts.push({ x: tgt.x, y: tgt.y - 14, text: T('🛡 blok'), color: '#cfe3ff', life: 0.6 });
         tgt.blockFlash = 0.2;
     },
 
@@ -557,8 +558,8 @@ const Battle = {
         let t = state.player.party.find(x => x.id === id);
         if(!t) return;
         let r = Game.giveTroopXp(t, 1);
-        if(r === 'ready') this.log(`🔥 <b>${t.name}</b> Terfiye Hazır! (Grup ekranından sınıf atlatın)`);
-        else if(r === 'levelup') this.log(`🔥 <b>${t.name}</b> Seviye Atladı! (Lvl ${t.level})`);
+        if(r === 'ready') this.log(`🔥 <b>${T(t.name)}</b> ${T`Terfiye Hazır! (Grup ekranından sınıf atlatın)`}`);
+        else if(r === 'levelup') this.log(`🔥 <b>${T(t.name)}</b> ${T`Seviye Atladı! (Lvl ${t.level})`}`);
     },
 
     update(dt) {
@@ -569,11 +570,11 @@ const Battle = {
         (this.cmdSlots || []).forEach(c => {
             if(c.open || this.battleTime < c.at) return;
             c.open = true;
-            this.log(`<span style="color:#ffd479">⚑ Fırsat: <b>[${c.key}] ${c.name}</b></span>`);
+            this.log(`<span style="color:#ffd479">${T`⚑ Fırsat:`} <b>[${c.key}] ${T(c.name)}</b></span>`);
             // Log 5 satırla sınırlı ve öldürme mesajları onu süpürüyor; fırsat
             // oyuncunun kendi başının üstünde de belirsin.
             let pl = this._byId ? this._byId['player'] : null;
-            if(pl) this.floatingTexts.push({ x: pl.x, y: pl.y - 34, text: `⚑ [${c.key}] ${c.name}`, color: '#ffd479', life: 2.2 });
+            if(pl) this.floatingTexts.push({ x: pl.x, y: pl.y - 34, text: `⚑ [${c.key}] ${T(c.name)}`, color: '#ffd479', life: 2.2 });
         });
 
         // Hem Tıklama Hem Boşluk saldırı tetikler
@@ -673,7 +674,7 @@ const Battle = {
                 u.dismounted = true;
                 u.speed = Math.max(50, u.speed - 30);
                 if(u.id === 'player') u.radius = 8;
-                this.floatingTexts.push({ x: u.x, y: u.y - 12, text: 'Attan Düştü!', color: '#ffaa00', life: 1.0 });
+                this.floatingTexts.push({ x: u.x, y: u.y - 12, text: T('Attan Düştü!'), color: '#ffaa00', life: 1.0 });
             }
 
             if(u.id === 'player') {
@@ -713,10 +714,10 @@ const Battle = {
                             // Hasar yeterliliğe bağlı: acemi %35, usta %75
                             let mult = 0.35 + Math.min(0.4, this.playerWeaponProf() * 0.004);
                             let charge = this.chargeMult(u);
-                            if(charge >= 1.8) this.floatingTexts.push({ x: u.x, y: u.y - 26, text: 'MIZRAK ŞARJI!', color: '#ffcc00', life: 0.9 });
+                            if(charge >= 1.8) this.floatingTexts.push({ x: u.x, y: u.y - 26, text: T('MIZRAK ŞARJI!'), color: '#ffcc00', life: 0.9 });
                             this.dealMelee(u, target, uAttack * mult * charge);
                         } else {
-                            this.floatingTexts.push({ x: u.x, y: u.y - 20, text: 'ıska', color: '#999', life: 0.5 });
+                            this.floatingTexts.push({ x: u.x, y: u.y - 20, text: T('ıska'), color: '#999', life: 0.5 });
                         }
                     }
 
@@ -922,9 +923,9 @@ const Battle = {
             c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random()-0.5)*3, y - 2 - Math.random()*3); c.stroke();
         }
 
-        let T = this.terrain || {};
+        let TR = this.terrain || {};
 
-        (T.rivers||[]).forEach(r => {
+        (TR.rivers||[]).forEach(r => {
             let vert = r.isVertical;
             let wg = vert ? c.createLinearGradient(r.x, 0, r.x+r.w, 0) : c.createLinearGradient(0, r.y, 0, r.y+r.h);
             wg.addColorStop(0, 'rgba(58,92,74,0.9)');
@@ -938,7 +939,7 @@ const Battle = {
             c.stroke();
         });
 
-        (T.pits||[]).forEach(p => {
+        (TR.pits||[]).forEach(p => {
             let rg = c.createRadialGradient(p.x, p.y - p.r*0.2, p.r*0.1, p.x, p.y, p.r);
             rg.addColorStop(0, 'rgba(0,0,0,0.58)');
             rg.addColorStop(0.75, 'rgba(0,0,0,0.30)');
@@ -948,7 +949,7 @@ const Battle = {
             c.beginPath(); c.arc(p.x, p.y, p.r*0.94, Math.PI*1.1, Math.PI*1.9); c.stroke();
         });
 
-        (T.hills||[]).forEach(h => {
+        (TR.hills||[]).forEach(h => {
             let rg = c.createRadialGradient(h.x - h.r*0.25, h.y - h.r*0.3, h.r*0.1, h.x, h.y, h.r);
             rg.addColorStop(0, 'rgba(196,220,152,0.20)');
             rg.addColorStop(0.6, 'rgba(124,164,92,0.10)');
@@ -958,7 +959,7 @@ const Battle = {
             c.beginPath(); c.arc(h.x, h.y, h.r*0.62, 0, Math.PI*2); c.stroke();
         });
 
-        (T.forests||[]).forEach(f => {
+        (TR.forests||[]).forEach(f => {
             c.fillStyle = 'rgba(9,24,11,0.5)';
             c.beginPath(); c.arc(f.x, f.y, f.r, 0, Math.PI*2); c.fill();
             let n = Math.floor(f.r / 9);
@@ -970,7 +971,7 @@ const Battle = {
             trees.sort((a,b) => a.y - b.y).forEach(t => this.drawTree(c, t.x, t.y, t.r));
         });
 
-        (T.rocks||[]).forEach(k => this.drawRock(c, k.x, k.y, k.r));
+        (TR.rocks||[]).forEach(k => this.drawRock(c, k.x, k.y, k.r));
 
         if(this.siege && this.siege.wall) this.drawWall(c, this.siege.wall, H);
 
@@ -1335,7 +1336,7 @@ const Battle = {
         // kaplar: emir şeridi ile oyuncu künyesi güç çubuğunun **altına**, ekranın
         // üstüne taşınır (#65). Aşağıdaki `B - 40 / -26 / -56 / -76` aynı kalır.
         const B = Game.isTouch() ? 150 : H;
-        let cmdName = this.currentCommand === 'follow' ? 'Takip Et' : this.currentCommand === 'hold' ? 'Mevzini Koru' : 'Hücum Et';
+        let cmdName = this.currentCommand === 'follow' ? T('Takip Et') : this.currentCommand === 'hold' ? T('Mevzini Koru') : T('Hücum Et');
         let hudW = Math.min(360, W - 24);
         ctx.fillStyle = 'rgba(12,14,10,0.72)';
         ctx.fillRect(12, B - 40, hudW, 28);
@@ -1345,7 +1346,7 @@ const Battle = {
         ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
         // Henüz açılmamış emirler soluk: oyuncu neyin ne zaman geleceğini görür
         ctx.font = '11px Inter, sans-serif';
-        let lbl = { '1': 'Takip', '2': 'Hücum', '3': 'Bekle' };
+        let lbl = { '1': T('Takip'), '2': T('Hücum'), '3': T('Bekle') };
         let x = 22 + hudW*0.42;
         (this.cmdSlots || []).forEach(c => {
             ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
@@ -1357,10 +1358,10 @@ const Battle = {
         // Oyuncu künyesi: binek, ok, blok
         let pl = this._byId ? this._byId['player'] : null;
         if(pl && pl.hp > 0) {
-            let bits = [pl.type === 'cavalry' ? '🐴 Atlı' : '🥾 Yaya'];
-            if(this.playerHasBow()) bits.push(`🏹 ${this.arrows} ok`);
-            const blokTus = Game.isTouch() ? '🛡 düğmesi' : '[Sağ tık/Shift]';
-            bits.push(pl.blocking ? '🛡 BLOK' : (this.playerHasShield() ? `🛡 ${blokTus} blok` : `${blokTus} savuştur`));
+            let bits = [pl.type === 'cavalry' ? T('🐴 Atlı') : T('🥾 Yaya')];
+            if(this.playerHasBow()) bits.push(T`🏹 ${this.arrows} ok`);
+            const blokTus = Game.isTouch() ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
+            bits.push(pl.blocking ? T('🛡 BLOK') : (this.playerHasShield() ? T`🛡 ${blokTus} blok` : T`${blokTus} savuştur`));
             ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
             ctx.font = 'bold 12px Inter, sans-serif';
             ctx.fillText(bits.join('   ·   '), 22, B - 56);
@@ -1368,7 +1369,7 @@ const Battle = {
 
         if(this.knockedOut) {
             ctx.fillStyle = 'rgba(255,70,70,0.9)'; ctx.font = 'bold 13px Inter, sans-serif';
-            ctx.fillText('☠ Baygınsın — adamların savaşıyor', 22, B - 76);
+            ctx.fillText(T('☠ Baygınsın — adamların savaşıyor'), 22, B - 76);
         }
 
         // Güç çubuğu
@@ -1410,19 +1411,19 @@ const Battle = {
         ctx.fillStyle = 'rgba(255,220,120,0.9)';
         ctx.fillRect(barX + fill - 1 + jitter, barY - 5, 2, barH + 10);
 
-        let statusText = 'Kafa Kafaya! ⚔️';
-        if(this.tugRatio > 0.8) statusText = 'Ağlatıyoruz! 😂';
-        else if(this.tugRatio > 0.6) statusText = 'Tokatlıyoruz! 😎';
-        else if(this.tugRatio < 0.2) statusText = 'Eyvah Anam! 😱';
-        else if(this.tugRatio < 0.4) statusText = 'Dayak Yiyoruz! 😬';
+        let statusText = T('Kafa Kafaya! ⚔️');
+        if(this.tugRatio > 0.8) statusText = T('Ağlatıyoruz! 😂');
+        else if(this.tugRatio > 0.6) statusText = T('Tokatlıyoruz! 😎');
+        else if(this.tugRatio < 0.2) statusText = T('Eyvah Anam! 😱');
+        else if(this.tugRatio < 0.4) statusText = T('Dayak Yiyoruz! 😬');
 
         ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 6;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#f3e6c0'; ctx.font = 'bold 18px Cinzel, serif';
         ctx.fillText(statusText, W/2, barY - 18);
         ctx.font = 'bold 13px Inter, sans-serif'; ctx.fillStyle = '#fff';
-        ctx.textAlign = 'left'; ctx.fillText(`Biz ${playerAlive}`, barX + 8, barY + barH/2);
-        ctx.textAlign = 'right'; ctx.fillText(`${enemyAlive} Düşman`, barX + barW - 8, barY + barH/2);
+        ctx.textAlign = 'left'; ctx.fillText(T`Biz ${playerAlive}`, barX + 8, barY + barH/2);
+        ctx.textAlign = 'right'; ctx.fillText(T`${enemyAlive} Düşman`, barX + barW - 8, barY + barH/2);
         ctx.shadowBlur = 0;
     },
     logKill(victim, killer) {
@@ -1430,10 +1431,10 @@ const Battle = {
         if(this.corpses.length > 60) this.corpses.shift();
         if(victim.id === 'player') {
             this.knockedOut = true;
-            this.log('<span style="color:#ff4444"><b>Yere yığıldın!</b> Adamların savaşa devam ediyor…</span>', 'right');
+            this.log(T('<span style="color:#ff4444"><b>Yere yığıldın!</b> Adamların savaşa devam ediyor…</span>'), 'right');
         }
-        let vName = victim.name || (victim.isPlayerTeam ? 'Dost Asker' : 'Çapulcu');
-        let kName = killer ? (killer.name || (killer.isPlayerTeam ? 'Dost Asker' : 'Çapulcu')) : 'Bilinmeyen';
+        let vName = T(victim.name || (victim.isPlayerTeam ? 'Dost Asker' : 'Çapulcu'));
+        let kName = killer ? T(killer.name || (killer.isPlayerTeam ? 'Dost Asker' : 'Çapulcu')) : T('Bilinmeyen');
         let msg = `☠ ${vName} <span style="opacity:.6">←</span> ${kName}`;
 
         if (victim.isPlayerTeam) {
@@ -1495,7 +1496,7 @@ const Battle = {
                 u.y = 50 + Math.random() * (this._spawn.H - 100);
                 this.units.push(u); n++;
             }
-            if(n) this.log(`🚩 <b>Takviye dalgası:</b> ${n} ${team ? 'asker sahaya girdi' : 'düşman sahaya girdi'} (yedek: ${pool.length})`, team ? 'left' : 'right');
+            if(n) this.log(`🚩 <b>${T`Takviye dalgası:</b> ${n} ${team ? T('asker sahaya girdi') : T('düşman sahaya girdi')} (yedek: ${pool.length})`}`, team ? 'left' : 'right');
         });
     },
     // Askerlerini gönder: kazananın kaybı güç oranıyla ters orantılıdır (Lanchester'ın
@@ -1632,7 +1633,7 @@ const Battle = {
                 let token = ITEMS.lvl51_token;
                 let ex = state.player.inventory.find(i => i.id === token.id);
                 if(ex) ex.qty++; else state.player.inventory.push({...token, qty:1});
-                alert('Tebrikler! Savaş Tanrısı\'nı yendin. Savaş Tanrısı Nişanı (Lvl 51 Upgrade) kazandın!');
+                alert(T('Tebrikler! Savaş Tanrısı\'nı yendin. Savaş Tanrısı Nişanı (Lvl 51 Upgrade) kazandın!'));
             }
             
             state.player.money += moneyGain;
@@ -1656,21 +1657,21 @@ const Battle = {
                 if(loc) {
                     let oldF = loc.faction;   // fethettiğin krallıkla savaş başlar
                     if(s.foundingKingdom) {
-                        FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+' Krallığı', color:Game.bannerColor(), ruler:state.player.name};
+                        FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+T(' Krallığı'), color:Game.bannerColor(), ruler:state.player.name};
                         state.player.vassalOf = 'player_kingdom';
                         loc.faction = 'player_kingdom';
                         Game.grantFief(loc, oldF);
                         Game.declareWar('player_kingdom', oldF);
-                        conquestTxt = `<b>${loc.name} fethedildi — kendi krallığını ilan ettin!</b>`;
+                        conquestTxt = `<b>${T`${T(loc.name)} fethedildi — kendi krallığını ilan ettin!`}</b>`;
                     } else if(state.player.vassalOf) {
                         loc.faction = state.player.vassalOf;
                         Game.grantFief(loc, oldF);
                         Game.declareWar(state.player.vassalOf, oldF);
-                        conquestTxt = `<b>${loc.name} fethedildi!</b> ${(FACTIONS[state.player.vassalOf]||{name:'?'}).name} adına aldın; kralın burayı sana tımar verdi.`;
+                        conquestTxt = `<b>${T`${T(loc.name)} fethedildi!</b> ${T((FACTIONS[state.player.vassalOf]||{name:'?'}).name)} adına aldın; kralın burayı sana tımar verdi.`}`;
                     }
                     // Fetih bilgisi zafer modalinde durur: alert() zafer ekranıyla eziliyordu
-                    if(conquestTxt) conquestTxt += `<br>Tımar geliri <b style="color:#ffcc00">+${Game.fiefTax(loc)} dinar/gün</b>. `
-                        + `Garnizon bırakmazsan düşman ilk fırsatta geri alır (yerleşim ekranı → 🛡️ Garnizon).`;
+                    if(conquestTxt) conquestTxt += `<br>${T`Tımar geliri`} <b style="color:#ffcc00">${T`+${Game.fiefTax(loc)} dinar/gün`}</b>. `
+                        + T`Garnizon bırakmazsan düşman ilk fırsatta geri alır (yerleşim ekranı → 🛡️ Garnizon).`;
                 }
                 state.player.currentSiege = null;
             }
@@ -1701,9 +1702,9 @@ const Battle = {
                         if(!it) return;
                         let ex = state.player.inventory.find(i => i.id === c.id);
                         if(ex) ex.qty += c.qty; else state.player.inventory.push({ ...it, qty: c.qty });
-                        cargoTxt += `${it.icon} ${it.name} ×${c.qty} · `;
+                        cargoTxt += `${it.icon} ${T(it.name)} ×${c.qty} · `;
                     });
-                    if(beaten.purse) { state.player.money += beaten.purse; cargoTxt += `💰 ${beaten.purse} dinar kese`; }
+                    if(beaten.purse) { state.player.money += beaten.purse; cargoTxt += T`💰 ${beaten.purse} dinar kese`; }
                 }
 
                 // Yenilen soylu esir düşer: ya fidyesini alırsın ya onurunla salıverirsin
@@ -1720,21 +1721,21 @@ const Battle = {
 
             let resultHtml = `
             <div style="text-align:center;">
-                <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.autoLoss ? '🎖️ Askerlerin Halletti' : this.knockedOut ? '🩸 Pahalı Zafer' : '⚔️ Mükemmel Zafer! ⚔️'}</h2>
-                ${this.autoLoss ? `<p style="color:#8fd6ff;margin-bottom:1rem">Sen inmedin: adamların kendi başlarına dövüştü, beklenen kayıp %${Math.round(this.autoLoss*100)}.</p>` : ''}
-                ${this.knockedOut ? '<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>' : ''}
-                ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.</p>` : ''}
+                <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.autoLoss ? T('🎖️ Askerlerin Halletti') : this.knockedOut ? T('🩸 Pahalı Zafer') : T('⚔️ Mükemmel Zafer! ⚔️')}</h2>
+                ${this.autoLoss ? `<p style="color:#8fd6ff;margin-bottom:1rem">${T`Sen inmedin: adamların kendi başlarına dövüştü, beklenen kayıp %${Math.round(this.autoLoss*100)}.`}</p>` : ''}
+                ${this.knockedOut ? T('<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>') : ''}
+                ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">${T`Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.`}</p>` : ''}
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
-                    <p style="margin-bottom:0.8rem"><b>Kazanılan Dinar:</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
-                    <p style="margin-bottom:0.8rem"><b>Kazanılan Şan/Nam:</b> <span style="color:#3498db">+3</span> 👑</p>
-                    <p style="margin-bottom:0.8rem"><b>Kazanılan Tecrübe:</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
-                    <p><b>Kayıplar:</b> <span style="color:#e74c3c">${killed} ölü</span> · <span style="color:#ffaa00">${saved} yaralı</span> 🩹</p>
-                    ${captured ? `<p style="margin-top:0.8rem"><b>Esir Alınan:</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:0.85rem;color:var(--text-muted)">(şehirdeki köle tüccarına satabilirsin)</span></p>` : ''}
+                    <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Dinar:`}</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
+                    <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Şan/Nam:`}</b> <span style="color:#3498db">+3</span> 👑</p>
+                    <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Tecrübe:`}</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
+                    <p><b>${T`Kayıplar:`}</b> <span style="color:#e74c3c">${T`${killed} ölü`}</span> · <span style="color:#ffaa00">${T`${saved} yaralı`}</span> 🩹</p>
+                    ${captured ? `<p style="margin-top:0.8rem"><b>${T`Esir Alınan:`}</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:0.85rem;color:var(--text-muted)">${T`(şehirdeki köle tüccarına satabilirsin)`}</span></p>` : ''}
                     ${conquestTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">🏰 ${conquestTxt}</p>` : ''}
-                    ${cargoTxt ? `<p style="margin-top:0.8rem"><b>Yük Ganimeti:</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
-                    ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>👑 ${nobleTaken} esir alındı!</b> <span style="font-size:0.85rem;color:var(--text-muted)">Grup ekranından fidye iste ya da salıver.</span></p>` : ''}
+                    ${cargoTxt ? `<p style="margin-top:0.8rem"><b>${T`Yük Ganimeti:`}</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
+                    ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>${T`👑 ${nobleTaken} esir alındı!`}</b> <span style="font-size:0.85rem;color:var(--text-muted)">${T`Grup ekranından fidye iste ya da salıver.`}</span></p>` : ''}
                 </div>
-                <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:8px" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">Kazanımları Al ve İlerle</button>
+                <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:8px" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">${T`Kazanımları Al ve İlerle`}</button>
             </div>`;
             Game.showModal(resultHtml);
         } else {
@@ -1764,15 +1765,15 @@ const Battle = {
             if(captor) {
                 Game.beginCaptivity(captor, daysLost);
             } else if(this.isBossFight) {
-                alert('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.');
+                alert(T('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.'));
             }
             state.player.currentEncounterNpcId = null;
             state.player.currentSiege = null;
             state.player.siege = null;
             state.player.currentRaid = null;
 
-            if(captor) alert(`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`
-                + (renownLost ? `<br>-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.</i>` : ''));
+            if(captor) alert(`${T`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`}`
+                + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : ''));
         }
 
         // Sync HP — yenilgide yukarıdaki %30 canı ezmesin
@@ -1806,7 +1807,7 @@ const Battle = {
 
         if(captor) Game.surrender(captor.id, captor.name);
         else {
-            alert(wasSiege ? 'Kuşatmadan çekildin. Birliğin dağıldı.' : 'Teslim oldun! Birliğini kaybettin.');
+            alert(wasSiege ? T('Kuşatmadan çekildin. Birliğin dağıldı.') : T('Teslim oldun! Birliğini kaybettin.'));
             state.player.party = [];
             state.player.prisoners.filter(p => p.noble).forEach(p => Game.respawnLordParty(p));
             state.player.prisoners = [];
@@ -1828,10 +1829,10 @@ const TournamentMinigame = {
     ROUNDS: 4,
     ODDS: [0, 0.3, 0.8, 1.6, 5],
     GEAR: [
-        { icon:'🗡️', name:'Tahta Kılıç',     size:1.00, life:1.00 },
-        { icon:'🔱', name:'Mızrak',           size:0.85, life:1.30 },
-        { icon:'🏹', name:'Yay',              size:0.70, life:1.55 },
-        { icon:'🛡️', name:'Topuz ve Kalkan',  size:1.30, life:0.75 }
+        { icon:'🗡️', name:T('Tahta Kılıç'),     size:1.00, life:1.00 },
+        { icon:'🔱', name:T('Mızrak'),           size:0.85, life:1.30 },
+        { icon:'🏹', name:T('Yay'),              size:0.70, life:1.55 },
+        { icon:'🛡️', name:T('Topuz ve Kalkan'),  size:1.30, life:0.75 }
     ],
     rollGear() { return this.GEAR[Math.floor(Math.random() * this.GEAR.length)]; },
 
@@ -1854,8 +1855,8 @@ const TournamentMinigame = {
         this.spawnTimer = 0;
 
         document.getElementById('battle-log-left').innerHTML = this.mode === 'chicken'
-            ? `<b>🐔 Tavuk Avı!</b> ${this.goal} tavuk yakala. Kimseye anlatma.`
-            : `<b>🏆 1. Tur!</b> Kuradan ${this.gear.icon} <b>${this.gear.name}</b> çıktı — ${this.perRound} isabet bir tur eder.`;
+            ? `<b>${T`🐔 Tavuk Avı!</b> ${this.goal} tavuk yakala. Kimseye anlatma.`}`
+            : `<b>${T`🏆 1. Tur!</b> Kuradan ${this.gear.icon} <b>${T(this.gear.name)}</b> çıktı — ${this.perRound} isabet bir tur eder.`}`;
 
         this.clickHandler = (e) => this.onClick(e);
         this.canvas.addEventListener('mousedown', this.clickHandler);
@@ -1907,13 +1908,13 @@ const TournamentMinigame = {
 
         ctx.fillStyle = '#fff'; ctx.font = '18px Inter';
         ctx.fillText(`Skor: ${this.score}/${this.goal}`, 15, 25);
-        ctx.fillText(`Süre: ${Math.ceil(this.timeLeft)}`, 15, 50);
+        ctx.fillText(T`Süre: ${Math.ceil(this.timeLeft)}`, 15, 50);
         if(this.mode !== 'chicken') {
             ctx.fillStyle = '#e0b062';
-            ctx.fillText(`${this.round}. Tur / ${this.ROUNDS}  ·  ${this.gear.icon} ${this.gear.name}`, 15, 75);
+            ctx.fillText(T`${this.round}. Tur / ${this.ROUNDS}  ·  ${this.gear.icon} ${T(this.gear.name)}`, 15, 75);
             if(this.bet) {
                 let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
-                ctx.fillText(`🎲 Bahis ${this.bet} → şu an ${Math.round(this.bet * this.ODDS[cleared])} dinar`, 15, 100);
+                ctx.fillText(T`🎲 Bahis ${this.bet} → şu an ${Math.round(this.bet * this.ODDS[cleared])} dinar`, 15, 100);
             }
         }
 
@@ -1937,14 +1938,14 @@ const TournamentMinigame = {
             if(Math.sqrt(Math.pow(t.x-mx,2)+Math.pow(t.y-my,2)) <= t.radius) {
                 this.score++;
                 this.targets.splice(i,1);
-                let msg = `${this.mode === 'chicken' ? 'Yakaladın!' : 'İsabet!'} (${this.score}/${this.goal})`;
+                let msg = `${this.mode === 'chicken' ? T('Yakaladın!') : T('İsabet!')} (${this.score}/${this.goal})`;
                 // Tur bitti: yeni kura, temiz saha ve tur arası nefes payı
                 if(this.mode !== 'chicken' && this.score < this.goal && this.score % this.perRound === 0) {
                     this.round++;
                     this.gear = this.rollGear();
                     this.targets = [];
                     this.timeLeft += 6;
-                    msg = `<b>${this.round}. Tur!</b> Kuradan ${this.gear.icon} <b>${this.gear.name}</b> çıktı. (+6 sn)`;
+                    msg = `<b>${T`${this.round}. Tur!</b> Kuradan ${this.gear.icon} <b>${T(this.gear.name)}</b> çıktı. (+6 sn)`}`;
                 }
                 document.getElementById('battle-log-left').innerHTML = msg;
                 break;
@@ -1960,7 +1961,7 @@ const TournamentMinigame = {
 
         if(this.mode === 'chicken') {
             Quests.emit('chickens_caught', { won, score: this.score });
-            if(won) alert(`Son tavuğu ahırın arkasında kıstırdın. ${this.score}/${this.goal}.`);
+            if(won) alert(T`Son tavuğu ahırın arkasında kıstırdın. ${this.score}/${this.goal}.`);
             Game.updateTopBar();
             return;
         }
@@ -1971,16 +1972,16 @@ const TournamentMinigame = {
             let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
             let pay = Math.round(this.bet * this.ODDS[cleared]);
             state.player.money += pay;
-            betTxt = `\n\n🎲 Bahis: ${this.bet} dinar × ${this.ODDS[cleared]} = ${pay} dinar `
-                   + (pay > this.bet ? `(+${pay - this.bet} kâr)` : `(−${this.bet - pay} zarar)`);
+            betTxt = T`\n\n🎲 Bahis: ${this.bet} dinar × ${this.ODDS[cleared]} = ${pay} dinar `
+                   + (pay > this.bet ? `(+${pay - this.bet} kâr)` : T`(−${this.bet - pay} zarar)`);
         }
         if(won) {
             state.player.money += 500; state.player.renown += 20;
             state.player.tourneyWins = (state.player.tourneyWins || 0) + 1;   // hedef zinciri sayar (#53/1.4)
             state.pendingDedication = true;
-            alert('Turnuvayı kazandın! +500 Dinar, +20 Nam' + betTxt + '\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.');
+            alert(T('Turnuvayı kazandın! +500 Dinar, +20 Nam') + betTxt + T('\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.'));
         } else {
-            alert(`${this.round}. turda elendin! Skor: ${this.score}/${this.goal}` + betTxt);
+            alert(T`${this.round}. turda elendin! Skor: ${this.score}/${this.goal}` + betTxt);
         }
         Quests.emit('tournament_end', { won, score: this.score });
         Game.updateTopBar();

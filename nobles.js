@@ -6,46 +6,46 @@
 // Kimin hangi hediyeden hoşlandığını, hangi görevi verdiğini ve drahomada
 // ne kadar açgözlü olduğunu belirler.
 const PERSONALITIES = {
-    martial:     { name: 'Savaşçı',    likes: ['sword','axe','lance','horse'], dowry: 1.0, greet: 'Kılıcın keskin mi delikanlı? Laf değil, çelik konuşur burada.' },
-    cunning:     { name: 'Kurnaz',     likes: ['iron','salt','velvet'],        dowry: 1.3, greet: 'Her sohbetin bir bedeli vardır. Seninkini henüz hesaplayamadım.' },
-    debauched:   { name: 'Sefahatçi',  likes: ['velvet','ale','cheese','meat'],dowry: 1.2, greet: 'Kadeh boş, sohbet kuru. Bu ikisinden birini düzelt bari.' },
-    goodnatured: { name: 'İyi Kalpli', likes: ['bread','wheat','cheese'],      dowry: 0.8, greet: 'Hoş geldin evlat. Yolun uzunsa otur, ekmeğimiz var.' },
-    quarrelsome: { name: 'Huysuz',     likes: [],                              dowry: 1.15, greet: 'Ne var? Konuşacaksan konuş, dikilip durma karşımda.' }
+    martial:     { name: T('Savaşçı'),    likes: ['sword','axe','lance','horse'], dowry: 1.0, greet: T('Kılıcın keskin mi delikanlı? Laf değil, çelik konuşur burada.') },
+    cunning:     { name: T('Kurnaz'),     likes: ['iron','salt','velvet'],        dowry: 1.3, greet: T('Her sohbetin bir bedeli vardır. Seninkini henüz hesaplayamadım.') },
+    debauched:   { name: T('Sefahatçi'),  likes: ['velvet','ale','cheese','meat'],dowry: 1.2, greet: T('Kadeh boş, sohbet kuru. Bu ikisinden birini düzelt bari.') },
+    goodnatured: { name: T('İyi Kalpli'), likes: ['bread','wheat','cheese'],      dowry: 0.8, greet: T('Hoş geldin evlat. Yolun uzunsa otur, ekmeğimiz var.') },
+    quarrelsome: { name: T('Huysuz'),     likes: [],                              dowry: 1.15, greet: T('Ne var? Konuşacaksan konuş, dikilip durma karşımda.') }
 };
 
 // --- LEYDİ HUYLARI ---
 // İltifatın tutup tutmayacağını belirler.
 const LADY_TRAITS = {
-    romantic:  { name: 'Hülyalı',  likes: 'beauty',  hates: 'war',
-                 hint: 'Pencere kenarında oturup uzaklara bakmayı sever.' },
-    ambitious: { name: 'Hırslı',   likes: 'glory',   hates: 'beauty',
-                 hint: 'Babasının haritalarını ondan daha iyi okur.' },
-    pious:     { name: 'Sofu',     likes: 'honor',   hates: 'loot',
-                 hint: 'Şafak duasını hiç kaçırmadığı söylenir.' },
-    wild:      { name: 'Deli Dolu',likes: 'hunt',    hates: 'court',
-                 hint: 'Kardeşlerinden daha iyi ata biner, bunu da saklamaz.' }
+    romantic:  { name: T('Hülyalı'),  likes: 'beauty',  hates: 'war',
+                 hint: T('Pencere kenarında oturup uzaklara bakmayı sever.') },
+    ambitious: { name: T('Hırslı'),   likes: 'glory',   hates: 'beauty',
+                 hint: T('Babasının haritalarını ondan daha iyi okur.') },
+    pious:     { name: T('Sofu'),     likes: 'honor',   hates: 'loot',
+                 hint: T('Şafak duasını hiç kaçırmadığı söylenir.') },
+    wild:      { name: T('Deli Dolu'),likes: 'hunt',    hates: 'court',
+                 hint: T('Kardeşlerinden daha iyi ata biner, bunu da saklamaz.') }
 };
 
 const COMPLIMENTS = [
-    { id:'beauty', label:'Güzelliğinden bahset',        line:'"Kalradya\'nın bütün kalelerini gezdim leydim; hiçbirinin penceresinden böyle bir manzara görünmedi."' },
-    { id:'glory',  label:'Fetihlerinden ve namından bahset', line:'"Bir gün bu kıtanın haritasını yeniden çizeceğim. Yanımda kim durursa adı da benimle anılacak."' },
-    { id:'honor',  label:'Onurdan ve adaletten bahset', line:'"Yenilmiş bir adamın kesesini almam leydim. Kılıç şerefi için çekilir, gümüş için değil."' },
-    { id:'hunt',   label:'Attan ve avdan bahset',       line:'"Doludizgin giderken rüzgârın kulakta çıkardığı sesi bilir misiniz? Ben başka müzik dinlemem."' },
-    { id:'court',  label:'Saray adabından bahset',      line:'"Bir soylunun asıl silahı sofradaki duruşudur derler; ben de öyle öğrendim."' },
-    { id:'loot',   label:'Ganimetten ve zenginlikten bahset', line:'"Son baskında öyle bir kese aldım ki, ağırlığından atım topalladı."' }
+    { id:'beauty', label:T('Güzelliğinden bahset'),        line:T('"Kalradya\'nın bütün kalelerini gezdim leydim; hiçbirinin penceresinden böyle bir manzara görünmedi."') },
+    { id:'glory',  label:T('Fetihlerinden ve namından bahset'), line:T('"Bir gün bu kıtanın haritasını yeniden çizeceğim. Yanımda kim durursa adı da benimle anılacak."') },
+    { id:'honor',  label:T('Onurdan ve adaletten bahset'), line:T('"Yenilmiş bir adamın kesesini almam leydim. Kılıç şerefi için çekilir, gümüş için değil."') },
+    { id:'hunt',   label:T('Attan ve avdan bahset'),       line:T('"Doludizgin giderken rüzgârın kulakta çıkardığı sesi bilir misiniz? Ben başka müzik dinlemem."') },
+    { id:'court',  label:T('Saray adabından bahset'),      line:T('"Bir soylunun asıl silahı sofradaki duruşudur derler; ben de öyle öğrendim."') },
+    { id:'loot',   label:T('Ganimetten ve zenginlikten bahset'), line:T('"Son baskında öyle bir kese aldım ki, ağırlığından atım topalladı."') }
 ];
 
 const POEMS = [
-    { id:'poem_butter', name:'Tereyağı Kasidesi', cost:200,
-      text:'"Ekmeğin üstünde eriyen bir sarılık gibisin;\ngörmesem aç kalırım, görsem doyamam."' },
-    { id:'poem_steppe', name:'Bozkır Ağıdı', cost:200,
-      text:'"Bozkırda yol yoktur, iz vardır.\nSen geçtin diye artık her yer yoldur."' },
-    { id:'poem_iron',   name:'Demirci Türküsü', cost:250,
-      text:'"Örsün üstünde ne varsa kırılır;\nsenin adın hariç, o su verilmiş çelik."' },
-    { id:'poem_north',  name:'Kuzey Kışı', cost:250,
-      text:'"Kar yağınca bütün krallıklar aynı beyaza döner.\nBir tek senin saçının rengi kalır."' },
-    { id:'poem_river',  name:'Nehir Kenarı', cost:300,
-      text:'"Nehir hep aynı yerden akar ama hiç aynı su değildir.\nBen her gün başka bir sebeple aynı kapıya geliyorum."' }
+    { id:'poem_butter', name:T('Tereyağı Kasidesi'), cost:200,
+      text:T('"Ekmeğin üstünde eriyen bir sarılık gibisin;\ngörmesem aç kalırım, görsem doyamam."') },
+    { id:'poem_steppe', name:T('Bozkır Ağıdı'), cost:200,
+      text:T('"Bozkırda yol yoktur, iz vardır.\nSen geçtin diye artık her yer yoldur."') },
+    { id:'poem_iron',   name:T('Demirci Türküsü'), cost:250,
+      text:T('"Örsün üstünde ne varsa kırılır;\nsenin adın hariç, o su verilmiş çelik."') },
+    { id:'poem_north',  name:T('Kuzey Kışı'), cost:250,
+      text:T('"Kar yağınca bütün krallıklar aynı beyaza döner.\nBir tek senin saçının rengi kalır."') },
+    { id:'poem_river',  name:T('Nehir Kenarı'), cost:300,
+      text:T('"Nehir hep aynı yerden akar ama hiç aynı su değildir.\nBen her gün başka bir sebeple aynı kapıya geliyorum."') }
 ];
 
 // --- SOYLULAR ---
@@ -176,13 +176,13 @@ const Nobles = {
     },
 
     relLabel(v) {
-        if(v >= 60) return '<span style="color:#2ecc71">Sadık Dost</span>';
-        if(v >= 25) return '<span style="color:#8ecf5a">Dost</span>';
-        if(v >= 5)  return '<span style="color:#ccc">Hoşnut</span>';
-        if(v > -5)  return '<span style="color:#999">Kayıtsız</span>';
-        if(v > -25) return '<span style="color:#e59b3d">Kırgın</span>';
-        if(v > -60) return '<span style="color:#e74c3c">Düşman</span>';
-        return '<span style="color:#ff3333">Kan Davalı</span>';
+        if(v >= 60) return T('<span style="color:#2ecc71">Sadık Dost</span>');
+        if(v >= 25) return T('<span style="color:#8ecf5a">Dost</span>');
+        if(v >= 5)  return T('<span style="color:#ccc">Hoşnut</span>');
+        if(v > -5)  return T('<span style="color:#999">Kayıtsız</span>');
+        if(v > -25) return T('<span style="color:#e59b3d">Kırgın</span>');
+        if(v > -60) return T('<span style="color:#e74c3c">Düşman</span>');
+        return T('<span style="color:#ff3333">Kan Davalı</span>');
     },
 
     // 3x3 sprite sheet'ten portre karesi
@@ -338,12 +338,12 @@ const Nobles = {
         let ladies = this.ladiesAt(loc.id);
         let renown = Game.peakRenown();   // kapılar ulaşılmış nama bakar (#55)
 
-        let html = `<h3>👑 Lordlar Salonu — ${loc.name}</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem">${f.name}${state.feast && state.feast.locId===loc.id ? ' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>' : ''}</p>`;
+        let html = `<h3>${T`👑 Lordlar Salonu — ${T(loc.name)}`}</h3>
+            <p style="color:var(--text-muted);font-size:0.9rem">${T(f.name)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
 
-        html += `<h4 style="margin-top:1.2rem;color:var(--primary)">Salondaki Soylular</h4>`;
+        html += `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`Salondaki Soylular`}</h4>`;
         if(lords.length === 0) {
-            html += `<p style="color:var(--text-muted);font-size:0.9rem">Salon boş. Soylular sefere çıkmış; onları haritada bulman ya da bir başkasına yerlerini sorman gerek.</p>`;
+            html += `<p style="color:var(--text-muted);font-size:0.9rem">${T`Salon boş. Soylular sefere çıkmış; onları haritada bulman ya da bir başkasına yerlerini sorman gerek.`}</p>`;
         } else {
             html += `<div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.6rem">`;
             lords.forEach(l => html += this.nobleCard(l));
@@ -354,16 +354,16 @@ const Nobles = {
         // aynı kartları ikinci kez basardı — kur yapma lordun diyaloğundan yürür.
         if(this.isFemale()) {
             html += `<p style="margin-top:1.2rem;font-size:0.85rem;color:var(--text-muted)">
-                Salonun leydileri seninle ilgilenmiyor. Bekâr bir lorda kur yapmak istersen
-                onunla konuş (gereken nam: ${this.HALL_RENOWN}, sende ${renown}).</p>`;
+                ${T`Salonun leydileri seninle ilgilenmiyor. Bekâr bir lorda kur yapmak istersen
+                onunla konuş (gereken nam: ${this.HALL_RENOWN}, sende ${renown}).`}</p>`;
         } else {
-        html += `<h4 style="margin-top:1.5rem;color:var(--primary)">Salonun Konukları</h4>`;
+        html += `<h4 style="margin-top:1.5rem;color:var(--primary)">${T`Salonun Konukları`}</h4>`;
         if(renown < this.HALL_RENOWN) {
-            html += `<p style="color:var(--danger);font-size:0.9rem">Kapıdaki muhafız yolunu kesiyor:
-                <i>"Kim bu üstü başı toz içindeki? Soyluların oturduğu salona her önüne gelen giremez."</i><br>
-                <span style="color:var(--text-muted)">Gereken nam: ${this.HALL_RENOWN} (sende ${renown})</span></p>`;
+            html += `<p style="color:var(--danger);font-size:0.9rem">${T`Kapıdaki muhafız yolunu kesiyor:
+                <i>"Kim bu üstü başı toz içindeki? Soyluların oturduğu salona her önüne gelen giremez."`}</i><br>
+                <span style="color:var(--text-muted)">${T`Gereken nam: ${this.HALL_RENOWN} (sende ${renown})`}</span></p>`;
         } else if(ladies.length === 0) {
-            html += `<p style="color:var(--text-muted);font-size:0.9rem">Bugün konuk yok.</p>`;
+            html += `<p style="color:var(--text-muted);font-size:0.9rem">${T`Bugün konuk yok.`}</p>`;
         } else {
             html += `<div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.6rem">`;
             ladies.forEach(l => html += this.nobleCard(l));
@@ -372,31 +372,31 @@ const Nobles = {
         }
 
         if(!state.player.vassalOf && loc.faction && FACTIONS[loc.faction]) {
-            html += `<button class="btn" style="margin-top:1.5rem" onclick="Nobles.swearFealtyPrompt('${loc.faction}')">⚔️ ${FACTIONS[loc.faction].ruler}'a Bağlılık Yemini Et</button>`;
+            html += `<button class="btn" style="margin-top:1.5rem" onclick="Nobles.swearFealtyPrompt('${loc.faction}')">${T`⚔️ ${T(FACTIONS[loc.faction].ruler)}'a Bağlılık Yemini Et`}</button>`;
         }
-        html += `<button class="btn" style="margin-top:0.5rem" onclick="Game.closeModal()">Ayrıl</button>`;
+        html += `<button class="btn" style="margin-top:0.5rem" onclick="Game.closeModal()">${T`Ayrıl`}</button>`;
         Game.showModal(html, '760px', Game.sceneBg('hall'));   // kale içi (#60)
     },
 
     nobleCard(n) {
         let isLady = n.guardianId !== undefined;
         let sub = isLady
-            ? `İlgi: <b style="color:#ff9ec4">${this.aff(n.id)}</b>`
+            ? `${T`İlgi:`} <b style="color:#ff9ec4">${this.aff(n.id)}</b>`
             : this.relLabel(this.rel(n.id));
         return `<div onclick="Nobles.talk('${n.id}')" style="cursor:pointer;width:150px;text-align:center;
             padding:0.6rem;background:rgba(0,0,0,0.35);border:1px solid var(--panel-border);border-radius:8px">
             <div style="display:flex;justify-content:center">${this.portraitCss(n, 96)}</div>
-            <div style="font-weight:bold;margin-top:0.5rem;font-size:0.9rem">${n.name}</div>
+            <div style="font-weight:bold;margin-top:0.5rem;font-size:0.9rem">${T(n.name)}</div>
             <div style="font-size:0.75rem;margin-top:0.2rem">${sub}</div>
         </div>`;
     },
 
     swearFealtyPrompt(fid) {
-        if(Game.peakRenown() < 50) return alert('Derebeyi olmak için en az 50 Nam gerekli.');
+        if(Game.peakRenown() < 50) return alert(T('Derebeyi olmak için en az 50 Nam gerekli.'));
         state.player.vassalOf = fid;
         state.player.rightToRule += 5;
         LORDS.filter(l => l.faction === fid).forEach(l => this.addRel(l.id, 10));
-        alert(`Artık ${FACTIONS[fid].name} derebeyisin! Krallığın lordları seni tanımaya başladı.`);
+        alert(T`Artık ${T(FACTIONS[fid].name)} derebeyisin! Krallığın lordları seni tanımaya başladı.`);
         Game.closeModal();
         Game.updateTopBar();
     },
@@ -416,12 +416,12 @@ const Nobles = {
         let html = `<div style="display:flex;gap:1.5rem;align-items:flex-start">
             ${this.portraitCss(n, 140)}
             <div style="flex:1">
-                <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
+                <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
                 <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem">
-                    ${FACTIONS[n.faction].name} · ${p.name} · ${this.traitOb(id).icon} ${this.traitOb(id).name} · İlişki: ${this.relLabel(r)} (${r})
-                    <br>Gözünde ağırlığın: <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
-                    <span style="opacity:0.7">(nam + ilişki + kapıya getirdiğin ordu)</span>
-                    ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda ${Game.infamyTier() > 1 ? 'hiç' : 'zor'} geçer.</span>` : ''}
+                    ${T`${T(FACTIONS[n.faction].name)} · ${T(p.name)} · ${this.traitOb(id).icon} ${T(this.traitOb(id).name)} · İlişki: ${this.relLabel(r)} (${r})
+                    <br>Gözünde ağırlığın:`} <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
+                    <span style="opacity:0.7">${T`(nam + ilişki + kapıya getirdiğin ordu)`}</span>
+                    ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${T`${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda ${Game.infamyTier() > 1 ? T('hiç') : 'zor'} geçer.`}</span>` : ''}
                 </div>
                 <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3em"></p>
                 ${banter}
@@ -432,40 +432,40 @@ const Nobles = {
         let today = state.time.day;
         let chat = state.smallTalkDay || {};
         html += chat[id] === today
-            ? `<button class="btn" disabled style="opacity:0.4">🗣️ Hâl hatır soruldu (bugünlük yeter)</button>`
-            : `<button class="btn" onclick="Nobles.smallTalk('${id}')">🗣️ Hâl hatır sor</button>`;
+            ? `<button class="btn" disabled style="opacity:0.4">${T`🗣️ Hâl hatır soruldu (bugünlük yeter)`}</button>`
+            : `<button class="btn" onclick="Nobles.smallTalk('${id}')">${T`🗣️ Hâl hatır sor`}</button>`;
 
-        html += `<button class="btn" onclick="Quests.offerMenu('${id}')">📜 Bana bir iş var mı?</button>`;
-        html += `<button class="btn" onclick="Nobles.askWhereMenu('${id}')">🗺️ Birinin yerini sor</button>`;
-        html += `<button class="btn" onclick="Nobles.giftMenu('${id}')">🎁 Hediye ver</button>`;
+        html += `<button class="btn" onclick="Quests.offerMenu('${id}')">${T`📜 Bana bir iş var mı?`}</button>`;
+        html += `<button class="btn" onclick="Nobles.askWhereMenu('${id}')">${T`🗺️ Birinin yerini sor`}</button>`;
+        html += `<button class="btn" onclick="Nobles.giftMenu('${id}')">${T`🎁 Hediye ver`}</button>`;
 
         // "Bir Şiir Getir" görevi bu lorddaysa ve ezberinde şiir varsa
         if(state.player.poems.length && state.player.quests.some(q => q.id === 'bring_poem' && q.giverId === id))
-            html += `<button class="btn" onclick="Nobles.recitePoemToLord('${id}')">🎵 Öğrendiğin şiiri oku</button>`;
+            html += `<button class="btn" onclick="Nobles.recitePoemToLord('${id}')">${T`🎵 Öğrendiğin şiiri oku`}</button>`;
 
         // Kadın oyuncunun kur yolu: lordun kendi diyaloğundan (salon nam kapısı burada)
         let suitor = this.isFemale() ? this.suitors().find(x => x.lordId === id) : null;
         if(suitor) {
             html += Game.peakRenown() >= this.HALL_RENOWN
-                ? `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.courtMenu('${suitor.id}')">💘 Ona kur yap (ilgi ${this.aff(suitor.id)})</button>`
-                : `<button class="btn" disabled style="opacity:0.4">💘 Kur yapmak için ${this.HALL_RENOWN} nam gerekir (sende ${Game.peakRenown()})</button>`;
+                ? `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.courtMenu('${suitor.id}')">${T`💘 Ona kur yap (ilgi ${this.aff(suitor.id)})`}</button>`
+                : `<button class="btn" disabled style="opacity:0.4">${T`💘 Kur yapmak için ${this.HALL_RENOWN} nam gerekir (sende ${Game.peakRenown()})`}</button>`;
         }
 
         let wards = this.courtables().filter(l => l.guardianId === id);
         if(wards.length) {
             wards.forEach(w => {
-                html += `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.askForHand('${w.id}')">💍 ${w.name} ile ilgili konuşmak istiyorum</button>`;
+                html += `<button class="btn" style="border-color:#ff9ec4;color:#ff9ec4" onclick="Nobles.askForHand('${w.id}')">${T`💍 ${T(w.name)} ile ilgili konuşmak istiyorum`}</button>`;
             });
         }
 
         // Kral olan oyuncu lord tutabilir — bedeli tımardır (#40)
         if(Game.isKing() && n.rank !== 'king' && n.faction !== 'player_kingdom')
-            html += `<button class="btn" style="border-color:var(--primary);color:var(--primary)" onclick="Game.offerVassalage('${id}')">👑 Krallığıma katıl (tımar teklif et)</button>`;
+            html += `<button class="btn" style="border-color:var(--primary);color:var(--primary)" onclick="Game.offerVassalage('${id}')">${T`👑 Krallığıma katıl (tımar teklif et)`}</button>`;
         else if(n.faction === 'player_kingdom')
-            html += `<button class="btn" disabled style="opacity:0.5">👑 Senin vassalın — ${Game.fiefsOf(id).length} tımar</button>`;
+            html += `<button class="btn" disabled style="opacity:0.5">${T`👑 Senin vassalın — ${Game.fiefsOf(id).length} tımar`}</button>`;
 
-        html += `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.insult('${id}')">🤬 Hakaret et</button>`;
-        html += `<button class="btn" onclick="Game.closeModal()">Ayrıl</button></div>`;
+        html += `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.insult('${id}')">${T`🤬 Hakaret et`}</button>`;
+        html += `<button class="btn" onclick="Game.closeModal()">${T`Ayrıl`}</button></div>`;
 
         Game.showModal(html, '680px');
         // Replik kademeli yazılır; maiyet ancak lord sözünü bitirince araya girer
@@ -477,7 +477,7 @@ const Nobles = {
     recitePoemToLord(id) {
         let p = POEMS.find(x => x.id === state.player.poems[0]);
         Quests.emit('poem_recited_lord', { lordId: id, poemId: p.id });
-        alert(`${p.text}\n\n${this.lord(id).name} kadehini masaya bıraktı. "Fena değil. Ziyafette bunu okuyacaksın."`);
+        alert(T`${T(p.text)}\n\n${T(this.lord(id).name)} kadehini masaya bıraktı. "Fena değil. Ziyafette bunu okuyacaksın."`);
     },
 
     // Oyuncunun soylu gözündeki ağırlığı: nam + ilişki + kapıya getirdiği ordu.
@@ -494,7 +494,7 @@ const Nobles = {
         return Math.max(-1, Math.min(4, sc));
     },
     standingLabel(sc) {
-        return ['Bir hiç', 'Tanınmayan', 'Adı duyulmuş', 'Saygı gören', 'Ünlü', 'Çekinilen'][sc + 1];
+        return [T('Bir hiç'), T('Tanınmayan'), T('Adı duyulmuş'), T('Saygı gören'), T('Ünlü'), T('Çekinilen')][sc + 1];
     },
 
     // ---------- Lord kişilikleri ve replik havuzu (#59) ----------
@@ -502,13 +502,13 @@ const Nobles = {
     // Özellik kayda yazılmaz: id'nin hash'inden türer, yani her açılışta ve her eski
     // kayıtta aynı lorda aynı huy düşer — göç kodu gerekmez.
     LORD_TRAITS: {
-        proud:     { name: 'Kibirli',  icon: '\ud83e\udd9a' },
-        craven:    { name: 'Korkak',   icon: '\ud83d\udc01' },
-        cruel:     { name: 'Zalim',    icon: '\ud83d\udde1\ufe0f' },
-        jolly:     { name: 'Neşeli',   icon: '\ud83c\udf7a' },
-        greedy:    { name: 'Paragöz',  icon: '\ud83d\udcb0' },
-        honorable: { name: 'Onurlu',   icon: '\u269c\ufe0f' },
-        fawning:   { name: 'Dalkavuk', icon: '\ud83d\ude47' }
+        proud:     { name: T('Kibirli'),  icon: T('\ud83e\udd9a') },
+        craven:    { name: T('Korkak'),   icon: T('\ud83d\udc01') },
+        cruel:     { name: T('Zalim'),    icon: T('\ud83d\udde1\ufe0f') },
+        jolly:     { name: T('Neşeli'),   icon: T('\ud83c\udf7a') },
+        greedy:    { name: T('Paragöz'),  icon: T('\ud83d\udcb0') },
+        honorable: { name: T('Onurlu'),   icon: T('\u269c\ufe0f') },
+        fawning:   { name: T('Dalkavuk'), icon: T('\ud83d\ude47') }
     },
     traitOf(id) {
         let keys = Object.keys(this.LORD_TRAITS), str = String(id), h = 0;
@@ -526,83 +526,83 @@ const Nobles = {
     LORD_LINES: {
         greet: {
             proud: [
-                ['Bu salona girmeden önce ayakkabılarına baktın mı? Ben baktım.',
-                 'Konuş. Ama kısa konuş; öğleden sonra kendi portremi izleyeceğim.'],
-                ['Adını duydum. Bir kere. Belki iki — ikincisinde de ben söylüyordum.',
-                 'Otur. Ama o koltuğa değil, o benim büyükbabamın.'],
-                ['İkimiz de büyük adamız. Aramızdaki tek fark, benim daha eski olmam.',
-                 'Seni denk sayıyorum. Bunu kimseye söyleme, itibarım zedelenir.']
+                [T('Bu salona girmeden önce ayakkabılarına baktın mı? Ben baktım.'),
+                 T('Konuş. Ama kısa konuş; öğleden sonra kendi portremi izleyeceğim.')],
+                [T('Adını duydum. Bir kere. Belki iki — ikincisinde de ben söylüyordum.'),
+                 T('Otur. Ama o koltuğa değil, o benim büyükbabamın.')],
+                [T('İkimiz de büyük adamız. Aramızdaki tek fark, benim daha eski olmam.'),
+                 T('Seni denk sayıyorum. Bunu kimseye söyleme, itibarım zedelenir.')]
             ],
             craven: [
-                ['Silahın var mı? Yok değil mi? Yok de. Lütfen yok de.',
-                 'Kapıyı kapat... hayır, açık bırak. Açık ki kaçabileyim. Buyur, dinliyorum.'],
-                ['Otur, ama kapıya yakın otur. İkimiz için de iyi olur.',
-                 'Kötü haber getirmediysen konuş. Getirdiysen otur, önce bir su içeyim.'],
-                ['Ordunu saydım. İki kere saydım. Sonuç ikisinde de fena çıktı.',
-                 'Ne istersen. Gerçekten. Şu masa da senin olsun, ben zaten sevmezdim.']
+                [T('Silahın var mı? Yok değil mi? Yok de. Lütfen yok de.'),
+                 T('Kapıyı kapat... hayır, açık bırak. Açık ki kaçabileyim. Buyur, dinliyorum.')],
+                [T('Otur, ama kapıya yakın otur. İkimiz için de iyi olur.'),
+                 T('Kötü haber getirmediysen konuş. Getirdiysen otur, önce bir su içeyim.')],
+                [T('Ordunu saydım. İki kere saydım. Sonuç ikisinde de fena çıktı.'),
+                 T('Ne istersen. Gerçekten. Şu masa da senin olsun, ben zaten sevmezdim.')]
             ],
             cruel: [
-                ['Zindanım dolu ama bir kişilik yer her zaman açılır. Sen ne diyordun?',
-                 'Adını unutacağım. Yüzünü unutmam — o meslek icabı.'],
-                ['İşini bitir de git. Akşam bir asmam var, geç kalmak istemem.',
-                 'Yararlı adamları severim. Yararsızlara ne yaptığımı köylülere sorabilirsin.'],
-                ['Sen olmasan çok rahat ederdim. Olduğun için, buyur otur.',
-                 'Seni sevmiyorum, yine de iyi davranıyorum. Bu benden büyük bir iltifat.']
+                [T('Zindanım dolu ama bir kişilik yer her zaman açılır. Sen ne diyordun?'),
+                 T('Adını unutacağım. Yüzünü unutmam — o meslek icabı.')],
+                [T('İşini bitir de git. Akşam bir asmam var, geç kalmak istemem.'),
+                 T('Yararlı adamları severim. Yararsızlara ne yaptığımı köylülere sorabilirsin.')],
+                [T('Sen olmasan çok rahat ederdim. Olduğun için, buyur otur.'),
+                 T('Seni sevmiyorum, yine de iyi davranıyorum. Bu benden büyük bir iltifat.')]
             ],
             jolly: [
-                ['Hoş geldin! Kim olduğunu bilmiyorum ama içki bitmeden öğreniriz.',
-                 'Yeni bir yüz! Çavuşum yine kaybedecek, ben hep yeni yüzlere bahse girerim.'],
-                ['Gel gel! Şu peyniri dene, kokusu ağır ama karakteri var — sana benziyor.',
-                 'Anlat bakalım, yollarda kaç kişiyi darladın? Şaka. Yarısını anlat yeter.'],
-                ['İşte adam dediğin! Hizmetkâr, iyi şaraptan getir — hayır, çok iyi olanından.',
-                 'Seninle aynı masada olmak keyifli. Karşı masada olmak da bir o kadar pahalı.']
+                [T('Hoş geldin! Kim olduğunu bilmiyorum ama içki bitmeden öğreniriz.'),
+                 T('Yeni bir yüz! Çavuşum yine kaybedecek, ben hep yeni yüzlere bahse girerim.')],
+                [T('Gel gel! Şu peyniri dene, kokusu ağır ama karakteri var — sana benziyor.'),
+                 T('Anlat bakalım, yollarda kaç kişiyi darladın? Şaka. Yarısını anlat yeter.')],
+                [T('İşte adam dediğin! Hizmetkâr, iyi şaraptan getir — hayır, çok iyi olanından.'),
+                 T('Seninle aynı masada olmak keyifli. Karşı masada olmak da bir o kadar pahalı.')]
             ],
             greedy: [
-                ['Vaktim paradır. Sen ise şu ana kadar bedavaya konuşuyorsun.',
-                 'Kesene baktım, oradan bir ses gelmedi. Yine de dinliyorum.'],
-                ['Otur. Kadeh başına iki dinar, ama ilk yudum ikramımdır.',
-                 'Dostluk güzel şeydir. Faizli olanı daha da güzel.'],
-                ['Zengin adamla konuşmak bedava. Bu benim tek indirimim.',
-                 'Sen ticaret yolu gibisin: yanından geçmek bile kâr.']
+                [T('Vaktim paradır. Sen ise şu ana kadar bedavaya konuşuyorsun.'),
+                 T('Kesene baktım, oradan bir ses gelmedi. Yine de dinliyorum.')],
+                [T('Otur. Kadeh başına iki dinar, ama ilk yudum ikramımdır.'),
+                 T('Dostluk güzel şeydir. Faizli olanı daha da güzel.')],
+                [T('Zengin adamla konuşmak bedava. Bu benim tek indirimim.'),
+                 T('Sen ticaret yolu gibisin: yanından geçmek bile kâr.')]
             ],
             honorable: [
-                ['Adını bilmiyorum. Ama sözünü tutup tutmadığını öğreneceğim.',
-                 'Bir adamı kılıcından değil, borcundan tanırım. Anlat.'],
-                ['Hoş geldin. Doğru söyle, kısa söyle; ikimiz de kazanalım.',
-                 'Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.'],
-                ['Namın önünden yürüyor. Umarım arkasından da aynısı geliyordur.',
-                 'Seni denk görüyorum. Bu benim verebileceğim en pahalı şey.']
+                [T('Adını bilmiyorum. Ama sözünü tutup tutmadığını öğreneceğim.'),
+                 T('Bir adamı kılıcından değil, borcundan tanırım. Anlat.')],
+                [T('Hoş geldin. Doğru söyle, kısa söyle; ikimiz de kazanalım.'),
+                 T('Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.')],
+                [T('Namın önünden yürüyor. Umarım arkasından da aynısı geliyordur.'),
+                 T('Seni denk görüyorum. Bu benim verebileceğim en pahalı şey.')]
             ],
             fawning: [
-                ['Kimsiniz? Önemli birine benziyorsunuz... değil misiniz? Peki.',
-                 'Buyurun oturun. Yani otur. Yani... hangisi rahatsa.'],
-                ['Ah, ne güzel oldu gelmeniz! Tam da sizden bahsediyordum — iyi şeylerdi tabii.',
-                 'Sizi kralın sofrasında görmüştüm sanki. Görmediysem de göreceğim, eminim.'],
-                ['Efendim! Buyurun, baş köşe zaten sizin adınıza boş duruyordu.',
-                 'Ben hep sizin tarafınızdaydım. Sorarsanız herkes doğrular — sorulacaklarla konuştum.']
+                [T('Kimsiniz? Önemli birine benziyorsunuz... değil misiniz? Peki.'),
+                 T('Buyurun oturun. Yani otur. Yani... hangisi rahatsa.')],
+                [T('Ah, ne güzel oldu gelmeniz! Tam da sizden bahsediyordum — iyi şeylerdi tabii.'),
+                 T('Sizi kralın sofrasında görmüştüm sanki. Görmediysem de göreceğim, eminim.')],
+                [T('Efendim! Buyurun, baş köşe zaten sizin adınıza boş duruyordu.'),
+                 T('Ben hep sizin tarafınızdaydım. Sorarsanız herkes doğrular — sorulacaklarla konuştum.')]
             ]
         },
         chat: {
-            proud: ['Kralın yeni sancağını gördün mü? Rengi berbat. Benimkini kopyalasalar bu kadar konuşulmazdı.',
-                    'Şairler beni yeterince yazmıyor. Birine para verdim, üçüncü kıtada beni unuttu.'],
-            craven: ['Sur nöbetini iki katına çıkardım. Nöbetçiler için değil, benim uykum için.',
-                     'Kergitler at üstünde uyuyormuş. Ben yatakta bile uyuyamıyorum, bu nasıl adalet?'],
-            cruel: ['Vergiyi ödemeyen iki köylüyü kuleye astım. Üçüncüsü ödedi. Sistem işliyor.',
-                    'Merhamet pahalı bir maldır. Ambarımda ona yer yok.'],
-            jolly: ['Geçen ay domuz turnuvası düzenledim. Kazanan domuza çavuşumun adını verdim.',
-                    'Şarap bitince savaş başlar derler. Ben o yüzden mahzeni büyüttüm — barış budur.'],
-            greedy: ['Bir tüccar kadifeyi bana iki katına satmaya kalktı. Şimdi bana çalışıyor.',
-                     'Toprak iyidir de, faiz uyumuyor. Ben de uyumuyorum; ikimiz anlaşıyoruz.'],
-            honorable: ['Yeminimi bozduğumu söyleyene rastlarsan bana getir. Yüzleşmeyi severim.',
-                        'Kılıç kuşanmak kolay. Zor olan, kuşanmadan durabilmek.'],
-            fawning: ['Kral geçen gün bana baktı. Bakışında bir sıcaklık vardı. Belki güneş vuruyordu.',
-                      'Ben de tam sizin gibi düşünüyorum. Ne düşündüğünüzü söyleyin, aynısını düşüneyim.'],
-            b1: ['Bu aralar yollarda çapulcu kaynıyor. Kimin beslediğini merak ediyorum.',
-                 'Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak.',
-                 'Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor.'],
-            b2: ['Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz.',
-                 'Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın.',
-                 'Adamlarım seni konuşuyor, ben de dinliyorum. Bu benim için yeni bir durum.']
+            proud: [T('Kralın yeni sancağını gördün mü? Rengi berbat. Benimkini kopyalasalar bu kadar konuşulmazdı.'),
+                    T('Şairler beni yeterince yazmıyor. Birine para verdim, üçüncü kıtada beni unuttu.')],
+            craven: [T('Sur nöbetini iki katına çıkardım. Nöbetçiler için değil, benim uykum için.'),
+                     T('Kergitler at üstünde uyuyormuş. Ben yatakta bile uyuyamıyorum, bu nasıl adalet?')],
+            cruel: [T('Vergiyi ödemeyen iki köylüyü kuleye astım. Üçüncüsü ödedi. Sistem işliyor.'),
+                    T('Merhamet pahalı bir maldır. Ambarımda ona yer yok.')],
+            jolly: [T('Geçen ay domuz turnuvası düzenledim. Kazanan domuza çavuşumun adını verdim.'),
+                    T('Şarap bitince savaş başlar derler. Ben o yüzden mahzeni büyüttüm — barış budur.')],
+            greedy: [T('Bir tüccar kadifeyi bana iki katına satmaya kalktı. Şimdi bana çalışıyor.'),
+                     T('Toprak iyidir de, faiz uyumuyor. Ben de uyumuyorum; ikimiz anlaşıyoruz.')],
+            honorable: [T('Yeminimi bozduğumu söyleyene rastlarsan bana getir. Yüzleşmeyi severim.'),
+                        T('Kılıç kuşanmak kolay. Zor olan, kuşanmadan durabilmek.')],
+            fawning: [T('Kral geçen gün bana baktı. Bakışında bir sıcaklık vardı. Belki güneş vuruyordu.'),
+                      T('Ben de tam sizin gibi düşünüyorum. Ne düşündüğünüzü söyleyin, aynısını düşüneyim.')],
+            b1: [T('Bu aralar yollarda çapulcu kaynıyor. Kimin beslediğini merak ediyorum.'),
+                 T('Geçen kış ambarlar boş kaldı. Bu yıl aynısı olursa kılıç değil kaşık konuşacak.'),
+                 T('Turnuvalar eskisi gibi değil. Eskiden adam ölürdü, şimdi herkes sağ dönüyor.')],
+            b2: [T('Açık konuşayım: seninle iyi geçinmek, karşında olmaktan ucuz.'),
+                 T('Kraldan önce sana danışan lordlar var artık. Bunu ben söylemedim, sen de duymadın.'),
+                 T('Adamlarım seni konuşuyor, ben de dinliyorum. Bu benim için yeni bir durum.')]
         },
         brush: {
             proud: ['Hâl hatır mı? Benim hâlim iyi. Senin hatırın yok.'],
@@ -612,31 +612,31 @@ const Nobles = {
             greedy: ['Sohbet bedava değil. Fiyatını da veremezsin; geç.'],
             honorable: ['Tanımadığım adamla ahbaplık etmem. Tanınacak bir iş yap, sonra otur.'],
             fawning: ['Ben şu an büyüklerle konuşuyorum... yani sonra. Siz de büyüksünüz tabii. Neyse.'],
-            b0: ['Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.',
-                 'Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.',
-                 'Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma.']
+            b0: [T('Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.'),
+                 T('Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.'),
+                 T('Sen konuşurken ben kaç mızrak ısmarlayacağımı hesaplıyordum. Kusura bakma.')]
         },
         quest: {
-            proud: ['Sana bir iş vereceğim. Aklında tut, çünkü iki kere anlatmam.',
-                    'Bu iş benim seviyeme göre küçük. Yani tam sana göre.'],
-            craven: ['Bir iş var ama tehlikeli. Ben gidemem; sırtım tutuyor. Ve kalbim. Ve dizlerim.',
-                     'Sen gidersin, ben burada senin için endişelenirim. İş bölümü budur.'],
-            cruel: ['Bir iş var. Beceremezsen ne olacağını anlatmayayım, uyku düzenin bozulur.',
-                    'Bu işi bitir. Bitmezse bitirecek birini bulurum, sen de onu izlersin.'],
-            jolly: ['Bir işim var! Sıkıcı değil, söz. Yani biraz sıkıcı. Ama sonunda içki var.',
-                    'Şuna bak, tam sana göre. Kaybedersen de güzel bir hikâye olur.'],
-            greedy: ['İş var, para var. Benim payım büyük ama seninki de var.',
-                     'Ödemeyi peşin isteme. Peşin ödeyen adam iki kere ödemiş sayılır.'],
-            honorable: ['Bir işim var. Kabul edersen sözünü tut; tutamayacaksan şimdi reddet, kimse gücenmez.',
-                        'Bu iş kolay değil. Kolay olsa sana teklif etmezdim.'],
-            fawning: ['Küçücük bir ricam olacak, sizin gibi biri için hiç iş sayılmaz...',
-                      'Bunu kral duyarsa çok memnun olur. Sizin adınızı da anarım. Muhtemelen.'],
-            b0: ['Sana verecek doğru dürüst bir iş yok ama ayak işi her zaman var.',
-                 'Bunu adamlarıma versem gülerler. O yüzden sana veriyorum.',
-                 'Beceremezsen kimse şaşırmaz. Bu da bir tür özgürlük.'],
-            b2: ['Bunu senden rica ediyorum, emretmiyorum. Farkı ikimiz de biliyoruz.',
-                 'Bu işi sana veriyorum, çünkü başkası becerse kimsenin haberi olmaz.',
-                 'Kabul edersen herkese anlatırım. Etmezsen hiç konuşmadık.']
+            proud: [T('Sana bir iş vereceğim. Aklında tut, çünkü iki kere anlatmam.'),
+                    T('Bu iş benim seviyeme göre küçük. Yani tam sana göre.')],
+            craven: [T('Bir iş var ama tehlikeli. Ben gidemem; sırtım tutuyor. Ve kalbim. Ve dizlerim.'),
+                     T('Sen gidersin, ben burada senin için endişelenirim. İş bölümü budur.')],
+            cruel: [T('Bir iş var. Beceremezsen ne olacağını anlatmayayım, uyku düzenin bozulur.'),
+                    T('Bu işi bitir. Bitmezse bitirecek birini bulurum, sen de onu izlersin.')],
+            jolly: [T('Bir işim var! Sıkıcı değil, söz. Yani biraz sıkıcı. Ama sonunda içki var.'),
+                    T('Şuna bak, tam sana göre. Kaybedersen de güzel bir hikâye olur.')],
+            greedy: [T('İş var, para var. Benim payım büyük ama seninki de var.'),
+                     T('Ödemeyi peşin isteme. Peşin ödeyen adam iki kere ödemiş sayılır.')],
+            honorable: [T('Bir işim var. Kabul edersen sözünü tut; tutamayacaksan şimdi reddet, kimse gücenmez.'),
+                        T('Bu iş kolay değil. Kolay olsa sana teklif etmezdim.')],
+            fawning: [T('Küçücük bir ricam olacak, sizin gibi biri için hiç iş sayılmaz...'),
+                      T('Bunu kral duyarsa çok memnun olur. Sizin adınızı da anarım. Muhtemelen.')],
+            b0: [T('Sana verecek doğru dürüst bir iş yok ama ayak işi her zaman var.'),
+                 T('Bunu adamlarıma versem gülerler. O yüzden sana veriyorum.'),
+                 T('Beceremezsen kimse şaşırmaz. Bu da bir tür özgürlük.')],
+            b2: [T('Bunu senden rica ediyorum, emretmiyorum. Farkı ikimiz de biliyoruz.'),
+                 T('Bu işi sana veriyorum, çünkü başkası becerse kimsenin haberi olmaz.'),
+                 T('Kabul edersen herkese anlatırım. Etmezsen hiç konuşmadık.')]
         },
         retort: {
             proud: ['Bunu bir daha söyle. Hayır, söyleme. Kulağım kirlenir.'],
@@ -649,29 +649,29 @@ const Nobles = {
         },
         // Maiyet atışması: [maiyetin repliği, lordun cevabı]
         retinue: {
-            proud: [['Efendim, portrenizin boyası hâlâ kurumadı.', 'Kurusun. Sanat acele etmez; ben ederim.'],
-                    ['Misafirin adını deftere yazayım mı efendim?', 'Yaz. Silmesi kolay olur.']],
-            craven: [['Efendim, kapıda bir atlı var.', 'Kapat! ... Postacı mı? Yine de kapat.'],
-                     ['Zırhınızı getireyim mi efendim?', 'Getir ama giymem. Yanımda dursun, moral olur.']],
-            cruel: [['Efendim, zindandaki adam af diliyor.', 'Dilesin. Dilekçe güzel şeydir, arşivde tutarız.'],
-                    ['Köylüler vergiyi ödeyemiyor efendim.', 'Öyleyse iki şey ödesinler: vergi ve özür.']],
-            jolly: [['Efendim, mahzende üç fıçı kaldı.', 'Üç mü? Felaket. Savaş ilan et, seferde içeriz.'],
-                    ['Domuz yine bahçeye girdi efendim.', 'Bırak girsin. Misafirimiz var, kalabalık görünürüz.']],
-            greedy: [['Efendim, tüccar fiyatı düşürmüş.', 'Demek bir bildiği var. Al hepsini, iki katına satarız.'],
-                     ['Maaşımız bu ay gecikti efendim.', 'Gecikmedi, faizle bekliyor. Bana teşekkür edeceksin.']],
-            honorable: [['Efendim, düşman lordu pusuya düşürebiliriz.', 'Düşürebiliriz. Düşürmeyeceğiz. Sen kahvaltını et.'],
-                        ['Sözünüzü geri alsanız kârlı çıkardınız efendim.', 'Kârlı çıkmak için söz vermedim ki.']],
-            fawning: [['Efendim, kral mektubunuza cevap vermemiş.', 'Cevap vermemek de bir cevaptır. Olumlu bir cevap.'],
-                      ['Bu misafir önemli biri mi efendim?', 'Öyle davran. Yanılırsak da zararı yok.']],
-            b0: [['Efendim, salon soğuk.', 'Sohbet ısıtır. Odun atma, konuşana kulak ver.'],
-                 ['Yemek hazır efendim.', 'Bekletin. Bu adam ya kısa konuşur ya da yemek soğur.']],
-            b1: [['Bir haberci geldi efendim.', 'Sırasını beklesin. Haber bekler, misafir beklemez... genelde.'],
-                 ['Kılıcınızı bilettim efendim.', 'İyi. Umarım bu sohbette işime yaramaz.']],
-            b2: [['Muhasebeyi getireyim mi efendim?', 'Getirme. Bugün keyfim yerinde, bozmayalım.'],
-                 ['Efendim, köpek yine masaya çıktı.', 'Bırak otursun. Bu salondaki en dürüst konuk o.']]
+            proud: [[T('Efendim, portrenizin boyası hâlâ kurumadı.'), T('Kurusun. Sanat acele etmez; ben ederim.')],
+                    [T('Misafirin adını deftere yazayım mı efendim?'), T('Yaz. Silmesi kolay olur.')]],
+            craven: [[T('Efendim, kapıda bir atlı var.'), T('Kapat! ... Postacı mı? Yine de kapat.')],
+                     [T('Zırhınızı getireyim mi efendim?'), T('Getir ama giymem. Yanımda dursun, moral olur.')]],
+            cruel: [[T('Efendim, zindandaki adam af diliyor.'), T('Dilesin. Dilekçe güzel şeydir, arşivde tutarız.')],
+                    [T('Köylüler vergiyi ödeyemiyor efendim.'), T('Öyleyse iki şey ödesinler: vergi ve özür.')]],
+            jolly: [[T('Efendim, mahzende üç fıçı kaldı.'), T('Üç mü? Felaket. Savaş ilan et, seferde içeriz.')],
+                    [T('Domuz yine bahçeye girdi efendim.'), T('Bırak girsin. Misafirimiz var, kalabalık görünürüz.')]],
+            greedy: [[T('Efendim, tüccar fiyatı düşürmüş.'), T('Demek bir bildiği var. Al hepsini, iki katına satarız.')],
+                     [T('Maaşımız bu ay gecikti efendim.'), T('Gecikmedi, faizle bekliyor. Bana teşekkür edeceksin.')]],
+            honorable: [[T('Efendim, düşman lordu pusuya düşürebiliriz.'), T('Düşürebiliriz. Düşürmeyeceğiz. Sen kahvaltını et.')],
+                        [T('Sözünüzü geri alsanız kârlı çıkardınız efendim.'), T('Kârlı çıkmak için söz vermedim ki.')]],
+            fawning: [[T('Efendim, kral mektubunuza cevap vermemiş.'), T('Cevap vermemek de bir cevaptır. Olumlu bir cevap.')],
+                      [T('Bu misafir önemli biri mi efendim?'), T('Öyle davran. Yanılırsak da zararı yok.')]],
+            b0: [[T('Efendim, salon soğuk.'), T('Sohbet ısıtır. Odun atma, konuşana kulak ver.')],
+                 [T('Yemek hazır efendim.'), T('Bekletin. Bu adam ya kısa konuşur ya da yemek soğur.')]],
+            b1: [[T('Bir haberci geldi efendim.'), T('Sırasını beklesin. Haber bekler, misafir beklemez... genelde.')],
+                 [T('Kılıcınızı bilettim efendim.'), T('İyi. Umarım bu sohbette işime yaramaz.')]],
+            b2: [[T('Muhasebeyi getireyim mi efendim?'), T('Getirme. Bugün keyfim yerinde, bozmayalım.')],
+                 [T('Efendim, köpek yine masaya çıktı.'), T('Bırak otursun. Bu salondaki en dürüst konuk o.')]]
         }
     },
-    RETAINERS: ['Yaşlı çavuş', 'Kâhya', 'Silahtar', 'Danışman', 'Genç uşak', 'Kâtip'],
+    RETAINERS: [T('Yaşlı çavuş'), T('Kâhya'), T('Silahtar'), T('Danışman'), T('Genç uşak'), T('Kâtip')],
 
     // Son N replik tekrar seçilmez (Game.dailyEvent'teki desen). İki fark var:
     // sayaç tür başına tutulur ve geriye bakış havuzun %60'ıyla sınırlıdır —
@@ -695,7 +695,10 @@ const Nobles = {
         let src = this.LORD_LINES[kind] || {}, b = this.band(this.standing(id));
         let mine = src[this.traitOf(id)] || [];
         if(kind === 'greet') mine = mine[b] || [];
-        return this.fresh(mine.concat(src['b' + b] || [], extra), kind + b);
+        // Havuz metinleri betik yüklenirken `T`den geçti — o an dil hep 'tr' olduğu
+        // için Türkçe kaldılar; çeviri seçim anında yapılır. `extra` çağıranda çevrilmiş gelir.
+        let pool = mine.concat(src['b' + b] || []).map(x => Array.isArray(x) ? x.map(s => T(s)) : T(x));
+        return this.fresh(pool.concat(extra), kind + b);
     },
     // Maiyet atışması: her diyalogda değil, üçte bir ihtimalle araya girerler
     retinueHtml(id) {
@@ -704,8 +707,8 @@ const Nobles = {
         if(!pair) return '';
         let who = this.RETAINERS[Math.floor(Math.random() * this.RETAINERS.length)];
         return `<div id="lord-banter" style="margin-top:0.6rem;font-size:0.86rem;color:var(--text-muted);border-left:2px solid var(--panel-border);padding-left:0.7rem">
-            <div><b>${who}:</b> <i>"${pair[0]}"</i></div>
-            <div style="margin-top:0.2rem"><b>${this.lord(id) ? this.lord(id).name : 'Lord'}:</b> <i>"${pair[1]}"</i></div>
+            <div><b>${T(who)}:</b> <i>"${pair[0]}"</i></div>
+            <div style="margin-top:0.2rem"><b>${this.lord(id) ? T(this.lord(id).name) : T('Lord')}:</b> <i>"${pair[1]}"</i></div>
         </div>`;
     },
 
@@ -715,11 +718,11 @@ const Nobles = {
         Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
                 ${this.portraitCss(n, 110)}
                 <div style="flex:1">
-                    <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
+                    <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
                     <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3.2em"></p>
                     ${note ? `<div style="font-size:0.85rem;color:var(--text-muted)">${note}</div>` : ''}
                 </div></div>
-            <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">Geri</button>`, '620px');
+            <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">${T`Geri`}</button>`, '620px');
         Game.typeIn('lord-line', `"${line}"`);
     },
 
@@ -727,43 +730,43 @@ const Nobles = {
     // Sabit tek cevap yok — her kademenin kendi havuzu var.
     GREETS: {
         '-1': [
-            'Sen de kimsin? Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil.',
-            'Adını duymadım, ordunu görmedim, vaktimi de alma.',
-            'Şu üstündekine kılık mı denir? Konuş bakalım, kısa tut.'
+            T('Sen de kimsin? Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil.'),
+            T('Adını duymadım, ordunu görmedim, vaktimi de alma.'),
+            T('Şu üstündekine kılık mı denir? Konuş bakalım, kısa tut.')
         ],
         '0': [
-            'Seni bir yerden hatırlar gibiyim. Neyse, derdini söyle.',
-            "Bir yolcu daha. Kalradya'da bunlardan bol var.",
-            'Konuş. Ama ağzından çıkanı kulağın duysun.'
+            T('Seni bir yerden hatırlar gibiyim. Neyse, derdini söyle.'),
+            T("Bir yolcu daha. Kalradya'da bunlardan bol var."),
+            T('Konuş. Ama ağzından çıkanı kulağın duysun.')
         ],
         '1': [
-            'Adını duydum. Küçük işler, ama iş sonuçta.',
-            'Otur bakalım. Bir kadeh içimlik vaktim var.',
-            'Yollarda gezen çok, iş bitiren az. Sen hangisisin?'
+            T('Adını duydum. Küçük işler, ama iş sonuçta.'),
+            T('Otur bakalım. Bir kadeh içimlik vaktim var.'),
+            T('Yollarda gezen çok, iş bitiren az. Sen hangisisin?')
         ],
         '2': [
-            'Hoş geldin. Senin adın bu salonda birkaç kez geçti — kötüsünden değil.',
-            'Gel şöyle. Kılıcını duvara as, sohbet uzun sürebilir.',
-            'Seni beklemiyordum ama yerim var. Anlat.'
+            T('Hoş geldin. Senin adın bu salonda birkaç kez geçti — kötüsünden değil.'),
+            T('Gel şöyle. Kılıcını duvara as, sohbet uzun sürebilir.'),
+            T('Seni beklemiyordum ama yerim var. Anlat.')
         ],
         '3': [
-            'Buyur, baş köşe senin. Böylesi her gün kapımı çalmıyor.',
-            'Namın önünden yürüyor. Umarım söyledikleri abartıdır — abartı değilse pahalıya patlar.',
-            'Hizmetkâr! İyi şarabı getir. Bu adam ayakta karşılanmaz.'
+            T('Buyur, baş köşe senin. Böylesi her gün kapımı çalmıyor.'),
+            T('Namın önünden yürüyor. Umarım söyledikleri abartıdır — abartı değilse pahalıya patlar.'),
+            T('Hizmetkâr! İyi şarabı getir. Bu adam ayakta karşılanmaz.')
         ],
         '4': [
-            'Ordunu kapımın önünde gördüm. Dostça geldiğini varsayıyorum... değil mi?',
-            'Sen artık bir maceracı değilsin, bir mesele oldun. Otur, konuşalım.',
-            'Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?'
+            T('Ordunu kapımın önünde gördüm. Dostça geldiğini varsayıyorum... değil mi?'),
+            T('Sen artık bir maceracı değilsin, bir mesele oldun. Otur, konuşalım.'),
+            T('Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?')
         ]
     },
     // Düz metin döner (tırnaksız): yazı makinesi textContent'e yazar (#59)
     greetLine(n, r) {
-        if(r <= -50) return 'Sen hâlâ nefes alıyor musun? Bir gün bu hatayı düzelteceğim.';
-        if(r <= -15) return 'Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini.';
-        if(r >= 60)  return 'Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya.';
+        if(r <= -50) return T('Sen hâlâ nefes alıyor musun? Bir gün bu hatayı düzelteceğim.');
+        if(r <= -15) return T('Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini.');
+        if(r >= 60)  return T('Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya.');
         // Karakter özelliği + ağırlık bandı havuzu; eski GREETS kademe havuzu da ekli kalır
-        return this.lineFor('greet', n.id, this.GREETS[String(this.standing(n.id))] || []);
+        return this.lineFor('greet', n.id, (this.GREETS[String(this.standing(n.id))] || []).map(s => T(s)));
     },
 
     smallTalk(id) {
@@ -782,17 +785,17 @@ const Nobles = {
 
         if(sc <= 0) {
             return this.say(id, this.lineFor('brush', id),
-                `Gözünde ağırlığın: <b>${this.standingLabel(sc)}</b>${gain ? ` · ${gain} ilişki` : ' · ilişki değişmedi'}<br>` +
-                `Nam kazan, kalabalık bir orduyla gel — kapılar o zaman açılır.`);
+                `${T`Gözünde ağırlığın:`} <b>${this.standingLabel(sc)}</b>${gain ? T` · ${gain} ilişki` : T(' · ilişki değişmedi')}<br>` +
+                T`Nam kazan, kalabalık bir orduyla gel — kapılar o zaman açılır.`);
         }
 
         // Havuza dünyanın o günkü hâlinden iki replik daha eklenir
         let world = [
-            `${FACTIONS[n.faction].name}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
-            `Duyduğuma göre ${LORDS[Math.floor(Math.random()*LORDS.length)].name} yine bir sınırda dolaşıyormuş.`
+            T`${T(FACTIONS[n.faction].name)}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
+            T`Duyduğuma göre ${T(LORDS[Math.floor(Math.random()*LORDS.length)].name)} yine bir sınırda dolaşıyormuş.`
         ];
         this.say(id, this.lineFor('chat', id, world),
-            `Gözünde ağırlığın: <b>${this.standingLabel(sc)}</b> · +${gain} ilişki`);
+            `${T`Gözünde ağırlığın: <b>${this.standingLabel(sc)}</b> · +${gain} ilişki`}`);
     },
 
     insult(id) {
@@ -806,12 +809,12 @@ const Nobles = {
         Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
                 ${this.portraitCss(n, 110)}
                 <div style="flex:1">
-                    <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${n.name}</h3>
-                    <p style="font-style:italic;color:var(--text-muted)">Sen: "Senin soyağacın bir tereyağı fıçısına sığar ${n.name}."</p>
+                    <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
+                    <p style="font-style:italic;color:var(--text-muted)">${T`Sen: "Senin soyağacın bir tereyağı fıçısına sığar ${T(n.name)}."`}</p>
                     <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3em"></p>
-                    <div style="font-size:0.85rem;color:var(--text-muted)">−15 ilişki, +2 nam. Rakip krallıkların lordları bunu duyunca keyiflendi (+5).</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted)">${T`−15 ilişki, +2 nam. Rakip krallıkların lordları bunu duyunca keyiflendi (+5).`}</div>
                 </div></div>
-            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Ayrıl</button>`, '620px');
+            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Ayrıl`}</button>`, '620px');
         Game.typeIn('lord-line', `"${this.lineFor('retort', id)}"`);
     },
 
@@ -819,18 +822,18 @@ const Nobles = {
     giftMenu(id) {
         let n = this.lord(id);
         let inv = state.player.inventory.filter(i => i.type !== 'special');
-        if(inv.length === 0) return alert('Verecek bir şeyin yok.');
+        if(inv.length === 0) return alert(T('Verecek bir şeyin yok.'));
         if(state.giftDay && state.giftDay[id] === state.time.day)
-            return alert('Bugün ona zaten bir hediye verdin. Fazlası yalakalık olur.');
+            return alert(T('Bugün ona zaten bir hediye verdin. Fazlası yalakalık olur.'));
 
-        let html = `<h3>🎁 ${n.name}'a Hediye</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">Herkes her şeyden hoşlanmaz. ${PERSONALITIES[n.personality].name} bir adamın neyi seveceğini tahmin et.</p>
+        let html = `<h3>${T`🎁 ${T(n.name)}'a Hediye`}</h3>
+            <p style="color:var(--text-muted);font-size:0.85rem">${T`Herkes her şeyden hoşlanmaz. ${T(PERSONALITIES[n.personality].name)} bir adamın neyi seveceğini tahmin et.`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.6rem;margin-top:1rem">`;
         state.player.inventory.forEach((it, i) => {
             if(it.type === 'special') return;
-            html += `<button class="btn" style="font-size:0.8rem" onclick="Nobles.giveGift('${id}',${i})">${it.icon||'📦'} ${it.name} (x${it.qty})</button>`;
+            html += `<button class="btn" style="font-size:0.8rem" onclick="Nobles.giveGift('${id}',${i})">${it.icon||'📦'} ${T(it.name)} (x${it.qty})</button>`;
         });
-        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">Geri</button>`;
+        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">${T`Geri`}</button>`;
         Game.showModal(html);
     },
 
@@ -842,12 +845,12 @@ const Nobles = {
 
         let gain, line;
         if(n.personality === 'quarrelsome') {
-            gain = 3; line = `"Hı. Sağ ol." Fazlasını bekleme.`;
+            gain = 3; line = T`"Hı. Sağ ol." Fazlasını bekleme.`;
         } else if(p.likes.includes(item.id)) {
             gain = { martial:8, cunning:6, debauched:10, goodnatured:7 }[n.personality];
-            line = `"${item.name}! İşte adam gibi hediye." Gözleri parladı.`;
+            line = T`"${T(item.name)}! İşte adam gibi hediye." Gözleri parladı.`;
         } else {
-            gain = 1; line = `"...Sağ ol." Hediyeyi yandaki masaya bıraktı, bir daha bakmadı.`;
+            gain = 1; line = T`"...Sağ ol." Hediyeyi yandaki masaya bıraktı, bir daha bakmadı.`;
         }
 
         item.qty--;
@@ -856,7 +859,7 @@ const Nobles = {
         state.giftDay[id] = state.time.day;
         this.addRel(id, gain);
 
-        alert(`${n.name}: ${line}\n\n+${gain} ilişki`);
+        alert(T`${T(n.name)}: ${line}\n\n+${gain} ilişki`);
         this.talk(id);
     },
 
@@ -864,21 +867,21 @@ const Nobles = {
     askWhereMenu(askedId) {
         let asked = this.lord(askedId);
         let others = LORDS.filter(l => l.id !== askedId);
-        let html = `<h3>🗺️ ${asked.name}'a sor: "… nerede?"</h3>
+        let html = `<h3>${T`🗺️ ${T(asked.name)}'a sor: "… nerede?"`}</h3>
             <p style="color:var(--text-muted);font-size:0.85rem">
-            Alacağın cevabın doğruluğu onunla aranın iyiliğine bağlı. Kırgın bir adam seni bilerek yanlış yola sürer.</p>
+            ${T`Alacağın cevabın doğruluğu onunla aranın iyiliğine bağlı. Kırgın bir adam seni bilerek yanlış yola sürer.`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem;max-height:45vh;overflow-y:auto">`;
         others.forEach(l => {
-            html += `<button class="btn" style="font-size:0.8rem" onclick="Nobles.askWhere('${askedId}','${l.id}')">${l.name}</button>`;
+            html += `<button class="btn" style="font-size:0.8rem" onclick="Nobles.askWhere('${askedId}','${l.id}')">${T(l.name)}</button>`;
         });
-        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${askedId}')">Geri</button>`;
+        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${askedId}')">${T`Geri`}</button>`;
         Game.showModal(html, '720px');
     },
 
     askWhere(askedId, targetId) {
         let asked = this.lord(askedId), target = this.lord(targetId);
         let party = this.partyOf(targetId);
-        if(!party) return alert(`"${target.name} mi? O adam artık yok. Kimse cesedini de bulamadı."`);
+        if(!party) return alert(T`"${T(target.name)} mi? O adam artık yok. Kimse cesedini de bulamadı."`);
 
         let r = this.rel(askedId);
         // Başka krallıktan birini soruyorsan bir kademe düşer
@@ -890,16 +893,16 @@ const Nobles = {
 
         if(r < 0) {
             lie = true; accuracy = 400;
-            msg = `"${target.name} mi? Tabii, biliyorum." Gözünü kırpmadan bir yer tarif etti.`;
+            msg = T`"${T(target.name)} mi? Tabii, biliyorum." Gözünü kırpmadan bir yer tarif etti.`;
         } else if(r < 20) {
             let dir = this.compass(party);
-            msg = `"Kesin bir şey diyemem. Geçen ay ${dir} tarafına gitmişti."`;
+            msg = T`"Kesin bir şey diyemem. Geçen ay ${dir} tarafına gitmişti."`;
         } else if(r < 50) {
             accuracy = 600;
-            msg = `"Şöyle bir bakayım haritaya... Buralarda bir yerde olmalı."`;
+            msg = T`"Şöyle bir bakayım haritaya... Buralarda bir yerde olmalı."`;
         } else {
             accuracy = 200;
-            msg = `"${target.name} mi? Adamlarım dün gördü. Tam olarak şurada. Üç gün boyunca da haber alırım, kaçamaz."`;
+            msg = T`"${T(target.name)} mi? Adamlarım dün gördü. Tam olarak şurada. Üç gün boyunca da haber alırım, kaçamaz."`;
         }
 
         if(accuracy !== null) {
@@ -921,14 +924,14 @@ const Nobles = {
             };
         }
 
-        alert(`${asked.name}: ${msg}${accuracy !== null ? '\n\n📍 Haritaya bir işaret düştü (3 gün geçerli).' : ''}`);
+        alert(`${T(asked.name)}: ${msg}${accuracy !== null ? T('\n\n📍 Haritaya bir işaret düştü (3 gün geçerli).') : ''}`);
         this.talk(askedId);
     },
 
     compass(p) {
         let dx = p.x - 4500, dy = p.y - 4500;
-        if(Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'doğu' : 'batı';
-        return dy > 0 ? 'güney' : 'kuzey';
+        if(Math.abs(dx) > Math.abs(dy)) return dx > 0 ? T('doğu') : T('batı');
+        return dy > 0 ? T('güney') : T('kuzey');
     },
 
     // Haritaya bilinen konum işaretlerini çiz (Game.renderMap içinden çağrılır)
@@ -951,7 +954,7 @@ const Nobles = {
             ctx.font = 'bold 30px Inter';
             ctx.textAlign = 'center';
             ctx.shadowColor = 'black'; ctx.shadowBlur = 12;
-            ctx.fillText(`📍 ${m.name}`, m.x, m.y - m.radius - 14);
+            ctx.fillText(`📍 ${T(m.name)}`, m.x, m.y - m.radius - 14);
             ctx.restore();
         }
     },
@@ -966,25 +969,25 @@ const Nobles = {
 
         if(state.player.spouse === ladyId) {
             return Game.showModal(`<div style="display:flex;gap:1.5rem;align-items:center">${this.portraitCss(L,140)}
-                <div><h3 style="margin:0">${L.name}</h3><p style="font-style:italic">"Eve ne zaman döneceksin?"</p></div></div>
-                <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">Kapat</button>`);
+                <div><h3 style="margin:0">${T(L.name)}</h3><p style="font-style:italic">${T`"Eve ne zaman döneceksin?"`}</p></div></div>
+                <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>`);
         }
 
         let html = `<div style="display:flex;gap:1.5rem;align-items:flex-start">
             ${this.portraitCss(L, 140)}
             <div style="flex:1">
-                <h3 style="margin:0;color:#ff9ec4">${L.name}</h3>
+                <h3 style="margin:0;color:#ff9ec4">${T(L.name)}</h3>
                 <div style="font-size:0.8rem;color:var(--text-muted)">
-                    ${FACTIONS[L.faction].name} · ${t.name} · ${L.suitor ? 'Efendisi' : 'Vasisi'}: ${g ? g.name : '—'}
+                    ${T(FACTIONS[L.faction].name)} · ${T(t.name)} · ${L.suitor ? T('Efendisi') : T('Vasisi')}: ${g ? T(g.name) : '—'}
                 </div>
-                <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.4rem;font-style:italic">${L.lore}</p>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.4rem;font-style:italic">${T(L.lore)}</p>
                 <div style="margin-top:0.8rem">
-                    <div style="font-size:0.8rem">İlgisi: <b style="color:#ff9ec4">${a}/100</b></div>
+                    <div style="font-size:0.8rem">${T`İlgisi:`} <b style="color:#ff9ec4">${a}/100</b></div>
                     <div style="background:rgba(0,0,0,0.4);height:8px;border-radius:4px;margin-top:4px">
                         <div style="background:#ff9ec4;height:100%;width:${a}%;border-radius:4px"></div>
                     </div>`;
         if(rival) {
-            html += `<div style="font-size:0.8rem;margin-top:0.6rem">Rakip <b>${this.any(rival.lordId).name}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
+            html += `<div style="font-size:0.8rem;margin-top:0.6rem">${T`Rakip`} <b>${T(this.any(rival.lordId).name)}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
                      <div style="background:rgba(0,0,0,0.4);height:6px;border-radius:3px;margin-top:3px">
                         <div style="background:#e74c3c;height:100%;width:${Math.floor(rival.affection)}%;border-radius:3px"></div>
                      </div>`;
@@ -994,28 +997,28 @@ const Nobles = {
         let today = state.time.day;
         let visited = (state.visitDay || {})[ladyId] || -99;
         html += (today - visited >= 3)
-            ? `<button class="btn" onclick="Nobles.visitLady('${ladyId}')">💬 Sohbet et (+3)</button>`
-            : `<button class="btn" disabled style="opacity:0.4">💬 Sohbet et (${3-(today-visited)} gün sonra)</button>`;
+            ? `<button class="btn" onclick="Nobles.visitLady('${ladyId}')">${T`💬 Sohbet et (+3)`}</button>`
+            : `<button class="btn" disabled style="opacity:0.4">${T`💬 Sohbet et (${3-(today-visited)} gün sonra)`}</button>`;
 
-        html += `<button class="btn" onclick="Nobles.complimentMenu('${ladyId}')">🌹 İltifat et</button>`;
+        html += `<button class="btn" onclick="Nobles.complimentMenu('${ladyId}')">${T`🌹 İltifat et`}</button>`;
 
         if(state.player.poems.length)
-            html += `<button class="btn" onclick="Nobles.poemMenu('${ladyId}')">📜 Şiir oku</button>`;
+            html += `<button class="btn" onclick="Nobles.poemMenu('${ladyId}')">${T`📜 Şiir oku`}</button>`;
         else
-            html += `<button class="btn" disabled style="opacity:0.4">📜 Şiir oku (önce meyhanede ozandan öğren)</button>`;
+            html += `<button class="btn" disabled style="opacity:0.4">${T`📜 Şiir oku (önce meyhanede ozandan öğren)`}</button>`;
 
         if(state.pendingDedication)
-            html += `<button class="btn primary" onclick="Nobles.dedicate('${ladyId}')">🏆 Turnuva zaferini ona ithaf et (+18)</button>`;
+            html += `<button class="btn primary" onclick="Nobles.dedicate('${ladyId}')">${T`🏆 Turnuva zaferini ona ithaf et (+18)`}</button>`;
 
         if(rival)
-            html += `<button class="btn" style="border-color:#e74c3c;color:#e74c3c" onclick="Nobles.rivalMenu('${ladyId}')">⚔️ Rakibin: ${this.any(rival.lordId).name}</button>`;
+            html += `<button class="btn" style="border-color:#e74c3c;color:#e74c3c" onclick="Nobles.rivalMenu('${ladyId}')">${T`⚔️ Rakibin: ${T(this.any(rival.lordId).name)}`}</button>`;
 
         if(a >= 60)
-            html += `<button class="btn primary" onclick="Nobles.askForHand('${ladyId}')">💍 ${L.suitor ? 'Kralından elini isteyeceğim' : 'Babandan seni isteyeceğim'}</button>`;
+            html += `<button class="btn primary" onclick="Nobles.askForHand('${ladyId}')">💍 ${L.suitor ? T('Kralından elini isteyeceğim') : T('Babandan seni isteyeceğim')}</button>`;
         else
-            html += `<button class="btn" disabled style="opacity:0.4">💍 Evlilikten söz etmek için ilgisi 60 olmalı (${a})</button>`;
+            html += `<button class="btn" disabled style="opacity:0.4">${T`💍 Evlilikten söz etmek için ilgisi 60 olmalı (${a})`}</button>`;
 
-        html += `<button class="btn" onclick="Game.closeModal()">Ayrıl</button></div>`;
+        html += `<button class="btn" onclick="Game.closeModal()">${T`Ayrıl`}</button></div>`;
         Game.showModal(html, '700px');
     },
 
@@ -1025,25 +1028,25 @@ const Nobles = {
         let L = this.lady(ladyId);
         this.addAff(ladyId, 3);
         let lines = [
-            `"Yollar nasıldı? Buradan bakınca hep aynı görünüyor."`,
-            `"Babam yine aynı hikâyeyi anlattı. Üçüncü kez dinliyormuş gibi yaptım."`,
-            `"Sen konuşurken kaleyi unutuyorum. Bunu kimseye söyleme."`,
-            `"Bugün kimse bana bir şey sormadı. Sen sordun. Tuhaf ama iyi geldi."`
+            T`"Yollar nasıldı? Buradan bakınca hep aynı görünüyor."`,
+            T`"Babam yine aynı hikâyeyi anlattı. Üçüncü kez dinliyormuş gibi yaptım."`,
+            T`"Sen konuşurken kaleyi unutuyorum. Bunu kimseye söyleme."`,
+            T`"Bugün kimse bana bir şey sormadı. Sen sordun. Tuhaf ama iyi geldi."`
         ];
-        alert(`${L.name}: ${lines[Math.floor(Math.random()*lines.length)]}\n\n+3 ilgi`);
+        alert(T`${T(L.name)}: ${lines[Math.floor(Math.random()*lines.length)]}\n\n+3 ilgi`);
         this.courtMenu(ladyId);
     },
 
     complimentMenu(ladyId) {
         let L = this.lady(ladyId);
-        let html = `<h3>🌹 ${L.name}'a İltifat</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted);font-style:italic">İpucu: ${LADY_TRAITS[L.trait].hint}</p>
-            <p style="font-size:0.8rem;color:var(--danger)">Yanlış konu açarsan geri teper.</p>
+        let html = `<h3>${T`🌹 ${T(L.name)}'a İltifat`}</h3>
+            <p style="font-size:0.85rem;color:var(--text-muted);font-style:italic">${T`İpucu: ${T(LADY_TRAITS[L.trait].hint)}`}</p>
+            <p style="font-size:0.8rem;color:var(--danger)">${T`Yanlış konu açarsan geri teper.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         COMPLIMENTS.forEach(c => {
-            html += `<button class="btn" style="font-size:0.85rem" onclick="Nobles.compliment('${ladyId}','${c.id}')">${c.label}</button>`;
+            html += `<button class="btn" style="font-size:0.85rem" onclick="Nobles.compliment('${ladyId}','${c.id}')">${T(c.label)}</button>`;
         });
-        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">Geri</button>`;
+        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">${T`Geri`}</button>`;
         Game.showModal(html);
     },
 
@@ -1052,11 +1055,11 @@ const Nobles = {
         let c = COMPLIMENTS.find(x => x.id === cid);
         let gain, reply;
         if(cid === t.likes) {
-            gain = 5;  reply = `Gözlerini kaçırdı ama gülümsediğini gördün. "Devam et," dedi.`;
+            gain = 5;  reply = T`Gözlerini kaçırdı ama gülümsediğini gördün. "Devam et," dedi.`;
         } else if(cid === t.hates) {
-            gain = -8; reply = `Yüzü buz kesti. "Sen beni hiç dinlememişsin," dedi ve arkasını döndü.`;
+            gain = -8; reply = T`Yüzü buz kesti. "Sen beni hiç dinlememişsin," dedi ve arkasını döndü.`;
         } else {
-            gain = 1;  reply = `Kibarca başını salladı. Söylediğin bir kulağından girip diğerinden çıktı.`;
+            gain = 1;  reply = T`Kibarca başını salladı. Söylediğin bir kulağından girip diğerinden çıktı.`;
         }
         this.addAff(ladyId, gain);
         alert(`Sen: ${c.line}\n\n${reply}\n\n${gain > 0 ? '+' : ''}${gain} ilgi`);
@@ -1066,16 +1069,16 @@ const Nobles = {
     poemMenu(ladyId) {
         let L = this.lady(ladyId);
         let used = (state.poemsRead || {})[ladyId] || [];
-        let html = `<h3>📜 ${L.name}'a Şiir</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted)">Her şiiri aynı kişiye yalnızca bir kez okuyabilirsin.</p>
+        let html = `<h3>${T`📜 ${T(L.name)}'a Şiir`}</h3>
+            <p style="font-size:0.85rem;color:var(--text-muted)">${T`Her şiiri aynı kişiye yalnızca bir kez okuyabilirsin.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         state.player.poems.forEach(pid => {
             let p = POEMS.find(x => x.id === pid);
             html += used.includes(pid)
-                ? `<button class="btn" disabled style="opacity:0.4">${p.name} (okundu)</button>`
-                : `<button class="btn" onclick="Nobles.recitePoem('${ladyId}','${pid}')">${p.name}</button>`;
+                ? `<button class="btn" disabled style="opacity:0.4">${T`${T(p.name)} (okundu)`}</button>`
+                : `<button class="btn" onclick="Nobles.recitePoem('${ladyId}','${pid}')">${T(p.name)}</button>`;
         });
-        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">Geri</button>`;
+        html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">${T`Geri`}</button>`;
         Game.showModal(html);
     },
 
@@ -1086,7 +1089,7 @@ const Nobles = {
         state.poemsRead[ladyId].push(pid);
         let p = POEMS.find(x => x.id === pid);
         this.addAff(ladyId, 12);
-        alert(`${p.text}\n\n${this.lady(ladyId).name} uzun bir süre sustu.\n\n+12 ilgi`);
+        alert(T`${T(p.text)}\n\n${T(this.lady(ladyId).name)} uzun bir süre sustu.\n\n+12 ilgi`);
         this.courtMenu(ladyId);
     },
 
@@ -1095,12 +1098,12 @@ const Nobles = {
         state.pendingDedication = false;
         state.dedicatedTo = state.dedicatedTo || [];
         if(state.dedicatedTo.includes(ladyId)) {
-            alert('Ona zaten bir zafer ithaf etmiştin. İkincisi aynı etkiyi yapmaz.');
+            alert(T('Ona zaten bir zafer ithaf etmiştin. İkincisi aynı etkiyi yapmaz.'));
             this.addAff(ladyId, 4);
         } else {
             state.dedicatedTo.push(ladyId);
             this.addAff(ladyId, 18);
-            alert(`Arenanın ortasında durdun ve zaferini ${this.lady(ladyId).name}'ya ithaf ettin.\nBütün salon ona döndü. Yüzü kızardı ama gözünü kaçırmadı.\n\n+18 ilgi`);
+            alert(T`Arenanın ortasında durdun ve zaferini ${T(this.lady(ladyId).name)}'ya ithaf ettin.\nBütün salon ona döndü. Yüzü kızardı ama gözünü kaçırmadı.\n\n+18 ilgi`);
         }
         this.courtMenu(ladyId);
     },
@@ -1115,13 +1118,13 @@ const Nobles = {
         let r = state.rivals[ladyId];
         let rl = this.any(r.lordId);
         let opp = this.duelTarget(rl);
-        let html = `<h3>⚔️ Rakip: ${rl.name}</h3>
+        let html = `<h3>${T`⚔️ Rakip: ${T(rl.name)}</h3>
             <p>Aynı kapıyı o da çalıyor. İlgisi her gün artıyor (şu an <b>${Math.floor(r.affection)}</b>).
-            100'e ilk ulaşan ${this.lady(ladyId).name} ile nişanlanır.</p>
+            100'e ilk ulaşan ${T(this.lady(ladyId).name)} ile nişanlanır.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
-            <button class="btn" onclick="Nobles.duelRival('${ladyId}')">🗡️ Şeref düellosuna çağır${opp.id !== rl.id ? ` (vasisi ${opp.name} çıkacak)` : ''}</button>
-            <button class="btn" style="border-color:#aa8800;color:#aa8800" onclick="Nobles.smearRival('${ladyId}')">🐍 İtibarını lekele</button>
-            <button class="btn" onclick="Nobles.courtMenu('${ladyId}')">Geri</button></div>`;
+            <button class="btn" onclick="Nobles.duelRival('${ladyId}')">${T`🗡️ Şeref düellosuna çağır${opp.id !== rl.id ? T` (vasisi ${T(opp.name)} çıkacak)` : ''}`}</button>
+            <button class="btn" style="border-color:#aa8800;color:#aa8800" onclick="Nobles.smearRival('${ladyId}')">${T`🐍 İtibarını lekele`}</button>
+            <button class="btn" onclick="Nobles.courtMenu('${ladyId}')">${T`Geri`}</button></div>`;
         Game.showModal(html);
     },
 
@@ -1143,12 +1146,12 @@ const Nobles = {
             this.addAff(d.ladyId, 15);
             state.player.renown += 10;
             this.addRel(d.lordId, -25);
-            alert(`${rl.name} dizlerinin üstüne çöktü ve kılıcını bıraktı.\n"Bu iş burada bitti," dedi ve salonu terk etti.\n\n+15 ilgi, +10 nam, ${rl.name} ile −25 ilişki.`);
+            alert(T`${T(rl.name)} dizlerinin üstüne çöktü ve kılıcını bıraktı.\n"Bu iş burada bitti," dedi ve salonu terk etti.\n\n+15 ilgi, +10 nam, ${T(rl.name)} ile −25 ilişki.`);
         } else {
             this.addAff(d.ladyId, -20);
             state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.2));
             Game.advanceTime(24 * 5);
-            alert(`${rl.name} seni yere serdi. Beş gün yatakta kaldın.\n\n−20 ilgi, 5 gün kayıp.`);
+            alert(T`${T(rl.name)} seni yere serdi. Beş gün yatakta kaldın.\n\n−20 ilgi, 5 gün kayıp.`);
         }
         Game.updateTopBar();
     },
@@ -1160,10 +1163,10 @@ const Nobles = {
         if(Math.random() < 0.30) {
             LORDS.filter(l => l.faction === rl.faction).forEach(l => this.addRel(l.id, -25));
             this.addAff(ladyId, -10);
-            alert(`Yaydığın dedikodu geri tepti. Kimin uydurduğu anlaşıldı.\n${FACTIONS[rl.faction].name}'nın bütün lordlarıyla −25 ilişki, −10 ilgi.`);
+            alert(T`Yaydığın dedikodu geri tepti. Kimin uydurduğu anlaşıldı.\n${T(FACTIONS[rl.faction].name)}'nın bütün lordlarıyla −25 ilişki, −10 ilgi.`);
         } else {
             r.affection = Math.max(0, r.affection - 20);
-            alert(`Meyhanelerde ${rl.name} hakkında anlatılanlar salona kadar ulaştı.\nRakibinin ilgisi −20 düştü.`);
+            alert(T`Meyhanelerde ${T(rl.name)} hakkında anlatılanlar salona kadar ulaştı.\nRakibinin ilgisi −20 düştü.`);
         }
         this.courtMenu(ladyId);
     },
@@ -1198,25 +1201,25 @@ const Nobles = {
         let a = this.aff(ladyId);
         let p = state.player;
 
-        if(p.spouse) return alert('Zaten evlisin. Kalradya buna hoş bakmaz.');
+        if(p.spouse) return alert(T('Zaten evlisin. Kalradya buna hoş bakmaz.'));
 
-        if(a < 60) return alert(`${L.name} seni henüz o gözle görmüyor. (İlgi ${a}/60)\nÖnce onunla vakit geçir.`);
+        if(a < 60) return alert(T`${T(L.name)} seni henüz o gözle görmüyor. (İlgi ${a}/60)\nÖnce onunla vakit geçir.`);
 
-        let ward = L.suitor ? 'vassalımı' : 'kızımı';
-        let html = `<h3>💍 ${g.name} ile Görüşme</h3>
-            <p style="font-style:italic">"${L.name}, öyle mi?" Seni tepeden tırnağa süzdü. "Üç şeye bakarım: adına, sözüne ve kesene."</p>
+        let ward = L.suitor ? T('vassalımı') : T('kızımı');
+        let html = `<h3>${T`💍 ${T(g.name)} ile Görüşme`}</h3>
+            <p style="font-style:italic">${T`"${T(L.name)}, öyle mi?" Seni tepeden tırnağa süzdü. "Üç şeye bakarım: adına, sözüne ve kesene."`}</p>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;margin-top:1rem">`;
 
         let okRenown = Game.peakRenown() >= this.MIN_RENOWN;
         let okRel = this.rel(g.id) >= this.MIN_REL;
-        html += `<div style="margin-bottom:0.5rem">${okRenown?'✅':'❌'} <b>Nam:</b> ${Game.peakRenown()} / ${this.MIN_RENOWN}
-                 ${okRenown?'':`<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Adını duyan yok. ${ward} bir hiçe vermem."</div>`}</div>`;
-        html += `<div style="margin-bottom:0.5rem">${okRel?'✅':'❌'} <b>İlişki:</b> ${this.rel(g.id)} / ${this.MIN_REL}
-                 ${okRel?'':'<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Seni tanımıyorum bile. Önce bir işime yara."</div>'}</div>`;
+        html += `<div style="margin-bottom:0.5rem">${okRenown?'✅':'❌'} <b>${T`Nam:`}</b> ${Game.peakRenown()} / ${this.MIN_RENOWN}
+                 ${okRenown?'':`<div style="font-size:0.85rem;color:var(--danger);font-style:italic">${T`"Adını duyan yok. ${ward} bir hiçe vermem."`}</div>`}</div>`;
+        html += `<div style="margin-bottom:0.5rem">${okRel?'✅':'❌'} <b>${T`İlişki:`}</b> ${this.rel(g.id)} / ${this.MIN_REL}
+                 ${okRel?'':T('<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Seni tanımıyorum bile. Önce bir işime yara."</div>')}</div>`;
         html += `</div>`;
 
         if(!okRenown || !okRel) {
-            html += `<button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">Geri Çekil</button>`;
+            html += `<button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">${T`Geri Çekil`}</button>`;
             return Game.showModal(html, '660px');
         }
 
@@ -1230,40 +1233,40 @@ const Nobles = {
         let d = this.dowryFor(ladyId);
         let o = state.dowryOffer;
         let p = state.player;
-        let dLabel = this.lady(ladyId).suitor ? 'Başlık' : 'Drahoma';
-        let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${dLabel} Hesabı</h4>
+        let dLabel = this.lady(ladyId).suitor ? T('Başlık') : T('Drahoma');
+        let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`${dLabel} Hesabı`}</h4>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.9rem;line-height:1.7">
-            <div>Temel bedel: <b>${d.base}</b> dinar</div>
-            <div>${FACTIONS[this.lady(ladyId).faction].name}'nın ${d.fiefs} kalesi/şehri var: <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
-            <div>Namın (${p.renown}) sayesinde: <span style="color:var(--success)">−${d.renownCut}</span></div>
-            <div>${d.guardian.name} ile aran (${this.rel(d.guardian.id)}) sayesinde: <span style="color:var(--success)">−${d.relCut}</span></div>
-            <div>Mevkiin: <b>×${d.statusMult}</b> ${p.vassalOf === 'player_kingdom' ? '(kendi krallığın)' : p.vassalOf ? '(derebeyi)' : '(bağımsız maceracı)'}</div>
-            <div>${PERSONALITIES[d.guardian.personality].name} mizacı: <b>×${d.persMult}</b></div>
+            <div>${T`Temel bedel: <b>${d.base}</b> dinar</div>
+            <div>${T(FACTIONS[this.lady(ladyId).faction].name)}'nın ${d.fiefs} kalesi/şehri var:`} <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
+            <div>${T`Namın (${p.renown}) sayesinde:`} <span style="color:var(--success)">−${d.renownCut}</span></div>
+            <div>${T`${T(d.guardian.name)} ile aran (${this.rel(d.guardian.id)}) sayesinde:`} <span style="color:var(--success)">−${d.relCut}</span></div>
+            <div>${T`Mevkiin: <b>×${d.statusMult}</b> ${p.vassalOf === 'player_kingdom' ? T('(kendi krallığın)') : p.vassalOf ? T('(derebeyi)') : T('(bağımsız maceracı)')}</div>
+            <div>${T(PERSONALITIES[d.guardian.personality].name)} mizacı:`} <b>×${d.persMult}</b></div>
             <hr style="border-color:var(--panel-border);margin:0.6rem 0">
-            <div style="font-size:1.2rem">İstenen: <b style="color:#ffcc00">${o.amount} dinar</b> (kesende ${Math.floor(p.money)})</div>
+            <div style="font-size:1.2rem">${T`İstenen:`} <b style="color:#ffcc00">${o.amount} dinar</b> ${T`(kesende ${Math.floor(p.money)})`}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
 
         html += p.money >= o.amount
-            ? `<button class="btn primary" onclick="Nobles.payDowry('${ladyId}')">💰 Kabul et ve öde (${o.amount})</button>`
-            : `<button class="btn" disabled style="opacity:0.4">💰 Kesen yetmiyor (${o.amount})</button>`;
+            ? `<button class="btn primary" onclick="Nobles.payDowry('${ladyId}')">${T`💰 Kabul et ve öde (${o.amount})`}</button>`
+            : `<button class="btn" disabled style="opacity:0.4">${T`💰 Kesen yetmiyor (${o.amount})`}</button>`;
 
-        html += `<button class="btn" onclick="Nobles.haggle('${ladyId}')">🤝 Pazarlık et (İkna yeteneği)</button>`;
+        html += `<button class="btn" onclick="Nobles.haggle('${ladyId}')">${T`🤝 Pazarlık et (İkna yeteneği)`}</button>`;
 
         if(Game.peakRenown() >= 200)
-            html += `<button class="btn" onclick="Nobles.dowryQuest('${ladyId}')">⚔️ "Param yok ama kılıcım var"</button>`;
+            html += `<button class="btn" onclick="Nobles.dowryQuest('${ladyId}')">${T`⚔️ "Param yok ama kılıcım var"`}</button>`;
         else
-            html += `<button class="btn" disabled style="opacity:0.4">⚔️ "Param yok ama kılıcım var" (200 nam gerekir)</button>`;
+            html += `<button class="btn" disabled style="opacity:0.4">${T`⚔️ "Param yok ama kılıcım var" (200 nam gerekir)`}</button>`;
 
-        html += `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.elopePrompt('${ladyId}')">🏇 Kaçırmayı teklif et</button>`;
-        html += `<button class="btn" onclick="Nobles.courtMenu('${ladyId}')">Düşüneyim</button></div>`;
+        html += `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.elopePrompt('${ladyId}')">${T`🏇 Kaçırmayı teklif et`}</button>`;
+        html += `<button class="btn" onclick="Nobles.courtMenu('${ladyId}')">${T`Düşüneyim`}</button></div>`;
         return html;
     },
 
     haggle(ladyId) {
         let o = state.dowryOffer;
         if(!o) return;
-        if(o.haggledDay === state.time.day) return alert('Bugün yeterince pazarlık ettin. Adamın sabrını taşırma.');
+        if(o.haggledDay === state.time.day) return alert(T('Bugün yeterince pazarlık ettin. Adamın sabrını taşırma.'));
         o.haggledDay = state.time.day;
 
         let g = this.dowryFor(ladyId).guardian;
@@ -1273,20 +1276,20 @@ const Nobles = {
         if(Math.random() < chance) {
             o.amount = Math.max(1000, Math.round(o.amount * 0.8 / 50) * 50);
             Game.addProficiencyXp('persuasion', 60);
-            alert(`"...Peki. Ama bir kuruş daha aşağı inmem."\n\nBedel %20 düştü → ${o.amount} dinar.`);
+            alert(T`"...Peki. Ama bir kuruş daha aşağı inmem."\n\nBedel %20 düştü → ${o.amount} dinar.`);
         } else {
             this.addRel(g.id, -5);
             Game.addProficiencyXp('persuasion', 20);
-            alert(`"Burası pazar yeri mi sanıyorsun?"\n\nPazarlık tutmadı, −5 ilişki. Yarın tekrar dene.`);
+            alert(T`"Burası pazar yeri mi sanıyorsun?"\n\nPazarlık tutmadı, −5 ilişki. Yarın tekrar dene.`);
         }
-        Game.showModal(`<h3>💍 ${g.name} ile Pazarlık</h3>` + this.dowryBreakdown(ladyId), '680px');
+        Game.showModal(`<h3>${T`💍 ${T(g.name)} ile Pazarlık`}</h3>` + this.dowryBreakdown(ladyId), '680px');
     },
 
     payDowry(ladyId) {
         let o = state.dowryOffer;
         if(!o || state.player.money < o.amount) return;
         state.player.money -= o.amount;
-        this.betroth(ladyId, `Drahoma sayıldı, eller sıkıldı.`);
+        this.betroth(ladyId, T`Drahoma sayıldı, eller sıkıldı.`);
     },
 
     dowryQuest(ladyId) {
@@ -1294,24 +1297,24 @@ const Nobles = {
         Game.closeModal();
         let q = Quests.offerFrom(g.id, { forced: true, dowryFor: ladyId });
         if(!q) {
-            alert(`${g.name}: "Şu an sana verecek bir işim yok. Bir süre sonra gel."`);
+            alert(T`${T(g.name)}: "Şu an sana verecek bir işim yok. Bir süre sonra gel."`);
             return this.courtMenu(ladyId);
         }
-        alert(`${g.name}: "Kesen boşsa kılıcın çalışsın. Şunu hallet, drahomanın yarısını unutayım."`);
+        alert(T`${T(g.name)}: "Kesen boşsa kılıcın çalışsın. Şunu hallet, drahomanın yarısını unutayım."`);
     },
 
     elopePrompt(ladyId) {
         let L = this.lady(ladyId);
-        Game.showModal(`<h3>🏇 Kaçırma</h3>
-            <p>Gece yarısı, arka kapı, iki at. Drahoma yok, tören yok.</p>
-            <p style="color:var(--danger)">Bedeli:<br>
-            • ${this.lord(L.guardianId).name} ile <b>−60</b> ilişki<br>
-            • ${FACTIONS[L.faction].name}'nın bütün lordlarıyla <b>−20</b><br>
+        Game.showModal(`<h3>${T`🏇 Kaçırma</h3>
+            <p>Gece yarısı, arka kapı, iki at. Drahoma yok, tören yok.`}</p>
+            <p style="color:var(--danger)">${T`Bedeli:<br>
+            • ${T(this.lord(L.guardianId).name)} ile <b>−60</b> ilişki<br>
+            • ${T(FACTIONS[L.faction].name)}'nın bütün lordlarıyla <b>−20</b><br>
             • <b>−30</b> nam, <b>−20</b> şeref<br>
-            • ${L.name}'nın ilgisi <b>−10</b> (böyle hayal etmemişti)</p>
+            • ${T(L.name)}'nın ilgisi <b>−10</b> (böyle hayal etmemişti)`}</p>
             <div style="display:flex;gap:1rem;margin-top:1rem">
-            <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.elope('${ladyId}')">Atları hazırla</button>
-            <button class="btn" onclick="Nobles.courtMenu('${ladyId}')">Vazgeç</button></div>`);
+            <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.elope('${ladyId}')">${T`Atları hazırla`}</button>
+            <button class="btn" onclick="Nobles.courtMenu('${ladyId}')">${T`Vazgeç`}</button></div>`);
     },
 
     elope(ladyId) {
@@ -1321,7 +1324,7 @@ const Nobles = {
         state.player.renown = Math.max(0, state.player.renown - 30);
         Game.addHonor('abduct');   // kaçırma şerefin en pahalı kalemi (#53/1.5)
         this.addAff(ladyId, -10);
-        this.marry(ladyId, 'Şafak sökerken sınırı geçtiniz. Arkanızda bağıran bir kale kaldı.');
+        this.marry(ladyId, T('Şafak sökerken sınırı geçtiniz. Arkanızda bağıran bir kale kaldı.'));
     },
 
     betroth(ladyId, msg) {
@@ -1332,12 +1335,12 @@ const Nobles = {
         Game.updateTopBar();
         // Şölen varsa hemen, yoksa vasi bir tane düzenlesin
         if(state.feast && state.feast.faction === L.faction) {
-            this.marry(ladyId, msg + '\nŞölen zaten sürüyordu; nikâh o akşam kıyıldı.');
+            this.marry(ladyId, msg + T('\nŞölen zaten sürüyordu; nikâh o akşam kıyıldı.'));
         } else {
             let loc = LOCATIONS.find(l => l.id === this.lord(L.guardianId).homeLocId);
             state.pendingWedding = { ladyId, locId: loc ? loc.id : L.homeLocId, day: state.time.day + 5 + Math.floor(Math.random()*6) };
             Feast.schedule(L.faction, state.pendingWedding.locId, state.pendingWedding.day);
-            alert(`${msg}\n\nNişanlandınız! Düğün ${state.pendingWedding.day - state.time.day} gün sonra ${loc ? loc.name : '?'} şehrindeki şölende yapılacak. O gün orada ol.`);
+            alert(T`${msg}\n\nNişanlandınız! Düğün ${state.pendingWedding.day - state.time.day} gün sonra ${loc ? T(loc.name) : '?'} şehrindeki şölende yapılacak. O gün orada ol.`);
         }
     },
 
@@ -1350,12 +1353,12 @@ const Nobles = {
         state.player.rightToRule += 15;
         LORDS.filter(l => l.faction === L.faction).forEach(l => this.addRel(l.id, 20));
         state.player.party.push({
-            id: 'spouse_' + ladyId, name: L.name + ' (Eş)', level: 10, xp: 0, xpNext: 999,
+            id: 'spouse_' + ladyId, name: L.name + T(' (Eş)'), level: 10, xp: 0, xpNext: 999,
             type: 'noble', isSpouse: true
         });
         Game.closeModal();
         Game.updateTopBar();
-        alert(`${msg}\n\n💍 ${L.name} ile evlendin!\n+15 idare hakkı, ${FACTIONS[L.faction].name} lordlarıyla +20 ilişki, günlük +50 dinar drahoma geliri.`);
+        alert(T`${msg}\n\n💍 ${T(L.name)} ile evlendin!\n+15 idare hakkı, ${T(FACTIONS[L.faction].name)} lordlarıyla +20 ilişki, günlük +50 dinar drahoma geliri.`);
     },
 
     // ---------- Günlük ----------
@@ -1372,7 +1375,7 @@ const Nobles = {
             r.affection += this.aff(ladyId) > 0 ? 1.2 : 0.15;
             if(r.affection >= 100 && state.player.spouse !== ladyId && state.betrothed !== ladyId) {
                 let L = this.lady(ladyId);
-                alert(`Geç kaldın. ${L.name}, ${this.any(r.lordId).name} ile nişanlandı.`);
+                alert(T`Geç kaldın. ${T(L.name)}, ${T(this.any(r.lordId).name)} ile nişanlandı.`);
                 state.affection[ladyId] = 0;
                 delete state.rivals[ladyId];
                 state.lostLadies = state.lostLadies || [];
@@ -1387,13 +1390,13 @@ const Nobles = {
         if(state.pendingWedding && state.time.day >= state.pendingWedding.day) {
             let w = state.pendingWedding;
             let atVenue = Game.dist(state.player, LOCATIONS.find(l => l.id === w.locId) || state.player) < 200;
-            if(atVenue) this.marry(w.ladyId, 'Şölen salonu doldu, kadehler kalktı.');
+            if(atVenue) this.marry(w.ladyId, T('Şölen salonu doldu, kadehler kalktı.'));
             else if(state.time.day > w.day + 2) {
                 this.addRel(this.lady(w.ladyId).guardianId, -25);
                 this.addAff(w.ladyId, -25);
                 state.pendingWedding = null;
                 state.betrothed = null;
-                alert('Kendi düğününe gitmedin. Salon iki gün bekledi, sonra dağıldı. Rezil oldun.');
+                alert(T('Kendi düğününe gitmedin. Salon iki gün bekledi, sonra dağıldı. Rezil oldun.'));
             }
         }
     },
@@ -1453,36 +1456,36 @@ const Feast = {
     HONOR_REQ: -30,
     open(loc) {
         if(Game.peakRenown() < this.RENOWN_REQ) {
-            return alert(`Kapıdaki teşrifatçı listeye baktı ve başını salladı.\n"Bu isim burada yazmıyor."\n\nGereken nam: ${this.RENOWN_REQ} (sende ${Game.peakRenown()})`);
+            return alert(T`Kapıdaki teşrifatçı listeye baktı ve başını salladı.\n"Bu isim burada yazmıyor."\n\nGereken nam: ${this.RENOWN_REQ} (sende ${Game.peakRenown()})`);
         }
         // Nam kapıyı açar, şeref kapıda tutar: köy yakan adam salona alınmaz (#53/1.5)
         if(Game.honor() < this.HONOR_REQ) {
-            return alert(`Teşrifatçı adını biliyor — fazlasıyla.\n"${Game.honorLabel()} birini bu salona sokamam."\n\n`
-                + `Gereken şeref: ${this.HONOR_REQ} (sende ${Game.honor()})`);
+            return alert(T`Teşrifatçı adını biliyor — fazlasıyla.\n"${Game.honorLabel()} birini bu salona sokamam."\n\n`
+                + T`Gereken şeref: ${this.HONOR_REQ} (sende ${Game.honor()})`);
         }
         let f = state.feast;
         let guests = LORDS.filter(l => l.faction === f.faction);
         let ladies = Nobles.courtables().filter(l => l.faction === f.faction);
 
-        let html = `<h3>🍷 Şölen — ${loc.name}</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem">${FACTIONS[f.faction].name}'nın bütün soyluları burada.
-            Herkesle bir kez selamlaşabilirsin (+2 ilişki).</p>`;
+        let html = `<h3>${T`🍷 Şölen — ${T(loc.name)}`}</h3>
+            <p style="color:var(--text-muted);font-size:0.9rem">${T`${T(FACTIONS[f.faction].name)}'nın bütün soyluları burada.
+            Herkesle bir kez selamlaşabilirsin (+2 ilişki).`}</p>`;
 
         if(state.pendingWedding && state.pendingWedding.locId === loc.id && state.time.day >= state.pendingWedding.day) {
-            html += `<button class="btn primary" style="margin:1rem 0;font-size:1.1rem" onclick="Nobles.marry('${state.pendingWedding.ladyId}','Salon doldu, kadehler kalktı.')">💍 Nikâhı Kıy!</button>`;
+            html += `<button class="btn primary" style="margin:1rem 0;font-size:1.1rem" onclick="Nobles.marry('${state.pendingWedding.ladyId}','Salon doldu, kadehler kalktı.')">${T`💍 Nikâhı Kıy!`}</button>`;
         }
 
-        html += `<h4 style="color:var(--primary);margin-top:1rem">Lordlar</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
+        html += `<h4 style="color:var(--primary);margin-top:1rem">${T`Lordlar`}</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
         guests.forEach(l => html += Nobles.nobleCard(l));
         html += `</div>`;
         // Kadın oyuncuda kur hedefi lordların kendisi; ayrı leydi listesi basılmaz.
         if(!Nobles.isFemale()) {
-            html += `<h4 style="color:var(--primary);margin-top:1rem">Leydiler</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
+            html += `<h4 style="color:var(--primary);margin-top:1rem">${T`Leydiler`}</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
             ladies.forEach(l => html += Nobles.nobleCard(l));
             html += `</div>`;
         }
-        html += `<button class="btn" style="margin-top:1.2rem" onclick="Feast.greetAll()">🥂 Salonu dolaş ve herkesi selamla</button>
-                 <button class="btn" onclick="Game.closeModal()">Ayrıl</button>`;
+        html += `<button class="btn" style="margin-top:1.2rem" onclick="Feast.greetAll()">${T`🥂 Salonu dolaş ve herkesi selamla`}</button>
+                 <button class="btn" onclick="Game.closeModal()">${T`Ayrıl`}</button>`;
         Game.showModal(html, '820px');
     },
 
@@ -1494,7 +1497,7 @@ const Feast = {
             if(!f.greeted.includes(l.id)) { f.greeted.push(l.id); Nobles.addRel(l.id, 2); n++; }
         });
         Game.advanceTime(4);
-        alert(n ? `Salonu dolaştın, ${n} soyluyla kadeh tokuşturdun. Her biriyle +2 ilişki.` : 'Bu şölende herkesi zaten selamladın.');
+        alert(n ? T`Salonu dolaştın, ${n} soyluyla kadeh tokuşturdun. Her biriyle +2 ilişki.` : T('Bu şölende herkesi zaten selamladın.'));
         Game.closeModal();
     },
 
@@ -1502,8 +1505,8 @@ const Feast = {
     host(loc) {
         const COST = 3000, FOOD = 30;
         let food = state.player.inventory.filter(i => ['meat','cheese'].includes(i.id)).reduce((a,b) => a + b.qty, 0);
-        if(state.player.money < COST) return alert(`Şölen için ${COST} dinar gerek.`);
-        if(food < FOOD) return alert(`Şölen için ${FOOD} birim yüksek kalite yemek (et/peynir) gerek. Sende ${food} var.`);
+        if(state.player.money < COST) return alert(T`Şölen için ${COST} dinar gerek.`);
+        if(food < FOOD) return alert(T`Şölen için ${FOOD} birim yüksek kalite yemek (et/peynir) gerek. Sende ${food} var.`);
 
         state.player.money -= COST;
         let need = FOOD;
@@ -1520,6 +1523,6 @@ const Feast = {
         state.player.renown += 15;
         Game.updateTopBar();
         Game.closeModal();
-        alert(`Şölenin başladı! ${FACTIONS[loc.faction].name}'nın bütün soyluları geldi.\nHer biriyle +5 ilişki, +15 nam.`);
+        alert(T`Şölenin başladı! ${T(FACTIONS[loc.faction].name)}'nın bütün soyluları geldi.\nHer biriyle +5 ilişki, +15 nam.`);
     }
 };

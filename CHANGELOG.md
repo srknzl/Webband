@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.65 — Üç Dil (2026-09-10)
+
+- **Oyun üç dilde oynanıyor: Türkçe, İngilizce ve Endonezce.** İlk açılışta bayraklı bir
+  seçici çıkar (🇹🇷 🇬🇧 🇮🇩), tarayıcının dili işaretli gelir; seçim hatırlanır ve
+  ⚙️ Ayarlar'dan istediğin an değiştirilir — oyunu baştan başlatmana gerek yok.
+- Çeviri **tam**: menüler, künyeler, pazar, han, salon, diyaloglar, görevler, günlük
+  olaylar, savaş kütüğü, ayarlar ve debug raporu dahil ekrana düşen her metin çevrildi.
+  1721 cümle, iki dil.
+- Sayı ve yüzde yazımı da dile uyuyor: Türkçede `%50`, İngilizce ve Endonezcede `50%`.
+- *Not:* diplomasi ekranındaki haber akışı, haberin **yazıldığı** dilde kalır — dili
+  ortada değiştirirsen eski satırlar eski diliyle durur, yenileri yeni dille gelir.
+
 ## 0.64 — Avuç İçi (2026-09-10)
 
 - **Oyun artık telefonda oynanıyor.** Haritayı tek parmakla kaydırıyor, iki parmakla
