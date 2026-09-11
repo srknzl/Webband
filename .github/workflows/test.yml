@@ -15,3 +15,24 @@ jobs:
       - run: node tools/test.js
       # #42 regresyonu: kare kapısı iki döngüyü ayırırsa araç 1 ile çıkar
       - run: node tools/framegate.js
+
+  # Sürüm damgası elle artıyor; release'i de elle açmak unutulur (#88 madde 8: 0.74'e
+  # kadar tek tag yoktu). Aynı dosyada duruyor çünkü kırmızı bir yapı release olmamalı
+  # — `needs: test` bunu tek satırda söylüyor. Tag zaten varsa adım sessizce geçer,
+  # yani yalnız VERSION.no değiştiği turda bir şey olur.
+  release:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          v=$(node -e "console.log(require('./tools/harness').load({quiet:true}).VERSION.no)")
+          gh release view "v$v" >/dev/null 2>&1 && { echo "v$v zaten yayımlanmış"; exit 0; }
+          title=$(awk -v v="$v" '$0 ~ "^## " v "[ (]" {sub(/^## /,""); sub(/ \([0-9-]+\)$/,""); print; exit}' CHANGELOG.md)
+          awk -v v="$v" '$0 ~ "^## " v "[ (]" {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
+          # CHANGELOG'a satır girmeden sürüm artırılmışsa boş release açma, uyar ve kal
+          [ -s notes.md ] || { echo "::error::CHANGELOG.md'de $v bölümü yok"; exit 1; }
+          gh release create "v$v" --target "$GITHUB_SHA" --title "$title" --notes-file notes.md

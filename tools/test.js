@@ -389,6 +389,16 @@ test('kite: yaya atlıyı yakalayamasa da savaş sonuçlanır', () => {
     assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi`);
 });
 
+// --- Sürüm damgası (#88 madde 8) ---
+// Release'i CI açıyor ve notlarını CHANGELOG'un o sürüm bölümünden okuyor. Bölüm yoksa
+// yapı orada kırılır; burada kırılması daha ucuz.
+test('sürüm: VERSION.no CHANGELOG.md içinde bir bölüm buluyor', () => {
+    const md = require('fs').readFileSync(require('path').join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+    const v = g.VERSION.no;
+    assert.ok(new RegExp(`^## ${v.replace('.', '\\.')}[ (]`, 'm').test(md),
+        `CHANGELOG.md'de "## ${v}" bölümü yok — sürüm artmış ama satır girilmemiş`);
+});
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.

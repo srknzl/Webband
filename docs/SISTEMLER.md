@@ -22,9 +22,10 @@ sayı ve tarihçe buradadır.
 | `docs/olcum/` | Araçların ürettiği tarihli ölçüm raporları |
 | `README.md` | İngilizce depo tanıtımı — kurulum tek satır: `index.html`'i aç |
 | `CHANGELOG.md` | Oyuncu diliyle, tarihli değişiklik listesi; sürüm numarası `VERSION` sabitidir |
+| `.github/workflows/test.yml` | Her itmede `test.js` + `framegate.js`; yeşilse `VERSION.no` için release açar — bkz. "Sürüm ve release" |
 | `.github/ISSUE_TEMPLATE/bug.md` | Hata şablonu: sürüm damgası, **ekran tazeleme hızı**, debug raporu, kayıt JSON'u |
 | `style.css` | Cam panel (glassmorphism) teması, CSS değişkenleri (`--primary`, `--danger`, `--success`, `--panel-border`, `--text-muted`) |
-| `bg.jpg`, `bg_hdr.jpg` | Arkaplan görselleri |
+| `bg_hdr.jpg` | Arkaplan görseli (`bg.jpg` aynı dosyanın kopyasıydı, silindi — #88 madde 10) |
 | `lord_portraits.jpg` | 3x3 sprite sheet — lord portreleri (`background-position` ile kırpılır) |
 | `kingdom_crests.jpg` | 3x3 sprite sheet — krallık armaları |
 | `LICENSE` | AGPL-3.0-or-later |
@@ -2659,7 +2660,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **24 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **37 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
@@ -2672,7 +2673,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 
 | Komut | Ne koşar | Ölçüldü |
 |---|---|---|
-| `node tools/test.js` | hepsi | **4.5 sn** (sim 200 gün ~4.1 sn, ekonomi 3 betik ~0.4 sn) |
+| `node tools/test.js` | hepsi | **4.9 sn** (sim 200 gün ~4.1 sn, ekonomi 3 betik ~0.4 sn) |
 | `node tools/test.js --hizli` | yalnız saf mantık | **0.13 sn** |
 
 **Kabul yolu ölçüldü**: erzak fiyatları bilerek iki katına çıkarıldığında `node tools/test.js`
@@ -2685,6 +2686,22 @@ daha az tahıl alıyor, gider aralıkta kalıyor. Yani eşikleri **birlikte** ok
 adımı yoktur — depo bağımlılıksızdır.
 
 *(Araçlar tarayıcı oyununa hiçbir şey eklemez — `index.html` onları yüklemez.)*
+
+### Sürüm ve release (#88 madde 8)
+
+`VERSION` elle artar; release'i elle açmak unutulur — 0.74'e kadar depoda **tek tag yoktu**,
+oysa hata raporlarının ilk satırı sürüm damgasıdır ve "0.68'de neydi" sorusunun bir yere
+bağlanması gerekir. 0.55–0.75 arası yirmi sürüm geriye dönük etiketlendi: her sürümün
+**gerçek** bump commit'i `git log -S"no: '0.xx'" -- app.js` ile bulundu, notlar
+CHANGELOG'un o bölümünden alındı. 0.40/0.50/0.54 etiketlenmedi — `VERSION` sabiti #55'te
+doğdu, öncesinde kodda sürüm diye bir şey yok.
+
+Bundan sonrası `test.yml`'deki `release` işine bırakıldı: `main`'e itilen her yeşil yapıda
+`VERSION.no` okunur (koşum takımından, grep'ten değil), tag zaten varsa sessizce geçilir,
+yoksa o sürümün CHANGELOG bölümü notlar olarak release açar. İş `needs: test`'e bağlıdır —
+kırmızı bir yapı release olmaz. CHANGELOG'a satır girmeden sürüm artırılmışsa iş **kırılır**;
+aynı iddia yerel testte de var (*"sürüm: VERSION.no CHANGELOG.md içinde bir bölüm buluyor"*),
+orada kırılması daha ucuz.
 
 ## Kod tarzı
 
