@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.81 — Yollar Tekin Değil (2026-09-11)
+
+Harita bomboştu: günlerce yol gidip tek bir çapulcu görmemek mümkündü, "çeteyi bul" diyen
+bir görevi almak da resmen umutsuzluktu.
+
+- **Yollarda iki kat fazla çete var.** Görüş menzilin kıtanın yüzde biri kadar; çete sayısı
+  artık buna göre belirleniyor — 30 gün yol giden biri eskiden 18–23 çete görürken şimdi
+  **39–51** görüyor, yani günde birden fazla.
+- **Temizlenen bölge boş kalmıyor.** Eskiden günde tek bir çete doğuyordu ve lordların
+  süpürdüğü yerler haftalarca ıssız kalıyordu; artık nüfus her gün hedefe doğru dolduruluyor.
+- **Çete avlatan görev söylenti veriyor.** "Zincirdeki Kardeş" artık çetenin *şu an* en
+  yakın olduğu yerleşimi söylüyor; çete gezdikçe haritadaki işaret de onunla kayıyor.
+  Adres değil, iz sürüyorsun.
+
 ## 0.80 — Kervanın Adı (2026-09-11)
 
 Haritada kervanların ve köylü kafilelerinin adı yerleşim adına benziyordu — "Praven" yazan

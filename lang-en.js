@@ -461,7 +461,7 @@ I18N.dicts.en = {
   "Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!": "Excellent! You caught the guards off their guard and slipped away!",
   "Harita hızı +%{0}": "Map speed +{0}%",
   "Harita hızı +{0} · savaş hızı +{1}": "Map speed +{0} · battle speed +{1}",
-  "Haritada <b>{0}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir)": "Find the <b>{0}</b> band on the map and beat them — <i>or</i> lose on purpose, be taken prisoner, and escape the dungeon (escaping pays more)",
+  "Haritada <b>{0}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir). Aşağıdaki yer çetenin <b>şu an dolaştığı</b> civardır; çete gezer, işaret de onunla kayar": "Find the band <b>{0}</b> on the map and defeat it — <i>or</i> lose the fight, be taken prisoner, then escape the dungeon (escaping pays more). The place marked below is where the band is <b>roaming right now</b>; it moves, and the marker moves with it",
   "Haritada 🏆 işaretli bir şehre gir ve turnuvayı kazan (elenirsen bir sonraki turnuvada yeniden denersin)": "Enter a town marked 🏆 on the map and win the tournament (if you're knocked out, try again at the next one)",
   "Haritada çapulcu grubu bul ve dağıt — <b>{0}/{1}</b>, sonra <b>{2}</b>'a git": "Find and scatter bandit bands on the map — <b>{0}/{1}</b>, then head to <b>{2}</b>",
   "Haritada yol katetmek": "Covering ground on the map",

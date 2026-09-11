@@ -163,7 +163,17 @@ const QUESTS = {
                 çünkü içeriyi görmüş olursun. Ama ölürsen kimseye bir faydan olmaz."`}`;
         },
         desc(q) { return T`Haritada <b>${T(q.data.npcName)}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip
-            esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir)`; },
+            esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir). Aşağıdaki yer çetenin
+            <b>şu an dolaştığı</b> civardır; çete gezer, işaret de onunla kayar`; },
+        // Gezen bir çeteyi 9000 birimlik kıtada aramak umutsuzdu: görüşün haritanın
+        // %1'i. Söylenti verilir — çetenin *şu an* en yakın olduğu yerleşim. Çete
+        // hareket ettikçe damga da kayar, yani iz sürüyorsun, adres almıyorsun.
+        where(q) {
+            let b = state.npcParties.find(n => n.id === q.data.npcId && n.size > 0);
+            if(!b) return null;
+            let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, b) - Game.dist(y, b))[0];
+            return near ? near.id : null;
+        },
         on(q, ev, d) {
             if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done';
             if(ev === 'escaped_captivity' && d.npcId === q.data.npcId) {

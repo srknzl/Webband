@@ -423,7 +423,7 @@ denge değişince kırmızıya döndüler ve elle güncellendiler, yani regresyo
 - Köy gönüllüleri yenilenir (köy max 5; şehirler 2 günde bir 4–8)
 - Krallar/vezirler zamanla güçlenir (kral 90 günde lvl 20 / 110 asker, vezir lvl 10 / 50 asker)
 - %25 ihtimalle rastgele şehirde turnuva açılır, açık turnuvalar %30 ihtimalle kapanır
-- Çapulcu sayısı 5'in altına düşerse yenisi doğar
+- Çete nüfusu hedefe kadar doldurulur (günde en çok `BAND_REFILL`=3 — aşağıya bak)
 - `Nobles.dailyTick()` — konum işaretlerini eskitir, rakip taliplerin ilgisini artırır, evlilik geliri, düğün günü kontrolü
 - `Feast.dailyTick()` — süresi dolan şöleni kapatır, planlanmış/kendiliğinden şöleni başlatır
 - `Quests.dailyTick()` — görevlerin `day()` kancası ve süre kontrolü
@@ -1189,6 +1189,23 @@ dört dalga hâlinde girdi, savaş 8.5 sn sürdü.
 #### Düşman çeteleri (`BAND_KINDS`)
 Çapulcunun ötesinde çeşit var; her tür haritada kendi adı/rengiyle gezer (`npc.band`) ve savaşta
 kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** çıkar.
+
+**Nüfus görüşten türetilir** (`Game.bandTarget`), elde tutulmaz. Kıta 9000×9000 birim,
+başlangıç görüşü ~500: oyuncu her an haritanın **%1'ini** görüyor. Günde süpürülen alan
+≈ `2 × görüş × günlük yol` (~2600 birim); bunun kıtaya oranı, çete başına günlük karşılaşma
+olasılığıdır — hedef günde ~1 karşılaşma verecek sayıdır, 14–30 arasına kıstırılır
+(başlangıç görüşünde **30**). Dünya hedef nüfusla **başlar** ve `dailyUpdate` her gün
+hedefe kadar doldurur, günde en çok `BAND_REFILL`=3 çete. Eskiden 13 çeteyle başlanıp
+günde bir doğuyordu: temizlenen bölge haftalarca boş kalıyordu.
+
+Ölçüldü (tohum 1–5, 30 gün kesintisiz yol, ayrı çete sayısı): eski 13 çeteyle **18–23**
+(günde 0.69), yeni hedefle **39–51** (günde **1.49**). `tools/test.js` nüfusun 60 gün
+boyunca hedefte kaldığını iddia eder.
+
+Görmek ayrı, *belirli birini* bulmak ayrı: "Zincirdeki Kardeş" gibi bir çeteyi avlatan
+görev **söylenti** verir (`QUESTS.brother_in_chains.where`) — çetenin *şu an* en yakın
+olduğu yerleşim. Çete gezdikçe hem 📍 satırı hem haritadaki 📜 damgası onunla kayar,
+yani adres değil iz sürersin.
 
 | Çete | Harita ikonu | Savaş birimleri | Karakter |
 |---|---|---|---|
@@ -2739,7 +2756,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **63 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **64 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
@@ -2757,7 +2774,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
    dışarıdan `Math.random` değiştirmek işe yaramaz.
 2. **Eşikler** — 200 günlük oyuncusuz dünya (`sim.js`) ve 60 günlük ekonomi betikleri
    (`economy.js`). Dünya rastgele olduğu için kesin sayı değil **aralık** beklenir:
-   fetih 1–20, kafile baskını 20–200, silinen krallık 0; boş gezen ordu günlük kâr etmemeli,
+   fetih 1–20, kafile baskını 20–260, silinen krallık 0; boş gezen ordu günlük kâr etmemeli,
    tımar günde 20₺'nin üstünde getirmeli.
 
 | Komut | Ne koşar | Ölçüldü |

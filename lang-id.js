@@ -461,7 +461,7 @@ I18N.dicts.id = {
   "Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!": "Hebat! Kamu memanfaatkan kelengahan penjaga dan berhasil kabur!",
   "Harita hızı +%{0}": "Kecepatan peta +{0}%",
   "Harita hızı +{0} · savaş hızı +{1}": "Kecepatan peta +{0} · kecepatan tempur +{1}",
-  "Haritada <b>{0}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir)": "Temukan gerombolan <b>{0}</b> di peta dan kalahkan — <i>atau</i> sengaja kalah, jadi tawanan, lalu kabur dari penjara (kabur memberi lebih banyak)",
+  "Haritada <b>{0}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir). Aşağıdaki yer çetenin <b>şu an dolaştığı</b> civardır; çete gezer, işaret de onunla kayar": "Temukan gerombolan <b>{0}</b> di peta lalu kalahkan — <i>atau</i> kalah dalam pertempuran, jadi tawanan, lalu kabur dari penjara (kabur memberi imbalan lebih besar). Tempat yang ditandai di bawah adalah wilayah yang <b>sedang dijelajahi</b> gerombolan itu; mereka berpindah, dan tandanya ikut berpindah",
   "Haritada 🏆 işaretli bir şehre gir ve turnuvayı kazan (elenirsen bir sonraki turnuvada yeniden denersin)": "Masuk ke kota bertanda 🏆 di peta dan menangkan turnamennya (kalau tersingkir, coba lagi di turnamen berikutnya)",
   "Haritada çapulcu grubu bul ve dağıt — <b>{0}/{1}</b>, sonra <b>{2}</b>'a git": "Temukan dan bubarkan gerombolan perampok di peta — <b>{0}/{1}</b>, lalu pergi ke <b>{2}</b>",
   "Haritada yol katetmek": "Menempuh jarak di peta",

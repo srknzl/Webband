@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.80', date: '2026-09-11', name: 'Kervanın Adı' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.81', date: '2026-09-11', name: 'Yollar Tekin Değil' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -1259,11 +1259,23 @@ const Game = {
         state.npcParties = state.npcParties.filter(n => n.size > 0 || n.lordId);
     },
 
+    // Kıta 9000 birim, görüşün ~500: her an haritanın %1'ini görüyorsun. 13 çeteyle
+    // gezinen oyuncu günde 0.3 çete görüyordu — yani üç günde bir, ve *belirli* bir
+    // çeteyi aramak umutsuzdu. Nüfus hedefi görünürlükten türetilir, elde tutulmaz:
+    // `bandTarget()` süpürülen alana göre günde ~1 karşılaşma verecek sayıyı söyler.
+    BAND_REFILL: 3,          // günde en çok bu kadar yeni çete yola çıkar
+    bandCount() { return state.npcParties.filter(n => n.type === 'bandit' && n.size > 0).length; },
+    bandTarget() {
+        // Günde süpürülen alan ≈ 2·görüş · günlük yol; bunun kıtaya oranı, çete başına
+        // günlük karşılaşma olasılığıdır. Hedef: günde ~1 karşılaşma.
+        let swept = 2 * this.getVisibility() * 2600;
+        return Math.round(Math.max(14, Math.min(30, 9000 * 9000 / swept)));
+    },
     spawnNPCs() {
         this.ensureTraders();
-        for(let i = 0; i < 8; i++) this.spawnBand('bandit');
-        for(let i = 0; i < 3; i++) this.spawnBand('wolf');
-        for(let i = 0; i < 2; i++) this.spawnBand('forest');
+        // Dünya hedef nüfusla başlar; eskiden 13'ten başlayıp günde bir doğuyordu,
+        // yani ilk hafta harita gerçekten boştu.
+        for(let i = 0; i < this.bandTarget(); i++) this.spawnBand(this.randomBandKind());
         // Her soylunun haritada gezen kendi partisi var
         LORDS.forEach(l => {
             let size = l.rank === 'king' ? 100 : l.rank === 'vizier' ? 50 : 35;
@@ -3498,8 +3510,9 @@ const Game = {
         Feast.dailyTick();
         Quests.dailyTick();
 
-        // Çapulcu yeniden doğma
-        if(state.npcParties.filter(n=>n.type==='bandit').length < 10) {
+        // Çapulcu yeniden doğma: tek tek değil, hedefe kadar. Günde bir çete doğarken
+        // temizlenen bir bölge haftalarca boş kalıyordu.
+        for(let i = 0, eksik = this.bandTarget() - this.bandCount(); i < Math.min(this.BAND_REFILL, eksik); i++) {
             this.spawnBand(this.randomBandKind());
         }
         this.ensureTraders();   // soyulan kafilelerin yerine yenileri yola çıkar

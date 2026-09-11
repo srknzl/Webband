@@ -622,6 +622,18 @@ function roadSuite() {
 }
 roadSuite();
 
+// Nüfus hedefi görüşten türetilir ve *korunur*: eskiden 13 çeteyle başlanıp günde bir
+// doğuyordu, yani lordların temizlediği bölge haftalarca boş kalıyordu (harita bomboş).
+test('çete nüfusu 60 gün boyunca hedefte kalıyor', () => {
+    const g = H.world({ seed: 4 });
+    const hedef = g.Game.bandTarget();
+    assert.strictEqual(g.Game.bandCount(), hedef, 'dünya hedef nüfusla başlamıyor');
+    let dip = hedef;
+    H.run(g, 60, () => { dip = Math.min(dip, g.Game.bandCount()); });
+    assert.ok(dip >= hedef - g.Game.BAND_REFILL * 2,
+        `çete nüfusu ${dip}'e düştü, hedef ${hedef} (doldurma yetişmiyor)`);
+});
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.
@@ -680,7 +692,10 @@ function thresholds() {
         assert.strictEqual(r.silinenKrallik, 0, 'krallık haritadan silindi');
         between(r.sefer, 10, 60, 'sefer');
         between(r.baris, 5, 40, 'barış');
-        between(r.kafileBaskini, 20, 200, 'kafile baskını');
+        // Tavan 200→260: çete nüfusu görüşe bağlandığında (13 → 30) baskın da arttı,
+        // ama ortalama refah (87.9–89.6) ve silinen krallık (0) kıpırdamadı — yani
+        // ekonomi soğuruyor, rejim değişmiyor. 5 tohumda ölçülen aralık 119–206.
+        between(r.kafileBaskini, 20, 260, 'kafile baskını');
         assert.ok(r.kafile > 0, 'haritada hiç ticaret partisi kalmadı');
         assert.strictEqual(r.hata, 0, 'sim sırasında istisna');
     });
