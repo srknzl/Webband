@@ -13,7 +13,7 @@ sayı ve tarihçe buradadır.
 | `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. Global objeler: `Debug`, `Input`, `Game`, `Save` + `state` |
 | `battle.js` | Savaş arenası ve turnuva minigame'i: `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
-| `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
+| `quests.js` | `QUESTS` (15 görev tanımı) + `Quests` görev motoru |
 | `i18n.js` | Dil katmanı: `I18N` + global `T` — anahtar Türkçe kaynak metnin kendisidir |
 | `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1785 anahtar); elle düzenlenmez |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
@@ -1003,8 +1003,21 @@ Kendi krallığının şehrinde 3000 dinar + 30 et/peynir ile şölen verebilirs
 ### Görevler (`quests.js`)
 Görev motoru olay tabanlı. `Quests.emit(ev, data)` çağrıları: `entered_location`, `bought_item`,
 `battle_won`, `escaped_captivity`, `tournament_end`, `chickens_caught`, `talked_to`,
-`poem_recited_lord`. Ayrıca `Quests.dailyTick()` her gün `day(q)` kancasını çağırır ve
-süre dolmasını kontrol eder.
+`poem_recited_lord`, `raided`. Ayrıca `Quests.dailyTick()` her gün `day(q)` kancasını çağırır
+ve süre dolmasını kontrol eder.
+
+Bir görev tanımının dört kancası var; üçü zorunlu değil:
+
+| Kanca | Ne yapar |
+|---|---|
+| `setup(q, giver)` | `q.data`yı kurar. Önkoşulu **varsayabilir** — `can` zaten eledi |
+| `can(giver)` | Dünya bu görevi şu an mümkün kılıyor mu; değilse teklif bile edilmez (`dawn_raid` savaş ister) |
+| `desc(q)` | **Ne** yapılacağı + ilerleme. Görev ekranında ve teklif penceresinde aynı metin |
+| `where(q)` | **Nerede** — gidilecek yerleşimin id'si. Tek kaynak: görev kartındaki 📍 satırı da haritadaki 📜 damgası da (`Quests.targets()` → `renderMap`) buradan besleniyor, ikisi ayrışamıyor. Kasıtlı gizlenen hedef (`fog_dot`'ta sandığın yeri) yerine arama halkasının merkezi döner |
+
+`Quests.taskHtml(q)` bu ikisini tek kutuda birleştirir ve `daysTo(where)` ile "şu an ~N günlük
+yol" yazar; hem teklif penceresi hem görev listesi onu çağırır. Görev örneği üretmek
+`Quests.make(id, giverId)`'nin işidir — kura `pick()`te, kuruluş orada, testler de oradan üretir.
 
 Görevler Warband'ın görev listesinin kopyası değil; **WebBand'ın kendi mekaniklerini** hedefler:
 
@@ -1023,12 +1036,17 @@ Görevler Warband'ın görev listesinin kopyası değil; **WebBand'ın kendi mek
 | Bir Şiir Getir | Meyhane ozanından şiir öğren, lorda oku |
 | Kervan Yolu Temizliği | *(lonca)* 2 çapulcu grubu dağıt, sonra hedef şehre var |
 | Lonca Siparişi | *(lonca)* 10 birim ticaret malını loncanın şehrine getir |
+| Arena Şampiyonu | Turnuvayı **kazanma** tarafı — Şike'nin aynadaki hâli |
+| Zincir Pazarı | Esir mekaniği: 4 asker esiri lordun kapısına teslim et |
+| Şafak Baskını | Düşman köyünü yağmala (`raided` olayı). `can`: açık cephe yoksa teklif edilmez; ödül +1800 dinar ama **−8 nam** |
 
 Görev veren lord olabilir, **lonca ustası** da olabilir (`giverId = 'guild_<locId>'`,
 `Quests.giver()` ikisini de çözer). Lonca ustasının ilişkisi yoktur: ödülü yalnızca dinar
 ve nam, başarısızlığın ilişki cezası yok. `Quests.back()` lordda diyaloga, loncada hana döner.
 
 Kabul edilen görevler `state.player.quests`; **Görevler** sekmesi (`#quests-view`) listeler.
+Her kart "ne + nerede + kaç günlük yol" kutusunu taşır, hedefi olan görev haritada 📜 ile
+damgalanır (yakınlaşınca görev adı da yazar).
 Reddedilen lord 7–15 gün yeni görev vermez (`state.questCooldown`).
 Başarısızlık −10 ilişki. Bir lordda aynı anda tek görev olabilir.
 
@@ -2670,12 +2688,18 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **37 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **55 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
    `foodStock`, `skipFrame` kapısı, `Save.migrate`, dil katmanı (#81). Beklenen sayılar
    CLAUDE.md'deki "Ölçüldü" satırlarının kendisidir — biri değişirse ya kod ya belge yanlış.
+   Burada ayrıca **görev takımı** var: `QUESTS`'teki **her** görev `Quests.make` ile kurulur,
+   `where`/`desc` doğrulanır, sonra gerçek motor olaylarıyla bitirilir ve ödülü ödenir.
+   Sürücü tablosunun `Object.keys(QUESTS)`'i kapsadığı ayrıca iddia edilir — yeni görev
+   ekleyip testini yazmamak kırmızıya döner. Görev **başlıkları** ham veri olduğu için
+   (`T(def.title)`, statik çıkarıcının göremediği biçim) iki sözlükte varlıkları ayrı bir
+   iddiayla kapılıdır.
 2. **Eşikler** — 200 günlük oyuncusuz dünya (`sim.js`) ve 60 günlük ekonomi betikleri
    (`economy.js`). Dünya rastgele olduğu için kesin sayı değil **aralık** beklenir:
    fetih 1–20, kafile baskını 20–200, silinen krallık 0; boş gezen ordu günlük kâr etmemeli,

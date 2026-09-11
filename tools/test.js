@@ -399,6 +399,92 @@ test('sürüm: VERSION.no CHANGELOG.md içinde bir bölüm buluyor', () => {
         `CHANGELOG.md'de "## ${v}" bölümü yok — sürüm artmış ama satır girilmemiş`);
 });
 
+// --- Görevler: her görev gerçekten bitirilebiliyor mu ---
+// Görev tanımları elle yazılıyor ve tek doğrulama yolu oyunu açıp saatlerce
+// gezmekti. Burada her görev **gerçek motordan** bitiriliyor: `Quests.make`
+// kuruyor, sürücü görev olaylarını `Quests.emit`/`dailyTick` ile veriyor,
+// `complete()` ödülü ödüyor. Tablo tanım listesiyle karşılaştırılıyor — yeni
+// bir görev sürücüsüz eklenirse test düşer, görev de sessizce bitmez kalmaz.
+function questSuite() {
+    const gq = H.world({ seed: 3 });
+    const { Quests, QUESTS, LOCATIONS, LORDS, Nobles, Game, state } = gq;
+    const loc = id => LOCATIONS.find(l => l.id === id);
+    const enter = id => Quests.emit('entered_location', { locId: id, loc: loc(id) });
+    const give = (itemId, qty) => state.player.inventory.push({ ...gq.ITEMS[itemId], qty });
+
+    const drivers = {
+        butter_blockade: q => Quests.emit('bought_item', { locId: q.data.locId, itemId: 'cheese', qty: q.data.need }),
+        fog_dot: q => { state.player.x = q.data.x; state.player.y = q.data.y; Quests.dailyTick(); },
+        sergeant_exam: q => {
+            state.player.party = Array.from({ length: q.data.need }, (_, i) =>
+                ({ id: 'v' + i, name: 'Svadya Şövalyesi', level: 21, type: 'cavalry' }));
+            enter(q.data.locId);
+        },
+        hungry_army: q => { give('wheat', q.data.need); enter(q.data.locId); },
+        brother_in_chains: q => Quests.emit('battle_won', { npcId: q.data.npcId }),
+        fixed_match: q => Quests.emit('tournament_end', { won: false, score: q.data.lo }),
+        false_news: q => LORDS.filter(l => l.faction === q.data.faction && l.id !== q.data.about)
+                              .forEach(l => Quests.emit('talked_to', { lordId: l.id })),
+        crazy_chickens: q => Quests.emit('chickens_caught', { won: true }),
+        harvest_watch: q => { for(let i = 0; i < q.data.need; i++) Quests.emit('battle_won', { questWave: q.id }); },
+        lost_letter: q => {
+            enter(q.data.pickLoc);
+            // Lord ancak kendi salonundaysa bulunur (Nobles.isAt) — partisini eve çek
+            const seat = loc(Quests.lordSeat(q.data.toId)), p = Nobles.partyOf(q.data.toId);
+            if(p) { p.x = seat.x; p.y = seat.y; }
+            enter(seat.id);
+        },
+        bring_poem: q => Quests.emit('poem_recited_lord', { lordId: q.giverId }),
+        arena_champion: () => Quests.emit('tournament_end', { won: true, score: 12 }),
+        chain_market: q => {
+            for(let i = 0; i < q.data.need; i++) state.player.prisoners.push({ id: 'p' + i, name: 'Çapulcu', level: 5 });
+            enter(q.data.locId);
+        },
+        dawn_raid: q => Quests.emit('raided', { locId: q.data.locId }),
+        caravan_escort: q => {
+            for(let i = 0; i < q.data.need; i++) Quests.emit('battle_won', { npcId: 'b' + i });
+            enter(q.data.locId);
+        },
+        guild_supply: q => { give(q.data.item, q.data.need); enter(q.data.locId); }
+    };
+
+    // Görevi verebilecek ilk uygun veren: mizaç + dünyanın `can` önkoşulu
+    function giverFor(id) {
+        const d = QUESTS[id];
+        if(d.givers.includes('guild')) return 'guild_' + LOCATIONS.find(l => l.type === 'city').id;
+        const l = LORDS.find(x => (!d.givers.length || d.givers.includes(x.personality))
+                               && (!d.can || d.can(Quests.giver(x.id))));
+        return l && l.id;
+    }
+
+    test('görev: tablodaki her görevin bir test sürücüsü var', () => {
+        const eksik = Object.keys(QUESTS).filter(id => !drivers[id]);
+        assert.strictEqual(eksik.length, 0, `sürücüsüz görev: ${eksik.join(', ')}`);
+    });
+
+    Object.keys(QUESTS).forEach(id => {
+        test(`görev: ${id} gerçek motorda tamamlanıyor`, () => {
+            const giverId = giverFor(id);
+            assert.ok(giverId, 'bu görevi verebilecek kimse yok');
+            // Her görev temiz bir oyuncuyla başlar: bir önceki görevin envanteri sayılmasın
+            state.player.quests = []; state.player.inventory = []; state.player.prisoners = [];
+            state.player.party = []; state.player.money = 0;
+            const q = Quests.make(id, giverId);
+            state.player.quests.push(q);
+
+            // "Nerede" sorusunun cevabı ya gerçek bir yerleşimdir ya da yoktur
+            const w = QUESTS[id].where && QUESTS[id].where(q);
+            assert.ok(!w || loc(w), `where() haritada olmayan yer döndü: ${w}`);
+            assert.ok(QUESTS[id].desc(q).length > 10, 'desc boş');
+
+            drivers[id](q);
+            assert.ok(!Quests.has(id), 'görev bitmedi — sürücü olayları motoru geçmiyor');
+            assert.strictEqual(state.player.money, QUESTS[id].reward.money, 'ödül ödenmedi');
+        });
+    });
+}
+questSuite();
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.
@@ -406,6 +492,16 @@ test('i18n: koddaki her T anahtarı iki sözlükte de var', () => {
     const K = require('./i18n-keys');
     const d = K.dicts(), eksik = [...K.codeKeys()].filter(k => !(k in d.en) || !(k in d.id));
     assert.ok(eksik.length === 0, `${eksik.length} anahtar sözlükte yok, ilki: ${JSON.stringify(eksik[0])}`);
+});
+
+// Statik çıkarıcı yalnız `T('…')` **literal**lerini görür; `T(def.title)` gibi
+// değişkenden çevrilen ham veri onun gözünde yok. Görev başlıkları tam da öyle
+// yazılıyor — 0.77'de iki yeni başlık sözlüksüz çıktı ve EN'de Türkçe düştü.
+test('i18n: ham veri tablosundaki görev başlıkları iki sözlükte de var', () => {
+    const d = require('./i18n-keys').dicts();
+    const eksik = Object.keys(g.QUESTS).map(id => g.QUESTS[id].title)
+        .filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(eksik.length, 0, `sözlüksüz görev başlığı: ${eksik.join(', ')}`);
 });
 
 test('i18n: üst düzey veri tabloları dilden bağımsız', () => {

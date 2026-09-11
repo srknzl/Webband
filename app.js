@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.76', date: '2026-09-11', name: 'Tek Satır' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.77', date: '2026-09-11', name: 'Nereye Gidiyorum' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -3799,6 +3799,9 @@ const Game = {
         });
 
         // Draw locations
+        // Görevin "nerede"si haritada da durur: görev ekranındaki 📍 ile aynı
+        // kaynaktan (QUESTS[].where) gelir, iki liste ayrışamaz.
+        let questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
         LOCATIONS.forEach(loc => {
             let fc = FACTIONS[loc.faction] || {color:'#888'};
             let ik = this.iconScale();
@@ -3825,8 +3828,11 @@ const Game = {
             if(loc.type === 'city' && state.activeTournaments[loc.id]) {
                 this.emoji(ctx, '🏆', loc.x - big*0.55, loc.y - 15, 36*ik);
             }
+            if(questMarks[loc.id]) this.emoji(ctx, '📜', loc.x - big*0.55, loc.y - 15 - 34*ik, 36*ik);
 
             this.mapLabel(ctx, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
+            if(questMarks[loc.id] && this.camera.zoom > 0.18)
+                this.mapLabel(ctx, questMarks[loc.id].join(' · '), loc.x, loc.y - big*0.82 - 34, '#e0b062', '#8a6a2a');
         });
 
         // --- GÜNÜN VAKTİ ---
@@ -6723,6 +6729,7 @@ const Game = {
         // Barıştaki krallığın köyünü yakmak savaş sebebidir
         if(this.playerFaction() && loc.faction !== this.playerFaction()) this.declareWar(this.playerFaction(), loc.faction);
         this.addProficiencyXp('looting', 60);
+        Quests.emit('raided', { locId: loc.id, faction: loc.faction });
         alert(T`${T(loc.name)} yağmalandı!\n\n💰 ${loot} dinar\n${food.map(([id, q]) => `${ITEMS[id].icon} ${T(ITEMS[id].name)} x${q}`).join('\n')}`
             + T`\n\nKöyün refahı ${Math.round(loc.prosperity)}'e düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
     },

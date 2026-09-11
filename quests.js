@@ -7,8 +7,12 @@
 // Bir görev tanımı:
 //   givers      : hangi mizaçtaki lordlar verir (boş = herkes)
 //   minRelation : bu ilişki altında teklif edilmez
+//   can(giver)  : dünya bu görevi şu an mümkün kılıyor mu (yoksa teklif edilmez)
 //   setup(q,giver) : q.data'yı doldurur
-//   desc(q)     : görev ekranındaki metin
+//   desc(q)     : görev ekranındaki metin — **ne** yapılacağı ve ilerleme
+//   where(q)    : şu an gidilecek yerleşimin id'si — **nerede** sorusunun tek kaynağı.
+//                 Görev listesindeki 📍 satırı da haritadaki 📜 damgası da buradan
+//                 beslenir; hedef yoksa (ya da bilerek gizliyse) yazılmaz.
 //   on(q, ev, d): olay geldiğinde 'done' | 'fail' | undefined döner
 //   day(q)      : her gün çağrılır, 'done' | 'fail' | undefined
 //   reward      : { money, renown, rel }
@@ -32,7 +36,8 @@ const QUESTS = {
                 Git, o pazardaki bütün peyniri satın al — <b>${q.data.need} birim</b>. Fiyat tavan yapsın, halkı homurdansın.
                 Kışın kimin ambarı doluysa savaşı o kazanır."`}`;
         },
-        desc(q) { return `${T`${T(q.data.locName)} pazarından peynir satın al:`} <b>${q.data.got}/${q.data.need}</b>`; },
+        desc(q) { return T`<b>${T(q.data.locName)}</b> pazarından peynir al — <b>${q.data.got}/${q.data.need}</b> birim (başka şehirde alınanı saymaz)`; },
+        where(q) { return q.data.locId; },
         on(q, ev, d) {
             if(ev === 'bought_item' && d.locId === q.data.locId && d.itemId === 'cheese') {
                 q.data.got += d.qty;
@@ -49,16 +54,23 @@ const QUESTS = {
         days: 15,
         reward: { money: 700, renown: 10, rel: 10 },
         setup(q, giver) {
-            let home = LOCATIONS.find(l => l.id === giver.homeLocId) || { x: 4500, y: 4500 };
+            let home = LOCATIONS.find(l => l.id === giver.homeLocId) || { id: '', name: '?', x: 4500, y: 4500 };
             let a = Math.random() * Math.PI * 2, r = 900 + Math.random() * 900;
-            q.data = { x: home.x + Math.cos(a) * r, y: home.y + Math.sin(a) * r, hint: 'soğuk' };   // ham anahtar; çeviri gösterimde
+            // homeId aranacak yerin *kendisi* değil, arama halkasının merkezi: haritadaki
+            // damga oyuncuyu doğru bölgeye yollar, sandığın yerini söylemez.
+            q.data = { x: home.x + Math.cos(a) * r, y: home.y + Math.sin(a) * r,
+                       homeId: home.id, homeName: home.name, hint: 'soğuk' };   // ham anahtar; çeviri gösterimde
         },
         offer(q) {
             return `${T`"Haritada bir yer var. Nerede olduğunu sana söylemeyeceğim — söylersem başkası da öğrenir.<br><br>
                 Şu kadarını bilmelisin: benim kalemden bir günlük yol içinde. Gez, ara.
                 Yaklaştıkça adamlarım sana haber uçuracak."`}`;
         },
-        desc(q) { return `${T`Gizli noktayı ara. Son haber:`} <b>${T(q.data.hint)}</b>`; },
+        // Tek "yeri yazılmayan" görev bu — gizlilik onun oyunu. Bunun yerine ölçek
+        // yazılır: oyuncu 'soğuk'un iyi mi kötü mü olduğunu tahmin etmek zorunda kalmasın.
+        desc(q) { return T`${T(q.data.homeName)} çevresinde bir günlük yol içinde gizli bir nokta ara — her gün haber gelir.<br>
+            Son haber: <b>${T(q.data.hint)}</b> <span style="opacity:0.7">(soğuk → ılık → YANIYORSUN)</span>`; },
+        where(q) { return q.data.homeId; },
         day(q) {
             let d = Game.dist(state.player, q.data);
             let h = d < 500 ? 'YANIYORSUN' : d < 1200 ? 'ılık' : 'soğuk';
@@ -88,8 +100,10 @@ const QUESTS = {
         },
         desc(q) {
             let n = state.player.party.filter(t => t.level >= 20).length;
-            return `${T`20+ seviye asker: <b>${n}/${q.data.need}</b> — sonra ${T(Nobles.lord(q.giverId).name)}'a dön`}`;
+            return T`Grubunda <b>${n}/${q.data.need}</b> asker 20. seviyeyi geçti — hepsi yanındayken
+                ${T(Nobles.lord(q.giverId).name)}'ın salonuna gir (asker savaşta ve antrenmanda seviye atlar)`;
         },
+        where(q) { return q.data.locId; },
         on(q, ev, d) {
             if(ev === 'entered_location' && d.locId === q.data.locId) {
                 if(state.player.party.filter(t => t.level >= 20).length >= q.data.need) return 'done';
@@ -116,8 +130,10 @@ const QUESTS = {
         },
         desc(q) {
             let f = Quests.foodCount();
-            return `${T`${T(q.data.locName)}'a yemek götür: <b>${f}/${q.data.need}</b> (grubun her gün yiyor)`}`;
+            return T`<b>${T(q.data.locName)}</b> köyüne gir, çantanda <b>${f}/${q.data.need}</b> birim yemek olsun
+                (buğday/ekmek/et/peynir sayılır; grubun her gün yediği için erken varmak iyidir)`;
         },
+        where(q) { return q.data.locId; },
         on(q, ev, d) {
             if(ev === 'entered_location' && d.locId === q.data.locId) {
                 if(Quests.foodCount() >= q.data.need) {
@@ -146,7 +162,8 @@ const QUESTS = {
                 <b>bilerek onlara esir düşürüp</b> içeriden çıkarırsın. İkincisi daha çok işime gelir,
                 çünkü içeriyi görmüş olursun. Ama ölürsen kimseye bir faydan olmaz."`}`;
         },
-        desc(q) { return `${T`${T(q.data.npcName)} çetesini yen — <i>ya da</i> onlara teslim olup içeriden kaç`}`; },
+        desc(q) { return T`Haritada <b>${T(q.data.npcName)}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip
+            esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir)`; },
         on(q, ev, d) {
             if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done';
             if(ev === 'escaped_captivity' && d.npcId === q.data.npcId) {
@@ -177,7 +194,9 @@ const QUESTS = {
                 Bahisçiler tam oraya oynadı. Erken düşersen şüphelenirler, kazanırsan iflas ederim.<br><br>
                 Kesen dolacak, adın biraz kirlenecek. Karar senin."`}`;
         },
-        desc(q) { return `${T`Bir turnuvada <b>${q.data.lo}-${q.data.hi}</b> skorla elen (kazanma!)`}`; },
+        desc(q) { return T`🏆 işaretli bir şehrin arenasına çık ve <b>${q.data.lo}-${q.data.hi}</b> skorla elen.
+            Kazanırsan da erken elenirsen de görev yanar.`; },
+        where(q) { return Quests.nearestTourney(); },
         on(q, ev, d) {
             if(ev === 'tournament_end') {
                 if(!d.won && d.score >= q.data.lo && d.score <= q.data.hi) return 'done';
@@ -197,7 +216,7 @@ const QUESTS = {
             let pool = LORDS.filter(l => l.faction !== giver.faction);
             let t = pool[Math.floor(Math.random() * pool.length)];
             let targets = LORDS.filter(l => l.faction === t.faction && l.id !== t.id).slice(0, 3);
-            q.data = { about: t.id, aboutName: t.name, told: [], need: Math.max(2, targets.length) };
+            q.data = { about: t.id, aboutName: t.name, faction: t.faction, told: [], need: Math.max(2, targets.length) };
         },
         offer(q) {
             return `${T`"${q.data.aboutName} sınırda dolaşıyor. Nerede olduğunu ben biliyorum. Onun adamları bilmiyor.<br><br>
@@ -205,7 +224,9 @@ const QUESTS = {
                 Ordularını boş ovaya yürütsünler.<br><br>
                 Bir uyarı: yalan dolaşır. Bir süre sonra sana da yalan söylemeye başlarlar."`}`;
         },
-        desc(q) { return `${T`${T(q.data.aboutName)} hakkında yalan yay:`} <b>${q.data.told.length}/${q.data.need}</b> lord`; },
+        desc(q) { return T`${T(FACTIONS[q.data.faction] ? FACTIONS[q.data.faction].name : '?')} lordlarıyla salonlarında konuş ve
+            <b>${T(q.data.aboutName)}</b> hakkındaki yalanı yay — <b>${q.data.told.length}/${q.data.need}</b> lord`; },
+        where(q) { return Quests.nearestSeat(l => l.faction === q.data.faction && !q.data.told.includes(l.id) && l.id !== q.data.about); },
         on(q, ev, d) {
             if(ev === 'talked_to') {
                 let l = Nobles.lord(d.lordId);
@@ -239,7 +260,9 @@ const QUESTS = {
                 Bak, bunu adamlarıma yaptıramam — bütün kale bana güler.
                 Sen bir yabancısın, senin şerefin buna dayanır. <b>15 saniyen var, 8 tavuk yakala.`}</b>"`;
         },
-        desc(q) { return T`${T(LOCATIONS.find(l=>l.id===q.data.locId).name)}'da tavuk kovala (15 sn, 8 tavuk)`; },
+        desc(q) { return T`<b>${Quests.locName(q.data.locId)}</b>'a gir ve avluda tavuk kovala — 15 saniyede 8 tavuk.
+            Kaçırırsan süre dolana kadar yeniden deneyebilirsin.`; },
+        where(q) { return q.data.locId; },
         on(q, ev, d) {
             if(ev === 'chickens_caught' && d.won) return 'done';
             if(ev === 'chickens_caught') alert(T('Tavuklar kazandı. Tekrar dene.'));
@@ -262,7 +285,9 @@ const QUESTS = {
             return `${T`"Hasat başlıyor, çapulcular da bunu biliyor. ${q.data.locName} köyünün yanında bekle.<br><br>
                 <b>İki dalga</b> gelecek. İkisini de kır. Köylüler bir gün bile durmadan biçecek."`}`;
         },
-        desc(q) { return `${T`${T(q.data.locName)} yakınında bekle ve 2 baskını püskürt:`} <b>${q.data.waves}/2</b>`; },
+        desc(q) { return T`<b>${T(q.data.locName)}</b> köyünün yakınında (yarım günlük mesafede) bekle;
+            çapulcular gelince savaş — <b>${q.data.waves}/${q.data.need}</b> dalga püskürtüldü`; },
+        where(q) { return q.data.locId; },
         day(q) {
             let v = LOCATIONS.find(l => l.id === q.data.locId);
             if(Game.dist(state.player, v) > 500) return;
@@ -306,9 +331,10 @@ const QUESTS = {
         },
         desc(q) {
             return q.data.has
-                ? `${T`Mektup sende — <b>${T(q.data.toName)}</b>'a götür`}`
-                : `${T`Mektubu <b>${T(q.data.pickName)}</b> köyünde bul`}`;
+                ? T`Mektup çantanda — <b>${T(q.data.toName)}</b>'a ulaştır; onu ancak kendi salonundayken bulursun`
+                : T`<b>${T(q.data.pickName)}</b> köyüne gir ve mektubu bul, sonra <b>${T(q.data.toName)}</b>'a götür`;
         },
+        where(q) { return q.data.has ? Quests.lordSeat(q.data.toId) : q.data.pickLoc; },
         on(q, ev, d) {
             if(ev !== 'entered_location') return;
             if(!q.data.has && d.locId === q.data.pickLoc) {
@@ -334,10 +360,85 @@ const QUESTS = {
                 Bir şehrin hanına git, ozanı bul, ondan bir şiir öğren. Sonra gelip bana oku.
                 Kötüyse, öğrendiğini bana okumadan önce iyi düşün."`}`;
         },
-        desc(q) { return T`Meyhanede ozandan bir şiir öğren ve ${T(Nobles.lord(q.giverId).name)}'a oku`; },
+        desc(q) { return T`Bir şehrin hanında ozandan şiir öğren (dinar ister), sonra ${T(Nobles.lord(q.giverId).name)}'ın
+            salonuna dön ve <b>🎵 Öğrendiğin şiiri oku</b> de`; },
+        where(q) { return Quests.lordSeat(q.giverId); },
         on(q, ev, d) {
             if(ev === 'poem_recited_lord' && d.lordId === q.giverId) return 'done';
         }
+    },
+
+    // 12 — Arenayı kazanma tarafı (şike'nin aynadaki hâli)
+    arena_champion: {
+        title: 'Arena Şampiyonu',
+        givers: ['martial', 'quarrelsome'],
+        minRelation: 10,
+        days: 25,
+        reward: { money: 1600, renown: 20, rel: 14 },
+        setup(q) { q.data = {}; },
+        offer(q) {
+            return `${T`"Kılıç kullandığını söylüyorlar. Söylenti ucuzdur, arena değil.<br><br>
+                Turnuva nerede kuruluysa oraya git ve <b>kazan</b>. Hangi şehir olduğu umurumda değil.
+                Elenirsen bir sonrakine girersin — ama süre işliyor."`}`;
+        },
+        desc(q) { return T`Haritada 🏆 işaretli bir şehre gir ve turnuvayı kazan
+            (elenirsen bir sonraki turnuvada yeniden denersin)`; },
+        where(q) { return Quests.nearestTourney(); },
+        on(q, ev, d) { if(ev === 'tournament_end' && d.won) return 'done'; }
+    },
+
+    // 13 — Kılıcı öldürmeden kullan: esir getir
+    chain_market: {
+        title: 'Zincir Pazarı',
+        givers: ['cunning', 'debauched', 'quarrelsome'],
+        minRelation: 5,
+        days: 18,
+        reward: { money: 1500, renown: 6, rel: 12 },
+        setup(q, giver) { q.data = { locId: giver.homeLocId, need: 4 }; },
+        offer(q) {
+            return `${T`"Duvarım var, hendeğim var, kazacak adamım yok.<br><br>
+                Bana <b>${q.data.need} esir</b> getir — soylu değil, sıradan adam. Savaşı kazandıktan sonra
+                sağ kalanları zincire vurursan olur. Nereden bulduğun benim işim değil."`}`;
+        },
+        desc(q) { return T`Savaş kazanıp esir al, sonra <b>${Quests.locName(q.data.locId)}</b>'a gir —
+            yanında <b>${Quests.prisonerCount()}/${q.data.need}</b> sıradan esir olmalı (soylular sayılmaz)`; },
+        where(q) { return q.data.locId; },
+        on(q, ev, d) {
+            if(ev !== 'entered_location' || d.locId !== q.data.locId) return;
+            if(Quests.prisonerCount() < q.data.need) return;
+            Quests.takePrisoners(q.data.need);
+            return 'done';
+        }
+    },
+
+    // 14 — Şerefini yakarak para kazan: düşman köyünü bas
+    dawn_raid: {
+        title: 'Şafak Baskını',
+        givers: ['quarrelsome', 'cunning'],
+        minRelation: 20,
+        days: 15,
+        reward: { money: 1800, renown: -8, rel: 22 },
+        // Savaş yoksa bu görev yok: barıştaki bir köyü yakmak oyuncuyu kendi
+        // krallığıyla savaşa sokar, lord da bunu istemez.
+        can(giver) { return QUESTS.dawn_raid.foes(giver).length > 0; },
+        foes(giver) {
+            return LOCATIONS.filter(l => l.type === 'village' && l.faction && l.faction !== giver.faction
+                && Game.atWar(l.faction, giver.faction));
+        },
+        setup(q, giver) {
+            let vils = QUESTS.dawn_raid.foes(giver);
+            let v = vils[Math.floor(Math.random() * vils.length)];
+            q.data = { locId: v.id, locName: v.name };
+        },
+        offer(q) {
+            return `${T`"${q.data.locName}'ın ambarı düşmanın ordusunu besliyor. O ambar yanarsa cephe de söner.<br><br>
+                Git ve <b>köyü yağmala</b>. Dumanı görüp yetişen olursa kılıcını çekersin.
+                Peşin söyleyeyim: bu iş namını lekeler, kesemi değil."`}`;
+        },
+        desc(q) { return T`<b>${T(q.data.locName)}</b> köyüne gir, <b>🔥 Köyü Yağmala</b> de ve sayaç dolana kadar dayan
+            (yakındaki lordlar dumanı görüp üstüne gelir; namın düşer)`; },
+        where(q) { return q.data.locId; },
+        on(q, ev, d) { if(ev === 'raided' && d.locId === q.data.locId) return 'done'; }
     }
 };
 
@@ -358,7 +459,12 @@ QUESTS.caravan_escort = {
             Sen önden git: <b>${q.data.need} çapulcu grubunu</b> dağıt, sonra ${q.data.locName}'a var ve oradaki adamımıza haber ver.
             Lonca borcunu unutmaz."`}`;
     },
-    desc(q) { return `${T`Çapulcu grubu dağıt: <b>${q.data.got}/${q.data.need}</b>`}${q.data.got >= q.data.need ? T` · sonra <b>${T(q.data.locName)}</b>'a git` : ''}`; },
+    desc(q) {
+        return q.data.got >= q.data.need
+            ? T`Yol temiz — şimdi <b>${T(q.data.locName)}</b>'a gir ve loncanın adamına haber ver`
+            : T`Haritada çapulcu grubu bul ve dağıt — <b>${q.data.got}/${q.data.need}</b>, sonra <b>${T(q.data.locName)}</b>'a git`;
+    },
+    where(q) { return q.data.got >= q.data.need ? q.data.locId : null; },
     on(q, ev, d) {
         if(ev === 'battle_won' && !d.lordId && q.data.got < q.data.need) q.data.got++;
         if(ev === 'entered_location' && d.locId === q.data.locId && q.data.got >= q.data.need) return 'done';
@@ -384,8 +490,10 @@ QUESTS.guild_supply = {
     },
     desc(q) {
         let inv = state.player.inventory.find(i => i.id === q.data.item);
-        return T`${T(q.data.locName)}'a <b>${q.data.need} ${T(q.data.itemName)}</b> getir (çantanda ${inv ? inv.qty : 0})`;
+        return T`<b>${T(q.data.locName)}</b>'a gir, çantanda <b>${inv ? inv.qty : 0}/${q.data.need}</b> birim
+            ${T(q.data.itemName)} olsun (herhangi bir şehrin pazarından alınır)`;
     },
+    where(q) { return q.data.locId; },
     on(q, ev, d) {
         if(ev !== 'entered_location' || d.locId !== q.data.locId) return;
         let idx = state.player.inventory.findIndex(i => i.id === q.data.item && i.qty >= q.data.need);
@@ -422,6 +530,68 @@ const Quests = {
         Nobles.talk(giverId);
     },
 
+    // ---------- "Nerede?" ----------
+    // Görev metinlerinde yer adı üç ayrı yazımla geçiyordu ve biri (tavuklar)
+    // silinmiş yerleşimde patlıyordu. Tek kapı: id → çevrili ad, yoksa '?'.
+    locName(id) {
+        let l = LOCATIONS.find(x => x.id === id);
+        return l ? T(l.name) : '?';
+    },
+
+    // Lord ancak kendi salonundayken bulunur (Nobles.isAt) — "nereye gideyim"in
+    // cevabı bu yüzden her zaman onun yerleşimidir, partisinin anlık yeri değil.
+    lordSeat(lordId) {
+        let l = Nobles.lord(lordId);
+        return l ? l.homeLocId : null;
+    },
+
+    nearestTourney() {
+        return this.nearestLoc(l => l.type === 'city' && state.activeTournaments[l.id]);
+    },
+
+    nearestSeat(pred) {
+        let ids = LORDS.filter(pred).map(l => l.homeLocId);
+        return this.nearestLoc(l => ids.includes(l.id));
+    },
+
+    nearestLoc(pred) {
+        let best = null, bd = Infinity;
+        LOCATIONS.filter(pred).forEach(l => {
+            let d = Game.dist(state.player, l);
+            if(d < bd) { bd = d; best = l; }
+        });
+        return best ? best.id : null;
+    },
+
+    // Harita hızı saat başınadır (Game.getPlayerSpeed) — gün cinsinden yol
+    // hem görev kartında hem "yetişir miyim" kararında aynı sayıdır.
+    daysTo(locId) {
+        let l = LOCATIONS.find(x => x.id === locId);
+        if(!l) return null;
+        let spd = Game.getPlayerSpeed().value;
+        return spd > 0 ? Math.max(1, Math.round(Game.dist(state.player, l) / (spd * 24))) : null;
+    },
+
+    /** Haritanın damga listesi: { locId: [görev adı, ...] } — her karede yeniden kurulur (görev sayısı tek hane). */
+    targets() {
+        let m = {};
+        (state.player.quests || []).forEach(q => {
+            let def = QUESTS[q.id];
+            let w = def && def.where && def.where(q);
+            if(w) (m[w] = m[w] || []).push(T(def.title));
+        });
+        return m;
+    },
+
+    prisonerCount() { return (state.player.prisoners || []).filter(p => !p.noble).length; },
+
+    takePrisoners(n) {
+        for(let i = state.player.prisoners.length - 1; i >= 0 && n > 0; i--) {
+            if(state.player.prisoners[i].noble) continue;
+            state.player.prisoners.splice(i, 1); n--;
+        }
+    },
+
     foodCount() {
         return state.player.inventory
             .filter(i => ['wheat', 'bread', 'meat', 'cheese'].includes(i.id))
@@ -446,6 +616,21 @@ const Quests = {
     // Görev verenin adının tek gösterim kapısı: lonca ustasınınki bileşiktir ve
     // `giver()` içinde zaten çevrilir, lordunki ham veri tablosundan gelir.
     giverName(g) { return g.isGuild ? g.name : T(g.name); },
+
+    // "Ne yapacağım" ve "nereye gideceğim" tek bir kutuda, tek bir yazımla.
+    // Teklif modalı da görev listesi de burayı basar: oyuncu kabul etmeden
+    // önce gördüğü cümlenin aynısını sonra görev ekranında bulur.
+    taskHtml(q) {
+        let def = QUESTS[q.id];
+        let w = def.where && def.where(q);
+        let gun = w ? this.daysTo(w) : null;
+        return `<div style="background:rgba(0,0,0,0.25);border-left:3px solid var(--primary);border-radius:6px;
+                padding:0.7rem 0.9rem;margin-top:1rem;line-height:1.55">
+            <div>${def.desc(q)}</div>
+            ${w ? `<div style="margin-top:0.4rem;color:#e0b062;font-size:var(--fs-sm)">${
+                gun ? T`📍 ${this.locName(w)} · şu an ~${gun} günlük yol` : T`📍 ${this.locName(w)}`}</div>` : ''}
+        </div>`;
+    },
 
     offerMenu(giverId) {
         let giver = this.giver(giverId);
@@ -488,10 +673,14 @@ const Quests = {
                 </div></div>
             ${giver.isGuild ? '' : `<p id="lord-line" style="margin-top:1rem;font-style:italic;color:var(--primary);min-height:1.5em"></p>`}
             <p style="margin-top:1rem;line-height:1.6;font-style:italic">${def.offer(q, giver)}</p>
-            <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:1rem;font-size:var(--fs-md)">
+            ${this.taskHtml(q)}
+            <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:0.6rem;font-size:var(--fs-md)">
                 ${T`Ödül:`} <b style="color:#ffcc00">${T`${def.reward.money} dinar`}</b> ·
                 <b style="color:${def.reward.renown < 0 ? 'var(--danger)' : '#3498db'}">${T`${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam`}</b>${def.reward.rel ? ` ·
                 <b style="color:#2ecc71">${T`+${def.reward.rel} ilişki`}</b>` : ''}
+                <div style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.3rem">${
+                    giver.isGuild ? T('Süre dolarsa ya da vazgeçersen görev yanar, lonca defterine kırmızı bir çizik düşer.')
+                                  : T`Süre dolarsa ya da vazgeçersen görev yanar ve ${this.giverName(giver)} ile −10 ilişki.`}</div>
             </div>
             <div style="display:flex;gap:1rem;margin-top:1rem">
                 <button class="btn primary" onclick="Quests.accept()">${T`Kabul Ediyorum`}</button>
@@ -518,12 +707,19 @@ const Quests = {
             if(rel < d.minRelation) return false;
             if(d.givers.length && !d.givers.includes(giver.personality)) return false;
             if(!ignoreDup && this.has(id)) return false;
+            // Dünyanın şu ânı görevi mümkün kılmıyorsa teklif de edilmez —
+            // böylece setup() önkoşulunu varsayabilir (bkz. dawn_raid).
+            if(d.can && !d.can(giver)) return false;
             return true;
         });
         if(!pool.length) return null;
-        let id = pool[Math.floor(Math.random() * pool.length)];
+        return this.make(pool[Math.floor(Math.random() * pool.length)], giverId);
+    },
+
+    /** Tek görev örneği — kura `pick`in, kuruluş burasının işi (testler de buradan üretir). */
+    make(id, giverId) {
         let q = { id, giverId, startDay: state.time.day, deadline: state.time.day + QUESTS[id].days, data: {} };
-        QUESTS[id].setup(q, giver);
+        QUESTS[id].setup(q, this.giver(giverId));
         return q;
     },
 
@@ -620,8 +816,10 @@ const Quests = {
         // Hedef zinciri görevlerin üstünde durur — "şimdi ne yapayım"ın cevabı (#53/1.4)
         let amb = Game.ambitionHtml();
         if(!state.player.quests.length) {
-            el.innerHTML = amb + `<p style="color:var(--text-muted)">${T`Üstlendiğin bir görev yok.
-                Bir şehrin ya da kalenin Lordlar Salonuna git, bir soyluyla konuş ve "Bana bir iş var mı?" de.`}</p>`;
+            el.innerHTML = amb + `<p style="color:var(--text-muted)">${T`Üstlendiğin bir görev yok. İki kapı var:<br>
+                • Bir şehrin ya da kalenin <b>Lordlar Salonu</b>'na gir, bir soyluyla konuş ve "Bana bir iş var mı?" de —
+                mizacı ve sana olan ilişkisi hangi işi teklif edeceğini belirler.<br>
+                • Bir şehrin <b>hanı</b>nda lonca ustasıyla konuş — ilişki istemez, para öder.`}</p>`;
             return;
         }
         el.innerHTML = amb + state.player.quests.map(q => {
@@ -633,8 +831,8 @@ const Quests = {
                     <b style="font-size:1.1rem">${T(def.title)}</b>
                     <span style="font-size:var(--fs-sm);color:${left <= 3 ? 'var(--danger)' : 'var(--text-muted)'}">${T`${left} gün kaldı`}</span>
                 </div>
-                <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:0.3rem 0">${T`Veren: ${T(Quests.giver(q.giverId).name)}`}</div>
-                <div style="margin-top:0.4rem">${def.desc(q)}</div>
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:0.3rem 0">${T`Veren: ${Quests.giverName(Quests.giver(q.giverId))} · ${q.deadline}. güne kadar`}</div>
+                ${Quests.taskHtml(q)}
                 <button class="btn" style="margin-top:0.6rem;font-size:var(--fs-sm);padding:0.3rem 0.8rem;border-color:var(--danger);color:var(--danger)"
                         onclick="Quests.abandon('${q.id}')">${T`Vazgeç`}</button>
             </div>`;

@@ -3,6 +3,24 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.77 — Nereye Gidiyorum (2026-09-11)
+
+Görevler baştan aşağı okunur hâle geldi. Eskiden "lorda git" deyip seni salıyordu; artık
+her görev **ne** istediğini, **nerede** olduğunu ve **kaç günlük yol** olduğunu söylüyor.
+
+- **Her görev kartında hedef yazıyor.** Kabul etmeden önce teklif penceresinde de aynı
+  kutu var: ne yapılacağı, hangi yerleşime gidileceği ve şu anki hızınla oraya kaç gün.
+  Süre dolarsa ne olacağı da orada — artık sürprizle öğrenmiyorsun.
+- **Hedef haritada da duruyor.** Görevin olan yerleşimin üstünde 📜 damgası, yakınlaştırınca
+  görev adı. Kart ile harita aynı kaynaktan besleniyor, ayrışamazlar.
+- **Görev metinleri yeniden yazıldı.** "Peynir al" değil, "**Reyvadin** pazarından peynir al
+  — 0/15 birim (başka şehirde alınanı saymaz)". Sayacı, şartı ve püf noktası metnin içinde.
+- **Üç yeni görev.** *Arena Şampiyonu* (turnuvayı kazan — Şike'nin tersi), *Zincir Pazarı*
+  (4 esir teslim et), *Şafak Baskını* (düşman köyünü bas: iyi para, kötü nam). Sonuncusu
+  krallığın savaşta değilse teklif bile edilmiyor.
+- **Sisteki Nokta artık bölgeyi gösteriyor.** Sandığın yeri hâlâ sır, ama hangi şehrin
+  çevresinde arayacağın haritada yazıyor.
+
 ## 0.76 — Tek Satır (2026-09-11)
 
 - **Telefonda savaşta artık kendini görüyorsun.** Ölüm satırları, düşman komutanının
