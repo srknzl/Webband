@@ -1,20 +1,21 @@
 // ============================================
-// DİL KATMANI (#65 sonrası dil turu)
+// LANGUAGE LAYER (language pass after #65)
 // ============================================
-// Anahtar **Türkçe kaynak metnin kendisidir**: sözlükte karşılığı yoksa
-// ekrana Türkçe düşer. Yani çeviri eksik kalsa da oyun hiçbir yerde boş
-// ya da "missing.key" göstermez; Türkçe oynayanda `T` kimlik fonksiyonudur.
+// The key **is the Turkish source text itself**: if the dictionary has no
+// match, the screen falls back to Turkish. So even an incomplete translation
+// never shows a blank string or "missing.key" anywhere; for a Turkish player
+// `T` is the identity function.
 //
-// İki çağrı biçimi var, ikisi de aynı sözlüğe bakar:
-//   T('Yeni Oyun')                 → düz metin
-//   T`${n} asker katıldı`          → etiketli şablon; anahtar "{0} asker katıldı"
-// Etiketli biçimde araya giren değerler anahtarda numaralanır, çeviride
-// istenen sırada kullanılabilir ({0}, {1}) — cümle dizilimi dile göre değişir.
+// Two call forms, both look up the same dictionary:
+//   T('Yeni Oyun')                 → plain string
+//   T`${n} asker katıldı`          → tagged template; key is "{0} asker katıldı"
+// In the tagged form, interpolated values are numbered in the key and can be
+// reordered in translation ({0}, {1}) — sentence order varies by language.
 
 const I18N = {
     lang: 'tr',
-    dicts: {},          // { en: {...}, id: {...} } — lang-*.js dosyaları doldurur
-    missing: new Set(), // çevrilmemiş anahtarlar; Debug raporuna girer
+    dicts: {},          // { en: {...}, id: {...} } — filled in by lang-*.js
+    missing: new Set(), // untranslated keys; feeds the debug report
 
     LANGS: [
         { id: 'tr', flag: '🇹🇷', name: 'Türkçe' },
@@ -23,12 +24,13 @@ const I18N = {
     ],
 
 
-    // index.html'deki durağan metinler. Anahtar **bir kez**, sayfa daha hiçbir
-    // şey çizmeden `prime()` ile düğümün üstüne yazılır; `applyDom` yalnız
-    // anahtarı olan düğüme dokunur. Aksi hâlde ekranı `innerHTML` ile kuran
-    // her panel (rozet künyeleri, ekranlar, modal) çevrilmiş metniyle bu
-    // yürüyüşe yakalanıyor, İngilizce cümle anahtar diye kaydediliyor ve
-    // TR→EN→ID gezildiğinde o düğüm İngilizce çakılı kalıyordu.
+    // Static text in index.html. The key is stamped onto the node **once**,
+    // by `prime()`, before the page draws anything; `applyDom` only touches a
+    // node that has a key. Otherwise every panel that builds its screen via
+    // `innerHTML` (badge captions, screens, modals) would get caught by this
+    // walk with its *already-translated* text, the English sentence would get
+    // saved as the key, and the node would freeze in English when cycling
+    // TR→EN→ID.
     textNodes(root) {
         const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         const out = [];
@@ -56,10 +58,10 @@ const I18N = {
         root = root || document.body;
         this.textNodes(root).forEach(n => {
             const key = n._trKey;
-            if(!key) return;                       // durağan olmayan düğüm: dokunma
+            if(!key) return;                       // not a static node: leave it alone
             n.nodeValue = n.nodeValue.replace(n.nodeValue.trim(), T(key));
         });
-        // Varsayılan alan değeri: oyuncu kendi adını yazdıysa dokunma
+        // Default field value: if the player typed their own name, leave it
         root.querySelectorAll('input[data-tr-value]').forEach(el => {
             const k = el.dataset.trValue;
             if(!el.value || el.value === k || el.value === el._trPrev) el.value = el._trPrev = T(k);
@@ -74,8 +76,9 @@ const I18N = {
 
     dict() { return this.dicts[this.lang] || null; },
 
-    // Şablon dizesi birden çok satıra yayılınca anahtara satır sonu + girinti
-    // karışır. Sözlük tek satırla yazılsın diye arama anahtarı normalize edilir.
+    // A template string spanning multiple lines mixes newlines and indentation
+    // into the key. The dictionary is written as one line, so the lookup key
+    // is normalized to match.
     norm(key) { return String(key).replace(/\s*\n\s*/g, ' '); },
 
     lookup(key) {
@@ -87,7 +90,7 @@ const I18N = {
         return hit;
     },
 
-    // Tarayıcı dilinden ilk açılış önerisi — seçim yapılana kadarki varsayılan
+    // First-launch suggestion from the browser's language — the default until the player picks one
     guess() {
         const l = (navigator.language || 'tr').slice(0, 2).toLowerCase();
         return this.LANGS.some(x => x.id === l) ? l : 'en';
@@ -108,10 +111,10 @@ const I18N = {
     }
 };
 
-// Tek kapı: hem `T('...')` hem `` T`...` `` buradan geçer.
+// One gate: both `T('...')` and `` T`...` `` go through here.
 function T(x, ...vals) {
     if(I18N.lang === 'tr') {
-        // Türkçede çeviri aranmaz: etiketli şablon kendi metnini kurar
+        // No lookup in Turkish: a tagged template builds its own text
         return (x && x.raw) ? x.reduce((a, s, i) => a + vals[i - 1] + s) : x;
     }
     if(!x || !x.raw) return I18N.lookup(String(x));
@@ -120,6 +123,6 @@ function T(x, ...vals) {
     return out.replace(/\{(\d+)\}/g, (m, i) => (vals[+i] !== undefined ? vals[+i] : m));
 }
 
-// Durağan metnin anahtarı, sayfa dinamik hiçbir şey çizmeden damgalanır.
+// The static text's key is stamped before the page draws anything dynamic.
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => I18N.prime());
 else I18N.prime();
