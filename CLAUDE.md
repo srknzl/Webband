@@ -13,7 +13,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `i18n.js` | Dil katmanı: `I18N` + global `T` — anahtar Türkçe kaynak metnin kendisidir |
-| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1749 anahtar); elle düzenlenmez |
+| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1761 anahtar); elle düzenlenmez |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
 | `tools/` | Node ölçüm araçları (`harness.js` + `sim/duel/economy/framegate`) — bkz. "Ölçüm araçları" |
 | `docs/olcum/` | Araçların ürettiği tarihli ölçüm raporları |
@@ -306,11 +306,12 @@ Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken 
 `state.timeScale`'i 0.5 → 1 → 2 arasında döndürür (varsayılan 1; eskiden sabit 2 idi, gün çok hızlı geçiyordu).
 
 **Harita hızı** (`getPlayerSpeed`, Warband'ın modeline yakın):
-`(temel + çeviklik×1.5) × (1 + grup bonusu + atlı oranı×0.35) × arazi × gece`.
+`(temel + çeviklik×1.5) × (1 + grup bonusu + atlı oranı×0.35) × arazi × gece × aşırı yük`.
 Temel atlıyken 105, yayayken 66. **Grup bonusu**: tek başına +%50, 10 kişide +%20, 20 kişide 0,
 sonrası kişi başı −%1 (taban −%45) — kalabalık ordu ağır ilerler, atlı oranı bu cezayı hafifletir. Atlı oranı = (süvari sayısı + atın varsa 1) / grup.
 Arazi `getTerrainInfo()`'dan gelir (orman ×0.8, nehir ×0.5, yol ×1.1) ve künyede adıyla yazar.
-Gece (saat <6 veya ≥20) ×0.85.
+Gece (saat <6 veya ≥20) ×0.85. Çantan taşıma sınırını aşarsa `Game.cargoMult()` devreye girer
+(bkz. "Taşıma kapasitesi").
 
 Her gün:
 - Asker maaşı (lvl 10–19: 2, lvl 20+: `level/2`, lvl 51: bedava)
@@ -346,9 +347,11 @@ zafer +5, yenilgi −15.
 
 ### Arayüz
 - **Sefer çubuğu** (`#top-bar`): gün + saat + günün vakti ikonu, dinar, nam, ardından
-  **çubuklu** rozetler — can, grup/kapasite, moral, seviye/XP. Son rozet hızdır; üstüne gelince
-  `#ui-speed-breakdown` kalem kalem döküm gösterir (temel / çeviklik / grup / atlı oranı /
-  arazi / gece). Rozet ikonu atlıysan 🐎, yayaysan 🥾.
+  **çubuklu** rozetler — can, grup/kapasite, **çanta yükü**, moral, seviye/XP. Son rozet hızdır;
+  üstüne gelince `#ui-speed-breakdown` kalem kalem döküm gösterir (temel / çeviklik / grup /
+  atlı oranı / arazi / gece / aşırı yük). Rozet ikonu atlıysan 🐎, yayaysan 🥾.
+  Sınırı aşan rozet kırmızıya döner — `.hud-chip.warn` artık `#chip-food`'a özel değil,
+  ortak kuraldır.
 - **Künye taşması** `Game.initTooltipClamp()` ile tek yerden çözülür: künye göründüğü anda
   ölçülüp ekran içine kaydırılır (eskiden `#chip-speed`/`#chip-time` için CSS'te elle istisna vardı,
   yeni rozet eklenince yine kesiliyordu). `.tooltip-content` **transform'u animasyonlamaz**
@@ -531,6 +534,38 @@ Ticaret malları (demir, kadife, bira, tuz) indirimden etkilenmedi — onlar kâ
 Kafileler bunun için araba dolusu erzak taşır (bkz. "Ticaret partileri").
 Al/Sat butonlarının yanında **x5** var; her işlem `#market-msg` şeridine ürün + adet + ödenen/alınan tutar + kalan dinar yazar
 (`Game.marketMsg`). Para yetmezse alabildiği kadarını alır ve bunu söyler — `alert()` kullanılmaz, pazarı kapatırdı.
+
+#### Taşıma kapasitesi — çantanın dibi var (#78)
+Envanter sınırsızdı: tek kişiyle 500 birim buğday taşınabiliyordu. Sınır **adam başıdır**
+(`Game.cargoCap()`), yük her malın adedinin toplamıdır (`cargoLoad()`), ikisi de türetilir —
+kayda yeni alan girmedi.
+
+| Kalem | Değer |
+|---|---|
+| Taban (`CARGO_BASE`) | 20 |
+| Kişi başı (`CARGO_PER_MAN`, oyuncu dahil) | +5 |
+| Atlı payı (`CARGO_PER_MOUNT`, süvari + kendi atın) | +4 |
+
+Ölçüldü: tek başına **25**, 10 yayayla **75**, üstüne 10 süvariyle **165**, kendi atınla **169**.
+İkinci kapı hızdır: `cargoMult()` = `max(0.5, 1 − aşım/kapasite × 0.5)`. Ölçüldü (169 kapasiteli
+grup, düzlük): kapasitenin altında 140.8 hız (×1), ×1.25 yükte **123.3** (×0.876), ×1.5'te
+**105.4** (×0.749), ×2 ve üstünde **70.4** (×0.5 tabanı) — yürüyemez hâle getirmez, yavaşlatır.
+
+**Pazar sessizce yok saymaz.** `buyItem` kalan yeri döngünün içinde sayar: yer kadarını alır ve
+"*(çantan doldu)*" der, hiç yer yoksa alış yapmaz ve sebebini yazar. Ölçüldü (50 kapasite,
+48 yük): `x5` alımında *"🌾 Tahıl x2 alındı · -4₺ · … (çantan doldu)"*, ikinci alışta
+*"Çantanda yer yok — taşıma sınırın 50 birim, elinde 50 birim var. Sat, depoya koy ya da
+grubunu büyüt."* — tr/en/id üçünde de, `I18N.missing` boş.
+
+Ganimet, görev ödülü ve keşif noktası **sınırı aşabilir**; bedeli hız cezasıdır. Tımar deposu
+(`loc.storage`) yer tutmaz — depo böylece hem sigorta hem ambar olur.
+
+Ölçüldü (issue'nun kendi senaryosu): 100 000 dinarla tek kişi `buyItem('wheat', 500)` çağırdığında
+alınan **25 birim**, oysa şehrin ambarında hâlâ 387 tahıl var — sınır raf değil, çantadır.
+10 kişilik grupla aynı çağrı **75 birim**. Yani ticaretin ölçeği keseyle değil **grupla** büyür
+(#46'nın arz eğrisi zaten keseyi bağlamıştı). Ekonomi aracında fark küçük çıktı
+(`--gun 60 --asker 10`: ticaret rotası −14.4 → **−15.1**₺/gün) çünkü o betiği zaten arz eğrisi
+sınırlıyordu; kapasitenin gerçek etkisi **erzak/tahıl istifi** üzerindedir.
 
 #### Mal başına arz/talep fiyatı (#24)
 Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara aynı 0.8–1.2
@@ -1591,8 +1626,8 @@ kullanabilir (`{0}`/`{1}`) — cümle dizilimi dile göre değişir. Şablon bir
 yayılınca anahtara satır sonu + girinti karışacağı için arama `I18N.norm(key)`
 (`/\s*\n\s*/g` → tek boşluk) üzerinden yapılır; sözlük üreteci de aynı dönüşümü uygular.
 
-**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1749 anahtarlık düz
-tablolardır (154 / 157 KB); kaynağı depo dışındaki elle yazılmış Türkçe→(EN, ID) sözlüğüdür.
+**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1761 anahtarlık düz
+tablolardır (157 / 160 KB); kaynağı depo dışındaki elle yazılmış Türkçe→(EN, ID) sözlüğüdür.
 Ölçüldü: `anahtar 1728, çeviri 1721, eksik 0, yer-tutucu uyumsuz 0`.
 
 #### Durağan metin: `prime()` / `applyDom()` ayrımı

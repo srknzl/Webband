@@ -1775,6 +1775,21 @@ const Game = {
         return (this.getPartyComposition().cavalry + (state.player.equipment.horse ? 1 : 0)) / total;
     },
 
+    // Çantanın dibi yoktu: tek kişiyle 500 buğday taşınabiliyordu (#78). Kapasite
+    // adam başıdır — atlı hem kendini hem yükü taşır, o yüzden fazladan pay alır.
+    CARGO_BASE: 20, CARGO_PER_MAN: 5, CARGO_PER_MOUNT: 4,
+    cargoCap() {
+        let mounted = this.getPartyComposition().cavalry + (state.player.equipment.horse ? 1 : 0);
+        return this.CARGO_BASE + this.CARGO_PER_MAN * (state.player.party.length + 1) + this.CARGO_PER_MOUNT * mounted;
+    },
+    cargoLoad() { return state.player.inventory.reduce((n, i) => n + (i.qty || 0), 0); },
+    // Ganimet ve görev ödülü sınırı aşabilir; bedeli hızdır. Kapasitenin iki
+    // katında ×0.5'e iner — yürüyemez hâle getirmek yerine yavaşlatır.
+    cargoMult() {
+        let cap = this.cargoCap(), load = this.cargoLoad();
+        return load <= cap ? 1 : Math.max(0.5, 1 - (load - cap) / cap * 0.5);
+    },
+
     isNight() { let h = state.time.hour; return h < 6 || h >= 20; },
 
     // Günün vakti: yalnızca ad/ikon (saat rozeti). Harita tonu ayrı ve kademeli
@@ -1837,14 +1852,16 @@ const Game = {
         let nightMult = this.isNight() ? 0.85 : 1;      // gece yavaş yol alınır
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
         let pathMult = 1 + (this.profLvl('pathfinding') - 1) * 0.02;  // Yol Bulma yeteneği
+        let cargoMult = this.cargoMult();                             // aşırı yük (#78)
 
         return {
-            value: (base + agiBonus) * (1 + speedBonus + mountBonus) * terrain.mult * nightMult * pathMult,
+            value: (base + agiBonus) * (1 + speedBonus + mountBonus) * terrain.mult * nightMult * pathMult * cargoMult,
             base, agiBonus,
             partyMult: speedBonus,
             mountBonus,
             nightMult,
             pathMult,
+            cargoMult,
             terrainMult: terrain.mult,
             terrain
         };
@@ -1877,6 +1894,7 @@ const Game = {
             ${row(T`Arazi (${T(spdData.terrain.name)})`, this.pct((spdData.terrainMult-1)*100, true), spdData.terrainMult >= 1)}
             ${spdData.nightMult < 1 ? row(T('Gece yürüyüşü'), this.pct(-15, true), false) : ''}
             ${spdData.pathMult > 1 ? row(T('Yol Bulma'), this.pct((spdData.pathMult-1)*100, true), true) : ''}
+            ${spdData.cargoMult < 1 ? row(T`Aşırı yük (${this.cargoLoad()}/${this.cargoCap()})`, this.pct((spdData.cargoMult-1)*100, true), false) : ''}
             <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
             ${row('<b>' + T('Toplam') + '</b>', '<b>' + spdData.value.toFixed(1) + '</b>', true)}
         `);
@@ -2936,11 +2954,16 @@ const Game = {
         if(fe) fe.classList.toggle('warn', fs.need > 0 && fs.days < 3);
         set('ui-renown', p.renown);
         set('ui-party', `${p.party.length}/${cap}`);
+        let ccap = this.cargoCap(), cload = this.cargoLoad();
+        set('ui-cargo', `${cload}/${ccap}`);
+        let ce = document.getElementById('chip-cargo');
+        if(ce) ce.classList.toggle('warn', cload > ccap);
         set('ui-hp', `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`);
         set('ui-level', p.stats.level);
 
         bar('bar-hp', p.stats.hp / p.stats.maxHp * 100);
         bar('bar-party', p.party.length / cap * 100);
+        bar('bar-cargo', cload / ccap * 100);
         bar('bar-xp', p.stats.xp / p.stats.xpNext * 100);
         set('ui-morale', Math.round(this.morale()));
         bar('bar-morale', this.morale());
@@ -3023,6 +3046,16 @@ const Game = {
             R(T('Dağılım'), `🪖${comp.infantry} 🏹${comp.archer} 🐎${comp.cavalry}`, null) +
             R(T('Atlı oranı'), this.pct(this.getMountedRatio() * 100), null),
             T('Kapasiteyi aşarsan moral düşer. Kalabalık ordu haritada yavaş yol alır; atlı oranı bu cezayı hafifletir.')));
+
+        let ccap2 = this.cargoCap(), cload2 = this.cargoLoad();
+        let cmounted = comp.cavalry + (p.equipment.horse ? 1 : 0);
+        this.setHtml('tip-cargo', this.tipBox(T('Çanta'),
+            R(T('Yük'), T`${cload2}/${ccap2} birim`, cload2 <= ccap2) +
+            R(T('Taban'), this.CARGO_BASE, null) +
+            R(T('Kişi başı'), `+${this.CARGO_PER_MAN * (p.party.length + 1)}`, null) +
+            R(T('Atlı payı'), `+${this.CARGO_PER_MOUNT * cmounted}`, cmounted > 0) +
+            (cload2 > ccap2 ? R(T('Aşırı yük hız cezası'), this.pct((this.cargoMult() - 1) * 100, true), false) : ''),
+            T('Her birim mal bir yer tutar. Sınırı aşarsan pazardan alamazsın; ganimetle aşarsan hız düşer (kapasitenin iki katında yarıya iner). Tımarındaki depoya koyduğun mal yer tutmaz.')));
 
         this.setHtml('tip-morale', this.moraleTip());
 
@@ -5090,10 +5123,12 @@ const Game = {
     },
     buyItem(id, n = 1) {
         if(this.marketPrice(id) === null) return alert(T('Bu eşya pazarda yok.'));
-        let loc = this._marketLoc, out = false, cost = 0, can = 0;
+        let loc = this._marketLoc, out = false, full = false, cost = 0, can = 0;
+        let free = this.cargoCap() - this.cargoLoad();   // çantada kalan yer (#78)
         // Fiyat birim birim hesaplanır: her alınan mal stoku düşürür, düşen stok bir sonrakini
         // pahalılaştırır. (Tek fiyatla toplu almak ucuza gelirdi — teker teker al/toplu al farkı.)
         for(; can < n; can++) {
+            if(can >= free) { full = true; break; }
             if(loc && this.stock(loc, id) < 1) { out = true; break; }
             let p = this.marketPrice(id);
             if(state.player.money - cost < p) break;
@@ -5102,7 +5137,9 @@ const Game = {
         }
         if(can <= 0) {
             this.feedback('error', document.getElementById('mrow-buy-' + id));
-            return this.marketMsg(out ? T`${T(ITEMS[id].name)} kalmadı — pazarın stoku tükendi, birkaç gün sonra gel.`
+            // Sessizce yok saymak yerine sebebini söyler: yer yok / stok yok / para yok.
+            return this.marketMsg(full ? T`Çantanda yer yok — taşıma sınırın ${this.cargoCap()} birim, elinde ${this.cargoLoad()} birim var. Sat, depoya koy ya da grubunu büyüt.`
+                : out ? T`${T(ITEMS[id].name)} kalmadı — pazarın stoku tükendi, birkaç gün sonra gel.`
                 : T`Yeterli dinarın yok — ${T(ITEMS[id].name)} ${this.marketPrice(id)}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
         }
         state.player.money -= cost;
@@ -5112,7 +5149,7 @@ const Game = {
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
         this.marketMsg(`${ITEMS[id].icon} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
-            + (can < n ? ` <i>(${out ? T('stok bitti') : T`paran ${n} taneye yetmedi`})</i>` : ''));
+            + (can < n ? ` <i>(${full ? T('çantan doldu') : out ? T('stok bitti') : T`paran ${n} taneye yetmedi`})</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
         // Parlatma yenilemeden SONRA: satır elemanı yeniden kuruluyor
         this.feedback('buy', document.getElementById('mrow-buy-' + id), -cost);
@@ -7079,7 +7116,7 @@ const Game = {
             ${this._eqSlot(T('At'),'horse',e.horse)}
         </div>
         <div style="flex:2;">
-            <h3 style="color:var(--primary)">${T`Çanta`}</h3>`;
+            <h3 style="color:var(--primary)">${T`Çanta`} <span style="font-size:0.8rem;color:${this.cargoLoad() > this.cargoCap() ? 'var(--danger)' : 'var(--text-muted)'}">${this.cargoLoad()}/${this.cargoCap()}</span></h3>`;
         if(state.player.inventory.length === 0) html += `<p>${T('Envanterin boş.')}</p>`;
         else {
             html += '<div style="display:flex;gap:0.8rem;flex-wrap:wrap;">';

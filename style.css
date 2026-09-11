@@ -557,6 +557,7 @@ body {
 .fill-party { background: linear-gradient(90deg, #2b5f7a, #59b6e0); }
 .fill-xp    { background: linear-gradient(90deg, #8a6a1c, #f0cd5c); }
 .fill-morale{ background: linear-gradient(90deg, #7a4a12, #e59b3d); }
+.fill-cargo { background: linear-gradient(90deg, #4a3a1c, #b99a4e); }
 .hud-sep { width: 1px; align-self: stretch; margin: 0 0.2rem; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.35), transparent); }
 #chip-time .hud-col { min-width: 62px; }
 #chip-speed { cursor: help; }
@@ -824,8 +825,9 @@ body.touch .menu-btn kbd { display: none; }
 #wait-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
 
 /* Erzak rozeti: 3 günden az kaldıysa kırmızıya döner */
-#chip-food.warn { border-color: rgba(224,70,58,0.65); background: rgba(90,20,16,0.35); }
-#chip-food.warn .hud-val, #chip-food.warn .hud-sub { color: #ff8f82; }
+/* Uyarı hâli her rozette aynı görünür (erzak, çanta, ...) */
+.hud-chip.warn { border-color: rgba(224,70,58,0.65); background: rgba(90,20,16,0.35); }
+.hud-chip.warn .hud-val, .hud-chip.warn .hud-sub { color: #ff8f82; }
 
 
 /* İşlem geri bildirimi (#45): satır parlaması + dinar rozetinde uçan delta */
