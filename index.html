@@ -135,16 +135,21 @@
                         <span class="mb-ico">⚔️</span><span class="mb-lbl">Grup</span><kbd>P</kbd></button>
                     <button class="menu-btn" data-view="inventory" onclick="Game.showScreen('inventory')">
                         <span class="mb-ico">🎒</span><span class="mb-lbl">Envanter</span><kbd>I</kbd></button>
-                    <button class="menu-btn" data-view="quests" onclick="Game.showScreen('quests')">
+                    <button class="menu-btn sb-extra" data-view="quests" onclick="Game.showScreen('quests')">
                         <span class="mb-ico">📜</span><span class="mb-lbl">Görevler</span><kbd>Q</kbd></button>
                     <div style="flex:1"></div>
                     <div class="sb-title">Kayıt</div>
-                    <button class="menu-btn" onclick="Save.open()">
+                    <button class="menu-btn sb-extra" onclick="Save.open()">
                         <span class="mb-ico">💾</span><span class="mb-lbl">Kayıtlar</span></button>
-                    <button class="menu-btn" onclick="Game.toggleMute()">
+                    <button class="menu-btn sb-extra" onclick="Game.toggleMute()">
                         <span class="mb-ico" id="mute-ico">🔊</span><span class="mb-lbl" id="mute-lbl">Ses Açık</span></button>
-                    <button class="menu-btn" onclick="Game.showSettings()">
+                    <button class="menu-btn sb-extra" onclick="Game.showSettings()">
                         <span class="mb-ico">⚙️</span><span class="mb-lbl">Ayarlar</span></button>
+                    <!-- Dar ekranda 8 düğme 372 px'lik şeride sığmıyordu (#86):
+                         dördü kalır, gerisi bu düğmenin arkasına iner. Masaüstünde
+                         CSS bunu gizler, şerit olduğu gibi durur. -->
+                    <button class="menu-btn sb-more" onclick="Game.showMoreMenu()">
+                        <span class="mb-ico">⋯</span><span class="mb-lbl">Daha</span></button>
                 </aside>
 
                 <!-- Views Container -->
@@ -205,9 +210,9 @@
                             <div id="touch-ui">
                                 <div id="tstick"><div id="tstick-knob"></div></div>
                                 <div id="tcmds">
-                                    <button onclick="Game.touchCommand('1')">1 Takip</button>
-                                    <button onclick="Game.touchCommand('2')">2 Hücum</button>
-                                    <button onclick="Game.touchCommand('3')">3 Mevzi</button>
+                                    <button onclick="Game.touchCommand('1')">Takip</button>
+                                    <button onclick="Game.touchCommand('2')">Hücum</button>
+                                    <button onclick="Game.touchCommand('3')">Mevzi</button>
                                 </div>
                                 <div id="tbtns">
                                     <button id="tb-block">🛡️</button>

@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.67', date: '2026-09-11', name: 'Kare Kapısı' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.68', date: '2026-09-11', name: 'Avuç İçi' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -3134,8 +3134,8 @@ const Game = {
         const dokun = this.isTouch();   // parmakla oynayana "(K)" demek anlamsız (#65)
         let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
                 + ` title="${dokun ? T('Harcanmamış puanların var — karakter ekranına git')
-                                    : T('Harcanmamış puanların var — karakter ekranına git (C)')}">✨ ${ap ? T`${ap} nitelik` : ''}`
-                + `${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
+                                    : T('Harcanmamış puanların var — karakter ekranına git (C)')}">`
+                + `✨ ${ap ? T`${ap} nitelik` : ''}${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
             + pts
@@ -3212,6 +3212,16 @@ const Game = {
         let view = document.getElementById(screenId + '-view');
         if(view) view.classList.add('active');
 
+        // Savaşta ekranın tamamı arenanındır (#86). Telefonda sefer çubuğu (123 px)
+        // ve menü şeridi (105 px) 664 px'lik pencerenin üçte birini yiyor, geriye
+        // 345 px'lik bir tuval kalıyordu: `drawHud`'ın üst şeridi, savaş kütüğü ve
+        // kumanda üst üste biniyordu. Savaşta ikisi de gizlenir; oynanmayan bir
+        // ekranda zaten kimse onlara basmıyor.
+        document.body.classList.toggle('in-battle', screenId === 'battle');
+        // Görevler dar ekranda "⋯ Daha"nın arkasında: seçili görünsün diye o düğme işaretlenir
+        let more = document.querySelector('.sb-more');
+        if(more) more.classList.toggle('active', screenId === 'quests');
+
         // Görünür hale gelen tuvali ölçüsüne kavuştur: gizliyken yapılan bir
         // resize onu 0x0 bırakmış olabilir (harita bomboş kalıyordu).
         this.resizeCanvases();
@@ -3261,20 +3271,34 @@ const Game = {
 
     // Haritadaki isim etiketleri — çıplak gölgeli yazı yerine okunur bir plaka.
     // Üst üste binenler yukarı kaydırılır (kalabalık bölgede isimler birbirini yemesin).
+    // Etiket ölçüsü ekrana göre: 19 px sabit punto 1440 px'lik tuvalde doğru,
+    // 370 px'lik telefonda etiketler birbirine giriyordu (#86). Kısa kenarın
+    // 620 px'i referans; altına düşen ekranda %68'e kadar küçülür.
+    uiScale() {
+        let cv = this.mapCanvas;
+        if(!cv || !cv.width) return 1;
+        return Math.max(0.68, Math.min(1, Math.min(cv.width, cv.height) / 620));
+    },
+
     mapLabel(ctx, text, x, y, color, accent) {
         // Yazı boyutu zoom'dan bağımsız: her yakınlıkta aynı ekran boyunda okunur
-        let k = 1 / this.camera.zoom;
+        let s = this.uiScale(), k = s / this.camera.zoom;
         let w = this.textW(ctx, text) * k + 18*k, h = 25*k;
         ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
         if(!this._labelRects) this._labelRects = [];
+        let free = false;
         for(let tries = 0; tries < 8; tries++) {
             let hit = this._labelRects.some(r =>
                 Math.abs(r.x - x) < (r.w + w)/2 && Math.abs(r.y - y) < (r.h + h)/2 + 3);
-            if(!hit) break;
+            if(!hit) { free = true; break; }
             y -= h + 5;
         }
+        // Yer açılmadıysa etiket hiç çizilmez: 8 denemeden sonra yine de basmak,
+        // dar ekranda üst üste binmiş bir yazı duvarı üretiyordu (#86). Kimin
+        // adı düştüğü künyeden okunur — üst üste binen iki ad ikisini de siler.
+        if(!free) return;
         this._labelRects.push({ x, y, w, h });
 
         ctx.fillStyle = 'rgba(8,10,14,0.72)';
@@ -5080,6 +5104,23 @@ const Game = {
         let cur = document.querySelector('.view.active');
         if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
     },
+    // Dar ekranın alt şeridinde yalnız dört sekme durur; Görevler, Kayıtlar, Ses ve
+    // Ayarlar buradan açılır (#86). Şeridin kendisi hâlâ tek gerçek menü — bu sayfa
+    // aynı `onclick`'leri çağırır, ikinci bir yol açmaz.
+    showMoreMenu() {
+        let sesli = !this.opt('muted');
+        let it = (ico, label, call) => `<button class="btn" style="display:flex;align-items:center;gap:0.6rem;width:100%;justify-content:flex-start;min-height:52px"
+            onclick="${call}"><span style="font-size:1.3rem">${ico}</span>${label}</button>`;
+        this.showModal(`<h3>${T`⋯ Daha`}</h3>
+        <div style="display:flex;flex-direction:column;gap:0.5rem">
+            ${it('📜', T('Görevler'), "Game.closeModal(); Game.showScreen('quests')")}
+            ${it('💾', T('Kayıtlar'), 'Save.open()')}
+            ${it(sesli ? '🔊' : '🔇', sesli ? T('Ses Açık') : T('Ses Kapalı'), 'Game.toggleMute(); Game.showMoreMenu()')}
+            ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}
+        </div>
+        <button class="btn primary" style="margin-top:0.9rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '340px');
+    },
+
     showSettings() {
         let sw = (k, on, off) => `<button class="btn${this.opt(k) ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.7rem"
             onclick="Game.setOpt('${k}', ${!this.opt(k)})">${this.opt(k) ? on : off}</button>`;

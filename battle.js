@@ -284,7 +284,9 @@ const Battle = {
                                      : T('WASD hareket · Sol tık saldırı');
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
             + (this.ambushed ? T('Pusuya Düştün! Etrafın sarıldı.') : T('Savaş Başladı!'))
-            + '</b><br>' + ipucu + '<br>' + T('[1] Takip · [2] Hücum · [3] Bekle') + '</div>';
+            // Emir tuşları yalnız klavyede yazılır: parmakta aynı üç emir ekranın
+            // altında düğme olarak duruyor (#86).
+            + '</b><br>' + ipucu + (Game.isTouch() ? '' : '<br>' + T('[1] Takip · [2] Hücum · [3] Bekle')) + '</div>';
         if(this.siege) document.getElementById('battle-log-left').innerHTML =
             `<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>${T`🏰 Kuşatma — ${T(this.siege.name)}`}</b><br>`
             + T`Sur geçilmez; gedikten gireceksin. Savunanın mevzi avantajı +%${Math.round(this.siege.defBonus*100)}.`
@@ -1354,32 +1356,41 @@ const Battle = {
         // kaplar: emir şeridi ile oyuncu künyesi güç çubuğunun **altına**, ekranın
         // üstüne taşınır (#65). Aşağıdaki `B - 40 / -26 / -56 / -76` aynı kalır.
         const B = Game.isTouch() ? 150 : H;
+        const dokun = Game.isTouch();
         let cmdName = this.currentCommand === 'follow' ? T('Takip Et') : this.currentCommand === 'hold' ? T('Mevzini Koru') : T('Hücum Et');
-        let hudW = Math.min(360, W - 24);
+        // Parmakla oynarken emir listesi tuvale ikinci kez yazılmaz (#86): `#tcmds`
+        // düğmeleri zaten hangi emrin açık olduğunu gösteriyor. 390 px'lik ekranda
+        // iki liste yan yana sığmıyor, "⚑ Hücum Et" ile "[2] Hücum" birbirine giriyordu.
+        let hudW = dokun ? Math.min(150, W - 24) : Math.min(360, W - 24);
         ctx.fillStyle = 'rgba(12,14,10,0.72)';
         ctx.fillRect(12, B - 40, hudW, 28);
         ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1;
         ctx.strokeRect(12, B - 40, hudW, 28);
         ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
         ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
-        // Henüz açılmamış emirler soluk: oyuncu neyin ne zaman geleceğini görür
-        ctx.font = '11px Inter, sans-serif';
-        let lbl = { '1': T('Takip'), '2': T('Hücum'), '3': T('Bekle') };
-        let x = 22 + hudW*0.42;
-        (this.cmdSlots || []).forEach(c => {
-            ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
-            let t = `[${c.key}] ${lbl[c.key]} `;
-            ctx.fillText(t, x, B - 26);
-            x += ctx.measureText(t).width + 4;
-        });
+        if(!dokun) {
+            // Henüz açılmamış emirler soluk: oyuncu neyin ne zaman geleceğini görür
+            ctx.font = '11px Inter, sans-serif';
+            let lbl = { '1': T('Takip'), '2': T('Hücum'), '3': T('Bekle') };
+            let x = 22 + hudW*0.42;
+            (this.cmdSlots || []).forEach(c => {
+                ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
+                let t = `[${c.key}] ${lbl[c.key]} `;
+                ctx.fillText(t, x, B - 26);
+                x += ctx.measureText(t).width + 4;
+            });
+        }
 
         // Oyuncu künyesi: binek, ok, blok
         let pl = this._byId ? this._byId['player'] : null;
         if(pl && pl.hp > 0) {
             let bits = [pl.type === 'cavalry' ? T('🐴 Atlı') : T('🥾 Yaya')];
             if(this.playerHasBow()) bits.push(T`🏹 ${this.arrows} ok`);
-            const blokTus = Game.isTouch() ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
-            bits.push(pl.blocking ? T('🛡 BLOK') : (this.playerHasShield() ? T`🛡 ${blokTus} blok` : T`${blokTus} savuştur`));
+            const blokTus = dokun ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
+            // Parmakta blok düğmesi ekranda duruyor; nasıl blok yapılacağını her kare
+            // yazmak dar ekranda yalnız yer yiyordu (#86). Blok anı yine de yazılır.
+            if(pl.blocking) bits.push(T('🛡 BLOK'));
+            else if(!dokun) bits.push(this.playerHasShield() ? T`🛡 ${blokTus} blok` : T`${blokTus} savuştur`);
             ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
             ctx.font = 'bold 12px Inter, sans-serif';
             ctx.fillText(bits.join('   ·   '), 22, B - 56);

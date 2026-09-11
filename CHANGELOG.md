@@ -3,6 +3,35 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.68 — Avuç İçi (2026-09-11)
+
+- **Savaşta ekranın tamamı arena.** Telefonda sefer çubuğu ve alt menü şeridi savaş
+  sırasında da duruyordu; geriye 370x345'lik bir tuval kalıyor, savaş kütüğü emir
+  şeridinin üstüne biniyor ve ekran okunmayan bir yazı yığınına dönüyordu. Savaşta
+  ikisi de gizlenir: tuval **370x345 → 390x602**, hiçbir arayüz parçası bir
+  diğeriyle kesişmiyor.
+- **Kumanda küçüldü.** Sanal çubuk 116 → 92, ⚔️/🛡️ düğmeleri 74 → 60 piksel —
+  arenanın alt yarısını kaplamıyor, kendi karakterini görüyorsun.
+- **Emir düğmelerinde klavye rakamı yok.** "1 Takip / 2 Hücum / 3 Mevzi" artık
+  yalnız **Takip / Hücum / Mevzi**; parmakla oynayan için tuş numarası anlamsızdı.
+  Aynı liste savaş kütüğünde ve tuvalde ikinci kez yazılmıyor.
+- **Alt şeritte dört sekme + "⋯ Daha".** Sekiz düğmenin üçü ekran dışında kalıyordu
+  ve kaydırılabildiğine dair bir işaret yoktu. Artık Harita / Karakter / Grup /
+  Envanter görünür, Görevler, Kayıtlar, Ses ve Ayarlar "⋯ Daha" sayfasına iner.
+- **Harita etiketleri ekrana göre.** Sabit 19 punto telefonda yazı duvarı
+  üretiyordu; punto ekranla küçülür ve yer bulamayan etiket **hiç çizilmez**
+  (üst üste binen iki ad ikisini de siler).
+- **⏳ Bekle düğmesi çalışıyor.** Künyenin üstündeki düğme her platformda ölüydü —
+  tıklama tuvale gidiyordu. Artık diğer künye düğmeleriyle aynı görünümde ve
+  tıklanabilir.
+- **Harita künyesi haritayı yemiyor**: 137 → 77 piksel, dört düğme tek satırda,
+  metinleri yerinde.
+- **Üst çubuk 123 → 73 piksel**; rozetlerin alt yazısı dar telefonda düşer, saat kalır.
+- **Dokunma hedefleri en az 44x44** — karakter ekranındaki `+`, envanterdeki
+  "Çıkar" ve savaş emir düğmeleri dahil.
+- **Can/moral gibi rozetlere dokununca açıklaması açılıyor** (10 rozetin hepsi
+  ölçüldü, künye ekranın dışına taşmıyor).
+
 ## 0.67 — Kare Kapısı (2026-09-11)
 
 - **Telefonda oyun 3.8 kare/saniyede dönüyordu.** Sebep grafik değil, kare kapısının

@@ -737,7 +737,7 @@ body {
 #top-bar .tooltip-content { max-width: min(340px, calc(100vw - 24px)); }
 
 /* Harita künyesindeki "Beni Bul" düğmesi — künye pointer-events:none olduğu için geri açılır */
-#btn-center, #btn-diplo, #btn-points {
+#btn-center, #btn-diplo, #btn-points, #btn-wait {
     pointer-events: auto;
     margin-left: 0.4rem;
     display: inline-flex; align-items: center; gap: 4px;
@@ -747,7 +747,7 @@ body {
     font-family: inherit; font-size: 0.72rem;
     padding: 1px 7px; border-radius: 5px; cursor: pointer;
 }
-#btn-center:hover, #btn-diplo:hover, #btn-points:hover { background: rgba(212,175,55,0.25); }
+#btn-center:hover, #btn-diplo:hover, #btn-points:hover, #btn-wait:hover { background: rgba(212,175,55,0.25); }
 
 /* Harcanmamış nitelik/odak puanı rozeti (#35): dikkat çeker ama sıçramaz — yalnız ışık nefes alır */
 #btn-points {
@@ -919,21 +919,43 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     .tooltip-container:hover .tooltip-content { visibility: hidden; opacity: 0; }
     .tooltip-container.tip-open .tooltip-content { visibility: visible; opacity: 1; }
 
-    /* Dokunma hedefi en az 44 px (WCAG 2.5.5) */
+    /* Dokunma hedefi en az 44 px (WCAG 2.5.5) — yalnız yükseklik yetmiyordu:
+       karakter ekranındaki `+` 21 px, envanterdeki "Çıkar" 24 px genişti (#86) */
     .btn, .menu-btn, #settlement-actions button, .action-list button,
-    #map-hud button, #modal-body button { min-height: 44px; }
+    #map-hud button, #map-acts button, #modal-body button { min-height: 44px; min-width: 44px; }
 
-    /* Kütük kumandanın altında kalmasın (emir sırası + çubuk = 230 px) */
-    .battle-logs { bottom: 236px; max-height: 18%; font-size: 0.7rem; }
+    /* Kütük kumandanın üstünde başlar. Sabit 236 px, kumanda ölçüsü değişince
+       (ve kısa tuvalde) emir şeridinin üstüne biniyordu (#86): artık kumandadan türer. */
+    .battle-logs {
+        bottom: calc(var(--tui-lift) + var(--tui-stick) + 56px);
+        max-height: 20%; font-size: 0.7rem;
+    }
+}
+
+/* --- Savaşta tam ekran (#86) ---
+   Telefonda sefer çubuğu + menü şeridi 664 px'in 228'ini yiyordu; savaşta ikisi de
+   işe yaramıyor (menüye savaş içinde girilemez zaten). Yalnız parmakla oynanan
+   cihazda gizlenir — masaüstünde yerleşim aynı kalır. */
+@media (pointer: coarse) {
+    body.in-battle #top-bar, body.in-battle #sidebar { display: none; }
+    body.in-battle .content-area { padding: 0; gap: 0; }
+    body.in-battle #battle-view { border-radius: 0; border-width: 0; }
 }
 
 /* Alt şeritte "Teslim Ol" düğmesi duruyor: kumanda onun **üstünde** başlar,
    yoksa ⚔️ düğmesi teslim düğmesini eziyordu (ölçüldü: şerit 59 px). */
-#touch-ui { --tui-lift: calc(72px + env(safe-area-inset-bottom)); }
+/* Kumanda ölçüsü tek yerde (#86): 116/74 px 345 px'lik bir arenanın alt yarısını
+   kaplıyordu. Arena artık tam ekran ama kumanda yine de parmağa göre, ekrana göre
+   değil — büyüyen ekranda büyümesi gerekmiyor. */
+:root {
+    --tui-lift: calc(66px + env(safe-area-inset-bottom));
+    --tui-stick: 92px;
+    --tui-btn: 60px;
+}
 #tstick {
     position: absolute;
     left: 18px; bottom: var(--tui-lift);
-    width: 116px; height: 116px;
+    width: var(--tui-stick); height: var(--tui-stick);
     border-radius: 50%;
     background: radial-gradient(circle, rgba(212,175,55,0.14), rgba(0,0,0,0.42));
     border: 2px solid rgba(212,175,55,0.45);
@@ -942,7 +964,8 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 }
 #tstick-knob {
     position: absolute; left: 50%; top: 50%;
-    width: 48px; height: 48px; margin: -24px 0 0 -24px;
+    width: calc(var(--tui-stick) * 0.42); height: calc(var(--tui-stick) * 0.42);
+    margin: calc(var(--tui-stick) * -0.21) 0 0 calc(var(--tui-stick) * -0.21);
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #f0e3c0, #8a6a1c);
     box-shadow: 0 3px 10px rgba(0,0,0,0.7);
@@ -955,9 +978,9 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     z-index: 30;
 }
 #tbtns button {
-    width: 74px; height: 74px;
+    width: var(--tui-btn); height: var(--tui-btn);
     border-radius: 50%;
-    font-size: 1.9rem;
+    font-size: 1.55rem;
     border: 2px solid rgba(212,175,55,0.5);
     background: rgba(20,18,14,0.62);
     color: #f0e3c0;
@@ -968,18 +991,21 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
    dururken savaş kütüğünü ve arenanın yarısını kapatıyordu */
 #tcmds {
     position: absolute;
-    left: 0; right: 0; bottom: calc(var(--tui-lift) + 124px);
+    left: 0; right: 0; bottom: calc(var(--tui-lift) + var(--tui-stick) + 12px);
     display: flex; justify-content: center; gap: 8px;
     z-index: 30;
 }
 #tcmds button {
-    min-width: 92px; min-height: 34px;
+    min-width: 92px; min-height: 44px;   /* WCAG 2.5.5 — savaşın ortasında ıskalanmasın (#86) */
     font-size: 0.78rem;
     border: 1px solid rgba(212,175,55,0.4);
     background: rgba(20,18,14,0.62);
     color: #e8dcc0;
     border-radius: 7px;
 }
+
+/* "Daha" düğmesi yalnız dar ekranın alt şeridinde işe yarar (#86) */
+.sb-more { display: none; }
 
 /* --- Dar ekran yerleşimi --- */
 @media (max-width: 820px) {
@@ -996,6 +1022,10 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
         border-radius: 12px;
     }
     #sidebar .sb-title, #sidebar > div[style*="flex:1"] { display: none; }
+    /* Alt şeritte 8 sekme çok: Harita/Karakter/Grup/Envanter kalır, gerisi
+       "⋯ Daha" sayfasına iner (#86) — telefon uygulamalarının standart deseni. */
+    #sidebar .sb-extra { display: none; }
+    .sb-more { display: flex; }
     .menu-btn {
         flex-direction: column;
         gap: 2px;
@@ -1037,6 +1067,37 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     #map-tooltip { max-width: 78vw; }
     /* Sabit köşe panelleri dar ekranda birbirini ezmesin */
     #prisoner-ui, #siege-ui, #raid-ui, #wait-ui { max-width: calc(100vw - 20px); }
+}
+
+/* --- Dar telefon (iPhone 14 ve altı): 390 px'e sığdır (#86) ---
+   Ölçüldü: sefer çubuğu 123 px (pencerenin %19'u, 8 rozet 3 satır), menü şeridi
+   scrollWidth 530 / clientWidth 372 — son üç düğme (Kayıtlar/Ses/Ayarlar) ekran
+   dışındaydı ve kaydırma işareti yoktu. */
+@media (max-width: 430px) {
+    /* Rozetin alt yazısı (dinar/nam/erzak) ikonun yanında zaten belli; yalnız
+       saat kalır, çünkü gün numarası tek başına saati söylemiyor. */
+    .hud-sub { display: none; }
+    #chip-time .hud-sub { display: block; }
+    #top-bar { padding: 0.25rem 0.3rem; gap: 0.2rem; }
+    .hud-chip { padding: 0.2rem 0.35rem; gap: 0.25rem; }
+    .hud-col { min-width: 0; }
+    #chip-time .hud-col { min-width: 44px; }
+
+    /* Beş sekme şeridi eşit böler: 364 px içerik → düğme başına ~72 px, hepsi görünür
+       (eskiden 8 düğme scrollWidth 530 / clientWidth 372 idi, üçü ekran dışındaydı) */
+    #sidebar { gap: 2px; padding: 0.2rem; }
+    .menu-btn { flex: 1 1 0; min-width: 44px; padding: 0.3rem 0.1rem; }
+    .mb-lbl { font-size: 0.62rem; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .mb-ico { font-size: 1.25rem; }
+
+    /* Harita künyesi 407 px'lik tuvalin 137'sini yiyordu (#86): punto küçülünce
+       dört düğme de tek satıra iner, metinleri yerinde kalır (ikona indirmek
+       "düğmede yazı yok" demekti). Dokunma hedefi yine 44 px. */
+    #map-hud { font-size: 0.66rem; padding: 0.3rem 0.4rem; }
+    #map-comp { gap: 1px; }
+    #btn-center, #btn-diplo, #btn-points, #btn-wait {
+        font-size: 0.6rem; margin-left: 0.15rem; padding: 1px 4px; gap: 2px;
+    }
 }
 
 /* Yatay tutulan telefon: dikey yer çok az, üst çubuk daha da incelir */

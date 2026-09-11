@@ -1587,8 +1587,9 @@ iki ayrı hedefleme yolu tutulmaz. `e.pointerType === 'mouse'` dalı eski davran
 kaydırdı (= piksel/zoom); iki parmak açıklığı 100 → 200 px olunca zoom **0.80 → 1.60**.
 Kısa dokunuş hedefi kurdu, 600 ms'lik dokunuş künyeyi açtı ve **hedefi kurmadı**.
 
-**2. Savaş kumandası** (`#touch-ui`, `Game.initTouchUI`). Sol altta 116 px'lik sanal çubuk,
-sağ altta 74 px'lik ⚔️/🛡️ düğmeleri, ikisinin üstünde tek sıra emir düğmeleri.
+**2. Savaş kumandası** (`#touch-ui`, `Game.initTouchUI`). Sol altta sanal çubuk, sağ altta
+⚔️/🛡️ düğmeleri, ikisinin üstünde tek sıra emir düğmeleri. Ölçüler `:root`'taki üç
+değişkendedir (`--tui-stick` / `--tui-btn` / `--tui-lift`) — #86'da küçültüldü.
 Hiçbiri savaş motoruna yeni bir giriş yolu açmaz:
 
 - Çubuk `Input.keys` içindeki `w/a/s/d`'yi yazar (eşik ±0.38) — motor hâlâ tuş okur.
@@ -1602,10 +1603,11 @@ Hiçbiri savaş motoruna yeni bir giriş yolu açmaz:
 
 **Ekran alt yarısı parmaklarındır**, o yüzden çizim ve paneller yukarı taşındı:
 `drawHud`'daki taban `const B = Game.isTouch() ? 150 : H` — künye ve emir şeridi güç
-çubuğunun **altında**, ekranın üstünde durur. Savaş kütüğü `bottom: 236px`'e çıkar.
+çubuğunun **altında**, ekranın üstünde durur. Savaş kütüğünün alt konumu da aynı
+kumanda değişkenlerinden türer.
 Ölçüldü (355×493 tuval): emir şeridi 110–138, kütük 223–319, emir düğmeleri 325–359,
 çubuk 367–483, ⚔️/🛡️ 409–483, Teslim Ol 503–547 — **hiçbir çift kesişmiyor**.
-Kumanda `--tui-lift: calc(72px + env(safe-area-inset-bottom))` ile alt şeridin
+Kumanda `--tui-lift: calc(66px + env(safe-area-inset-bottom))` ile alt şeridin
 (Teslim Ol) üstünde başlar ve çentikli telefonda ev çubuğunun altına girmez.
 
 **3. Dar ekran yerleşimi** (`@media (max-width: 820px)`): kenar menüsü alta açılan yatay
@@ -1659,6 +1661,77 @@ girdi (1725 → 1749), tr/en/id üçünde de `I18N.missing` boş.
 **Kabul yolu yalnız parmakla yürütüldü** (375×812, `pointer: coarse`): karakter yaratma
 sihirbazı → çapulcu savaşı **"⚔️ Mükemmel Zafer!"** (sanal çubukla dört yön de kullanıldı,
 6–7 savurma, 0 kayıp) → pazarda alışveriş (`🌾 Tahıl x1 alındı · -3₺ · kasa 663₺`).
+
+#### iPhone 14 turu: savaş tam ekran, dört sekme, "⋯ Daha" (#86)
+
+#65 ve #83 giriş yolunu ve yardım metnini düzeltmişti; **yerleşim** 390 px'lik bir
+ekranda hâlâ çökmüş durumdaydı. Bütün ekranlar 390×664'te (araç çubukları açıkken
+iPhone 14'ün görünen penceresi) parmakla gezildi, dokuz kusur ölçülüp kapatıldı.
+
+**1. Savaşta ekranın tamamı arenanındır.** Sefer çubuğu (123 px) ve menü şeridi (105 px)
+664 px'lik pencerenin üçte birini yiyordu; geriye kalan 345 px'lik tuvalde `drawHud`'ın
+üst şeridi, savaş kütüğü ve kumanda üst üste biniyordu. `showScreen` artık
+`body.in-battle` sınıfını çevirir, CSS kuralı **yalnız `pointer: coarse`** içinde
+ikisini de gizler (masaüstü dokunulmadı). Oynanmayan bir ekranda zaten kimse onlara
+basmıyor; Esc / Teslim Ol savaştan çıkınca şerit geri gelir.
+
+**2. Kumanda `:root` değişkenlerinden ölçülür.** `--tui-stick` 116 → **92**,
+`--tui-btn` 74 → **60**, `--tui-lift` 72 → **66**. `.battle-logs`'un alt konumu artık
+sabit bir piksel değil, aynı üç değişkenden türer — kumanda küçülünce kütük kendiliğinden
+yerine oturur.
+
+**3. Etiket ölçüsü ekrana göre** (`Game.uiScale()` = `max(0.68, min(1, kısa kenar/620))`).
+19 px sabit punto 1440 px'lik tuvalde doğru, 370 px'likte yazı duvarıydı. İkinci değişiklik
+çakışmada: `mapLabel` 8 denemede yer bulamazsa etiketi **hiç çizmez** (eskiden yine de
+basıyordu). Kimin adı düştüğü künyeden okunur — üst üste binen iki ad ikisini de siler.
+
+**4. Dört sekme + "⋯ Daha".** `#sidebar` 8 düğmeyle `scrollWidth 530 / clientWidth 372`
+idi: Kayıtlar, Ses ve Ayarlar ekran dışındaydı ve kaydırma işareti yoktu. Dar ekranda o
+dördü `.sb-extra` ile gizlenir, yerine `.sb-more` düğmesi çıkar ve `Game.showMoreMenu()`
+aynı `onclick`'leri modal olarak listeler — **ikinci bir kod yolu açılmaz**. Görevler
+"Daha"nın arkasında olduğu için `showScreen` o ekrandayken `.sb-more`'u `active` işaretler.
+
+**5. Harita künyesi punto ile daraltıldı, metinle değil.** İlk denemede düğmeler ikona
+indirilmişti (`⏳ Bekle` → `⏳`); oyuncunun ilk tepkisi *"bazı butonlarda text yoktu"* oldu.
+Kural: **düğmeden yazı sökülmez.** `@media (max-width: 430px)` içinde `#map-hud`
+`font-size: 0.66rem`, düğmeler `0.6rem` — künye **137 → 77 px**, dördü de tek satırda,
+dokunma hedefi yine 44 px.
+
+**6. Emir düğmelerinde klavye rakamı yok.** `1 Takip / 2 Hücum / 3 Mevzi` →
+**`Takip / Hücum / Mevzi`** (sözlük anahtarları da değişti). `drawHud` parmakta emir
+listesini tuvale **ikinci kez yazmaz** (`hudW` 360 → 150) ve savaş başlangıç kütüğüne
+`[1] Takip · [2] Hücum · [3] Bekle` satırı düşmez; blok ipucu da her kare yazılmaz,
+yalnız blok anı görünür.
+
+**7–9.** `#btn-wait` `pointer-events: auto` + altın düğme görünümü (her platformda ölüydü);
+dokunma hedefi kuralına `min-width: 44px` eklendi (`#tcmds button` dahil, 34 → 44);
+dar telefonda rozetlerin `.hud-sub` alt yazısı düşer (saat hariç) → üst çubuk **123 → 73 px**.
+
+Ölçüldü (390×664, tr):
+
+| | önce | sonra |
+|---|---|---|
+| Savaş tuvali | 370×345 | **390×602** |
+| Kesişen arayüz çifti (savaşta) | 3 | **0** |
+| Menü şeridi | `scrollWidth 530 / clientWidth 372` | **372 / 372**, 5 sekme (71–75 px) |
+| `#map-hud` yüksekliği | 137 px | **77 px** |
+| Üst çubuk | 123 px (3 satır) | **73 px** |
+| 44 px altı görünür dokunma hedefi | 6 | **0** |
+
+Savaşta ölçülen yerleşim (390×664): tuval 0–602, kütük 385–450, emir şeridi 450–494,
+çubuk 506–598, ⚔️/🛡️ 538–598, Teslim Ol 612–656 — **hiçbir çift kesişmiyor**.
+390×844'te (araç çubuksuz) aynı sıra 0–782 / 565–630 / 630–674 / 686–778 / 718–778 / 792–836.
+
+**Rozet künyeleri dokunmayla açılır** — #65'in `pointerdown` kancası zaten doğruydu,
+doğrulandı: 10 rozetin (saat, dinar, erzak, nam, can, grup, çanta, moral, seviye, hız)
+**hepsi** `tip-open` alıyor, `visibility: visible` oluyor ve künye kutusu 390×664'ün
+**tamamen içinde** kalıyor (`Game.clampTip`).
+
+Taranan ekranlar (390×664, hepsinde 44 px altı hedef 0 ve yatay taşma 0): başlangıç,
+karakter yaratma sihirbazı, harita, karakter, grup, envanter, görevler, yerleşim
+(9 düğme, 342×52), pazar, han, "⋯ Daha" sayfası, savaş. Masaüstü (1280×800) kontrolü:
+8 sekmenin hepsi görünür, `.sb-more` gizli, kısayol rozetleri yerinde, künye düğmeleri
+tam metinli — **değişen bir şey yok**. tr/en/id üçünde de `Debug.errors` 0, `I18N.missing` 0.
 
 ### Dil katmanı — Türkçe, İngilizce, Endonezce
 
