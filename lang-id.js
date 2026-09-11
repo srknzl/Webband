@@ -1787,4 +1787,7 @@ I18N.dicts.id = {
   "Başla": "Mulai",
   "Sonraki": "Berikutnya",
   "🎓 Öğretici": "🎓 Tutorial",
+  "Durumunu bilmiyorsun — yaklaş ya da içeri gir.": "Kamu tidak tahu keadaannya — dekati atau masuklah ke dalam.",
+  "Bugünkü haber:": "Kabar hari ini:",
+  "{0} gün önce:": "{0} hari lalu:",
 };

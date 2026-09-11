@@ -1787,4 +1787,7 @@ I18N.dicts.en = {
   "Başla": "Start",
   "Sonraki": "Next",
   "🎓 Öğretici": "🎓 Tutorial",
+  "Durumunu bilmiyorsun — yaklaş ya da içeri gir.": "You don't know what's going on there — get closer or go inside.",
+  "Bugünkü haber:": "Today's report:",
+  "{0} gün önce:": "{0} days ago:",
 };

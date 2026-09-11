@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.69', date: '2026-09-11', name: 'İlk Ders' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.70', date: '2026-09-11', name: 'Uzaktan Görünmez' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -1640,6 +1640,22 @@ const Game = {
     },
     canSee(npc) { return this.dist(npc, state.player) <= this.spotRange(npc); },
 
+    // Yerleşimin *yeri* haritada durur, *durumu* durmaz (#74). Surun dumanı çeteden
+    // uzaktan görünür, o yüzden görüş menzili ×1.5; garnizonu saymak için o kadar
+    // yaklaşmak (ya da daha önce uğramış olmak) gerekir.
+    LOC_SPOT: 1.5,
+    locSpotRange() { return this.getVisibility() * this.LOC_SPOT; },
+    locLive(loc) { return this.dist(loc, state.player) <= this.locSpotRange(); },
+
+    // Menzildeki her yerleşimin durumu hafızaya yazılır; künye görüş dışındayken
+    // bunu "N gün önce" diye okur. Saatte bir çalışır (25 yerleşim, ihmal edilebilir).
+    scoutTick() { LOCATIONS.forEach(loc => { if(this.locLive(loc)) this.noteLoc(loc); }); },
+    noteLoc(loc) {
+        let lord = this.ownerLord(loc);
+        loc.intel = { d: state.time.day, pr: Math.round(loc.prosperity || 50), g: this.garrisonOf(loc),
+                      v: loc.volunteersAvailable, lord: lord && lord.id, fac: loc.faction };
+    },
+
     getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
 
     // Arazi hem hız çarpanını hem de künyede yazacak adı verir — tek kaynak
@@ -2622,7 +2638,7 @@ const Game = {
         // Maaş borcu saat saat işler: tek seferlik sabit ceza yerine büyüyen bir
         // baskı. Tam saat sınırlarını sayıyoruz, dt kesirli geldiği için.
         let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
-        for(let i = 0; i < passed; i++) { this.wageDebtTick(); this.regenTick(); }
+        for(let i = 0; i < passed; i++) { this.wageDebtTick(); this.regenTick(); this.scoutTick(); }
         while(state.time.hour >= 24) {
             state.time.day++;
 
@@ -4187,6 +4203,7 @@ const Game = {
         // barıştaki komşunun şehrinde pazar ve han sana açık.
         let isEnemy = this.atWar(this.playerFaction(), loc.faction);
 
+        this.noteLoc(loc);   // kapıdan giren her şeyi görür (#74)
         Quests.emit('entered_location', { locId: loc.id, loc });
 
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
@@ -6192,17 +6209,29 @@ const Game = {
         let type = loc.type === 'city' ? T('Şehir') : loc.type === 'castle' ? T('Kale') : T('Köy');
         let pr = Math.round(loc.prosperity || 50);
         let prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul');
-        let g = this.garrisonOf(loc);
-        let lord = this.ownerLord(loc);
-        let rel = lord && typeof Nobles !== 'undefined' ? Nobles.rel(lord.id) : 0;
         let hostile = this.atWar(this.playerFaction(), loc.faction);
-        return `${T(f.name)} · ${type}<br>`
+        let kapi = hostile ? `<span style="color:#e0463a">${T`⚔️ Düşman toprağı — sadece kuşatma`}</span>`
+                           : `<span style="color:#2ecc71">${T`Kapılar sana açık`}</span>`;
+        // Durum ya gözünle görülür ya hatırlanır (#74). Hiç uğramadığın uzak kalenin
+        // garnizonunu bilmenin yolu yok — yeri bilinir, içi bilinmez.
+        let canli = this.locLive(loc), i = loc.intel;
+        if(!canli && !i) return `${T(f.name)} · ${type}<br>`
+            + `<span style="color:var(--text-muted)">${T`Durumunu bilmiyorsun — yaklaş ya da içeri gir.`}</span><br>` + kapi;
+
+        let g = canli ? this.garrisonOf(loc) : i.g;
+        let vol = canli ? loc.volunteersAvailable : i.v;
+        let lord = canli ? this.ownerLord(loc) : (typeof Nobles !== 'undefined' && i.lord ? Nobles.lord(i.lord) : null);
+        let rel = lord && typeof Nobles !== 'undefined' ? Nobles.rel(lord.id) : 0;
+        if(!canli) { pr = i.pr; prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul'); }
+        let gun = canli ? 0 : state.time.day - i.d;
+        let yas = canli ? '' : `<span style="color:var(--text-muted)">${gun <= 0 ? T`Bugünkü haber:` : T`${gun} gün önce:`}</span><br>`;
+
+        return `${T(f.name)} · ${type}<br>` + yas
             + (lord ? `${T`Sahibi: ${T(lord.name)} (${Nobles.relLabel(rel)})`}<br>` : '')
             + `${T`Refah: ${prLbl}`} <span style="color:var(--text-muted)">(${pr})</span><br>`
             + (g ? `${T`Garnizon: ~${g} asker`}<br>` : '')
-            + (loc.volunteersAvailable !== undefined ? `${T`Gönüllü: ${loc.volunteersAvailable} kişi`}<br>` : '')
-            + (hostile ? `<span style="color:#e0463a">${T`⚔️ Düşman toprağı — sadece kuşatma`}</span>`
-                       : `<span style="color:#2ecc71">${T`Kapılar sana açık`}</span>`);
+            + (vol !== undefined ? `${T`Gönüllü: ${vol} kişi`}<br>` : '')
+            + kapi;
     },
     // Yenilgide nam kaybı: düşman senden ne kadar zayıfsa rezillik o kadar büyük.
     // pow = düşmanın güç puanı (asker başına seviye+1)
@@ -7423,7 +7452,7 @@ const Save = {
             // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
             locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, parentId: l.parentId, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
                 owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock,
-                enterprise: l.enterprise, treasury: l.treasury })),   // işletme ve kasa (#53)
+                enterprise: l.enterprise, treasury: l.treasury, intel: l.intel })),   // işletme, kasa (#53), hafıza (#74)
             playerKingdom: FACTIONS['player_kingdom'] || null
         };
     },

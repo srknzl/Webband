@@ -153,10 +153,44 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
   üst üste binenler yukarı kaydırılır (`_labelRects` çakışma testi).
 - **Harita künyesi** (`handleMapHover` → `#map-tooltip`): yerleşimin üstüne gelince
   `Game.locTipHtml(loc)` — fraksiyon + tür, sahibi lord ve onunla ilişkin, refah,
-  garnizon (`Game.garrisonOf`), bekleyen gönüllü, düşman toprağıysa "sadece kuşatma" uyarısı.
+  garnizon (`Game.garrisonOf`), bekleyen gönüllü, düşman toprağıysa "sadece kuşatma" uyarısı
+  — ama **yalnız bildiğin kadarı** (bkz. "Yerleşimin yeri bilinir, durumu bilinmez").
   Çete/partinin üstünde tür (yaratık sürüsü / haydut çetesi / fraksiyon) + asker sayısı.
   *(Ekran→dünya dönüşümünde `rect/2` ortalama payı eksikti; künye imlecin yarım ekran
   uzağındaki şeyi arıyor, yani hiç açılmıyordu.)*
+
+#### Yerleşimin yeri bilinir, durumu bilinmez (#74)
+Çeteler için görüş kontrolü vardı (`canSee`), yerleşimler için yoktu: haritanın öbür
+ucundaki kalenin garnizonu, refahı ve bekleyen gönüllüsü künyede yazıyordu. Şimdi künye
+üç hâlden birini gösterir:
+
+| Hâl | Koşul | Künye |
+|---|---|---|
+| **Canlı** | `Game.locLive(loc)` — `getVisibility() × LOC_SPOT` (1.5) içinde | bugünkü gerçek değerler |
+| **Hatıra** | daha önce menzile girmiş ya da içeri girmişsin (`loc.intel`) | *"4 gün önce:"* başlığıyla **o günkü** değerler |
+| **Bilinmiyor** | hiç uğramadın | "Durumunu bilmiyorsun — yaklaş ya da içeri gir." |
+
+Menzil çetenin menzilinden geniştir (500 → **750** birim): surun dumanı uzaktan görünür,
+ama garnizonu saymak için yaklaşmak gerekir. Hafızayı `Game.noteLoc(loc)` yazar; iki
+çağıranı var — saatte bir çalışan `Game.scoutTick()` (`advanceTime`'ın saat döngüsünde,
+`regenTick`'in yanında) ve `enterLocation` (kapıdan giren her şeyi görür). Kayıt
+`loc.intel` olarak `state` ile birlikte yazılır; eski kayıtta alan yoktur, o yerleşim
+"bilinmiyor" olarak başlar — göç kodu gerekmedi.
+
+**Yer bilgisi gizlenmez**: yerleşim haritada durur, adı ve fraksiyon flaması görünür,
+hedef seçilebilir — gizlenen yalnız **değişen** şeydir (sahibi lord, refah, garnizon,
+gönüllü). Pazar fiyatını uzaktan görmenin yolu zaten yok; onun bilgi kanalı handaki
+**lonca fiyat defteridir**.
+
+Ölçüldü (tohum yok, yeni dünya): görüş 500 → yerleşim menzili **750**, 25 yerleşimin
+başlangıçta **1'i** menzilde. 3517 birimdeki Emirin köyünün künyesi
+*"Svadya Krallığı · Köy — Durumunu bilmiyorsun"*; 723 birimdeki Azgad'ınki tam döküm.
+Praven'in yanından geçip uzaklaşınca künye *"Bugünkü haber: … Garnizon ~30 asker"*,
+4 gün sonra refah gerçekte 51 → **90** olmasına rağmen künye hâlâ **"4 gün önce: …
+Refah: İdare eder (51)"** yazıyor. Kayıt turunda `intel` üç yerleşim için birebir geri
+geldi; 9000 birim öteden `enterLocation` çağrısı hafızayı **99. güne** tazeledi.
+`scoutTick` çağrısı **0.003 ms** (25 yerleşim), günlük toplam 0.072 ms.
+3 yeni anahtar iki sözlüğe de girdi; tr/en/id üçünde de `I18N.missing` boş.
 
 ### Yerleşim dağıtımı — asgari aralık, sınırdaki kale, köyün merkezi (#57)
 Eski dağıtım tek satırdı: her yerleşim kendi fraksiyonunun açı diliminde **tamamen rastgele**

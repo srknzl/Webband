@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.70 — Uzaktan Görünmez (2026-09-11)
+
+- **Uzaktaki kalenin içini göremiyorsun.** Haritanın öbür ucundaki şehrin garnizonu,
+  refahı, sahibi ve bekleyen gönüllüsü künyede yazıyordu. Artık yerleşimin **yeri**
+  bilinir, **durumu** bilinmez: hiç uğramadığın yer "durumunu bilmiyorsun" der,
+  bir kez yaklaştığın yer *"4 gün önce: Garnizon ~30 asker"* diye **o günkü** hâlini
+  hatırlatır, ancak 750 birim yaklaşınca bugünkü rakamı görürsün. Kapıdan girmek
+  her şeyi tazeler.
+- Yerleşim hâlâ haritada duruyor, adı ve bayrağı görünüyor, hedef seçilebiliyor —
+  keşif bir engel değil, bilgi artık bedava değil.
+
 ## 0.69 — İlk Ders (2026-09-11)
 
 - **Yeni oyuncuya arayüz bir kez anlatılıyor.** Karakterini kurup haritaya
