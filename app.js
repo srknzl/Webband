@@ -4987,11 +4987,12 @@ const Game = {
     // --- MARKET ---
     openMarket(loc) {
         let html = `<h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
-        <div id="market-cols" style="display:flex;gap:2rem;margin-top:1rem;">
-        <div style="flex:1;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
-        <div style="flex:1;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
+        <div id="market-cols" style="display:flex;flex-wrap:wrap;gap:2rem;margin-top:1rem;">
+        <div style="flex:1;min-width:220px;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
+        <div style="flex:1;min-width:220px;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
         </div>
-        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:var(--fs-md)"></div>`;
+        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:var(--fs-md)"></div>
+        <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>`;
         this.showModal(html);
         this._marketLoc = loc;
         this.refreshMarket();
