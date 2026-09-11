@@ -428,7 +428,9 @@ Moral hedefe doğru gider ama **hızlı düşer, yavaş toparlanır** (−10 / +
 zafer +5, yenilgi −15.
 - Moral < 25 → her gün `1 + (25−moral)/8` asker **firar eder** (en son katılanlar).
 - Savaşta bütün oyuncu askerlerinin can ve saldırısı `Game.moraleMult()` = `0.8 + moral/250`
-  ile çarpılır (moral 0 → ×0.8, 50 → ×1.0, 100 → ×1.2).
+  ile çarpılır (moral 0 → ×0.8, 50 → ×1.0, 100 → ×1.2). **Hız çarpılmaz** — eskiden sessizce
+  çarpılıyordu; düşmanın morali olmadığı için bu, düşük moralde düşmanı yakalayamama gibi
+  hiçbir yerde yazmayan bir ceza demekti.
 - Üst çubukta 🎺 rozeti, grup ekranında kalem kalem döküm (`Game.moraleHtml`).
 
 ### Arayüz
@@ -520,7 +522,7 @@ dalı `sfx('error')`, başarı `recruit`), `promoteTroop` (`upgrade`).
 | `oneHanded`/`twoHanded`/`polearm` | savaşta hasar çarpanı `0.35 + min(0.4, lvl×0.004)` |
 | `bow` | ok hasarı `0.5 + min(0.5, lvl×0.005)`, ok sayısı `24 + lvl×2`, atış süresi `max(0.5, 1.15 − lvl×0.006)` sn, sapmayı azaltır |
 | `riding` | atlı savaş hızı `95 + çeviklik×0.5 + (lvl−1)×3` |
-| `athletics` | yaya savaş hızı `50 + çeviklik×0.5 + (lvl−1)×1.5` |
+| `athletics` | yaya savaş hızı `min(85, 56 + çeviklik×0.5 + (lvl−1)×2)` — tavan `Battle.FOOT_MAX` |
 | `leadership` | grup kapasitesi +3/seviye, moral +3/seviye |
 | `persuasion` | drahoma pazarlığı |
 | `surgery` | ölen askerin yaralı kurtulma şansı |
@@ -561,6 +563,9 @@ parayı doğrudan orduya çevirmenin tek yolu.
 | Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | **atsız**, en güçlü piyade (Baltacı 80 hp / 24 atk) |
 | Kergit | Kergit Çobanı | Atlı→Süvari, Atlı Okçu→Han Muhafızı | **hepsi atlı**, en hızlı (105–118), ince zırh |
 
+- **Yaya hızları `Battle.FOOT_MAX` (85) altında kalır**; elit yayalar tavana yaklaştırıldı ki
+  atlıdan kaçamasalar da okçuyu kovalayabilsinler: Svadya Çavuşu 65→70, Nord Baltacısı 66→74,
+  Kergit Çobanı 55→70 (köylü kaçamıyordu, 55 herkesin yemiydi).
 - **Askerin de hasar türü var (#37)**: ağaçtaki hasar türü kolonu `TROOP_TYPES` üzerinden
   `Battle`'ın doğurduğu birime (`u.dmgType`) geçer, oradan zaten hazır olan
   `Battle.afterArmor` matematiğine girer. Kural basit: **balta/kılıç kesici, mızrak ve
@@ -591,8 +596,8 @@ parayı doğrudan orduya çevirmenin tek yolu.
   `state.player.party` dizisinin kendisidir) ve **➖** (`dismissTroops` → "Bir Tane / Hepsi"
   onayı) durur. Terfi düğmeleri de artık kör tercih değil: her seçenekte ikon + sınıf +
   hasar türü yazar ("🐴 Svadya Süvarisi · Süvari · kesici"). Sınıf **hızdan** okunur —
-  Kergit Atlı Okçusu ağaçta `archer`'dır ama 108 hızla gezer, yaya tavanı 66 / süvari
-  tabanı 95 olduğu için ≥90 hız "atlı" sayılır ve "Atlı Okçu" yazılır.
+  Kergit Atlı Okçusu ağaçta `archer`'dır ama 108 hızla gezer; `Battle.FOOT_MAX` (85) üstü
+  her hız "atlı" sayılır ve "Atlı Okçu" yazılır. Eşik savaşın orman kuralıyla **aynı sabittir**.
   Esir bölümünde kapasite, günlük kaçma ihtimali (`max(1, 6 − Esir Yönetimi×0.5)`) ve
   eldeki esirlerin toplam değeri görünür.
 - XP savaşta öldürme başına +1. XP dolunca ya otomatik seviye atlar ya da `TROOP_UPGRADES` varsa **terfiye hazır** olur — grup ekranından dinar ödeyerek sınıf seçilir. Terfi kademesi ada değil ağaca bakar: üstü olmayan asker elit (lvl 20) sayılır.
@@ -1154,7 +1159,12 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
 | Dağ Eşkıyaları | mızraklı yaya, altın | Dağ Eşkıyası / Eşkıya Nişancısı / Atlı Eşkıya + Eşkıya Reisi | zırhlı ve sert, 20. günden sonra doğar |
 | Kurt Sürüsü | kurt silüeti, çelik grisi | Kurt / Yaşlı Kurt + Alfa Kurt | çok hızlı (104–112), `beast`: hücum ×1.6, esir düşmez, ganimeti az |
 - **Savaş**: 2D top-down canvas arena, prosedürel arazi (tepe / çukur / orman / nehir).
-  - Arazi etkileri: ormanda okçu ×0.7 hasar & süvari ×0.6 hız, tepede okçu ×1.3 hasar, çukurda ×0.8 hız, nehirde ×0.7 hız.
+  - Arazi etkileri: ormanda okçu ×0.7 hasar & **binekli** ×0.6 hız, tepede okçu ×1.3 hasar,
+    çukurda ×0.8 hız, nehirde ×0.7 hız. **Hız cezaları çarpılmaz — en kötüsü geçerlidir**
+    (`worst()`); eskiden orman+nehir+çukur üst üste binip ×0.34 gibi oynanmaz sayılar veriyordu.
+    "Binekli" `u.mounted`'dır, `type` değil: kurtlar ağaçta `infantry`, Kergit Atlı Okçusu
+    `archer` görünür — ikisi de `type`'a bakan bir kuralı yanlış tarafa düşürüyordu.
+    `mounted` = `type==='cavalry' || hız > Battle.FOOT_MAX` (85, en yavaş atın 88'inin altı).
   - Oyuncu: WASD hareket, sol tık/boşluk ile yay şeklinde kılıç savurma (300 ms).
     **Savurma yayın içindeki EN YAKIN tek düşmana isabet eder** — eskiden yaydaki herkese
     aynı anda vuruyordu (grup biçme hatası). Ayrıca `swingCd` toparlanma süresi var
@@ -1162,18 +1172,31 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     Hasar çarpanı yeterliliğe bağlı: `0.35 + min(0.4, prof×0.004)`. Isıka giderse "ıska" yazısı çıkar.
     Menzil silaha bağlı: temel 45, mızrak +15, at üstünde +8.
   - **Binek** (`equipment.horse` varsa): oyuncu savaşa `type:'cavalry'` olarak girer — hız
-    `95 + çeviklik×0.5 + (Binicilik−1)×3` (yayada `50 + çeviklik×0.5 + (Atletizm−1)×1.5`).
+    `95 + çeviklik×0.5 + (Binicilik−1)×3` (yayada `Battle.footSpeed()` =
+    `min(85, 56 + çeviklik×0.5 + (Atletizm−1)×2)`). Yaya tavanı **en yavaş atın (88) altındadır**:
+    Atletizm ne olursa olsun insan atı geçemez — geçebilseydi hem gerçekçi olmazdı hem de
+    maksimum yaya kendi orman kuralına "binekli" diye yakalanırdı.
     **Şarj** (`Battle.chargeMult`): hasar `1 + hız oranı × (mızrak 1.6 / diğer 0.6)`, yani
     dörtnala mızrakla ×2.6'ya kadar; ≥1.8'de "MIZRAK ŞARJI!" yazısı çıkar. Ölçüldü (atlı,
     aynı vuruş): durarak 11 → dörtnala mızrak 22, dörtnala kılıç 16, yaya 11.
-    Can yarıya inince **oyuncu da attan düşer** (`dismounted`, hız −30, ikon 🧑‍🌾) — bu kontrol
-    artık oyuncu dalından önce, tek yerden herkese uygulanır.
+    Can yarıya inince **oyuncu da attan düşer** (`dismounted`, ikon 🧑‍🌾) — bu kontrol
+    oyuncu dalından önce, tek yerden herkese uygulanır. Düşen gerçekten yaya kalır:
+    oyuncu `footSpeed()`'e, asker `max(50, hız×0.55)`'e iner. Eskiden −30'du, 174'lük şövalye
+    144'te kalıp en gelişmiş yayayı hâlâ geçiyordu.
+  - **Şarj soluğu** (`Battle.chargeSpeed`): hız bonusu artık süresizdir değil — bastığın sürece
+    2 sn yanar, bitince 4 sn **soluklanma** (×0.9) gelir, ancak tam dinlenince dolar.
+    Pasif dolum **yoktur**: olsaydı kesik kesik basmak sürekli basmaktan kârlı çıkardı
+    (ölçüldü: 1/2 basışta ortalama ×1.083 > sürekli ×1.033). Hem oyuncuya hem AI'ya aynı
+    bütçe işler; oyuncuda yön sorulmaz (yaklaşmak da kaçmak da soluk yakar), AI'da eşik
+    hedefe 220 birim. HUD'da "💨 Soluklanıyor" ve "🌲 Ağır Zemin" rozetleri çıkar.
   - **Blok**: sağ tık ya da **Shift** basılı tutulur. Kalkanın baktığı yön fareye kilitlenir,
     yarı açı 60°. `Battle.blockFactor()` tek kapıdır — hem yakın dövüş (`dealMelee`) hem ok
     isabeti oradan geçer. Kalkan (`equipment.armor` = Kalkan) önden geleni **tamamen** keser,
     kalkansız blok %60'a indirir; yan/arkadan gelen hiç engellenmez. Ölçüldü (30 ham hasar,
     savunma 0): kalkanla önden 0, arkadan 30, kalkansız önden 12, bloksuz 30; ok da aynı.
-    Bedeli: blokta savuramazsın ve hızın yarıya iner (ölçüldü 10 → 5 birim/0.1 sn).
+    Bedeli: blokta savuramazsın ve hızın ×0.65'e iner — **aynı ceza AI'ya da işler**, eskiden
+    yalnız oyuncu yavaşlıyordu (yarıya iniyordu; blok yürüyerek yaklaşmayı imkânsız kılmasın diye
+    0.65'e çekildi).
     Kalkan zırh slotunu işgal ettiği için "blok mu, zırh mı" gerçek bir tercihtir.
   - **Yay**: silah `bow` ise sol tık/boşluk kılıç yerine **ok atar** (`Battle.playerShoot`).
     Torba savaş başına `24 + Okçuluk×2` ok; bitince "ok bitti" yazısı çıkar. Sapma sabitken
@@ -1218,11 +1241,13 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     Pencereler ölçülerek daraltıldı: 21'e 25 savaş 6.9 sn sürüyor, ilk deneme (8–22 sn)
     üçüncü emri hiç açmıyordu.
   - Okçu AI: 250 birim menzil, %50 ihtimalle hedefin hızına göre öndeleme yapar.
-    **Kite dengesi**: geri çekilirken hızı ×0.55, menzile yürürken ×0.8; yakın dövüş birimleri
-    hedef 220 birimden yakınken **hücuma kalkar** (×1.3, kurtlar ×1.6). Eskiden okçu takipçisiyle
-    aynı hızda kaçtığı için risksiz vuruyordu — ölçüldü: 1v1'de kovalama 28.6 sn → 12 sn,
-    piyadenin kalan canı 24 → 31.
-  - Süvari HP'si yarıya inince attan düşer (piyadeye döner, hız −30).
+    **Kite dengesi**: geri çekilirken hızı atlıda ×0.55, **yayada ×0.8** (yaya okçu zaten yavaş,
+    ikinci ceza gereksizdi), menzile yürürken ×0.8; yakın dövüş birimleri hedef 220 birimden
+    yakınken **hücuma kalkar** (×1.3, kurtlar ×1.6) — ama artık soluk bütçesiyle, bkz.
+    "Şarj soluğu". Eskiden okçu takipçisiyle aynı hızda kaçtığı için risksiz vuruyordu —
+    ölçüldü: 1v1'de kovalama 28.6 sn → 12 sn, piyadenin kalan canı 24 → 31.
+    Regresyon kapısı `tools/test.js`'in üç *"kite: …"* iddiasıdır: atlı okçu, yaya okçu ve
+    kurt sürüsü 180 sn'lik tavana takılmadan sonuçlanmalı.
   - **Herkes arenaya kilitli** (12 birim kenar payı) — geri çekilen okçular haritadan kaçıp savaşı
     sonsuza kilitliyordu.
   - Oyuncu ölürse savaş bitmez: **bayılırsın** (`Battle.knockedOut`), adamların dövüşmeye devam eder.

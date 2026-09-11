@@ -1310,6 +1310,8 @@ I18N.dicts.en = {
   "🛒 Erzak Al": "🛒 Buy Provisions",
   "🛒 Pazar - {0}": "🛒 Market - {0}",
   "🛒 Pazara Git": "🛒 Go to the Market",
+  "🌲 Ağır Zemin": "🌲 Rough Ground",
+  "💨 Soluklanıyor": "💨 Catching Breath",
   "🛡 BLOK": "🛡 BLOCK",
   "🛡 blok": "🛡 blocked",
   "🛡 düğmesi": "🛡 button",

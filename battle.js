@@ -162,9 +162,9 @@ const Battle = {
             hp: state.player.stats.hp, maxHp: state.player.stats.maxHp,
             x: startPlayerX, y: H/2,
             speed: mounted ? 95 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 3
-                           : 50 + Game.attr('agi') * 0.5 + (this.prof('athletics') - 1) * 1.5,
+                           : this.footSpeed(),
             attack: 10 + Game.attr('str') + weaponAtk,
-            defense: armorDef, type: mounted ? 'cavalry' : 'infantry',
+            defense: armorDef, type: mounted ? 'cavalry' : 'infantry', mounted,
             dmgType: this.playerDmgType(),
             hasShield: this.playerHasShield(),
             color: '#ffcc00', radius: mounted ? 9 : 8, atkCd: 0,
@@ -176,14 +176,19 @@ const Battle = {
             let typeInfo = Game.troopStats(p);
             let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
             let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
-            let debuff = (p.debuff ? 0.7 : 1) * Game.moraleMult();
+            // Açlık ve moral iki ayrı çarpandı, ikisi birden canı VE saldırıyı ×0.56'ya
+            // indiriyordu — kaybeden savaş kendi kendini besliyordu. Taban 0.7'de durur.
+            let debuff = Math.max(0.7, (p.debuff ? 0.7 : 1) * Game.moraleMult());
 
             this.units.push({
                 id: p.id, isPlayerTeam: true,
                 hp: (typeInfo.hp + lvlBonusHp) * debuff, maxHp: (typeInfo.hp + lvlBonusHp) * debuff,
                 x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
-                speed: typeInfo.speed * debuff, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense,
-                type: typeInfo.type, dmgType: typeInfo.dmgType, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
+                // Hız moralden etkilenmez: düşmanın morali yok, ölçeklenince aynı asker
+                // iki tarafta iki hızda koşuyordu. Moral canı ve saldırıyı ölçekler (arayüz de böyle diyor).
+                speed: typeInfo.speed, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense,
+                type: typeInfo.type, mounted: typeInfo.type === 'cavalry' || typeInfo.speed > this.FOOT_MAX,
+                dmgType: typeInfo.dmgType, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
                 radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0
             });
         });
@@ -270,7 +275,8 @@ const Battle = {
                 y: this.ambushed ? Math.max(20, Math.min(H-20, H/2 + Math.sin(i*2.4)*(130+Math.random()*110)))
                                  : 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense, dmgType: dmgType,
-                type: type, color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
+                type: type, mounted: type === 'cavalry' || speed > this.FOOT_MAX,
+                color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
             });
         }
 
@@ -467,6 +473,43 @@ const Battle = {
         tgt.blockFlash = 0.2;
     },
 
+    // İki ayağın tavanı. Üstündeki her şey dört ayaklıdır (en yavaş at: Atlı Çapulcu 88),
+    // yani TROOP_TYPES'ta `speed > FOOT_MAX` "binekli" demektir — `type` bunu söyleyemiyor,
+    // çünkü Kergit Atlı Okçusu 'archer', kurtlar 'infantry' görünür.
+    FOOT_MAX: 85,
+    // Şarj soluğu: bu kadar saniye hızlanır, sonra bu kadar saniye toparlanır.
+    // Nefes molası savaşın ritmi: temas kesmenin tek penceresi burası (#A1).
+    CHARGE_BURST: 2.0, CHARGE_REST: 4.0, CHARGE_TIRED: 0.9,
+
+    // Oyuncunun yaya hızı. Tavan atın altında kalır: insan atı geçemez.
+    footSpeed() {
+        return Math.min(this.FOOT_MAX, 56 + Game.attr('agi') * 0.5 + (this.prof('athletics') - 1) * 2);
+    },
+
+    // Şarjın HIZ çarpanı (aşağıdaki chargeMult hasarı ölçekler, karıştırma).
+    // Tek kapı: oyuncu ve yapay zekâ aynı soluk bütçesini harcar. Eskiden yalnız
+    // yapay zekâ hızlanıyordu, oyuncu hiçbir düzeyde temas kesemiyordu.
+    // `want` = bu birim şu an hızlanmak istiyor mu. Mesafe SORULMAZ: oyuncunun şarjını
+    // düşman uzaklığına bağlamak, oyuncunun kendi hızının eşiği kontrol ettiği bir geri
+    // besleme döngüsü kuruyordu — 220 sınırında salınan oyuncu soluğunun dörtte birini
+    // harcayıp sürekli hızlı kalıyor ve kendinden hızlı atı bile geçiyordu.
+    // Soluk yalnız gerçekten harcanırken iner, dolarken zamana yayılır.
+    chargeSpeed(u, want, dt) {
+        if(u.chargeT === undefined) u.chargeT = this.CHARGE_BURST;
+        if((u.chargeCd || 0) > 0) {                    // toparlanıyor: dursa da saat işler
+            u.chargeCd -= dt;
+            if(u.chargeCd <= 0) u.chargeT = this.CHARGE_BURST;
+            return this.CHARGE_TIRED;
+        }
+        // Harcamayan ne kaybeder ne kazanır. Pasif dolum YOK: dolum olsaydı kesik kesik
+        // basmak sürekli basmaktan kârlı olurdu (ölçüldü: 1.083 > 1.033) ve şarj ritmi
+        // yerine tuş tıkırdatma oyunu çıkardı. Soluk yalnız tam mola ile geri gelir.
+        if(!want) return 1;
+        u.chargeT -= dt;
+        if(u.chargeT <= 0) { u.chargeCd = this.CHARGE_REST; return this.CHARGE_TIRED; }
+        return u.charge || 1.3;
+    },
+
     // Şarj: at üstünde hızlıyken hasar artar, mızrakla katlanır (couched lance)
     chargeMult(u) {
         if(u.type !== 'cavalry') return 1;
@@ -524,14 +567,18 @@ const Battle = {
         let speedMod = 1.0;
         let attackMod = 1.0;
         if(!this.terrain) return { speedMod, attackMod };
-        
-        // Orman
+        // Araziler çarpılmıyor, en kötüsü geçerli: üst üste binen orman+çukur+nehir
+        // süvariyi 0.34'e indiriyordu — köylüden yavaş şövalye. Artık taban 0.6.
+        let worst = m => { speedMod = Math.min(speedMod, m); };
+
+        // Orman: dalların takıldığı şey dört ayaklı olandır. `type` bunu bilemez
+        // (Kergit Atlı Okçusu 'archer', kurt 'infantry'), bu yüzden `mounted` sorulur.
         if (this.terrain.forests) {
             for(let f of this.terrain.forests) {
                 let dx = u.x - f.x, dy = u.y - f.y;
                 if(dx*dx + dy*dy <= f.r*f.r) {
                     if(u.type === 'archer') attackMod *= 0.7;
-                    if(u.type === 'cavalry') speedMod *= 0.6;
+                    if(u.mounted) worst(0.6);
                 }
             }
         }
@@ -549,7 +596,7 @@ const Battle = {
             for(let p of this.terrain.pits) {
                 let dx = u.x - p.x, dy = u.y - p.y;
                 if(dx*dx + dy*dy <= p.r*p.r) {
-                    speedMod *= 0.8;
+                    worst(0.8);
                 }
             }
         }
@@ -557,7 +604,7 @@ const Battle = {
         if (this.terrain.rivers) {
             for(let r of this.terrain.rivers) {
                 if(u.x >= r.x && u.x <= r.x + r.w && u.y >= r.y && u.y <= r.y + r.h) {
-                    speedMod *= 0.7;
+                    worst(0.7);
                 }
             }
         }
@@ -686,7 +733,10 @@ const Battle = {
             if(u.type === 'cavalry' && u.hp < u.maxHp * 0.5 && !u.dismounted) {
                 u.type = 'infantry';
                 u.dismounted = true;
-                u.speed = Math.max(50, u.speed - 30);
+                u.mounted = false;   // yayan kalan ormanda ceza yemez
+                // Atını kaybeden yaya kalır — eskiden -30'du, 174'lük şövalye 144'te
+                // kalıyor ve en gelişmiş yaya oyuncuyu hâlâ geçiyordu. Artık gerçekten düşer.
+                u.speed = u.id === 'player' ? this.footSpeed() : Math.max(50, u.speed * 0.55);
                 if(u.id === 'player') u.radius = 8;
                 this.floatingTexts.push({ x: u.x, y: u.y - 12, text: T('Attan Düştü!'), color: '#ffaa00', life: 1.0 });
             }
@@ -698,7 +748,9 @@ const Battle = {
                 if(u.blocking) u.blockAngle = Math.atan2(Input.mouse.y - u.y, Input.mouse.x - u.x);
                 if(u.blockFlash > 0) u.blockFlash -= dt;
                 if(u.bowTimer > 0) u.bowTimer -= dt;
-                uSpeed *= u.blocking ? 0.5 : 1;
+                // Blok cezası artık iki tarafta da aynı (yapay zekâ da yavaşlar) ve 0.5 yerine
+                // 0.65: yarı hızda kalkan tutan oyuncu kuşatılıyordu, kimse blok kullanmıyordu.
+                uSpeed *= u.blocking ? 0.65 : 1;
                 // Saldırı (Sweep) Logic
                 if(u.swingCd > 0) u.swingCd -= dt;
                 if(u.isAttacking) {
@@ -743,6 +795,11 @@ const Battle = {
                 if(Input.keys['s']||Input.keys['arrowdown']) dy=1;
                 if(Input.keys['a']||Input.keys['arrowleft']) dx=-1;
                 if(Input.keys['d']||Input.keys['arrowright']) dx=1;
+                // Şarj soluğu oyuncuda da var: 220 içinde ~2 sn hızlanır, sonra ~4 sn toparlanır.
+                // Temas kesmenin tek penceresi düşmanın molasıdır; eskiden yalnız yapay zekâ
+                // hızlandığı için oyuncu hiçbir düzeyde kaçamıyordu.
+                // ponytail: yön sorulmuyor — yaklaşırken de uzaklaşırken de aynı bütçe.
+                uSpeed *= this.chargeSpeed(u, !!(dx||dy), dt);
                 if(dx||dy) {
                     let len = Math.sqrt(dx*dx+dy*dy);
                     u.vx = (dx/len)*uSpeed; u.vy = (dy/len)*uSpeed;
@@ -815,10 +872,13 @@ const Battle = {
                     if(finalDist < 250) {
                         if(finalDist < 55) {
                             // Yayı bırakıp geri çekilirken ağırlaşır — eskiden yakın dövüşçüyle
-                            // aynı hızda kaçtığı için sonsuza dek risksiz vuruyordu
+                            // aynı hızda kaçtığı için sonsuza dek risksiz vuruyordu.
+                            // Yaya okçu 0.8'e çıktı (0.55'te kendi okçun da işe yaramıyordu),
+                            // ama ATLI okçu 0.55'te kalır: 108 hızın 0.8'i kovalayanı ebediyen
+                            // geçer ve yukarıdaki hata geri gelirdi.
                             let dx = u.x - closest.x, dy = u.y - closest.y;
                             let len = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-                            let rs = uSpeed * 0.55;
+                            let rs = uSpeed * (u.mounted ? 0.55 : 0.8);
                             u.vx = (dx/len)*rs; u.vy = (dy/len)*rs;
                             u.x += u.vx*dt; u.y += u.vy*dt;
                         } else {
@@ -868,8 +928,10 @@ const Battle = {
                     if(u.blocking) u.blockAngle = Math.atan2(closest.y - u.y, closest.x - u.x);
                 } else u.blocking = false;
                 if(currentTargetDist > meleeRange) {
-                    // Hücum: hedefe yaklaşırken hızlanır, okçu kaçışını kapatır
-                    let charge = currentTargetDist < 220 ? (u.charge || 1.3) : 1;
+                    // Hücum: hedefe yaklaşırken hızlanır, okçu kaçışını kapatır — ama soluğu
+                    // tükenince toparlanır. Sürekli 1.3 olduğu sürece oyuncu temas kesemiyordu.
+                    let charge = this.chargeSpeed(u, currentTargetDist < 220, dt);
+                    if(u.blocking) charge *= 0.65;   // kalkan tutan yapay zekâ da yavaşlar (oyuncuyla aynı ceza)
                     let dx = targetX-u.x, dy = targetY-u.y;
                     let r = Math.min(uSpeed*charge*dt/Math.max(1, currentTargetDist), 1);
                     u.vx = dx*r/dt; u.vy = dy*r/dt;
@@ -1410,6 +1472,9 @@ const Battle = {
             // yazmak dar ekranda yalnız yer yiyordu (#86). Blok anı yine de yazılır.
             if(pl.blocking) bits.push(T('🛡 BLOK'));
             else if(!dokun) bits.push(this.playerHasShield() ? T`🛡 ${blokTus} blok` : T`${blokTus} savuştur`);
+            // Arazi ve soluk görünmez çarpanlardı: oyuncu neden yavaşladığını bilmiyordu.
+            if(this.getTerrainEffects(pl).speedMod < 1) bits.push(T('🌲 Ağır Zemin'));
+            if((pl.chargeCd || 0) > 0) bits.push(T('💨 Soluklanıyor'));
             ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
             ctx.font = 'bold 12px Inter, sans-serif';
             ctx.fillText(bits.join('   ·   '), 22, B - 56);

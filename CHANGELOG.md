@@ -3,6 +3,50 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.75 — Nefes Payı (2026-09-11)
+
+Savaş hızlarının baştan aşağı dengelenmesi. Kısaca: kimse sonsuza dek hızlı değil, kimse
+kaçamıyor, ve yavaşladığında **neden** yavaşladığını görüyorsun.
+
+- **Hücumun artık soluğu var.** Hem sen hem düşman hızlanabilir, ama 2 saniye sürer;
+  sonra 4 saniye soluklanma gelir ve o sırada normalden yavaşsın. Eskiden düşman piyadesi
+  sana 220 birim yaklaştığı andan itibaren **sonsuza dek** hızlıydı — kaçmak diye bir
+  seçenek yoktu. Şimdi hücum bir karar: ne zaman basacağını seçiyorsun. Kesik kesik basıp
+  bedelinden kaçmak işe yaramaz; soluk ancak tam dinlenince dolar.
+
+- **Blok artık düşmanı da yavaşlatıyor.** Kalkanını kaldırınca yavaşlamak sende hep vardı,
+  düşmanda yoktu — kalkanlı Rodok'a kalkanla yaklaşmak bu yüzden hep kayıptı. Aynı ceza
+  (×0.65) artık herkese işliyor; üstelik eskisi kadar sert değil, blokta yürüyebiliyorsun.
+
+- **Düşük moral artık askerini yavaşlatmıyor.** Moral canı ve saldırıyı düşürüyordu — bu
+  yazıyordu. Sessizce **hızı** da düşürüyordu: moralin bozukken adamların düşmanı
+  yakalayamıyordu, hiçbir yerde yazmayan ikinci bir ceza. Kalktı.
+
+- **Ormanda yavaşlayan artık gerçekten atlılar.** Kural "süvari sınıfı"na bakıyordu;
+  kurtlar ve Kergit atlı okçuları kâğıt üzerinde süvari yazmadığı için ağaçların arasından
+  tam hızla geçiyordu. Şimdi dört ayaklı olan herkes yavaşlıyor — kurtlar dahil. Ormana
+  kaçmak kurt sürüsüne karşı **işe yarar** bir taktik oldu.
+
+- **Arazi cezaları üst üste binmiyor.** Ormanın içindeki nehrin kıyısındaki çukurda
+  hızın üçte birine düşüyordu; artık yalnızca en kötü ceza sayılıyor.
+
+- **Yayan daha hızlısın.** Temel yaya hızı 50 → 56, Atletizm'in her seviyesi 1.5 yerine
+  2 veriyor. Tavan en yavaş atın **altında** duruyor: iyi bir koşucu okçuyu kovalayabilir,
+  ama hiçbir insan atı geçemez.
+
+- **Atından düşen gerçekten yaya kalır.** Eskiden hızdan sadece 30 gidiyordu; devrilen bir
+  şövalye hâlâ en gelişmiş yayadan hızlıydı. Artık hızının yarısından biraz fazlasını
+  kaybediyor.
+
+- **Yaya okçular sırtını dönüp kaçarken bu kadar sakat değil.** Geri çekilme cezası
+  atlı okçuya kaldı; yaya okçu zaten yavaştı, ikinci cezayı hak etmiyordu.
+
+- **Bazı yayalar hızlandı**: Svadya Çavuşu 65→70, Nord Baltacısı 66→74, Kergit Çobanı
+  55→70 — çoban herkesin yemiydi.
+
+- **Künyede iki yeni rozet**: 🌲 *Ağır Zemin* (arazi seni yavaşlatıyor) ve
+  💨 *Soluklanıyor* (hücum soluğun bitti). Yavaşladığında sebebini görüyorsun.
+
 ## 0.74 — Aç Ordu (2026-09-11)
 
 - **Her pencerenin köşesinde × var.** Esc ve dışarı tıklamak zaten kapatıyordu ama

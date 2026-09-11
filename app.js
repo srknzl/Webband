@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.74', date: '2026-09-11', name: 'Aç Ordu' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.75', date: '2026-09-11', name: 'Nefes Payı' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -284,7 +284,7 @@ const TROOP_TREES = {
         recruit: ['Svadya Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Svadya Milisi', 'infantry', 45, 60, 12, 5, '🛡️', 'pierce', 40],
-             ['Svadya Çavuşu', 'infantry', 65, 65, 18, 12, '🏰', 'cut', 100]],
+             ['Svadya Çavuşu', 'infantry', 65, 70, 18, 12, '🏰', 'cut', 100]],
             [['Svadya Avcısı', 'archer', 35, 55, 6, 2, '🏹', 'pierce', 50],
              ['Svadya Keskin Nişancısı', 'archer', 45, 60, 10, 5, '🎯', 'pierce', 120]],
             [['Svadya Süvarisi', 'cavalry', 50, 99, 12, 8, '🐴', 'cut', 70],
@@ -315,13 +315,13 @@ const TROOP_TREES = {
         recruit: ['Nord Serfi', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Nord Savaşçısı', 'infantry', 50, 62, 14, 6, '🛡️', 'cut', 45],
-             ['Nord Baltacısı', 'infantry', 80, 66, 24, 13, '🪓', 'cut', 140]],
+             ['Nord Baltacısı', 'infantry', 80, 74, 24, 13, '🪓', 'cut', 140]],
             [['Nord Avcısı', 'archer', 38, 58, 9, 3, '🏹', 'pierce', 50],
              ['Nord Nişancısı', 'archer', 50, 60, 12, 6, '🎯', 'pierce', 115]]
         ]
     },
     khergit: {  // hepsi atlı; hızlı ama ince zırhlı
-        recruit: ['Kergit Çobanı', 'infantry', 20, 55, 6, 0, '🪖', 'blunt'],
+        recruit: ['Kergit Çobanı', 'infantry', 20, 70, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Kergit Atlısı', 'cavalry', 44, 105, 11, 4, '🐴', 'cut', 60],
              ['Kergit Süvarisi', 'cavalry', 58, 115, 18, 8, '⚔️🐴', 'cut', 135]],
@@ -7101,8 +7101,9 @@ const Game = {
     troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? T(' 🩹 (yaralı)') : ''); },
     troopClassName(st) {
         // Kergit atlı okçusu ağaçta 'archer' ama 108 hızla gezer — sınıfı hıza bakarak yaz,
-        // yoksa listede yaya okçularla aynı görünüyor. Yaya tavanı 66, süvari tabanı 95.
-        let mounted = st.type === 'cavalry' || st.speed >= 90;
+        // yoksa listede yaya okçularla aynı görünüyor. Sınır `Battle.FOOT_MAX` — savaşta
+        // ormanın "binekli" kuralı da aynı sayıya bakar, iki yerde iki eşik olmasın.
+        let mounted = st.type === 'cavalry' || st.speed > Battle.FOOT_MAX;
         if(st.type === 'archer') return mounted ? T('Atlı Okçu') : T('Okçu');
         return mounted ? T('Süvari') : T('Piyade');
     },

@@ -1310,6 +1310,8 @@ I18N.dicts.id = {
   "🛒 Erzak Al": "🛒 Beli Perbekalan",
   "🛒 Pazar - {0}": "🛒 Pasar - {0}",
   "🛒 Pazara Git": "🛒 Ke Pasar",
+  "🌲 Ağır Zemin": "🌲 Medan Berat",
+  "💨 Soluklanıyor": "💨 Mengatur Napas",
   "🛡 BLOK": "🛡 TANGKIS",
   "🛡 blok": "🛡 tertangkis",
   "🛡 düğmesi": "tombol 🛡",

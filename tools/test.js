@@ -279,6 +279,116 @@ test('modal: karşılaşma penceresi kullanıcı elinden kapanmaz, kendi düğme
     state.player.currentEncounterNpcId = null;
 });
 
+// --- Savaş hızı dengesi ---
+// Hız zincirinin dört halkası oyuncu ile yapay zekâda farklı işliyordu; düzeltirken
+// eski "okçu sonsuza dek kaçar" hatasını geri getirmek en büyük risk. Testler o iki
+// ucu birden tutar: kaçış mümkün olmalı, ama kimse ebediyen kaçamamalı.
+
+test('hız: yayanın tavanı en yavaş atın altında (insan atı geçemez)', () => {
+    reset();
+    const p = state.player;
+    p.stats.agi = 99; p.proficiencies.athletics = { level: 99, xp: 0 };
+    const enYavasAt = Math.min(...Object.values(g.TROOP_TYPES)
+        .filter(t => t.type === 'cavalry').map(t => t.speed));
+    assert.ok(Battle.footSpeed() <= Battle.FOOT_MAX, `yaya tavanı ${Battle.footSpeed()}`);
+    assert.ok(Battle.FOOT_MAX < enYavasAt, `yaya tavanı ${Battle.FOOT_MAX} ≥ en yavaş at ${enYavasAt}`);
+    reset();
+});
+
+test('hız: FOOT_MAX üstü her asker gerçekten binekli (orman kuralının dayanağı)', () => {
+    Object.entries(g.TROOP_TYPES).forEach(([ad, t]) => {
+        if(t.speed > Battle.FOOT_MAX)
+            assert.ok(t.type === 'cavalry' || /Atlı|Muhafızı/.test(ad), `${ad} ${t.speed} hızlı ama yaya görünüyor`);
+        if(t.type === 'cavalry')
+            assert.ok(t.speed > Battle.FOOT_MAX, `${ad} süvari ama ${t.speed} ≤ ${Battle.FOOT_MAX}`);
+    });
+});
+
+// Battle.start gerçek arenayı kurar (tuval, yerleşim) — bunlar `world`u ister.
+const gw = H.world({ seed: 1 });
+
+test('hız: moral askerin hızını ölçeklemez (düşmanın morali yok)', () => {
+    const hizi = moral => {
+        gw.state.player.morale = moral;
+        gw.state.player.party = [{ id: 'm1', name: 'Svadya Milisi', level: 1 }];
+        gw.Battle.start('Çapulcu', 1);
+        const u = gw.Battle.units.find(x => x.id === 'm1');
+        gw.Battle.active = false;
+        return u.speed;
+    };
+    assert.strictEqual(hizi(0), hizi(100), 'moral hızı değiştiriyor');
+    gw.state.player.party = [];
+});
+
+test('hız: arazi cezaları çarpılmaz, en kötüsü geçerli', () => {
+    const u = { x: 100, y: 100, type: 'cavalry', mounted: true };
+    Battle.terrain = {
+        forests: [{ x: 100, y: 100, r: 50 }],
+        pits:    [{ x: 100, y: 100, r: 50 }],
+        rivers:  [{ x: 50, y: 50, w: 200, h: 200 }],
+        hills: []
+    };
+    const m = Battle.getTerrainEffects(u).speedMod;
+    assert.ok(Math.abs(m - 0.6) < 1e-9, `üst üste arazide ${m} (0.6 bekleniyordu)`);
+    Battle.terrain = null;
+});
+
+test('şarj: soluk tükenir — kimse kalıcı olarak hızlı değil', () => {
+    const dt = 1/60, u = { charge: 1.3 };
+    let burst = 0, tired = 0;
+    for(let i = 0; i < 60 * 10; i++) {                    // 10 sn aralıksız koşu
+        const m = Battle.chargeSpeed(u, true, dt);
+        if(m > 1) burst++; else if(m < 1) tired++;
+    }
+    assert.ok(burst > 0 && tired > 0, `şarj ${burst} kare, mola ${tired} kare`);
+    // Mola koşudan uzun olmalı: temas kesme penceresi buradan çıkıyor
+    assert.ok(tired > burst, `mola (${tired}) koşudan (${burst}) kısa — kaçış penceresi yok`);
+    // Dinlenen birim soluğunu geri kazanır
+    for(let i = 0; i < 60 * 10; i++) Battle.chargeSpeed(u, false, dt);
+    assert.ok(Battle.chargeSpeed(u, true, dt) > 1, 'dinlenince şarj dolmadı');
+});
+
+// Bu testin yakaladığı hata gerçekten yaşandı: şarj düşman uzaklığına bağlıyken
+// oyuncunun kendi hızı eşiği kontrol ediyordu. Sınırda salınan oyuncu soluğunun
+// dörtte birini harcayıp sürekli hızlı kalıyor, kendinden hızlı atı bile geçiyordu.
+test('şarj: kesintili basıp bırakmak sürekli şarjdan hızlı olamaz', () => {
+    const dt = 1/60, N = 60 * 30;
+    const ortalama = duty => {                      // duty: her `duty` karede 1 kare şarj
+        const u = { charge: 1.3 };
+        let top = 0;
+        for(let i = 0; i < N; i++) top += Battle.chargeSpeed(u, i % duty === 0, dt);
+        return top / N;
+    };
+    const surekli = ortalama(1);
+    [2, 3, 4, 6].forEach(d => {
+        assert.ok(ortalama(d) <= surekli + 1e-9,
+            `1/${d} basışta ortalama ${ortalama(d).toFixed(4)} > sürekli ${surekli.toFixed(4)} — sınır istismarı`);
+    });
+});
+
+// --- Cheese kapıları: kaçış mümkün, ama sonsuz kaçış değil ---
+// duel.js gerçek motoru adım adım işletir; kite sonsuzsa dövüş MAX_S'e kadar
+// sürer ve `won: null` döner. Kilit = kite hatası.
+const { fight } = require('./duel');
+
+test('kite: atlı okçu yakın dövüşçüden sonsuza dek kaçamaz', () => {
+    const r = fight(gw, 'Kergit Atlı Okçusu', 'Nord Baltacısı', 3);
+    assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi — atlı okçu kite ediyor`);
+});
+
+test('kite: yaya okçu 0.8 kaçışla da yakalanır', () => {
+    const r = fight(gw, 'Rodok Tatar Yaylısı', 'Nord Savaşçısı', 3);
+    assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi — yaya okçu kite ediyor`);
+});
+
+// Kurtlar `TROOP_TYPES`'ta yok (çeteden doğarlar), o yüzden buradaki en zor durum
+// yayanın atlıyı kovalamasıdır: yaya artık şövalyeyi yakalayamaz, ama şövalye de
+// vur-kaç yapıp sonsuza dek gezinemez — savaş bir yerde bitmeli.
+test('kite: yaya atlıyı yakalayamasa da savaş sonuçlanır', () => {
+    const r = fight(gw, 'Nord Savaşçısı', 'Svadya Şövalyesi', 4);
+    assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi`);
+});
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.

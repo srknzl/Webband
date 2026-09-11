@@ -17,18 +17,30 @@ const H = require('./harness');
 const DT = 1 / 60;          // motorun kendi kare adımı
 const MAX_S = 180;          // kilitlenen dövüş sonsuza sürmesin
 
+// Doğum yeri ve saldırı sayacı zar atar; zar `Math.random` olursa aynı komut iki farklı
+// sonuç verir ve kilitlenme sınırına yakın eşleşmeler testte kâh geçer kâh kalır. Akış
+// dünya başına bir kez kurulur: turlar birbirinden farklı, koşular birbirinin aynısı.
+function rngOf(g) {
+    if(!g._duelRng) g._duelRng = H.mulberry32(g.seed === undefined ? 1 : g.seed);
+    return g._duelRng;
+}
+
 function mkUnit(g, name, i, team, W, HGT) {
     const t = g.TROOP_TYPES[name];
     if(!t) throw new Error(`bilinmeyen asker: ${name}`);
+    const rnd = rngOf(g);
     return {
         id: (team ? 'a_' : 'b_') + i, isPlayerTeam: team, name,
         hp: t.hp, maxHp: t.hp,
-        x: team ? 60 + Math.random() * 40 : W - 100 + Math.random() * 40,
-        y: 40 + Math.random() * (HGT - 80),
+        x: team ? 60 + rnd() * 40 : W - 100 + rnd() * 40,
+        y: 40 + rnd() * (HGT - 80),
         speed: t.speed, attack: t.attack, defense: t.defense,
         type: t.type, dmgType: t.dmgType, charge: 1.3,
+        // Arazinin "binekli" kuralı `type`'a değil buna bakar (battle.js ile aynı kural) —
+        // koymazsak ölçüm, atlıyı ormanda cezasız dövüştürür.
+        mounted: t.type === 'cavalry' || t.speed > g.Battle.FOOT_MAX,
         color: team ? '#33aaff' : '#ff4444', radius: t.type === 'cavalry' ? 7 : 5,
-        atkCd: Math.random() * 0.6
+        atkCd: rnd() * 0.6
     };
 }
 
