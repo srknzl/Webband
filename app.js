@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.73', date: '2026-09-11', name: 'Kale Adı' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.74', date: '2026-09-11', name: 'Aç Ordu' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -482,14 +482,17 @@ const state = {
 const Input = {
     keys: {},
     mouse: { x: 0, y: 0 },
-    stick: null,          // sanal çubuğun son yönü (#65) — parmakla nişan buradan okunur
+    stick: null,          // sol çubuğun son yönü (#65) — hareket
+    aim: null,            // sağ çubuğun son yönü (#88) — nişan; varsa sol çubuğu ezer
 
     // Parmakla oynarken fare imleci yok: nişan çubuğun yönünden türer. Savaş motoru
     // hâlâ yalnız Input.mouse'a bakar, yani iki ayrı nişan yolu tutulmaz.
+    // Sağ çubuğa hiç dokunulmazsa nişan eskisi gibi hareket yönüdür.
     aimSync(u) {
-        if(!this.stick) return;
-        this.mouse.x = u.x + this.stick.x * 120;
-        this.mouse.y = u.y + this.stick.y * 120;
+        let d = this.aim || this.stick;
+        if(!d) return;
+        this.mouse.x = u.x + d.x * 120;
+        this.mouse.y = u.y + d.y * 120;
     },
 
     init() {
@@ -531,7 +534,7 @@ const Input = {
         window.addEventListener('mousemove', e => {
             Input.mouse.clientX = e.clientX;
             Input.mouse.clientY = e.clientY;
-            Input.stick = null;      // fare kıpırdadıysa nişanı o alır, sanal çubuk değil
+            Input.stick = null; Input.aim = null;   // fare kıpırdadıysa nişanı o alır, sanal çubuk değil
             
             let canvas = document.getElementById('battle-canvas');
             if(canvas && canvas.offsetParent !== null) { // Only track if visible
@@ -668,6 +671,12 @@ const Game = {
         this.mapCanvas.addEventListener('pointercancel', e => this.onMapUp(e));
         // Klavyesi olmayan cihazda tuş rozetleri yalan söyler: CSS tek sınıftan okur (#65)
         document.body.classList.toggle('touch', this.isTouch());
+        // iOS Safari `user-scalable=no`'yu yok sayar: iki parmakla bütün arayüz
+        // büyüyor, oyun kayıyor ve geri döndürmenin yolu kalmıyordu. Sayfa zoom'u
+        // bu oyunda hiçbir işe yaramıyor — Safari'nin kendi gesture olayları burada,
+        // Chrome/Android tarafı style.css'teki `touch-action` ile kesiliyor.
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev =>
+            document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
         this.initTouchUI();
         document.getElementById('modal-overlay').addEventListener('click', e => {
             // Karşılaşma (savaş/teslim ol) modali açıkken dışa tıklayarak kapanmasın
@@ -1273,10 +1282,20 @@ const Game = {
         return T(npc.name);
     },
 
+    // Yeni çete/parti oyuncunun kucağında doğmaz. Oyuncu 4500,4500'de başlar ve
+    // r rastgele 0'dan başladığı için ilk karede dibinde bir çapulcu çetesi
+    // olabiliyordu: fark etmeden yakalanıp esir düşülüyordu. Tek kapı burası —
+    // hem dünya kurulurken (spawnNPCs) hem günlük yenilenmede (spawnBand) geçer.
+    SPAWN_SAFE: 1500,
+
     createNPC(name, type, size, color, faction = null, level = 1) {
-        let a = Math.random() * Math.PI * 2;
-        let r = Math.random() * 3800; // Harita içinde rastgele
-        let x = 4500 + Math.cos(a)*r, y = 4500 + Math.sin(a)*r;
+        let x, y;
+        for(let i = 0; i < 40; i++) {
+            let a = Math.random() * Math.PI * 2;
+            let r = Math.random() * 3800; // Harita içinde rastgele
+            x = 4500 + Math.cos(a)*r; y = 4500 + Math.sin(a)*r;
+            if(this.dist({ x, y }, state.player) >= this.SPAWN_SAFE) break;
+        }
         return {
             id: 'npc_' + Math.random().toString(36).substr(2,9),
             name, type, faction, level,
@@ -1313,12 +1332,13 @@ const Game = {
 
     renderCreation() {
         let step = this.creation.step;
-        if(step > BACKGROUND.length) return this.renderCreationSummary();
+        if(step > BACKGROUND.length + 1) return this.renderCreationSummary();
+        if(step === BACKGROUND.length + 1) return this.renderDiffStep();
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
         let html = `<h3>${T(q.q)}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+1} — ${T(q.hint)}`}</p>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
@@ -1357,7 +1377,7 @@ const Game = {
 
     renderBannerStep() {
         let html = `<h3>${T`Sancağını seç`}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+1} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
@@ -1377,6 +1397,46 @@ const Game = {
         this.renderCreation();
     },
 
+    // Oyuna girmeden sorulan ayarlar (#88): zorluk ve hafif mod. Dil ilk açılışta
+    // zaten soruluyor (#lang-ask). Ayrı bir tablo yok — ⚙️ Ayarlar'daki satırlarla
+    // aynı Game.DIFFS / Game.OPTS'tan okur, aynı Game.setOpt kapısından yazar.
+    renderDiffStep() {
+        let cur = this.opt('difficulty'), lt = this.opt('lite');
+        let html = `<h3>${T`⚙️ Ayarlar`}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+2}/${BACKGROUND.length+2} — ${T(`Sonradan ⚙️ Ayarlar'dan değiştirebilirsin.`)}`}</p>
+            <h4 style="margin:1rem 0 0.4rem">${T('⚔️ Zorluk')}</h4>
+            <div style="display:flex;flex-direction:column;gap:0.5rem">`;
+        for(let k in this.DIFFS) {
+            let d = this.DIFFS[k];
+            html += `<button class="btn${cur === k ? ' primary' : ''}" style="text-align:left;line-height:1.4"
+                onclick="Game.pickDiff('${k}')">
+                <b>${T(d.name)}</b>
+                <div style="font-size:var(--fs-sm);color:var(--text-muted)">${T(d.note)}</div>
+            </button>`;
+        }
+        html += `</div><h4 style="margin:1.1rem 0 0.4rem">${T('📱 Hafif mod')}</h4>
+            <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:0.5rem">${T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.')}</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">`;
+        for(let v of ['auto', true, false]) {
+            html += `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm)"
+                onclick="Game.setOpt('lite', ${JSON.stringify(v)}); Game.renderDiffStep()">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`;
+        }
+        html += `</div><div style="display:flex;gap:0.5rem;margin-top:1.2rem">
+            <button class="btn" onclick="Game.creationBack()">${T`← Geri`}</button>
+            <button class="btn primary" onclick="Game.diffStepDone()">${T`Sonraki`}</button></div>`;
+        this.showModal(html, '660px');
+    },
+
+    pickDiff(k) {
+        this.setOpt('difficulty', k);
+        this.renderDiffStep();     // seçim kalsın, hafif mod da sorulacak
+    },
+
+    diffStepDone() {
+        this.creation.step = BACKGROUND.length + 2;
+        this.renderCreation();
+    },
+
     renderCreationSummary() {
         let sel = this.creation.sel;
         let rows = BACKGROUND.map(q => {
@@ -1391,6 +1451,7 @@ const Game = {
                 <div style="flex:1;font-size:var(--fs-md);line-height:1.5">
                     <div style="color:${b.color};font-weight:bold">${T`${T(b.name)} sancağı`}</div>
                     ${rows}
+                    <div><b>${T('⚔️ Zorluk')}</b> ${T(this.diff().name)}</div>
                 </div>
             </div>
             <div style="display:flex;gap:0.6rem;margin-top:1.2rem">
@@ -1984,13 +2045,13 @@ const Game = {
         if (Battle.active || TournamentMinigame.active) return;
         state.meta.playtime = (state.meta.playtime || 0) + dt;   // kayıt künyesinde oynama süresi
         
-        // Fare ile Ekran Kaydırma (Edge Panning)
+        // Fare ile Ekran Kaydırma (Edge Panning) — kapısı Game.edgePan(), ⚙️ Ayarlar'dan kapanır.
         let edgeMargin = 40;
         let panSpeed = 600 * dt / this.camera.zoom;
         let mx = Input.mouse.clientX;
         let my = Input.mouse.clientY;
         
-        if (document.getElementById('map-view').classList.contains('active') && mx !== undefined) {
+        if (this.edgePan() && document.getElementById('map-view').classList.contains('active') && mx !== undefined) {
             let rect = this.mapCanvas.getBoundingClientRect();
             if (mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom) {
                 let innerX = mx - rect.left;
@@ -4086,41 +4147,57 @@ const Game = {
         this.handleMapClick(e);
     },
 
-    // Savaşta sanal çubuk: parmağın yönü WASD'ye çevrilir, yani savaş motoru
-    // hâlâ tek giriş yolu görür (`Input.keys`). Nişan da aynı yönden okunur —
-    // parmakla oynarken fare imleci diye bir şey yok.
+    // Savaşta iki sanal çubuk (#88): sol çubuk parmağın yönünü WASD'ye çevirir (savaş
+    // motoru hâlâ tek giriş yolu görür), sağ çubuk kılıca yön verir — çektiğin yere
+    // vurursun, parmağı kaldırınca savurur. Sağ çubuğa dokunulmazsa nişan eskisi gibi
+    // hareket yönünden gelir.
     initTouchUI() {
-        let st = document.getElementById('tstick'), knob = document.getElementById('tstick-knob');
+        let st = document.getElementById('tstick');
         if(!st) return;
-        const R = 42;
-        let id = null, cx = 0, cy = 0;
-        const set = (dx, dy) => {
-            let len = Math.hypot(dx, dy);
-            if(len < 12) {
-                ['w', 'a', 's', 'd'].forEach(k => Input.keys[k] = false);
-                knob.style.transform = '';
-                return;                                   // yön korunur: bırakınca nişan dönmesin
-            }
-            let nx = dx / len, ny = dy / len;
-            Input.stick = { x: nx, y: ny };
-            Input.keys['a'] = nx < -0.38; Input.keys['d'] = nx > 0.38;
-            Input.keys['w'] = ny < -0.38; Input.keys['s'] = ny > 0.38;
-            let c = Math.min(1, len / R);
-            knob.style.transform = `translate(${(nx * R * c).toFixed(1)}px, ${(ny * R * c).toFixed(1)}px)`;
+        // Çubuk makinesi tek yerde: `onDir(d)` yön verir (bırakıldığında null), `onEnd`
+        // parmak kalkınca çalışır.
+        const mount = (el, knob, onDir, onEnd) => {
+            const R = 42;
+            let id = null, cx = 0, cy = 0;
+            const set = (dx, dy) => {
+                let len = Math.hypot(dx, dy);
+                if(len < 12) {
+                    onDir(null);
+                    knob.style.transform = '';
+                    return;                               // yön korunur: bırakınca nişan dönmesin
+                }
+                let nx = dx / len, ny = dy / len;
+                onDir({ x: nx, y: ny });
+                let c = Math.min(1, len / R);
+                knob.style.transform = `translate(${(nx * R * c).toFixed(1)}px, ${(ny * R * c).toFixed(1)}px)`;
+            };
+            el.addEventListener('pointerdown', e => {
+                e.preventDefault(); id = e.pointerId;
+                try { el.setPointerCapture(id); } catch(_) {}
+                let r = el.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+                set(e.clientX - cx, e.clientY - cy);
+            });
+            el.addEventListener('pointermove', e => { if(e.pointerId === id) set(e.clientX - cx, e.clientY - cy); });
+            const off = e => { if(e.pointerId === id) { id = null; set(0, 0); if(onEnd) onEnd(); } };
+            el.addEventListener('pointerup', off);
+            el.addEventListener('pointercancel', off);
         };
-        st.addEventListener('pointerdown', e => {
-            e.preventDefault(); id = e.pointerId;
-            try { st.setPointerCapture(id); } catch(_) {}
-            let r = st.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2;
-            set(e.clientX - cx, e.clientY - cy);
-        });
-        st.addEventListener('pointermove', e => { if(e.pointerId === id) set(e.clientX - cx, e.clientY - cy); });
-        const off = e => { if(e.pointerId === id) { id = null; set(0, 0); } };
-        st.addEventListener('pointerup', off);
-        st.addEventListener('pointercancel', off);
 
-        let at = document.getElementById('tb-attack'), bl = document.getElementById('tb-block');
-        at.addEventListener('pointerdown', e => { e.preventDefault(); Battle.playerAttack(); });
+        mount(st, document.getElementById('tstick-knob'), d => {
+            if(!d) return ['w', 'a', 's', 'd'].forEach(k => Input.keys[k] = false);
+            Input.stick = d;
+            Input.keys['a'] = d.x < -0.38; Input.keys['d'] = d.x > 0.38;
+            Input.keys['w'] = d.y < -0.38; Input.keys['s'] = d.y > 0.38;
+        });
+
+        // Sağ çubuk: sürüklerken nişan, bırakınca savurma. Dokunup bırakmak (sürüklemeden)
+        // son nişan yönüne vurur — yani eski ⚔️ düğmesinin işi de duruyor.
+        let ast = document.getElementById('tastick');
+        if(ast) mount(ast, document.getElementById('tastick-knob'),
+            d => { if(d) Input.aim = d; },
+            () => Battle.playerAttack());
+
+        let bl = document.getElementById('tb-block');
         bl.addEventListener('pointerdown', e => { e.preventDefault(); Battle.blockHeld = true; bl.classList.add('on'); });
         const blOff = () => { Battle.blockHeld = false; bl.classList.remove('on'); };
         bl.addEventListener('pointerup', blOff);
@@ -5096,7 +5173,7 @@ const Game = {
     // ============ AYARLAR (#55 madde 7) ============
     // Tek ekran, tek okuma kapısı: her ayarın varsayılanı OPTS'ta durur, sapan
     // anahtar state.settings'e yazılır (yani kayda girer ve eski kayıtta boş kalır).
-    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal' },
+    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal', edgePan: 'auto' },
 
     // Zorluk tek bir çarpan çiftidir: **aldığın** ve **verdiğin** hasar. Başka
     // hiçbir sayı oynamaz — kurt sürüsü de lord ordusu da aynı kapıdan geçer, yani
@@ -5112,6 +5189,10 @@ const Game = {
     // Tek çağrı yeri `Battle.afterArmor` — yakın dövüş de ok da oradan geçer.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
+    // Fareyi ekran kenarına dayayınca haritanın kayması masaüstüne özgüdür: dokunmatikte
+    // imleç yoktur, son dokunuşun koordinatı Input.mouse'ta kalır ve kenara denk gelirse
+    // harita kendi kendine kayardı. 'auto' cihazı sorar, iki uç değer oyuncunun kararıdır.
+    edgePan() { let v = this.opt('edgePan'); return v === 'auto' ? !this.isTouch() : !!v; },
     setOpt(k, v) {
         (state.settings || (state.settings = {}))[k] = v;
         this.applySettings();
@@ -5169,6 +5250,9 @@ const Game = {
         let lt = this.opt('lite');
         let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('lite', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+        let ep = this.opt('edgePan');
+        let epBtn = ['auto', true, false].map(v => `<button class="btn${ep === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('edgePan', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let df = this.opt('difficulty');
         let dfBtn = ['easy', 'normal', 'hard'].map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('difficulty', '${v}')">${T(this.DIFFS[v].name)}</button>`).join(' ');
@@ -5182,6 +5266,7 @@ const Game = {
             <span style="font-size:var(--fs-sm);color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
+        ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}
         ${row(T('🔠 Yazı boyutu'), fsBtn)}
@@ -5192,6 +5277,7 @@ const Game = {
             <button class="btn" onclick="Debug.open()">${T`🐞 Debug Raporu`}</button>
             <button class="btn" onclick="Game.showKeys()">${this.isTouch() ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</button>
             <button class="btn" onclick="Game.closeModal(); Game.showScreen('map'); Game.startTutorial(true)">${T`🎓 Öğretici`}</button>
+            <button class="btn" onclick="Game.closeModal(); Game.startTutorial(true, Game.BATTLE_TUTOR, Game.BTUTOR_KEY)">${T`🗡️ Savaş Öğreticisi`}</button>
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>
         <p style="margin-top:0.8rem;font-size:var(--fs-xs);color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
@@ -5209,8 +5295,9 @@ const Game = {
                  ['✋ Sürükle', 'Haritayı kaydır'], ['🤏 İki parmak', 'Yakınlaştır / uzaklaştır'],
                  ['🎯 Beni Bul', 'Kamerayı sana getirir'], ['📋 Menü', 'Ekranlar arasında geçiş'],
                  ['🌍 Diplomasi', 'Krallıkların savaş/barış hâli'],
-                 ['🕹️ Çubuk', 'Savaşta hareket — nişan da çubuğun yönü'],
-                 ['⚔️ Düğme', 'Vur veya ok at'], ['🛡️ Düğme', 'Blok — basılı tut'],
+                 ['🕹️ Sol çubuk', 'Savaşta hareket'],
+                 ['⚔️ Sağ çubuk', 'Kılıca yön ver — çektiğin yere vurur, bıraktığında savurur'],
+                 ['🛡️ Düğme', 'Blok — basılı tut'],
                  ['1 2 3 düğmeleri', 'Taktik emirleri'], ['✖ / Kapat', 'Modali kapatır']],
     showKeys() {
         let dokun = this.isTouch(), rows = dokun ? this.TOUCH_HELP : this.KEYS;
@@ -5243,16 +5330,44 @@ const Game = {
           d: 'Kesende 250 dinar var ve yalnızsın. En yakın köye git: gönüllü topla, pazardan erzak al, sonra bir çapulcu çetesi avla. Şehirdeki handa görev ve paralı asker bulursun.' }
     ],
     TUTOR_KEY: 'webband_tutor_done',
-    startTutorial(force) {
-        if(!force && localStorage.getItem(this.TUTOR_KEY)) return;
+    // Savaş öğreticisi (#88) — ilk savaşta bir kez. Aynı makine, ayrı liste ve ayrı
+    // işaret. Dokunmatik adımların hedefi masaüstünde gizli olduğu için (`#touch-ui`)
+    // `tutorStep`'in "görünmeyen adımı atla" kuralı cihaz ayrımını kendiliğinden yapar.
+    BATTLE_TUTOR: [
+        { el: '#battle-canvas', t: '🗡️ Meydan',
+          m: 'WASD ile yürürsün ve kılıcın imlecin baktığı yere gider — yürüdüğün yere değil. Sol tık savurur, sağ tık (ya da Shift) kalkanı kaldırır: blok yalnız önden geleni keser.',
+          d: 'Sol çubukla yürür, sağ çubukla kılıcına yön verirsin. Nişanın nereye baktığını oyuncunun önündeki sarı yay gösterir.' },
+        { el: '#tstick', t: '🕹️ Sol çubuk',
+          m: 'Hareket.',
+          d: 'Hareket. Parmağını nereye çekersen oraya yürürsün.' },
+        { el: '#tastick', t: '⚔️ Sağ çubuk',
+          m: 'Nişan.',
+          d: 'Kılıcın yönü. Çektiğin yön nişanındır, parmağını kaldırınca savurur — sürüklemeden dokunmak son yöne vurur. Yayın varsa aynı düğme ok atar.' },
+        { el: null, t: '🚩 Emirler',
+          m: 'Savaşın içinde emir fırsatları doğar: 1 Takip, 2 Hücum, 3 Mevzi. Kapalı emre basarsan adamların duymaz — emir açılınca kütüğe düşer.',
+          d: 'Savaşın içinde emir fırsatları doğar: Takip / Hücum / Mevzi düğmeleri. Kapalı emre basarsan adamların duymaz — emir açılınca kütüğe düşer.' },
+        { el: '#btn-surrender', t: '🏳️ Kaybediyorsan',
+          m: 'Teslim ol her an açık: esir düşersin, paran ve namın yanar ama ordun tamamen kırılmaz. Sen ölürsen savaş bitmez — bayılırsın, adamların dövüşmeye devam eder.',
+          d: 'Teslim ol her an açık: esir düşersin, paran ve namın yanar ama ordun tamamen kırılmaz. Sen ölürsen savaş bitmez — bayılırsın, adamların dövüşmeye devam eder.' },
+        { el: null, t: '🎯 İki ipucu',
+          m: 'Zırhlı düşmana kılıç işlemez: mızrak ve ok zırhın yarısını deler, topuz öldürmez ama bayıltır — bayılan düşman esir düşer. Ve blok yalnız önden korur, yan kanattan dolaşmak işe yarar.',
+          d: 'Zırhlı düşmana kılıç işlemez: mızrak ve ok zırhın yarısını deler, topuz öldürmez ama bayıltır — bayılan düşman esir düşer. Ve blok yalnız önden korur, yan kanattan dolaşmak işe yarar.' }
+    ],
+    BTUTOR_KEY: 'webband_btutor_done',
+    startTutorial(force, list, key) {
+        this.tutorList = list || this.TUTOR;
+        this.tutorKey = key || this.TUTOR_KEY;
+        if(!force && localStorage.getItem(this.tutorKey)) return;
         this.tutor = 0;
+        if(typeof Battle !== 'undefined' && Battle.active) Battle.paused = true;
         this.tutorStep(0);
     },
     tutorStep(i) {
+        let list = this.tutorList || this.TUTOR;
         this.endTutorial(true);   // varsa eskisini kaldır, işareti koyma
-        if(i < 0 || i >= this.TUTOR.length) return this.endTutorial();
+        if(i < 0 || i >= list.length) return this.endTutorial();
         this.tutor = i;
-        let s = this.TUTOR[i], el = s.el && document.querySelector(s.el);
+        let s = list[i], el = s.el && document.querySelector(s.el);
         // Hedef yoksa (ör. dar ekranda gizlenmiş bir rozet) adım atlanır —
         // boş bir halkayı ekranın köşesine çizmek öğretici değil, hata gibi görünür
         if(s.el && (!el || !el.offsetParent)) return this.tutorStep(i + 1);
@@ -5260,9 +5375,9 @@ const Game = {
         let box = document.createElement('div');
         box.id = 'coach-box';
         box.innerHTML = `<h4>${T(s.t)}</h4><p>${T(this.isTouch() ? s.d : s.m)}</p>
-        <div class="coach-row"><span>${T`Adım`} ${i + 1}/${this.TUTOR.length}</span>
+        <div class="coach-row"><span>${T`Adım`} ${i + 1}/${list.length}</span>
         <button class="btn" onclick="Game.endTutorial()">${T`Atla`}</button>
-        <button class="btn primary" onclick="Game.tutorStep(${i + 1})">${i + 1 === this.TUTOR.length ? T`Başla` : T`Sonraki`}</button></div>`;
+        <button class="btn primary" onclick="Game.tutorStep(${i + 1})">${i + 1 === list.length ? T`Başla` : T`Sonraki`}</button></div>`;
         document.body.appendChild(box);
 
         let ring = null;
@@ -5292,7 +5407,10 @@ const Game = {
     },
     endTutorial(gecici) {
         ['coach-box', 'coach-ring'].forEach(id => { let e = document.getElementById(id); if(e) e.remove(); });
-        if(!gecici) { this.tutor = null; try { localStorage.setItem(this.TUTOR_KEY, '1'); } catch(e) {} }
+        if(gecici) return;                       // adımlar arası: savaş duruyor kalsın
+        this.tutor = null;
+        if(typeof Battle !== 'undefined') Battle.paused = false;
+        try { localStorage.setItem(this.tutorKey || this.TUTOR_KEY, '1'); } catch(e) {}
     },
     flash(el, ok = true) {
         if(!el) return;
@@ -7087,6 +7205,12 @@ const Game = {
     },
 
     // Günlük gider: maaş + yemek. dailyUpdate ve üst çubuk künyesi aynı hesabı kullanır.
+    // Asker günde yarım birim yer, oyuncu tam bir birim (kendi karnını sayarız).
+    // Eskiden kişi başı 1 idi: 20 kişilik ordu günde 21 birim (~84 dinar) yiyor,
+    // yani erzak faturası maaşın iki katı oluyordu. Tek knob burası — tüketim,
+    // "kaç gün yeter" rozeti, açlık cezası ve künye dökümü hepsi upkeep()'ten okur.
+    FOOD_MAN: 0.5,
+
     upkeep() {
         // Oyuncunun kendisi de karnını doyurur (#75). Eskiden yalnız parti sayılıyordu:
         // tek başına gezen oyuncu hiç erzak yemiyor, üst çubukta "∞ gün" yazıyordu.
@@ -7095,10 +7219,10 @@ const Game = {
         let wage = 0, foodLow = 1, foodHigh = 0;
         state.player.party.forEach(t => {
             wage += this.troopWage(t);                              // yoldaş 20, lvl51 bedava
-            if(t.isCompanion) { foodLow += 1; return; }
+            if(t.isCompanion) { foodLow += this.FOOD_MAN; return; }
             if(t.level >= 51) return;
-            foodLow += t.level >= 20 ? 1.5 : 1;
-            if(t.level >= 30) foodHigh += 1;
+            foodLow += t.level >= 20 ? this.FOOD_MAN * 1.5 : this.FOOD_MAN;
+            if(t.level >= 30) foodHigh += this.FOOD_MAN;
         });
         wage += this.fiefIncome().wage;   // tımar garnizonunun maaşı da senden çıkar (#23)
         return { wage, foodLow, foodHigh };

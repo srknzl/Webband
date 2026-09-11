@@ -3,6 +3,46 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.74 — Aç Ordu (2026-09-11)
+
+- **Askerler yarı yarıya az yiyor.** Eskiden kişi başı günde 1 birim erzak gidiyordu:
+  20 kişilik bir ordu günde 21 birim (~84 dinar) yiyor, yani erzak faturası maaşın iki
+  katına çıkıyordu. Artık asker günde yarım birim yer, oyuncu tam bir birim. 10 kişilik
+  grupla 60 tahıl **5 gün değil 8 gün** yetiyor; seçkin asker (20+ seviye) yarım kat
+  fazla, 30+ seviye ayrıca et/peynir ister — o kurallar aynı kaldı.
+
+- **Kılıcına yön verebiliyorsun.** Parmakla oynarken savaşta iki çubuk var: **sol çubuk
+  yürütür, sağ çubuk kılıcı yönlendirir.** Çektiğin yer nişanındır, parmağını kaldırınca
+  savurur; sürüklemeden dokunmak son yöne vurur (yayın varsa aynı çubuk ok atar).
+  Oyuncunun önündeki sarı yay kılıcın nereye gideceğini gösterir. Eskiden nişan hareket
+  yönüne kilitliydi — yürüdüğün yere vuruyordun. Sağ çubuğa hiç dokunmazsan eski davranış
+  aynen duruyor.
+
+- **Savaşın öğreticisi var.** İlk savaşında meydan durur ve altı adımda anlatılır: nişan
+  ve blok, iki çubuk, emir fırsatları, teslim olma, ve iki taktik ipucu (zırha karşı mızrak
+  ve ok, blok yalnız önden korur). Bir kez çıkar; ⚙️ Ayarlar'daki **🗡️ Savaş Öğreticisi**
+  düğmesiyle istediğinde tekrar açılır. Öğretici açıkken savaş duraklar — okurken adamın
+  öldürülmez.
+
+- **Oyuna başlarken zorluk ve hafif mod sorulur.** Karakter yaratma sihirbazı 7 adım oldu;
+  son adım Kolay / Orta / Zor ve 📱 Hafif mod (Cihaza göre / Açık / Kapalı). Orta ve
+  "Cihaza göre" seçili gelir, ikisi de sonradan ⚙️ Ayarlar'dan değiştirilebilir —
+  aynı tablodan okuduğu için iki ayrı ayar yok. (Dil zaten ilk açılışta soruluyor.)
+
+- **Oyunun ilk karesinde kucağında çete olmuyor.** Yeni bir çete artık oyuncudan en az
+  1500 birim uzakta doğar. Eskiden dibinde bir çapulcu grubu doğabiliyor ve daha haritayı
+  görmeden yakalanıp esir düşülüyordu.
+
+- **Mobilde harita kendi kendine kaymıyor.** Fareyi ekranın kenarına dayayınca harita
+  kayar (öyle olmalı), ama dokunmatikte imleç diye bir şey yok: son dokunuşun koordinatı
+  kenara denk geldiyse harita durmadan kayıyordu. Kenar kaydırması artık yalnız farede —
+  ve ⚙️ Ayarlar'daki **🖱️ Kenardan kaydırma** satırından (Cihaza göre / Açık / Kapalı) her
+  iki yönde de zorlanabilir: masaüstünde rahatsız ediyorsa kapatılır, tablette isteniyorsa açılır.
+
+- **Parmakla arayüzü zoomlamak kapatıldı.** İki parmakla bütün sayfayı büyütmek panel
+  ölçülerini bozuyor ve geri döndürmenin yolu kalmıyordu. Haritanın kendi iki parmak
+  zoom'u duruyor; kapanan şey sayfanın tamamının zoom'u (çift dokunuş zoom'u dahil).
+
 ## 0.73 — Kale Adı (2026-09-11)
 
 - **Haritadaki kale adları artık çevriliyor.** İngilizcede "Tevarin Kalesi" yazan altı kale

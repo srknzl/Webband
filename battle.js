@@ -280,7 +280,7 @@ const Battle = {
         this.splitReserves(H, startPlayerX, startEnemyX);
 
         // Kumanda ipucu cihaza göre yazılır: parmakla oynayanda WASD diye bir şey yok (#65)
-        const ipucu = Game.isTouch() ? T('Çubukla hareket · ⚔️ saldırı · 🛡️ blok')
+        const ipucu = Game.isTouch() ? T('Sol çubuk hareket · Sağ çubuk kılıç · 🛡️ blok')
                                      : T('WASD hareket · Sol tık saldırı');
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
             + (this.ambushed ? T('Pusuya Düştün! Etrafın sarıldı.') : T('Savaş Başladı!'))
@@ -356,6 +356,7 @@ const Battle = {
         window.addEventListener('keydown', this.commandListener);
 
         this.warmUp();
+        this.paused = false;
         if(this.loopId) cancelAnimationFrame(this.loopId);
         let last = performance.now();
         const loop = (t) => {
@@ -363,11 +364,16 @@ const Battle = {
             if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
-            Debug.guard('savaş döngüsü', () => { this.update(dt); this.render(); });
+            // Öğretici açıkken savaş durur ama çizilmeye devam eder (#88) — okunacak
+            // şey ekranda dururken adamın öldürülmesin.
+            Debug.guard('savaş döngüsü', () => { if(!this.paused) this.update(dt); this.render(); });
             this.lastRender = performance.now();     // nabız (#54)
             this.loopId = requestAnimationFrame(loop);
         };
         this.loopId = requestAnimationFrame(loop);
+        // İlk savaşta savaş öğreticisi (#88): arena kurulup ilk kare çizildikten sonra
+        // açılır ve savaşı duraklatır. İşareti kendi anahtarındadır, harita öğreticisinden ayrı.
+        setTimeout(() => Game.startTutorial(false, Game.BATTLE_TUTOR, Game.BTUTOR_KEY), 500);
         // Nabız kontrolü (#54): siyah ekran bir daha sessizce oturmasın. 700 ms içinde
         // tek kare çizilmediyse döngü ölmüş demektir — bir kez yeniden kurulur ve
         // olay Debug raporuna düşer. (Kök neden #42'de kapatıldı; bu ağdır, çözüm değil.)
@@ -1130,6 +1136,17 @@ const Battle = {
             ctx.strokeStyle = `rgba(255,255,255,${0.45*a})`; ctx.lineWidth = 2; ctx.stroke();
             ctx.restore();
         });
+
+        // Nişan yayı (#88): parmakla oynarken imleç yok, kılıcın nereye gideceği
+        // ancak çizilirse görünür. Tek kontur — hafif modda da kalır.
+        let aimP = Game.isTouch() && this.units.find(u => u.id === 'player' && u.hp > 0);
+        if(aimP) {
+            let a = Math.atan2(Input.mouse.y - aimP.y, Input.mouse.x - aimP.x), half = this.swingHalfAngle();
+            ctx.save(); ctx.translate(aimP.x, aimP.y);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 42, a - half, a + half); ctx.closePath();
+            ctx.strokeStyle = 'rgba(255,225,150,0.32)'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.restore();
+        }
 
         // Birimler — y sırasına göre, derinlik hissi için
         this.units.filter(u => u.hp > 0).sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));

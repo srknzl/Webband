@@ -916,6 +916,10 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 
 /* Tuvaller tarayıcının kendi kaydırma/zoom jestini yemesin; pan ve pinch bizde */
 #map-canvas, #battle-canvas, #scene-canvas { touch-action: none; }
+/* Arayüzün tamamını parmakla zoomlamak oyunu bozuyor (panel ölçüleri ekrana göre
+   hesaplanıyor, zoom'dan sonra hiçbiri yerinde değil). Kaydırma serbest, çimdik yok;
+   `pan-x pan-y` aynı zamanda çift dokunuş zoom'unu da kapatır. */
+html, body { touch-action: pan-x pan-y; }
 
 /* --- Savaş kumandası: yalnız parmakla oynanan cihazda --- */
 #touch-ui { display: none; }
@@ -969,7 +973,24 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     touch-action: none;
     z-index: 30;
 }
-#tstick-knob {
+#tastick {
+    position: absolute;
+    right: 18px; bottom: var(--tui-lift);
+    width: var(--tui-stick); height: var(--tui-stick);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,120,90,0.16), rgba(0,0,0,0.42));
+    border: 2px solid rgba(255,140,110,0.5);
+    touch-action: none;
+    z-index: 30;
+}
+/* Ne işe yaradığı çubuğun üstünde yazsın — düğmeden yazı sökülmez kuralının çubuk hâli */
+#tastick::after {
+    content: '⚔️';
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem; opacity: 0.35; pointer-events: none;
+}
+#tstick-knob, #tastick-knob {
     position: absolute; left: 50%; top: 50%;
     width: calc(var(--tui-stick) * 0.42); height: calc(var(--tui-stick) * 0.42);
     margin: calc(var(--tui-stick) * -0.21) 0 0 calc(var(--tui-stick) * -0.21);
@@ -980,7 +1001,8 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
 }
 #tbtns {
     position: absolute;
-    right: 18px; bottom: var(--tui-lift);
+    /* Sağ çubuk sağ köşede durduğu için blok düğmesi onun soluna geçti (#88) */
+    right: calc(18px + var(--tui-stick) + 14px); bottom: var(--tui-lift);
     display: flex; gap: 14px;
     z-index: 30;
 }
