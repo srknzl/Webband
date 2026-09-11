@@ -1474,6 +1474,12 @@ I18N.dicts.id = {
   "Veagir Krallığı": "Kerajaan Vaegir",
   "Nord Krallığı": "Kerajaan Nord",
   "Kergit Hanlığı": "Kekhanan Khergit",
+  // Halk adı (harita etiketi: "Kergit Kervanı")
+  "Svadya": "Swadia",
+  "Rodok": "Rhodok",
+  "Veagir": "Vaegir",
+  "Nord": "Nord",
+  "Kergit": "Khergit",
   "Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu'nun asıl varisi olduğunu iddia eden güçlü bir krallık.": "Kerajaan kuat yang termasyhur berkat kesatria berbaju zirah berat dan dataran luasnya, yang mengaku sebagai pewaris sejati Kekaisaran Calradia kuno.",
   "Dağlık bölgelerde yaşayan özgür ruhlu insanların kurduğu, tatar yaylı keskin nişancıları ve dev kalkanlı mızraklılarıyla geçilmez bir krallık.": "Kerajaan yang didirikan orang gunung berjiwa merdeka, tak tertembus berkat penembak jitu berbusur silang dan penombak berperisai raksasanya.",
   "Kuzeyin karlı ve soğuk ormanlarından gelen, baltalı piyadeleri ve ölümcül okçularıyla bilinen sert insanların diyarı.": "Negeri orang keras dari hutan utara yang bersalju dan dingin, terkenal karena prajurit kapak dan pemanahnya yang mematikan.",

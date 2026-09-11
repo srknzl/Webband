@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.80 — Kervanın Adı (2026-09-11)
+
+Haritada kervanların ve köylü kafilelerinin adı yerleşim adına benziyordu — "Praven" yazan
+nokta köyün kendisi mi, yoldaki kafile mi belli olmuyordu.
+
+- **Kafileler kendi adlarıyla yazıyor.** Artık **Praven Köylüleri**, **Kergit Kervanı**.
+  Yerleşim adıyla karışmıyor, tek bakışta hangi krallığın kervanı olduğu okunuyor.
+- **Kervan halkın adını taşıyor**, devletin değil: "Kergit Hanlığı Kervanı" değil
+  **Kergit Kervanı** — askerlerin adlarındaki sözcüğün aynısı.
+- Üç dilde de düzgün: *Khergit Caravan*, *Kafilah Khergit*.
+
 ## 0.79 — Yolda Bir Adam (2026-09-11)
 
 İki şehir arası artık boş bir çizgi değil. Yolda biri seni durduruyor ve bir şey soruyor;

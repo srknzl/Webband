@@ -1082,6 +1082,13 @@ hazır makineden gelir.
 - Vardıkları yerleşimin refahını besler (kervan +0.5, kafile +0.15 / varış).
 - Kafileler `state.npcParties`'te durduğu için kayda kendiliğinden yazılır; eski kayıtlar
   `Save.load` içindeki `Game.ensureTraders()` ile doldurulur.
+- **Adı yerleşim adı değildir.** Harita etiketi adın ilk kelimesine kırpılır (`renderMap`),
+  yani "Praven Köylüleri" haritada yalnız **Praven** olarak yazıyor ve yerleşimin kendisiyle
+  karışıyordu. Ticaret partileri artık tam adıyla çizilir. Kervanın adı da devletin değil
+  **halkın** adından gelir (`Game.factionPeople`, `FACTIONS[f].people`): "Kergit Hanlığı
+  Kervanı" satıra sığmıyordu, artık **Kergit Kervanı** — asker adlarıyla da aynı sözcük
+  ("Kergit Atlısı"). Halk adı ham veridir (`T(k.people)`), statik çıkarıcı göremez, o
+  yüzden sözlükte varlığı ayrı bir iddiayla kapılıdır.
 
 ### Yol kesme — haydutlar kervan avlar
 Kafileleri yalnız oyuncu soymaz. `Game.banditTick()` her gün (`dailyUpdate`, `warTick`'ten
@@ -2732,7 +2739,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **62 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **63 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,

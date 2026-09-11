@@ -1474,6 +1474,12 @@ I18N.dicts.en = {
   "Veagir Krallığı": "Kingdom of Vaegir",
   "Nord Krallığı": "Kingdom of Nord",
   "Kergit Hanlığı": "Khergit Khanate",
+  // Halk adı (harita etiketi: "Kergit Kervanı")
+  "Svadya": "Swadian",
+  "Rodok": "Rhodok",
+  "Veagir": "Vaegir",
+  "Nord": "Nord",
+  "Kergit": "Khergit",
   "Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu'nun asıl varisi olduğunu iddia eden güçlü bir krallık.": "A powerful kingdom famed for its heavily armoured knights and wide plains, claiming to be the true heir of the old Calradian Empire.",
   "Dağlık bölgelerde yaşayan özgür ruhlu insanların kurduğu, tatar yaylı keskin nişancıları ve dev kalkanlı mızraklılarıyla geçilmez bir krallık.": "A kingdom founded by free-spirited highlanders, impassable behind its crossbow marksmen and its spearmen with great shields.",
   "Kuzeyin karlı ve soğuk ormanlarından gelen, baltalı piyadeleri ve ölümcül okçularıyla bilinen sert insanların diyarı.": "The land of hard folk from the snowy, cold forests of the north, known for their axemen and deadly archers.",

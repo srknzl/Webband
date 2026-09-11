@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.79', date: '2026-09-11', name: 'Yolda Bir Adam' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.80', date: '2026-09-11', name: 'Kervanın Adı' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -126,11 +126,11 @@ Debug.init();
 
 // --- DATA ---
 const FACTIONS = {
-    swadia:  { id: 'swadia',  name: 'Svadya Krallığı',  color: '#ff4d4d', ruler: 'Kral Harlaus', vizier: 'Vezir Klargus', lore: 'Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu\'nun asıl varisi olduğunu iddia eden güçlü bir krallık.' },
-    rhodok:  { id: 'rhodok',  name: 'Rodok Krallığı',   color: '#33cc33', ruler: 'Kral Graveth', vizier: 'Vezir Matheas', lore: 'Dağlık bölgelerde yaşayan özgür ruhlu insanların kurduğu, tatar yaylı keskin nişancıları ve dev kalkanlı mızraklılarıyla geçilmez bir krallık.' },
-    vaegir:  { id: 'vaegir',  name: 'Veagir Krallığı',  color: '#cccccc', ruler: 'Kral Yaroglek', vizier: 'Vezir Vuldrat', lore: 'Kuzeyin karlı ve soğuk ormanlarından gelen, baltalı piyadeleri ve ölümcül okçularıyla bilinen sert insanların diyarı.' },
-    nord:    { id: 'nord',    name: 'Nord Krallığı',    color: '#3399ff', ruler: 'Kral Ragnar', vizier: 'Vezir Lethwin', lore: 'Deniz aşırı ülkelerden uzun gemileriyle gelip kıyıları ele geçiren, atları kullanmayan fakat piyade dövüşünde rakipsiz olan savaşçılar.' },
-    khergit: { id: 'khergit', name: 'Kergit Hanlığı',   color: '#cc66ff', ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
+    swadia:  { id: 'swadia',  name: 'Svadya Krallığı',  people: 'Svadya',  color: '#ff4d4d', ruler: 'Kral Harlaus', vizier: 'Vezir Klargus', lore: 'Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu\'nun asıl varisi olduğunu iddia eden güçlü bir krallık.' },
+    rhodok:  { id: 'rhodok',  name: 'Rodok Krallığı',   people: 'Rodok',   color: '#33cc33', ruler: 'Kral Graveth', vizier: 'Vezir Matheas', lore: 'Dağlık bölgelerde yaşayan özgür ruhlu insanların kurduğu, tatar yaylı keskin nişancıları ve dev kalkanlı mızraklılarıyla geçilmez bir krallık.' },
+    vaegir:  { id: 'vaegir',  name: 'Veagir Krallığı',  people: 'Veagir',  color: '#cccccc', ruler: 'Kral Yaroglek', vizier: 'Vezir Vuldrat', lore: 'Kuzeyin karlı ve soğuk ormanlarından gelen, baltalı piyadeleri ve ölümcül okçularıyla bilinen sert insanların diyarı.' },
+    nord:    { id: 'nord',    name: 'Nord Krallığı',    people: 'Nord',    color: '#3399ff', ruler: 'Kral Ragnar', vizier: 'Vezir Lethwin', lore: 'Deniz aşırı ülkelerden uzun gemileriyle gelip kıyıları ele geçiren, atları kullanmayan fakat piyade dövüşünde rakipsiz olan savaşçılar.' },
+    khergit: { id: 'khergit', name: 'Kergit Hanlığı',   people: 'Kergit',   color: '#cc66ff', ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
 };
 
 // --- KARAKTER YARATMA ---
@@ -1127,7 +1127,9 @@ const Game = {
         if(!home) return null;
         let k = BAND_KINDS[kind];
         let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
-        let name = kind === 'caravan' ? `${this.factionName(home.faction)} Kervanı` : `${home.name} Köylüleri`;
+        // `npc.name` ham kalır (savaş başlığı gibi çevrilmeyen yerlerin yedeği);
+        // gösterim adı her zaman `npcName()`ten gelir.
+        let name = kind === 'caravan' ? `${this.factionPeople(home.faction)} Kervanı` : `${home.name} Köylüleri`;
         let npc = this.createNPC(name, kind, size, k.color, home.faction, 1);
         npc.band = kind;
         npc.speed = kind === 'caravan' ? 58 : 52;
@@ -1279,7 +1281,7 @@ const Game = {
     npcName(npc) {
         if(!npc) return '';
         if(npc.trade) return npc.trade.kind === 'caravan'
-            ? T`${this.factionName(npc.faction)} Kervanı`
+            ? T`${this.factionPeople(npc.faction)} Kervanı`
             : T`${T(npc.trade.homeName || '')} Köylüleri`;
         return T(npc.name);
     },
@@ -4370,9 +4372,14 @@ const Game = {
                 this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
             }
             
+            // Etiket ilk kelimeye kırpılır ki harita adlarla dolmasın. Ama kervan ve
+            // köylü kafilesinin adı zaten bileşik: "Praven Köylüleri"nin ilk kelimesi
+            // yalnız "Praven" kalıyor, haritada yerleşimin kendisiyle karışıyordu.
             let shortName = this.npcName(npc).split(' ')[0];
             if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
                 shortName = this.npcName(npc).replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
+            } else if(npc.trade) {
+                shortName = this.npcName(npc);
             }
             this.mapLabel(ctx, `${shortName} (${npc.size})`, npc.x, npc.y + 50, '#ffffff', nCol);
         });
@@ -6239,6 +6246,12 @@ const Game = {
     factionName(f) {
         if(f === 'player') return (state.player.name || T('Bağımsız')) + T(' Bölüğü');
         return T((FACTIONS[f] || { name: f || T('Bağımsız') }).name);
+    },
+    // Halk adı, devlet adı değil: harita etiketinde "Kergit Hanlığı Kervanı" satıra
+    // sığmıyor. Asker adlarıyla da aynı sözcük ("Kergit Atlısı") — tek bir dil.
+    factionPeople(f) {
+        let k = FACTIONS[f];
+        return k && k.people ? T(k.people) : this.factionName(f);
     },
     // Haber akışı; oyuncunun krallığını ilgilendiren olay ayrıca bildirim olur
     news(msg, mine) {

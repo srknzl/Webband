@@ -641,6 +641,16 @@ test('i18n: ham veri tablosundaki görev başlıkları iki sözlükte de var', (
     assert.strictEqual(eksik.length, 0, `sözlüksüz görev başlığı: ${eksik.join(', ')}`);
 });
 
+// Aynı kör nokta: `FACTIONS[f].people` harita etiketinde `T(k.people)` ile çevriliyor,
+// yani çıkarıcı göremez. Halk adı sözlüksüz kalırsa kervan EN'de Türkçe yazar.
+test('i18n: fraksiyon halk adları iki sözlükte de var', () => {
+    const d = require('./i18n-keys').dicts();
+    const halk = Object.keys(g.FACTIONS).map(f => g.FACTIONS[f].people);
+    assert.ok(halk.every(Boolean), 'halk adı olmayan fraksiyon var');
+    const eksik = halk.filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(eksik.length, 0, `sözlüksüz halk adı: ${eksik.join(', ')}`);
+});
+
 test('i18n: üst düzey veri tabloları dilden bağımsız', () => {
     // Aynı tohum, iki dil: tablo kurulurken T(...) çalışıyorsa değerler ayrışır.
     const tr = H.load({ seed: 7 }), en = H.load({ seed: 7, lang: 'en' });
