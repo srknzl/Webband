@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.69 — İlk Ders (2026-09-11)
+
+- **Yeni oyuncuya arayüz bir kez anlatılıyor.** Karakterini kurup haritaya
+  düşünce altı adımlık bir öğretici açılır: haritanın nasıl gezildiği, 🍞 erzak ve
+  ⚔️ grup rozetlerinin ne söylediği, 🧭 künyedeki arazi ve ⏳ Bekle, alttaki ekran
+  şeridi ve son adımda "ilk işin ne" — en yakın köye git, gönüllü topla, erzak al,
+  bir çapulcu çetesi avla. Anlatılan parça ışık halkasıyla çerçevelenir, ekranın
+  geri kalanı kararır.
+- **Metin cihaza göre değişir.** Farede "tıkla · WASD ile gez · tekerlekle
+  yakınlaş", parmakta "dokun · tek parmakla sürükle · iki parmakla yakınlaştır" ve
+  "⋯ Daha düğmesinin arkasında". Üç dilde de yazılı.
+- **Bir kez çıkar, atlanabilir.** Atla ya da son adımdaki Başla işareti koyar;
+  kayıttan yüklenen oyunda hiç çıkmaz. Tekrar görmek istersen
+  ⚙️ Ayarlar → **🎓 Öğretici**.
+
 ## 0.68 — Avuç İçi (2026-09-11)
 
 - **Savaşta ekranın tamamı arena.** Telefonda sefer çubuğu ve alt menü şeridi savaş

@@ -1186,3 +1186,34 @@ body.lite #modal-overlay { background: rgba(6,6,10,0.82); }
 /* Sürekli dönen animasyonlar kare başına bir kompozit katmanı demek */
 body.lite #btn-points, body.lite .fx-flash, body.lite .fx-flash-bad { animation: none; }
 body.lite #map-view, body.lite #battle-view { box-shadow: none; }
+
+/* --- Öğretici (#87) ---
+   Işık halkası 9999px'lik kutu gölgesiyle yapılır: hem hedefi çerçeveler hem
+   ekranın geri kalanını karartır, ayrı bir perde elemanı gerekmez. */
+#coach-ring {
+    position: fixed;
+    border: 2px solid var(--primary, #d4af37);
+    border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(4,5,9,0.66), 0 0 18px rgba(212,175,55,0.55);
+    pointer-events: none;          /* halka tıklamayı yutmaz, altındaki arayüz görünür kalır */
+    z-index: 300;
+}
+#coach-box {
+    position: fixed;
+    z-index: 301;
+    width: min(330px, calc(100vw - 24px));
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(212,175,55,0.55);
+    border-radius: 12px;
+    background: rgba(18,19,26,0.97);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+#coach-box.mid { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+#coach-box h4 { color: var(--primary, #d4af37); margin-bottom: 0.4rem; font-size: 1.05rem; }
+#coach-box p { font-size: 0.86rem; line-height: 1.45; color: #e7e2d4; }
+#coach-box .coach-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin-top: 0.9rem;
+}
+#coach-box .coach-row span { flex: 1; font-size: 0.75rem; color: var(--text-muted); }
+#coach-box .coach-row .btn { min-height: 44px; padding: 0.4rem 0.9rem; }

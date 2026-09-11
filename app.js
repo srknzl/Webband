@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.68', date: '2026-09-11', name: 'Avuç İçi' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.69', date: '2026-09-11', name: 'İlk Ders' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -1457,6 +1457,9 @@ const Game = {
         this.updateTopBar();
         this.applySettings();
         this.startGameLoop();
+        // Yeni karakter haritaya düşünce arayüzü bir kez gösteren öğretici (#87).
+        // Kayıttan yüklemede `Save.load` buraya uğramaz, yani eski oyuncuya çıkmaz.
+        setTimeout(() => this.startTutorial(), 400);
     },
 
     resizeCanvases() {
@@ -5153,6 +5156,7 @@ const Game = {
             <button class="btn" onclick="Save.open()">${T`💾 Kayıtlar`}</button>
             <button class="btn" onclick="Debug.open()">${T`🐞 Debug Raporu`}</button>
             <button class="btn" onclick="Game.showKeys()">${this.isTouch() ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</button>
+            <button class="btn" onclick="Game.closeModal(); Game.showScreen('map'); Game.startTutorial(true)">${T`🎓 Öğretici`}</button>
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>
         <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
@@ -5178,6 +5182,82 @@ const Game = {
         this.showModal(`<h3>${dokun ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:0.9rem">
         ${rows.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${T(k)}</kbd></td><td style="color:var(--text-muted)">${T(v)}</td></tr>`).join('')}
         </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">${T`← Ayarlar`}</button>`, '460px');
+    },
+    // --- Öğretici (#87) ---
+    // İlk oyunda bir kez çalışır: arayüzün üstüne ışık düşürür, yanına ne olduğunu
+    // yazar. Adımlar veridir; ham Türkçe durur, `T` gösterimde çağrılır.
+    // `el` null ise kutu ortada çıkar, halka çizilmez.
+    TUTOR: [
+        { el: '#map-canvas', t: '🗺️ Kalradya',
+          m: 'Gitmek istediğin yere tıkla. WASD ile haritayı gez, tekerlekle yakınlaş. Bir yerleşimin üstüne gelirsen künyesi açılır.',
+          d: 'Gitmek istediğin yere dokun. Tek parmakla sürükleyerek haritayı gez, iki parmakla yakınlaştır. Bir yerleşime basılı tutarsan künyesi açılır.' },
+        { el: '#chip-food', t: '🍞 Erzak',
+          m: 'Ordun her gün yer. Bu rozet erzağın kaç gün yettiğini söyler; üç günün altına inince kırmızıya döner. Aç kalan asker moralini kaybeder ve firar eder.',
+          d: 'Ordun her gün yer. Bu rozete dokunursan kalem kalem dökümü açılır — üç günün altına inince kırmızıya döner. Aç kalan asker firar eder.' },
+        { el: '#chip-party', t: '⚔️ Grubun',
+          m: 'Kaç asker taşıyabileceğini Liderlik niteliğin, İdare yeteneğin ve namın belirler. Köyden gönüllü toplar, handan paralı asker tutarsın.',
+          d: 'Kaç asker taşıyabileceğini Liderlik niteliğin, İdare yeteneğin ve namın belirler. Köyden gönüllü toplar, handan paralı asker tutarsın.' },
+        { el: '#map-hud', t: '🧭 Künye',
+          m: 'Bulunduğun arazi hızını değiştirir — yoldan gitmek hızlı, nehir geçmek yavaştır. ⏳ Bekle ile kamp kurup zamanı geçirirsin: yaran iyileşir, turnuvalar açılır.',
+          d: 'Bulunduğun arazi hızını değiştirir — yoldan gitmek hızlı, nehir geçmek yavaştır. ⏳ Bekle ile kamp kurup zamanı geçirirsin: yaran iyileşir, turnuvalar açılır.' },
+        { el: '#sidebar', t: '📋 Ekranlar',
+          m: 'Karakterin, grubun, çantan ve görevlerin buradan açılır. Kısayolları da var: M C P I Q.',
+          d: 'Alttaki şeritten karakterine, grubuna ve çantana bakarsın. Görevler, kayıtlar, ses ve ayarlar ⋯ Daha düğmesinin arkasında.' },
+        { el: null, t: '🎯 İlk işin',
+          m: 'Kesende 250 dinar var ve yalnızsın. En yakın köye git: gönüllü topla, pazardan erzak al, sonra bir çapulcu çetesi avla. Şehirdeki handa görev ve paralı asker bulursun.',
+          d: 'Kesende 250 dinar var ve yalnızsın. En yakın köye git: gönüllü topla, pazardan erzak al, sonra bir çapulcu çetesi avla. Şehirdeki handa görev ve paralı asker bulursun.' }
+    ],
+    TUTOR_KEY: 'webband_tutor_done',
+    startTutorial(force) {
+        if(!force && localStorage.getItem(this.TUTOR_KEY)) return;
+        this.tutor = 0;
+        this.tutorStep(0);
+    },
+    tutorStep(i) {
+        this.endTutorial(true);   // varsa eskisini kaldır, işareti koyma
+        if(i < 0 || i >= this.TUTOR.length) return this.endTutorial();
+        this.tutor = i;
+        let s = this.TUTOR[i], el = s.el && document.querySelector(s.el);
+        // Hedef yoksa (ör. dar ekranda gizlenmiş bir rozet) adım atlanır —
+        // boş bir halkayı ekranın köşesine çizmek öğretici değil, hata gibi görünür
+        if(s.el && (!el || !el.offsetParent)) return this.tutorStep(i + 1);
+
+        let box = document.createElement('div');
+        box.id = 'coach-box';
+        box.innerHTML = `<h4>${T(s.t)}</h4><p>${T(this.isTouch() ? s.d : s.m)}</p>
+        <div class="coach-row"><span>${T`Adım`} ${i + 1}/${this.TUTOR.length}</span>
+        <button class="btn" onclick="Game.endTutorial()">${T`Atla`}</button>
+        <button class="btn primary" onclick="Game.tutorStep(${i + 1})">${i + 1 === this.TUTOR.length ? T`Başla` : T`Sonraki`}</button></div>`;
+        document.body.appendChild(box);
+
+        let ring = null;
+        if(el) {
+            let r = el.getBoundingClientRect();
+            ring = document.createElement('div');
+            ring.id = 'coach-ring';
+            ring.style.cssText = `left:${r.left - 4}px;top:${r.top - 4}px;width:${r.width + 8}px;height:${r.height + 8}px`;
+            document.body.appendChild(ring);
+        }
+        this.placeCoach(box, el);
+        if(!ring) box.classList.add('mid');
+    },
+    // Kutu halkanın altına, sığmazsa üstüne konur ve iki eksende de ekran içine
+    // kırpılır — `clampTip` ile aynı dert, ama hedef ekranın ortasında da olabilir.
+    placeCoach(box, el) {
+        if(!el) return;
+        let r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+        let pay = 12, W = innerWidth, H = innerHeight;
+        let top = r.bottom + pay;
+        if(top + b.height > H - 8) top = r.top - b.height - pay;
+        if(top < 8) top = Math.max(8, Math.min(H - b.height - 8, r.bottom + pay));
+        let left = r.left + r.width / 2 - b.width / 2;
+        left = Math.max(8, Math.min(W - b.width - 8, left));
+        box.style.left = left + 'px';
+        box.style.top = top + 'px';
+    },
+    endTutorial(gecici) {
+        ['coach-box', 'coach-ring'].forEach(id => { let e = document.getElementById(id); if(e) e.remove(); });
+        if(!gecici) { this.tutor = null; try { localStorage.setItem(this.TUTOR_KEY, '1'); } catch(e) {} }
     },
     flash(el, ok = true) {
         if(!el) return;

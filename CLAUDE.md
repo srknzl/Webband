@@ -13,7 +13,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + `Nobles` ve `Feast` objeleri |
 | `quests.js` | `QUESTS` (11 görev tanımı) + `Quests` görev motoru |
 | `i18n.js` | Dil katmanı: `I18N` + global `T` — anahtar Türkçe kaynak metnin kendisidir |
-| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1761 anahtar); elle düzenlenmez |
+| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1785 anahtar); elle düzenlenmez |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
 | `docs/PLAN-mobil-port.md` | Mobil port araştırması ve planı (ölçülmüş kod tabanı dökümü + framework karşılaştırması) |
 | `tools/` | Node ölçüm araçları (`harness.js` + `sim/duel/economy/framegate`) — bkz. "Ölçüm araçları" |
@@ -1733,6 +1733,49 @@ karakter yaratma sihirbazı, harita, karakter, grup, envanter, görevler, yerle�
 8 sekmenin hepsi görünür, `.sb-more` gizli, kısayol rozetleri yerinde, künye düğmeleri
 tam metinli — **değişen bir şey yok**. tr/en/id üçünde de `Debug.errors` 0, `I18N.missing` 0.
 
+#### Öğretici — ilk oyunda arayüz bir kez anlatılır (#87)
+
+Karakter yaratma bitince oyuncu haritaya düşüyor ve kimse ona hiçbir şey söylemiyordu.
+`Game.startTutorial()` `enterWorld()`'ün sonunda (400 ms gecikmeyle, arayüz yerleşsin diye)
+çağrılır — **kayıttan yüklemede değil**: `enterWorld`'ün tek çağıranı `finishCreation`'dır,
+`Save.load` oraya uğramaz, yani eski oyuncuya çıkmaz. İkinci kapı `localStorage`
+(`webband_tutor_done`); Atla ya da son adımdaki Başla işareti koyar.
+
+Adımlar veridir (`Game.TUTOR`, 6 kayıt): `{ el, t, m, d }` — `el` ışık halkasının saracağı
+CSS seçici, `t` başlık, `m` fare metni, `d` parmak metni. Hangisinin okunacağını
+`Game.isTouch()` söyler (#83'ün kuralı, medya sorgusu değil). **Ham Türkçe durur, `T`
+gösterimde çağrılır** — üst düzey tabloya `T` yazmak çeviriyi donduruyordu.
+
+| Adım | Hedef | Ne anlatır |
+|---|---|---|
+| 1 | `#map-canvas` | Gitmek istediğin yere tıkla/dokun; WASD ve tekerlek / sürükle ve iki parmak |
+| 2 | `#chip-food` | Ordun her gün yer, rozet kaç gün yettiğini söyler, aç asker firar eder |
+| 3 | `#chip-party` | Kapasiteyi Liderlik + İdare + nam belirler; köyden gönüllü, handan paralı asker |
+| 4 | `#map-hud` | Arazi hızı değiştirir, ⏳ Bekle kamp kurar |
+| 5 | `#sidebar` | Ekranlar; farede kısayollar (M C P I Q), parmakta "⋯ Daha"nın arkası |
+| 6 | — (ortada) | İlk işin: en yakın köye git, gönüllü topla, erzak al, çapulcu avla |
+
+**Işık halkası ayrı bir perde elemanı istemez**: `#coach-ring` `box-shadow: 0 0 0 9999px
+rgba(4,5,9,0.66)` taşır — aynı gölge hem hedefi çerçeveler hem ekranın geri kalanını karartır.
+`pointer-events: none` olduğu için altındaki arayüz görünür kalır. Kutu (`#coach-box`)
+halkanın altına konur, sığmazsa üstüne geçer, iki eksende de ekran içine kırpılır
+(`Game.placeCoach`; `clampTip` ile aynı dert, ama hedef ekranın ortasında da olabilir).
+Hedef yoksa ya da görünmüyorsa (`!el.offsetParent`) **adım atlanır** — boş bir halkayı köşeye
+çizmek öğretici değil, hata gibi görünür.
+
+*(`#chip-party` bu tur eklendi: gruba ait rozetin id'si yoktu, yalnız içindeki `#ui-party`
+vardı — halka sayının etrafına çizilecekti.)*
+
+Ölçüldü (390x664, `pointer: coarse`): 6 adımın **6'sı da** ekranın içinde
+(1 `30,459–360,656` · 2 `52,49–382,247` · 3 `8,80–338,258` · 4 `25,281–355,478` ·
+5 `30,402–360,580` · 6 `30,233–360,431`), Atla/Sonraki düğmeleri **44 px** (WCAG 2.5.5),
+`Debug.errors 0`. 1280x800 farede aynı altı adım, metin "tıkla. WASD ile haritayı gez"e
+dönüyor, `isTouch() false`, kutu her adımda 800 px'in içinde. Atla işareti koyuyor
+(`webband_tutor_done = '1'`), ikinci `startTutorial()` çağrısı **hiç açmıyor**,
+⚙️ Ayarlar → 🎓 Öğretici zorla açıyor. 20 yeni anahtar iki sözlüğe de girdi
+(1765 → 1785); tr/en/id üçünde de `I18N.missing` boş ve 6 adım kendi dilinde
+(en: *Step 1/6 · Skip/Next*, id: *Langkah 1/6 · Lewati/Berikutnya*).
+
 ### Dil katmanı — Türkçe, İngilizce, Endonezce
 
 Oyun üç dilde oynanır. Tek kural: **anahtar Türkçe kaynak metnin kendisidir**
@@ -1752,8 +1795,8 @@ kullanabilir (`{0}`/`{1}`) — cümle dizilimi dile göre değişir. Şablon bir
 yayılınca anahtara satır sonu + girinti karışacağı için arama `I18N.norm(key)`
 (`/\s*\n\s*/g` → tek boşluk) üzerinden yapılır; sözlük üreteci de aynı dönüşümü uygular.
 
-**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1761 anahtarlık düz
-tablolardır (157 / 160 KB); kaynağı depo dışındaki elle yazılmış Türkçe→(EN, ID) sözlüğüdür.
+**Sözlükler üretilir, elle yazılmaz.** `lang-en.js` / `lang-id.js` 1785 anahtarlık düz
+tablolardır (161 / 164 KB); kaynağı depo dışındaki elle yazılmış Türkçe→(EN, ID) sözlüğüdür.
 Ölçüldü: `anahtar 1728, çeviri 1721, eksik 0, yer-tutucu uyumsuz 0`.
 
 #### Durağan metin: `prime()` / `applyDom()` ayrımı
