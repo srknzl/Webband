@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.77', date: '2026-09-11', name: 'Nereye Gidiyorum' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.78', date: '2026-09-11', name: 'Ağaçların Arasından' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -2197,6 +2197,13 @@ const Game = {
     // Ormanda pusu: ağaçların arasında gizlenmiş çete/sürü sen yaklaşınca üstüne atlar.
     // Fark etme şansı Gözcülük + Yol Bulma'ya bağlı; fark edersen normal karşılaşma olur,
     // fark edemezsen savaşa etrafın sarılmış hâlde başlarsın.
+    //
+    // Pusu menzili GÖRÜŞE bağlıdır: sabit 240 birim, başlangıç karakterinin ormandaki
+    // görüşünden (125) genişti — yani seni basan çete tanım gereği hiç ekrana çizilmemiş
+    // oluyordu. `spotRange` ile kırpılınca "hiç görmediğim şey beni bastı" sınıfı kapanır;
+    // zar hâlâ atılır, pusu hâlâ acıtır, ama ortada bir an vardır: onu gördün.
+    // 240 tavan olarak kalır ki yetenek büyüdükçe pusu sıklaşmasın.
+    AMBUSH_RANGE: 240,
     checkAmbush(dt) {
         if(state.player.prisoner || state.encounterCooldown > 0) return;
         if(this.getTerrainInfo(state.player.x, state.player.y).name !== 'Orman') return;
@@ -2204,8 +2211,12 @@ const Game = {
         if(this._ambushCd > 0) return;
         this._ambushCd = 1;   // saniyede bir zar atmak yeter
 
+        // Kalabalık ordunun üstüne altı kurt atlamaz: pusu kuran çete de kâr hesabı yapar.
+        // (Karşılaşma dalındaki `backOff` yalnız `!ambush` iken çalışıyor, burada elenmeli.)
+        let mine = state.player.party.filter(t => !t.wounded).length + 1;
         let lurker = state.npcParties.find(n => n.type === 'bandit'
-            && this.dist(n, state.player) < 240
+            && this.dist(n, state.player) < Math.min(this.AMBUSH_RANGE, this.spotRange(n))
+            && mine < n.size * 1.5
             && this.getTerrainInfo(n.x, n.y).name === 'Orman');
         if(!lurker) return;
 
@@ -2283,11 +2294,15 @@ const Game = {
     // Kaçış şansı hız farkına bağlıdır: atlı bir grup çapulcuyu ekebilir,
     // ağır ordu Kergit atlılarından kaçamaz (#30). Harita hızı zaten atlı oranı,
     // arazi ve geceyi hesaplıyor — doğrudan onu kullanıyoruz.
+    // Pusuda kaçış kapalı değil, pahalı: sarılmışken sıyrılma şansı yarıya iner.
+    // Çarpan burada durur ki ekranda yazan yüzde ile zarın attığı yüzde aynı olsun.
+    AMBUSH_FLEE: 0.5,
     fleeChance(npc) {
         // Fark değil oran: hız farkını doğrusal alınca (0.45 + fark/90) kalabalık ordu bile
         // Kergit atlılarından %89 ile kaçıyordu. Oranda denk hız %24, 1.5 kat hız %84 eder.
         let his = (npc && npc.speed) || 60;
-        return Math.max(0.1, Math.min(0.9, (this.getPlayerSpeed().value / his - 0.8) * 1.2));
+        let base = Math.max(0.1, Math.min(0.9, (this.getPlayerSpeed().value / his - 0.8) * 1.2));
+        return state.ambush ? base * this.AMBUSH_FLEE : base;
     },
     fleeEncounter(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
@@ -2295,6 +2310,7 @@ const Game = {
         let chance = this.fleeChance(npc);
         if(Math.random() < chance) {
             state.encounterCooldown = 6;
+            state.ambush = false;   // sıyrıldın: sarılmışlık bir sonraki savaşa taşınmaz
             state.player.status = 'idle'; state.player.targetLocation = null;
             alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
         } else {
@@ -2424,13 +2440,18 @@ const Game = {
                 }
             }
 
-            // Kurtlar ağaçların arasından fırlar: ormandaki sürü seni uzaktan sezer
-            // ve üstüne atılır (gizlendiği için sen onu ancak dibinde görürsün).
+            // Kurtlar ağaçların arasından fırlar: ormandaki sürü seni sezer ve üstüne atılır.
+            // Atılma menzili görüşe bağlı — eskiden sabit 700'dü, yani sürü ×2 hızla
+            // gelirken sen onu ancak 125 birimden görüyordun ve yaklaşmanın tamamı
+            // görünmezdi. Artık sürü ancak *görülebildiği* mesafeden atılır; kararı sen
+            // verirsin. Atılan sürü haritada kırmızı halkayla işaretlenir (npc.charging).
             let burst = 1;
-            if((BAND_KINDS[npc.band] || {}).beast && dp < 700 && state.player.status !== 'prisoner'
+            npc.charging = false;
+            if((BAND_KINDS[npc.band] || {}).beast && dp < this.spotRange(npc) && state.player.status !== 'prisoner'
                && this.getTerrainInfo(npc.x, npc.y).name === 'Orman') {
                 npc.targetX = state.player.x; npc.targetY = state.player.y;
                 burst = 1.6;
+                npc.charging = true;
             }
 
             let dx = npc.targetX - npc.x, dy = npc.targetY - npc.y;
@@ -2534,7 +2555,7 @@ const Game = {
             // Fark edemedin: savaş etrafın sarılmış hâlde başlar (Battle.start okur)
             state.ambush = true;
             html += `<p style="color:#e0463a;margin-top:0.5rem">${T`Ağaçların arasından üstünüze
-                     atladılar — kaçacak yer yok, adamların dağılmış durumda!`}</p>`;
+                     atladılar — çember daraldı, adamların dağılmış durumda!`}</p>`;
         } else if(ambush === 'spotted') {
             html += `<p style="color:#2ecc71;margin-top:0.5rem">${T`Kırılan dalı duydun: pusuyu
                      zamanında fark ettin, seni saramadılar.`}</p>`;
@@ -2560,8 +2581,10 @@ const Game = {
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Yine De Savaş!`}</button>
             </div>`;
         } else {
-            // Pusuda ve yağma baskınında kaçış yok — etrafın sarılı, suçüstü yakalandın
-            let canFlee = ambush !== 'ambush' && ambush !== 'raid';
+            // Yağma baskınında kaçış yok — suçüstü yakalandın. Pusuda ise kaçış kapalı
+            // değil, yarı şansla açık (fleeChance state.ambush'ı okuyor): sarılmak bir
+            // bedeldir, çıkışsız bir oda değil.
+            let canFlee = ambush !== 'raid';
             let flee = Math.round(this.fleeChance(npc) * 100);
             // Ordun rakibin 1.5 katıysa her çapulcu için arenaya inmek zorunda değilsin
             let mine = state.player.party.filter(t => !t.wounded).length + 1;
@@ -2571,9 +2594,11 @@ const Game = {
             html += `<p><i>${dialog}</i></p>
             ${chat ? `<p style="margin-top:0.4rem;font-size:var(--fs-md)">${chat}</p>` : ''}
             ${prey ? `<p style="margin-top:0.4rem;font-size:var(--fs-sm);color:#cc8800">${prey}</p>` : ''}
-            <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.5rem">${canFlee
-                ? `${T`Kaçabilirsin ama hız farkı belirler: kaçış şansın`} <b>%${flee}</b>.`
-                : T('Kaçış yok — savaş ya da teslim ol!')}</p>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.5rem">${!canFlee
+                ? T('Kaçış yok — savaş ya da teslim ol!')
+                : ambush === 'ambush'
+                ? `${T`Sarıldın: kaçmak yarı şansla mümkün, kaçış şansın`} <b>%${flee}</b>.`
+                : `${T`Kaçabilirsin ama hız farkı belirler: kaçış şansın`} <b>%${flee}</b>.`}</p>
             <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
             <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Savaş!`}</button>
             ${canAuto ? `<button class="btn" style="border-color:#8fd6ff;color:#8fd6ff" onclick="Game.autoBattle('${npc.id}')" title="Sen inmezsin, adamların halleder — kayıp daha yüksektir">${T`🎖️ Askerlerini Gönder`}</button>` : ''}
@@ -3887,6 +3912,16 @@ const Game = {
             ctx.beginPath();
             ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
             ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+
+            // Üstüne atılan sürü: dıştan kırmızı bir halka daha. Sürü artık ancak
+            // görülebildiği yerden atıldığı için bu işaret her zaman zamanında gelir.
+            if(npc.charging) {
+                ctx.beginPath();
+                ctx.ellipse(npc.x, npc.y + 22, 32, 13, 0, 0, Math.PI*2);
+                ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(performance.now() / 260));
+                ctx.stroke(); ctx.globalAlpha = 1;
+            }
 
             // Çapulcular yayadır, soylular atlı — ikondan hemen anlaşılsın
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);

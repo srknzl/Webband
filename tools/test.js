@@ -485,6 +485,69 @@ function questSuite() {
 }
 questSuite();
 
+// --- Pusu: seni ancak görebildiğin şey basabilir ---
+// Sabit 240 birimlik pusu menzili, başlangıç karakterinin ormandaki görüşünden
+// (125) genişti: seni basan çete tanım gereği hiç ekrana çizilmemiş oluyordu.
+// Üç kapı: menzil görüşü aşmaz, kalabalık ordu pusuya düşmez, sarılmışken kaçış
+// yarı şansla açıktır.
+function ambushSuite() {
+    const ga = H.world({ seed: 5 });
+    const { Game, state, LOCATIONS, FORESTS } = ga;
+    const orman = FORESTS ? FORESTS[0] : { x: 3450, y: 3450 };
+
+    // Oyuncuyu ve bir kurt sürüsünü aynı ormanın göbeğine koy. Orman yarıçapı 135,
+    // yani aradaki mesafe onu aşamaz — mesafeler ormandaki görüşe göre seçilir.
+    const kur = (mesafe, grup) => {
+        state.encounterCooldown = 0;
+        state.player.prisoner = null;
+        state.player.x = orman.x; state.player.y = orman.y;
+        state.player.party = Array.from({ length: grup }, (_, i) => ({ id: 'p' + i, name: 'Asker', level: 5, type: 'infantry' }));
+        state.npcParties.length = 0;
+        const kurt = Game.spawnBand('wolf');
+        kurt.size = 8;
+        kurt.x = kurt.targetX = orman.x + mesafe; kurt.y = kurt.targetY = orman.y;
+        Game._ambushCd = 0;
+        let basan = null;
+        const asil = Game.triggerEncounter;
+        Game.triggerEncounter = (npc, kind) => { basan = { npc, kind }; };
+        Game.checkAmbush(1);
+        Game.triggerEncounter = asil;
+        return { basan, kurt };
+    };
+
+    // Ormandaki görüş: sabitten değil, motorun kendisinden okunur
+    const gorus = kur(1, 0).kurt && Game.spotRange(kur(1, 0).kurt);
+    const yakinMesafe = Math.round(gorus * 0.5);
+    const uzakMesafe = Math.round(gorus) + 5;    // görüşün dışı, eski 240'ın içi
+
+    test('pusu: seni basan çete her zaman çizilebilecek kadar yakındır', () => {
+        assert.ok(Game.getTerrainInfo(orman.x, orman.y).name === 'Orman', 'orman merkezi orman değil');
+        assert.ok(uzakMesafe < Game.AMBUSH_RANGE, 'görüş pusu tavanını aştı, test anlamsız');
+
+        const uzak = kur(uzakMesafe, 0);
+        assert.ok(Game.getTerrainInfo(uzak.kurt.x, uzak.kurt.y).name === 'Orman', 'çete ormanın dışına düştü');
+        assert.strictEqual(uzak.basan, null, 'görüş dışındaki çete hâlâ pusu kuruyor');
+
+        const yakin = kur(yakinMesafe, 0);
+        assert.ok(yakin.basan, 'görüş içindeki çete pusu kurmuyor');
+        assert.ok(Game.canSee(yakin.kurt), 'pusu kuran çete çizilmiyor');
+    });
+
+    test('pusu: 1.5 kat kalabalık orduya pusu kurulmaz', () => {
+        assert.strictEqual(kur(yakinMesafe, 20).basan, null, '8 kurt 21 kişilik orduyu pusuya düşürüyor');
+    });
+
+    test('pusu: sarılmışken kaçış kapalı değil, yarı şanslı', () => {
+        const npc = { speed: 60 };
+        state.ambush = false; const acik = Game.fleeChance(npc);
+        state.ambush = true;  const sarili = Game.fleeChance(npc);
+        state.ambush = false;
+        assert.ok(sarili > 0, 'pusuda kaçış şansı sıfır');
+        assert.ok(Math.abs(sarili - acik * Game.AMBUSH_FLEE) < 1e-9, 'pusu kaçış çarpanı uygulanmıyor');
+    });
+}
+ambushSuite();
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.

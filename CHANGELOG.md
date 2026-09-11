@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.78 — Ağaçların Arasından (2026-09-11)
+
+Ormanda "hiç görmediğim bir şey bana saldırdı" diye bir şey kalmadı. Pusu da kurt sürüsü de
+artık görüş menzilinin içinde kalıyor: saldıran ne varsa, saldırmadan önce ekrandaydı.
+
+- **Seni basan çeteyi artık görüyorsun.** Pusu menzili görüşünden geniş olamaz — gizli çete
+  ancak görebileceğin kadar yakından üstüne atlıyor. Gözcülük ve Yol Bulma yükseldikçe
+  ormanda hem daha uzağı görüyor hem de pusuyu daha erken fark ediyorsun.
+- **Kurt sürüsü artık görünmez yerden atılmıyor.** Sürü sana kilitlendiğinde etrafında
+  nabız gibi atan kırmızı bir halka beliriyor: kaçacak mısın, duracak mısın — karar senin.
+- **Kalabalık ordunun üstüne altı kurt atlamaz.** Sağlam adamların pusucuların 1.5 katını
+  geçiyorsa kimse seni pusuya düşürmüyor; onlar da kâr hesabı yapıyor.
+- **Pusuda kaçış kapalı değil, pahalı.** Sarıldığında kaçış şansın yarıya iniyor ama
+  kapanmıyor; pencerede yazan yüzde neyse atılan zar da o.
+
 ## 0.77 — Nereye Gidiyorum (2026-09-11)
 
 Görevler baştan aşağı okunur hâle geldi. Eskiden "lorda git" deyip seni salıyordu; artık

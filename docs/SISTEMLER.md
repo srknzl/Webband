@@ -98,9 +98,18 @@ tek yerden işler ve `enterWorld()` (eski `startGame` gövdesi) çalışır.
 - **Orman oynanışa etki eder**: ormandaki düşman normal görüşle görünmez
   (`Game.spotRange(npc)` = görüş × `min(0.9, 0.25 + Gözcülük×3% + Yol Bulma×2%)`; temel
   yeteneklerle 500 → 125 birim). Render, künye ve tıklama tek `Game.canSee(npc)` kontrolünden
-  geçer. Kurt sürüsü ormandayken 700 birimden oyuncuya kilitlenip **×1.6 hızla fırlar**.
-- **Pusu** (`Game.checkAmbush`, saniyede bir zar): ormanda ilerlerken 240 birim içindeki
-  gizli çete üstüne atlar. Fark etme şansı `min(0.9, 0.2 + Gözcülük×6% + Yol Bulma×4%)` —
+  geçer. Kurt sürüsü ormandayken **`spotRange(npc)` kadar yakından** oyuncuya kilitlenip
+  **×1.6 hızla fırlar**; atılan sürü haritada nabız gibi atan kırmızı halkayla işaretlenir
+  (`npc.charging`). *(Eskiden menzil sabit 700'dü — sürü ×2 hızla gelirken oyuncu onu ancak
+  125 birimden görüyordu, yani yaklaşmanın tamamı görünmezdi.)*
+- **Pusu** (`Game.checkAmbush`, saniyede bir zar): ormanda ilerlerken
+  `min(AMBUSH_RANGE=240, spotRange(çete))` içindeki gizli çete üstüne atlar — yani **seni
+  basan çete her zaman çizilebilecek kadar yakındır**. *(Sabit 240, başlangıç karakterinin
+  ormandaki görüşünden (125) genişti: pusu kuran çete tanım gereği hiç ekrana çizilmemiş
+  oluyordu. 240 tavan olarak kalır ki yetenek büyüdükçe pusu sıklaşmasın.)* Sağlam grup
+  pusuya düşmez: `senin sağlam adam sayın < çete.size × 1.5` şartı aranır — altı kurt
+  kırk kişilik ordunun üstüne atlamaz. Fark etme şansı
+  `min(0.9, 0.2 + Gözcülük×6% + Yol Bulma×4%)` —
   fark edersen normal karşılaşma (yeşil uyarı), fark edemezsen `state.ambush` açılır:
   `Battle.start` oyuncuyu arenanın ortasına koyar ve düşmanı 130–240 birimlik **çember**
   hâlinde doğurur (normalde 470–530 birim uzakta, tek şeritte).
@@ -1139,8 +1148,11 @@ Yani av davranışı baskını **3.5 katına** çıkarıyor ama haritayı yükl�
   **İdare 1 korkarken İdare 8 yalnız homurdanıyor**.
 
 #### Kaçış, otomatik çözüm ve dalgalar (#30)
-**Kaçış** (`Game.fleeChance` / `fleeEncounter`): pusu ve yağma baskını dışında her
+**Kaçış** (`Game.fleeChance` / `fleeEncounter`): yağma baskını (suçüstü) dışında her
 karşılaşmada çıkar. Şans **hız oranına** bağlıdır: `clamp(0.1, 0.9, (senin hızın/onun hızı − 0.8) × 1.2)`.
+**Pusuda kaçış kapalı değil, pahalı**: `state.ambush` açıkken şans `AMBUSH_FLEE = 0.5` ile
+çarpılır (çarpan `fleeChance`'in içindedir ki ekranda yazan yüzde ile zarın attığı yüzde
+ayrılmasın); sıyrılırsan `state.ambush` sıfırlanır, sarılmışlık bir sonraki savaşa taşınmaz.
 *(Fark tabanlı formül denendi — 20 kişilik ordu Kergit atlılarından %89 ile kaçıyordu.)*
 Başarısızlık normal savaştır. Ölçüldü (yeni karakter): yaya tek başına (hız 122) çapulcudan
 (66) %90, lord partisinden (84) %78, Kergit'ten (100) %50 kaçar; 20 piyadeli ordu aynı,
@@ -1176,7 +1188,7 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
 | Çapulcular | mızraklı yaya, kırmızı | Çapulcu / Çapulcu Okçu / Atlı Çapulcu + Çapulcu Reisi | dengeli, en zayıf |
 | Orman Haydutları | yaylı yaya, açık yeşil | Haydut Okçusu (ağırlıklı) / Orman Haydudu + Haydut Başı | okçu ağırlıklı, hızlı |
 | Dağ Eşkıyaları | mızraklı yaya, altın | Dağ Eşkıyası / Eşkıya Nişancısı / Atlı Eşkıya + Eşkıya Reisi | zırhlı ve sert, 20. günden sonra doğar |
-| Kurt Sürüsü | kurt silüeti, çelik grisi | Kurt / Yaşlı Kurt + Alfa Kurt | çok hızlı (104–112), `beast`: hücum ×1.6, esir düşmez, ganimeti az |
+| Kurt Sürüsü | kurt silüeti, çelik grisi | Kurt / Yaşlı Kurt + Alfa Kurt | çok hızlı (104–112), `beast`: görüş menzilinden hücum ×1.6 (kırmızı halka), esir düşmez, ganimeti az |
 - **Savaş**: 2D top-down canvas arena, prosedürel arazi (tepe / çukur / orman / nehir).
   - Arazi etkileri: ormanda okçu ×0.7 hasar & **binekli** ×0.6 hız, tepede okçu ×1.3 hasar,
     çukurda ×0.8 hız, nehirde ×0.7 hız. **Hız cezaları çarpılmaz — en kötüsü geçerlidir**
@@ -2688,7 +2700,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **55 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **58 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
