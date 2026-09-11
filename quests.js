@@ -1,25 +1,26 @@
 // ============================================
-// WEBBAND - GÖREV SİSTEMİ
+// WEBBAND - QUEST SYSTEM
 // ============================================
-// Görevler Warband'dan kopya değil; WebBand'ın kendi mekaniklerini
-// (sis, kaçış planı, pazar çarpanı, yemek tüketimi, terfi ağacı, turnuva) hedefler.
+// Quests aren't copied from Warband; they target WebBand's own mechanics
+// (fog, escape plan, market multiplier, food consumption, promotion tree, tournament).
 //
-// Bir görev tanımı:
-//   givers      : hangi mizaçtaki lordlar verir (boş = herkes)
-//   minRelation : bu ilişki altında teklif edilmez
-//   can(giver)  : dünya bu görevi şu an mümkün kılıyor mu (yoksa teklif edilmez)
-//   setup(q,giver) : q.data'yı doldurur
-//   desc(q)     : görev ekranındaki metin — **ne** yapılacağı ve ilerleme
-//   where(q)    : şu an gidilecek yerleşimin id'si — **nerede** sorusunun tek kaynağı.
-//                 Görev listesindeki 📍 satırı da haritadaki 📜 damgası da buradan
-//                 beslenir; hedef yoksa (ya da bilerek gizliyse) yazılmaz.
-//   on(q, ev, d): olay geldiğinde 'done' | 'fail' | undefined döner
-//   day(q)      : her gün çağrılır, 'done' | 'fail' | undefined
+// A quest definition:
+//   givers      : which personalities give it (empty = everyone)
+//   minRelation : not offered below this relation
+//   can(giver)  : does the world currently make this quest possible (else not offered)
+//   setup(q,giver) : fills q.data
+//   desc(q)     : the quest-screen text — **what** to do and progress
+//   where(q)    : id of the location to go to right now — the single source for
+//                 the **where** question. Both the 📍 line in the quest list and
+//                 the 📜 map pin read from here; no target (or a deliberately
+//                 hidden one) means nothing is written.
+//   on(q, ev, d): returns 'done' | 'fail' | undefined when an event arrives
+//   day(q)      : called every day, 'done' | 'fail' | undefined
 //   reward      : { money, renown, rel }
 
 const QUESTS = {
 
-    // 1 — Pazarı şişir
+    // 1 — Flood the market
     butter_blockade: {
         title: 'Tereyağı Ablukası',
         givers: ['cunning', 'debauched'],
@@ -46,7 +47,7 @@ const QUESTS = {
         }
     },
 
-    // 2 — Sisin içinde nokta ara
+    // 2 — Search for a spot in the fog
     fog_dot: {
         title: 'Sisteki Nokta',
         givers: [],
@@ -56,18 +57,19 @@ const QUESTS = {
         setup(q, giver) {
             let home = LOCATIONS.find(l => l.id === giver.homeLocId) || { id: '', name: '?', x: 4500, y: 4500 };
             let a = Math.random() * Math.PI * 2, r = 900 + Math.random() * 900;
-            // homeId aranacak yerin *kendisi* değil, arama halkasının merkezi: haritadaki
-            // damga oyuncuyu doğru bölgeye yollar, sandığın yerini söylemez.
+            // homeId is not the search spot *itself*, it's the center of the search ring: the
+            // map pin sends the player to the right region without giving away the chest's spot.
             q.data = { x: home.x + Math.cos(a) * r, y: home.y + Math.sin(a) * r,
-                       homeId: home.id, homeName: home.name, hint: 'soğuk' };   // ham anahtar; çeviri gösterimde
+                       homeId: home.id, homeName: home.name, hint: 'soğuk' };   // raw key; translated at display
         },
         offer(q) {
             return `${T`"Haritada bir yer var. Nerede olduğunu sana söylemeyeceğim — söylersem başkası da öğrenir.<br><br>
                 Şu kadarını bilmelisin: benim kalemden bir günlük yol içinde. Gez, ara.
                 Yaklaştıkça adamlarım sana haber uçuracak."`}`;
         },
-        // Tek "yeri yazılmayan" görev bu — gizlilik onun oyunu. Bunun yerine ölçek
-        // yazılır: oyuncu 'soğuk'un iyi mi kötü mü olduğunu tahmin etmek zorunda kalmasın.
+        // This is the one quest whose location is never written down — secrecy is its
+        // whole point. A scale is shown instead, so the player isn't left guessing
+        // whether 'soğuk' (cold) is good or bad.
         desc(q) { return T`${T(q.data.homeName)} çevresinde bir günlük yol içinde gizli bir nokta ara — her gün haber gelir.<br>
             Son haber: <b>${T(q.data.hint)}</b> <span style="opacity:0.7">(soğuk → ılık → YANIYORSUN)</span>`; },
         where(q) { return q.data.homeId; },
@@ -85,7 +87,7 @@ const QUESTS = {
         }
     },
 
-    // 3 — Terfi ağacını kullan
+    // 3 — Use the promotion tree
     sergeant_exam: {
         title: 'Çavuşluk Sınavı',
         givers: ['martial'],
@@ -111,7 +113,7 @@ const QUESTS = {
         }
     },
 
-    // 4 — Kendi ordun yemeği yerken taşı
+    // 4 — Carry food while your own army eats it
     hungry_army: {
         title: 'Aç Ordu',
         givers: ['goodnatured', 'martial'],
@@ -145,7 +147,7 @@ const QUESTS = {
         }
     },
 
-    // 5 — İki çözümü olan görev: kazan ya da bilerek esir düş
+    // 5 — A quest with two solutions: win, or get captured on purpose
     brother_in_chains: {
         title: 'Zincirdeki Kardeş',
         givers: ['quarrelsome', 'martial', 'goodnatured'],
@@ -165,9 +167,10 @@ const QUESTS = {
         desc(q) { return T`Haritada <b>${T(q.data.npcName)}</b> çetesini bul ve yen — <i>ya da</i> savaşı kaybedip
             esir düş, sonra zindandan kaç (kaçış daha çok ödül getirir). Aşağıdaki yer çetenin
             <b>şu an dolaştığı</b> civardır; çete gezer, işaret de onunla kayar`; },
-        // Gezen bir çeteyi 9000 birimlik kıtada aramak umutsuzdu: görüşün haritanın
-        // %1'i. Söylenti verilir — çetenin *şu an* en yakın olduğu yerleşim. Çete
-        // hareket ettikçe damga da kayar, yani iz sürüyorsun, adres almıyorsun.
+        // Searching a 9000-unit continent for a roaming band was hopeless: your view
+        // is 1% of the map. A rumor is given instead — the location the band is
+        // *currently* closest to. As the band moves the pin moves with it, so you're
+        // tracking a trail, not being handed an address.
         where(q) {
             let b = state.npcParties.find(n => n.id === q.data.npcId && n.size > 0);
             if(!b) return null;
@@ -190,7 +193,7 @@ const QUESTS = {
         }
     },
 
-    // 6 — Kaybetmeyi becer
+    // 6 — Manage to lose
     fixed_match: {
         title: 'Şike',
         givers: ['cunning', 'debauched'],
@@ -215,7 +218,7 @@ const QUESTS = {
         }
     },
 
-    // 7 — Yalan bilgi yay
+    // 7 — Spread false information
     false_news: {
         title: 'Yalan Haber',
         givers: ['cunning'],
@@ -257,7 +260,7 @@ const QUESTS = {
         }
     },
 
-    // 8 — Deli Hüsnü'nün tavukları (kısa turnuva varyantı)
+    // 8 — Crazy Hüsnü's chickens (short-timer minigame variant)
     crazy_chickens: {
         title: 'Deli Hüsnü\'nün Tavukları',
         givers: ['goodnatured', 'quarrelsome', 'debauched'],
@@ -279,7 +282,7 @@ const QUESTS = {
         }
     },
 
-    // 9 — Köyü savun
+    // 9 — Defend the village
     harvest_watch: {
         title: 'Hasat Nöbeti',
         givers: ['martial', 'goodnatured'],
@@ -320,7 +323,7 @@ const QUESTS = {
         }
     },
 
-    // 10 — Kayıp mektup
+    // 10 — The lost letter
     lost_letter: {
         title: 'Kayıp Mektup',
         givers: ['cunning', 'goodnatured'],
@@ -357,7 +360,7 @@ const QUESTS = {
         }
     },
 
-    // 11 — Ozandan şiir öğren
+    // 11 — Learn a poem from a bard
     bring_poem: {
         title: 'Bir Şiir Getir',
         givers: ['debauched', 'goodnatured'],
@@ -378,7 +381,7 @@ const QUESTS = {
         }
     },
 
-    // 12 — Arenayı kazanma tarafı (şike'nin aynadaki hâli)
+    // 12 — The winning side of the arena (the mirror image of the fixed match)
     arena_champion: {
         title: 'Arena Şampiyonu',
         givers: ['martial', 'quarrelsome'],
@@ -397,7 +400,7 @@ const QUESTS = {
         on(q, ev, d) { if(ev === 'tournament_end' && d.won) return 'done'; }
     },
 
-    // 13 — Kılıcı öldürmeden kullan: esir getir
+    // 13 — Use the sword without killing: bring prisoners
     chain_market: {
         title: 'Zincir Pazarı',
         givers: ['cunning', 'debauched', 'quarrelsome'],
@@ -421,15 +424,15 @@ const QUESTS = {
         }
     },
 
-    // 14 — Şerefini yakarak para kazan: düşman köyünü bas
+    // 14 — Earn money by burning your honor: raid an enemy village
     dawn_raid: {
         title: 'Şafak Baskını',
         givers: ['quarrelsome', 'cunning'],
         minRelation: 20,
         days: 15,
         reward: { money: 1800, renown: -8, rel: 22 },
-        // Savaş yoksa bu görev yok: barıştaki bir köyü yakmak oyuncuyu kendi
-        // krallığıyla savaşa sokar, lord da bunu istemez.
+        // No war, no quest: burning a village at peace would put the player at war
+        // with their own kingdom, and the lord doesn't want that either.
         can(giver) { return QUESTS.dawn_raid.foes(giver).length > 0; },
         foes(giver) {
             return LOCATIONS.filter(l => l.type === 'village' && l.faction && l.faction !== giver.faction
@@ -452,7 +455,7 @@ const QUESTS = {
     }
 };
 
-// --- LONCA GÖREVLERİ (giver: 'guild_<locId>') ---
+// --- GUILD QUESTS (giver: 'guild_<locId>') ---
 QUESTS.caravan_escort = {
     title: 'Kervan Yolu Temizliği',
     givers: ['guild'],
@@ -515,9 +518,10 @@ QUESTS.guild_supply = {
     }
 };
 
-// İn görevi (#68). Lonca ustası ini *bilir* — soyulan kendi kervanları. Görevin
-// asıl değeri de bu: inler görüş menziline girmeden haritada çizilmez, usta ise
-// yerini söyleyip damgalar. Bulmak değil, basmak kalır sana.
+// Lair quest (#68). The guild master *knows* the lair — it's their own caravans
+// being robbed. That's the quest's real value: a lair isn't drawn on the map until
+// it's in view range, but the master names its spot and pins it. What's left to
+// you is the raid, not the search.
 QUESTS.clear_lair = {
     title: 'İni Bas',
     givers: ['guild'],
@@ -528,12 +532,12 @@ QUESTS.clear_lair = {
     setup(q, giver) {
         let ev = LOCATIONS.find(l => l.id === giver.homeLocId) || { x: 4500, y: 4500 };
         let l = Game.lairs().slice().sort((a, b) => Game.dist(a, ev) - Game.dist(b, ev))[0];
-        l.seen = true;                       // ustanın bildiğini sen de bilirsin
-        q.data = { lairId: l.id, guc: Math.round(l.strength) };
+        l.seen = true;                       // what the master knows, you now know too
+        q.data = { lairId: l.id, power: Math.round(l.strength) };
     },
     offer(q) {
         return `${T`"Kervanlarım <b>üç haftadır</b> aynı yerde soyuluyor. Adamlarımı takip ettirdim:
-            kayaların arasında bir in var, kabaca <b>${q.data.guc} kişi</b>.<br><br>
+            kayaların arasında bir in var, kabaca <b>${q.data.power} kişi</b>.<br><br>
             Yerini haritana işaretledim. Git, dağıt. Ne bulursan senin — ben sadece yolun açılmasını istiyorum."`}`;
     },
     desc(q) {
@@ -541,8 +545,8 @@ QUESTS.clear_lair = {
         return l ? T`Haritada ☠️ <b>Haydut İni</b>ni bul ve bas — usta yerini işaretledi, ikon artık haritada`
                  : T('İn dağıtıldı — loncaya haber ver.');
     },
-    // "Nerede" tek kaynaktan: inin en yakın olduğu yerleşim. İn gezmez, yani
-    // damga sabit; asıl işaret haritadaki ikonun kendisi.
+    // Single source for "where": the location the lair is currently closest to.
+    // A lair doesn't move, so the pin is fixed; the real marker is the map icon itself.
     where(q) {
         let l = Game.lairs().find(x => x.id === q.data.lairId);
         if(!l) return null;
@@ -558,8 +562,8 @@ const Quests = {
 
     active() { return state.player.quests; },
 
-    // Görev veren bir lord olabilir, bir şehrin lonca ustası da olabilir.
-    // Lonca ustasının ilişkisi yoktur; ödül olarak yalnızca dinar ve nam verir.
+    // A quest's giver can be a lord, or a city's guild master.
+    // The guild master has no relation value; its reward is only money and renown.
     giver(id) {
         if(String(id).indexOf('guild_') === 0) {
             let loc = LOCATIONS.find(l => l.id === String(id).slice(6)) || { id: '', name: '?', faction: null };
@@ -569,7 +573,7 @@ const Quests = {
         return Nobles.lord(id);
     },
 
-    // "Geri" tuşu: lorda diyaloga, lonca ustasında hana döner
+    // The "Back" button: returns to dialogue for a lord, to the tavern for a guild master
     back(giverId) {
         let g = this.giver(giverId);
         if(g && g.isGuild) {
@@ -579,16 +583,16 @@ const Quests = {
         Nobles.talk(giverId);
     },
 
-    // ---------- "Nerede?" ----------
-    // Görev metinlerinde yer adı üç ayrı yazımla geçiyordu ve biri (tavuklar)
-    // silinmiş yerleşimde patlıyordu. Tek kapı: id → çevrili ad, yoksa '?'.
+    // ---------- "Where?" ----------
+    // The location name appeared in quest text via three separate spellings, and one
+    // (the chickens) blew up on a deleted location. One gate: id → translated name, else '?'.
     locName(id) {
         let l = LOCATIONS.find(x => x.id === id);
         return l ? T(l.name) : '?';
     },
 
-    // Lord ancak kendi salonundayken bulunur (Nobles.isAt) — "nereye gideyim"in
-    // cevabı bu yüzden her zaman onun yerleşimidir, partisinin anlık yeri değil.
+    // A lord is only found in their own hall (Nobles.isAt) — so the answer to
+    // "where do I go" is always their home location, not their party's live position.
     lordSeat(lordId) {
         let l = Nobles.lord(lordId);
         return l ? l.homeLocId : null;
@@ -612,8 +616,8 @@ const Quests = {
         return best ? best.id : null;
     },
 
-    // Harita hızı saat başınadır (Game.getPlayerSpeed) — gün cinsinden yol
-    // hem görev kartında hem "yetişir miyim" kararında aynı sayıdır.
+    // Map speed is per hour (Game.getPlayerSpeed) — the day count shown on the
+    // quest card and used in the "can I make it" decision is the same number.
     daysTo(locId) {
         let l = LOCATIONS.find(x => x.id === locId);
         if(!l) return null;
@@ -621,7 +625,7 @@ const Quests = {
         return spd > 0 ? Math.max(1, Math.round(Game.dist(state.player, l) / (spd * 24))) : null;
     },
 
-    /** Haritanın damga listesi: { locId: [görev adı, ...] } — her karede yeniden kurulur (görev sayısı tek hane). */
+    /** Map pin list: { locId: [quest name, ...] } — rebuilt every frame (quest count stays single-digit). */
     targets() {
         let m = {};
         (state.player.quests || []).forEach(q => {
@@ -661,14 +665,14 @@ const Quests = {
         return state.player.quests.some(q => q.id === qid && (!giverId || q.giverId === giverId));
     },
 
-    // ---------- Teklif ----------
-    // Görev verenin adının tek gösterim kapısı: lonca ustasınınki bileşiktir ve
-    // `giver()` içinde zaten çevrilir, lordunki ham veri tablosundan gelir.
+    // ---------- Offer ----------
+    // Single display gate for the giver's name: a guild master's is composed and
+    // already translated inside `giver()`, a lord's comes from the raw data table.
     giverName(g) { return g.isGuild ? g.name : T(g.name); },
 
-    // "Ne yapacağım" ve "nereye gideceğim" tek bir kutuda, tek bir yazımla.
-    // Teklif modalı da görev listesi de burayı basar: oyuncu kabul etmeden
-    // önce gördüğü cümlenin aynısını sonra görev ekranında bulur.
+    // "What to do" and "where to go" in one box, in one wording.
+    // Both the offer modal and the quest list render through here: the sentence
+    // the player sees before accepting is the same one they later find on the quest screen.
     taskHtml(q) {
         let def = QUESTS[q.id];
         let w = def.where && def.where(q);
@@ -697,9 +701,9 @@ const Quests = {
                 <p style="font-style:italic">${T`"Şu an sana verecek bir işim yok. Bir süre sonra uğra."`}</p>
                 <button class="btn" style="margin-top:1rem" onclick="Quests.back('${giverId}')">${T`Geri`}</button>`);
         }
-        // Teklif lord başına sabitlenir. Eskiden her açılışta yeni zar
-        // atılıyordu; modalı kapatmak ceza da doğurmadığı için oyuncu
-        // istediği görev çıkana kadar menüyü açıp kapatabiliyordu.
+        // The offer is pinned per lord. It used to re-roll on every open;
+        // since closing the modal carried no penalty, the player could keep
+        // opening and closing the menu until the quest they wanted came up.
         state.questOffers = state.questOffers || {};
         let q = state.questOffers[giverId] || this.pick(giverId);
         if(!q) {
@@ -707,7 +711,7 @@ const Quests = {
                 <p style="font-style:italic">${T`"Yok. Git başımdan."`}</p>
                 <button class="btn" style="margin-top:1rem" onclick="Quests.back('${giverId}')">${T`Geri`}</button>`);
         }
-        // Bekleyen teklif tazelenir: eski bir teklif kısalmış süreyle başlamasın
+        // The pending offer is refreshed: an old offer shouldn't start with a shortened deadline
         q.startDay = state.time.day;
         q.deadline = state.time.day + QUESTS[q.id].days;
         state.questOffers[giverId] = q;
@@ -735,11 +739,11 @@ const Quests = {
                 <button class="btn primary" onclick="Quests.accept()">${T`Kabul Ediyorum`}</button>
                 <button class="btn" onclick="Quests.decline('${giverId}')">${T`Reddet`}</button>
             </div>`, '680px');
-        // Lordun ön sözü: karakter özelliği + oyuncunun ağırlığı (#59)
+        // The lord's opening line: personality trait + the player's standing (#59)
         if(!giver.isGuild) Game.typeIn('lord-line', `"${Nobles.lineFor('quest', giverId)}"`);
     },
 
-    // Belirli bir lorddan zorla görev üret (drahoma görevi için)
+    // Force-generate a quest from a specific lord (for the dowry quest)
     offerFrom(giverId, opts = {}) {
         let q = this.pick(giverId, true);
         if(!q) return null;
@@ -756,8 +760,8 @@ const Quests = {
             if(rel < d.minRelation) return false;
             if(d.givers.length && !d.givers.includes(giver.personality)) return false;
             if(!ignoreDup && this.has(id)) return false;
-            // Dünyanın şu ânı görevi mümkün kılmıyorsa teklif de edilmez —
-            // böylece setup() önkoşulunu varsayabilir (bkz. dawn_raid).
+            // If the world's current state doesn't make the quest possible, it isn't
+            // offered either — so setup() can assume its precondition (see dawn_raid).
             if(d.can && !d.can(giver)) return false;
             return true;
         });
@@ -765,7 +769,7 @@ const Quests = {
         return this.make(pool[Math.floor(Math.random() * pool.length)], giverId);
     },
 
-    /** Tek görev örneği — kura `pick`in, kuruluş burasının işi (testler de buradan üretir). */
+    /** A single quest instance — the roll is `pick`'s job, building it is this one's (tests build from here too). */
     make(id, giverId) {
         let q = { id, giverId, startDay: state.time.day, deadline: state.time.day + QUESTS[id].days, data: {} };
         QUESTS[id].setup(q, this.giver(giverId));
@@ -778,7 +782,7 @@ const Quests = {
         state.pendingQuest = null;
         if(state.questOffers) delete state.questOffers[q.giverId];
         state.player.quests.push(q);
-        Game.trainAttr('int', 1);   // görev almak zekâyı geliştirir
+        Game.trainAttr('int', 1);   // taking a quest trains intelligence
         Game.closeModal();
         alert(T`Görev kabul edildi: ${T(QUESTS[q.id].title)}\nSüre: ${QUESTS[q.id].days} gün.`);
     },
@@ -792,7 +796,7 @@ const Quests = {
         this.back(giverId);
     },
 
-    // ---------- Olay dağıtımı ----------
+    // ---------- Event dispatch ----------
     emit(ev, d = {}) {
         for(let i = state.player.quests.length - 1; i >= 0; i--) {
             let q = state.player.quests[i];
@@ -828,8 +832,8 @@ const Quests = {
         let g = this.giver(q.giverId);
         if(!g.isGuild) Nobles.addRel(q.giverId, def.reward.rel);
         if(def.onDone) def.onDone(q);
-        Game.addHonor('questDone');   // verilen sözü tutmak şeref kazandırır (#53/1.5)
-        Game.trainAttr('int', 2);   // görev bitirmek zekâyı geliştirir
+        Game.addHonor('questDone');   // keeping your word earns honor (#53/1.5)
+        Game.trainAttr('int', 2);   // finishing a quest trains intelligence
 
         if(q.dowryFor && state.dowryOffer && state.dowryOffer.ladyId === q.dowryFor) {
             state.dowryOffer.amount = Math.max(500, Math.round(state.dowryOffer.amount * 0.5 / 50) * 50);
@@ -858,11 +862,11 @@ const Quests = {
         if(q) this.fail(q, T('Görevden vazgeçtin.'));
     },
 
-    // ---------- Ekran ----------
+    // ---------- Screen ----------
     render() {
         let el = document.getElementById('quest-list');
         if(!el) return;
-        // Hedef zinciri görevlerin üstünde durur — "şimdi ne yapayım"ın cevabı (#53/1.4)
+        // The goal chain sits above the quests — the answer to "what do I do now" (#53/1.4)
         let amb = Game.ambitionHtml();
         if(!state.player.quests.length) {
             el.innerHTML = amb + `<p style="color:var(--text-muted)">${T`Üstlendiğin bir görev yok. İki kapı var:<br>
