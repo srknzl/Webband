@@ -483,12 +483,12 @@ const Quests = {
                 ${Nobles.portraitCss(giver, 110)}
                 <div style="flex:1">
                     <h3 style="margin:0">📜 ${T(def.title)}</h3>
-                    <div style="font-size:0.8rem;color:var(--text-muted)">${T`${this.giverName(giver)} · süre ${def.days} gün${
+                    <div style="font-size:var(--fs-sm);color:var(--text-muted)">${T`${this.giverName(giver)} · süre ${def.days} gün${
                         giver.isGuild ? '' : ` · ${Nobles.traitOb(giverId).icon} ${T(Nobles.traitOb(giverId).name)}`}`}</div>
                 </div></div>
             ${giver.isGuild ? '' : `<p id="lord-line" style="margin-top:1rem;font-style:italic;color:var(--primary);min-height:1.5em"></p>`}
             <p style="margin-top:1rem;line-height:1.6;font-style:italic">${def.offer(q, giver)}</p>
-            <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:1rem;font-size:0.9rem">
+            <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:1rem;font-size:var(--fs-md)">
                 ${T`Ödül:`} <b style="color:#ffcc00">${T`${def.reward.money} dinar`}</b> ·
                 <b style="color:${def.reward.renown < 0 ? 'var(--danger)' : '#3498db'}">${T`${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam`}</b>${def.reward.rel ? ` ·
                 <b style="color:#2ecc71">${T`+${def.reward.rel} ilişki`}</b>` : ''}
@@ -631,11 +631,11 @@ const Quests = {
                     border-radius:8px;padding:1rem;margin-bottom:0.8rem">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                     <b style="font-size:1.1rem">${T(def.title)}</b>
-                    <span style="font-size:0.85rem;color:${left <= 3 ? 'var(--danger)' : 'var(--text-muted)'}">${T`${left} gün kaldı`}</span>
+                    <span style="font-size:var(--fs-sm);color:${left <= 3 ? 'var(--danger)' : 'var(--text-muted)'}">${T`${left} gün kaldı`}</span>
                 </div>
-                <div style="font-size:0.85rem;color:var(--text-muted);margin:0.3rem 0">${T`Veren: ${T(Quests.giver(q.giverId).name)}`}</div>
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:0.3rem 0">${T`Veren: ${T(Quests.giver(q.giverId).name)}`}</div>
                 <div style="margin-top:0.4rem">${def.desc(q)}</div>
-                <button class="btn" style="margin-top:0.6rem;font-size:0.8rem;padding:0.3rem 0.8rem;border-color:var(--danger);color:var(--danger)"
+                <button class="btn" style="margin-top:0.6rem;font-size:var(--fs-sm);padding:0.3rem 0.8rem;border-color:var(--danger);color:var(--danger)"
                         onclick="Quests.abandon('${q.id}')">${T`Vazgeç`}</button>
             </div>`;
         }).join('');

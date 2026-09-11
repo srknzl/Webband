@@ -8,6 +8,13 @@
     --text-muted: #94a3b8;
     --danger: #ef4444;
     --success: #22c55e;
+    /* Açıklama puntoları tek yerden (#73). Arayüzün her yerine serpilmiş inline
+       0.68–0.92rem değerleri bu üç değişkene bağlandı; taban yükseldi ve artık
+       tek satır değiştirerek büyütülüyor. Ayarlardaki yazı ölçeği kök puntoyu
+       çarptığı için ikisi birlikte çalışır. */
+    --fs-xs: 0.82rem;
+    --fs-sm: 0.92rem;
+    --fs-md: 1rem;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -399,7 +406,7 @@ input[type="text"]:focus {
     overflow: hidden;
     display: flex;
     flex-direction: column-reverse; /* Yeni mesajlar altta */
-    font-size: 0.85rem;
+    font-size: var(--fs-sm);
     color: #fff;
     pointer-events: none;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 100%);
@@ -782,7 +789,7 @@ body.touch .menu-btn kbd { display: none; }
 #prisoner-ui {
     position: fixed; right: 20px; bottom: 20px; z-index: 60;
     width: 250px; padding: 0.8rem 0.9rem;
-    font-size: 0.82rem; line-height: 1.5;
+    font-size: var(--fs-sm); line-height: 1.5;
 }
 #prisoner-ui h3 { margin: 0 0 0.5rem; color: #ff8f82; font-size: 1rem; text-align: center; }
 #prisoner-info { color: var(--text-muted); }
@@ -793,46 +800,46 @@ body.touch .menu-btn kbd { display: none; }
 }
 #prisoner-ui .pr-chance strong { color: var(--primary); font-size: 1.15rem; }
 #prisoner-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-#prisoner-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
+#prisoner-ui .btn { padding: 0.4rem; font-size: var(--fs-sm); }
 
 /* Kuşatma kampı paneli — esaret paneliyle aynı köşede, aynı ölçüde (#25) */
 #siege-ui {
     position: fixed; right: 20px; bottom: 20px; z-index: 60;
     width: 250px; padding: 0.8rem 0.9rem;
-    font-size: 0.82rem; line-height: 1.5;
+    font-size: var(--fs-sm); line-height: 1.5;
 }
 #siege-ui h3 { margin: 0 0 0.5rem; color: var(--primary); font-size: 1rem; text-align: center; }
 #siege-info { color: var(--text-muted); }
 #siege-info b { color: #e8e2d4; }
 #siege-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-#siege-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
+#siege-ui .btn { padding: 0.4rem; font-size: var(--fs-sm); }
 #btn-siege-assault { border-color: var(--primary); color: var(--primary); }
 
 /* Yağma paneli — kuşatma paneliyle aynı köşede, aynı ölçüde (#49) */
 #raid-ui {
     position: fixed; right: 20px; bottom: 20px; z-index: 60;
     width: 250px; padding: 0.8rem 0.9rem;
-    font-size: 0.82rem; line-height: 1.5;
+    font-size: var(--fs-sm); line-height: 1.5;
 }
 #raid-ui h3 { margin: 0 0 0.5rem; color: #ff8f52; font-size: 1rem; text-align: center; }
 #raid-info { color: var(--text-muted); }
 #raid-info b { color: #e8e2d4; }
 #raid-ui .hud-bar { display: block; width: 100%; height: 7px; }
 #raid-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-#raid-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
+#raid-ui .btn { padding: 0.4rem; font-size: var(--fs-sm); }
 #btn-escape-attempt { border-color: #ff6666; color: #ff6666; }
 
 /* Kamp paneli — yağma paneliyle aynı köşede, aynı ölçüde (#53) */
 #wait-ui {
     position: fixed; right: 20px; bottom: 20px; z-index: 60;
     width: 250px; padding: 0.8rem 0.9rem;
-    font-size: 0.82rem; line-height: 1.5;
+    font-size: var(--fs-sm); line-height: 1.5;
 }
 #wait-ui h3 { margin: 0 0 0.5rem; color: #9fd0ff; font-size: 1rem; text-align: center; }
 #wait-info { color: var(--text-muted); }
 #wait-info b { color: #e8e2d4; }
 #wait-ui .pr-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-#wait-ui .btn { padding: 0.4rem; font-size: 0.8rem; }
+#wait-ui .btn { padding: 0.4rem; font-size: var(--fs-sm); }
 
 /* Erzak rozeti: 3 günden az kaldıysa kırmızıya döner */
 /* Uyarı hâli her rozette aynı görünür (erzak, çanta, ...) */
@@ -868,7 +875,7 @@ body.touch .menu-btn kbd { display: none; }
 /* ---- Sürüm damgası, hata rozeti, erişilebilirlik (#55) ---- */
 #ver-tag {
     position: absolute; right: 14px; bottom: 10px;
-    font-size: 0.72rem; color: rgba(255,255,255,0.35); letter-spacing: .05em;
+    font-size: var(--fs-xs); color: rgba(255,255,255,0.45); letter-spacing: .05em;
     pointer-events: none;
 }
 #err-badge {
@@ -1113,9 +1120,9 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     #start-screen { padding: 1rem; overflow-y: auto; justify-content: flex-start; padding-top: 2.5rem; }
     #start-screen h1 { font-size: clamp(2.6rem, 15vw, 5rem); letter-spacing: 3px; }
     #start-screen .title-container { margin-bottom: 1.5rem; }
-    #start-screen p { font-size: 1.05rem; }
+    #start-screen p { font-size: 1.25rem; }
     .ornament { width: min(100%, 340px); height: 26px; margin: 10px auto; }
-    #start-screen .form-group { padding: 1.1rem; width: 100%; max-width: 420px; }
+    #start-screen .form-group { padding: 1.3rem; width: 100%; max-width: 420px; }
     #start-screen .form-group > div[style] {
         position: static !important;
         flex-wrap: wrap;
@@ -1129,7 +1136,7 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
         margin-top: 1.2rem;
         width: 100% !important;
     }
-    #start-screen .hex-btn-small { font-size: 0.75rem; padding: 0.6rem 0.9rem; }
+    #start-screen .hex-btn-small { font-size: 0.92rem; padding: 0.7rem 0.9rem; }
     #ver-tag { position: static !important; margin-top: 1rem; text-align: center; }
 }
 
@@ -1159,13 +1166,13 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     background: rgba(20,18,14,0.6);
     color: #e8dcc0;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-md);
 }
 .lang-btn .lang-flag { font-size: 2rem; line-height: 1; }
 .lang-btn:hover { border-color: var(--primary); background: rgba(40,34,20,0.7); }
 .lang-btn.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
 /* Başlangıç ekranındaki sıra daha küçük: oyunu değil ayarı temsil eder */
-#lang-row .lang-btn { min-width: 62px; padding: 0.45rem 0.6rem; font-size: 0.66rem; }
+#lang-row .lang-btn { min-width: 68px; padding: 0.5rem 0.6rem; font-size: 0.8rem; }
 #lang-row .lang-flag { font-size: 1.3rem; }
 
 /* --- HAFİF MOD (body.lite) ---
@@ -1210,10 +1217,10 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 }
 #coach-box.mid { left: 50%; top: 50%; transform: translate(-50%, -50%); }
 #coach-box h4 { color: var(--primary, #d4af37); margin-bottom: 0.4rem; font-size: 1.05rem; }
-#coach-box p { font-size: 0.86rem; line-height: 1.45; color: #e7e2d4; }
+#coach-box p { font-size: var(--fs-sm); line-height: 1.45; color: #e7e2d4; }
 #coach-box .coach-row {
     display: flex; align-items: center; gap: 0.5rem;
     margin-top: 0.9rem;
 }
-#coach-box .coach-row span { flex: 1; font-size: 0.75rem; color: var(--text-muted); }
+#coach-box .coach-row span { flex: 1; font-size: var(--fs-xs); color: var(--text-muted); }
 #coach-box .coach-row .btn { min-height: 44px; padding: 0.4rem 0.9rem; }

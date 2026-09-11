@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.71 — Büyük Punto (2026-09-11)
+
+- **Açıklama yazıları büyüdü.** Arayüzün her yerine serpilmiş 0.68–0.92rem'lik inline
+  puntolar üç CSS değişkenine bağlandı (`--fs-xs` 0.82 / `--fs-sm` 0.92 / `--fs-md` 1rem):
+  en küçük yazı 10.9 px'ten **13.1 px**'e çıktı, karakter yaratma ekranındaki seçenek
+  açıklamaları 12.8 → **14.7 px** oldu. Artık tek satır değiştirerek hepsi büyüyor.
+- **Başlangıç ekranı telefonda okunur hâle geldi**: alt başlık 16.8 → **20 px**,
+  alttaki dört düğme 12 → **14.7 px** (yüksekliği 44 px), dil düğmeleri 10.6 → **12.8 px**.
+- Haritadaki keşif noktalarının adı (Mağara, Terk Edilmiş Kamp…) İngilizce ve
+  Endonezce oynarken de Türkçe kalıyordu; etiket ve künye artık çeviriden geçiyor.
+
 ## 0.70 — Uzaktan Görünmez (2026-09-11)
 
 - **Uzaktaki kalenin içini göremiyorsun.** Haritanın öbür ucundaki şehrin garnizonu,

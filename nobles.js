@@ -339,11 +339,11 @@ const Nobles = {
         let renown = Game.peakRenown();   // kapılar ulaşılmış nama bakar (#55)
 
         let html = `<h3>${T`👑 Lordlar Salonu — ${T(loc.name)}`}</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem">${T(f.name)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T(f.name)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
 
         html += `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`Salondaki Soylular`}</h4>`;
         if(lords.length === 0) {
-            html += `<p style="color:var(--text-muted);font-size:0.9rem">${T`Salon boş. Soylular sefere çıkmış; onları haritada bulman ya da bir başkasına yerlerini sorman gerek.`}</p>`;
+            html += `<p style="color:var(--text-muted);font-size:var(--fs-md)">${T`Salon boş. Soylular sefere çıkmış; onları haritada bulman ya da bir başkasına yerlerini sorman gerek.`}</p>`;
         } else {
             html += `<div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.6rem">`;
             lords.forEach(l => html += this.nobleCard(l));
@@ -353,17 +353,17 @@ const Nobles = {
         // Kadın oyuncuda kur hedefi lordların kendisidir; ayrı bir konuk listesi
         // aynı kartları ikinci kez basardı — kur yapma lordun diyaloğundan yürür.
         if(this.isFemale()) {
-            html += `<p style="margin-top:1.2rem;font-size:0.85rem;color:var(--text-muted)">
+            html += `<p style="margin-top:1.2rem;font-size:var(--fs-sm);color:var(--text-muted)">
                 ${T`Salonun leydileri seninle ilgilenmiyor. Bekâr bir lorda kur yapmak istersen
                 onunla konuş (gereken nam: ${this.HALL_RENOWN}, sende ${renown}).`}</p>`;
         } else {
         html += `<h4 style="margin-top:1.5rem;color:var(--primary)">${T`Salonun Konukları`}</h4>`;
         if(renown < this.HALL_RENOWN) {
-            html += `<p style="color:var(--danger);font-size:0.9rem">${T`Kapıdaki muhafız yolunu kesiyor:
+            html += `<p style="color:var(--danger);font-size:var(--fs-md)">${T`Kapıdaki muhafız yolunu kesiyor:
                 <i>"Kim bu üstü başı toz içindeki? Soyluların oturduğu salona her önüne gelen giremez."`}</i><br>
                 <span style="color:var(--text-muted)">${T`Gereken nam: ${this.HALL_RENOWN} (sende ${renown})`}</span></p>`;
         } else if(ladies.length === 0) {
-            html += `<p style="color:var(--text-muted);font-size:0.9rem">${T`Bugün konuk yok.`}</p>`;
+            html += `<p style="color:var(--text-muted);font-size:var(--fs-md)">${T`Bugün konuk yok.`}</p>`;
         } else {
             html += `<div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.6rem">`;
             ladies.forEach(l => html += this.nobleCard(l));
@@ -386,8 +386,8 @@ const Nobles = {
         return `<div onclick="Nobles.talk('${n.id}')" style="cursor:pointer;width:150px;text-align:center;
             padding:0.6rem;background:rgba(0,0,0,0.35);border:1px solid var(--panel-border);border-radius:8px">
             <div style="display:flex;justify-content:center">${this.portraitCss(n, 96)}</div>
-            <div style="font-weight:bold;margin-top:0.5rem;font-size:0.9rem">${T(n.name)}</div>
-            <div style="font-size:0.75rem;margin-top:0.2rem">${sub}</div>
+            <div style="font-weight:bold;margin-top:0.5rem;font-size:var(--fs-md)">${T(n.name)}</div>
+            <div style="font-size:var(--fs-xs);margin-top:0.2rem">${sub}</div>
         </div>`;
     },
 
@@ -417,7 +417,7 @@ const Nobles = {
             ${this.portraitCss(n, 140)}
             <div style="flex:1">
                 <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
-                <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem">
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:0.6rem">
                     ${T`${T(FACTIONS[n.faction].name)} · ${T(p.name)} · ${this.traitOb(id).icon} ${T(this.traitOb(id).name)} · İlişki: ${this.relLabel(r)} (${r})
                     <br>Gözünde ağırlığın:`} <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
                     <span style="opacity:0.7">${T`(nam + ilişki + kapıya getirdiğin ordu)`}</span>
@@ -706,7 +706,7 @@ const Nobles = {
         let pair = this.lineFor('retinue', id);
         if(!pair) return '';
         let who = this.RETAINERS[Math.floor(Math.random() * this.RETAINERS.length)];
-        return `<div id="lord-banter" style="margin-top:0.6rem;font-size:0.86rem;color:var(--text-muted);border-left:2px solid var(--panel-border);padding-left:0.7rem">
+        return `<div id="lord-banter" style="margin-top:0.6rem;font-size:var(--fs-sm);color:var(--text-muted);border-left:2px solid var(--panel-border);padding-left:0.7rem">
             <div><b>${T(who)}:</b> <i>"${pair[0]}"</i></div>
             <div style="margin-top:0.2rem"><b>${this.lord(id) ? T(this.lord(id).name) : T('Lord')}:</b> <i>"${pair[1]}"</i></div>
         </div>`;
@@ -720,7 +720,7 @@ const Nobles = {
                 <div style="flex:1">
                     <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
                     <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3.2em"></p>
-                    ${note ? `<div style="font-size:0.85rem;color:var(--text-muted)">${note}</div>` : ''}
+                    ${note ? `<div style="font-size:var(--fs-sm);color:var(--text-muted)">${note}</div>` : ''}
                 </div></div>
             <button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">${T`Geri`}</button>`, '620px');
         Game.typeIn('lord-line', `"${line}"`);
@@ -812,7 +812,7 @@ const Nobles = {
                     <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
                     <p style="font-style:italic;color:var(--text-muted)">${T`Sen: "Senin soyağacın bir tereyağı fıçısına sığar ${T(n.name)}."`}</p>
                     <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:3em"></p>
-                    <div style="font-size:0.85rem;color:var(--text-muted)">${T`−15 ilişki, +2 nam. Rakip krallıkların lordları bunu duyunca keyiflendi (+5).`}</div>
+                    <div style="font-size:var(--fs-sm);color:var(--text-muted)">${T`−15 ilişki, +2 nam. Rakip krallıkların lordları bunu duyunca keyiflendi (+5).`}</div>
                 </div></div>
             <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Ayrıl`}</button>`, '620px');
         Game.typeIn('lord-line', `"${this.lineFor('retort', id)}"`);
@@ -827,11 +827,11 @@ const Nobles = {
             return alert(T('Bugün ona zaten bir hediye verdin. Fazlası yalakalık olur.'));
 
         let html = `<h3>${T`🎁 ${T(n.name)}'a Hediye`}</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">${T`Herkes her şeyden hoşlanmaz. ${T(PERSONALITIES[n.personality].name)} bir adamın neyi seveceğini tahmin et.`}</p>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Herkes her şeyden hoşlanmaz. ${T(PERSONALITIES[n.personality].name)} bir adamın neyi seveceğini tahmin et.`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.6rem;margin-top:1rem">`;
         state.player.inventory.forEach((it, i) => {
             if(it.type === 'special') return;
-            html += `<button class="btn" style="font-size:0.8rem" onclick="Nobles.giveGift('${id}',${i})">${it.icon||'📦'} ${T(it.name)} (x${it.qty})</button>`;
+            html += `<button class="btn" style="font-size:var(--fs-sm)" onclick="Nobles.giveGift('${id}',${i})">${it.icon||'📦'} ${T(it.name)} (x${it.qty})</button>`;
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${id}')">${T`Geri`}</button>`;
         Game.showModal(html);
@@ -868,11 +868,11 @@ const Nobles = {
         let asked = this.lord(askedId);
         let others = LORDS.filter(l => l.id !== askedId);
         let html = `<h3>${T`🗺️ ${T(asked.name)}'a sor: "… nerede?"`}</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">
             ${T`Alacağın cevabın doğruluğu onunla aranın iyiliğine bağlı. Kırgın bir adam seni bilerek yanlış yola sürer.`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem;max-height:45vh;overflow-y:auto">`;
         others.forEach(l => {
-            html += `<button class="btn" style="font-size:0.8rem" onclick="Nobles.askWhere('${askedId}','${l.id}')">${T(l.name)}</button>`;
+            html += `<button class="btn" style="font-size:var(--fs-sm)" onclick="Nobles.askWhere('${askedId}','${l.id}')">${T(l.name)}</button>`;
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.talk('${askedId}')">${T`Geri`}</button>`;
         Game.showModal(html, '720px');
@@ -977,17 +977,17 @@ const Nobles = {
             ${this.portraitCss(L, 140)}
             <div style="flex:1">
                 <h3 style="margin:0;color:#ff9ec4">${T(L.name)}</h3>
-                <div style="font-size:0.8rem;color:var(--text-muted)">
+                <div style="font-size:var(--fs-sm);color:var(--text-muted)">
                     ${T(FACTIONS[L.faction].name)} · ${T(t.name)} · ${L.suitor ? T('Efendisi') : T('Vasisi')}: ${g ? T(g.name) : '—'}
                 </div>
-                <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.4rem;font-style:italic">${T(L.lore)}</p>
+                <p style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:0.4rem;font-style:italic">${T(L.lore)}</p>
                 <div style="margin-top:0.8rem">
-                    <div style="font-size:0.8rem">${T`İlgisi:`} <b style="color:#ff9ec4">${a}/100</b></div>
+                    <div style="font-size:var(--fs-sm)">${T`İlgisi:`} <b style="color:#ff9ec4">${a}/100</b></div>
                     <div style="background:rgba(0,0,0,0.4);height:8px;border-radius:4px;margin-top:4px">
                         <div style="background:#ff9ec4;height:100%;width:${a}%;border-radius:4px"></div>
                     </div>`;
         if(rival) {
-            html += `<div style="font-size:0.8rem;margin-top:0.6rem">${T`Rakip`} <b>${T(this.any(rival.lordId).name)}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
+            html += `<div style="font-size:var(--fs-sm);margin-top:0.6rem">${T`Rakip`} <b>${T(this.any(rival.lordId).name)}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
                      <div style="background:rgba(0,0,0,0.4);height:6px;border-radius:3px;margin-top:3px">
                         <div style="background:#e74c3c;height:100%;width:${Math.floor(rival.affection)}%;border-radius:3px"></div>
                      </div>`;
@@ -1040,11 +1040,11 @@ const Nobles = {
     complimentMenu(ladyId) {
         let L = this.lady(ladyId);
         let html = `<h3>${T`🌹 ${T(L.name)}'a İltifat`}</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted);font-style:italic">${T`İpucu: ${T(LADY_TRAITS[L.trait].hint)}`}</p>
-            <p style="font-size:0.8rem;color:var(--danger)">${T`Yanlış konu açarsan geri teper.`}</p>
+            <p style="font-size:var(--fs-sm);color:var(--text-muted);font-style:italic">${T`İpucu: ${T(LADY_TRAITS[L.trait].hint)}`}</p>
+            <p style="font-size:var(--fs-sm);color:var(--danger)">${T`Yanlış konu açarsan geri teper.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         COMPLIMENTS.forEach(c => {
-            html += `<button class="btn" style="font-size:0.85rem" onclick="Nobles.compliment('${ladyId}','${c.id}')">${T(c.label)}</button>`;
+            html += `<button class="btn" style="font-size:var(--fs-sm)" onclick="Nobles.compliment('${ladyId}','${c.id}')">${T(c.label)}</button>`;
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Nobles.courtMenu('${ladyId}')">${T`Geri`}</button>`;
         Game.showModal(html);
@@ -1070,7 +1070,7 @@ const Nobles = {
         let L = this.lady(ladyId);
         let used = (state.poemsRead || {})[ladyId] || [];
         let html = `<h3>${T`📜 ${T(L.name)}'a Şiir`}</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted)">${T`Her şiiri aynı kişiye yalnızca bir kez okuyabilirsin.`}</p>
+            <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Her şiiri aynı kişiye yalnızca bir kez okuyabilirsin.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         state.player.poems.forEach(pid => {
             let p = POEMS.find(x => x.id === pid);
@@ -1213,9 +1213,9 @@ const Nobles = {
         let okRenown = Game.peakRenown() >= this.MIN_RENOWN;
         let okRel = this.rel(g.id) >= this.MIN_REL;
         html += `<div style="margin-bottom:0.5rem">${okRenown?'✅':'❌'} <b>${T`Nam:`}</b> ${Game.peakRenown()} / ${this.MIN_RENOWN}
-                 ${okRenown?'':`<div style="font-size:0.85rem;color:var(--danger);font-style:italic">${T`"Adını duyan yok. ${ward} bir hiçe vermem."`}</div>`}</div>`;
+                 ${okRenown?'':`<div style="font-size:var(--fs-sm);color:var(--danger);font-style:italic">${T`"Adını duyan yok. ${ward} bir hiçe vermem."`}</div>`}</div>`;
         html += `<div style="margin-bottom:0.5rem">${okRel?'✅':'❌'} <b>${T`İlişki:`}</b> ${this.rel(g.id)} / ${this.MIN_REL}
-                 ${okRel?'':T('<div style="font-size:0.85rem;color:var(--danger);font-style:italic">"Seni tanımıyorum bile. Önce bir işime yara."</div>')}</div>`;
+                 ${okRel?'':T('<div style="font-size:var(--fs-sm);color:var(--danger);font-style:italic">"Seni tanımıyorum bile. Önce bir işime yara."</div>')}</div>`;
         html += `</div>`;
 
         if(!okRenown || !okRel) {
@@ -1235,7 +1235,7 @@ const Nobles = {
         let p = state.player;
         let dLabel = this.lady(ladyId).suitor ? T('Başlık') : T('Drahoma');
         let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`${dLabel} Hesabı`}</h4>
-            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.9rem;line-height:1.7">
+            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:var(--fs-md);line-height:1.7">
             <div>${T`Temel bedel: <b>${d.base}</b> dinar</div>
             <div>${T(FACTIONS[this.lady(ladyId).faction].name)}'nın ${d.fiefs} kalesi/şehri var:`} <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
             <div>${T`Namın (${p.renown}) sayesinde:`} <span style="color:var(--success)">−${d.renownCut}</span></div>
@@ -1468,7 +1468,7 @@ const Feast = {
         let ladies = Nobles.courtables().filter(l => l.faction === f.faction);
 
         let html = `<h3>${T`🍷 Şölen — ${T(loc.name)}`}</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem">${T`${T(FACTIONS[f.faction].name)}'nın bütün soyluları burada.
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`${T(FACTIONS[f.faction].name)}'nın bütün soyluları burada.
             Herkesle bir kez selamlaşabilirsin (+2 ilişki).`}</p>`;
 
         if(state.pendingWedding && state.pendingWedding.locId === loc.id && state.time.day >= state.pendingWedding.day) {

@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.70', date: '2026-09-11', name: 'Uzaktan Görünmez' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.71', date: '2026-09-11', name: 'Büyük Punto' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -98,14 +98,14 @@ const Debug = {
     open() {
         let n = this.errors.length;
         Game.showModal(`<h3>${T`🐞 Debug Raporu`}</h3>
-            <p style="font-size:0.85rem;color:var(--text-muted)">${T`Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.`}</p>
+            <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.`}</p>
             <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
             <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
                 <button class="btn primary" onclick="Debug.copy()">${T`📋 Panoya Kopyala`}</button>
                 <button class="btn" onclick="Debug.download()">${T`💾 Dosya Olarak İndir`}</button>
                 <button class="btn" onclick="Game.closeModal()">${T`Kapat`}</button>
             </div>
-            <div id="debug-msg" style="text-align:center;margin-top:0.5rem;font-size:0.85rem;color:var(--success)"></div>`, '720px');
+            <div id="debug-msg" style="text-align:center;margin-top:0.5rem;font-size:var(--fs-sm);color:var(--success)"></div>`, '720px');
     },
     copy() {
         let ta = document.getElementById('debug-text');
@@ -820,20 +820,20 @@ const Game = {
 
     // renew: kaç günde bir yeniden dolar; 0 = tek kullanımlık (araştırılınca haritadan silinir)
     SITE_KINDS: {
-        ruin:  { icon: '🏚️', name: T('Harabe'), renew: 0,
-                 desc: T('Adını kimsenin hatırlamadığı bir kalenin devrilmiş duvarları.'),
+        ruin:  { icon: '🏚️', name: 'Harabe', renew: 0,
+                 desc: 'Adını kimsenin hatırlamadığı bir kalenin devrilmiş duvarları.',
                  pool: { coin: 3, gear: 2, ambush: 3, empty: 2 } },
-        farm:  { icon: '🌾', name: T('Terk Edilmiş Çiftlik'), renew: 25,
-                 desc: T('Kapısı açık kalmış bir ambar; tarlayı ot basmış.'),
+        farm:  { icon: '🌾', name: 'Terk Edilmiş Çiftlik', renew: 25,
+                 desc: 'Kapısı açık kalmış bir ambar; tarlayı ot basmış.',
                  pool: { food: 4, recruit: 2, empty: 2, ambush: 1 } },
-        tower: { icon: '🗼', name: T('Gözetleme Kulesi'), renew: 12,
-                 desc: T('Yıllar önce nöbet tutulan bir kule. Merdiveni hâlâ sağlam görünüyor.'),
+        tower: { icon: '🗼', name: 'Gözetleme Kulesi', renew: 12,
+                 desc: 'Yıllar önce nöbet tutulan bir kule. Merdiveni hâlâ sağlam görünüyor.',
                  pool: { scout: 5, coin: 1, empty: 2, trap: 1 } },
-        cave:  { icon: '🕳️', name: T('Mağara'), renew: 30,
-                 desc: T('Ağzından soğuk hava geliyor. İçeride bir şeyin yaşadığı belli.'),
+        cave:  { icon: '🕳️', name: 'Mağara', renew: 30,
+                 desc: 'Ağzından soğuk hava geliyor. İçeride bir şeyin yaşadığı belli.',
                  pool: { coin: 2, gear: 2, ambush: 4, trap: 2 } },
-        camp:  { icon: '⛺', name: T('Terk Edilmiş Kamp'), renew: 15,
-                 desc: T('Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.'),
+        camp:  { icon: '⛺', name: 'Terk Edilmiş Kamp', renew: 15,
+                 desc: 'Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.',
                  pool: { coin: 2, food: 2, shelter: 2, ambush: 2, empty: 1 } }
     },
 
@@ -995,9 +995,9 @@ const Game = {
     // keçi yolu (köyler). Hepsi aynı `state.roads` dizisinde kısa parçalar hâlinde
     // durur — getTerrainInfo ve renderMap tek veri şeklini okumaya devam eder.
     ROAD_KINDS: {
-        stone: { half: 26, mult: 1.18, name: T('Taş Yol'),   icon: '🛣️' },
-        dirt:  { half: 22, mult: 1.10, name: T('Toprak Yol'), icon: '🛤️' },
-        track: { half: 15, mult: 1.04, name: T('Keçi Yolu'),  icon: '🥾' }
+        stone: { half: 26, mult: 1.18, name: 'Taş Yol',   icon: '🛣️' },
+        dirt:  { half: 22, mult: 1.10, name: 'Toprak Yol', icon: '🛤️' },
+        track: { half: 15, mult: 1.04, name: 'Keçi Yolu',  icon: '🥾' }
     },
     roadKind(loc) { return loc.type === 'city' ? 'stone' : loc.type === 'castle' ? 'dirt' : 'track'; },
 
@@ -1318,14 +1318,14 @@ const Game = {
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
         let html = `<h3>${T(q.q)}</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">${T`Adım ${step+1}/${BACKGROUND.length+1} — ${T(q.hint)}`}</p>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+1} — ${T(q.hint)}`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
                 <b>${T(o.label)}</b>
-                <div style="font-size:0.8rem;color:var(--text-muted);font-style:italic">${T(o.desc)}</div>
-                <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || T('ek bir getirisi yok')}</div>
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);font-style:italic">${T(o.desc)}</div>
+                <div style="font-size:var(--fs-sm);color:var(--primary)">${this.bonusText(o) || T('ek bir getirisi yok')}</div>
             </button>`;
         });
         html += `</div>`;
@@ -1357,14 +1357,14 @@ const Game = {
 
     renderBannerStep() {
         let html = `<h3>${T`Sancağını seç`}</h3>
-            <p style="color:var(--text-muted);font-size:0.85rem">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+1} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+1} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
             html += `<div onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
                 border-radius:8px;border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
                 <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
-                <div style="font-size:0.8rem;margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
+                <div style="font-size:var(--fs-sm);margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
             </div>`;
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
@@ -1382,13 +1382,13 @@ const Game = {
         let rows = BACKGROUND.map(q => {
             let o = q.opts.find(x => x.id === sel[q.key]);
             return `<div style="margin-bottom:0.4rem"><b>${T(q.q)}</b> ${T(o.label)}
-                <div style="font-size:0.8rem;color:var(--primary)">${this.bonusText(o) || '—'}</div></div>`;
+                <div style="font-size:var(--fs-sm);color:var(--primary)">${this.bonusText(o) || '—'}</div></div>`;
         }).join('');
         let b = BANNERS[sel.banner || 0];
         let html = `<h3>${state.player.name}</h3>
             <div style="display:flex;gap:1.2rem;align-items:flex-start;margin-top:0.6rem">
                 ${this.bannerCss(sel.banner || 0, 96)}
-                <div style="flex:1;font-size:0.9rem;line-height:1.5">
+                <div style="flex:1;font-size:var(--fs-md);line-height:1.5">
                     <div style="color:${b.color};font-weight:bold">${T`${T(b.name)} sancağı`}</div>
                     ${rows}
                 </div>
@@ -1784,9 +1784,9 @@ const Game = {
         return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid #e0b062;
                 border-radius:8px;padding:1rem;margin-bottom:1rem">
             <b style="font-size:1.1rem">${T`🎯 Hedefin`}</b>
-            <span style="float:right;color:var(--text-muted);font-size:0.85rem">${T`${done} hedef tamamlandı`}</span>
+            <span style="float:right;color:var(--text-muted);font-size:var(--fs-sm)">${T`${done} hedef tamamlandı`}</span>
             ${a ? `<div style="margin-top:0.5rem"><b>${T(a.title)}</b> — ${T(a.desc)}</div>
-                   <button class="btn" style="margin-top:0.6rem;font-size:0.8rem;padding:0.3rem 0.8rem"
+                   <button class="btn" style="margin-top:0.6rem;font-size:var(--fs-sm);padding:0.3rem 0.8rem"
                            onclick="Game.pickAmbition('');Quests.render()">${T`Vazgeç`}</button>`
                 : open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">${T`Aynı anda tek hedef seçilir.`}</div>`
                    + open.map(o => `<button class="btn" style="display:block;width:100%;text-align:left;margin-top:0.4rem"
@@ -2209,7 +2209,7 @@ const Game = {
         let p = state.player;
         this.setHtml('wait-info',
             `<div>${T`Kalan:`} <b>${left < 1 ? Math.round(left * 60) + ' dakika' : left.toFixed(1) + ' saat'}</b></div>
-             <div style="color:var(--text-muted);font-size:0.85rem">
+             <div style="color:var(--text-muted);font-size:var(--fs-sm)">
                 ${T`❤️ ${Math.round(p.stats.hp)}/${Math.round(p.stats.maxHp)} · 🎺 ${Math.round(this.morale())} · zaman ×${this.WAIT_SCALE}`}</div>`);
     },
 
@@ -2486,7 +2486,7 @@ const Game = {
                 ? T`(Alfa dişlerini gösterip homurdanır, sürü ağaçların arasına doğru geri geri çekilir.)`
                 : T`"Şu çaylağa bak patron, kılıcımızı kirletmeye değmez. Yürü git buradan çömez!"`;
             html += `<p><i>${dialog}</i></p>
-            <p style="color:#2d2;font-size:0.85rem;margin-top:0.5rem">${bk.beast
+            <p style="color:#2d2;font-size:var(--fs-sm);margin-top:0.5rem">${bk.beast
                 ? T`${this.npcName(npc)} sayınızı tartıyor, üstünüze gelmiyor.`
                 : T`${this.npcName(npc)} seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
             <div style="display:flex;gap:1rem;margin-top:1rem;">
@@ -2503,9 +2503,9 @@ const Game = {
             let chat = this.troopChatter(npc);   // adamlarının da söyleyecek bir şeyi var (#35)
             let prey = this.preyWarning(npc);    // ödül kısılacaksa savaştan önce söyle (#55)
             html += `<p><i>${dialog}</i></p>
-            ${chat ? `<p style="margin-top:0.4rem;font-size:0.9rem">${chat}</p>` : ''}
-            ${prey ? `<p style="margin-top:0.4rem;font-size:0.85rem;color:#cc8800">${prey}</p>` : ''}
-            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.5rem">${canFlee
+            ${chat ? `<p style="margin-top:0.4rem;font-size:var(--fs-md)">${chat}</p>` : ''}
+            ${prey ? `<p style="margin-top:0.4rem;font-size:var(--fs-sm);color:#cc8800">${prey}</p>` : ''}
+            <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.5rem">${canFlee
                 ? `${T`Kaçabilirsin ama hız farkı belirler: kaçış şansın`} <b>%${flee}</b>.`
                 : T('Kaçış yok — savaş ya da teslim ol!')}</p>
             <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
@@ -3033,7 +3033,7 @@ const Game = {
     tipBox(title, rows, note) {
         return `<b style="font-family:Cinzel,serif">${title}</b>
             <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">${rows}
-            ${note ? `<div style="color:var(--text-muted);font-size:0.8rem;margin-top:5px;max-width:270px">${note}</div>` : ''}`;
+            ${note ? `<div style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:5px;max-width:270px">${note}</div>` : ''}`;
     },
     updateTips(cap) {
         let p = state.player, R = (l, v, g) => this.tipRow(l, v, g);
@@ -3729,7 +3729,7 @@ const Game = {
             this.emoji(ctx, k.icon, site.x, site.y + 10, big);
             ctx.globalAlpha = 1;
             // Etiket yalnız yakınlaşınca: 14 uzun ad kıta görünümünde yerleşim adlarını eziyordu
-            if(fresh && this.camera.zoom > 0.18) this.mapLabel(ctx, k.name, site.x, site.y - big*0.75 - 10, '#cbbf9a', '#8a7b52');
+            if(fresh && this.camera.zoom > 0.18) this.mapLabel(ctx, T(k.name), site.x, site.y - big*0.75 - 10, '#cbbf9a', '#8a7b52');
         });
 
         // Draw locations
@@ -3934,7 +3934,7 @@ const Game = {
         if(!found) {
             for(let site of (state.sites || [])) {
                 if(this.dist(site, {x:mx,y:my}) < 30) {
-                    found = { name: this.SITE_KINDS[site.kind].icon + ' ' + site.name, sub: this.siteTipHtml(site) };
+                    found = { name: this.SITE_KINDS[site.kind].icon + ' ' + T(site.name), sub: this.siteTipHtml(site) };
                     break;
                 }
             }
@@ -4906,7 +4906,7 @@ const Game = {
         <div style="flex:1;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
         <div style="flex:1;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
         </div>
-        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:0.9rem"></div>`;
+        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:var(--fs-md)"></div>`;
         this.showModal(html);
         this._marketLoc = loc;
         this.refreshMarket();
@@ -5007,12 +5007,12 @@ const Game = {
         let head = towns.map(t => `<th style="padding:0.2rem 0.4rem;font-weight:600;color:${(FACTIONS[t.faction]||{}).color||'#fff'}">${T(t.name)}${t.id === here.id ? ' *' : ''}</th>`).join('');
         let rows = goods.map(g => `<tr><td style="padding:0.2rem 0.4rem">${g.icon} ${T(g.name)}</td>` +
             towns.map(t => `<td style="padding:0.2rem 0.4rem;text-align:right">${Math.max(1, Math.floor(g.basePrice * this.priceMult(t, g.id)))}₺<br>
-                <span style="font-size:0.7rem">${this.priceTag(t, g.id)}</span></td>`).join('') + '</tr>').join('');
+                <span style="font-size:var(--fs-xs)">${this.priceTag(t, g.id)}</span></td>`).join('') + '</tr>').join('');
         this.showModal(`<h3>${T`📈 Lonca Fiyat Defteri`}</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem">${T`"En yakın beş şehrin fiyatları bunlar. Ucuz aldığın malı
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`"En yakın beş şehrin fiyatları bunlar. Ucuz aldığın malı
             pahalı olduğu yerde satarsan kâr edersin — ama sen aldıkça fiyat yükselir, sattıkça düşer."<br>
             Satış fiyatı bu rakamın <b>%70</b>'i (Ticaret yeteneği payını iyileştirir). <i>*</i> bulunduğun şehir.`}</p>
-            <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+            <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm)">
             <tr><th style="text-align:left;padding:0.2rem 0.4rem">${T`Mal`}</th>${head}</tr>${rows}</table></div>
             <button class="btn" style="margin-top:1rem" onclick="Game.openTavern(LOCATIONS.find(l=>l.id==='${locId}'))">${T('Geri')}</button>`, '760px');
     },
@@ -5038,12 +5038,12 @@ const Game = {
             let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
             let empty = st <= 0;
             li.innerHTML = `${item.icon} ${T(item.name)} - <b>${price}₺</b> `
-                + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                + (isFinite(st) ? `<span style="font-size:0.72rem;color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${T`stok ${st}`}</span> ` : '')
-                + (empty ? `<i style="font-size:0.8rem;color:var(--text-muted)">${T`tükendi`}</i>`
-                    : `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}')">${T`Al`}</button> `
-                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.buyItem('${item.id}',5)">x5</button>`)
-                + (note ? `<div style="font-size:0.7rem;color:#cbb26b">${note}</div>` : '');
+                + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
+                + (isFinite(st) ? `<span style="font-size:var(--fs-xs);color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${T`stok ${st}`}</span> ` : '')
+                + (empty ? `<i style="font-size:var(--fs-sm);color:var(--text-muted)">${T`tükendi`}</i>`
+                    : `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm)" onclick="Game.buyItem('${item.id}')">${T`Al`}</button> `
+                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm)" onclick="Game.buyItem('${item.id}',5)">x5</button>`)
+                + (note ? `<div style="font-size:var(--fs-xs);color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
         });
         let sell = document.getElementById('market-sell'); sell.innerHTML = '';
@@ -5053,9 +5053,9 @@ const Game = {
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
                 li.id = 'mrow-sell-' + item.id;
                 li.innerHTML = `${item.icon||'📦'} ${T(item.name)} x${item.qty} - <b>${price}₺</b> `
-                    + `<span style="font-size:0.72rem">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}')">${T`Sat`}</button> `
-                    + (item.qty >= 5 ? `<button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem" onclick="Game.sellItem('${item.id}',5)">x5</button>` : '');
+                    + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
+                    + `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm)" onclick="Game.sellItem('${item.id}')">${T`Sat`}</button> `
+                    + (item.qty >= 5 ? `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm)" onclick="Game.sellItem('${item.id}',5)">x5</button>` : '');
                 sell.appendChild(li);
             }
         });
@@ -5142,27 +5142,27 @@ const Game = {
     },
 
     showSettings() {
-        let sw = (k, on, off) => `<button class="btn${this.opt(k) ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.7rem"
+        let sw = (k, on, off) => `<button class="btn${this.opt(k) ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.7rem"
             onclick="Game.setOpt('${k}', ${!this.opt(k)})">${this.opt(k) ? on : off}</button>`;
         let row = (label, ctrl, note) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:0.5rem 0;border-bottom:1px solid var(--panel-border)">
-            <div><div>${label}</div>${note ? `<div style="font-size:0.75rem;color:var(--text-muted)">${note}</div>` : ''}</div><div style="white-space:nowrap">${ctrl}</div></div>`;
+            <div><div>${label}</div>${note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted)">${note}</div>` : ''}</div><div style="white-space:nowrap">${ctrl}</div></div>`;
         let rm = this.opt('reducedMotion');
-        let rmBtn = ['auto', true, false].map(v => `<button class="btn${rm === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+        let rmBtn = ['auto', true, false].map(v => `<button class="btn${rm === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('reducedMotion', ${JSON.stringify(v)})">${v === 'auto' ? T('Sistem') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let fs = this.opt('fontScale');
-        let fsBtn = [0.9, 1, 1.15].map(v => `<button class="btn${fs === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+        let fsBtn = [0.9, 1, 1.15].map(v => `<button class="btn${fs === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('fontScale', ${v})">${v === 0.9 ? T('Küçük') : v === 1 ? T('Normal') : T('Büyük')}</button>`).join(' ');
         let lt = this.opt('lite');
-        let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+        let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('lite', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let hz = this._step === Infinity ? T('ölçülmedi') : Math.round(1000 / this._step) + T(' Hz');
         this.showModal(`<div id="settings-panel"><h3>${T`⚙️ Ayarlar`}</h3>
-        ${row(T('🌍 Dil'), I18N.LANGS.map(l => `<button class="btn${l.id === I18N.lang ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
+        ${row(T('🌍 Dil'), I18N.LANGS.map(l => `<button class="btn${l.id === I18N.lang ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setLang('${l.id}')">${l.flag} ${T(l.name)}</button>`).join(' '))}
         ${row(T('🔊 Ses'), sw('muted', T('Kapalı'), T('Açık')))}
         ${row(T('🎚️ Ses seviyesi'), `<input type="range" min="0" max="100" value="${Math.round(this.opt('volume') * 100)}"
             oninput="Game.setOpt('volume', this.value / 100)" onchange="Game.sfx('buy')" style="vertical-align:middle">
-            <span style="font-size:0.8rem;color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
+            <span style="font-size:var(--fs-sm);color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
@@ -5176,7 +5176,7 @@ const Game = {
             <button class="btn" onclick="Game.closeModal(); Game.showScreen('map'); Game.startTutorial(true)">${T`🎓 Öğretici`}</button>
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>
-        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
+        <p style="margin-top:0.8rem;font-size:var(--fs-xs);color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
         </div>`, '620px');
     },
     // Ham durur; gösterimde `T` ile çevrilir (tablo yükleme anında kurulur,
@@ -5196,7 +5196,7 @@ const Game = {
                  ['1 2 3 düğmeleri', 'Taktik emirleri'], ['✖ / Kapat', 'Modali kapatır']],
     showKeys() {
         let dokun = this.isTouch(), rows = dokun ? this.TOUCH_HELP : this.KEYS;
-        this.showModal(`<h3>${dokun ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:0.9rem">
+        this.showModal(`<h3>${dokun ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:var(--fs-md)">
         ${rows.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${T(k)}</kbd></td><td style="color:var(--text-muted)">${T(v)}</td></tr>`).join('')}
         </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">${T`← Ayarlar`}</button>`, '460px');
     },
@@ -5367,12 +5367,12 @@ const Game = {
         <button class="btn primary" onclick="Game.restAtTavern()">${T`Dinlen`}</button>
         <hr style="border-color:var(--panel-border);margin:1.2rem 0">
         <h4 style="color:var(--primary)">${T`🎵 Köşedeki Ozan`}</h4>
-        <p style="font-size:0.9rem;color:var(--text-muted)">${T`"Bir kadeh ve biraz gümüş, sana bir dize öğretirim. Kime okuyacağın seni ilgilendirir."`}</p>
+        <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`"Bir kadeh ve biraz gümüş, sana bir dize öğretirim. Kime okuyacağın seni ilgilendirir."`}</p>
         <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.6rem">`;
         POEMS.forEach(p => {
             html += state.player.poems.includes(p.id)
-                ? `<button class="btn" disabled style="opacity:0.4;font-size:0.85rem">${T`${T(p.name)} (ezberinde)`}</button>`
-                : `<button class="btn" style="font-size:0.85rem" onclick="Game.learnPoem('${p.id}')">${T`${T(p.name)} — ${p.cost} Dinar`}</button>`;
+                ? `<button class="btn" disabled style="opacity:0.4;font-size:var(--fs-sm)">${T`${T(p.name)} (ezberinde)`}</button>`
+                : `<button class="btn" style="font-size:var(--fs-sm)" onclick="Game.learnPoem('${p.id}')">${T`${T(p.name)} — ${p.cost} Dinar`}</button>`;
         });
         html += `</div>`;
 
@@ -5380,7 +5380,7 @@ const Game = {
         let pool = this.mercPool(loc);
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
             <h4 style="color:var(--primary)">${T`🗡️ Paralı Askerler`}</h4>
-            <p style="font-size:0.9rem;color:var(--text-muted)">${T`"Sadakat pahalıdır, biz peşin çalışırız."`}</p>`;
+            <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`"Sadakat pahalıdır, biz peşin çalışırız."`}</p>`;
         if(!pool.list.length) html += `<p style="color:var(--text-muted)">${T`Bu şehirde şu an boşta adam yok.`}</p>`;
         pool.list.forEach((m, i) => {
             let price = this.mercPrice(m);
@@ -5388,20 +5388,20 @@ const Game = {
             let max = Math.min(m.count, space, Math.floor(state.player.money / price));
             let st = this.troopStats({ name: m.name });
             html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.7rem;margin-bottom:0.5rem">
-                <b>${st.icon} ${T(m.name)}</b> <span style="font-size:0.8rem;color:var(--text-muted)">${T`· seviye ${m.level} · ${m.count} kişi · kişi başı ${price} dinar`}</span>`;
+                <b>${st.icon} ${T(m.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`· seviye ${m.level} · ${m.count} kişi · kişi başı ${price} dinar`}</span>`;
             html += max > 0
                 ? `<input type="range" id="merc-n-${i}" min="1" max="${max}" value="${max}" style="width:100%;margin:0.5rem 0"
                         oninput="Game.updateMercLabel(${i}, ${price})">
-                   <button class="btn primary" id="merc-btn-${i}" style="font-size:0.85rem"
+                   <button class="btn primary" id="merc-btn-${i}" style="font-size:var(--fs-sm)"
                         onclick="Game.hireMercs('${loc.id}', ${i}, +document.getElementById('merc-n-${i}').value)">${T`Tut: ${max} kişi (${max * price} Dinar)`}</button>`
-                : `<div style="font-size:0.85rem;color:var(--danger);margin-top:0.4rem">${space <= 0 ? T('Grubunda yer yok.') : T('Kesen yetmiyor.')}</div>`;
+                : `<div style="font-size:var(--fs-sm);color:var(--danger);margin-top:0.4rem">${space <= 0 ? T('Grubunda yer yok.') : T('Kesen yetmiyor.')}</div>`;
             html += `</div>`;
         });
 
         // Lonca ustası
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
             <h4 style="color:var(--primary)">${T`⚖️ Lonca Ustası`}</h4>
-            <p style="font-size:0.9rem;color:var(--text-muted)">${T`Köşedeki masada, defterine bir şeyler yazıyor.`}</p>
+            <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`Köşedeki masada, defterine bir şeyler yazıyor.`}</p>
             <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">${T`İşi Sor`}</button>
             <button class="btn" onclick="Game.guildPrices('${loc.id}')">${T`📈 Fiyat Defterine Bak`}</button>`;
 
@@ -5413,11 +5413,11 @@ const Game = {
             here.forEach(c => {
                 let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
                 html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.8rem;margin-bottom:0.5rem">
-                    <b>${c.icon} ${T(c.name)}</b> <span style="font-size:0.8rem;color:var(--text-muted)">· ${this.profName(c.skill)} ${c.level}</span>
-                    <div style="font-size:0.85rem;font-style:italic;color:var(--text-muted);margin:0.3rem 0">${T(c.lore)}</div>
+                    <b>${c.icon} ${T(c.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">· ${this.profName(c.skill)} ${c.level}</span>
+                    <div style="font-size:var(--fs-sm);font-style:italic;color:var(--text-muted);margin:0.3rem 0">${T(c.lore)}</div>
                     ${rival
-                        ? `<button class="btn" disabled style="opacity:0.5;font-size:0.85rem">${T`${T(rival.name)} grubundayken katılmaz`}</button>`
-                        : `<button class="btn primary" style="font-size:0.85rem" onclick="Game.hireCompanion('${c.id}')">${T`Gruba Kat (${c.cost} Dinar)`}</button>`}
+                        ? `<button class="btn" disabled style="opacity:0.5;font-size:var(--fs-sm)">${T`${T(rival.name)} grubundayken katılmaz`}</button>`
+                        : `<button class="btn primary" style="font-size:var(--fs-sm)" onclick="Game.hireCompanion('${c.id}')">${T`Gruba Kat (${c.cost} Dinar)`}</button>`}
                 </div>`;
             });
         }
@@ -5540,7 +5540,7 @@ const Game = {
         <div class="action-list" style="margin-top:1rem">
             ${Battle.ARENA_FOES.map((f, i) => `<button class="btn" onclick="Game.startArena(${i})">
                 <b>${T(f.name)}</b> <span style="color:var(--text-muted)">${T`· Sv. ${Math.max(1, lv + f.dLv)} · ~${f.xp} XP`}</span>
-                <div style="font-size:0.8rem;color:var(--text-muted)">${T(f.desc)}</div></button>`).join('')}
+                <div style="font-size:var(--fs-sm);color:var(--text-muted)">${T(f.desc)}</div></button>`).join('')}
         </div>`);
     },
     startArena(idx) { this.closeModal(); Battle.startArena(idx); },
@@ -5572,13 +5572,13 @@ const Game = {
         <p><b>${TM.ROUNDS} tur</b> — her turda kuradan <b>rastgele bir ekipman</b> çıkar; kiminde hedef küçülür, kiminde büyür.</p>
         <p>Şampiyonluk ödülü: <b>500 Dinar</b> ve <b>+20 Nam</b>. Elenirsen turnuva sona erer.`}</p>
         <div style="margin-top:1rem;padding:0.8rem;border:1px solid var(--panel-border);border-radius:8px">
-            <b>${T`🎲 Bahis`}</b> <span style="color:var(--text-muted);font-size:0.85rem">${T`— kendi kazanmana yatırırsın, oran tur ilerledikçe katlanır.`}</span>
-            <div style="display:flex;gap:0.5rem;margin:0.5rem 0;font-size:0.85rem;color:var(--text-muted);flex-wrap:wrap">
+            <b>${T`🎲 Bahis`}</b> <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`— kendi kazanmana yatırırsın, oran tur ilerledikçe katlanır.`}</span>
+            <div style="display:flex;gap:0.5rem;margin:0.5rem 0;font-size:var(--fs-sm);color:var(--text-muted);flex-wrap:wrap">
                 ${TM.ODDS.map((o, i) => `<span>${i === TM.ROUNDS ? T('🏆 Şampiyon') : T`${i + 1}. turda elenme`}: <b style="color:${o >= 1 ? 'var(--success)' : 'var(--danger)'}">×${o}</b></span>`).join(' · ')}
             </div>
             <label>${T`Yatırılacak:`} <input type="number" id="tourney-bet" value="0" min="0" max="${max}" step="50"
                 style="width:110px;padding:0.3rem"></label>
-            <span style="color:var(--text-muted);font-size:0.85rem">${T`(en fazla ${max} dinar)`}</span>
+            <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(en fazla ${max} dinar)`}</span>
         </div>
         <button class="btn primary" style="margin-top:1rem" onclick="Game.startTournament('${loc.id}')">${T`⚔️ Arenaya Çık!`}</button>`);
     },
@@ -5905,7 +5905,7 @@ const Game = {
                     <span style="color:var(--text-muted);min-width:70px">${l.type === 'city' ? T('Şehir') : l.type === 'castle' ? T('Kale') : T('Köy')}</span>
                     <span style="color:#ffcc00;min-width:110px">${T`+${this.fiefTax(l)} dinar/gün`}</span>
                     <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">${T`🛡️ ${(l.garrison || []).length} garnizon`}</span>
-                    ${this.vassals().length && l.type !== 'village' ? `<button class="btn" style="padding:0.1rem 0.5rem;font-size:0.75rem" onclick="Game.grantFiefMenu('${l.id}')">${T`👑 Vassala ver`}</button>` : ''}
+                    ${this.vassals().length && l.type !== 'village' ? `<button class="btn" style="padding:0.1rem 0.5rem;font-size:var(--fs-xs)" onclick="Game.grantFiefMenu('${l.id}')">${T`👑 Vassala ver`}</button>` : ''}
                 </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi${this.fiefIncome().tribute ? T` · +${this.fiefIncome().tribute} haraç` : ''} · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> ${T`dinar/gün`}</div>` : ''}
             ${this.vassals().length ? `<h3 style="margin-top:1rem">${T`👑 Vassalların`}</h3>` + this.vassals().map(v =>
                 `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
@@ -5916,7 +5916,7 @@ const Game = {
                 </div>`).join('') : ''}
             ${camps ? `<h3 style="margin-top:1rem">${T`🎖️ Yürüyen Seferler`}</h3>${camps}` : ''}
             <h3 style="margin-top:1rem">${T`📜 Haberler`}</h3>
-            <div style="max-height:220px;overflow:auto;font-size:0.92rem">${log}</div>
+            <div style="max-height:220px;overflow:auto;font-size:var(--fs-md)">${log}</div>
             <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '640px');
     },
 
@@ -6059,14 +6059,14 @@ const Game = {
         loc.garrison = loc.garrison || [];
         let cap = this.getPartyCapacity();
         let btns = (label, dir, max) => [1, 5, max].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
-            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveGarrison('${loc.id}','${label.replace(/'/g,"\\'")}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
+            .map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveGarrison('${loc.id}','${label.replace(/'/g,"\\'")}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
         let col = (title, groups, dir, empty) => {
             let rows = Object.keys(groups).map(k => {
                 let g = groups[k];
                 let blocked = dir === 'in' && g.sample.isCompanion;
                 return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
                     <span>${this.troopStats(g.sample).icon} ${k} <b>x${g.n}</b></span>
-                    <span>${blocked ? T('<span style="color:var(--text-muted);font-size:0.75rem">yoldaş kalamaz</span>') : btns(k, dir, g.n)}</span></li>`;
+                    <span>${blocked ? T('<span style="color:var(--text-muted);font-size:var(--fs-xs)">yoldaş kalamaz</span>') : btns(k, dir, g.n)}</span></li>`;
             }).join('');
             return `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${rows || `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         };
@@ -6083,7 +6083,7 @@ const Game = {
             ${col(T('Grubun (') + state.player.party.length + '/' + cap + ')', this.troopGroups(state.player.party), 'in', T('Yanında asker yok.'))}
             ${col(T('Garnizon'), this.troopGroups(loc.garrison), 'out', T('Kale boş — ilk saldırıda düşer.'))}
         </div>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.8rem">${T`Tüm tımarlarının garnizonu: ${inc.troops} asker · ${inc.wage} dinar/gün`}</p>
+        <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.8rem">${T`Tüm tımarlarının garnizonu: ${inc.troops} asker · ${inc.wage} dinar/gün`}</p>
         <button class="btn" style="margin-top:0.8rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '700px');
     },
     moveGarrison(locId, label, n, dir) {
@@ -6104,7 +6104,7 @@ const Game = {
     openStorage(loc) {
         loc.storage = loc.storage || [];
         let btns = (id, dir, max) => [1, 5, max].filter((v, i, a) => v > 0 && a.indexOf(v) === i)
-            .map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
+            .map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
         let col = (title, list, dir, empty) => `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${
             list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
                 <span>${i.icon} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
@@ -6117,9 +6117,9 @@ const Game = {
         this.showModal(`<h3>${T`📦 ${T(loc.name)} Deposu`}</h3>
         <p style="color:var(--text-muted)">${T`Depodaki erzak bozulmaz (bozulma yalnız yanında taşıdığına işler) ve yenilgide yağmalanmaz.`}</p>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.5rem 0;border-top:1px solid var(--panel-border);border-bottom:1px solid var(--panel-border)">
-            <span>${T`🏦 Kasa:`} <b>${tre}</b> dinar <span style="color:var(--text-muted);font-size:0.8rem">${T`(yenilgide yağmalanmaz)</span></span>
-            <span>Yatır: ${money.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'in')">${v === money[money.length-1] && money.length > 1 ? T('Hepsi') : v}</button>`).join(' ')}
-                  ${tre ? T(' · Çek: ') + back.map(v => `<button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'out')">${v === back[back.length-1] && back.length > 1 ? T('Hepsi') : v}</button>`).join(' ') : ''}`}</span>
+            <span>${T`🏦 Kasa:`} <b>${tre}</b> dinar <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(yenilgide yağmalanmaz)</span></span>
+            <span>Yatır: ${money.map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'in')">${v === money[money.length-1] && money.length > 1 ? T('Hepsi') : v}</button>`).join(' ')}
+                  ${tre ? T(' · Çek: ') + back.map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'out')">${v === back[back.length-1] && back.length > 1 ? T('Hepsi') : v}</button>`).join(' ') : ''}`}</span>
         </div>
         <div style="display:flex;gap:1.5rem;margin-top:0.8rem">
             ${col(T('Yanındakiler'), state.player.inventory, 'in', T('Çantan boş.'))}
@@ -6269,12 +6269,12 @@ const Game = {
             return `<button class="btn" style="display:block;width:100%;text-align:left;margin-bottom:0.5rem"
                 onclick="Game.closeModal(); Game.beginSiege('${loc.id}','${k}',${founding})">
                 ${p.icon} <b>${T(p.name)}</b> ${T`— ${p.days} gün hazırlık`}
-                <br><span style="color:var(--text-muted);font-size:0.82rem">${T(p.desc)}</span></button>`;
+                <br><span style="color:var(--text-muted);font-size:var(--fs-sm)">${T(p.desc)}</span></button>`;
         }).join('');
         this.showModal(`<h3>${T`🏰 ${T(loc.name)} Kuşatması</h3>
         <p>Garnizonda tahmini <b>${g}</b> asker var. Kampı kurunca ordun kapıda bekler:
         hazırlık bitene kadar zaman akar, ${this.factionName(loc.faction)} lordları kuşatmayı yarmaya gelebilir.`}</p>
-        <p style="color:var(--text-muted);font-size:0.85rem">${T`Hazırlık bitince beklemeye devam edersen garnizonu
+        <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Hazırlık bitince beklemeye devam edersen garnizonu
         <b>açlığa mahkûm</b> edersin: her gün erir — ama senin ordun da kapıda erzak yer.`}</p>
         ${plans}
         <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`);
@@ -6528,7 +6528,7 @@ const Game = {
         this.setHtml('raid-info',
             `<div><b>${T(loc.name)}</b> ${T`yağmalanıyor — ${(this.RAID_SECONDS - r.t).toFixed(1)} sn`}</div>
              <div class="hud-bar" style="margin:0.4rem 0"><i class="fill-hp" style="width:${pct}%"></i></div>
-             <div style="color:${near ? 'var(--danger)' : 'var(--text-muted)'};font-size:0.85rem">
+             <div style="color:${near ? 'var(--danger)' : 'var(--text-muted)'};font-size:var(--fs-sm)">
                 ${near ? T`🚩 ${T(near.name)} yaklaşıyor — ${Math.round(this.dist(near, loc))} birim`
                        : T('Ufukta kimse yok. Ambarı boşalt.')}</div>`);
     },
@@ -6590,8 +6590,8 @@ const Game = {
 
         this.showModal(`<h3>${T`🪖 Gönüllü Topla</h3>
         <p>${avail} gönüllü hazır. Kişi başı ${cost} Dinar. En fazla <b>${max}</b> kişi alabilirsin.`}</p>
-        ${pen > 0 ? `<p style="color:var(--danger);font-size:0.85rem">${T`${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).`}</p>`
-          : pen < 0 ? `<p style="color:#7fd8a0;font-size:0.85rem">${T`${this.honorLabel()} adın buraya da ulaşmış: fazladan gönüllü çıktı, ücreti de kırdılar (+%${Math.round(-pen*100)} gönüllü, −%${Math.round(-pen*100)} ücret).`}</p>` : ''}
+        ${pen > 0 ? `<p style="color:var(--danger);font-size:var(--fs-sm)">${T`${this.infamyLabel()} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%${Math.round(pen*100)}, ücret +%${Math.round(pen*100)}).`}</p>`
+          : pen < 0 ? `<p style="color:#7fd8a0;font-size:var(--fs-sm)">${T`${this.honorLabel()} adın buraya da ulaşmış: fazladan gönüllü çıktı, ücreti de kırdılar (+%${Math.round(-pen*100)} gönüllü, −%${Math.round(-pen*100)} ücret).`}</p>` : ''}
         <input type="range" id="recruit-n" min="1" max="${max}" value="${max}" style="width:100%;margin:0.8rem 0"
                oninput="Game.updateRecruitLabel(${cost})">
         <button class="btn primary" id="recruit-btn"
@@ -6647,7 +6647,7 @@ const Game = {
                 ${imgHtml}
                 <div>
                     <h3 style="color:${color};font-size:1.6rem;margin-bottom:0.2rem;font-family:'Cinzel',serif;">${name}</h3>
-                    <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem">${sub}</div>
+                    <div style="color:var(--text-muted);font-size:var(--fs-sm);margin-bottom:0.5rem">${sub}</div>
                     <p style="color:#eee;line-height:1.4;font-size:1.2rem;font-family:'Cormorant Garamond','Georgia',serif;font-style:italic;">${text}</p>
                 </div>
             </div>`;
@@ -6704,11 +6704,11 @@ const Game = {
             ${a.icon} <strong>${T(a.name)}:</strong>
             <span style="color:${done ? '#fff' : 'var(--primary)'};font-size:1.05rem">${eff.toFixed(1)}</span>
             <span style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
-            ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:0.8rem;margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
+            ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:var(--fs-sm);margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
             ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:3px;height:5px;margin:0.3rem 0;max-width:220px">
                 <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:3px"></div></div>`}
-            <div style="font-size:0.75rem;color:var(--text-muted)">${this.attrEffect(k)}</div>
-            ${done ? '' : `<div style="font-size:0.72rem;color:#cbb26b">${T`Gelişimi: ${a.how}`}</div>`}
+            <div style="font-size:var(--fs-xs);color:var(--text-muted)">${this.attrEffect(k)}</div>
+            ${done ? '' : `<div style="font-size:var(--fs-xs);color:#cbb26b">${T`Gelişimi: ${a.how}`}</div>`}
         </li>`;
     },
     renderCharacterScreen() {
@@ -6732,15 +6732,15 @@ const Game = {
             <p>Eş: ${p.spouse ? T((Nobles.any(p.spouse) || {name:p.spouse}).name) : T('Yok')}`}</p>
             <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.8rem">
                 ${this.bannerCss(p.banner || 0, 64)}
-                <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.5">
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">
                     <b style="color:${this.bannerColor()}">${T((BANNERS[p.banner] || BANNERS[0]).name)}</b> ${T`sancağı`}<br>
                     ${p.gender === 'female' ? T('👩 Kadın') : T('👨 Erkek')}<br>${this.backgroundLine()}
                 </div>
             </div>
         </div>
         <div style="flex:1;">
-            <h3 style="color:var(--primary)">${T`Nitelikler ${pts > 0 ? `<span style="color:#2d2;font-size:0.9rem;">${T`(${pts} Puan Dağıtılabilir)`}</span>` : ''}`}</h3>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin:-0.4rem 0 0.6rem">
+            <h3 style="color:var(--primary)">${T`Nitelikler ${pts > 0 ? `<span style="color:#2d2;font-size:var(--fs-md);">${T`(${pts} Puan Dağıtılabilir)`}</span>` : ''}`}</h3>
+            <p style="font-size:var(--fs-xs);color:var(--text-muted);margin:-0.4rem 0 0.6rem">
                 ${T`Puan vermek <b>hedefi</b> yükseltir. Sayının solundaki <b>efektif</b> değer, o niteliğe
                 uygun oynadıkça hedefe yaklaşır — beklemek işe yaramaz.`}</p>
             <ul style="list-style:none;display:flex;flex-direction:column;gap:0.8rem;">
@@ -6770,8 +6770,8 @@ const Game = {
             { id: 'trainer', name: T('Eğitim'), d: () => T`Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` }
         ];
 
-        let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">${T`Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:0.9rem;">${T`(${fp} Odak Puanı Dağıtılabilir)`}</span>` : ''}`}</h3>
-        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;">${T`Odak puanları yeteneklerin öğrenme hızını artırır (Bannerlord sistemi). Savaşarak gelişir.`}</p>
+        let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">${T`Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:var(--fs-md);">${T`(${fp} Odak Puanı Dağıtılabilir)`}</span>` : ''}`}</h3>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:1rem;">${T`Odak puanları yeteneklerin öğrenme hızını artırır (Bannerlord sistemi). Savaşarak gelişir.`}</p>
         <div style="display:flex;flex-wrap:wrap;gap:1rem;">`;
         
         profs.forEach(pr => {
@@ -6782,14 +6782,14 @@ const Game = {
             profHtml += `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;width:48%;display:flex;justify-content:space-between;align-items:center;">
                 <div style="flex:1">
                     <div style="font-weight:bold">${T`${pr.name} (Seviye ${pData.level})`}</div>
-                    <div style="font-size:0.75rem;color:#cbb26b">${pr.d(pData.level)}</div>
-                    <div style="font-size:0.75rem;color:var(--text-muted)">${T`Öğrenme Hızı: x${mult} | Odak: ${pData.focus||0}/5`}</div>
+                    <div style="font-size:var(--fs-xs);color:#cbb26b">${pr.d(pData.level)}</div>
+                    <div style="font-size:var(--fs-xs);color:var(--text-muted)">${T`Öğrenme Hızı: x${mult} | Odak: ${pData.focus||0}/5`}</div>
                     <div style="background:rgba(0,0,0,0.5);border-radius:2px;height:4px;margin-top:4px;width:90%;">
                         <div style="background:var(--primary);height:100%;width:${fill}%;"></div>
                     </div>
                 </div>
                 <div>
-                    ${(fp > 0 && (pData.focus||0) < 5) ? `<button class="btn primary" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="Game.addFocus('${pr.id}')">+</button>` : ''}
+                    ${(fp > 0 && (pData.focus||0) < 5) ? `<button class="btn primary" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm);" onclick="Game.addFocus('${pr.id}')">+</button>` : ''}
                 </div>
             </div>`;
         });
@@ -6895,16 +6895,16 @@ const Game = {
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
-                    <div style="font-size:0.75rem;color:var(--text-muted)">${T`Tür: ${this.troopClassName(typeInfo)}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + T(DMG_TYPES[typeInfo.dmgType].name) : ''}${g.sample.isCompanion ? T` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? T` · savaşamaz, ${g.wounded} gün` : ''}`}</div>
-                    ${g.sample.debuff ? T('<div style="font-size:0.75rem;color:#e0463a">🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7</div>') : ''}
+                    <div style="font-size:var(--fs-xs);color:var(--text-muted)">${T`Tür: ${this.troopClassName(typeInfo)}${DMG_TYPES[typeInfo.dmgType] ? ' · ' + T(DMG_TYPES[typeInfo.dmgType].name) : ''}${g.sample.isCompanion ? T` · Yoldaş · ${this.profName((COMPANIONS.find(c=>c.id===g.sample.companionId)||{}).skill)} ${g.sample.level} · 20 dinar/gün` : ''}${g.wounded ? T` · savaşamaz, ${g.wounded} gün` : ''}`}</div>
+                    ${g.sample.debuff ? T('<div style="font-size:var(--fs-xs);color:#e0463a">🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7</div>') : ''}
                 </div>`;
 
                 // Sıra değiştirme + gruptan çıkarma (#51)
                 let q = name.replace(/'/g, "\\'");
                 html += `<div style="display:flex;gap:0.3rem;align-items:center">
-                    <button class="btn" title="Yukarı taşı" style="font-size:0.75rem;padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', -1)">▲</button>
-                    <button class="btn" title="Aşağı taşı" style="font-size:0.75rem;padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', 1)">▼</button>
-                    <button class="btn" title="Gruptan çıkar" style="font-size:0.75rem;padding:0.2rem 0.45rem;border-color:var(--danger);color:var(--danger)" onclick="Game.dismissTroops('${q}')">➖</button>
+                    <button class="btn" title="Yukarı taşı" style="font-size:var(--fs-xs);padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', -1)">▲</button>
+                    <button class="btn" title="Aşağı taşı" style="font-size:var(--fs-xs);padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', 1)">▼</button>
+                    <button class="btn" title="Gruptan çıkar" style="font-size:var(--fs-xs);padding:0.2rem 0.45rem;border-color:var(--danger);color:var(--danger)" onclick="Game.dismissTroops('${q}')">➖</button>
                 </div>`;
 
                 if(g.ready.length > 0) {
@@ -6913,9 +6913,9 @@ const Game = {
                     upgradeChoices.forEach(choice => {
                         // Hangi seçenek piyade, hangisi atlı okçu — terfi kör tercih olmasın (#51)
                         let ci = this.troopStats({ name: choice.name });
-                        html += `<button class="btn primary" style="font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name.replace(/'/g,"\\'"))}', ${choice.cost})">
+                        html += `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name.replace(/'/g,"\\'"))}', ${choice.cost})">
                             ${T`Sınıf Terfisi: ${ci.icon} ${T(choice.name)} (${choice.cost} Dinar)`}
-                            <div style="font-size:0.7rem;opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + T(DMG_TYPES[ci.dmgType].name) : ''}</div>
+                            <div style="font-size:var(--fs-xs);opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + T(DMG_TYPES[ci.dmgType].name) : ''}</div>
                         </button>`;
                     });
                     html += `</div>`;
@@ -6924,7 +6924,7 @@ const Game = {
                 let maxLevelTroop = g.normal.find(t => t.level === 50) || g.ready.find(t => t.level === 50);
                 let hasToken = state.player.inventory.some(i => i.id === 'lvl51_token');
                 if(maxLevelTroop && hasToken) {
-                    html += `<div style="margin-top:0.5rem"><button class="btn" style="border-color:#aa00ff;color:#aa00ff;font-size:0.75rem;padding:0.3rem 0.6rem" onclick="Game.promoteTo51('${maxLevelTroop.id}')">${T`🌟 Savaş Tanrısı Nişanı Kullan (Lvl 51 Yap)`}</button></div>`;
+                    html += `<div style="margin-top:0.5rem"><button class="btn" style="border-color:#aa00ff;color:#aa00ff;font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTo51('${maxLevelTroop.id}')">${T`🌟 Savaş Tanrısı Nişanı Kullan (Lvl 51 Yap)`}</button></div>`;
                 }
 
                 html += `</li>`;
@@ -7121,7 +7121,7 @@ const Game = {
         let rows = Object.keys(info).filter(k => info[k] !== 0)
             .map(k => `<div style="display:flex;justify-content:space-between"><span>${T(k)}</span><span style="color:${info[k] > 0 ? '#2ecc71' : '#e74c3c'}">${info[k] > 0 ? '+' : ''}${info[k]}</span></div>`).join('');
         return `<h3 style="color:var(--primary);margin-top:1.5rem">${T`🎺 Moral ${m}/100 — ${this.moraleLabel(m)}`}</h3>
-            <div style="background:rgba(0,0,0,0.25);padding:0.8rem;border-radius:6px;font-size:0.85rem;line-height:1.6">
+            <div style="background:rgba(0,0,0,0.25);padding:0.8rem;border-radius:6px;font-size:var(--fs-sm);line-height:1.6">
             ${rows || `<i>${T('Henüz hesaplanmadı (bir gün geçmeli).')}</i>`}
             <div style="color:var(--text-muted);margin-top:0.4rem">${T`Savaş gücü çarpanı: ×${this.moraleMult().toFixed(2)}${m < 25 ? T(' · <span style="color:#e74c3c">firar başladı!</span>') : ''}`}</div>
             </div>`;
@@ -7158,13 +7158,13 @@ const Game = {
             for(let name in groups) {
                 let g = groups[name];
                 html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
-                    <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:0.8rem">${T`(tanesi ${g.value} dinar)`}</span></span>
-                    <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Sat (+${g.count * g.value})`}</button>
+                    <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(tanesi ${g.value} dinar)`}</span></span>
+                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
             }
             html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">${T`Hepsini Sat (+${total} Dinar)`}</button>`;
         }
-        if(ps.some(p => p.noble)) html += `<p style="color:#e59b3d;font-size:0.85rem;margin-top:0.8rem">${T`Tüccar soylulara elini sürmez: "Onların fidyesi benim değil, senin işin." (Grup ekranından fidye iste)`}</p>`;
+        if(ps.some(p => p.noble)) html += `<p style="color:#e59b3d;font-size:var(--fs-sm);margin-top:0.8rem">${T`Tüccar soylulara elini sürmez: "Onların fidyesi benim değil, senin işin." (Grup ekranından fidye iste)`}</p>`;
         html += `<button class="btn" style="width:100%;margin-top:0.8rem" onclick="Game.closeModal()">${T`Ayrıl`}</button>`;
         this.showModal(html);
     },
@@ -7240,17 +7240,17 @@ const Game = {
         let pm = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
         let risk = Math.max(1, 6 - pm * 0.5).toFixed(1);
         let html = `<h3 style="color:var(--primary);margin-top:1.5rem">${T`⛓️ Esirler ${ps.length}/${this.prisonerCapacity()}`}</h3>
-            <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.5rem">${T`Esir Yönetimi ${pm} · her esir günde <b>%${risk}</b> ihtimalle kaçar (soylular kaçmaz) · toplam değer ~${ps.reduce((a, p) => a + (p.noble ? p.ransom : this.prisonerValue(p)), 0)} dinar`}</p>`;
-        if(ps.length === 0) return html + `<p style="color:var(--text-muted);font-size:0.85rem">${T`Zincirlerin boş. Kazandığın savaşlarda düşen düşmanların bir kısmı esir alınır; şehirdeki köle tüccarına satılır.`}</p>`;
+            <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 0.5rem">${T`Esir Yönetimi ${pm} · her esir günde <b>%${risk}</b> ihtimalle kaçar (soylular kaçmaz) · toplam değer ~${ps.reduce((a, p) => a + (p.noble ? p.ransom : this.prisonerValue(p)), 0)} dinar`}</p>`;
+        if(ps.length === 0) return html + `<p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Zincirlerin boş. Kazandığın savaşlarda düşen düşmanların bir kısmı esir alınır; şehirdeki köle tüccarına satılır.`}</p>`;
         let groups = {};
         html += '<ul style="list-style:none;padding:0">';
         ps.forEach(p => {
             if(p.noble) {
                 html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:6px;margin-bottom:0.5rem">
-                    <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:0.8rem;color:var(--text-muted)">${T`${T((FACTIONS[p.faction]||{name:''}).name)} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
+                    <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`${T((FACTIONS[p.faction]||{name:''}).name)} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
                     <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
-                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">${T`💰 Fidye İste (${p.ransom} Dinar)`}</button>
-                        <button class="btn" style="font-size:0.8rem;padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">${T`🕊️ Onurunla Salıver`}</button>
+                        <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">${T`💰 Fidye İste (${p.ransom} Dinar)`}</button>
+                        <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">${T`🕊️ Onurunla Salıver`}</button>
                     </div></li>`;
                 return;
             }
@@ -7260,8 +7260,8 @@ const Game = {
         for(let name in groups) {
             let g = groups[name];
             html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
-                <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:0.8rem;color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
-                <button class="btn" style="font-size:0.75rem;padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Salıver`}</button>
+                <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
+                <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Salıver`}</button>
             </li>`;
         }
         return html + '</ul>';
@@ -7316,7 +7316,7 @@ const Game = {
             ${this._eqSlot(T('At'),'horse',e.horse)}
         </div>
         <div style="flex:2;">
-            <h3 style="color:var(--primary)">${T`Çanta`} <span style="font-size:0.8rem;color:${this.cargoLoad() > this.cargoCap() ? 'var(--danger)' : 'var(--text-muted)'}">${this.cargoLoad()}/${this.cargoCap()}</span></h3>`;
+            <h3 style="color:var(--primary)">${T`Çanta`} <span style="font-size:var(--fs-sm);color:${this.cargoLoad() > this.cargoCap() ? 'var(--danger)' : 'var(--text-muted)'}">${this.cargoLoad()}/${this.cargoCap()}</span></h3>`;
         if(state.player.inventory.length === 0) html += `<p>${T('Envanterin boş.')}</p>`;
         else {
             html += '<div style="display:flex;gap:0.8rem;flex-wrap:wrap;">';
@@ -7325,11 +7325,11 @@ const Game = {
                 let isUse = item.type === 'special' && item.id === 'boss_map';
                 html += `<div style="padding:0.8rem;background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-radius:6px;width:120px;text-align:center;">
                 <div style="font-size:1.5rem">${item.icon||'📦'}</div>
-                <div style="font-weight:bold;font-size:0.9rem;margin-top:0.3rem">${T(item.name)}</div>
-                <div style="color:var(--text-muted);font-size:0.8rem">x${item.qty}</div>
-                ${this.itemNote(item) ? `<div style="font-size:0.68rem;color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
-                ${canEquip ? `<button class="btn primary" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">${T`Kuşan`}</button>` : ''}
-                ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:0.7rem;padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">${T`Kullan`}</button>` : ''}
+                <div style="font-weight:bold;font-size:var(--fs-md);margin-top:0.3rem">${T(item.name)}</div>
+                <div style="color:var(--text-muted);font-size:var(--fs-sm)">x${item.qty}</div>
+                ${this.itemNote(item) ? `<div style="font-size:var(--fs-xs);color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
+                ${canEquip ? `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">${T`Kuşan`}</button>` : ''}
+                ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">${T`Kullan`}</button>` : ''}
                 </div>`;
             });
             html += '</div>';
@@ -7352,10 +7352,10 @@ const Game = {
 
     _eqSlot(label, slot, item) {
         return `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
-        <div><div style="font-size:0.75rem;color:var(--text-muted)">${label}</div>
+        <div><div style="font-size:var(--fs-xs);color:var(--text-muted)">${label}</div>
         <div style="font-weight:bold">${item ? (item.icon||'')+' '+T(item.name) : T('Yok')}</div>
-        ${item ? `<div style="font-size:0.72rem;color:#cbb26b">${this.itemNote(item)}</div>` : ''}</div>
-        ${item ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.4rem" onclick="Game.unequipItem('${slot}')">${T`Çıkar`}</button>` : ''}
+        ${item ? `<div style="font-size:var(--fs-xs);color:#cbb26b">${this.itemNote(item)}</div>` : ''}</div>
+        ${item ? `<button class="btn" style="font-size:var(--fs-xs);padding:0.2rem 0.4rem" onclick="Game.unequipItem('${slot}')">${T`Çıkar`}</button>` : ''}
         </div>`;
     },
     equipItem(idx) {
@@ -7602,20 +7602,20 @@ const Save = {
             let info = !r ? T('<span style="color:var(--text-muted)">boş</span>')
                 : r.bozuk ? `<span style="color:var(--danger)">${T`bozuk (${r.kb} KB)`}</span>`
                 : `<b>${r.ad || '—'}</b> ${T`· ${r.gun}. gün · Sv.${r.seviye || 1}`}
-                   <span style="color:var(--text-muted);font-size:0.78rem">${T`${new Date(r.savedAt).toLocaleString(I18N.lang)} · ${r.kb} KB · v${r.surum}`}</span>`;
+                   <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`${new Date(r.savedAt).toLocaleString(I18N.lang)} · ${r.kb} KB · v${r.surum}`}</span>`;
             return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="min-width:5rem">${this.slotName(slot)}</span>
-                <span style="flex:1;font-size:0.9rem">${info}</span>
+                <span style="flex:1;font-size:var(--fs-md)">${info}</span>
                 <span style="white-space:nowrap">
-                    ${inGame && slot[0] !== 'a' && slot !== 'legacy' ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.save('${slot}')">${T`Kaydet`}</button>` : ''}
-                    ${r && !r.bozuk ? `<button class="btn primary" style="font-size:0.75rem;padding:0.2rem 0.5rem" onclick="Save.load('${slot}')">${T`Yükle`}</button>` : ''}
-                    ${r ? `<button class="btn" style="font-size:0.75rem;padding:0.2rem 0.5rem;border-color:var(--danger);color:var(--danger)" onclick="Save.del('${slot}')">${T`Sil`}</button>` : ''}
+                    ${inGame && slot[0] !== 'a' && slot !== 'legacy' ? `<button class="btn" style="font-size:var(--fs-xs);padding:0.2rem 0.5rem" onclick="Save.save('${slot}')">${T`Kaydet`}</button>` : ''}
+                    ${r && !r.bozuk ? `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.2rem 0.5rem" onclick="Save.load('${slot}')">${T`Yükle`}</button>` : ''}
+                    ${r ? `<button class="btn" style="font-size:var(--fs-xs);padding:0.2rem 0.5rem;border-color:var(--danger);color:var(--danger)" onclick="Save.del('${slot}')">${T`Sil`}</button>` : ''}
                 </span></li>`;
         };
         Game.showModal(`<div id="save-panel"><h3>${T`💾 Kayıtlar`}</h3>
         ${msg ? `<p style="color:var(--success)">${msg}</p>` : ''}
         <ul style="list-style:none">${this.SLOTS.map(line).join('')}</ul>
-        <h4 style="margin-top:0.8rem;color:var(--text-muted);font-size:0.85rem">${T`Otomatik kayıtlar (her oyun günü)`}</h4>
+        <h4 style="margin-top:0.8rem;color:var(--text-muted);font-size:var(--fs-sm)">${T`Otomatik kayıtlar (her oyun günü)`}</h4>
         <ul style="list-style:none">${this.AUTOS.map(line).join('')}${byId['legacy'] ? line('legacy') : ''}</ul>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
             ${inGame ? `<button class="btn" onclick="Save.exportSave()">${T('📤 Dışa Aktar')}</button>` : ''}
@@ -7627,12 +7627,12 @@ const Save = {
     exportSave() {
         let txt = JSON.stringify(this.snapshot());
         Game.showModal(`<h3>${T`📤 Kaydı Dışa Aktar`}</h3>
-        <p style="font-size:0.85rem;color:var(--text-muted)">${T`Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).`}</p>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).`}</p>
         <textarea id="save-text" readonly style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem">${txt.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
         <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
             <button class="btn primary" onclick="Save.copyText()">${T`📋 Panoya Kopyala`}</button>
             <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
-        </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--success);font-size:0.85rem"></div>`, '660px');
+        </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--success);font-size:var(--fs-sm)"></div>`, '660px');
     },
     copyText() {
         let ta = document.getElementById('save-text');
@@ -7642,12 +7642,12 @@ const Save = {
     },
     importSave() {
         Game.showModal(`<h3>${T`📥 Kaydı İçe Aktar`}</h3>
-        <p style="font-size:0.85rem;color:var(--text-muted)">${T`Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.`}</p>
+        <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.`}</p>
         <textarea id="save-text" style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem"></textarea>
         <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
             <button class="btn primary" onclick="Save.doImport()">${T`Yükle`}</button>
             <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
-        </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--danger);font-size:0.85rem"></div>`, '660px');
+        </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--danger);font-size:var(--fs-sm)"></div>`, '660px');
     },
     doImport() {
         let ta = document.getElementById('save-text'), msg = document.getElementById('save-msg');

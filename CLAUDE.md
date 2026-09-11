@@ -1810,6 +1810,55 @@ dönüyor, `isTouch() false`, kutu her adımda 800 px'in içinde. Atla işareti 
 (1765 → 1785); tr/en/id üçünde de `I18N.missing` boş ve 6 adım kendi dilinde
 (en: *Step 1/6 · Skip/Next*, id: *Langkah 1/6 · Lewati/Berikutnya*).
 
+#### Açıklama puntoları tek yerden: `--fs-xs/sm/md` (#73)
+
+Arayüzün küçük yazısı 158 ayrı inline `font-size:` değerine dağılmıştı (`0.68` – `0.92rem`),
+yani "punto büyüsün" demek 158 satır düzenlemek demekti. Üçü `:root`'ta tek yerde durur:
+
+| Değişken | Yerine geçtiği | Değer | 16 px kökte |
+|---|---|---|---|
+| `--fs-xs` | 0.68 / 0.7 / 0.72 / 0.75rem | **0.82rem** | 13.1 px |
+| `--fs-sm` | 0.78 / 0.8 / 0.82 / 0.85 / 0.86rem | **0.92rem** | 14.7 px |
+| `--fs-md` | 0.9 / 0.92rem | **1rem** | 16 px |
+
+Değiştirilen: `app.js` 119, `nobles.js` 27, `quests.js` 5, `battle.js` 2 (= **153** inline
+değer) + `style.css`'te okunması gereken gövde metinleri (dört yan panel, savaş kütüğü,
+öğretici kutusu, sürüm damgası, dil düğmesi). **HUD kromu dokunulmadı** — sefer çubuğu
+rozetleri, kenar menüsü ve harita künyesi #86'da 390 px için elle ayarlanmıştı.
+
+*Sözlükler de aynı geçişten geçer.* Üç `T()` anahtarı içinde inline `font-size` taşıyan
+HTML var (ör. `<span style="…font-size:var(--fs-xs)">yoldaş kalamaz</span>`); anahtar
+kaynak metnin kendisi olduğu için `lang-en.js`/`lang-id.js` de aynı `sed`'den geçmezse
+`tools/test.js`'in *"koddaki her T anahtarı iki sözlükte de var"* iddiası kırmızıya döner
+(döndü, ölçüldü). Bu iddia bu sınıf hatanın regresyonudur.
+
+Ayarlardaki **Yazı boyutu** (#55 madde 7) kök puntoyu 0.9/1/1.15 ile çarpar; `rem` tabanlı
+olduğu için iki kapı birlikte çalışır (büyük ölçekte `--fs-sm` = 16.9 px).
+
+Ölçüldü (1280×800 / 390×664, `Debug.errors 0`, yatay taşma yok):
+
+| | önce | sonra |
+|---|---|---|
+| Karakter yaratma, seçenek açıklaması | 12.8 px | **14.7 px** |
+| Sürüm damgası | 11.5 px | **13.1 px** |
+| Başlangıç alt başlığı (390 px) | 16.8 px | **20 px** |
+| Başlangıç köşe düğmeleri (390 px) | 12 px | **14.7 px** (yükseklik 44 px) |
+| Dil düğmeleri (390 px) | 10.6 px | **12.8 px** |
+| Masaüstü: h1 / alt başlık / etiket | — | 136 / 24 / 17.6 px |
+
+**Ekrandaki en küçük yazı artık 9.6 px'lik kenar menüsü kısayol rozeti** (`kbd`) ve
+9.9 px'lik bölüm başlığıdır — ikisi de metin değil, krom.
+
+#### Keşif noktasının adı haritada çevrilmiyordu (#73 turunda)
+`SITE_KINDS` üst düzey bir tablodur: içindeki `T('Mağara')` script yüklenirken, yani
+`I18N.load()`'dan önce çalışır ve kimlik döner (CLAUDE.md'nin "Ham dur, gösterimde çevir"
+kuralı). Tablo zaten ham Türkçe tutuyordu; eksik olan **gösterim** tarafıydı:
+`renderMap`'in `mapLabel(ctx, k.name, …)` çağrısı ve harita künyesinin
+`… + site.name` başlığı `T()`'den geçmiyordu. İkisi de `T()`'ye alındı, tablodaki ölü
+`T()` sarmalayıcıları (`SITE_KINDS`, `ROAD_KINDS`) söküldü. Ölçüldü (EN): harita etiketleri
+`Ruins / Abandoned Farm / Watchtower / Cave / Abandoned Camp`, künye `🏚️ Ruins`,
+haritada çizilen hiçbir etikette Türkçe kalıntı yok.
+
 ### Dil katmanı — Türkçe, İngilizce, Endonezce
 
 Oyun üç dilde oynanır. Tek kural: **anahtar Türkçe kaynak metnin kendisidir**
