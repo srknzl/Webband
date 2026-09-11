@@ -1229,6 +1229,28 @@ günde bir doğuyordu: temizlenen bölge haftalarca boş kalıyordu.
 (günde 0.69), yeni hedefle **39–51** (günde **1.49**). `tools/test.js` nüfusun 60 gün
 boyunca hedefte kaldığını iddia eder.
 
+**Çete inden çıkar** (#68). Haritada `LAIR_COUNT`=5 **haydut ini** var ve her doğan çete
+birine bağlanır (`npc.lairId`, in çevresinde 200–500 birim); insiz dünyada yeni çete
+doğmaz — temizlemenin karşılığı budur. İn `state.sites` içinde `kind:'lair'` olarak durur:
+çizim, künye, tıklama, hedefleme ve kayıt zaten o dizi üstünden yürüdüğü için ayrı bir
+`state.lairs` beş ayrı yerde ikinci bir döngü demekti (issue'daki öneriden sapma budur).
+İn **araştırılmaz, basılır**: `enterSite` in için tek düğme gösterir (⚔️ İni Bas),
+`assaultLair` `state.player.currentLair` kurup normal savaşı başlatır, `endBattle`'ın
+kazanma dalı `Game.clearLair` çağırır — köy yağmasındaki `currentRaid`/`completeRaid`
+deseninin aynısı. Bulunmamış in haritada **yok** (`lairSeen`: görüş menziline girince
+`seen` damgalanır; çizim/künye/tıklama üçü de bu damgaya bakar).
+
+Günlük: kese +15 (üst sınır 1200), mevcut 8–12 kişiden +0.15/gün (üst sınır 24) — bekleyen
+in büyür. Menzildeki (`LAIR_RANGE`=1500) yerleşimden **günde 0.5 refah** iner ve bu
+**üst üste binmez**: iki inin kesiştiği köy günde 1.0 kaybedip ölüyordu, arazi
+cezalarındaki `worst()` ile aynı gerekçe. 2500 birimlik ilk menzilde haritanın 22/30
+yerleşimi in menzilindeydi, yani "bölgesel" bir şey kalmıyordu.
+
+Ölçüldü (tohum 3, 100 gün, oyuncusuz): in yokken tüm yerleşimler **82.2**; 5 inle menzil
+içindekiler **54.1**, menzil dışındakiler **81.7**; aynı inler 40. günde temizlenirse
+menzil içi **78.4**'e toparlanıyor. Yani in bölgesel, kalıcı ve **geri alınabilir** bir
+baskı. Eksik in `LAIR_RESPAWN`=20 günde bir yeniden kurulur — dünya boşalmaz.
+
 Görmek ayrı, *belirli birini* bulmak ayrı: "Zincirdeki Kardeş" gibi bir çeteyi avlatan
 görev **söylenti** verir (`QUESTS.brother_in_chains.where`) — çetenin *şu an* en yakın
 olduğu yerleşim. Çete gezdikçe hem 📍 satırı hem haritadaki 📜 damgası onunla kayar,
@@ -2786,7 +2808,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **65 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **66 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,

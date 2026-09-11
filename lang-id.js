@@ -1974,4 +1974,18 @@ I18N.dicts.id = {
   "{0} kaçağı bıraktın.": "Kau membiarkan {0} pelarian pergi.",
   "Şeref": "Kehormatan",
   "(kovalasaydın ganimet ve esir olurdu)": "(kalau kau kejar, ada jarahan dan tawanan)",
+
+    // Haydut inleri (#68)
+    '<b>İn dağıtıldı.</b> Biriken kese <b>{0} dinar</b> senin; çevredeki yerleşimler nefes aldı ve buradan yeni çete çıkmayacak.':
+        '<b>Sarang dibubarkan.</b> Timbunan <b>{0} dinar</b> jadi milikmu; permukiman di sekitar bisa bernapas lagi, dan tak ada gerombolan baru yang keluar dari sini.',
+    'Nöbetçileri saydın: kabaca <b>{0} kişi</b>. Bastığın gün biriktirdikleri de senin olur.':
+        'Kau menghitung penjaganya: kira-kira <b>{0} orang</b>. Kalau kau serbu, semua timbunan mereka jadi milikmu.',
+    '⚔️ İni Bas':
+        '⚔️ Serbu Sarang',
+    '⚔️ Kabaca {0} kişi':
+        '⚔️ Kira-kira {0} orang',
+    'Haydut İni':
+        'Sarang Bandit',
+    'Kayaların arasına sinmiş bir kamp. Etraftaki yollarda kimse geceleyin yürümüyor.':
+        'Perkemahan yang meringkuk di antara bebatuan. Tak ada yang berani lewat jalan sekitar sini saat malam.',
 };

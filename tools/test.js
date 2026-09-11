@@ -660,6 +660,35 @@ test('çete nüfusu 60 gün boyunca hedefte kalıyor', () => {
         `çete nüfusu ${dip}'e düştü, hedef ${hedef} (doldurma yetişmiyor)`);
 });
 
+// --- Haydut inleri (#68) ---
+// Üç iddia tek koşuda: in çevresini kemirir, basılınca kese ödenir ve
+// haritadan silinir, insiz dünyada yeni çete doğmaz.
+test('haydut ini: bölgeyi kemirir, basılınca ödeme yapar ve çete kaynağı kurur', () => {
+    const g = H.world({ seed: 6 });
+    const İn = g.Game.lairs();
+    assert.strictEqual(İn.length, g.Game.LAIR_COUNT, 'dünya inlerle başlamıyor');
+    const yakin = g.LOCATIONS.filter(l => l.prosperity !== undefined
+        && İn.some(x => g.Game.dist(x, l) < g.Game.LAIR_RANGE));
+    const uzak = g.LOCATIONS.filter(l => l.prosperity !== undefined && !yakin.includes(l));
+    const ort = a => a.reduce((s, l) => s + l.prosperity, 0) / a.length;
+    H.run(g, 40);
+    assert.ok(ort(yakin) < ort(uzak) - 10,
+        `in çevresi kemirilmiyor: yakın ${ort(yakin).toFixed(1)} vs uzak ${ort(uzak).toFixed(1)}`);
+
+    const l = g.Game.lairs()[0], kese = Math.round(l.purse), para = g.state.player.money;
+    assert.ok(kese > 0, 'inin kesesi birikmiyor');
+    g.Game.clearLair(l.id);
+    assert.strictEqual(g.state.player.money, para + kese, 'kese ödenmedi');
+    assert.ok(!g.Game.lairs().some(x => x.id === l.id), 'basılan in haritada kaldı');
+
+    // İnsiz dünya: nüfus doldurma çalışsa da çete doğmaz.
+    g.Game.LAIR_COUNT = 0;
+    g.state.sites = g.state.sites.filter(s => s.kind !== 'lair');
+    g.state.npcParties = g.state.npcParties.filter(n => n.type !== 'bandit');
+    H.run(g, 10);
+    assert.strictEqual(g.Game.bandCount(), 0, 'in yokken çete doğuyor');
+});
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.

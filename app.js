@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.82', date: '2026-09-11', name: 'Bozgun' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.83', date: '2026-09-11', name: 'İnler' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -842,7 +842,12 @@ const Game = {
                  pool: { coin: 2, gear: 2, ambush: 4, trap: 2 } },
         camp:  { icon: '⛺', name: 'Terk Edilmiş Kamp', renew: 15,
                  desc: 'Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.',
-                 pool: { coin: 2, food: 2, shelter: 2, ambush: 2, empty: 1 } }
+                 pool: { coin: 2, food: 2, shelter: 2, ambush: 2, empty: 1 } },
+        // İn keşif noktası değil, hedeftir: araştırılmaz, basılır. `state.sites`te
+        // duruyor çünkü çizim, künye, tıklama, hedefleme ve kayıt zaten o dizi üstünden
+        // yürüyor — ayrı bir `state.lairs` beş ayrı yerde ikinci bir döngü demekti.
+        lair:  { icon: '☠️', name: 'Haydut İni', renew: 0, lair: true,
+                 desc: 'Kayaların arasına sinmiş bir kamp. Etraftaki yollarda kimse geceleyin yürümüyor.' }
     },
 
     // Sonuçlar günlük olay havuzuyla (DAY_EVENTS) aynı desende: `when` süzgeci +
@@ -923,7 +928,7 @@ const Game = {
 
     spawnSites() {
         state.sites = [];
-        let kinds = Object.keys(this.SITE_KINDS);
+        let kinds = Object.keys(this.SITE_KINDS).filter(k => !this.SITE_KINDS[k].lair);
         for(let i = 0; i < this.SITE_COUNT; i++) {
             for(let k = 0; k < 200; k++) {
                 let a = Math.random() * Math.PI * 2;
@@ -941,6 +946,90 @@ const Game = {
     },
     ensureSites() { if(!(state.sites || []).length) this.spawnSites(); },
 
+    // --- HAYDUT İNLERİ (#68) ---
+    // Çete artık boşluktan doğmuyor: her çetenin çıktığı bir in var. İn çevresindeki
+    // yerleşimleri her gün kemirir ve kesesi şişer; basınca hem kese senin olur hem de
+    // o bölgede çete doğmayı keser. Harita ilk kez gerçekten "temizlenebilir" hâle gelir.
+    LAIR_COUNT: 5,
+    LAIR_RANGE: 1500,        // refahı bu yarıçapta kemirir (2500'de harita komple in menzilindeydi)
+    LAIR_DECAY: 0.5,         // gün başına refah (günlük toparlanma 0.4/0.15 — yani in kazanır)
+    LAIR_PURSE: 15,          // gün başına biriken kese
+    LAIR_RESPAWN: 20,        // eksik in bu kadar günde bir yeniden kurulur
+    lairs() { return (state.sites || []).filter(s => s.kind === 'lair'); },
+    ensureLairs() {
+        this.ensureSites();
+        for(let i = this.lairs().length; i < this.LAIR_COUNT; i++) this.spawnLair();
+    },
+    spawnLair() {
+        for(let k = 0; k < 200; k++) {
+            let a = Math.random() * Math.PI * 2;
+            let R = this.getMapRadius(4500 + Math.cos(a), 4500 + Math.sin(a));
+            let p = { x: 4500 + Math.cos(a) * R * (0.2 + Math.random() * 0.7),
+                      y: 4500 + Math.sin(a) * R * (0.2 + Math.random() * 0.7) };
+            let uzak = LOCATIONS.every(l => this.dist(l, p) >= this.SITE_MIN_GAP)
+                    && (state.sites || []).every(o => this.dist(o, p) >= this.SITE_MIN_GAP)
+                    && this.dist(p, state.player) >= this.SPAWN_SAFE;
+            if(!uzak && k < 199) continue;
+            let l = { id: 'lair_' + Math.random().toString(36).substr(2, 7), kind: 'lair', type: 'site',
+                      name: 'Haydut İni', band: this.randomBandKind(),
+                      x: p.x, y: p.y, strength: 8 + Math.floor(Math.random() * 5),
+                      purse: 0, foundDay: state.time.day, seen: false };
+            state.sites.push(l);
+            return l;
+        }
+    },
+    // Görülmemiş in haritada yok: üstüne gitmek için önce bulman gerekir.
+    lairSeen(s) {
+        if(s.kind !== 'lair') return true;
+        if(this.dist(s, state.player) < this.getVisibility()) s.seen = true;
+        return !!s.seen;
+    },
+    // Çete inden çıkar. İnsiz bölgede çete doğmaz — temizlemenin karşılığı budur.
+    spawnFromLair() {
+        let l = this.lairs();
+        if(!l.length) return null;
+        let lair = l[Math.floor(Math.random() * l.length)];
+        return this.spawnBand(lair.band, lair);
+    },
+    lairTick() {
+        let l = this.lairs();
+        l.forEach(x => {
+            this.lairSeen(x);                                 // gün içinde yanından geçtiysen bulunmuş sayılır
+            x.purse = Math.min(1200, x.purse + this.LAIR_PURSE);
+            x.strength = Math.min(24, x.strength + 0.15);     // eski in büyümüş in
+        });
+        // Çürüme üst üste binmez, en yakın in geçerlidir (arazi cezalarındaki `worst()`
+        // ile aynı sebep): üç inin kesiştiği köy günde 1.8 refah kaybedip ölüyordu.
+        LOCATIONS.forEach(loc => {
+            if(loc.prosperity === undefined) return;
+            if(l.some(x => this.dist(x, loc) < this.LAIR_RANGE))
+                loc.prosperity = Math.max(10, loc.prosperity - this.LAIR_DECAY);
+        });
+        if(l.length < this.LAIR_COUNT && state.time.day % this.LAIR_RESPAWN === 0) this.spawnLair();
+    },
+    // İni basmak: kese senin, bölge nefes alır, o inden doğan çete kalmaz.
+    clearLair(id) {
+        let l = this.lairs().find(x => x.id === id);
+        if(!l) return '';
+        state.sites = state.sites.filter(x => x !== l);
+        state.npcParties.forEach(n => { if(n.lairId === l.id) n.lairId = null; });   // yetim kimlik kalmasın
+        state.player.money += Math.round(l.purse);
+        LOCATIONS.forEach(x => {
+            if(x.prosperity !== undefined && this.dist(x, l) < this.LAIR_RANGE)
+                x.prosperity = Math.min(100, x.prosperity + 5);
+        });
+        return T`<b>İn dağıtıldı.</b> Biriken kese <b>${Math.round(l.purse)} dinar</b> senin;
+            çevredeki yerleşimler nefes aldı ve buradan yeni çete çıkmayacak.`;
+    },
+    assaultLair(id) {
+        let l = this.lairs().find(x => x.id === id);
+        if(!l) return this.closeModal();
+        this.closeModal();
+        state.player.currentEncounterNpcId = null;
+        state.player.currentLair = l.id;
+        Battle.start(BAND_KINDS[l.band].name, Math.round(l.strength));
+    },
+
     // Araştırılmış nokta yenilenene kadar boştur (renew 0 ise zaten silinmiştir)
     siteReady(s) {
         let k = this.SITE_KINDS[s.kind];
@@ -949,6 +1038,14 @@ const Game = {
 
     enterSite(s) {
         let k = this.SITE_KINDS[s.kind];
+        if(k.lair) return this.showModal(`<h3>${k.icon} ${T(k.name)}</h3>
+            <p style="font-style:italic;color:var(--text-muted)">${T(k.desc)}</p>
+            <p>${T`Nöbetçileri saydın: kabaca <b>${Math.round(s.strength)} kişi</b>.
+                Bastığın gün biriktirdikleri de senin olur.`}</p>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem">
+                <button class="btn primary" onclick="Game.assaultLair('${s.id}')">${T`⚔️ İni Bas`}</button>
+                <button class="btn" onclick="Game.closeModal()">${T`🚪 Yoluna Devam Et`}</button>
+            </div>`);
         let ready = this.siteReady(s);
         this.showModal(`<h3>${k.icon} ${T(k.name)}</h3>
             <p style="font-style:italic;color:var(--text-muted)">${T(k.desc)}</p>
@@ -964,6 +1061,7 @@ const Game = {
         let s = (state.sites || []).find(x => x.id === id);
         if(!s || !this.siteReady(s)) return this.closeModal();
         let k = this.SITE_KINDS[s.kind];
+        if(k.lair) return this.enterSite(s);    // in araştırılmaz, basılır
         let pool = {};
         for(let key in k.pool) {
             let o = this.SITE_OUTCOMES[key];
@@ -996,6 +1094,7 @@ const Game = {
 
     siteTipHtml(s) {
         let k = this.SITE_KINDS[s.kind];
+        if(k.lair) return `<i>${T(k.desc)}</i><br>${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
         return `<i>${T(k.desc)}</i><br>${this.siteReady(s)
             ? T('🔍 Henüz araştırılmadı')
             : T`✔️ ${this.agoText(s.usedDay)} araştırıldı${k.renew ? T` (${k.renew} günde bir yenilenir)` : ''}`}`;
@@ -1101,11 +1200,23 @@ const Game = {
 
     // Haritadaki düşman çeşitleri: her biri savaşta farklı birim karışımı ve davranış
     // (BAND_KINDS.battle -> Battle.start içindeki birim üretimi)
-    spawnBand(kind) {
+    spawnBand(kind, lair) {
         let k = BAND_KINDS[kind];
         let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
         let npc = this.createNPC(k.name, 'bandit', size, k.color, null, 1);
         npc.band = kind;
+        // Çete inden çıkar: konumunu inin çevresine al, oyuncuya çok yakınsa
+        // createNPC'in verdiği rastgele yerde bırak (SPAWN_SAFE tek kural).
+        if(lair) {
+            for(let i = 0; i < 20; i++) {
+                let a = Math.random() * Math.PI * 2, r = 200 + Math.random() * 300;
+                let p = { x: lair.x + Math.cos(a) * r, y: lair.y + Math.sin(a) * r };
+                if(this.dist(p, state.player) < this.SPAWN_SAFE) continue;
+                npc.x = npc.targetX = p.x; npc.y = npc.targetY = p.y;
+                npc.lairId = lair.id;
+                break;
+            }
+        }
         npc.speed = Math.round(npc.speed * (k.speedMult || 1));
         state.npcParties.push(npc);
         return npc;
@@ -1273,9 +1384,10 @@ const Game = {
     },
     spawnNPCs() {
         this.ensureTraders();
+        this.ensureLairs();
         // Dünya hedef nüfusla başlar; eskiden 13'ten başlayıp günde bir doğuyordu,
         // yani ilk hafta harita gerçekten boştu.
-        for(let i = 0; i < this.bandTarget(); i++) this.spawnBand(this.randomBandKind());
+        for(let i = 0; i < this.bandTarget(); i++) this.spawnFromLair();
         // Her soylunun haritada gezen kendi partisi var
         LORDS.forEach(l => {
             let size = l.rank === 'king' ? 100 : l.rank === 'vizier' ? 50 : 35;
@@ -3512,8 +3624,9 @@ const Game = {
 
         // Çapulcu yeniden doğma: tek tek değil, hedefe kadar. Günde bir çete doğarken
         // temizlenen bir bölge haftalarca boş kalıyordu.
+        this.lairTick();
         for(let i = 0, eksik = this.bandTarget() - this.bandCount(); i < Math.min(this.BAND_REFILL, eksik); i++) {
-            this.spawnBand(this.randomBandKind());
+            this.spawnFromLair();   // in yoksa çete de yok (#68)
         }
         this.ensureTraders();   // soyulan kafilelerin yerine yenileri yola çıkar
         this.dailyEvent();      // günlük olay havuzu (#35) — en sonda, günün hesabı kapandıktan sonra
@@ -4255,6 +4368,7 @@ const Game = {
 
         // Keşif noktaları (#58): yerleşimden küçük, soluk — dikkat çeker ama kalabalık etmez
         (state.sites || []).forEach(site => {
+            if(!this.lairSeen(site)) return;    // bulunmamış in haritada yok (#68)
             let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = 30 * ik;
             let fresh = this.siteReady(site);
             ctx.beginPath();
@@ -4489,6 +4603,7 @@ const Game = {
         }
         if(!found) {
             for(let site of (state.sites || [])) {
+                if(site.kind === 'lair' && !site.seen) continue;
                 if(this.dist(site, {x:mx,y:my}) < 30) {
                     found = { name: this.SITE_KINDS[site.kind].icon + ' ' + T(site.name), sub: this.siteTipHtml(site) };
                     break;
@@ -4757,6 +4872,7 @@ const Game = {
             }
         }
         for(let site of (state.sites || [])) {
+            if(site.kind === 'lair' && !site.seen) continue;
             if(this.dist(site, m) < 30) { state.player.targetLocation = site; state.player.status = 'moving'; return; }
         }
         state.player.targetLocation = { x: m.x, y: m.y, name: T('Hedef Bölge'), type: null };
@@ -8237,6 +8353,7 @@ const Save = {
         Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
         Game.ensureTraders();    // eski kayıtlarda kervan/kafile yoktu
         Game.ensureSites();      // eski kayıtlarda keşif noktası yoktu (#58)
+        Game.ensureLairs();      // eski kayıtlarda haydut ini yoktu (#68)
         Game.startGameLoop();
     },
 

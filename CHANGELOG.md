@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.83 — İnler (2026-09-11)
+
+Çete artık boşluktan doğmuyor. Haritada beş **haydut ini** var; çıkan her çete birinden
+çıkıyor, her in de çevresindeki köyleri günden güne kemiriyor.
+
+- **☠️ Haydut İni.** Kayalara sinmiş kamplar. Yanından geçmeden haritada görünmüyorlar —
+  önce bulman gerek.
+- **Çevresi fakirleşir.** İnin 1500 birimlik menzilindeki yerleşimlerin refahı her gün
+  eriyor; köy toparlanmaya çalışıyor ama in daha hızlı kemiriyor.
+- **Basabilirsin.** İnin üstüne gidip **⚔️ İni Bas** dersen normal bir savaş açılır.
+  Kazanırsan biriktirdikleri kese senin olur, bölge nefes alır ve **oradan yeni çete
+  çıkmaz**.
+- **Temizlemenin karşılığı var.** Ölçüldü: inlerin menzilindeki yerleşimler 100 günde
+  82 refahtan **54**'e düşüyor; aynı inler 40. günde temizlenirse 100. günde **78**'de
+  oluyorlar. İn bekledikçe hem kesesi hem adam sayısı büyüyor.
+
 ## 0.82 — Bozgun (2026-09-11)
 
 Kimse son adamına kadar dövüşmüyor artık. Dörtte birine inen ordu kılıcı bırakıp

@@ -1974,4 +1974,18 @@ I18N.dicts.en = {
   "{0} kaçağı bıraktın.": "You let {0} runaways go.",
   "Şeref": "Honour",
   "(kovalasaydın ganimet ve esir olurdu)": "(had you pursued, there would be loot and prisoners)",
+
+    // Haydut inleri (#68)
+    '<b>İn dağıtıldı.</b> Biriken kese <b>{0} dinar</b> senin; çevredeki yerleşimler nefes aldı ve buradan yeni çete çıkmayacak.':
+        '<b>The lair is broken up.</b> Their hoard of <b>{0} denars</b> is yours; the settlements around here can breathe again, and no new band will come out of this place.',
+    'Nöbetçileri saydın: kabaca <b>{0} kişi</b>. Bastığın gün biriktirdikleri de senin olur.':
+        'You count the sentries: roughly <b>{0} men</b>. Storm it and everything they have hoarded is yours.',
+    '⚔️ İni Bas':
+        '⚔️ Storm the Lair',
+    '⚔️ Kabaca {0} kişi':
+        '⚔️ Roughly {0} men',
+    'Haydut İni':
+        'Bandit Lair',
+    'Kayaların arasına sinmiş bir kamp. Etraftaki yollarda kimse geceleyin yürümüyor.':
+        'A camp tucked in among the rocks. Nobody walks the roads around here after dark.',
 };

@@ -1886,6 +1886,13 @@ const Battle = {
                 state.player.currentSiege = null;
             }
 
+            // Haydut ini (#68) — köy yağmasıyla aynı desen: savaş bitti, kapı burada
+            let lairTxt = '';
+            if(state.player.currentLair) {
+                lairTxt = Game.clearLair(state.player.currentLair);
+                state.player.currentLair = null;
+            }
+
             // Köy yağması
             if(state.player.currentRaid) {
                 let locId = state.player.currentRaid.locId;
@@ -1943,6 +1950,7 @@ const Battle = {
                     ${captured ? `<p style="margin-top:0.8rem"><b>${T`Esir Alınan:`}</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(şehirdeki köle tüccarına satabilirsin)`}</span></p>` : ''}
                     ${spareHonor ? `<p style="margin-top:0.8rem;color:#9fe0a0">🕊️ <b>${T`${this.spared} kaçağı bıraktın.`}</b> ${T`Şeref`} <span style="color:#9fe0a0">+${spareHonor}</span> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(kovalasaydın ganimet ve esir olurdu)`}</span></p>` : ''}
                     ${conquestTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">🏰 ${conquestTxt}</p>` : ''}
+                    ${lairTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">☠️ ${lairTxt}</p>` : ''}
                     ${cargoTxt ? `<p style="margin-top:0.8rem"><b>${T`Yük Ganimeti:`}</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
                     ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>${T`👑 ${nobleTaken} esir alındı!`}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Grup ekranından fidye iste ya da salıver.`}</span></p>` : ''}
                 </div>
@@ -1982,6 +1990,7 @@ const Battle = {
             state.player.currentSiege = null;
             state.player.siege = null;
             state.player.currentRaid = null;
+            state.player.currentLair = null;
 
             if(captor) alert(`${T`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`}`
                 + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : ''));
@@ -2014,6 +2023,7 @@ const Battle = {
         let wasSiege = state.player.currentSiege;
         state.player.currentSiege = null;
         state.player.currentRaid = null;
+        state.player.currentLair = null;
         state.player.currentEncounterNpcId = null;
 
         if(captor) Game.surrender(captor.id, captor.name);
