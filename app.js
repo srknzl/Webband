@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.71', date: '2026-09-11', name: 'Büyük Punto' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.72', date: '2026-09-11', name: 'Üç Kademe' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -5096,7 +5096,21 @@ const Game = {
     // ============ AYARLAR (#55 madde 7) ============
     // Tek ekran, tek okuma kapısı: her ayarın varsayılanı OPTS'ta durur, sapan
     // anahtar state.settings'e yazılır (yani kayda girer ve eski kayıtta boş kalır).
-    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto' },
+    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal' },
+
+    // Zorluk tek bir çarpan çiftidir: **aldığın** ve **verdiğin** hasar. Başka
+    // hiçbir sayı oynamaz — kurt sürüsü de lord ordusu da aynı kapıdan geçer, yani
+    // denge tablosu (ok menzili, hücum çarpanı, zırh matematiği) tek parça kalır.
+    // Ham durur, gösterimde `T` ile çevrilir.
+    DIFFS: {
+        easy:   { taken: 0.6, dealt: 1.25, name: 'Kolay', note: 'Aldığın hasar %40 az, verdiğin %25 fazla' },
+        normal: { taken: 1,   dealt: 1,    name: 'Orta',  note: 'Tasarlandığı denge' },
+        hard:   { taken: 1.5, dealt: 0.85, name: 'Zor',   note: 'Aldığın hasar %50 fazla, verdiğin %15 az' }
+    },
+    diff() { return this.DIFFS[this.opt('difficulty')] || this.DIFFS.normal; },
+    // Hedef senin tarafındansa bu "aldığın" hasardır, değilse "verdiğin".
+    // Tek çağrı yeri `Battle.afterArmor` — yakın dövüş de ok da oradan geçer.
+    dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
     setOpt(k, v) {
         (state.settings || (state.settings = {}))[k] = v;
@@ -5155,6 +5169,9 @@ const Game = {
         let lt = this.opt('lite');
         let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('lite', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+        let df = this.opt('difficulty');
+        let dfBtn = ['easy', 'normal', 'hard'].map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('difficulty', '${v}')">${T(this.DIFFS[v].name)}</button>`).join(' ');
         let hz = this._step === Infinity ? T('ölçülmedi') : Math.round(1000 / this._step) + T(' Hz');
         this.showModal(`<div id="settings-panel"><h3>${T`⚙️ Ayarlar`}</h3>
         ${row(T('🌍 Dil'), I18N.LANGS.map(l => `<button class="btn${l.id === I18N.lang ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
@@ -5168,6 +5185,7 @@ const Game = {
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}
         ${row(T('🔠 Yazı boyutu'), fsBtn)}
+        ${row(T('⚔️ Zorluk'), dfBtn, T(this.diff().note))}
         ${row(T('💾 Otomatik kayıt'), sw('autosave', T('Açık'), T('Kapalı')), T('Her oyun günü başında, halkasal 5 slot'))}
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
             <button class="btn" onclick="Save.open()">${T`💾 Kayıtlar`}</button>

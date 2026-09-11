@@ -1790,4 +1790,11 @@ I18N.dicts.en = {
   "Durumunu bilmiyorsun — yaklaş ya da içeri gir.": "You don't know what's going on there — get closer or go inside.",
   "Bugünkü haber:": "Today's report:",
   "{0} gün önce:": "{0} days ago:",
+  "⚔️ Zorluk": "⚔️ Difficulty",
+  "Kolay": "Easy",
+  "Orta": "Normal",
+  "Zor": "Hard",
+  "Aldığın hasar %40 az, verdiğin %25 fazla": "You take 40% less damage and deal 25% more",
+  "Tasarlandığı denge": "The balance the game was designed around",
+  "Aldığın hasar %50 fazla, verdiğin %15 az": "You take 50% more damage and deal 15% less",
 };

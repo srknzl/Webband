@@ -439,9 +439,11 @@ const Battle = {
     },
 
     // Zırh hasar türüne göre işler: kesici tam yer, delici yarısını, ezici üçte ikisini
-    afterArmor(dmgType, raw, def) {
+    // `tgt` yalnız zorluk çarpanı için: hedef oyuncunun tarafındaysa "aldığın",
+    // değilse "verdiğin" hasar. Orta zorlukta çarpan 1, yani denge tablosu aynı.
+    afterArmor(dmgType, raw, def, tgt) {
         let t = DMG_TYPES[dmgType] || DMG_TYPES.cut;
-        return Math.max(1, Math.round(raw * t.mult - (def || 0) * t.armor));
+        return Math.max(1, Math.round((raw * t.mult - (def || 0) * t.armor) * Game.dmgMult(tgt)));
     },
 
     // Blok: saldırı kalkanın baktığı yaya denk gelirse kesilir (0 = tam blok)
@@ -477,7 +479,7 @@ const Battle = {
     dealMelee(src, tgt, raw) {
         let bf = this.blockFactor(tgt, src.x, src.y);
         if(bf === 0) return this.blockedFx(tgt, src.x, src.y);
-        let dmg = this.afterArmor(src.dmgType, raw * bf, tgt.defense);
+        let dmg = this.afterArmor(src.dmgType, raw * bf, tgt.defense, tgt);
         tgt.hp -= dmg;
         // Nitelikler oynanışla gelişir: vuran oyuncuysa güç, yiyen oyuncuysa dirayet.
         if(src.id === 'player') Game.trainAttr('str', 0.15);
@@ -606,7 +608,7 @@ const Battle = {
                 if(d < u.radius + 2) {
                     let bf = this.blockFactor(u, proj.x - proj.vx, proj.y - proj.vy);
                     if(bf === 0) { this.blockedFx(u, proj.x - proj.vx, proj.y - proj.vy); hit = true; break; }
-                    let dmg = this.afterArmor(proj.dmgType, proj.damage * bf, u.defense);
+                    let dmg = this.afterArmor(proj.dmgType, proj.damage * bf, u.defense, u);
                     u.hp -= dmg;
                     hit = true;
                     u.hitFlash = 0.15;
@@ -1540,7 +1542,8 @@ const Battle = {
         let q = str(true) / Math.max(1, str(false)) * (0.85 + Math.random() * 0.3);   // ±%15 talih payı
         let won = q > 1, ratio = won ? q : 1 / q;
         let loss = Math.min(0.85, 0.45 / ratio
-            * (1 - Math.min(0.4, (Game.profLvl('leadership') - 1) * 0.04)));
+            * (1 - Math.min(0.4, (Game.profLvl('leadership') - 1) * 0.04))
+            * (won ? Game.diff().taken : 1));   // zorluk: kazanırken senin kaybın ölçeklenir
         this.units.forEach(u => {
             if(u.isPlayerTeam !== won) { u.hp = 0; return; }              // kaybeden taraf tamamen düşer
             if(u.id !== 'player' && Math.random() < loss) u.hp = 0;

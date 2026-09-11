@@ -1790,4 +1790,11 @@ I18N.dicts.id = {
   "Durumunu bilmiyorsun — yaklaş ya da içeri gir.": "Kamu tidak tahu keadaannya — dekati atau masuklah ke dalam.",
   "Bugünkü haber:": "Kabar hari ini:",
   "{0} gün önce:": "{0} hari lalu:",
+  "⚔️ Zorluk": "⚔️ Kesulitan",
+  "Kolay": "Mudah",
+  "Orta": "Normal",
+  "Zor": "Sulit",
+  "Aldığın hasar %40 az, verdiğin %25 fazla": "Kamu menerima 40% lebih sedikit kerusakan dan memberi 25% lebih banyak",
+  "Tasarlandığı denge": "Keseimbangan rancangan asli",
+  "Aldığın hasar %50 fazla, verdiğin %15 az": "Kamu menerima 50% lebih banyak kerusakan dan memberi 15% lebih sedikit",
 };

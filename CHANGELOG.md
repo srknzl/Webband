@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.72 — Üç Kademe (2026-09-11)
+
+- **Zorluk ayarı geldi** (⚙️ Ayarlar → ⚔️ Zorluk): Kolay / Orta / Zor. Kurt sürüsü fazla
+  sert geldiyse artık tek düğmeyle yumuşuyor.
+  - **Kolay**: aldığın hasar %40 az, verdiğin %25 fazla.
+  - **Orta**: oyunun tasarlandığı denge — hiçbir sayı oynamıyor.
+  - **Zor**: aldığın hasar %50 fazla, verdiğin %15 az.
+- Ayar yalnız **hasar çarpanına** dokunur: ok menzili, hücum çarpanı, zırh matematiği,
+  asker ağaçları ve ekonomi aynen kalır. Yakın dövüş de ok da aynı kapıdan geçtiği için
+  kurt da lord ordusu da aynı kademeyi görür.
+- "Askerlerini gönder" (otomatik çözüm) de kademeyi sayar: kolayda kaybın azalır,
+  zorda artar.
+- Seçim kayda yazılır, oyunun ortasında değiştirilebilir.
+
 ## 0.71 — Büyük Punto (2026-09-11)
 
 - **Açıklama yazıları büyüdü.** Arayüzün her yerine serpilmiş 0.68–0.92rem'lik inline

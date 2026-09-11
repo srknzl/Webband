@@ -1859,6 +1859,45 @@ kuralı). Tablo zaten ham Türkçe tutuyordu; eksik olan **gösterim** tarafıyd
 `Ruins / Abandoned Farm / Watchtower / Cave / Abandoned Camp`, künye `🏚️ Ruins`,
 haritada çizilen hiçbir etikette Türkçe kalıntı yok.
 
+#### Zorluk — tek çarpan çifti (Kolay/Orta/Zor)
+
+"Kurtlar çok güçlü" şikâyetinin cevabı yeni bir denge tablosu değil, **tek bir knob**.
+`Game.DIFFS` her kademe için bir `{taken, dealt}` çifti tutar; başka hiçbir sayı oynamaz —
+ok menzili, hücum çarpanı, zırh matematiği, asker ağaçları ve ekonomi aynen kalır.
+
+| Kademe | `taken` (aldığın) | `dealt` (verdiğin) |
+|---|---|---|
+| 🙂 Kolay | ×0.6 | ×1.25 |
+| ⚖️ Orta | ×1 | ×1 |
+| 💀 Zor | ×1.5 | ×0.85 |
+
+**Tek çoke noktası `Battle.afterArmor(dmgType, raw, def, tgt)`**: yakın dövüş
+(`dealMelee`) de ok isabeti de zaten oradan geçiyordu, yani dördüncü argüman
+(`tgt`) eklemek bütün savaşı kapsadı. `Game.dmgMult(tgt)` hedefin tarafına bakar —
+`tgt.isPlayerTeam` ise "aldığın", değilse "verdiğin". Kurt sürüsü de lord ordusu da
+aynı kapıdan geçer, kuşatma ve arena dahil. İkinci ve son bağlanma yeri
+`Battle.autoResolve`: kazanılan otomatik çözümde kayıp oranı `taken` ile ölçeklenir.
+
+Ayar `Game.OPTS.difficulty` (varsayılan `'normal'`), yani `state.settings`'e yalnız
+sapma yazılır ve kayda `state` ile girer. Panel satırı ⚙️ Ayarlar'da
+`⚔️ Zorluk` olarak durur, altında seçili kademenin açıklaması yazar.
+`DIFFS` **ham durur, gösterimde `T` ile çevrilir** — `T(this.DIFFS[v].name)` dinamik
+olduğu için 7 anahtar (`⚔️ Zorluk`, üç kademe adı, üç açıklama) iki sözlüğe **elle**
+eklendi; `tools/test.js`'in i18n iddiası bunun regresyonudur.
+
+Ölçüldü (30 ham `cut` hasar, savunma 10 — ve 20 ham `pierce` ok, savunma 8):
+
+| | aldığın (cut) | verdiğin (cut) | aldığın ok (pierce) |
+|---|---|---|---|
+| Kolay | **12** | **25** | 8 |
+| Orta | 20 | 20 | 14 |
+| Zor | **30** | **17** | 21 |
+
+`state.settings.difficulty` seçim sonrası kayda yazıldı, `Debug.errors 0`.
+*(Kurt sürüsüne karşı hayatta kalma süresi de ölçüldü ama 6 kişilik sürünün saçılması
+tur başına ±%30 oynadığı için buraya sayı yazılmadı — kademenin kanıtı yukarıdaki
+deterministik tablodur.)*
+
 ### Dil katmanı — Türkçe, İngilizce, Endonezce
 
 Oyun üç dilde oynanır. Tek kural: **anahtar Türkçe kaynak metnin kendisidir**
