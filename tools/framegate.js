@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 // ============================================================
-// framegate.js — kare atlama kapısının regresyon ölçümü (#54 madde 1, #62)
+// framegate.js — regression measurement for the frame-skip gate (#54 item 1, #62)
 // ------------------------------------------------------------
-// `Game.skipFrame` yüksek tazeleme hızlı ekranlarda fazla kareyi atar. Burada
-// oyunun **kendi** fonksiyonu sahte zaman damgalarıyla sürülür; yeniden yazılmaz.
-// Ölçtüğü iki şey:
-//   1. Hz → geçen fps tablosu (60'ın altına düşmeyen en büyük bölen kuralı)
-//   2. #42 paritesi: aynı karede iki döngü sorarsa ikisi de aynı cevabı alır,
-//      yani hiçbir döngü kalıcı olarak aç kalmaz.
+// `Game.skipFrame` drops extra frames on high-refresh-rate screens. Here the
+// game's **own** function is driven with fake timestamps; it isn't rewritten.
+// Measures two things:
+//   1. Refresh rate → passed-fps table (rule: largest divisor that doesn't drop below 60)
+//   2. #42 parity: if two loops ask in the same frame, both get the same
+//      answer — i.e. no loop is ever left permanently starved.
 //
 //   node tools/framegate.js
-//   node tools/framegate.js --hz 60,90,144 --saniye 3 --rapor
+//   node tools/framegate.js --hz 60,90,144 --seconds 3 --report
 // ============================================================
 'use strict';
 const H = require('./harness');
 
 const HZ = [60, 75, 90, 120, 144, 165, 180, 240];
 
-// Tek döngü: saniyede hz kare, kapıdan geçen kare sayısı = ölçülen fps
+// One loop: hz frames per second, frames that pass the gate = measured fps
 function measure(hz, seconds) {
     const { Game } = H.load({ seed: 1 });
     const step = 1000 / hz;
@@ -25,53 +25,54 @@ function measure(hz, seconds) {
     for(let i = 0; i < hz * seconds; i++) {
         if(!Game.skipFrame(i * step)) passed++;
     }
-    return { hz, fps: +(passed / seconds).toFixed(1), bolen: Math.round(hz * seconds / Math.max(1, passed)) };
+    return { hz, fps: +(passed / seconds).toFixed(1), divisor: Math.round(hz * seconds / Math.max(1, passed)) };
 }
 
-// #42: harita ve savaş döngüsü aynı karede sorar. Kapı kare başına tek karar
-// vermezse döngülerden biri hep tek/çift parmak izine düşer ve HİÇ çalışmaz.
+// #42: the map loop and the battle loop both ask in the same frame. If the
+// gate doesn't make a single decision per frame, one of the loops always
+// lands on the odd/even fingerprint and NEVER runs.
 function parity(hz, seconds) {
     const { Game } = H.load({ seed: 1 });
     const step = 1000 / hz;
-    let a = 0, b = 0, ayrik = 0;
+    let a = 0, b = 0, mismatch = 0;
     for(let i = 0; i < hz * seconds; i++) {
         const t = i * step;
-        const s1 = Game.skipFrame(t), s2 = Game.skipFrame(t);   // iki döngü, aynı kare
-        if(s1 !== s2) ayrik++;
+        const s1 = Game.skipFrame(t), s2 = Game.skipFrame(t);   // two loops, same frame
+        if(s1 !== s2) mismatch++;
         if(!s1) a++;
         if(!s2) b++;
     }
-    return { hz, harita: a / seconds, savas: b / seconds, ayrik };
+    return { hz, map: a / seconds, battle: b / seconds, mismatch };
 }
 
 function main() {
     const arg = H.args();
-    const seconds = Number(arg.saniye || 2);
+    const seconds = Number(arg.seconds || arg.saniye || 2);
     const list = arg.hz ? String(arg.hz).split(',').map(Number) : HZ;
 
     const rows = list.map(hz => measure(hz, seconds));
     const par = list.map(hz => parity(hz, seconds));
     if(arg.json) return console.log(JSON.stringify({ rows, par }, null, 2));
 
-    const md = `# Kare atlama kapısı — ${seconds} saniyelik sürüş\n\n`
-        + `\`node tools/framegate.js --saniye ${seconds}\` · sürüm ${H.load({ seed: 1 }).VERSION.no}\n`
-        + `Oyunun kendi \`Game.skipFrame\`'i sahte zaman damgalarıyla sürüldü.\n`
-        + `Kural: tazeleme hızı ölçülür, **60 fps'in altına düşürmeyen en büyük bölen** seçilir.\n\n`
-        + `| Ekran | Geçen fps | Bölen |\n|---|---|---|\n`
-        + rows.map(r => `| ${r.hz} Hz | **${r.fps}** | ${r.bolen} |`).join('\n')
-        + `\n\n## Parite (#42): iki döngü aynı karede sorarsa\n\n`
-        + `| Ekran | Harita döngüsü | Savaş döngüsü | Ayrık cevap |\n|---|---|---|---|\n`
-        + par.map(p => `| ${p.hz} Hz | ${p.harita} fps | ${p.savas} fps | ${p.ayrik} |`).join('\n')
-        + `\n\nAyrık cevap 0 olmalı: aynı karede sorulan iki soruya farklı cevap verilirse\n`
-        + `döngülerden biri kalıcı olarak aç kalır ve ekranı siyah bırakır.\n`;
+    const md = `# Frame-skip gate — ${seconds}-second run\n\n`
+        + `\`node tools/framegate.js --seconds ${seconds}\` · version ${H.load({ seed: 1 }).VERSION.no}\n`
+        + `The game's own \`Game.skipFrame\` was driven with fake timestamps.\n`
+        + `Rule: refresh rate is measured, **the largest divisor that doesn't drop below 60 fps** is chosen.\n\n`
+        + `| Screen | Passed fps | Divisor |\n|---|---|---|\n`
+        + rows.map(r => `| ${r.hz} Hz | **${r.fps}** | ${r.divisor} |`).join('\n')
+        + `\n\n## Parity (#42): when two loops ask in the same frame\n\n`
+        + `| Screen | Map loop | Battle loop | Mismatch |\n|---|---|---|---|\n`
+        + par.map(p => `| ${p.hz} Hz | ${p.map} fps | ${p.battle} fps | ${p.mismatch} |`).join('\n')
+        + `\n\nMismatch should be 0: if two questions asked in the same frame get different\n`
+        + `answers, one of the loops is permanently starved and its screen goes black.\n`;
     console.log(md);
 
-    const kotu = rows.filter(r => r.fps < 60);
-    const bozuk = par.filter(p => p.ayrik || p.harita < 60 || p.savas < 60);
-    if(kotu.length) console.error('UYARI 60 fps altı: ' + kotu.map(r => `${r.hz}Hz→${r.fps}`).join(', '));
-    if(bozuk.length) console.error('UYARI parite: ' + bozuk.map(p => `${p.hz}Hz`).join(', '));
-    if(arg.rapor) console.error('yazıldı: ' + H.writeReport('kare-kapisi', md));
-    process.exitCode = (kotu.length || bozuk.length) ? 1 : 0;
+    const belowTarget = rows.filter(r => r.fps < 60);
+    const broken = par.filter(p => p.mismatch || p.map < 60 || p.battle < 60);
+    if(belowTarget.length) console.error('WARNING below 60 fps: ' + belowTarget.map(r => `${r.hz}Hz→${r.fps}`).join(', '));
+    if(broken.length) console.error('WARNING parity: ' + broken.map(p => `${p.hz}Hz`).join(', '));
+    if(arg.report || arg.rapor) console.error('written: ' + H.writeReport('kare-kapisi', md));
+    process.exitCode = (belowTarget.length || broken.length) ? 1 : 0;
 }
 
 if(require.main === module) main();

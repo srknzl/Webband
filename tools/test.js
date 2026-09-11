@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 // ============================================================
-// test.js — saf mantık testleri + dünya/ekonomi eşikleri (#63)
+// test.js — pure logic tests + world/economy thresholds (#63)
 // ------------------------------------------------------------
-// Depoda hiç test yoktu: sessiz denge kaybı görünmüyordu (#47'de erzak
-// fiyatının "on kat ucuzlasın" kararı uygulanmadan aylarca öyle kaldı).
-// Burada iki ayrı iş var, ikisi de oyunun **kendi** kodunu koşturur:
+// The repo had no tests at all: a silent balance regression went unnoticed
+// (in #47 the decision to make food "ten times cheaper" sat unapplied for
+// months). Two separate jobs live here, both driving the game's **own** code:
 //
-//   1. Saf mantık — girdi/çıktı tablosu belli fonksiyonlar (hasar, maaş,
-//      vergi, moral, kapasite, esir değeri, erzak, kare kapısı, kayıt göçü).
-//      Sayılar CLAUDE.md'deki "Ölçüldü" satırlarının kendisidir; biri
-//      değişirse ya kod ya belge yanlış demektir.
-//   2. Eşikler — 200 günlük oyuncusuz dünya ve 60 günlük ekonomi betikleri.
-//      Kesin sayı beklenmez (dünya rastgeledir), **aralık** beklenir: fetih
-//      hiç olmaması da 20 olması da bozuk demektir.
+//   1. Pure logic — input/output tables for specific functions (damage, wage,
+//      tax, morale, capacity, prisoner value, food, frame gate, save
+//      migration). These numbers ARE the "Measured" lines in CLAUDE.md; if one
+//      changes, either the code or the doc is wrong.
+//   2. Thresholds — a 200-day playerless world and 60-day economy scripts. No
+//      exact number is expected (the world is random), a **range** is: zero
+//      conquests is as broken as 20.
 //
-//   node tools/test.js            # hepsi
-//   node tools/test.js --hizli    # yalnız saf mantık (eşikler ~5 sn sürer)
+//   node tools/test.js            # everything
+//   node tools/test.js --fast     # pure logic only (thresholds take ~5 s)
 // ============================================================
 'use strict';
 const assert = require('assert');
@@ -26,18 +26,18 @@ function test(name, fn) {
     try { fn(); results.push({ name, ok: true }); }
     catch(e) { results.push({ name, ok: false, msg: e.message.split('\n')[0] }); }
 }
-// Aralık iddiası: dünya rastgele olduğu için tek sayı beklenmez.
+// Range assertion: the world is random, so no single number is expected.
 function between(actual, lo, hi, what) {
     assert.ok(actual >= lo && actual <= hi, `${what}: ${actual} ∉ [${lo}, ${hi}]`);
 }
 
-// ---------- 1. Saf mantık ----------
-// Tek yükleme yeter: bu fonksiyonların hepsi `state`i okur, hiçbiri dünyaya
-// (yerleşim dağıtımı, NPC) ihtiyaç duymaz. Testler state'i kendi kurar.
+// ---------- 1. Pure logic ----------
+// Loading once is enough: all of these functions read `state` and none of
+// them need a world (settlement layout, NPCs). Tests set up their own state.
 const g = H.load({ seed: 1 });
 const { Game, Battle, Save, state } = g;
 
-// Oyuncuyu bilinen bir başlangıca döndürür — testler birbirinin state'ini görmesin
+// Resets the player to a known starting point — tests shouldn't see each other's state
 function reset() {
     const p = state.player;
     p.party = []; p.prisoners = []; p.inventory = []; p.money = 250; p.renown = 0;
@@ -49,12 +49,12 @@ function reset() {
 }
 const troop = (level, extra) => Object.assign({ id: 't' + level, name: 'Asker', level, type: 'infantry' }, extra);
 
-test('afterArmor: zırhsız hedefte tür çarpanı (30 ham)', () => {
+test('afterArmor: type multiplier on an unarmored target (30 raw)', () => {
     assert.strictEqual(Battle.afterArmor('cut', 30, 0), 30);
     assert.strictEqual(Battle.afterArmor('pierce', 30, 0), 27);
     assert.strictEqual(Battle.afterArmor('blunt', 30, 0), 24);
 });
-test('afterArmor: zırh arttıkça delici öne geçer (def 25)', () => {
+test('afterArmor: as armor rises, pierce takes the lead (def 25)', () => {
     assert.strictEqual(Battle.afterArmor('cut', 30, 12), 18);
     assert.strictEqual(Battle.afterArmor('pierce', 30, 12), 21);
     assert.strictEqual(Battle.afterArmor('blunt', 30, 12), 16);
@@ -62,102 +62,103 @@ test('afterArmor: zırh arttıkça delici öne geçer (def 25)', () => {
     assert.strictEqual(Battle.afterArmor('pierce', 30, 25), 15);
     assert.strictEqual(Battle.afterArmor('blunt', 30, 25), 8);
 });
-test('afterArmor: taban 1, bilinmeyen tür kesici sayılır', () => {
+test('afterArmor: floor of 1, unknown type counts as cut', () => {
     assert.strictEqual(Battle.afterArmor('cut', 5, 100), 1);
     assert.strictEqual(Battle.afterArmor('sihir', 30, 12), Battle.afterArmor('cut', 30, 12));
 });
 
-test('troopWage: kademeler', () => {
-    assert.strictEqual(Game.troopWage(troop(5)), 0);        // acemi bedava
+test('troopWage: tiers', () => {
+    assert.strictEqual(Game.troopWage(troop(5)), 0);        // recruits are free
     assert.strictEqual(Game.troopWage(troop(10)), 2);
     assert.strictEqual(Game.troopWage(troop(19)), 2);
     assert.strictEqual(Game.troopWage(troop(20)), 10);      // lvl/2
     assert.strictEqual(Game.troopWage(troop(30)), 15);
-    assert.strictEqual(Game.troopWage(troop(51)), 0);       // Efsanevi
+    assert.strictEqual(Game.troopWage(troop(51)), 0);       // Legendary
     assert.strictEqual(Game.troopWage(troop(1, { isCompanion: true })), 20);
 });
 
-test('fiefTax: şehir ×2, kale ×0.7, köy ×1', () => {
+test('fiefTax: city ×2, castle ×0.7, village ×1', () => {
     assert.strictEqual(Game.fiefTax({ type: 'city', prosperity: 55 }), 110);
     assert.strictEqual(Game.fiefTax({ type: 'castle', prosperity: 64 }), 45);
     assert.strictEqual(Game.fiefTax({ type: 'village', prosperity: 40 }), 40);
-    assert.strictEqual(Game.fiefTax({ type: 'city' }), 100);   // refahı olmayan eski kayıt
+    assert.strictEqual(Game.fiefTax({ type: 'city' }), 100);   // old save with no prosperity field
 });
 
-test('getPartyCapacity: yeni karakter 12 kişi', () => {
+test('getPartyCapacity: a fresh character has 12', () => {
     const p = reset();
     assert.strictEqual(Game.getPartyCapacity(), 12);
-    p.stats.eff.cha = 13;                      // +3 kapasite
+    p.stats.eff.cha = 13;                      // +3 capacity
     assert.strictEqual(Game.getPartyCapacity(), 21);
     p.proficiencies.leadership.level = 3;      // +8
     assert.strictEqual(Game.getPartyCapacity(), 29);
     p.renown = 120;                            // +3
     assert.strictEqual(Game.getPartyCapacity(), 32);
 });
-test('getPartyCapacity: kesirli nitelik kaynağında kırpılır (#43)', () => {
+test('getPartyCapacity: fractional attribute source is floored (#43)', () => {
     const p = reset();
     p.stats.eff.cha = 11.9286;
     assert.strictEqual(Game.getPartyCapacity() % 1, 0);
     assert.strictEqual(Game.getPartyCapacity(), 17);   // floor(1.9286*3) = 5
 });
 
-test('prisonerValue: tür çarpanı, soylu fidyesi', () => {
+test('prisonerValue: type multiplier, noble ransom', () => {
     assert.strictEqual(Game.prisonerValue({ level: 10, type: 'infantry' }), 145);
     assert.strictEqual(Game.prisonerValue({ level: 10, type: 'archer' }), 174);
     assert.strictEqual(Game.prisonerValue({ level: 10, type: 'cavalry' }), 217);
     assert.strictEqual(Game.prisonerValue({ noble: true, ransom: 3200 }), 3200);
 });
 
-test('moraleTarget: kalemler toplanır, 0-100 arası kırpılır', () => {
+test('moraleTarget: terms add up, clamped to 0-100', () => {
     const p = reset();
-    assert.strictEqual(Game.moraleTarget(true, false), 50);            // yalnız taban
+    assert.strictEqual(Game.moraleTarget(true, false), 50);            // base only
     p.inventory = [{ id: 'wheat', qty: 5 }, { id: 'meat', qty: 5 }];
-    assert.strictEqual(Game.moraleTarget(true, false), 60);            // 2 çeşit × 5
-    assert.strictEqual(Game.moraleTarget(true, true), 30);             // açlık −30
+    assert.strictEqual(Game.moraleTarget(true, false), 60);            // 2 kinds × 5
+    assert.strictEqual(Game.moraleTarget(true, true), 30);             // starvation −30
     p.proficiencies.leadership.level = 5;
-    assert.strictEqual(Game.moraleTarget(true, false), 72);            // İdare (5−1)×3
+    assert.strictEqual(Game.moraleTarget(true, false), 72);            // Leadership (5−1)×3
     p.party = Array.from({ length: 40 }, (_, i) => troop(1, { id: 'x' + i }));
     assert.strictEqual(Game.getPartyCapacity(), 28);
-    assert.strictEqual(Game.moraleTarget(true, false), 48);            // kapasite aşımı 12×2
+    assert.strictEqual(Game.moraleTarget(true, false), 48);            // over capacity 12×2
 });
-test('moraleTarget: maaş borcu büyüdükçe hedef düşer, taban 40', () => {
+test('moraleTarget: target drops as wage debt grows, floor 40', () => {
     const p = reset();
-    p.party = [troop(20)];                     // maaş 10₺/gün
+    p.party = [troop(20)];                     // wage 10₺/day
     p.wageDebt = 10;
     assert.strictEqual(Game.moraleTarget(false, false), 30);   // 50 − (10 + 1×10)
     p.wageDebt = 10000;
-    assert.strictEqual(Game.moraleTarget(false, false), 10);   // ceza 40'ta durur
+    assert.strictEqual(Game.moraleTarget(false, false), 10);   // penalty stops at 40
 });
 
-test('foodStock: gün sayısı bozulmayı da sayar', () => {
+test('foodStock: day count accounts for spoilage too', () => {
     const p = reset();
-    p.party = Array.from({ length: 10 }, (_, i) => troop(10, { id: 'f' + i }));  // 10 × yarım birim/gün
+    p.party = Array.from({ length: 10 }, (_, i) => troop(10, { id: 'f' + i }));  // 10 × half a unit/day
     p.inventory = [{ id: 'wheat', qty: 60 }];
     const fs = Game.foodStock();
     assert.strictEqual(fs.low, 60);
-    assert.strictEqual(fs.need, 6);                   // 10 asker × FOOD_MAN 0.5 + oyuncunun kendisi 1
+    assert.strictEqual(fs.need, 6);                   // 10 troops × FOOD_MAN 0.5 + the player themself 1
     assert.strictEqual(fs.kinds, 1);
-    assert.strictEqual(fs.spoil, 1);                  // 60 tahıl / 60 gün dayanıklılık
+    assert.strictEqual(fs.spoil, 1);                  // 60 wheat / 60-day shelf life
     assert.strictEqual(fs.days, 8);                   // 60 / (6 + 1)
 });
-test('foodStock: seçkin asker et ister, çeşit sayılır', () => {
+test('foodStock: elite troops want meat, variety is counted', () => {
     const p = reset();
     p.party = [troop(30), troop(30)];
     p.inventory = [{ id: 'wheat', qty: 10 }, { id: 'meat', qty: 10 }];
     const fs = Game.foodStock();
-    assert.strictEqual(fs.need, 3);                   // 2 × 0.75 + oyuncu 1, yukarı yuvarlanır
-    assert.strictEqual(fs.needHigh, 1);               // lvl 30+ başına yarım et
+    assert.strictEqual(fs.need, 3);                   // 2 × 0.75 + player 1, rounded up
+    assert.strictEqual(fs.needHigh, 1);               // half a meat per lvl 30+ troop
     assert.strictEqual(fs.high, 10);
     assert.strictEqual(fs.kinds, 2);
 });
-test('foodStock: boş envanter 0 gün, sonsuza gitmez', () => {
+test('foodStock: empty inventory is 0 days, never infinite', () => {
     const p = reset();
     p.party = [troop(10)];
     assert.strictEqual(Game.foodStock().days, 0);
 });
 
-// Kare kapısı: tazeleme hızı → geçen fps. Kural "60 fps'in altına düşürmeyen
-// en büyük tam bölen". framegate.js bunu tablo olarak yazar, burada eşiktir.
+// Frame gate: refresh rate → passed fps. Rule is "the largest whole divisor
+// that doesn't drop below 60 fps". framegate.js writes this out as a table;
+// here it's a threshold.
 function gateFps(hz, seconds = 2, opts) {
     const { Game } = H.load({ seed: 1 });
     if(opts) Object.assign(Game.OPTS, opts);
@@ -166,7 +167,7 @@ function gateFps(hz, seconds = 2, opts) {
     for(let i = 0; i < hz * seconds; i++) if(!Game.skipFrame(i * step)) passed++;
     return +(passed / seconds).toFixed(1);
 }
-test('skipFrame: 60 fps altına düşürmeyen en büyük bölen', () => {
+test('skipFrame: largest divisor that doesn\'t drop below 60 fps', () => {
     assert.strictEqual(gateFps(60), 60);
     assert.strictEqual(gateFps(75), 75);
     assert.strictEqual(gateFps(90), 90);
@@ -175,42 +176,42 @@ test('skipFrame: 60 fps altına düşürmeyen en büyük bölen', () => {
     assert.strictEqual(gateFps(180), 60);
     assert.strictEqual(gateFps(240), 60);
 });
-test('skipFrame: aynı karede iki döngü aynı cevabı alır (#42)', () => {
-    // Ayrık cevap, döngülerden birini kalıcı olarak aç bırakır: ekran siyah kalır.
+test('skipFrame: two loops in the same frame get the same answer (#42)', () => {
+    // A mismatched answer leaves one of the loops permanently starved: its screen goes black.
     for(const hz of [60, 120, 144, 165, 240]) {
         const { Game } = H.load({ seed: 1 });
         const step = 1000 / hz;
-        let ayrik = 0;
+        let mismatch = 0;
         for(let i = 0; i < hz * 2; i++) {
             const t = i * step;
-            if(Game.skipFrame(t) !== Game.skipFrame(t)) ayrik++;   // harita + savaş döngüsü
+            if(Game.skipFrame(t) !== Game.skipFrame(t)) mismatch++;   // map + battle loop
         }
-        assert.strictEqual(ayrik, 0, `${hz} Hz'te ${ayrik} ayrık cevap`);
+        assert.strictEqual(mismatch, 0, `${mismatch} mismatched answers at ${hz} Hz`);
     }
 });
-test('skipFrame: hafif mod hedefi 30 fps (#80)', () => {
+test('skipFrame: lite mode targets 30 fps (#80)', () => {
     assert.strictEqual(gateFps(60, 2, { lite: true }), 30);
     assert.strictEqual(gateFps(120, 2, { lite: true }), 30);
 });
-test('skipFrame: bozuk tek örnek kapıyı kilitlemez', () => {
-    // Bu testin sebebi bir telefon raporu: iOS sayfayı kaydırırken iki rAF'ı
-    // ~2 ms arayla teslim ediyor. Tahmin edici "tüm zamanların en küçüğü" olduğu
-    // için değer 2 ms'e KALICI olarak kilitleniyor, bölen 1000/30/2 = 16 oluyor
-    // ve oyun 60 Hz ekranda 3.79 fps'te dönüyordu — oynanamaz.
+test('skipFrame: one bad sample doesn\'t lock the gate', () => {
+    // This test comes from an actual phone report: iOS delivers two rAFs ~2 ms
+    // apart while scrolling the page. Since the predictor is "the smallest of
+    // all time", the value gets PERMANENTLY stuck at 2 ms, the divisor becomes
+    // 1000/30/2 = 16, and the game ran at 3.79 fps on a 60 Hz screen — unplayable.
     const { Game } = H.load({ seed: 1 });
-    Object.assign(Game.OPTS, { lite: true });            // hafif mod: hedef 30 fps
+    Object.assign(Game.OPTS, { lite: true });            // lite mode: 30 fps target
     let t = 0;
     for(let i = 0; i < 120; i++) { t += (i === 100 || i === 101) ? 2 : 1000 / 60; Game.skipFrame(t); }
-    let t0 = t, ciz = 0;
-    for(let i = 0; i < 600; i++) { t += 1000 / 60; if(!Game.skipFrame(t)) ciz++; }
-    const fps = ciz / ((t - t0) / 1000);
-    assert.ok(fps > 25, `bozuk örnekten sonra ${fps.toFixed(2)} fps — kapı kilitlendi`);
+    let t0 = t, drawn = 0;
+    for(let i = 0; i < 600; i++) { t += 1000 / 60; if(!Game.skipFrame(t)) drawn++; }
+    const fps = drawn / ((t - t0) / 1000);
+    assert.ok(fps > 25, `${fps.toFixed(2)} fps after the bad sample — gate got stuck`);
 });
-test('skipFrame: kapı ayardan kapatılınca hiç kare atılmaz', () => {
+test('skipFrame: no frame is dropped when the gate is turned off in settings', () => {
     assert.strictEqual(gateFps(240, 2, { frameGate: false }), 240);
 });
 
-test('Save.migrate: v1 → v2 göçü', () => {
+test('Save.migrate: v1 → v2 migration', () => {
     const d = {
         savedAt: 1700000000000,
         state: {
@@ -221,106 +222,109 @@ test('Save.migrate: v1 → v2 göçü', () => {
     };
     Save.migrate(d);
     assert.strictEqual(d.v, 2);
-    assert.strictEqual(d.state.explored, undefined);          // savaş sisi kaldırıldı
+    assert.strictEqual(d.state.explored, undefined);          // fog of war removed
     assert.strictEqual(d.state.player.party[0].name, 'Svadya Şövalyesi');
     assert.strictEqual(d.state.player.party[0].legendary, true);
     assert.strictEqual(d.state.player.party[1].legendary, undefined);
-    assert.strictEqual(d.state.settings.muted, true);         // ayarlara taşındı
+    assert.strictEqual(d.state.settings.muted, true);         // moved into settings
     assert.strictEqual(d.state.meta.v, 2);
     assert.strictEqual(d.state.meta.createdAt, 1700000000000);
     assert.strictEqual(d.state.meta.gocEdildi, true);
 });
-test('Save.migrate: güncel kayda dokunmaz', () => {
+test('Save.migrate: leaves a current save untouched', () => {
     const d = { v: 2, state: { player: { party: [] }, meta: { v: 2, createdAt: 1, playtime: 99 } } };
     Save.migrate(d);
     assert.strictEqual(d.state.meta.playtime, 99);
 });
 
-// --- Harita hızı (#72) ---
-// Atlı/yaya farkı 1.5×'i aşmamalı. Kritik nokta: grup bonusu paydada durduğu için
-// atlılık *toplama* olursa oran grup büyüdükçe kayar (eski kodda 2.1× → 2.6×).
-// Bu yüzden tek bir grupta değil, ceza eğrisinin her bölgesinde ölçülür.
-test('hız: atlı/yaya farkı her grup büyüklüğünde 1.5× ile sınırlı', () => {
-    const hiz = (mounted, size) => {
-        // Sınıf `t.type`'tan değil TROOP_TYPES[t.name]'den okunur (troopStats)
+// --- Map speed (#72) ---
+// The mounted/foot gap must not exceed 1.5×. Critical point: since the party
+// bonus sits in the denominator, if being mounted were *additive* the ratio
+// would drift as the party grows (old code: 2.1× → 2.6×). So this is measured
+// across every region of the penalty curve, not just one party size.
+test('speed: mounted/foot gap is capped at 1.5× at every party size', () => {
+    const speed = (mounted, size) => {
+        // Class is read from TROOP_TYPES[t.name] (troopStats), not from t.type
         state.player.party = Array.from({ length: size - 1 }, (_, i) =>
             ({ id: 'h' + i, name: mounted ? 'Svadya Süvarisi' : 'Svadya Milisi', level: 1 }));
         state.player.equipment.horse = mounted ? { id: 'horse', name: 'At' } : null;
         return Game.getPlayerSpeed().value;
     };
     [1, 5, 10, 20, 40, 65].forEach(size => {
-        const oran = hiz(true, size) / hiz(false, size);
-        assert.ok(Math.abs(oran - 1.5) < 0.001, `${size} kişilik grupta atlı/yaya farkı ${oran.toFixed(2)}×`);
+        const ratio = speed(true, size) / speed(false, size);
+        assert.ok(Math.abs(ratio - 1.5) < 0.001, `mounted/foot gap is ${ratio.toFixed(2)}× at party size ${size}`);
     });
     state.player.party = [];
     state.player.equipment.horse = null;
 });
 
-// --- Modal kapatma kapısı (#70) ---
-// Esc, dışa tıklama ve × aynı kapıdan (canDismiss) sorar; closeModal sormaz.
-// Bu ayrım önemli: karşılaşma penceresinin kendi düğmeleri ("Yoluna Bırak",
-// "Teslim Ol") pencereyi currentEncounterNpcId hâlâ doluyken kapatır — closeModal
-// da sorsaydı o pencere savaşın arkasında açık kalırdı.
-test('modal: karşılaşma penceresi kullanıcı elinden kapanmaz, kendi düğmesinden kapanır', () => {
+// --- Modal dismiss gate (#70) ---
+// Esc, clicking outside, and × all ask through the same gate (canDismiss);
+// closeModal doesn't ask. This distinction matters: the encounter window's
+// own buttons ("Leave it be", "Surrender") close the window while
+// currentEncounterNpcId is still set — if closeModal also asked, that window
+// would stay open behind the battle.
+test('modal: an encounter window can\'t be dismissed by the user, only by its own button', () => {
     const doc = g._sandbox.document;
     const overlay = () => doc.getElementById('modal-overlay').classList.contains('hidden');
 
     state.player.currentEncounterNpcId = null;
-    Game.showModal('<p>sıradan</p>');
+    Game.showModal('<p>plain</p>');
     Game.dismissModal();
-    assert.ok(overlay(), 'sıradan pencere × ile kapanmadı');
+    assert.ok(overlay(), 'a plain window didn\'t close on ×');
 
     state.player.currentEncounterNpcId = 'npc_test';
-    Game.showModal('<p>karşılaşma</p>');
+    Game.showModal('<p>encounter</p>');
     Game.dismissModal();
-    assert.ok(!overlay(), 'karşılaşma penceresi kullanıcı elinden kapandı');
+    assert.ok(!overlay(), 'an encounter window closed by the user\'s hand');
     Game.closeModal();
-    assert.ok(overlay(), 'karşılaşmanın kendi düğmesi pencereyi kapatamadı');
+    assert.ok(overlay(), 'the encounter\'s own button couldn\'t close the window');
     state.player.currentEncounterNpcId = null;
 });
 
-// --- Savaş hızı dengesi ---
-// Hız zincirinin dört halkası oyuncu ile yapay zekâda farklı işliyordu; düzeltirken
-// eski "okçu sonsuza dek kaçar" hatasını geri getirmek en büyük risk. Testler o iki
-// ucu birden tutar: kaçış mümkün olmalı, ama kimse ebediyen kaçamamalı.
+// --- Battle speed balance ---
+// The four links of the speed chain used to behave differently for the
+// player and the AI; the biggest risk while fixing that was bringing back the
+// old "archer flees forever" bug. These tests hold both ends at once: fleeing
+// must be possible, but nobody may flee forever.
 
-test('hız: yayanın tavanı en yavaş atın altında (insan atı geçemez)', () => {
+test('speed: foot\'s ceiling is below the slowest horse (a human can\'t outrun a horse)', () => {
     reset();
     const p = state.player;
     p.stats.agi = 99; p.proficiencies.athletics = { level: 99, xp: 0 };
-    const enYavasAt = Math.min(...Object.values(g.TROOP_TYPES)
+    const slowestHorse = Math.min(...Object.values(g.TROOP_TYPES)
         .filter(t => t.type === 'cavalry').map(t => t.speed));
-    assert.ok(Battle.footSpeed() <= Battle.FOOT_MAX, `yaya tavanı ${Battle.footSpeed()}`);
-    assert.ok(Battle.FOOT_MAX < enYavasAt, `yaya tavanı ${Battle.FOOT_MAX} ≥ en yavaş at ${enYavasAt}`);
+    assert.ok(Battle.footSpeed() <= Battle.FOOT_MAX, `foot ceiling ${Battle.footSpeed()}`);
+    assert.ok(Battle.FOOT_MAX < slowestHorse, `foot ceiling ${Battle.FOOT_MAX} ≥ slowest horse ${slowestHorse}`);
     reset();
 });
 
-test('hız: FOOT_MAX üstü her asker gerçekten binekli (orman kuralının dayanağı)', () => {
-    Object.entries(g.TROOP_TYPES).forEach(([ad, t]) => {
+test('speed: every troop above FOOT_MAX is genuinely mounted (basis of the forest rule)', () => {
+    Object.entries(g.TROOP_TYPES).forEach(([name, t]) => {
         if(t.speed > Battle.FOOT_MAX)
-            assert.ok(t.type === 'cavalry' || /Atlı|Muhafızı/.test(ad), `${ad} ${t.speed} hızlı ama yaya görünüyor`);
+            assert.ok(t.type === 'cavalry' || /Atlı|Muhafızı/.test(name), `${name} is ${t.speed} fast but looks like foot`);
         if(t.type === 'cavalry')
-            assert.ok(t.speed > Battle.FOOT_MAX, `${ad} süvari ama ${t.speed} ≤ ${Battle.FOOT_MAX}`);
+            assert.ok(t.speed > Battle.FOOT_MAX, `${name} is cavalry but only ${t.speed} ≤ ${Battle.FOOT_MAX}`);
     });
 });
 
-// Battle.start gerçek arenayı kurar (tuval, yerleşim) — bunlar `world`u ister.
+// Battle.start sets up the real arena (canvas, settlement) — these need `world`.
 const gw = H.world({ seed: 1 });
 
-test('hız: moral askerin hızını ölçeklemez (düşmanın morali yok)', () => {
-    const hizi = moral => {
-        gw.state.player.morale = moral;
+test('speed: morale doesn\'t scale troop speed (the enemy has no morale)', () => {
+    const speedAt = morale => {
+        gw.state.player.morale = morale;
         gw.state.player.party = [{ id: 'm1', name: 'Svadya Milisi', level: 1 }];
         gw.Battle.start('Çapulcu', 1);
         const u = gw.Battle.units.find(x => x.id === 'm1');
         gw.Battle.active = false;
         return u.speed;
     };
-    assert.strictEqual(hizi(0), hizi(100), 'moral hızı değiştiriyor');
+    assert.strictEqual(speedAt(0), speedAt(100), 'morale is changing speed');
     gw.state.player.party = [];
 });
 
-test('hız: arazi cezaları çarpılmaz, en kötüsü geçerli', () => {
+test('speed: terrain penalties don\'t multiply, the worst one applies', () => {
     const u = { x: 100, y: 100, type: 'cavalry', mounted: true };
     Battle.terrain = {
         forests: [{ x: 100, y: 100, r: 50 }],
@@ -329,108 +333,111 @@ test('hız: arazi cezaları çarpılmaz, en kötüsü geçerli', () => {
         hills: []
     };
     const m = Battle.getTerrainEffects(u).speedMod;
-    assert.ok(Math.abs(m - 0.6) < 1e-9, `üst üste arazide ${m} (0.6 bekleniyordu)`);
+    assert.ok(Math.abs(m - 0.6) < 1e-9, `${m} on stacked terrain (expected 0.6)`);
     Battle.terrain = null;
 });
 
-test('şarj: soluk tükenir — kimse kalıcı olarak hızlı değil', () => {
+test('charge: stamina runs out — nobody stays fast forever', () => {
     const dt = 1/60, u = { charge: 1.3 };
     let burst = 0, tired = 0;
-    for(let i = 0; i < 60 * 10; i++) {                    // 10 sn aralıksız koşu
+    for(let i = 0; i < 60 * 10; i++) {                    // 10 s of nonstop running
         const m = Battle.chargeSpeed(u, true, dt);
         if(m > 1) burst++; else if(m < 1) tired++;
     }
-    assert.ok(burst > 0 && tired > 0, `şarj ${burst} kare, mola ${tired} kare`);
-    // Mola koşudan uzun olmalı: temas kesme penceresi buradan çıkıyor
-    assert.ok(tired > burst, `mola (${tired}) koşudan (${burst}) kısa — kaçış penceresi yok`);
-    // Dinlenen birim soluğunu geri kazanır
+    assert.ok(burst > 0 && tired > 0, `${burst} burst frames, ${tired} tired frames`);
+    // Rest must outlast the run: the disengage window comes from this
+    assert.ok(tired > burst, `rest (${tired}) shorter than running (${burst}) — no escape window`);
+    // A rested unit regains its wind
     for(let i = 0; i < 60 * 10; i++) Battle.chargeSpeed(u, false, dt);
-    assert.ok(Battle.chargeSpeed(u, true, dt) > 1, 'dinlenince şarj dolmadı');
+    assert.ok(Battle.chargeSpeed(u, true, dt) > 1, 'charge didn\'t refill after resting');
 });
 
-// Bu testin yakaladığı hata gerçekten yaşandı: şarj düşman uzaklığına bağlıyken
-// oyuncunun kendi hızı eşiği kontrol ediyordu. Sınırda salınan oyuncu soluğunun
-// dörtte birini harcayıp sürekli hızlı kalıyor, kendinden hızlı atı bile geçiyordu.
-test('şarj: kesintili basıp bırakmak sürekli şarjdan hızlı olamaz', () => {
+// The bug this test catches actually happened: charge depended on distance to
+// the enemy, while the player's own speed checked the threshold. A player
+// oscillating right at the border burned a quarter of their wind and stayed
+// fast continuously, outrunning even a horse faster than them.
+test('charge: tapping intermittently can\'t beat a sustained charge', () => {
     const dt = 1/60, N = 60 * 30;
-    const ortalama = duty => {                      // duty: her `duty` karede 1 kare şarj
+    const average = duty => {                      // duty: charge for 1 frame every `duty` frames
         const u = { charge: 1.3 };
-        let top = 0;
-        for(let i = 0; i < N; i++) top += Battle.chargeSpeed(u, i % duty === 0, dt);
-        return top / N;
+        let sum = 0;
+        for(let i = 0; i < N; i++) sum += Battle.chargeSpeed(u, i % duty === 0, dt);
+        return sum / N;
     };
-    const surekli = ortalama(1);
+    const sustained = average(1);
     [2, 3, 4, 6].forEach(d => {
-        assert.ok(ortalama(d) <= surekli + 1e-9,
-            `1/${d} basışta ortalama ${ortalama(d).toFixed(4)} > sürekli ${surekli.toFixed(4)} — sınır istismarı`);
+        assert.ok(average(d) <= sustained + 1e-9,
+            `tapping 1/${d} averages ${average(d).toFixed(4)} > sustained ${sustained.toFixed(4)} — exploit at the border`);
     });
 });
 
-// --- Bozgun safhası ---
-// Kaçanın `units`ten silinmesi üç sayımı birden taşıyor (ganimet, esir, kayıp);
-// bu yüzden sınanan şey "kaçtı mı" değil, "kaçan hesaba girmiyor mu".
-test('bozgun: kırılan taraf dövüşü bırakıp kaçar', () => {
+// --- Rout phase ---
+// Removing a fleeing unit from `units` carries three counts at once (loot,
+// prisoners, losses); so what's tested isn't "did it flee" but "is a fleeing
+// unit excluded from the tally".
+test('rout: the broken side abandons the fight and flees', () => {
     const B = gw.Battle;
     gw.state.player.party = Array.from({ length: 6 }, (_, i) =>
         ({ id: 'b' + i, name: 'Svadya Milisi', level: 3, xp: 0, xpNext: 10 }));
     B.start('Çapulcu', 12);
-    const dusman = () => B.units.filter(u => !u.isPlayerTeam && u.hp > 0);
-    // Eşik 12×0.25 = 3; ikisini bırakıp gerisini düşürüyoruz
-    dusman().slice(2).forEach(u => { u.hp = 0; });
+    const enemy = () => B.units.filter(u => !u.isPlayerTeam && u.hp > 0);
+    // Threshold is 12×0.25 = 3; leave two standing and drop the rest
+    enemy().slice(2).forEach(u => { u.hp = 0; });
     B.routCheck();
-    assert.ok(B.routed.e, 'düşman mevcudu dörtte birin altına indi ama bozulmadı');
-    assert.ok(!B.routed.p, 'sağlam taraf da bozuldu');
-    const kacan = dusman()[0];
-    const uzaklik = () => Math.abs(kacan.x - B.units[0].x);
-    const once = uzaklik();
+    assert.ok(B.routed.e, 'enemy strength fell below a quarter but didn\'t rout');
+    assert.ok(!B.routed.p, 'the healthy side also routed');
+    const fleeing = enemy()[0];
+    const dist = () => Math.abs(fleeing.x - B.units[0].x);
+    const before = dist();
     for(let i = 0; i < 30; i++) B.update(1 / 60);
-    assert.ok(uzaklik() > once, 'kaçan oyuncudan uzaklaşmıyor');
-    assert.strictEqual(kacan.tgtId, null, 'kaçan hâlâ hedef arıyor');
-    // Yeterince koşunca sahayı terk eder ve savaş biter — kilitlenmez
+    assert.ok(dist() > before, 'fleeing unit isn\'t moving away from the player');
+    assert.strictEqual(fleeing.tgtId, null, 'fleeing unit is still looking for a target');
+    // Given enough time it leaves the field and the battle ends — no stuck lock
     for(let i = 0; i < 60 * 15 && B.active; i++) B.update(1 / 60);
-    assert.ok(!B.active, 'kaçaklar sahayı terk etmedi, savaş kilitlendi');
+    assert.ok(!B.active, 'fleeing units never left the field, battle got stuck');
     gw.state.player.party = [];
 });
 
-// --- Cheese kapıları: kaçış mümkün, ama sonsuz kaçış değil ---
-// duel.js gerçek motoru adım adım işletir; kite sonsuzsa dövüş MAX_S'e kadar
-// sürer ve `won: null` döner. Kilit = kite hatası.
+// --- Cheese gates: fleeing possible, but not infinite fleeing ---
+// duel.js steps the real engine forward; if kiting is infinite the fight runs
+// to MAX_S and returns `won: null`. A stalemate = a kiting bug.
 const { fight } = require('./duel');
 
-test('kite: atlı okçu yakın dövüşçüden sonsuza dek kaçamaz', () => {
+test('kite: a mounted archer can\'t flee a melee fighter forever', () => {
     const r = fight(gw, 'Kergit Atlı Okçusu', 'Nord Baltacısı', 3);
-    assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi — atlı okçu kite ediyor`);
+    assert.notStrictEqual(r.won, null, `fight didn't end in ${r.duration.toFixed(0)} s — mounted archer is kiting`);
 });
 
-test('kite: yaya okçu 0.8 kaçışla da yakalanır', () => {
+test('kite: a foot archer is still caught even with 0.8 flee', () => {
     const r = fight(gw, 'Rodok Tatar Yaylısı', 'Nord Savaşçısı', 3);
-    assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi — yaya okçu kite ediyor`);
+    assert.notStrictEqual(r.won, null, `fight didn't end in ${r.duration.toFixed(0)} s — foot archer is kiting`);
 });
 
-// Kurtlar `TROOP_TYPES`'ta yok (çeteden doğarlar), o yüzden buradaki en zor durum
-// yayanın atlıyı kovalamasıdır: yaya artık şövalyeyi yakalayamaz, ama şövalye de
-// vur-kaç yapıp sonsuza dek gezinemez — savaş bir yerde bitmeli.
-test('kite: yaya atlıyı yakalayamasa da savaş sonuçlanır', () => {
+// Wolves aren't in `TROOP_TYPES` (they spawn from bands), so the hardest case
+// here is foot chasing cavalry: foot can no longer catch the knight, but the
+// knight also can't hit-and-run forever — the battle has to end somewhere.
+test('kite: even if foot can\'t catch cavalry, the battle resolves', () => {
     const r = fight(gw, 'Nord Savaşçısı', 'Svadya Şövalyesi', 4);
-    assert.notStrictEqual(r.won, null, `dövüş ${r.sure.toFixed(0)} sn'de bitmedi`);
+    assert.notStrictEqual(r.won, null, `fight didn't end in ${r.duration.toFixed(0)} s`);
 });
 
-// --- Sürüm damgası (#88 madde 8) ---
-// Release'i CI açıyor ve notlarını CHANGELOG'un o sürüm bölümünden okuyor. Bölüm yoksa
-// yapı orada kırılır; burada kırılması daha ucuz.
-test('sürüm: VERSION.no CHANGELOG.md içinde bir bölüm buluyor', () => {
+// --- Version stamp (#88 item 8) ---
+// CI opens the release and reads its notes from that version's CHANGELOG
+// section. If the section is missing, the build breaks there; breaking here is cheaper.
+test('version: VERSION.no finds a section in CHANGELOG.md', () => {
     const md = require('fs').readFileSync(require('path').join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
     const v = g.VERSION.no;
     assert.ok(new RegExp(`^## ${v.replace('.', '\\.')}[ (]`, 'm').test(md),
-        `CHANGELOG.md'de "## ${v}" bölümü yok — sürüm artmış ama satır girilmemiş`);
+        `no "## ${v}" section in CHANGELOG.md — version bumped but no line was added`);
 });
 
-// --- Görevler: her görev gerçekten bitirilebiliyor mu ---
-// Görev tanımları elle yazılıyor ve tek doğrulama yolu oyunu açıp saatlerce
-// gezmekti. Burada her görev **gerçek motordan** bitiriliyor: `Quests.make`
-// kuruyor, sürücü görev olaylarını `Quests.emit`/`dailyTick` ile veriyor,
-// `complete()` ödülü ödüyor. Tablo tanım listesiyle karşılaştırılıyor — yeni
-// bir görev sürücüsüz eklenirse test düşer, görev de sessizce bitmez kalmaz.
+// --- Quests: can every quest actually be finished ---
+// Quest definitions are hand-written, and the only way to verify them used to
+// be opening the game and wandering for hours. Here each quest is finished
+// **through the real engine**: `Quests.make` sets it up, a driver feeds it
+// quest events via `Quests.emit`/`dailyTick`, and `complete()` pays the
+// reward. The table is checked against the definition list — a new quest
+// added without a driver fails the test instead of silently never finishing.
 function questSuite() {
     const gq = H.world({ seed: 3 });
     const { Quests, QUESTS, LOCATIONS, LORDS, Nobles, Game, state } = gq;
@@ -455,7 +462,7 @@ function questSuite() {
         harvest_watch: q => { for(let i = 0; i < q.data.need; i++) Quests.emit('battle_won', { questWave: q.id }); },
         lost_letter: q => {
             enter(q.data.pickLoc);
-            // Lord ancak kendi salonundaysa bulunur (Nobles.isAt) — partisini eve çek
+            // A lord can only be found in their own hall (Nobles.isAt) — pull their party home
             const seat = loc(Quests.lordSeat(q.data.toId)), p = Nobles.partyOf(q.data.toId);
             if(p) { p.x = seat.x; p.y = seat.y; }
             enter(seat.id);
@@ -471,10 +478,13 @@ function questSuite() {
             for(let i = 0; i < q.data.need; i++) Quests.emit('battle_won', { npcId: 'b' + i });
             enter(q.data.locId);
         },
-        guild_supply: q => { give(q.data.item, q.data.need); enter(q.data.locId); }
+        guild_supply: q => { give(q.data.item, q.data.need); enter(q.data.locId); },
+        // Drives the real path (Game.clearLair emits the event); on day 1 the lair's
+        // purse is still empty, so the quest reward is the only money paid.
+        clear_lair: q => Game.clearLair(q.data.lairId)
     };
 
-    // Görevi verebilecek ilk uygun veren: mizaç + dünyanın `can` önkoşulu
+    // First eligible giver for a quest: personality + the world's `can` precondition
     function giverFor(id) {
         const d = QUESTS[id];
         if(d.givers.includes('guild')) return 'guild_' + LOCATIONS.find(l => l.type === 'city').id;
@@ -483,300 +493,307 @@ function questSuite() {
         return l && l.id;
     }
 
-    test('görev: tablodaki her görevin bir test sürücüsü var', () => {
-        const eksik = Object.keys(QUESTS).filter(id => !drivers[id]);
-        assert.strictEqual(eksik.length, 0, `sürücüsüz görev: ${eksik.join(', ')}`);
+    test('quest: every quest in the table has a test driver', () => {
+        const missing = Object.keys(QUESTS).filter(id => !drivers[id]);
+        assert.strictEqual(missing.length, 0, `quest with no driver: ${missing.join(', ')}`);
     });
 
     Object.keys(QUESTS).forEach(id => {
-        test(`görev: ${id} gerçek motorda tamamlanıyor`, () => {
+        test(`quest: ${id} completes in the real engine`, () => {
             const giverId = giverFor(id);
-            assert.ok(giverId, 'bu görevi verebilecek kimse yok');
-            // Her görev temiz bir oyuncuyla başlar: bir önceki görevin envanteri sayılmasın
+            assert.ok(giverId, 'nobody around can give this quest');
+            // Every quest starts with a clean player: the previous quest's inventory shouldn't count
             state.player.quests = []; state.player.inventory = []; state.player.prisoners = [];
             state.player.party = []; state.player.money = 0;
             const q = Quests.make(id, giverId);
             state.player.quests.push(q);
 
-            // "Nerede" sorusunun cevabı ya gerçek bir yerleşimdir ya da yoktur
+            // The answer to "where" is either a real location or none at all
             const w = QUESTS[id].where && QUESTS[id].where(q);
-            assert.ok(!w || loc(w), `where() haritada olmayan yer döndü: ${w}`);
-            assert.ok(QUESTS[id].desc(q).length > 10, 'desc boş');
+            assert.ok(!w || loc(w), `where() returned a place not on the map: ${w}`);
+            assert.ok(QUESTS[id].desc(q).length > 10, 'desc is empty');
 
             drivers[id](q);
-            assert.ok(!Quests.has(id), 'görev bitmedi — sürücü olayları motoru geçmiyor');
-            assert.strictEqual(state.player.money, QUESTS[id].reward.money, 'ödül ödenmedi');
+            assert.ok(!Quests.has(id), 'quest didn\'t finish — the driver\'s events don\'t reach the engine');
+            assert.strictEqual(state.player.money, QUESTS[id].reward.money, 'reward wasn\'t paid');
         });
     });
 }
 questSuite();
 
-// --- Pusu: seni ancak görebildiğin şey basabilir ---
-// Sabit 240 birimlik pusu menzili, başlangıç karakterinin ormandaki görüşünden
-// (125) genişti: seni basan çete tanım gereği hiç ekrana çizilmemiş oluyordu.
-// Üç kapı: menzil görüşü aşmaz, kalabalık ordu pusuya düşmez, sarılmışken kaçış
-// yarı şansla açıktır.
+// --- Ambush: only what you can see can ambush you ---
+// The fixed 240-unit ambush range was wider than the starting character's
+// sight in a forest (125): a band ambushing you would, by definition, never
+// have been drawn on screen. Three gates: range never exceeds sight, a large
+// enough army isn't ambushed, and flee while surrounded is a coin flip, not shut off.
 function ambushSuite() {
     const ga = H.world({ seed: 5 });
     const { Game, state, LOCATIONS, FORESTS } = ga;
-    const orman = FORESTS ? FORESTS[0] : { x: 3450, y: 3450 };
+    const forest = FORESTS ? FORESTS[0] : { x: 3450, y: 3450 };
 
-    // Oyuncuyu ve bir kurt sürüsünü aynı ormanın göbeğine koy. Orman yarıçapı 135,
-    // yani aradaki mesafe onu aşamaz — mesafeler ormandaki görüşe göre seçilir.
-    const kur = (mesafe, grup) => {
+    // Put the player and a wolf pack in the same forest's center. Forest radius
+    // is 135, so the distance between them can't exceed it — distances are
+    // chosen relative to sight range in a forest.
+    const setup = (dist, groupSize) => {
         state.encounterCooldown = 0;
         state.player.prisoner = null;
-        state.player.x = orman.x; state.player.y = orman.y;
-        state.player.party = Array.from({ length: grup }, (_, i) => ({ id: 'p' + i, name: 'Asker', level: 5, type: 'infantry' }));
+        state.player.x = forest.x; state.player.y = forest.y;
+        state.player.party = Array.from({ length: groupSize }, (_, i) => ({ id: 'p' + i, name: 'Asker', level: 5, type: 'infantry' }));
         state.npcParties.length = 0;
-        const kurt = Game.spawnBand('wolf');
-        kurt.size = 8;
-        kurt.x = kurt.targetX = orman.x + mesafe; kurt.y = kurt.targetY = orman.y;
+        const wolf = Game.spawnBand('wolf');
+        wolf.size = 8;
+        wolf.x = wolf.targetX = forest.x + dist; wolf.y = wolf.targetY = forest.y;
         Game._ambushCd = 0;
-        let basan = null;
-        const asil = Game.triggerEncounter;
-        Game.triggerEncounter = (npc, kind) => { basan = { npc, kind }; };
+        let hit = null;
+        const orig = Game.triggerEncounter;
+        Game.triggerEncounter = (npc, kind) => { hit = { npc, kind }; };
         Game.checkAmbush(1);
-        Game.triggerEncounter = asil;
-        return { basan, kurt };
+        Game.triggerEncounter = orig;
+        return { hit, wolf };
     };
 
-    // Ormandaki görüş: sabitten değil, motorun kendisinden okunur
-    const gorus = kur(1, 0).kurt && Game.spotRange(kur(1, 0).kurt);
-    const yakinMesafe = Math.round(gorus * 0.5);
-    const uzakMesafe = Math.round(gorus) + 5;    // görüşün dışı, eski 240'ın içi
+    // Sight in a forest: read from the engine itself, not a hardcoded constant
+    const sightRange = setup(1, 0).wolf && Game.spotRange(setup(1, 0).wolf);
+    const nearDist = Math.round(sightRange * 0.5);
+    const farDist = Math.round(sightRange) + 5;    // outside sight range, inside the old fixed 240
 
-    test('pusu: seni basan çete her zaman çizilebilecek kadar yakındır', () => {
-        assert.ok(Game.getTerrainInfo(orman.x, orman.y).name === 'Orman', 'orman merkezi orman değil');
-        assert.ok(uzakMesafe < Game.AMBUSH_RANGE, 'görüş pusu tavanını aştı, test anlamsız');
+    test('ambush: the band that ambushes you is always close enough to be drawn', () => {
+        assert.ok(Game.getTerrainInfo(forest.x, forest.y).name === 'Orman', 'forest center isn\'t forest');
+        assert.ok(farDist < Game.AMBUSH_RANGE, 'sight range exceeds the ambush ceiling, test is meaningless');
 
-        const uzak = kur(uzakMesafe, 0);
-        assert.ok(Game.getTerrainInfo(uzak.kurt.x, uzak.kurt.y).name === 'Orman', 'çete ormanın dışına düştü');
-        assert.strictEqual(uzak.basan, null, 'görüş dışındaki çete hâlâ pusu kuruyor');
+        const far = setup(farDist, 0);
+        assert.ok(Game.getTerrainInfo(far.wolf.x, far.wolf.y).name === 'Orman', 'band fell outside the forest');
+        assert.strictEqual(far.hit, null, 'a band outside sight range still ambushes');
 
-        const yakin = kur(yakinMesafe, 0);
-        assert.ok(yakin.basan, 'görüş içindeki çete pusu kurmuyor');
-        assert.ok(Game.canSee(yakin.kurt), 'pusu kuran çete çizilmiyor');
+        const near = setup(nearDist, 0);
+        assert.ok(near.hit, 'a band inside sight range doesn\'t ambush');
+        assert.ok(Game.canSee(near.wolf), 'the ambushing band isn\'t being drawn');
     });
 
-    test('pusu: 1.5 kat kalabalık orduya pusu kurulmaz', () => {
-        assert.strictEqual(kur(yakinMesafe, 20).basan, null, '8 kurt 21 kişilik orduyu pusuya düşürüyor');
+    test('ambush: no ambush against an army 1.5× as large', () => {
+        assert.strictEqual(setup(nearDist, 20).hit, null, '8 wolves are ambushing a 21-strong army');
     });
 
-    test('pusu: sarılmışken kaçış kapalı değil, yarı şanslı', () => {
+    test('ambush: flee isn\'t closed off while surrounded, just half as likely', () => {
         const npc = { speed: 60 };
-        state.ambush = false; const acik = Game.fleeChance(npc);
-        state.ambush = true;  const sarili = Game.fleeChance(npc);
+        state.ambush = false; const open = Game.fleeChance(npc);
+        state.ambush = true;  const surrounded = Game.fleeChance(npc);
         state.ambush = false;
-        assert.ok(sarili > 0, 'pusuda kaçış şansı sıfır');
-        assert.ok(Math.abs(sarili - acik * Game.AMBUSH_FLEE) < 1e-9, 'pusu kaçış çarpanı uygulanmıyor');
+        assert.ok(surrounded > 0, 'flee chance while ambushed is zero');
+        assert.ok(Math.abs(surrounded - open * Game.AMBUSH_FLEE) < 1e-9, 'ambush flee multiplier isn\'t applied');
     });
 }
 ambushSuite();
 
-// --- Yol olayları (#67) ---
-// Havuz veri, `run` gövdeleri koddur: bir yardımcının adı değişirse yalnız o
-// seçenek seçildiğinde patlar ve bunu ancak oyuncu görür. Bu yüzden testin
-// asıl işi **her seçeneği gerçekten çalıştırmak**. Tetikleyicinin mesafeye
-// bağlı olduğu ve tekrar penceresinin çalıştığı ayrıca sınanır.
+// --- Road events (#67) ---
+// The pool is data, the `run` bodies are code: if a helper's name changes it
+// only breaks when that choice is picked, and only the player ever sees it.
+// So the real job of this test is **actually running every choice**. It also
+// checks that the trigger depends on distance and that the repeat window works.
 function roadSuite() {
     const ga = H.world({ seed: 7 });
     const { Game, state, LOCATIONS } = ga;
 
-    test('yol: her olayın ikişer gerçek seçeneği var', () => {
+    test('road: every event has at least two real choices', () => {
         const ids = new Set();
         Game.ROAD_EVENTS.forEach(ev => {
-            assert.ok(!ids.has(ev.id), `yinelenen olay kimliği: ${ev.id}`);
+            assert.ok(!ids.has(ev.id), `duplicate event id: ${ev.id}`);
             ids.add(ev.id);
-            assert.ok(ev.icon && typeof ev.when === 'function', `${ev.id}: ikon/koşul eksik`);
-            assert.strictEqual(typeof ev.text, 'function', `${ev.id}: text fonksiyon değil (çeviri donar)`);
-            assert.ok(ev.choices.length >= 2, `${ev.id}: tek seçenek karar değildir`);
+            assert.ok(ev.icon && typeof ev.when === 'function', `${ev.id}: missing icon/condition`);
+            assert.strictEqual(typeof ev.text, 'function', `${ev.id}: text isn't a function (translation would freeze)`);
+            assert.ok(ev.choices.length >= 2, `${ev.id}: a single choice isn't a decision`);
             ev.choices.forEach((ch, i) => {
-                assert.strictEqual(typeof ch.label, 'function', `${ev.id}[${i}]: label fonksiyon değil`);
-                assert.strictEqual(typeof ch.run, 'function', `${ev.id}[${i}]: run yok`);
+                assert.strictEqual(typeof ch.label, 'function', `${ev.id}[${i}]: label isn't a function`);
+                assert.strictEqual(typeof ch.run, 'function', `${ev.id}[${i}]: run is missing`);
             });
         });
-        assert.ok(ids.size >= 20, `havuz ${ids.size} olaya düştü`);
+        assert.ok(ids.size >= 20, `pool fell to ${ids.size} events`);
     });
 
-    test('yol: her seçenek çalışıp gösterilebilir bir sonuç veriyor', () => {
-        // Her koşulun geçtiği bol keseli bir dünya: parayı ve grubu her
-        // seçenekten önce tazeliyoruz, yoksa ilk birkaç seçenek keseyi boşaltıp
-        // kalanını sınanmamış bırakır.
+    test('road: every choice runs and produces a displayable result', () => {
+        // A generous world where every condition passes: money and party are
+        // refreshed before every choice, otherwise the first few choices would
+        // drain the purse and leave the rest untested.
         Game.ROAD_EVENTS.forEach(ev => ev.choices.forEach((ch, i) => {
             state.player.x = LOCATIONS[0].x + 60; state.player.y = LOCATIONS[0].y;
             state.player.money = 5000;
             state.player.party = Array.from({ length: 4 }, (_, k) => ({ id: 'r' + k, name: 'Asker', level: 3, xp: 0, xpNext: 5, type: 'infantry' }));
             state.npcParties.length = 0;
             const ctx = Game.eventCtx();
-            assert.ok(ctx.near, 'yakın yerleşim bulunamadı — bağlam kurulmadı');
-            assert.ok(typeof ev.text(ctx) === 'string', `${ev.id}: metin dize değil`);
-            assert.ok(typeof ch.label(ctx) === 'string', `${ev.id}[${i}]: etiket dize değil`);
+            assert.ok(ctx.near, 'no nearby settlement found — context wasn\'t set up');
+            assert.ok(typeof ev.text(ctx) === 'string', `${ev.id}: text isn't a string`);
+            assert.ok(typeof ch.label(ctx) === 'string', `${ev.id}[${i}]: label isn't a string`);
             let r = ch.run(ctx);
             if(typeof r === 'string') r = { html: r };
-            assert.ok(r && typeof r.html === 'string' && r.html.length > 0, `${ev.id}[${i}]: sonuç metni yok`);
-            assert.ok(!r.then || typeof r.then === 'function', `${ev.id}[${i}]: then çağrılabilir değil`);
+            assert.ok(r && typeof r.html === 'string' && r.html.length > 0, `${ev.id}[${i}]: no result text`);
+            assert.ok(!r.then || typeof r.then === 'function', `${ev.id}[${i}]: then isn't callable`);
         }));
     });
 
-    test('yol: zar mesafeye bağlıdır, güne değil', () => {
+    test('road: the roll depends on distance, not on days', () => {
         state.player.prisoner = null; state.encounterCooldown = 0;
         state.roadWalked = 0;
-        const asil = Game.roadEvent;
-        let sayac = 0;
-        Game.roadEvent = () => { sayac++; return 'sahte'; };
-        // Zarı susturmanın yolu Math.random'ı değiştirmek değil: motor ayrı bir
-        // vm bağlamında koşuyor, oradaki Math bu Math değil. Şansı 1'e çekiyoruz.
-        const sans = Game.ROAD_CHANCE;
+        const orig = Game.roadEvent;
+        let counter = 0;
+        Game.roadEvent = () => { counter++; return 'fake'; };
+        // Silencing the roll isn't done via Math.random: the engine runs in a
+        // separate vm context, and that Math isn't this Math. Instead we set the
+        // chance to 1.
+        const chance = Game.ROAD_CHANCE;
         Game.ROAD_CHANCE = 1;
         for(let i = 0; i < 40; i++) Game.roadTick(Game.ROAD_EVERY / 4);
-        Game.ROAD_CHANCE = sans;
-        Game.roadEvent = asil;
-        assert.strictEqual(sayac, 10, `40×(ROAD_EVERY/4) yolda ${sayac} olay çıktı, 10 bekleniyordu`);
+        Game.ROAD_CHANCE = chance;
+        Game.roadEvent = orig;
+        assert.strictEqual(counter, 10, `40×(ROAD_EVERY/4) of travel produced ${counter} events, expected 10`);
     });
 
-    test('yol: son olaylar penceresi tekrarı engelliyor', () => {
+    test('road: the recent-events window blocks repeats', () => {
         state.recentEvents = [];
-        const havuz = Game.ROAD_EVENTS.slice(0, 3);
+        const pool = Game.ROAD_EVENTS.slice(0, 3);
         const ctx = Game.eventCtx();
-        const hep = () => true;
-        const a = Game.pickEvent(havuz.map(e => ({ ...e, when: hep })), ctx);
-        const b = Game.pickEvent(havuz.map(e => ({ ...e, when: hep })), ctx);
-        assert.ok(a && b && a.id !== b.id, 'taze seçenek varken aynı olay üst üste geldi');
-        assert.ok(state.recentEvents.length <= 6, 'tekrar penceresi sınırsız büyüyor');
+        const always = () => true;
+        const a = Game.pickEvent(pool.map(e => ({ ...e, when: always })), ctx);
+        const b = Game.pickEvent(pool.map(e => ({ ...e, when: always })), ctx);
+        assert.ok(a && b && a.id !== b.id, 'the same event repeated back-to-back while fresh options existed');
+        assert.ok(state.recentEvents.length <= 6, 'the repeat window grows without bound');
     });
 }
 roadSuite();
 
-// Nüfus hedefi görüşten türetilir ve *korunur*: eskiden 13 çeteyle başlanıp günde bir
-// doğuyordu, yani lordların temizlediği bölge haftalarca boş kalıyordu (harita bomboş).
-test('çete nüfusu 60 gün boyunca hedefte kalıyor', () => {
+// Population target is derived from sight and *held*: it used to start with
+// 13 bands and spawn one a day, i.e. a region a lord had cleared would stay
+// empty for weeks (the map looked deserted).
+test('band population stays at target over 60 days', () => {
     const g = H.world({ seed: 4 });
-    const hedef = g.Game.bandTarget();
-    assert.strictEqual(g.Game.bandCount(), hedef, 'dünya hedef nüfusla başlamıyor');
-    let dip = hedef;
-    H.run(g, 60, () => { dip = Math.min(dip, g.Game.bandCount()); });
-    assert.ok(dip >= hedef - g.Game.BAND_REFILL * 2,
-        `çete nüfusu ${dip}'e düştü, hedef ${hedef} (doldurma yetişmiyor)`);
+    const target = g.Game.bandTarget();
+    assert.strictEqual(g.Game.bandCount(), target, 'the world doesn\'t start at the target population');
+    let low = target;
+    H.run(g, 60, () => { low = Math.min(low, g.Game.bandCount()); });
+    assert.ok(low >= target - g.Game.BAND_REFILL * 2,
+        `band population fell to ${low}, target ${target} (refill can't keep up)`);
 });
 
-// --- Haydut inleri (#68) ---
-// Üç iddia tek koşuda: in çevresini kemirir, basılınca kese ödenir ve
-// haritadan silinir, insiz dünyada yeni çete doğmaz.
-test('haydut ini: bölgeyi kemirir, basılınca ödeme yapar ve çete kaynağı kurur', () => {
+// --- Bandit lairs (#68) ---
+// Three claims in one run: a lair erodes the region around it, pays out its
+// purse and is removed from the map when cleared, and no lairless world spawns new bands.
+test('bandit lair: erodes the region, pays out when cleared, and is a band source', () => {
     const g = H.world({ seed: 6 });
-    const İn = g.Game.lairs();
-    assert.strictEqual(İn.length, g.Game.LAIR_COUNT, 'dünya inlerle başlamıyor');
-    const yakin = g.LOCATIONS.filter(l => l.prosperity !== undefined
-        && İn.some(x => g.Game.dist(x, l) < g.Game.LAIR_RANGE));
-    const uzak = g.LOCATIONS.filter(l => l.prosperity !== undefined && !yakin.includes(l));
-    const ort = a => a.reduce((s, l) => s + l.prosperity, 0) / a.length;
+    const lairs = g.Game.lairs();
+    assert.strictEqual(lairs.length, g.Game.LAIR_COUNT, 'the world doesn\'t start with lairs');
+    const near = g.LOCATIONS.filter(l => l.prosperity !== undefined
+        && lairs.some(x => g.Game.dist(x, l) < g.Game.LAIR_RANGE));
+    const far = g.LOCATIONS.filter(l => l.prosperity !== undefined && !near.includes(l));
+    const avg = a => a.reduce((s, l) => s + l.prosperity, 0) / a.length;
     H.run(g, 40);
-    assert.ok(ort(yakin) < ort(uzak) - 10,
-        `in çevresi kemirilmiyor: yakın ${ort(yakin).toFixed(1)} vs uzak ${ort(uzak).toFixed(1)}`);
+    assert.ok(avg(near) < avg(far) - 10,
+        `lair surroundings aren't being eroded: near ${avg(near).toFixed(1)} vs far ${avg(far).toFixed(1)}`);
 
-    const l = g.Game.lairs()[0], kese = Math.round(l.purse), para = g.state.player.money;
-    assert.ok(kese > 0, 'inin kesesi birikmiyor');
+    const l = g.Game.lairs()[0], purse = Math.round(l.purse), money = g.state.player.money;
+    assert.ok(purse > 0, 'lair\'s purse isn\'t accumulating');
     g.Game.clearLair(l.id);
-    assert.strictEqual(g.state.player.money, para + kese, 'kese ödenmedi');
-    assert.ok(!g.Game.lairs().some(x => x.id === l.id), 'basılan in haritada kaldı');
+    assert.strictEqual(g.state.player.money, money + purse, 'purse wasn\'t paid out');
+    assert.ok(!g.Game.lairs().some(x => x.id === l.id), 'cleared lair stayed on the map');
 
-    // İnsiz dünya: nüfus doldurma çalışsa da çete doğmaz.
+    // A lairless world: population refill runs but no band spawns.
     g.Game.LAIR_COUNT = 0;
     g.state.sites = g.state.sites.filter(s => s.kind !== 'lair');
     g.state.npcParties = g.state.npcParties.filter(n => n.type !== 'bandit');
     H.run(g, 10);
-    assert.strictEqual(g.Game.bandCount(), 0, 'in yokken çete doğuyor');
+    assert.strictEqual(g.Game.bandCount(), 0, 'a band spawned with no lair present');
 });
 
-// --- Dil katmanı (#81) ---
-// İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
-// sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.
-test('i18n: koddaki her T anahtarı iki sözlükte de var', () => {
+// --- Language layer (#81) ---
+// Both classes of bug are caught statically: a key missing from a dictionary
+// (code changed after the dictionary did) and a translation frozen in a
+// top-level table.
+test('i18n: every T key in the code is in both dictionaries', () => {
     const K = require('./i18n-keys');
-    const d = K.dicts(), eksik = [...K.codeKeys()].filter(k => !(k in d.en) || !(k in d.id));
-    assert.ok(eksik.length === 0, `${eksik.length} anahtar sözlükte yok, ilki: ${JSON.stringify(eksik[0])}`);
+    const d = K.dicts(), missing = [...K.codeKeys()].filter(k => !(k in d.en) || !(k in d.id));
+    assert.ok(missing.length === 0, `${missing.length} keys missing from a dictionary, first: ${JSON.stringify(missing[0])}`);
 });
 
-// Statik çıkarıcı yalnız `T('…')` **literal**lerini görür; `T(def.title)` gibi
-// değişkenden çevrilen ham veri onun gözünde yok. Görev başlıkları tam da öyle
-// yazılıyor — 0.77'de iki yeni başlık sözlüksüz çıktı ve EN'de Türkçe düştü.
-test('i18n: ham veri tablosundaki görev başlıkları iki sözlükte de var', () => {
+// The static extractor only sees `T('…')` **literals**; raw data translated
+// via a variable like `T(def.title)` is invisible to it. Quest titles are
+// written exactly that way — in 0.77 two new titles came out with no
+// dictionary entry and fell back to Turkish in EN.
+test('i18n: quest titles in the raw data table are in both dictionaries', () => {
     const d = require('./i18n-keys').dicts();
-    const eksik = Object.keys(g.QUESTS).map(id => g.QUESTS[id].title)
+    const missing = Object.keys(g.QUESTS).map(id => g.QUESTS[id].title)
         .filter(t => !(t in d.en) || !(t in d.id));
-    assert.strictEqual(eksik.length, 0, `sözlüksüz görev başlığı: ${eksik.join(', ')}`);
+    assert.strictEqual(missing.length, 0, `quest title with no dictionary entry: ${missing.join(', ')}`);
 });
 
-// Aynı kör nokta: `FACTIONS[f].people` harita etiketinde `T(k.people)` ile çevriliyor,
-// yani çıkarıcı göremez. Halk adı sözlüksüz kalırsa kervan EN'de Türkçe yazar.
-test('i18n: fraksiyon halk adları iki sözlükte de var', () => {
+// Same blind spot: `FACTIONS[f].people` is translated on the map label with
+// `T(k.people)`, so the extractor can't see it. If the people-name has no
+// dictionary entry, a caravan renders in Turkish in EN.
+test('i18n: faction people-names are in both dictionaries', () => {
     const d = require('./i18n-keys').dicts();
-    const halk = Object.keys(g.FACTIONS).map(f => g.FACTIONS[f].people);
-    assert.ok(halk.every(Boolean), 'halk adı olmayan fraksiyon var');
-    const eksik = halk.filter(t => !(t in d.en) || !(t in d.id));
-    assert.strictEqual(eksik.length, 0, `sözlüksüz halk adı: ${eksik.join(', ')}`);
+    const people = Object.keys(g.FACTIONS).map(f => g.FACTIONS[f].people);
+    assert.ok(people.every(Boolean), 'a faction has no people-name');
+    const missing = people.filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(missing.length, 0, `people-name with no dictionary entry: ${missing.join(', ')}`);
 });
 
-test('i18n: üst düzey veri tabloları dilden bağımsız', () => {
-    // Aynı tohum, iki dil: tablo kurulurken T(...) çalışıyorsa değerler ayrışır.
+test('i18n: top-level data tables are language-independent', () => {
+    // Same seed, two languages: if T(...) runs while the table is being built, values diverge.
     const tr = H.load({ seed: 7 }), en = H.load({ seed: 7, lang: 'en' });
-    const yollar = [['PERSONALITIES'], ['LADY_TRAITS'], ['COMPLIMENTS'], ['POEMS'], ['QUESTS'],
+    const paths = [['PERSONALITIES'], ['LADY_TRAITS'], ['COMPLIMENTS'], ['POEMS'], ['QUESTS'],
                     ['Nobles', 'LORD_TRAITS'], ['Nobles', 'LORD_LINES'], ['Nobles', 'RETAINERS'],
                     ['Nobles', 'GREETS'], ['Game', 'ATTRS'], ['Game', 'AMBITIONS'],
                     ['Game', 'SIEGE_PLANS'], ['Game', 'HONOR'], ['Battle', 'ARENA_FOES']];
     const J = v => JSON.stringify(v, (k, x) => typeof x === 'function' ? 'fn' : x);
-    const donmus = yollar.filter(p => {
-        const al = g => p.reduce((o, k) => o && o[k], g);
-        return J(al(tr)) !== J(al(en));
+    const frozen = paths.filter(p => {
+        const at = g => p.reduce((o, k) => o && o[k], g);
+        return J(at(tr)) !== J(at(en));
     }).map(p => p.join('.'));
-    assert.ok(donmus.length === 0, `donmuş tablo: ${donmus.join(', ')}`);
+    assert.ok(frozen.length === 0, `frozen table: ${frozen.join(', ')}`);
 });
 
-// ---------- 2. Eşikler ----------
-// Kesin sayı değil aralık: dünya rastgeledir, ama kırılan bir kural aralığın
-// dışına çıkar. Aralıklar ölçülen değerin ~2 katı genişliğinde tutuldu —
-// gürültü değil rejim değişikliği yakalansın diye.
+// ---------- 2. Thresholds ----------
+// Not an exact number, a range: the world is random, but a broken rule falls
+// outside the range. Ranges were kept at roughly 2× the measured width — to
+// catch a regime change, not noise.
 function thresholds() {
     const { simulate } = require('./sim');
     const { runScript } = require('./economy');
 
-    test('dünya: 200 gün oyuncusuz sim eşikleri', () => {
+    test('world: 200-day playerless sim thresholds', () => {
         const r = simulate(1, 200);
-        between(r.fetih, 1, 20, 'fetih');                  // 0 = cephe donmuş, 20+ = harita eriyor
-        assert.strictEqual(r.silinenKrallik, 0, 'krallık haritadan silindi');
-        between(r.sefer, 10, 60, 'sefer');
-        between(r.baris, 5, 40, 'barış');
-        // Tavan 200→260: çete nüfusu görüşe bağlandığında (13 → 30) baskın da arttı,
-        // ama ortalama refah (87.9–89.6) ve silinen krallık (0) kıpırdamadı — yani
-        // ekonomi soğuruyor, rejim değişmiyor. 5 tohumda ölçülen aralık 119–206.
-        between(r.kafileBaskini, 20, 260, 'kafile baskını');
-        assert.ok(r.kafile > 0, 'haritada hiç ticaret partisi kalmadı');
-        assert.strictEqual(r.hata, 0, 'sim sırasında istisna');
+        between(r.conquest, 1, 20, 'conquests');                  // 0 = the front is frozen, 20+ = the map is melting
+        assert.strictEqual(r.erasedKingdoms, 0, 'a kingdom was erased from the map');
+        between(r.campaign, 10, 60, 'campaigns');
+        between(r.peace, 5, 40, 'peace treaties');
+        // Ceiling 200→260: once band population was tied to sight (13 → 30),
+        // raids went up too, but average prosperity (87.9–89.6) and erased
+        // kingdoms (0) didn't budge — i.e. the economy is absorbing it, the
+        // regime isn't changing. Range measured across 5 seeds is 119–206.
+        between(r.caravanRaid, 20, 260, 'caravan raids');
+        assert.ok(r.caravans > 0, 'no trade party left on the map');
+        assert.strictEqual(r.errors, 0, 'exception during the sim');
     });
 
-    test('ekonomi: ordu geliri olmadan yaşamaz, tımar yaşatır', () => {
-        const bos = runScript('bos', 60, 1, 10, 'Svadya Milisi', 10, 1000);
-        const tim = runScript('timar', 60, 1, 10, 'Svadya Milisi', 10, 1000);
-        assert.ok(bos.gunluk < 0, `boş gezen ordu kâr ediyor: ${bos.gunluk}₺/gün`);
-        assert.ok(tim.gunluk > 20, `tımar geliri çökmüş: ${tim.gunluk}₺/gün`);
-        between(tim.bitis, 2000, 20000, '60. günde tımar serveti');
+    test('economy: an army can\'t live without income, a fief sustains it', () => {
+        const idle = runScript('idle', 60, 1, 10, 'Svadya Milisi', 10, 1000);
+        const fief = runScript('fief', 60, 1, 10, 'Svadya Milisi', 10, 1000);
+        assert.ok(idle.perDay < 0, `an idle army is profitable: ${idle.perDay}₺/day`);
+        assert.ok(fief.perDay > 20, `fief income has collapsed: ${fief.perDay}₺/day`);
+        between(fief.end, 2000, 20000, 'fief net worth at day 60');
     });
 
-    // #47'nin regresyonu: erzak ticaret malı değildir. 10 kişilik lvl-10 ordu
-    // günde 10 birim düşük kalite yer; tahıl 4₺ iken bu ~40₺. Fiyat iki katına
-    // çıkarsa bu satır düşer — issue'daki doğrulama yolu budur.
-    test('ekonomi: 10 kişilik ordunun günlük erzak faturası', () => {
-        const r = runScript('bos', 60, 1, 10, 'Svadya Milisi', 10, 1000);
-        assert.strictEqual(r.maas, 20, 'maaş kademesi değişmiş');
-        between(r.yem, 5, 25, 'günlük erzak gideri (₺)');
+    // Regression for #47: food isn't a trade good. A 10-person lvl-10 army eats
+    // 10 units of low-grade food a day; at 4₺ wheat that's ~40₺. If the price
+    // doubles this line fails — that's the verification path from the issue.
+    test('economy: daily supply bill for a 10-person army', () => {
+        const r = runScript('idle', 60, 1, 10, 'Svadya Milisi', 10, 1000);
+        assert.strictEqual(r.wage, 20, 'wage tier changed');
+        between(r.feed, 5, 25, 'daily supply cost (₺)');
     });
 }
 
-// ---------- Çıktı ----------
-if(!H.args().hizli) thresholds();
+// ---------- Output ----------
+if(!H.args().fast && !H.args().hizli) thresholds();
 
 const bad = results.filter(r => !r.ok);
 results.forEach(r => console.log(`${r.ok ? '  ok' : 'FAIL'}  ${r.name}${r.ok ? '' : '\n        ' + r.msg}`));
-console.log(`\n${results.length - bad.length}/${results.length} geçti`);
+console.log(`\n${results.length - bad.length}/${results.length} passed`);
 if(bad.length) process.exit(1);

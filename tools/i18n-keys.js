@@ -1,8 +1,8 @@
 'use strict';
-// Koddaki T(...) anahtarlarını statik olarak çıkarır (#81).
-// Sözlükler üretilmiş dosyalardır; koda yeni bir cümle girip sözlüğe girmezse
-// EN/ID'de Türkçe düşer. Bu modül o farkı görünür kılar — tek kullanıcısı
-// tools/test.js'teki regresyon testidir.
+// Statically extracts the T(...) keys in the code (#81).
+// The dictionaries are generated files; if new prose is added to the code and
+// never added to a dictionary, EN/ID falls back to Turkish. This module makes
+// that gap visible — its only caller is the regression test in tools/test.js.
 const fs = require('fs');
 const path = require('path');
 
@@ -15,11 +15,11 @@ const unesc = s => s.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{
     return ESC[c] !== undefined ? ESC[c] : c;
 });
 
-/** Tek dosyadan `T('…')` ve `T`…`` anahtarlarını toplar. */
+/** Collects `T('…')` and `T`…`` keys from a single file. */
 function keysIn(src) {
     const out = [], n = src.length;
     for(let i = 0; i < n; i++) {
-        // Yorum atlanır: düzyazıdaki `T`` yanlış pozitif üretiyordu
+        // Comments are skipped: a `` T` `` in prose was producing false positives
         if(src[i] === '/' && src[i + 1] === '/') { while(i < n && src[i] !== '\n') i++; continue; }
         if(src[i] === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i); if(i < 0) i = n; continue; }
         if(src[i] !== 'T' || /[A-Za-z0-9_$.]/.test(i ? src[i - 1] : ' ')) continue;
@@ -36,7 +36,7 @@ function keysIn(src) {
                 if(c === q) break;
                 s += c;
             }
-            if(src[k + 1] !== ')') continue;                  // T('a' + b): anahtar değil
+            if(src[k + 1] !== ')') continue;                  // T('a' + b): not a key
             out.push(unesc(s)); i = k + 1;
         } else if(src[j] === '`') {                           // T`… ${x} …`
             let s = '', esc = false, depth = 0, arg = 0, k = j + 1;
@@ -61,14 +61,14 @@ function keysIn(src) {
 
 const norm = k => String(k).replace(/\s*\n\s*/g, ' ');
 
-/** Bütün oyun dosyalarındaki anahtarlar (normalleştirilmiş). */
+/** Keys across all game files (normalized). */
 function codeKeys() {
     const all = new Set();
     for(const f of FILES) keysIn(fs.readFileSync(path.join(ROOT, f), 'utf8')).forEach(k => all.add(norm(k)));
     return all;
 }
 
-/** lang-*.js dosyalarını I18N olmadan okur. */
+/** Reads the lang-*.js files without I18N. */
 function dicts() {
     const ctx = { I18N: { dicts: {} } };
     for(const f of ['lang-en.js', 'lang-id.js'])

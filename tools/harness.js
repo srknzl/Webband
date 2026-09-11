@@ -1,13 +1,13 @@
 // ============================================================
-// WebBand ölçüm koşum takımı (#62)
+// WebBand measurement test harness (#62)
 // ------------------------------------------------------------
-// app.js/battle.js/nobles.js/quests.js tarayıcı için yazıldı ama içindeki
-// mantığın tamamı saf: dünya üretimi, diplomasi, ekonomi, savaş matematiği.
-// Burada minik bir DOM sahtesi kurulup dosyalar tek bir vm bağlamında
-// çalıştırılır — böylece `const Game` / `const Battle` birbirini tarayıcıdaki
-// gibi görür. Çizim çağrıları sahte tuval bağlamına düşer ve hiçbir şey yapmaz.
+// app.js/battle.js/nobles.js/quests.js are written for the browser, but all
+// the logic inside them is pure: world generation, diplomacy, economy, combat
+// math. Here a tiny DOM fake is set up and the files are run in a single vm
+// context — so `const Game` / `const Battle` see each other just like in the
+// browser. Drawing calls land on the fake canvas context and do nothing.
 //
-// Kullanım:  const g = require('./harness').load({ seed: 1 });  g.Game.init();
+// Usage:  const g = require('./harness').load({ seed: 1 });  g.Game.init();
 // ============================================================
 'use strict';
 const fs = require('fs');
@@ -15,11 +15,13 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-// index.html ile aynı sıra. i18n.js şart: app.js'in üst düzey `state` tablosu
-// T('Maceracı') çağırıyor, dil katmanı yüklenmezse dosya daha okunurken patlıyor.
+// Same order as index.html. i18n.js is required: app.js's top-level `state`
+// table calls T('Maceracı'), and the file blows up mid-read if the language
+// layer isn't loaded yet.
 const FILES = ['i18n.js', 'lang-en.js', 'lang-id.js', 'app.js', 'battle.js', 'nobles.js', 'quests.js'];
 
-// Tohumlu üreteç (mulberry32): aynı tohum aynı dünyayı verir, ölçüm tekrarlanabilir olur
+// Seeded generator (mulberry32): same seed gives the same world, so a
+// measurement is repeatable.
 function mulberry32(a) {
     return function () {
         a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -29,7 +31,7 @@ function mulberry32(a) {
     };
 }
 
-// Her şeye "boş ama çalışır" cevap veren tuval bağlamı
+// A canvas context that answers everything with "empty but works"
 function fakeCtx() {
     const grad = { addColorStop() {} };
     const noop = () => {};
@@ -48,7 +50,7 @@ function fakeCtx() {
     }, {
         get(t, k) {
             if(k in t) return t[k];
-            return (t[k] = noop);          // bilinmeyen çizim çağrısı: sessiz no-op
+            return (t[k] = noop);          // unknown drawing call: silent no-op
         },
         set(t, k, v) { t[k] = v; return true; }
     });
@@ -83,12 +85,12 @@ function fakeEl(tag, doc) {
                      width: this.clientWidth, height: this.clientHeight, x: 0, y: 0 };
         },
         getContext() { return this._ctx || (this._ctx = fakeCtx()); },
-        // Gerçek çocuk varsa o döner, yoksa tembel bir hayalet: oyun kodu
-        // `el.firstElementChild.innerText = …` gibi zincirler kuruyor.
-        // *Hayalet children dizisinde DEĞİLDİR — `while(children.length > 5)
-        // removeChild(lastChild)` (battle.js log) sonsuza dönüyordu.*
+        // Returns a real child if there is one, otherwise a lazy ghost: the game
+        // code chains things like `el.firstElementChild.innerText = …`.
+        // *The ghost is NOT in the children array* — `while(children.length > 5)
+        // removeChild(lastChild)` (battle.js log) would otherwise loop forever.
         get firstElementChild() { return this.children[0] || (this._kid || (this._kid = fakeEl('span', doc))); },
-        // Ata zinciri tek kademe: `while(el.parentElement)` gezen kod sonsuza gitmesin
+        // Single-level ancestor chain: code walking `while(el.parentElement)` shouldn't loop forever
         get parentElement() { return this.parentNode || (this._top ? null : (this._up || (this._up = Object.assign(fakeEl('div', doc), { _top: true })))); },
         get lastElementChild() { return this.children[this.children.length - 1] || this.firstElementChild; },
         get firstChild() { return this.firstElementChild; },
@@ -113,8 +115,8 @@ function fakeDocument() {
         querySelectorAll() { return []; },
         addEventListener() {}, removeEventListener() {},
         execCommand() { return false; },
-        // index.html yüklenmediği için damgalanacak durağan metin yok:
-        // I18N.prime() boş bir yürüyüşle çıkar (bkz. i18n.js textNodes).
+        // index.html is never loaded, so there's no static text to stamp:
+        // I18N.prime() walks an empty tree and exits (see i18n.js textNodes).
         createTreeWalker() { return { nextNode: () => null }; },
         _byId: byId
     };
@@ -137,8 +139,8 @@ function fakeStorage() {
 }
 
 /**
- * Oyunu tarayıcısız yükler.
- * @param {object} opts  seed: tohum (varsayılan 1), quiet: alert/uyarıları yut (varsayılan true)
+ * Loads the game without a browser.
+ * @param {object} opts  seed: seed (default 1), quiet: swallow alert/warnings (default true)
  * @returns sandbox — Game, Battle, Nobles, Quests, Save, state, LOCATIONS, FACTIONS, ...
  */
 function load(opts = {}) {
@@ -151,7 +153,7 @@ function load(opts = {}) {
         document: doc,
         localStorage: fakeStorage(),
         performance: { now: () => Number(process.hrtime.bigint() / 1000n) / 1000 },
-        requestAnimationFrame: () => 1,        // döngü kurulur ama hiç dönmez; adımı sim sürer
+        requestAnimationFrame: () => 1,        // a loop gets set up but never spins; the sim drives the steps
         cancelAnimationFrame: () => {},
         setTimeout: () => 0, clearTimeout: () => {},
         setInterval: () => 0, clearInterval: () => {},
@@ -174,16 +176,17 @@ function load(opts = {}) {
     sandbox.removeEventListener = () => {};
 
     const ctx = vm.createContext(sandbox);
-    vm.runInContext('Math.random = __rng;', ctx);   // tohumlu üreteç bağlamın içinde
+    vm.runInContext('Math.random = __rng;', ctx);   // seeded generator, inside the context
 
     for(const f of FILES) {
         vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
-        // opts.lang: dil katmanı yüklenir yüklenmez seçilir, oyun dosyaları
-        // *ondan sonra* okunur. Üst düzey bir veri tablosunda T(...) varsa
-        // çeviri orada donar — bu bayrak donmayı görünür kılar (bkz. test.js).
+        // opts.lang: the language layer picks its dictionary as soon as it loads,
+        // and the game files are read *after* that. If a top-level data table calls
+        // T(...), the translation freezes right there — this flag makes that
+        // freeze visible (see test.js).
         if(opts.lang && f === 'lang-id.js') vm.runInContext(`I18N.set(${JSON.stringify(opts.lang)});`, ctx);
     }
-    // `const` bağlamın sözcüksel kapsamında kalır, sandbox nesnesinde görünmez — buradan alınır
+    // `const` stays in the context's lexical scope and isn't visible on the sandbox object — pull it out here
     const names = ['VERSION', 'Debug', 'Input', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame', 'I18N', 'T',
                    'Nobles', 'Feast', 'Quests', 'FACTIONS', 'LOCATIONS', 'ITEMS', 'TROOP_TYPES',
                    'TROOP_TREES', 'TROOP_UPGRADES', 'BAND_KINDS', 'LORDS', 'LADIES', 'COMPANIONS', 'QUESTS'];
@@ -195,16 +198,16 @@ function load(opts = {}) {
     return out;
 }
 
-/** Dünyayı kurar ve oyuncusuz simülasyona hazır hâle getirir. */
+/** Sets up the world and gets it ready for a playerless simulation. */
 function world(opts = {}) {
     const g = load(opts);
-    g.Game.init();            // yerleşim dağıtımı, yollar, NPC'ler
+    g.Game.init();            // settlement layout, roads, NPCs
     g.Nobles.initRivals();
-    g.Game.initDiplomacy();   // Kalradya'da her zaman açık bir cephe vardır
+    g.Game.initDiplomacy();   // Calradia always has an open front
     return g;
 }
 
-/** Oyuncusuz N gün ilerlet. `onDay(day, g)` her günün sonunda çağrılır. */
+/** Advance N playerless days. `onDay(day, g)` is called at the end of each day. */
 function run(g, days, onDay, step = 0.25) {
     const perDay = Math.round(24 / step);
     for(let d = 0; d < days; d++) {
@@ -217,7 +220,7 @@ function run(g, days, onDay, step = 0.25) {
     return g;
 }
 
-/** `--gun 200 --tohum 1..5` → { gun: '200', tohum: '1..5' } (kısa çizgi sayısı önemsiz) */
+/** `--days 200 --seed 1..5` → { days: '200', seed: '1..5' } (number of dashes doesn't matter) */
 function args(argv = process.argv.slice(2)) {
     const o = {};
     for(let i = 0; i < argv.length; i++) {
@@ -235,18 +238,18 @@ function args(argv = process.argv.slice(2)) {
 function seeds(spec, def = [1]) {
     if(spec === undefined || spec === true) return def;
     let s = String(spec);
-    // Aralık iki yazımla da kabul edilir: "1-5" NaN'a düşüp listeyi boşaltıyor,
-    // çağıran araç da boş listeyle "son satır yok" diye patlıyordu.
+    // A range is accepted in both spellings: "1-5" was collapsing to NaN and
+    // emptying the list, and the calling tool would then blow up on "no rows".
     let m = s.match(/^(\d+)\s*(?:\.\.|-)\s*(\d+)$/);
     if(m) {
         let a = Number(m[1]), b = Number(m[2]);
         return Array.from({ length: Math.abs(b - a) + 1 }, (_, i) => Math.min(a, b) + i);
     }
     let list = s.split(',').map(Number).filter(n => !isNaN(n));
-    return list.length ? list : def;      // boş liste dönmez — araçlar tek turu varsayar
+    return list.length ? list : def;      // never return an empty list — tools assume at least one round
 }
 
-/** Ölçüm çıktısı docs/olcum/<tarih>-<konu>.md — CLAUDE.md'deki sayılar buradan alıntılanır. */
+/** Report output at docs/olcum/<date>-<topic>.md — the numbers in CLAUDE.md are quoted from these. */
 function writeReport(topic, markdown) {
     const dir = path.join(ROOT, 'docs', 'olcum');
     fs.mkdirSync(dir, { recursive: true });
