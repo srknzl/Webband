@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.67 — Kare Kapısı (2026-09-11)
+
+- **Telefonda oyun 3.8 kare/saniyede dönüyordu.** Sebep grafik değil, kare kapısının
+  kendisiydi. Oyun ekranının tazeleme hızını "gördüğü en kısa kare aralığı" diye
+  tahmin ediyordu; iOS sayfayı kaydırırken iki kareyi 2 ms arayla teslim edince bu
+  tahmin **kalıcı olarak** 2 ms'e kilitleniyor ve oyun her 16 kareden 15'ini
+  atıyordu. Tahmin artık son 31 karenin **ortancasıdır**: hem uzun takılmaya hem
+  çift teslimata dayanıklı ve kendini toparlıyor. Ölçüldü: aynı senaryoda
+  **3.79 → 29.94 fps**.
+- **Sayfa kendi kendine kaymıyor.** Yükseklik `100vh` ile veriliyordu; iOS'ta bu
+  değer araç çubukları gizliyken geçerli olan yüksekliktir, yani sayfa görünen
+  alandan ~80 piksel uzun kalıyor ve telefon boyuna kayıp duruyordu.
+- **Debug raporu doğru sayıyı yazıyor.** "Kare böleni" satırı hafif modda bile
+  60 fps varsayıyordu: gerçek bölen 16 iken rapora 8 yazmış. Artık hedef fps,
+  bölen ve **efektif fps** ayrı ayrı görünüyor.
+
 ## 0.66 — Hafif Mod (2026-09-10)
 
 - **Telefonda oyun artık kasmıyor.** İki dakika sonra başlayan takılmanın sebebi

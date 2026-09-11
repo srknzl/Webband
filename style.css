@@ -12,15 +12,24 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* iOS'ta `100vh` araç çubukları GİZLİYKENKİ yüksekliktir (ölçüldü: iPhone'da
+   ekran 844, görünen pencere 669). Yani sayfa görünenden ~80 px uzun kalıyor ve
+   telefon "kendi kendine" kayıyordu. `dvh` görünen yüksekliği verir; `vh` satırı
+   desteklemeyen tarayıcı için yedek olarak önce durur. `overscroll-behavior`
+   lastik bandı da keser. */
+html { height: 100%; overflow: hidden; overscroll-behavior: none; }
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-dark);
     color: var(--text-color);
     height: 100vh;
+    height: 100dvh;
     display: flex;
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    overscroll-behavior: none;
 }
 
 h1, h2, h3 {
@@ -42,6 +51,7 @@ h1, h2, h3 {
 #game-container {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     position: relative;
 }
 

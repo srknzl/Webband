@@ -192,6 +192,20 @@ test('skipFrame: hafif mod hedefi 30 fps (#80)', () => {
     assert.strictEqual(gateFps(60, 2, { lite: true }), 30);
     assert.strictEqual(gateFps(120, 2, { lite: true }), 30);
 });
+test('skipFrame: bozuk tek örnek kapıyı kilitlemez', () => {
+    // Bu testin sebebi bir telefon raporu: iOS sayfayı kaydırırken iki rAF'ı
+    // ~2 ms arayla teslim ediyor. Tahmin edici "tüm zamanların en küçüğü" olduğu
+    // için değer 2 ms'e KALICI olarak kilitleniyor, bölen 1000/30/2 = 16 oluyor
+    // ve oyun 60 Hz ekranda 3.79 fps'te dönüyordu — oynanamaz.
+    const { Game } = H.load({ seed: 1 });
+    Object.assign(Game.OPTS, { lite: true });            // hafif mod: hedef 30 fps
+    let t = 0;
+    for(let i = 0; i < 120; i++) { t += (i === 100 || i === 101) ? 2 : 1000 / 60; Game.skipFrame(t); }
+    let t0 = t, ciz = 0;
+    for(let i = 0; i < 600; i++) { t += 1000 / 60; if(!Game.skipFrame(t)) ciz++; }
+    const fps = ciz / ((t - t0) / 1000);
+    assert.ok(fps > 25, `bozuk örnekten sonra ${fps.toFixed(2)} fps — kapı kilitlendi`);
+});
 test('skipFrame: kapı ayardan kapatılınca hiç kare atılmaz', () => {
     assert.strictEqual(gateFps(240, 2, { frameGate: false }), 240);
 });

@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.66', date: '2026-09-10', name: 'Hafif Mod' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.67', date: '2026-09-11', name: 'Kare Kapısı' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -77,8 +77,11 @@ const Debug = {
             cizim: {
                 savasAktif: g(() => Battle.active), turnuvaAktif: g(() => TournamentMinigame.active),
                 haritaDonguId: g(() => Game._loopId), savasDonguId: g(() => Battle.loopId),
-                kareBoleni: g(() => Math.max(1, Math.floor(1000 / 60 / Game._minStep + 0.01))),
-                olculenTazeleme: g(() => Game._minStep === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._minStep) + T(' Hz')),
+                hedefFps: g(() => Game.lite() ? 30 : 60),
+                kareBoleni: g(() => Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01))),
+                efektifFps: g(() => Game._step === Infinity ? T('ölçülmedi')
+                    : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01)))),
+                olculenTazeleme: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
                 haritaTuval: cv('map-canvas'), savasTuvali: cv('battle-canvas'),
                 sonKareler: this.frames.slice()
             },
@@ -1474,7 +1477,7 @@ const Game = {
     // Sabit ms eşiği olmaz: 90 Hz'te her ikinci kareyi atlamak 45 fps eder.
     // Onun yerine tazeleme hızı ölçülüp 60'ın altına düşürmeyen en büyük tam
     // bölen seçilir -> 60:60, 75:75, 90:90, 120:60, 144:72, 165:82, 180:60, 240:60.
-    _prevT: 0, _minStep: Infinity, _frameNo: 0, _lastSkip: false,
+    _prevT: 0, _step: Infinity, _steps: [], _frameNo: 0, _lastSkip: false,
     skipFrame(t) {
         // Karar KARE başına verilir, çağrı başına değil (#42). İki döngü aynı karede
         // sorduğunda ikisi de aynı cevabı almalı: eskiden her çağrı _frameNo'yu
@@ -1486,17 +1489,35 @@ const Game = {
         if(t === this._prevT) return this._lastSkip;
         let d = t - this._prevT;
         this._prevT = t;
-        // d > 1: tarayıcı jank sonrası iki kareyi arka arkaya verirse bölen patlar.
-        // Gerçek hiçbir ekran 1000 Hz'in üstünde değil, alt sınır güvenli.
         Debug.frame(d);                                     // kare aralıkları debug raporuna girer (#52)
-        if(d > 1 && d < this._minStep) this._minStep = d;   // min: tek tük takılmayı eler
+        // Tazeleme periyodu son karelerin MEDYANIDIR, en küçüğü değil.
+        //
+        // En küçük ölümcül bir tahmin ediciydi: tek bir bozuk örnek onu kalıcı
+        // olarak çiviliyordu, çünkü değer bir daha asla yukarı çıkamıyordu.
+        // iPhone'dan gelen debug raporunda ölçülen tam olarak buydu — iOS sayfayı
+        // kaydırırken iki rAF'ı ~2 ms arayla teslim ediyor, `_minStep` 2 ms'e
+        // kilitleniyor ve bölen `1000/30/2` = **16** oluyordu: 16 karenin 15'i
+        // atlanıyor, 60 Hz ekranda oyun **3.8 fps**'te dönüyordu. Rapordaki
+        // "500 Hz" satırı da aynı bozuk örneğin yankısıydı.
+        //
+        // Medyan iki yöne de dayanıklıdır (uzun jank de, çift teslimat da azınlıkta
+        // kalır) ve pencere kaydıkça **kendini toparlar**. Örnek süzgeci ikinci
+        // emniyettir: tüketici ekranlarının tavanı 240 Hz, yani 4 ms'in altındaki
+        // aralık ekranın periyodu olamaz. Süzgeç her şeyi elerse `_step` Infinity
+        // kalır ve bölen 1 olur — yani hata hep "fazla kare çiz" yönünde düşer.
+        if(d > 4 && d < 200) {
+            this._steps.push(d);
+            if(this._steps.length > 31) this._steps.shift();
+            let srt = this._steps.slice().sort((a, b) => a - b);
+            this._step = srt[srt.length >> 1];      // tek örnekte medyan örneğin kendisidir: ısınma yok
+        }
         // Kapı ayarlardan kapatılabilir (#55 madde 7): kapıya güvenmeyen oyuncunun
         // elinde bir kaçış yolu olsun. Ölçüm (Debug.frame) kapalıyken de sürer.
         if(!this.opt('frameGate')) return this._lastSkip = false;
         // Hafif modda hedef 30 fps: telefonda kare bütçesini yarıya indirmek,
         // çizimi kısmaktan daha çok işe yarar (ve ısınmayı da yavaşlatır).
         let fps = this.lite() ? 30 : 60;
-        let n = Math.max(1, Math.floor(1000 / fps / this._minStep + 0.01));
+        let n = Math.max(1, Math.floor(1000 / fps / this._step + 0.01));
         return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
 
@@ -5073,7 +5094,7 @@ const Game = {
         let lt = this.opt('lite');
         let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
             onclick="Game.setOpt('lite', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
-        let hz = this._minStep === Infinity ? T('ölçülmedi') : Math.round(1000 / this._minStep) + T(' Hz');
+        let hz = this._step === Infinity ? T('ölçülmedi') : Math.round(1000 / this._step) + T(' Hz');
         this.showModal(`<div id="settings-panel"><h3>${T`⚙️ Ayarlar`}</h3>
         ${row(T('🌍 Dil'), I18N.LANGS.map(l => `<button class="btn${l.id === I18N.lang ? ' primary' : ''}" style="font-size:0.8rem;padding:0.25rem 0.6rem"
             onclick="Game.setLang('${l.id}')">${l.flag} ${T(l.name)}</button>`).join(' '))}

@@ -1470,9 +1470,11 @@ durur ve `Debug.init()` orada çağrılır — oyun kurulurken atılan hata da y
   "siyah ekran / donuyor" şikâyetinde kanıt olur.
 - Rapor (`Debug.report()` → JSON): dosya tarihi + adres, oyun özeti (gün/saat, aktif ekran,
   modal açık mı, can/dinar/nam, konum, `status`, grup, esir, fraksiyon, damga, kuşatma/yağma/
-  esaret, açık savaşlar, görev id'leri), çizim durumu (`Battle.active`, döngü id'leri, kare
-  böleni, ölçülen tazeleme hızı, iki tuvalin boyutu, son kareler), tarayıcı/ekran/DPR/bellek,
-  hata listesi. Her alan try/catch'ten geçer — rapor kendi başına patlamaz.
+  esaret, açık savaşlar, görev id'leri), çizim durumu (`Battle.active`, döngü id'leri, **hedef fps /
+  kare böleni / efektif fps**, ölçülen tazeleme hızı, iki tuvalin boyutu, son kareler),
+  tarayıcı/ekran/DPR/bellek, hata listesi. *(Bölen satırı eskiden hafif modda bile 60 fps
+  varsayıyordu: gerçek bölen 16 iken rapora 8 yazıyordu — #85'in teşhisini geciktiren şey
+  buydu. Üç alan artık ayrı yazılır.)* Her alan try/catch'ten geçer — rapor kendi başına patlamaz.
 - Modal metni seçilebilir; **📋 Panoya Kopyala** (`navigator.clipboard`, izin yoksa
   `execCommand` yedeği) ve **💾 Dosya Olarak İndir** (`webband-debug-gunN.json`).
 
@@ -1546,7 +1548,7 @@ varsayılanlar `Game.OPTS`'ta durur, `state.settings` **yalnızca sapmaları** s
 
 Panel ayrıca 💾 Kayıtlar, 🐞 Debug Raporu, ⌨️ Tuşlar (`Game.KEYS` tablosu) ve sürüm satırını
 taşır. Ölçüldü: yazı ölçeği 0.9/1/1.15 → kök **14.4 / 16 / 18.4 px**; `reducedMotion:true`
-`body.reduced-motion` sınıfını ekliyor, `'auto'` bu makinede false; kare kapısı `_minStep=4`
+`body.reduced-motion` sınıfını ekliyor, `'auto'` bu makinede false; kare kapısı `_step=4`
 iken açıkken `[true,true,true,false]`, kapalıyken `[false,false,false,false]`;
 `state.settings` yalnız sapan üç anahtarı tutuyor.
 
@@ -1624,6 +1626,12 @@ Yatay tutulan telefonda (`max-height: 480px`) rozet alt yazıları ve menü etik
   altında.
 - Üç tuval `touch-action: none` taşır (pan/pinch bizde), `viewport` etiketi
   `user-scalable=no, viewport-fit=cover`.
+- **Sayfa yüksekliği `dvh`, `vh` değil (#85).** iOS'ta `100vh` araç çubukları
+  *gizliyken* geçerli olan yüksekliktir. Ölçüldü (iPhone debug raporu): `ekran 390x844`,
+  `pencere 390x669` — yani düzen görünen alandan ~80 px uzun kalıyor ve telefon
+  "kendi kendine kayıyordu". `body` ve `#game-container` artık `height: 100vh` satırının
+  hemen ardından `height: 100dvh` taşır (desteklemeyen tarayıcı için ilki yedek),
+  `html`/`body`'de `overscroll-behavior: none` lastik bandı da keser.
 - İpucu metni cihazı tanır (`Game.isTouch()`): savaş kütüğünde "WASD hareket · Sol tık
   saldırı" yerine "Çubukla hareket · ⚔️ saldırı · 🛡️ blok", künyede "[Sağ tık/Shift]"
   yerine "🛡 düğmesi".
@@ -1925,8 +1933,21 @@ kaçan kareler takılma olarak hissedilir. Bu yüzden `Game.skipFrame(t)` üç d
 fazla kareleri atar. Sabit ms eşiği kullanılmaz (90 Hz'te her ikinci kareyi atlamak 45 fps eder);
 tazeleme hızı ilk karelerden ölçülüp 60'ın altına düşürmeyen en büyük tam bölen seçilir.
 Ölçüldü (`node` ile kapı simülasyonu): 60→60, 75→75, 90→90, 120→60, 144→72, 165→82, 180→60, 240→60.
-`_minStep` yalnızca 1 ms'den büyük deltalarla güncellenir — iki döngü aynı karede çağırırsa
-delta ~0 olup bölen patlıyordu.
+
+**Tazeleme periyodu son 31 karenin ORTANCASIDIR, en küçüğü değil (#85).** Eski tahmin
+edici "gördüğüm en kısa aralık"tı ve değeri bir daha asla yukarı çıkamıyordu: **tek** bozuk
+örnek `_step`'i kalıcı olarak çiviliyordu. Oyuncunun iPhone'undan gelen debug raporunda
+ölçülen tam olarak buydu — iOS sayfayı kaydırırken iki rAF'ı ~2 ms arayla teslim ediyor,
+tahmin 2 ms'e kilitleniyor, rapor "500 Hz" yazıyor ve bölen `1000/30/2` = **16** oluyordu:
+16 karenin 15'i atılıyor, oyun **3.79 fps**'te dönüyordu (raporun `kareBoleni: 8` +
+`500 Hz` satırlarının anlamı budur). Ortanca iki yöne de dayanıklıdır — uzun jank de çift
+teslimat da 31'lik pencerede azınlıkta kalır — ve pencere kaydıkça **kendini toparlar**.
+İkinci emniyet örnek süzgecidir: tüketici ekranlarının tavanı 240 Hz, yani `4 ms`'in
+altındaki aralık bir ekran periyodu olamaz; süzgeç her şeyi elerse `_step` `Infinity` kalır
+ve bölen 1 olur, yani hata daima **"fazla kare çiz"** yönünde düşer. Ölçüldü (60 Hz akışa
+iki adet 2 ms'lik örnek serpiştirilip sonraki 600 kare sayıldı): **3.79 → 29.94 fps**.
+`tools/test.js`'teki *"bozuk tek örnek kapıyı kilitlemez"* iddiası bunun regresyonudur
+(düzeltme öncesi koda karşı koşturulup kırmızıya döndüğü doğrulandı).
 
 **Karar kare başına verilir, çağrı başına değil (#42).** Aynı karede ikinci kez sorulursa
 (`t === _prevT`) önbelleklenmiş cevap döner. Eskiden her çağrı `_frameNo`'yu artırıyordu:
