@@ -5,6 +5,14 @@ başlangıç ekranının sağ alt köşesinde yazar.
 
 ## 0.74 — Aç Ordu (2026-09-11)
 
+- **Sayı sürgüleri parmakta artık kaçmıyor.** Gönüllü toplarken ya da paralı asker
+  tutarken sürgüyü sağa çekmek "bazen" işe yaramıyordu: parmak biraz eğik kaydıysa
+  tarayıcı hareketi sayfa kaydırması sanıp sürgüden çalıyordu. Sürgüde artık kaydırma
+  yok, sürgü var — ve tutamak başparmağa göre büyüdü.
+
+- **Pazarda kapatma tuşu var.** Mobilde iki sütun taşıyordu, çıkış için dışarı
+  dokunmak gerekiyordu.
+
 - **Askerler yarı yarıya az yiyor.** Eskiden kişi başı günde 1 birim erzak gidiyordu:
   20 kişilik bir ordu günde 21 birim (~84 dinar) yiyor, yani erzak faturası maaşın iki
   katına çıkıyordu. Artık asker günde yarım birim yer, oyuncu tam bir birim. 10 kişilik

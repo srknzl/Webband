@@ -921,6 +921,12 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
    `pan-x pan-y` aynı zamanda çift dokunuş zoom'unu da kapatır. */
 html, body { touch-action: pan-x pan-y; }
 
+/* Sürgüler `pan-x pan-y`yi miras alıyordu: parmak sürüklemesi biraz dikey olunca
+   tarayıcı jesti kaydırma sanıp sürgüden çalıyordu — gönüllü/paralı asker sayısı
+   "bazen" seçilemiyordu. `none` sürgüde jest pazarlığını bitirir; yükseklik de
+   parmağın ıskalamaması için büyütüldü. */
+input[type="range"] { touch-action: none; height: 2.4rem; }
+
 /* --- Savaş kumandası: yalnız parmakla oynanan cihazda --- */
 #touch-ui { display: none; }
 @media (pointer: coarse) {
