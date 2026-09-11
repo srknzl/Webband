@@ -191,7 +191,7 @@ function main() {
         + `\n\nCurve (sampled every ~${Math.max(1, Math.floor(days / 6))} days):\n\n`
         + rows.map(r => `- **${r.label}**: ${sample(r)}`).join('\n') + '\n';
     console.log(md);
-    if(a.report || a.rapor) console.error('written: ' + H.writeReport('ekonomi', md));
+    if(a.report || a.rapor) console.error('written: ' + H.writeReport('economy', md));
 }
 
 if(require.main === module) main();

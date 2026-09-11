@@ -9,7 +9,7 @@
 //   node tools/duel.js --a "Nord Baltacısı" --b "Rodok Kalkanlısı" --n 200
 //   node tools/duel.js --a "Svadya Milisi" --b "Rodok Kalkanlısı" --count 5
 //   node tools/duel.js --list                   # print troop names
-//   node tools/duel.js --report                 # default matchup table → docs/olcum
+//   node tools/duel.js --report                 # default matchup table → docs/measurements
 // ============================================================
 'use strict';
 const H = require('./harness');
@@ -117,7 +117,7 @@ function main() {
         + `| A | B | A wins | Avg. duration | A remaining | Stalemates |\n|---|---|---|---|---|---|\n`
         + rows.map(r => `| ${r.a} | ${r.b} | **%${r.winRateA}** | ${r.avgDuration} s | ${r.avgRemainingA}/${r.count} | ${r.stalemates} |`).join('\n') + '\n';
     console.log(md);
-    if(a.report || a.rapor) console.error('written: ' + H.writeReport('duello', md));
+    if(a.report || a.rapor) console.error('written: ' + H.writeReport('duel', md));
 }
 
 if(require.main === module) main();

@@ -249,9 +249,9 @@ function seeds(spec, def = [1]) {
     return list.length ? list : def;      // never return an empty list — tools assume at least one round
 }
 
-/** Report output at docs/olcum/<date>-<topic>.md — the numbers in CLAUDE.md are quoted from these. */
+/** Report output at docs/measurements/<date>-<topic>.md — the numbers in CLAUDE.md are quoted from these. */
 function writeReport(topic, markdown) {
-    const dir = path.join(ROOT, 'docs', 'olcum');
+    const dir = path.join(ROOT, 'docs', 'measurements');
     fs.mkdirSync(dir, { recursive: true });
     const d = new Date();
     const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

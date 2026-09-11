@@ -71,7 +71,7 @@ function main() {
     const broken = par.filter(p => p.mismatch || p.map < 60 || p.battle < 60);
     if(belowTarget.length) console.error('WARNING below 60 fps: ' + belowTarget.map(r => `${r.hz}Hz→${r.fps}`).join(', '));
     if(broken.length) console.error('WARNING parity: ' + broken.map(p => `${p.hz}Hz`).join(', '));
-    if(arg.report || arg.rapor) console.error('written: ' + H.writeReport('kare-kapisi', md));
+    if(arg.report || arg.rapor) console.error('written: ' + H.writeReport('frame-gate', md));
     process.exitCode = (belowTarget.length || broken.length) ? 1 : 0;
 }
 

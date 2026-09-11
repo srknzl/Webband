@@ -1,102 +1,109 @@
 # WebBand
 
-Mount & Blade: Warband tarzı, tarayıcıda çalışan tek sayfalık RPG. Türkçe arayüz.
-Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
+A Mount & Blade: Warband-style single-page RPG that runs in the browser. Turkish UI.
+No build, no dependencies — `index.html` opens directly in the browser.
 
-**Deploy**: canlı site `serkanozel.me/webband` — güncellemek için bu repodaki dosyaları
-`~/git/serkanozelme/blog/public/webband/`'a kopyalayıp o repoya push et (auto-deploy tetiklenir).
+**Deploy**: the live site is `serkanozel.me/webband` — to update it, copy this repo's files
+to `~/git/serkanozelme/blog/public/webband/` and push that repo (auto-deploy fires).
 
-**Ayrıntı `docs/SISTEMLER.md`'dedir** — her mekaniğin tasarım kararı ve ölçülmüş sayısı.
-Burada yalnız değişmez kurallar var. Bir mekaniği değiştirmeden önce oradaki bölümü oku,
-değiştirdikten sonra "Ölçüldü" satırlarını güncelle.
+**Detail lives in `docs/SYSTEMS.md`** — every mechanic's design decision and measured number.
+Only invariant rules live here. Before changing a mechanic, read its section there;
+after changing it, update the "Measured" lines.
 
-## Dosyalar
+## Files
 
-| Dosya | İçerik |
+| File | Contents |
 |---|---|
-| `index.html` | Tüm ekranların DOM iskeleti |
-| `app.js` | Çekirdek — harita, zaman, yerleşim, diplomasi, kayıt. `Debug`, `Input`, `Game`, `Save` + `state` |
+| `index.html` | DOM skeleton for every screen |
+| `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Game`, `Save` + `state` |
 | `battle.js` | `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
-| `quests.js` | `QUESTS` + `Quests` görev motoru |
+| `quests.js` | `QUESTS` + the `Quests` quest engine |
 | `i18n.js` | `I18N` + global `T` |
-| `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler — elle düzenlenmez |
-| `style.css` | Cam panel teması, CSS değişkenleri |
-| `tools/` | Node ölçüm araçları (`harness.js` + `test/sim/duel/economy/framegate`) |
-| `docs/SISTEMLER.md` | Mekanik dökümü ve ölçümler |
-| `docs/PLAN-*.md`, `docs/olcum/` | Tasarım planları, tarihli ölçüm raporları |
-| `CHANGELOG.md` | Oyuncu diliyle değişiklik listesi |
-| `bg*.jpg`, `lord_portraits.jpg`, `kingdom_crests.jpg` | Görseller (sprite sheet'ler 3×3) |
+| `lang-en.js` / `lang-id.js` | Generated dictionaries — never hand-edited |
+| `style.css` | Glass panel theme, CSS variables |
+| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`) |
+| `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
+| `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
+| `CHANGELOG.md` | Change list in player-facing language |
+| `bg*.jpg`, `lord_portraits.jpg`, `kingdom_crests.jpg` | Images (sprite sheets 3×3) |
 
-## Değişmez kurallar
+## Invariant rules
 
-**Globaller global kalır.** Arayüz `onclick="Game.xxx()"` ile bağlanır, yani
-`Game`/`Battle`/`Nobles`/`Quests`/`Feast`/`Save`/`Debug` global olmalı. Klasik script'te
-`const` **sözcüksel** globaldir — `window.Game` diye aranmaz (`alert` override'ı bu yüzden
-`typeof Game` sorar).
+**Globals stay global.** The UI binds with `onclick="Game.xxx()"`, so `Game`/`Battle`/
+`Nobles`/`Quests`/`Feast`/`Save`/`Debug` must be global. In a classic script, `const` is a
+**lexical** global — it isn't looked up as `window.Game` (which is why the `alert` override
+checks `typeof Game`).
 
-**Script sırası**: `i18n.js` → `lang-en.js` → `lang-id.js` → `app.js` → `battle.js` →
-`nobles.js` → `quests.js`. Sıra yalnız `const` çakışmasını önler.
+**Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `app.js` → `battle.js` →
+`nobles.js` → `quests.js`. The order only prevents `const` collisions.
 
-**Tek `state`**; `Save` onu localStorage'a yazar (3 elle slot + 5'lik otomatik halka,
-`Save.migrate` tek göç zinciri; yeni alan çoğu zaman `ensureX()` deseniyle yeter).
-**`VERSION = { no, date, name }`** `app.js`'in başındadır, **elle** artırılır ve aynı turda
-`CHANGELOG.md`'ye bir satır girer.
+**One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
+`Save.migrate` is a single migration chain; a new field is usually enough with the
+`ensureX()` pattern). **`VERSION = { no, date, name }`** sits at the top of `app.js`, is
+**bumped by hand**, and gets a line in `CHANGELOG.md` in the same pass.
 
-**Ham dur, gösterimde çevir.** i18n anahtarı Türkçe kaynak metnin kendisidir (`T('Yeni Oyun')`,
-`` T`${n} asker` `` → `{0}`). `T()`'yi **üst düzey veri tablosuna yazma** — o satır
-`I18N.load()`'dan önce çalışır ve çeviriyi dondurur. Tablo ham Türkçe durur, `T` ekrana basan
-yerde çağrılır; ada bakan karşılaştırmalar (`=== 'Orman'`) bu sayede dilden bağımsızdır.
-Bir veri alanı ham duruyorsa onu ekrana basan **her** yol `T`den geçmeli.
+**Raw stays, translate at display.** The i18n key is the Turkish source text itself
+(`T('Yeni Oyun')`, `` T`${n} asker` `` → `{0}`). Never call `T()` inside a **top-level data
+table** — that line runs before `I18N.load()` and freezes the translation. The table stays
+raw Turkish, `T` is called at the display site; name-based comparisons (`=== 'Orman'`) stay
+language-independent this way. If a data field stays raw, **every** path that displays it
+must go through `T`.
 
-**Sözlükler üretilir.** `T()` anahtarını değiştirirsen `lang-en.js` **ve** `lang-id.js` aynı
-turda güncellenir; `tools/test.js`'in *"her T anahtarı iki sözlükte de var"* iddiası bunun
-regresyon kapısıdır. Yüzde yazımı `Game.pct(n, signed)`.
+**Dictionaries are generated.** If you change a `T()` key, update `lang-en.js` **and**
+`lang-id.js` in the same pass; `tools/test.js`'s *"every T key exists in both dictionaries"*
+assertion is the regression gate for this. Percent formatting is `Game.pct(n, signed)`.
 
-**Ayarlar tek kapıdan**: varsayılan `Game.OPTS`, okuma `Game.opt(k)`, yazma `Game.setOpt(k,v)` —
-`state.settings` yalnız **sapmaları** tutar. Üçlü cihaz ayarları `'auto' | true | false`.
+**Settings through one gate**: defaults in `Game.OPTS`, read via `Game.opt(k)`, write via
+`Game.setOpt(k,v)` — `state.settings` only holds **deviations**. Tri-state device settings
+are `'auto' | true | false`.
 
-**Cihaz için tek bir "mobil modu" anahtarı yok** — dört ayrı soru, dört knob: *nasıl
-giriliyor* `Game.isTouch()` (= `pointer: coarse`; `body.touch`, yardım metni, `#touch-ui`),
-*nasıl yerleşiyor* `@media (max-width: 820px / 430px)`, *ne kadar çiziliyor* `Game.lite()`
-(`'auto'` = `isTouch()`), *kenardan kayıyor mu* `Game.edgePan()` (`'auto'` = `!isTouch()`).
+**There's no single "mobile mode" switch for devices** — four separate questions, four
+knobs: *how input arrives* `Game.isTouch()` (= `pointer: coarse`; `body.touch`, help text,
+`#touch-ui`), *how layout adapts* `@media (max-width: 820px / 430px)`, *how much gets drawn*
+`Game.lite()` (`'auto'` = `isTouch()`), *whether edges pan* `Game.edgePan()` (`'auto'` =
+`!isTouch()`).
 
-**Savaş hasarı tek çoke noktasından geçer**: `Battle.afterArmor(dmgType, raw, def, tgt)` —
-zırh, hasar türü ve zorluk çarpanı (`Game.dmgMult`) orada.
+**Battle damage passes through a single choke point**: `Battle.afterArmor(dmgType, raw, def,
+tgt)` — armor, damage type, and the difficulty multiplier (`Game.dmgMult`) all live there.
 
-**Oyun döngüsü** `Battle.active || TournamentMinigame.active` iken gerçekten durur
-(`_loopId = null`); geri kuran tek yer `showScreen()`'dir. Her rAF döngüsünde çift başlama
-koruması vardır.
+**The game loop** genuinely stops while `Battle.active || TournamentMinigame.active`
+(`_loopId = null`); the only place that restarts it is `showScreen()`. Every rAF loop has a
+double-start guard.
 
-## Performans
+## Performance
 
-Darboğaz JS değil **compositor**: savaşın JS'i kare başına ~1.2 ms, bütçe 16.7 ms.
+The bottleneck isn't JS, it's the **compositor**: battle JS runs ~1.2 ms per frame, budget is
+16.7 ms.
 
-- `Game.skipFrame(t)` fazla kareyi atar; tazeleme periyodu son 31 karenin **ortancasıdır**
-  (#85) ve karar **kare başına** verilir, çağrı başına değil (#42).
-- **Hareketli tuvalin üstünde `backdrop-filter` yok**; modal açıkken `renderMap()` erken döner.
-- Pahalı şey bir kez pişirilir (`buildGroundTexture`, `Battle.buildGround`, `unitSprite`,
-  `Game.emoji/radial/textW`) — kare başına gradyan üretilmez.
-- Tuvaller opak; `battle-canvas`'ı iki motor paylaşır, ikisi de `Game.battleCtx()`'ten alır.
+- `Game.skipFrame(t)` drops extra frames; the refresh period is the **median of the last 31
+  frames** (#85) and the decision is made **per frame**, not per call (#42).
+- **No `backdrop-filter` above the moving canvas**; `renderMap()` returns early while a modal
+  is open.
+- Expensive things are baked once (`buildGroundTexture`, `Battle.buildGround`, `unitSprite`,
+  `Game.emoji/radial/textW`) — no gradient is generated per frame.
+- Canvases are opaque; `battle-canvas` is shared by both engines, both read from
+  `Game.battleCtx()`.
 
-## Ölçüm ve test
+## Measurement and tests
 
-`tools/harness.js` tek kapıdır: sahte DOM kurar, dört script'i **tek `vm` bağlamında**
-çalıştırır, tohumlu `mulberry32` ile aynı tohum aynı dünyayı verir. Dışa verdikleri:
-`{ load, world, run, mulberry32, args, seeds, writeReport }` — `boot` diye bir şey yok.
+`tools/harness.js` is the single entry point: it builds a fake DOM, runs the four scripts in
+**one `vm` context**, and the same seed gives the same world via seeded `mulberry32`. It
+exports: `{ load, world, run, mulberry32, args, seeds, writeReport }` — there's no `boot`.
 
 ```
-node tools/test.js [--hizli]   # 67 iddia ~5 sn / yalnız saf mantık ~0.15 sn
-node tools/framegate.js        # kare kapısı + #42 parite regresyonu
-node tools/sim.js --gun 200 --tohum 1-5 | duel.js --n 200 | economy.js --gun 60 --asker 10
+node tools/test.js [--fast]     # 66 assertions ~5s / pure-logic only ~0.15s
+node tools/framegate.js         # frame-skip gate + #42 parity regression
+node tools/sim.js --days 200 --seed 1-5 | duel.js --n 200 | economy.js --days 60 --troops 10
 ```
 
-CI her itmede ilk ikisini koşar; `npm install` adımı yoktur. Beklenen sayılar
-`docs/SISTEMLER.md`'deki "Ölçüldü" satırlarıdır — biri değişirse ya kod ya belge yanlıştır.
+CI runs the first two on every push; there's no `npm install` step. The expected numbers are
+the "Measured" lines in `docs/SYSTEMS.md` — if one changes, either the code or the doc is
+wrong.
 
-## Kod tarzı
+## Code style
 
-Türkçe yorum ve arayüz metni, İngilizce değişken/fonksiyon isimleri. Arayüz `innerHTML`
-şablon dizeleriyle üretilir, inline `style` yaygın; küçük puntolar `--fs-xs/sm/md`
-değişkenlerinden okunur. Modal: `Game.showModal(html, width?, bgImage?)` / `closeModal()`;
-`window.alert` modala yönlendirilmiştir.
+Code comments and docs in English, UI text in Turkish (via `T()`), variable/function names in
+English. The UI is built from `innerHTML` template strings, inline `style` is common; small
+font sizes read from `--fs-xs/sm/md` variables. Modal: `Game.showModal(html, width?,
+bgImage?)` / `closeModal()`; `window.alert` is routed to a modal.

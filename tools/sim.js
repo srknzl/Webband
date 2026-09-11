@@ -3,11 +3,11 @@
 // sim.js — playerless world simulation (#62)
 // ------------------------------------------------------------
 // Diplomacy, campaigns, sieges, trade and banditry all run N days on their
-// own; output is JSON + a markdown table under docs/olcum. This is the
+// own; output is JSON + a markdown table under docs/measurements. This is the
 // source of ranges like "4-11 conquests" in CLAUDE.md.
 //
 //   node tools/sim.js --days 200 --seed 1..5
-//   node tools/sim.js --days 200 --seed 1..5 --report       # write to docs/olcum
+//   node tools/sim.js --days 200 --seed 1..5 --report       # write to docs/measurements
 //   node tools/sim.js --days 50 --json                      # raw JSON
 // ============================================================
 'use strict';
@@ -96,7 +96,7 @@ function main() {
            + `Kingdom territory (final round): `
            + Object.entries(rows[rows.length - 1].kingdomTerritory).map(([f, n]) => `${f} ${n}`).join(', ') + '\n';
     console.log(md);
-    if(a.report || a.rapor) console.error('written: ' + H.writeReport('dunya-simulasyonu', md));
+    if(a.report || a.rapor) console.error('written: ' + H.writeReport('world-sim', md));
 }
 
 if(require.main === module) main();
