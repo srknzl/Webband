@@ -578,8 +578,12 @@ Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara
 - `Game.priceMult(loc, id)` = taban × **arz eğrisi** (`supplyMul`). Fiyatın kendi durumu yoktur;
   oynayan tek şey **stoktur** (aşağıda). Aynı gün pazara ikinci kez girmek fiyatı değiştirmez —
   ölçüldü: Praven'de bira iki girişte de 44₺.
-- Pazar listesinde ve lonca defterinde `Game.priceTag()` rozetleri: **ucuz** ≤ −%12 yeşil,
-  **pahalı** ≥ +%12 kırmızı.
+- Pazar listesinde ve lonca defterinde `Game.priceTag()` rozeti **yalnız renkli yüzdedir**
+  (#76): ≤ −%12 yeşil, ≥ +%12 kırmızı, arası soluk. Eskiden önünde bir de kelime vardı
+  (`ucuz −%22`); işaret, renk ve sayı zaten aynı şeyi söylüyordu. Ölçüldü (3 tohum,
+  19 yerleşim × 8 mal = 456 rozet): rozetin görünen metni **medyan 10 → 4 karakter**,
+  toplam **4557 → 1593** (en uzun 11 → 4); kelimelerin **228'i (%50)** zaten "normal"
+  yazıyordu, yani satırın yarısında hiçbir bilgi taşımıyordu. İngilizcede toplam 4671 → 1593.
 - **Lonca fiyat defteri** (han → ⚖️ Lonca Ustası → 📈 Fiyat Defterine Bak,
   `Game.guildPrices`): en yakın 5 şehrin bütün erzak/ticaret mallarındaki fiyatı tek tabloda.
   Rota kurmanın bilgi kaynağı bu — Warband'daki "ticaret malları fiyatları" ekranı.

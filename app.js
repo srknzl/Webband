@@ -4914,12 +4914,13 @@ const Game = {
             }
         });
     },
-    // Fiyatın taban fiyata göre nerede durduğu — pazar listesinde ve lonca defterinde
+    // Fiyatın taban fiyata göre nerede durduğu — pazar listesinde ve lonca defterinde.
+    // Kelime yok (#76): işaret yönü, renk ucuz/pahalı, sayı da ne kadar olduğunu söylüyor —
+    // "ucuz -%22" üçüncü kez aynı şeyi tekrarlıyordu ve satırı kalabalıklaştırıyordu.
     priceTag(loc, id) {
         let rel = Math.round((this.priceMult(loc, id) - 1) * 100);
         let c = rel <= -12 ? '#2ecc71' : rel >= 12 ? '#e0463a' : 'var(--text-muted)';
-        let w = rel <= -12 ? T('ucuz') : rel >= 12 ? T('pahalı') : T('normal');
-        return `<span style="color:${c}">${w} ${this.pct(rel, true)}</span>`;
+        return `<span style="color:${c}">${this.pct(rel, true)}</span>`;
     },
     // Lonca ustasının defteri: hangi mal nerede ucuz, nerede pahalı (Warband'daki
     // "ticaret malları fiyatları" ekranı). Rota kurmanın tek bilgi kaynağı.
