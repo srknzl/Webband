@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.81', date: '2026-09-11', name: 'Yollar Tekin Değil' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.82', date: '2026-09-11', name: 'Bozgun' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -7074,7 +7074,8 @@ const Game = {
         questDone:  [ 2,  'verilen sözü tutmak'],
         // Yol olayları (#67): tek tek küçük, ama yirmi olayda huy olur
         roadKind:   [ 2,  'yolda yardım eli uzatmak'],
-        roadCruel:  [-2,  'yolda zayıfı ezip geçmek']
+        roadCruel:  [-2,  'yolda zayıfı ezip geçmek'],
+        spare:      [ 3,  'bozguna uğrayanı kovalamamak']
     },
     honor() { return Math.max(-100, Math.min(100, Math.round(state.player.honor || 0))); },
     addHonor(kind) {

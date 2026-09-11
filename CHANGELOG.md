@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.82 — Bozgun (2026-09-11)
+
+Kimse son adamına kadar dövüşmüyor artık. Dörtte birine inen ordu kılıcı bırakıp
+geldiği yöne kaçıyor — ve asıl karar orada başlıyor.
+
+- **Düşman kırılınca kaçıyor.** Kalan üç kişi seni beklemiyor; arkasını dönüp koşuyor,
+  can havliyle, normalden hızlı.
+- **Peşine düşmek senin kararın.** Hiçbir şey yapmazsan kovalıyorsun: yakaladığın ganimet
+  ve esir oluyor. Savaş şeridindeki **🕊️ Bırak Gitsinler** düğmesi ise onlara yol veriyor —
+  ganimet yok, **şeref +3** var.
+- **Atının hızı nihayet para ediyor.** Kaçan senden hızlıysa kaçar. Yaya bir komutan
+  bozguna uğrattığı süvariyi seyretmekle yetinir.
+- **Senin adamların da kaçabilir** — ve kaçan **ölmüyor**. Eskiden kaybedilen savaşta
+  grubun tamamı kırılırdı; artık dağılan askerin sağ salim yanında kalıyor.
+
 ## 0.81 — Yollar Tekin Değil (2026-09-11)
 
 Harita bomboştu: günlerce yol gidip tek bir çapulcu görmemek mümkündü, "çeteyi bul" diyen

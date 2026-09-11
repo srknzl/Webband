@@ -285,6 +285,17 @@ const Battle = {
         // Kısmi katılım: sahaya kapasite kadar birim çıkar, kalanı yedekte bekler (#30)
         this.splitReserves(H, startPlayerX, startEnemyX);
 
+        // Bozgun safhası: başlangıç mevcudu burada donar (yedekler dahil) ve kaçış
+        // yönü doğduğun kenardır — pusuda ortada doğsan bile geri, geldiğin tarafa.
+        this.routed = { p: false, e: false };
+        this.spared = 0;
+        this.startN = {
+            p: this.units.filter(u => u.isPlayerTeam && u.id !== 'player').length + this.reserves.p.length,
+            e: this.units.filter(u => !u.isPlayerTeam).length + this.reserves.e.length
+        };
+        this.routX = { p: startPlayerX < W / 2 ? 0 : W, e: startEnemyX < W / 2 ? 0 : W };
+        this.clearRoutPrompt();
+
         // Kumanda ipucu cihaza göre yazılır: parmakla oynayanda WASD diye bir şey yok (#65)
         const ipucu = Game.isTouch() ? T('Sol çubuk hareket · Sağ çubuk kılıç · 🛡️ blok')
                                      : T('WASD hareket · Sol tık saldırı');
@@ -742,6 +753,21 @@ const Battle = {
                 this.floatingTexts.push({ x: u.x, y: u.y - 12, text: T('Attan Düştü!'), color: '#ffaa00', life: 1.0 });
             }
 
+            // Bozgun: kaçan dövüşmez, kendi geldiği kenara koşar. Hızın asıl burada
+            // anlam kazanır — atlı kaçağı yakalar, yaya bakakalır. Kenara varan
+            // `units`ten silinir (aşağıda), yani ganimete de esire de sayılmaz.
+            if(u.routing) {
+                u.blocking = false; u.tgtId = null;
+                let hedef = this.routX[u.isPlayerTeam ? 'p' : 'e'];
+                u.vx = Math.sign(hedef - u.x) * uSpeed * this.ROUT_SPEED; u.vy = 0;
+                u.x += u.vx * dt;
+                u.routT = (u.routT || 0) + dt;
+                // Süre kapısı, kenar kapısının ağıdır: sur ya da kaya kaçağı sıkıştırırsa
+                // savaş sonsuza dek bitmez — 12 sn koşan adam savaşı terk etmiş sayılır.
+                if(u.x <= 16 || u.x >= this.canvas.width - 16 || u.routT > 12) u.escaped = true;
+                return;
+            }
+
             if(u.id === 'player') {
                 Input.aimSync(u);   // parmakla oynanıyorsa nişan sanal çubuğun yönünden gelir (#65)
                 // Blok: sağ tık ya da Shift. Blokta savuramaz, yavaş yürür.
@@ -946,6 +972,10 @@ const Battle = {
             }
         });
 
+        // Sahayı terk edenler savaştan silinir. Tek yer: kaçan ne öldü, ne esir düştü,
+        // ne de üstü arandı — `units`ten çıkması üç sayımı birden doğru yapar.
+        if(this.units.some(u => u.escaped)) this.units = this.units.filter(u => !u.escaped);
+
         // Kimse arenadan çıkamaz — geri çekilen okçular haritadan kaçıp savaşı kilitliyordu
         let bw = this.canvas.width, bh = this.canvas.height;
         let rocks = (this.terrain && this.terrain.rocks) || [];
@@ -955,7 +985,8 @@ const Battle = {
             u.y = Math.max(12, Math.min(bh - 12, u.y));
             // Kayalar geçilmez: içine giren dışarı itilir.
             // ponytail: oklar kayanın üstünden geçer — engel siperi yok, sadece hareket engeli.
-            rocks.forEach(k => {
+            // Kaçan hariç: yatay koşan adamı kaya yana itemez, kapana kısılıp savaşı kilitler.
+            if(!u.routing) rocks.forEach(k => {
                 let dx = u.x - k.x, dy = u.y - k.y;
                 let d = Math.sqrt(dx*dx + dy*dy), min = k.r + u.radius;
                 if(d < min && d > 0.01) { u.x = k.x + dx/d*min; u.y = k.y + dy/d*min; }
@@ -1642,7 +1673,61 @@ const Battle = {
         this.endBattle(won);
     },
 
+    // --- BOZGUN VE TAKİP ---
+    // Ordu son adamına kadar dövüşmez. Mevcudu dörtte birin altına düşen taraf
+    // dövüşmeyi bırakıp kendi geldiği kenara koşar. Kaçan sahayı terk edince
+    // `units`ten silinir; ganimet, esir ve kayıp sayımı zaten o listeden yürüdüğü
+    // için kaçanın hesabı ek dal yazmadan doğru çıkar (ölmedi, soyulmadı, esir olmadı).
+    ROUT_AT: 0.25,       // kalan mevcut / başlangıç mevcudu
+    ROUT_MIN: 6,         // altı kişilik çetede bozgun safhası yok — çarpışma zaten bitmiştir
+    ROUT_SPEED: 1.2,     // can havliyle koşar: yavaş kaçak yakalanır, hızlı olan kurtulur
+    routCheck() {
+        ['p', 'e'].forEach(side => {
+            if(this.routed[side] || this.startN[side] < this.ROUT_MIN) return;
+            let team = side === 'p';
+            let ayakta = this.units.filter(u => u.isPlayerTeam === team && u.hp > 0 && u.id !== 'player');
+            if(ayakta.length + this.reserves[side].length > this.startN[side] * this.ROUT_AT) return;
+            this.routed[side] = true;
+            this.reserves[side] = [];   // bozulan ordunun yedeği sahaya sürülmez
+            ayakta.forEach(u => {
+                u.routing = true;
+                this.floatingTexts.push({ x: u.x, y: u.y - 20, text: T('bozgun!'), color: '#ffdd55', life: 1.6 });
+            });
+            if(team) this.log(`😱 <b>${T('Adamların dağıldı!')}</b> ${T('Kalanlar sahayı terk ediyor.')}`, 'left');
+            else {
+                this.log(`🏳️ <b>${T('Düşman bozuldu!')}</b> ${T('Peşlerine düşebilir ya da bırakabilirsin.')}`, 'right');
+                this.showRoutPrompt();
+            }
+        });
+    },
+    showRoutPrompt() {
+        let ui = document.getElementById('battle-ui');
+        if(!ui || document.getElementById('rout-prompt')) return;
+        let d = document.createElement('div');
+        d.id = 'rout-prompt';
+        d.innerHTML = `<span>🏳️ ${T('Düşman kaçıyor')}</span>`
+            + `<button class="btn" onclick="Battle.spareRouters()">🕊️ ${T('Bırak Gitsinler')}</button>`;
+        ui.insertBefore(d, document.getElementById('btn-surrender'));
+    },
+    clearRoutPrompt() {
+        let d = document.getElementById('rout-prompt');
+        if(d && d.parentNode) d.parentNode.removeChild(d);
+    },
+    // Kovalamak da bırakmak da bedelli: kaçağı biçersen ganimet ve esir, bırakırsan
+    // şeref. Hangisini alabileceğin atının hızına bağlı — sayılar burada işe yarar.
+    spareRouters() {
+        if(!this.active || !this.routed.e) return;
+        let n = 0;
+        this.units.forEach(u => { if(!u.isPlayerTeam && u.hp > 0) { u.escaped = true; n++; } });
+        this.units = this.units.filter(u => !u.escaped);
+        this.spared = n;
+        this.clearRoutPrompt();
+        this.log(`🕊️ <b>${T`${n} kaçağı bıraktın.`}</b>`, 'right');
+        this.checkEnd();
+    },
+
     checkEnd() {
+        this.routCheck();
         this.reinforce();
         let pAlive = this.units.some(u=>u.isPlayerTeam&&u.hp>0) || this.reserves.p.length > 0;
         let eAlive = this.units.some(u=>!u.isPlayerTeam&&u.hp>0) || this.reserves.e.length > 0;
@@ -1662,6 +1747,7 @@ const Battle = {
     },
 
     endBattle(won) {
+        this.clearRoutPrompt();
         this.canvas.removeEventListener('mousedown', this.clickHandler);
         window.removeEventListener('mouseup', this.upHandler);
         this.canvas.removeEventListener('contextmenu', this.menuHandler);
@@ -1756,6 +1842,10 @@ const Battle = {
                 alert(T('Tebrikler! Savaş Tanrısı\'nı yendin. Savaş Tanrısı Nişanı (Lvl 51 Upgrade) kazandın!'));
             }
             
+            // Kaçanı bırakmak: ganimeti değil şerefi seçtin. Kaçanlar zaten `units`ten
+            // silindiği için yukarıdaki ganimet ve esir hesabı onları saymadı bile.
+            let spareHonor = this.spared ? Game.addHonor('spare') : 0;
+
             state.player.money += moneyGain;
             state.player.renown += 3;
             state.player.morale = Math.min(100, Game.morale() + 5);
@@ -1851,6 +1941,7 @@ const Battle = {
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Tecrübe:`}</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
                     <p><b>${T`Kayıplar:`}</b> <span style="color:#e74c3c">${T`${killed} ölü`}</span> · <span style="color:#ffaa00">${T`${saved} yaralı`}</span> 🩹</p>
                     ${captured ? `<p style="margin-top:0.8rem"><b>${T`Esir Alınan:`}</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(şehirdeki köle tüccarına satabilirsin)`}</span></p>` : ''}
+                    ${spareHonor ? `<p style="margin-top:0.8rem;color:#9fe0a0">🕊️ <b>${T`${this.spared} kaçağı bıraktın.`}</b> ${T`Şeref`} <span style="color:#9fe0a0">+${spareHonor}</span> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(kovalasaydın ganimet ve esir olurdu)`}</span></p>` : ''}
                     ${conquestTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">🏰 ${conquestTxt}</p>` : ''}
                     ${cargoTxt ? `<p style="margin-top:0.8rem"><b>${T`Yük Ganimeti:`}</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
                     ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>${T`👑 ${nobleTaken} esir alındı!`}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Grup ekranından fidye iste ya da salıver.`}</span></p>` : ''}

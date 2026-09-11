@@ -366,6 +366,32 @@ test('şarj: kesintili basıp bırakmak sürekli şarjdan hızlı olamaz', () =>
     });
 });
 
+// --- Bozgun safhası ---
+// Kaçanın `units`ten silinmesi üç sayımı birden taşıyor (ganimet, esir, kayıp);
+// bu yüzden sınanan şey "kaçtı mı" değil, "kaçan hesaba girmiyor mu".
+test('bozgun: kırılan taraf dövüşü bırakıp kaçar', () => {
+    const B = gw.Battle;
+    gw.state.player.party = Array.from({ length: 6 }, (_, i) =>
+        ({ id: 'b' + i, name: 'Svadya Milisi', level: 3, xp: 0, xpNext: 10 }));
+    B.start('Çapulcu', 12);
+    const dusman = () => B.units.filter(u => !u.isPlayerTeam && u.hp > 0);
+    // Eşik 12×0.25 = 3; ikisini bırakıp gerisini düşürüyoruz
+    dusman().slice(2).forEach(u => { u.hp = 0; });
+    B.routCheck();
+    assert.ok(B.routed.e, 'düşman mevcudu dörtte birin altına indi ama bozulmadı');
+    assert.ok(!B.routed.p, 'sağlam taraf da bozuldu');
+    const kacan = dusman()[0];
+    const uzaklik = () => Math.abs(kacan.x - B.units[0].x);
+    const once = uzaklik();
+    for(let i = 0; i < 30; i++) B.update(1 / 60);
+    assert.ok(uzaklik() > once, 'kaçan oyuncudan uzaklaşmıyor');
+    assert.strictEqual(kacan.tgtId, null, 'kaçan hâlâ hedef arıyor');
+    // Yeterince koşunca sahayı terk eder ve savaş biter — kilitlenmez
+    for(let i = 0; i < 60 * 15 && B.active; i++) B.update(1 / 60);
+    assert.ok(!B.active, 'kaçaklar sahayı terk etmedi, savaş kilitlendi');
+    gw.state.player.party = [];
+});
+
 // --- Cheese kapıları: kaçış mümkün, ama sonsuz kaçış değil ---
 // duel.js gerçek motoru adım adım işletir; kite sonsuzsa dövüş MAX_S'e kadar
 // sürer ve `won: null` döner. Kilit = kite hatası.

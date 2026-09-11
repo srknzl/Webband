@@ -1962,4 +1962,16 @@ I18N.dicts.id = {
   "Adam önce kekeledi, sonra atları bırakıp tarlaya doğru koştu. Damgayı tanıyan birine haber saldın.<br><b>İkna +35 tecrübe</b>, şeref <b>+{0}</b>.": "Ia tergagap, lalu meninggalkan kuda-kuda itu dan lari ke ladang. Kau mengirim kabar kepada orang yang mengenali cap itu.<br><b>Persuasi +35 pengalaman</b>, kehormatan <b>+{0}</b>.",
   "🚶 Bu iş kokuyor": "🚶 Urusan ini mencurigakan",
   "Atlara bakmadan geçtin. Bazen en ucuz at, almadığın attır.": "Kau lewat tanpa melirik kuda-kuda itu. Kadang kuda termurah adalah kuda yang tak kau beli.",
+
+  // Bozgun ve takip
+  "bozgun!": "kalang kabut!",
+  "Adamların dağıldı!": "Pasukanmu berantakan!",
+  "Kalanlar sahayı terk ediyor.": "Yang tersisa meninggalkan medan.",
+  "Düşman bozuldu!": "Musuh kalang kabut!",
+  "Peşlerine düşebilir ya da bırakabilirsin.": "Kau bisa mengejar mereka, atau membiarkannya pergi.",
+  "Düşman kaçıyor": "Musuh melarikan diri",
+  "Bırak Gitsinler": "Biarkan Mereka Pergi",
+  "{0} kaçağı bıraktın.": "Kau membiarkan {0} pelarian pergi.",
+  "Şeref": "Kehormatan",
+  "(kovalasaydın ganimet ve esir olurdu)": "(kalau kau kejar, ada jarahan dan tawanan)",
 };

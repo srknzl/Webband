@@ -1186,6 +1186,33 @@ sayar, yoksa savaş ilk dalga bitince sona ererdi. Ölçüldü (45 asker vs 60 �
 kafaya sim): sahada hiç 30'u geçmedi, düşman 1.3 / 2.2 / 3.3 / 4.3 sn'de **9+9+9+3** kişilik
 dört dalga hâlinde girdi, savaş 8.5 sn sürdü.
 
+#### Bozgun ve takip
+Ordu son adamına kadar dövüşmez. Mevcudu (yedekler dahil) **dörtte birin altına** düşen
+taraf dövüşmeyi bırakır: `Battle.routCheck()` her karede `checkEnd`'in içinden bakar,
+kırılan tarafın ayakta kalanlarını `u.routing` damgalar, **yedeğini siler** ve birimler
+`ROUT_SPEED` = **×1.2** ile *geldikleri kenara* koşar (`routX`, doğum şeridinden türetilir —
+pusuda ortada doğsan bile geri, kendi tarafına). Kaçan dövüşmez, hedef aramaz, blok tutmaz.
+
+Eşikler `ROUT_AT` 0.25 / `ROUT_MIN` 6: **altı kişiden küçük** çatışmada bozgun safhası yok
+(düello ve arena dahil — orada çarpışma zaten bitmiştir).
+
+**Kaçanın hesabı tek satırda kapanıyor**: sahayı terk eden `Battle.units`'ten silinir.
+Ganimet (`!isPlayerTeam` toplamı), esir (`hp <= 0` taraması) ve oyuncu kaybı (`party` id
+eşleşmesi) üçü de o listeden yürüdüğü için kaçan ne yağmalanır, ne esir düşer, ne ölür —
+ek dal yazılmadı. Kendi askerin kaçarsa **sağ salim** grupta kalır: eskiden kaybedilen
+savaşta hepsi ölürdü.
+
+**Oyuncunun kararı**: düşman bozulunca savaş şeridinde tek düğme belirir — *🕊️ Bırak
+Gitsinler*. Hiçbir şey yapmamak "peşine düş" demektir; yakaladığını biçersin, ganimet ve
+esir ondan çıkar. Bırakmak `Game.HONOR.spare` = **+3 şeref** getirir ve zafer ekranında
+ne kaybettiğini yazar. Hangisini alabileceğin atının hızına bağlıdır: kaçan ×1.2 koşar,
+yani yaya oyuncu kaçan atlıyı yakalayamaz — hız sayıları asıl burada işe yarıyor.
+
+İki kilitlenme ağı var: kaçan **kayaya çarpmaz** (yatay koşan adamı kaya yana itemez,
+kapana kısılırdı) ve **12 saniye** koşan birim kenara varamasa da (sur, gedik) savaşı
+terk etmiş sayılır. `tools/test.js` bozgunun tetiklendiğini, kaçanın oyuncudan
+uzaklaştığını ve savaşın gerçekten bittiğini iddia eder.
+
 #### Düşman çeteleri (`BAND_KINDS`)
 Çapulcunun ötesinde çeşit var; her tür haritada kendi adı/rengiyle gezer (`npc.band`) ve savaşta
 kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** çıkar.
@@ -2353,6 +2380,9 @@ tanınıyorsun"u. Tek eksen: eski yağmacı damgası onun eksi tarafının etike
 | Kız kaçırma (`abduct`) | **−20** |
 | Sefer sözünü tutmamak (`oathBroken`) | −5 |
 | Görevi bitirmek (`questDone`) | +2 |
+| Yolda yardım eli uzatmak (`roadKind`) | +2 |
+| Yolda zayıfı ezip geçmek (`roadCruel`) | −2 |
+| Bozguna uğrayanı kovalamamak (`spare`) | **+3** |
 
 Kademe (`honorTier` / `honorLabel`): ≥40 ⚜️ Şerefli, ≥15 🕊️ Sözünün Eri, ≤−10 🔥 Yağmacı,
 ≤−36 💀 Köy Yakan. Günde **0.5** sıfıra doğru söner (iki yönlü).
@@ -2756,7 +2786,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **64 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **65 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,

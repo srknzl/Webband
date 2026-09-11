@@ -1962,4 +1962,16 @@ I18N.dicts.en = {
   "Adam önce kekeledi, sonra atları bırakıp tarlaya doğru koştu. Damgayı tanıyan birine haber saldın.<br><b>İkna +35 tecrübe</b>, şeref <b>+{0}</b>.": "He stammered, then abandoned the horses and ran for the fields. You sent word to someone who knows that brand.<br><b>Persuasion +35 experience</b>, honour <b>+{0}</b>.",
   "🚶 Bu iş kokuyor": "🚶 This smells wrong",
   "Atlara bakmadan geçtin. Bazen en ucuz at, almadığın attır.": "You rode past without looking at the horses. Sometimes the cheapest horse is the one you did not buy.",
+
+  // Bozgun ve takip
+  "bozgun!": "rout!",
+  "Adamların dağıldı!": "Your men have broken!",
+  "Kalanlar sahayı terk ediyor.": "The survivors are quitting the field.",
+  "Düşman bozuldu!": "The enemy has broken!",
+  "Peşlerine düşebilir ya da bırakabilirsin.": "You may ride them down, or let them go.",
+  "Düşman kaçıyor": "The enemy is fleeing",
+  "Bırak Gitsinler": "Let Them Go",
+  "{0} kaçağı bıraktın.": "You let {0} runaways go.",
+  "Şeref": "Honour",
+  "(kovalasaydın ganimet ve esir olurdu)": "(had you pursued, there would be loot and prisoners)",
 };
