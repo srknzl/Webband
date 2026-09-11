@@ -1,15 +1,15 @@
 // ============================================
-// WEBBAND - SAVAŞ MOTORU VE TURNUVA
+// WEBBAND - BATTLE ENGINE AND TOURNAMENT
 // ============================================
-// app.js'ten ayrıldı (#41): Battle + TournamentMinigame. İkisi de `battle-canvas`'ı
-// paylaşır ve Game/state'e fonksiyon gövdelerinden erişir — bu yüzden app.js'ten
-// SONRA yüklenmeleri yeterlidir, aralarında yükleme sırası bağı yoktur.
+// Split out of app.js (#41): Battle + TournamentMinigame. Both reach
+// `battle-canvas` and Game/state from inside their function bodies — so
+// loading them AFTER app.js is enough; there's no load-order dependency between them.
 // --- BATTLE ---
 const Battle = {
     canvas: null, ctx: null, units: [], projectiles: [], bloodStains: [], floatingTexts: [], active: false, loopId: null, clickHandler: null, commandListener: null, currentCommand: 'charge',
     swings: [], sparks: [], corpses: [], knockedOut: false, grass: null,
 
-    // Rakip talip düellosu: 1'e 1, grup yok, ganimet yok
+    // Rival suitor duel: 1-on-1, no group, no loot
     startDuel(lord) {
         this._duelParty = state.player.party;
         state.player.party = [];
@@ -20,15 +20,15 @@ const Battle = {
             let lv = state.player.stats.level;
             e.hp = e.maxHp = 60 + lv * 6;
             e.attack = 12 + lv;
-            // Tekil rakip piyade olmalı: havuzdan okçu çıkarsa 1v1'de seni sonsuza kadar kite eder
+            // The lone foe must be infantry: if an archer comes up from the pool it kites you forever in 1v1
             e.name = lord.name; e.type = 'infantry';
             e.defense = 8; e.speed = 70; e.radius = 9; e.color = '#ff8800';
         }
         document.getElementById('battle-log-left').innerHTML = `<b>${T`🗡️ Şeref Düellosu:`}</b> ${T(lord.name)}`;
     },
 
-    // Arena (#26): şehrin kum meydanında ücretsiz pratik dövüşü. Düello altyapısının
-    // aynısı — grup sahneye girmez, ganimet/esaret/nam yok, yalnızca yeterlilik XP'si.
+    // Arena (#26): free practice fight in the city's sand ring. Reuses the
+    // same duel infrastructure — no group enters, no loot/capture/honor, only proficiency XP.
     ARENA_FOES: [
         { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  desc: 'Kolay lokma, az ter.' },
         { name: 'Arena Gediklisi', dLv: 2,  xp: 180, desc: 'Senden bir gömlek üstün.' },
@@ -47,7 +47,7 @@ const Battle = {
             e.hp = e.maxHp = 50 + lv * 6;
             e.attack = 10 + lv;
             e.defense = 6 + Math.floor(lv / 3);
-            // Tahta silah: ezici, yani öldürmez bayıltır — arenada kimse ölmez
+            // Wooden weapon: blunt, i.e. it knocks out instead of killing — nobody dies in the arena
             e.name = f.name; e.type = 'infantry'; e.dmgType = 'blunt';
             e.speed = 70; e.radius = 9; e.color = '#ffcc55';
         }
@@ -55,9 +55,9 @@ const Battle = {
     },
 
     start(enemyName, enemyCount, bossLevel = null, faction = null, siegePlan = null, auto = false) {
-        Input.keys = {}; // Tuşları temizle
+        Input.keys = {}; // Clear keys
         this.canvas = document.getElementById('battle-canvas');
-        this.ctx = Game.battleCtx();   // paylaşılan tuvalin tek kapısı (#54)
+        this.ctx = Game.battleCtx();   // single gate to the shared canvas (#54)
         Game.showScreen('battle');
         this.isBossFight = !!bossLevel;
         
@@ -84,22 +84,22 @@ const Battle = {
         this.grass = null;
         this.currentCommand = 'charge';
         this.cmdSlots = []; this.battleTime = 0;
-        // Pusu (Game.checkAmbush): fark edemediğin çete seni ortada yakalar
+        // Ambush (Game.checkAmbush): a band you failed to notice catches you out in the open
         this.ambushed = !!state.ambush; state.ambush = false;
-        // Kuşatma (#25): sur + gedik arazisi, savunana mevzi bonusu. Plan Game.SIEGE_PLANS'ten gelir.
+        // Siege (#25): wall + breach terrain, a positional bonus for the defender. The plan comes from Game.SIEGE_PLANS.
         this.siege = siegePlan ? { name: siegePlan.name, defBonus: siegePlan.defBonus, gaps: siegePlan.gaps } : null;
         if(this.siege) {
             let wx = Math.round(W * 0.66);
             let gaps = [{ y: H / 2, h: 74, gate: true }];
-            if(this.siege.gaps > 1) gaps.push({ y: Math.round(H * 0.22), h: 118, gate: false });   // kule rampası
+            if(this.siege.gaps > 1) gaps.push({ y: Math.round(H * 0.22), h: 118, gate: false });   // tower ramp
             this.siege.wall = { x: wx, t: 26, gaps };
         }
         this.active = true;
 
-        // Pusuda oyuncu kenarda değil, arenanın ortasında yakalanır (çember için şart)
+        // In an ambush the player isn't caught at the edge but in the middle of the arena (needed for the circle)
         let startPlayerX = this.siege ? 120
                          : this.ambushed ? W/2 : (enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80);
-        // Kuşatmada savunan surun ardında doğar, saldıran sahada
+        // In a siege the defender spawns behind the wall, the attacker out in the field
         let startEnemyX = this.siege ? this.siege.wall.x + 60
                         : (enemyCount < 30 ? W/2 + 100 + Math.random()*100 : W - 160);
 
@@ -114,8 +114,8 @@ const Battle = {
         for(let i=0; i<2+Math.random()*3; i++) {
             this.terrain.forests.push({ x: Math.random()*W, y: Math.random()*H, r: 60+Math.random()*60 });
         }
-        // Geçilemez kayalar — mevzi almayı ve taktik çeşitliliğini artırır.
-        // Doğum şeritlerine (kenarlardan 150 birim) konmaz.
+        // Impassable rocks — adds positioning and tactical variety.
+        // Not placed in the spawn lanes (150 units from the edges).
         this.terrain.rocks = [];
         for(let i=0; i<2+Math.random()*3; i++) {
             this.terrain.rocks.push({
@@ -125,11 +125,11 @@ const Battle = {
             });
         }
         
-        // 50% ihtimalle nehir olsun (rastgele dikey veya yatay kesen şerit)
+        // 50% chance of a river (a randomly vertical or horizontal cutting strip)
         if(Math.random() > 0.5) {
             let isVertical = Math.random() > 0.5;
             if(isVertical) {
-                let rx = W*0.3 + Math.random()*(W*0.4); // Ortaya yakın
+                let rx = W*0.3 + Math.random()*(W*0.4); // Near the middle
                 this.terrain.rivers.push({ x: rx, y: 0, w: 60+Math.random()*40, h: H, isVertical: true });
             } else {
                 let ry = H*0.3 + Math.random()*(H*0.4);
@@ -137,7 +137,7 @@ const Battle = {
             }
         }
         
-        // Kuşatma sahası: sur dibinde nehir/kaya olmaz, örtü yalnızca kuşatan tarafta kalır
+        // Siege field: no river/rocks at the wall's foot, cover stays only on the besieging side
         if(this.siege) {
             let wx = this.siege.wall.x;
             this.terrain.rivers = [];
@@ -150,9 +150,9 @@ const Battle = {
         let weaponAtk = state.player.equipment.weapon ? state.player.equipment.weapon.attack : 0;
         let armorDef = state.player.equipment.armor ? state.player.equipment.armor.defense : 0;
 
-        // Binek: at varsa oyuncu süvari olarak girer — motor süvariyi (ve attan düşmeyi) zaten biliyor
+        // Mount: if there's a horse the player enters as cavalry — the engine already knows cavalry (and being unhorsed)
         let mounted = !!state.player.equipment.horse;
-        // Ok torbası savaş başına dolar; yay yoksa sıfır
+        // The quiver fills per battle; zero if there's no bow
         this.arrows = this.playerHasBow() ? 24 + this.prof('bow') * 2 : 0;
         this.blockHeld = false;
 
@@ -171,21 +171,21 @@ const Battle = {
             isAttacking: false, attackTimer: 0, swingCd: 0, angleToMouse: 0, currentWeaponAngle: 0
         });
 
-        // Troops (Player's party) — yaralılar savaşa katılmaz, kampta iyileşir
+        // Troops (Player's party) — the wounded don't join the battle, they heal in camp
         state.player.party.filter(p => !p.wounded).forEach((p, i) => {
             let typeInfo = Game.troopStats(p);
             let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
             let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
-            // Açlık ve moral iki ayrı çarpandı, ikisi birden canı VE saldırıyı ×0.56'ya
-            // indiriyordu — kaybeden savaş kendi kendini besliyordu. Taban 0.7'de durur.
+            // Hunger and morale were two separate multipliers; both at once dragged HP AND attack to ×0.56 —
+            // a losing battle fed on itself. It now floors at 0.7.
             let debuff = Math.max(0.7, (p.debuff ? 0.7 : 1) * Game.moraleMult());
 
             this.units.push({
                 id: p.id, isPlayerTeam: true,
                 hp: (typeInfo.hp + lvlBonusHp) * debuff, maxHp: (typeInfo.hp + lvlBonusHp) * debuff,
                 x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
-                // Hız moralden etkilenmez: düşmanın morali yok, ölçeklenince aynı asker
-                // iki tarafta iki hızda koşuyordu. Moral canı ve saldırıyı ölçekler (arayüz de böyle diyor).
+                // Speed isn't affected by morale: the enemy has no morale, so if it scaled, the same troop
+                // would run at two different speeds on the two sides. Morale scales HP and attack (the UI says so too).
                 speed: typeInfo.speed, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense,
                 type: typeInfo.type, mounted: typeInfo.type === 'cavalry' || typeInfo.speed > this.FOOT_MAX,
                 dmgType: typeInfo.dmgType, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
@@ -199,12 +199,12 @@ const Battle = {
         let band = BAND_KINDS[bandKey];
         let isBandit = !!band;
         for(let i=0; i<enemyCount; i++) {
-            let name = 'Çapulcu';   // BAND_KINDS/TROOP_TYPES anahtarı — ekranda T() ile çevrilir
+            let name = 'Çapulcu';   // BAND_KINDS/TROOP_TYPES key — translated on screen via T()
             let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
             let dmgType = (band && band.dmg) || 'cut';
 
             if(!bossLevel && isBandit) {
-                // Çete karışımı: her türün kendi birimleri; kalabalık çetenin başında reis olur
+                // Band mix: each kind has its own units; a large band gets its leader up front
                 let row;
                 if(i === 0 && enemyCount >= 6 && band.leader) {
                     row = band.leader;
@@ -219,7 +219,7 @@ const Battle = {
             }
             
             if(bossLevel) {
-                if(i === 0) { // Savaş Tanrısı
+                if(i === 0) { // War God
                     name = 'Savaş Tanrısı';
                     hp = 100 + bossLevel * 10; speed = 70; attack = 25 + bossLevel; defense = 20; type = 'infantry'; radius = 10;
                     color = '#aa00ff';
@@ -230,7 +230,7 @@ const Battle = {
                 }
             }
             else if(!isBandit) {
-                // Fraksiyon askeri — karşılaşılan krallığın kendi asker ağacından
+                // Faction soldier — from the encountered kingdom's own troop tree
                 let pool = Game.factionTroopPool(faction);
                 name = pool[Math.floor(Math.random() * pool.length)];
                 let ti = TROOP_TYPES[name];
@@ -241,24 +241,24 @@ const Battle = {
 
             let enemyLvl = 1;
             if(bossLevel) {
-                // Alt sınır şart: muhafız seviyesi negatife düşerse (bossLevel < 10)
-                // ölçekleme uygulandığı an eksi can/saldırıyla doğarlar.
+                // A floor is essential: if the guard's level would go negative (bossLevel < 10)
+                // they'd spawn with negative HP/attack the moment scaling applied.
                 if(i===0) enemyLvl = bossLevel;
                 else enemyLvl = Math.max(1, bossLevel - 10);
             } else if(!isBandit) {
-                // Takvim mi, senin gücün mü — hangisi büyükse o (#53/1.3)
+                // Whichever is bigger, the calendar or your own strength (#53/1.3)
                 enemyLvl = Math.max(5 + Math.floor(state.time.day / 15), Game.threatLevel() + 3);
             } else {
                 enemyLvl = Math.max(1 + Math.floor(state.time.day / 30), Game.threatLevel() - 1);
             }
 
-            // Seviye artık sadece etikette değil, gerçekten güçlendiriyor
+            // Level actually strengthens now, not just as a label
             if(!bossLevel) {
                 hp += (enemyLvl - 1) * 4;
                 attack += Math.floor((enemyLvl - 1) / 2);
                 defense += Math.floor((enemyLvl - 1) / 4);
             }
-            // Savunan surun ardında dövüşür: mevzi avantajı kuşatma yöntemine bağlı (#25)
+            // The defender fights behind the wall: the positional bonus depends on the siege method (#25)
             if(this.siege) {
                 hp = Math.round(hp * (1 + this.siege.defBonus));
                 attack = Math.round(attack * (1 + this.siege.defBonus));
@@ -267,9 +267,9 @@ const Battle = {
             this.units.push({
                 id: 'enemy_'+i, isPlayerTeam: false, name: name,
                 beast: !!(band && band.beast),
-                charge: (band && band.beast) ? 1.6 : 1.3,   // kurtlar atılarak saldırır
+                charge: (band && band.beast) ? 1.6 : 1.3,   // wolves attack with a pounce
                 hp: hp, maxHp: hp,
-                // Pusuda düşman tek şeritten değil, oyuncunun etrafındaki çemberden doğar
+                // In an ambush the enemy doesn't spawn from a single lane but from a circle around the player
                 x: this.ambushed ? Math.max(20, Math.min(W-20, startPlayerX + Math.cos(i*2.4)*(130+Math.random()*110)))
                                  : startEnemyX + Math.random()*80,
                 y: this.ambushed ? Math.max(20, Math.min(H-20, H/2 + Math.sin(i*2.4)*(130+Math.random()*110)))
@@ -280,13 +280,13 @@ const Battle = {
             });
         }
 
-        // Otomatik çözüm: aynı birimler kurulur ama arena açılmaz, sonuç hesaplanır (#30)
+        // Auto-resolve: the same units are set up but the arena never opens, the result is just computed (#30)
         if(auto) return this.autoResolve();
-        // Kısmi katılım: sahaya kapasite kadar birim çıkar, kalanı yedekte bekler (#30)
+        // Partial engagement: only as many units as capacity allows enter the field, the rest wait in reserve (#30)
         this.splitReserves(H, startPlayerX, startEnemyX);
 
-        // Bozgun safhası: başlangıç mevcudu burada donar (yedekler dahil) ve kaçış
-        // yönü doğduğun kenardır — pusuda ortada doğsan bile geri, geldiğin tarafa.
+        // Rout phase: the starting headcount is frozen here (reserves included), and the flee
+        // direction is the edge you spawned from — even if you spawned in the middle in an ambush, you flee back the way you came.
         this.routed = { p: false, e: false };
         this.spared = 0;
         this.startN = {
@@ -296,13 +296,13 @@ const Battle = {
         this.routX = { p: startPlayerX < W / 2 ? 0 : W, e: startEnemyX < W / 2 ? 0 : W };
         this.clearRoutPrompt();
 
-        // Kumanda ipucu cihaza göre yazılır: parmakla oynayanda WASD diye bir şey yok (#65)
+        // The command hint is written per device: there's no such thing as WASD when playing by touch (#65)
         const ipucu = Game.isTouch() ? T('Sol çubuk hareket · Sağ çubuk kılıç · 🛡️ blok')
                                      : T('WASD hareket · Sol tık saldırı');
         document.getElementById('battle-log-left').innerHTML = '<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>'
             + (this.ambushed ? T('Pusuya Düştün! Etrafın sarıldı.') : T('Savaş Başladı!'))
-            // Emir tuşları yalnız klavyede yazılır: parmakta aynı üç emir ekranın
-            // altında düğme olarak duruyor (#86).
+            // Command key hints are only written for keyboard: on touch the same three commands
+            // sit as buttons at the bottom of the screen instead (#86).
             + '</b><br>' + ipucu + (Game.isTouch() ? '' : '<br>' + T('[1] Takip · [2] Hücum · [3] Bekle')) + '</div>';
         if(this.siege) document.getElementById('battle-log-left').innerHTML =
             `<div class="log-msg" style="padding:6px 10px;color:#fff;"><b>${T`🏰 Kuşatma — ${T(this.siege.name)}`}</b><br>`
@@ -332,7 +332,7 @@ const Battle = {
 
                 this.log(`<span style="color:#ffaa00;font-size:1.1rem;display:block;margin-bottom:5px"><b>${T`Düşman Komutanı:`}</b></span><span style="color:#fff;font-style:italic">"${q}"</span>`, 'right');
                 
-                // Grupların ilerleme yerlerine ping animasyonu
+                // Ping animation at the groups' advance points
                 let W = this.canvas.width, H = this.canvas.height;
                 this.battlePings.push({ x: W/3, y: 150, life: 3.0, label: n1 });
                 this.battlePings.push({ x: W/3, y: H-150, life: 3.0, label: n2 });
@@ -340,7 +340,7 @@ const Battle = {
             }
         }, 1000);
 
-        // Sol tık savurur/atar, sağ tık blok tutar (Shift de blok)
+        // Left click swings/shoots, right click holds block (Shift also blocks)
         this.clickHandler = (e) => {
             if(e.button === 2) { e.preventDefault(); this.blockHeld = true; }
             else this.playerAttack(e);
@@ -351,10 +351,10 @@ const Battle = {
         this.menuHandler = (e) => e.preventDefault();
         this.canvas.addEventListener('contextmenu', this.menuHandler);
 
-        // Emirler savaşın başında hazır beklemez: her biri kendi rastgele anında
-        // "fırsat" olarak doğar. Boru sesi savaşın içinden gelir, menüden değil.
+        // Commands aren't ready at the start of battle: each one becomes available
+        // as an "opportunity" at its own random moment. The horn call comes from inside the battle, not a menu.
         this.cmdSlots = [
-            // Ad ham durur; her gösterim yerinde `T` ile çevrilir (yoksa çeviri iki kez geçer)
+            // The name stays raw; it's translated via `T` at every display site (otherwise it would pass through translation twice)
             { key: '2', cmd: 'charge', name: 'Hücum Edin',      at: 1.0 + Math.random() * 1.5 },
             { key: '1', cmd: 'follow', name: 'Beni Takip Edin', at: 2.5 + Math.random() * 2.5 },
             { key: '3', cmd: 'hold',   name: 'Mevzi Koruyun',   at: 4.0 + Math.random() * 3.5 }
@@ -365,7 +365,7 @@ const Battle = {
             let slot = this.cmdSlots.find(c => c.key === e.key);
             if(!slot) return;
             if(!slot.open) return this.log(`<span style="opacity:0.7">${T`Şu an "${T(slot.name)}" emrini verecek durumda değilsin.`}</span>`);
-            // Aynı emri üst üste bağırmak anlamsız
+            // Shouting the same command twice in a row is pointless
             if(this.currentCommand === slot.cmd) return;
             this.currentCommand = slot.cmd;
             this.log(`${T`🔊 Emir:`} <b>${T(slot.name)}!</b>`);
@@ -381,24 +381,24 @@ const Battle = {
             if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
-            // Öğretici açıkken savaş durur ama çizilmeye devam eder (#88) — okunacak
-            // şey ekranda dururken adamın öldürülmesin.
-            Debug.guard('savaş döngüsü', () => { if(!this.paused) this.update(dt); this.render(); });
-            this.lastRender = performance.now();     // nabız (#54)
+            // While the tutorial is open the battle pauses but keeps rendering (#88) — so
+            // the character can't be killed while there's something to read on screen.
+            Debug.guard('battle loop', () => { if(!this.paused) this.update(dt); this.render(); });
+            this.lastRender = performance.now();     // pulse (#54)
             this.loopId = requestAnimationFrame(loop);
         };
         this.loopId = requestAnimationFrame(loop);
-        // İlk savaşta savaş öğreticisi (#88): arena kurulup ilk kare çizildikten sonra
-        // açılır ve savaşı duraklatır. İşareti kendi anahtarındadır, harita öğreticisinden ayrı.
+        // First-battle tutorial (#88): opens after the arena is set up and the first frame is
+        // drawn, and pauses the battle. Its flag is its own key, separate from the map tutorial.
         setTimeout(() => Game.startTutorial(false, Game.BATTLE_TUTOR, Game.BTUTOR_KEY), 500);
-        // Nabız kontrolü (#54): siyah ekran bir daha sessizce oturmasın. 700 ms içinde
-        // tek kare çizilmediyse döngü ölmüş demektir — bir kez yeniden kurulur ve
-        // olay Debug raporuna düşer. (Kök neden #42'de kapatıldı; bu ağdır, çözüm değil.)
+        // Pulse check (#54): so a black screen never silently settles in again. If not even
+        // one frame was drawn within 700 ms, the loop is dead — it's rebuilt once and
+        // the event lands in the Debug report. (The root cause was closed in #42; this is a net, not a fix.)
         this.lastRender = 0;
         clearTimeout(this._pulseT);
         this._pulseT = setTimeout(() => {
-            if(!this.active || this.lastRender || document.hidden) return;   // gizli sekmede rAF zaten duruyor, yanlış alarm olmasın
-            Debug.log('nabiz', T('Savaş döngüsü 700 ms boyunca hiç kare çizmedi — döngü yeniden kuruldu'));
+            if(!this.active || this.lastRender || document.hidden) return;   // rAF already stops in a hidden tab, don't false-alarm
+            Debug.log('pulse', T('Savaş döngüsü 700 ms boyunca hiç kare çizmedi — döngü yeniden kuruldu'));
             cancelAnimationFrame(this.loopId);
             this.loopId = requestAnimationFrame(loop);
         }, 700);
@@ -407,19 +407,19 @@ const Battle = {
     playerAttack(e) {
         if(e) e.preventDefault();
         let p = this.units.find(u => u.id === 'player');
-        // Toparlanma bitmeden yeni savurma yok — hızlı tıklama artık hasarı katlamıyor
+        // No new swing before recovery finishes — rapid clicking no longer stacks damage
         if(!p || p.hp <= 0 || p.blocking || p.isAttacking || p.swingCd > 0) return;
         if(this.playerHasBow()) return this.playerShoot(p);
 
         p.isAttacking = true;
-        p.attackTimer = 0.3; // 300ms saldırı süresi
+        p.attackTimer = 0.3; // 300ms attack duration
         p.swingCd = this.swingCooldown();
-        p.hasHit = false; // Tek hedefe vurmak için
+        p.hasHit = false; // So it only hits a single target
         p.angleToMouse = Math.atan2(Input.mouse.y - p.y, Input.mouse.x - p.x);
         this.swings.push({ x: p.x, y: p.y, angle: p.angleToMouse, life: 0.3 });
     },
 
-    // Savurma toparlanması: yeterlilik arttıkça hızlanır (0.75 sn → 0.45 sn)
+    // Swing recovery: speeds up as proficiency rises (0.75s → 0.45s)
     swingCooldown() {
         let lv = this.playerWeaponProf();
         return Math.max(0.45, 0.75 - lv * 0.005);
@@ -434,10 +434,10 @@ const Battle = {
     playerWeaponProf() { return this.prof(this.playerWeaponType()); },
     playerHasBow() { return this.playerWeaponType() === 'bow'; },
     playerDmgType() { let w = state.player.equipment.weapon; return (w && w.dmgType) || 'cut'; },
-    // Kalkan zırh slotunu işgal eder: blok mu, zırh mı — seçim oyuncunun
+    // A shield occupies the armor slot: block or armor — the player's choice
     playerHasShield() { let a = state.player.equipment.armor; return !!a && a.id === 'shield'; },
 
-    // Yay: ok torbası sınırlı, hareket ve at üstü isabeti bozar
+    // Bow: the quiver is limited, movement and being mounted both hurt accuracy
     playerShoot(p) {
         let lv = this.prof('bow');
         p.swingCd = Math.max(0.5, 1.15 - lv * 0.006);
@@ -461,22 +461,22 @@ const Battle = {
         p.bowTimer = 0.25;
     },
 
-    // Zırh hasar türüne göre işler: kesici tam yer, delici yarısını, ezici üçte ikisini
-    // `tgt` yalnız zorluk çarpanı için: hedef oyuncunun tarafındaysa "aldığın",
-    // değilse "verdiğin" hasar. Orta zorlukta çarpan 1, yani denge tablosu aynı.
+    // Armor works by damage type: cut takes it in full, pierce takes half, blunt takes two-thirds
+    // `tgt` is only for the difficulty multiplier: if the target is on the player's side it's "damage you take",
+    // otherwise "damage you deal". At normal difficulty the multiplier is 1, so the balance table is unchanged.
     afterArmor(dmgType, raw, def, tgt) {
         let t = DMG_TYPES[dmgType] || DMG_TYPES.cut;
         return Math.max(1, Math.round((raw * t.mult - (def || 0) * t.armor) * Game.dmgMult(tgt)));
     },
 
-    // Blok: saldırı kalkanın baktığı yaya denk gelirse kesilir (0 = tam blok)
+    // Block: an attack is cut off if it lands within the arc the shield faces (0 = full block)
     blockFactor(tgt, sx, sy) {
         if(!tgt.blocking) return 1;
         let a = Math.atan2(sy - tgt.y, sx - tgt.x);
         let diff = Math.abs(a - (tgt.blockAngle || 0));
         while(diff > Math.PI) diff = 2 * Math.PI - diff;
-        if(diff > Math.PI / 3) return 1;              // arkadan/yandan gelen geçer
-        return tgt.hasShield ? 0 : 0.4;               // kalkanla tam, çıplak kolla %60 azaltma
+        if(diff > Math.PI / 3) return 1;              // an attack from behind/the side gets through
+        return tgt.hasShield ? 0 : 0.4;               // full with a shield, 60% reduction with a bare arm
     },
     blockedFx(tgt, sx, sy) {
         this.spark(tgt.x, tgt.y, Math.atan2(sy - tgt.y, sx - tgt.x), '#dfe6ef');
@@ -484,44 +484,44 @@ const Battle = {
         tgt.blockFlash = 0.2;
     },
 
-    // İki ayağın tavanı. Üstündeki her şey dört ayaklıdır (en yavaş at: Atlı Çapulcu 88),
-    // yani TROOP_TYPES'ta `speed > FOOT_MAX` "binekli" demektir — `type` bunu söyleyemiyor,
-    // çünkü Kergit Atlı Okçusu 'archer', kurtlar 'infantry' görünür.
+    // The ceiling for two legs. Anything above it is four-legged (the slowest horse: Mounted Bandit at 88),
+    // so in TROOP_TYPES `speed > FOOT_MAX` means "mounted" — `type` alone can't tell you that,
+    // because a Khergit Horse Archer shows up as 'archer' and wolves as 'infantry'.
     FOOT_MAX: 85,
-    // Şarj soluğu: bu kadar saniye hızlanır, sonra bu kadar saniye toparlanır.
-    // Nefes molası savaşın ritmi: temas kesmenin tek penceresi burası (#A1).
+    // Charge stamina: sprints for this many seconds, then recovers for this many seconds.
+    // The breather is the battle's rhythm: it's the only window for breaking contact (#A1).
     CHARGE_BURST: 2.0, CHARGE_REST: 4.0, CHARGE_TIRED: 0.9,
 
-    // Oyuncunun yaya hızı. Tavan atın altında kalır: insan atı geçemez.
+    // The player's foot speed. The ceiling stays under a horse: a human can't outrun one.
     footSpeed() {
         return Math.min(this.FOOT_MAX, 56 + Game.attr('agi') * 0.5 + (this.prof('athletics') - 1) * 2);
     },
 
-    // Şarjın HIZ çarpanı (aşağıdaki chargeMult hasarı ölçekler, karıştırma).
-    // Tek kapı: oyuncu ve yapay zekâ aynı soluk bütçesini harcar. Eskiden yalnız
-    // yapay zekâ hızlanıyordu, oyuncu hiçbir düzeyde temas kesemiyordu.
-    // `want` = bu birim şu an hızlanmak istiyor mu. Mesafe SORULMAZ: oyuncunun şarjını
-    // düşman uzaklığına bağlamak, oyuncunun kendi hızının eşiği kontrol ettiği bir geri
-    // besleme döngüsü kuruyordu — 220 sınırında salınan oyuncu soluğunun dörtte birini
-    // harcayıp sürekli hızlı kalıyor ve kendinden hızlı atı bile geçiyordu.
-    // Soluk yalnız gerçekten harcanırken iner, dolarken zamana yayılır.
+    // The charge's SPEED multiplier (chargeMult below scales damage, don't mix them up).
+    // Single gate: the player and the AI spend the same stamina budget. It used to be only
+    // the AI that sped up, and the player couldn't break contact at any skill level.
+    // `want` = does this unit want to be sprinting right now. Distance is NOT consulted: tying the player's
+    // charge to enemy distance built a feedback loop where the player's own speed controlled the threshold —
+    // oscillating around the 220 boundary, the player spent only a quarter of their stamina
+    // and stayed fast permanently, even outrunning a horse faster than themselves.
+    // Stamina only drops while actually being spent; it refills spread over time.
     chargeSpeed(u, want, dt) {
         if(u.chargeT === undefined) u.chargeT = this.CHARGE_BURST;
-        if((u.chargeCd || 0) > 0) {                    // toparlanıyor: dursa da saat işler
+        if((u.chargeCd || 0) > 0) {                    // recovering: the clock runs even while standing still
             u.chargeCd -= dt;
             if(u.chargeCd <= 0) u.chargeT = this.CHARGE_BURST;
             return this.CHARGE_TIRED;
         }
-        // Harcamayan ne kaybeder ne kazanır. Pasif dolum YOK: dolum olsaydı kesik kesik
-        // basmak sürekli basmaktan kârlı olurdu (ölçüldü: 1.083 > 1.033) ve şarj ritmi
-        // yerine tuş tıkırdatma oyunu çıkardı. Soluk yalnız tam mola ile geri gelir.
+        // Not spending it neither loses nor gains anything. There's NO passive refill: if there were, tapping
+        // intermittently would beat holding it down (measured: 1.083 > 1.033), and the charge rhythm
+        // would turn into a key-mashing minigame instead. Stamina only comes back with a full rest.
         if(!want) return 1;
         u.chargeT -= dt;
         if(u.chargeT <= 0) { u.chargeCd = this.CHARGE_REST; return this.CHARGE_TIRED; }
         return u.charge || 1.3;
     },
 
-    // Şarj: at üstünde hızlıyken hasar artar, mızrakla katlanır (couched lance)
+    // Charge: damage rises while fast on horseback, and stacks with a polearm (couched lance)
     chargeMult(u) {
         if(u.type !== 'cavalry') return 1;
         let sp = Math.sqrt((u.lastVx || 0) ** 2 + (u.lastVy || 0) ** 2) / Math.max(1, u.speed);
@@ -529,19 +529,19 @@ const Battle = {
         return 1 + Math.min(1, sp) * (lance ? 1.6 : 0.6);
     },
 
-    // Kılıç yayının yarı açısı — attackAngle + Geniş Savurma yeteneği
+    // The sword swing's half-angle — attackAngle + the Wide Swing skill
     swingHalfAngle() {
         let deg = (state.player.attackAngle || 30) + (state.player.skills.wideSwing || 0) * 10;
         return deg * Math.PI / 180;
     },
 
-    // Tek yerden yakın dövüş hasarı: kan, sarsıntı, hasar yazısı, ölüm kaydı
+    // Melee damage from one place: blood, knockback, damage text, kill logging
     dealMelee(src, tgt, raw) {
         let bf = this.blockFactor(tgt, src.x, src.y);
         if(bf === 0) return this.blockedFx(tgt, src.x, src.y);
         let dmg = this.afterArmor(src.dmgType, raw * bf, tgt.defense, tgt);
         tgt.hp -= dmg;
-        // Nitelikler oynanışla gelişir: vuran oyuncuysa güç, yiyen oyuncuysa dirayet.
+        // Attributes grow through play: strength if the player lands the hit, vitality if the player takes it.
         if(src.id === 'player') Game.trainAttr('str', 0.15);
         if(tgt.id === 'player') Game.trainAttr('vit', dmg / 60);
         tgt.hitFlash = 0.18;
@@ -551,22 +551,22 @@ const Battle = {
         this.spark(tgt.x, tgt.y, a, src.isPlayerTeam ? '#ffdd66' : '#ff8866');
         this.floatingTexts.push({ x: tgt.x, y: tgt.y - 12, text: `-${dmg}`, color: src.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8, big: src.id === 'player' });
         if(tgt.hp <= 0) {
-            // Ezici silah öldürmez, bayıltır — esir düşme şansı yükselir
+            // A blunt weapon doesn't kill, it knocks out — raising the odds of being taken prisoner
             if((DMG_TYPES[src.dmgType] || {}).knock) tgt.stunned = true;
             this.logKill(tgt, src);
             this.awardTroopXp(src.id);
         }
     },
 
-    // Kan ve kıvılcım tek kapıdan geçer: ayarlardan kapatılabilsin (#55 madde 6/7).
-    // Kan/ceset "gore", kıvılcım hareket azaltma ayarına bağlı — ikisi ayrı ihtiyaç.
+    // Blood and sparks both pass through one gate: so they can be turned off in settings (#55 item 6/7).
+    // Blood/corpses fall under "gore", sparks under the reduce-motion setting — two separate needs.
     blood(x, y, size) {
         if(!Game.opt('gore')) return;
         this.bloodStains.push({ x, y, alpha: 1.0, size });
     },
     spark(x, y, angle, color) {
         if(Game.reduceMotion()) return;
-        // Hafif modda parçacık sayısı 5 -> 2 (bkz. Game.lite()).
+        // Particle count drops from 5 to 2 in lite mode (see Game.lite()).
         for(let i = 0, n = Game.lite() ? 2 : 5; i < n; i++) {
             let a = angle + (Math.random()-0.5) * 1.6;
             let sp = 40 + Math.random()*90;
@@ -578,12 +578,12 @@ const Battle = {
         let speedMod = 1.0;
         let attackMod = 1.0;
         if(!this.terrain) return { speedMod, attackMod };
-        // Araziler çarpılmıyor, en kötüsü geçerli: üst üste binen orman+çukur+nehir
-        // süvariyi 0.34'e indiriyordu — köylüden yavaş şövalye. Artık taban 0.6.
+        // Terrain penalties don't multiply, the worst one applies: an overlapping forest+pit+river
+        // used to drag cavalry down to 0.34 — a knight slower than a peasant. Now the floor is 0.6.
         let worst = m => { speedMod = Math.min(speedMod, m); };
 
-        // Orman: dalların takıldığı şey dört ayaklı olandır. `type` bunu bilemez
-        // (Kergit Atlı Okçusu 'archer', kurt 'infantry'), bu yüzden `mounted` sorulur.
+        // Forest: what gets caught on branches is whatever is four-legged. `type` can't tell that
+        // (a Khergit Horse Archer reads 'archer', a wolf 'infantry'), so `mounted` is checked instead.
         if (this.terrain.forests) {
             for(let f of this.terrain.forests) {
                 let dx = u.x - f.x, dy = u.y - f.y;
@@ -593,7 +593,7 @@ const Battle = {
                 }
             }
         }
-        // Tepe
+        // Hill
         if (this.terrain.hills) {
             for(let h of this.terrain.hills) {
                 let dx = u.x - h.x, dy = u.y - h.y;
@@ -602,7 +602,7 @@ const Battle = {
                 }
             }
         }
-        // Çukur
+        // Pit
         if (this.terrain.pits) {
             for(let p of this.terrain.pits) {
                 let dx = u.x - p.x, dy = u.y - p.y;
@@ -611,7 +611,7 @@ const Battle = {
                 }
             }
         }
-        // Nehir
+        // River
         if (this.terrain.rivers) {
             for(let r of this.terrain.rivers) {
                 if(u.x >= r.x && u.x <= r.x + r.w && u.y >= r.y && u.y <= r.y + r.h) {
@@ -634,20 +634,20 @@ const Battle = {
     update(dt) {
         if(dt <= 0) return; // FIX NaN POISONING
 
-        // Emir fırsatları: her biri kendi anında açılır, hepsi bir arada değil.
+        // Command opportunities: each one opens at its own moment, not all together.
         this.battleTime += dt;
         (this.cmdSlots || []).forEach(c => {
             if(c.open || this.battleTime < c.at) return;
             c.open = true;
             this.log(`<span style="color:#ffd479">${T`⚑ Fırsat:`} <b>[${c.key}] ${T(c.name)}</b></span>`);
-            // Log 5 satırla sınırlı ve öldürme mesajları onu süpürüyor; fırsat
-            // oyuncunun kendi başının üstünde de belirsin. Parmakta değil: orada yazı
-            // zaten üst şeritte duruyor ve bu, oyuncunun tam üstüne binen yazıydı.
+            // The log is capped at 5 lines and kill messages sweep it away; the opportunity
+            // should also show above the player's own head. Not on touch: there the text
+            // already sits in the top strip, and this text overlapped the player exactly.
             let pl = this._byId ? this._byId['player'] : null;
             if(pl && !Game.isTouch()) this.floatingTexts.push({ x: pl.x, y: pl.y - 34, text: `⚑ [${c.key}] ${T(c.name)}`, color: '#ffd479', life: 2.2 });
         });
 
-        // Hem Tıklama Hem Boşluk saldırı tetikler
+        // Both clicking and Space trigger an attack
         if(Input.keys[' ']) {
             this.playerAttack();
         }
@@ -703,7 +703,7 @@ const Battle = {
         });
         this.floatingTexts = this.floatingTexts.filter(f => f.life > 0);
 
-        // Kılıç izleri, kıvılcımlar, isabet parlaması
+        // Sword trails, sparks, hit flash
         this.swings.forEach(sw => sw.life -= dt);
         this.swings = this.swings.filter(sw => sw.life > 0);
         this.sparks.forEach(sp => {
@@ -711,8 +711,8 @@ const Battle = {
             sp.vy += 120 * dt; sp.life -= dt;
         });
         this.sparks = this.sparks.filter(sp => sp.life > 0);
-        // Kalabalık savaşta parçacık seli FPS'i düşürüyordu. Hafif modda tavanlar
-        // üçte bire iner: telefonda her leke ayrı bir arc + fill demek.
+        // In a crowded battle a flood of particles was dropping FPS. In lite mode the caps
+        // drop to a third: on a phone every stain is a separate arc + fill.
         let lite = Game.lite();
         let capSpark = lite ? 40 : 120, capText = lite ? 14 : 40, capBlood = lite ? 60 : 200;
         if(this.sparks.length > capSpark) this.sparks.splice(0, this.sparks.length - capSpark);
@@ -726,7 +726,7 @@ const Battle = {
             this.battlePings = this.battlePings.filter(p => p.life > 0);
         }
 
-        // id -> birim tablosu (hedef aramaları bunun üstünden çalışır)
+        // id -> unit table (target lookups run through this)
         this._byId = {};
         this.units.forEach(u => { this._byId[u.id] = u; });
 
@@ -735,63 +735,63 @@ const Battle = {
             if(u.hp <= 0) return;
 
             u.vx = 0; u.vy = 0; // Reset velocity
-            if(u.atkCd > 0) u.atkCd -= dt; // saldırı bekleme sayacı (dt tabanlı — kare hızından bağımsız)
+            if(u.atkCd > 0) u.atkCd -= dt; // attack cooldown timer (dt-based — independent of frame rate)
             
             let { speedMod, attackMod } = this.getTerrainEffects(u);
             let uSpeed = u.speed * speedMod;
             let uAttack = u.attack * attackMod;
 
-            // At vurulunca binici yere düşer — oyuncu dahil herkes için tek kontrol
+            // When the horse is hit, the rider falls off — one check for everyone, player included
             if(u.type === 'cavalry' && u.hp < u.maxHp * 0.5 && !u.dismounted) {
                 u.type = 'infantry';
                 u.dismounted = true;
                 u.mounted = false;   // yayan kalan ormanda ceza yemez
-                // Atını kaybeden yaya kalır — eskiden -30'du, 174'lük şövalye 144'te
-                // kalıyor ve en gelişmiş yaya oyuncuyu hâlâ geçiyordu. Artık gerçekten düşer.
+                // Losing your horse leaves you on foot — it used to be -30, so a 174-speed knight
+                // stayed at 144 and still outran the best-developed foot player. Now it truly drops.
                 u.speed = u.id === 'player' ? this.footSpeed() : Math.max(50, u.speed * 0.55);
                 if(u.id === 'player') u.radius = 8;
                 this.floatingTexts.push({ x: u.x, y: u.y - 12, text: T('Attan Düştü!'), color: '#ffaa00', life: 1.0 });
             }
 
-            // Bozgun: kaçan dövüşmez, kendi geldiği kenara koşar. Hızın asıl burada
-            // anlam kazanır — atlı kaçağı yakalar, yaya bakakalır. Kenara varan
-            // `units`ten silinir (aşağıda), yani ganimete de esire de sayılmaz.
+            // Rout: whoever flees doesn't fight, they run to the edge they came from. This is exactly
+            // where speed matters — cavalry catches the fleeing, infantry is left watching. Whoever
+            // reaches the edge is removed from `units` (below), so they count for neither loot nor prisoners.
             if(u.routing) {
                 u.blocking = false; u.tgtId = null;
                 let hedef = this.routX[u.isPlayerTeam ? 'p' : 'e'];
                 u.vx = Math.sign(hedef - u.x) * uSpeed * this.ROUT_SPEED; u.vy = 0;
                 u.x += u.vx * dt;
                 u.routT = (u.routT || 0) + dt;
-                // Süre kapısı, kenar kapısının ağıdır: sur ya da kaya kaçağı sıkıştırırsa
-                // savaş sonsuza dek bitmez — 12 sn koşan adam savaşı terk etmiş sayılır.
+                // The time gate is a net for the edge gate: if a wall or rock pins the fleeing unit down,
+                // the battle would never end — a unit running for 12s is considered to have left the battle.
                 if(u.x <= 16 || u.x >= this.canvas.width - 16 || u.routT > 12) u.escaped = true;
                 return;
             }
 
             if(u.id === 'player') {
-                Input.aimSync(u);   // parmakla oynanıyorsa nişan sanal çubuğun yönünden gelir (#65)
-                // Blok: sağ tık ya da Shift. Blokta savuramaz, yavaş yürür.
+                Input.aimSync(u);   // on touch, aim comes from the virtual stick's direction (#65)
+                // Block: right click or Shift. Can't swing while blocking, walks slowly.
                 u.blocking = u.hp > 0 && !u.isAttacking && (this.blockHeld || !!Input.keys['shift']);
                 if(u.blocking) u.blockAngle = Math.atan2(Input.mouse.y - u.y, Input.mouse.x - u.x);
                 if(u.blockFlash > 0) u.blockFlash -= dt;
                 if(u.bowTimer > 0) u.bowTimer -= dt;
-                // Blok cezası artık iki tarafta da aynı (yapay zekâ da yavaşlar) ve 0.5 yerine
-                // 0.65: yarı hızda kalkan tutan oyuncu kuşatılıyordu, kimse blok kullanmıyordu.
+                // The block penalty is now the same on both sides (the AI slows too) and 0.65 instead
+                // of 0.5: a player blocking at half speed was getting swarmed, so nobody used block.
                 uSpeed *= u.blocking ? 0.65 : 1;
-                // Saldırı (Sweep) Logic
+                // Attack (Sweep) Logic
                 if(u.swingCd > 0) u.swingCd -= dt;
                 if(u.isAttacking) {
                     u.attackTimer -= dt;
-                    // Kılıç yayı: sol omuzdan sağa süpürür (çizim için)
+                    // Sword arc: sweeps from the left shoulder to the right (for drawing)
                     let half = this.swingHalfAngle();
                     let prog = 1 - Math.max(0, u.attackTimer) / 0.3;
                     u.currentWeaponAngle = u.angleToMouse - half + prog * half * 2;
 
                     if(u.attackTimer <= 0.15 && !u.hasHit) {
                         u.hasHit = true;
-                        // TEK hedef: yayın içindeki en yakın düşman.
-                        // (Eskiden yaydaki herkese aynı anda vuruyordu — grup biçme hatası.)
-                        // Menzil silaha bağlı: mızrak uzun, at üstünde biraz daha uzun
+                        // A SINGLE target: the nearest enemy inside the arc.
+                        // (It used to hit everyone in the arc at once — a group-mowing bug.)
+                        // Range depends on the weapon: a polearm is longer, and a bit longer still on horseback
                         let hitDist = 45 + (this.playerWeaponType() === 'polearm' ? 15 : 0) + (u.type === 'cavalry' ? 8 : 0);
                         let target = null, best = Infinity;
                         this.units.forEach(e => {
@@ -804,7 +804,7 @@ const Battle = {
                             if(diff <= half) { best = dist; target = e; }
                         });
                         if(target) {
-                            // Hasar yeterliliğe bağlı: acemi %35, usta %75
+                            // Damage depends on proficiency: 35% for a novice, 75% for a master
                             let mult = 0.35 + Math.min(0.4, this.playerWeaponProf() * 0.004);
                             let charge = this.chargeMult(u);
                             if(charge >= 1.8) this.floatingTexts.push({ x: u.x, y: u.y - 26, text: T('MIZRAK ŞARJI!'), color: '#ffcc00', life: 0.9 });
@@ -822,10 +822,10 @@ const Battle = {
                 if(Input.keys['s']||Input.keys['arrowdown']) dy=1;
                 if(Input.keys['a']||Input.keys['arrowleft']) dx=-1;
                 if(Input.keys['d']||Input.keys['arrowright']) dx=1;
-                // Şarj soluğu oyuncuda da var: 220 içinde ~2 sn hızlanır, sonra ~4 sn toparlanır.
-                // Temas kesmenin tek penceresi düşmanın molasıdır; eskiden yalnız yapay zekâ
-                // hızlandığı için oyuncu hiçbir düzeyde kaçamıyordu.
-                // ponytail: yön sorulmuyor — yaklaşırken de uzaklaşırken de aynı bütçe.
+                // The player has charge stamina too: sprints for ~2s within 220, then recovers for ~4s.
+                // The only window for breaking contact is the enemy's rest; it used to be only the AI
+                // that sped up, so the player couldn't escape at any skill level.
+                // ponytail: direction isn't asked — same budget whether closing in or backing off.
                 uSpeed *= this.chargeSpeed(u, !!(dx||dy), dt);
                 if(dx||dy) {
                     let len = Math.sqrt(dx*dx+dy*dy);
@@ -834,15 +834,15 @@ const Battle = {
                     u.x = Math.max(10, Math.min(this.canvas.width-10, u.x));
                     u.y = Math.max(10, Math.min(this.canvas.height-10, u.y));
                 }
-                // vx/vy kare başında sıfırlanıyor — şarj ve nişan son kareye bakar
+                // vx/vy get reset every frame — charge and aim look at the last frame
                 u.lastVx = u.vx; u.lastVy = u.vy;
                 return;
             }
 
             // Terrain effects already calculated above
 
-            // Hedef arama eskiden her karede tam taramaydı (kalabalıkta O(n²) ve FPS düşüşü).
-            // Hedef 0.3 sn'de bir yenilenir, aradaki karelerde mesafe id ile bulunan hedeften ölçülür.
+            // Target search used to be a full scan every frame (O(n²) in a crowd, and an FPS drop).
+            // The target refreshes every 0.3s; in between, distance is measured from the target found by id.
             u.retargetCd = (u.retargetCd || 0) - dt;
             let closest = u.tgtId ? this._byId[u.tgtId] : null;
             if(closest && closest.hp <= 0) closest = null;
@@ -877,8 +877,8 @@ const Battle = {
                 }
             }
 
-            // Kuşatmada sur geçilmez: karşı taraftaki hedefe gedikten gidilir. Savunan
-            // kendi tarafında kalır, gediğin ağzını tutar — darboğaz onun avantajıdır (#25).
+            // In a siege the wall can't be crossed: the target on the other side is reached through the breach. The defender
+            // stays on its own side, holding the mouth of the breach — the bottleneck is its advantage (#25).
             let moveX = closest ? closest.x : u.x, moveY = closest ? closest.y : u.y;
             let wall = this.siege && this.siege.wall;
             if(wall && closest) {
@@ -886,9 +886,9 @@ const Battle = {
                 if(mySide !== (targetX < wall.x)) {
                     let g = wall.gaps.reduce((a, b) => Math.abs(b.y - u.y) < Math.abs(a.y - u.y) ? b : a);
                     targetY = moveY = g.y;
-                    // Saldıran gediğin ötesini hedefler (geçince sapma kalkar), savunan ağzında bekler.
-                    // Hedef noktası yakın dövüş menzilinden (35) uzak olmalı: yakınsa birim
-                    // gediğin ağzında "vardım" sanıp duruyor ve orada kırılıyordu.
+                    // The attacker targets past the breach (the offset drops once through it), the defender waits at its mouth.
+                    // The target point must be farther than melee range (35): if it's too close, the unit
+                    // thinks it has "arrived" at the mouth of the breach and stalls there instead.
                     targetX = moveX = u.isPlayerTeam ? wall.x + 70 : wall.x + 40;
                 }
             }
@@ -898,11 +898,11 @@ const Battle = {
                 if(closest) {
                     if(finalDist < 250) {
                         if(finalDist < 55) {
-                            // Yayı bırakıp geri çekilirken ağırlaşır — eskiden yakın dövüşçüyle
-                            // aynı hızda kaçtığı için sonsuza dek risksiz vuruyordu.
-                            // Yaya okçu 0.8'e çıktı (0.55'te kendi okçun da işe yaramıyordu),
-                            // ama ATLI okçu 0.55'te kalır: 108 hızın 0.8'i kovalayanı ebediyen
-                            // geçer ve yukarıdaki hata geri gelirdi.
+                            // Slows down while dropping the bow to retreat — it used to flee at the same speed
+                            // as a melee fighter, so it could shoot risk-free forever.
+                            // A foot archer went up to 0.8 (at 0.55 even your own archer was useless),
+                            // but a MOUNTED archer stays at 0.55: 0.8 of a speed-108 horse would forever
+                            // outrun the pursuer, bringing back the bug above.
                             let dx = u.x - closest.x, dy = u.y - closest.y;
                             let len = Math.max(1, Math.sqrt(dx*dx + dy*dy));
                             let rs = uSpeed * (u.mounted ? 0.55 : 0.8);
@@ -931,7 +931,7 @@ const Battle = {
                     } else {
                         let dx = moveX-u.x, dy = moveY-u.y;
                         let md = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-                        let r = Math.min(uSpeed*0.8*dt/md, 1);   // okçu yürüyerek yaklaşır
+                        let r = Math.min(uSpeed*0.8*dt/md, 1);   // an archer closes in on foot
                         u.vx = dx*r/dt; u.vy = dy*r/dt;
                         u.x += dx*r; u.y += dy*r;
                     }
@@ -943,55 +943,55 @@ const Battle = {
             if(closest) {
                 let meleeRange = 35;
                 let currentTargetDist = Math.sqrt(Math.pow(targetX - u.x, 2) + Math.pow(targetY - u.y, 2));
-                // Kalkanlı düşman vuruşlar arasında blok tutar (blok yeteneği savunmadan gelir).
-                // Aynı Battle.blockFactor kapısından geçer: yalnız önden gelen kesilir, oyuncu yandan dolaşabilir.
+                // A shielded enemy holds block between hits (the block chance comes from its defense).
+                // It passes through the same Battle.blockFactor gate: only a frontal hit is cut off, the player can flank it.
                 if(!u.beast && finalDist <= meleeRange + 15) {
                     u.blockCd = (u.blockCd || 0) - dt;
                     if(u.blockCd <= 0) {
                         u.blockCd = 0.6 + Math.random() * 0.8;
                         u.wantsBlock = Math.random() < Math.min(0.45, (u.defense || 0) / 40);
                     }
-                    u.blocking = !!u.wantsBlock && u.atkCd > 0.2;   // savuracakken kalkanı indirir
+                    u.blocking = !!u.wantsBlock && u.atkCd > 0.2;   // lowers the shield right before swinging
                     if(u.blocking) u.blockAngle = Math.atan2(closest.y - u.y, closest.x - u.x);
                 } else u.blocking = false;
                 if(currentTargetDist > meleeRange) {
-                    // Hücum: hedefe yaklaşırken hızlanır, okçu kaçışını kapatır — ama soluğu
-                    // tükenince toparlanır. Sürekli 1.3 olduğu sürece oyuncu temas kesemiyordu.
+                    // Charge: speeds up while closing on a target, cutting off an archer's escape — but once
+                    // stamina runs out it recovers. While it stayed at a constant 1.3 the player could never break contact.
                     let charge = this.chargeSpeed(u, currentTargetDist < 220, dt);
-                    if(u.blocking) charge *= 0.65;   // kalkan tutan yapay zekâ da yavaşlar (oyuncuyla aynı ceza)
+                    if(u.blocking) charge *= 0.65;   // an AI holding a shield slows down too (same penalty as the player)
                     let dx = targetX-u.x, dy = targetY-u.y;
                     let r = Math.min(uSpeed*charge*dt/Math.max(1, currentTargetDist), 1);
                     u.vx = dx*r/dt; u.vy = dy*r/dt;
                     u.x += dx*r; u.y += dy*r;
                 } else if(finalDist <= meleeRange) {
                     if(u.atkCd <= 0) {
-                        u.atkCd = 0.85 + Math.random()*0.4; // herkes aynı anda vurmasın
+                        u.atkCd = 0.85 + Math.random()*0.4; // so not everyone swings at the same instant
                         this.dealMelee(u, closest, uAttack);
                     }
                 }
             }
         });
 
-        // Sahayı terk edenler savaştan silinir. Tek yer: kaçan ne öldü, ne esir düştü,
-        // ne de üstü arandı — `units`ten çıkması üç sayımı birden doğru yapar.
+        // Anyone who leaves the field is removed from the battle. This is the one place: the fleeing unit is neither killed nor captured,
+        // nor searched — leaving `units` makes all three counts correct at once.
         if(this.units.some(u => u.escaped)) this.units = this.units.filter(u => !u.escaped);
 
-        // Kimse arenadan çıkamaz — geri çekilen okçular haritadan kaçıp savaşı kilitliyordu
+        // Nobody can leave the arena — retreating archers used to flee off the map and lock up the battle
         let bw = this.canvas.width, bh = this.canvas.height;
         let rocks = (this.terrain && this.terrain.rocks) || [];
         this.units.forEach(u => {
             if(u.hp <= 0) return;
             u.x = Math.max(12, Math.min(bw - 12, u.x));
             u.y = Math.max(12, Math.min(bh - 12, u.y));
-            // Kayalar geçilmez: içine giren dışarı itilir.
-            // ponytail: oklar kayanın üstünden geçer — engel siperi yok, sadece hareket engeli.
-            // Kaçan hariç: yatay koşan adamı kaya yana itemez, kapana kısılıp savaşı kilitler.
+            // Rocks are impassable: anyone who enters one is pushed back out.
+            // ponytail: arrows pass right over a rock — no cover value, just a movement obstacle.
+            // Except while fleeing: a rock can't push a unit running straight across sideways, or it gets stuck and locks up the battle.
             if(!u.routing) rocks.forEach(k => {
                 let dx = u.x - k.x, dy = u.y - k.y;
                 let d = Math.sqrt(dx*dx + dy*dy), min = k.r + u.radius;
                 if(d < min && d > 0.01) { u.x = k.x + dx/d*min; u.y = k.y + dy/d*min; }
             });
-            // Sur: gedik dışında geçilmez, gediğin içinde koridor gibi daraltır (#25)
+            // Wall: impassable outside a breach, narrows it into a corridor inside the breach (#25)
             let w = this.siege && this.siege.wall;
             if(w && Math.abs(u.x - w.x) < w.t/2 + u.radius) {
                 let g = w.gaps.find(g2 => Math.abs(u.y - g2.y) < g2.h/2);
@@ -1003,7 +1003,7 @@ const Battle = {
         this.checkEnd();
     },
 
-    // --- Zemin: çim + arazi bir kez offscreen canvas'a çizilir, her karede yeniden üretilmez
+    // --- Ground: grass + terrain is drawn once to an offscreen canvas, never regenerated every frame
     buildGround() {
         let W = this.canvas.width, H = this.canvas.height;
         let g = document.createElement('canvas');
@@ -1015,11 +1015,11 @@ const Battle = {
         base.addColorStop(1, '#233b21');
         c.fillStyle = base; c.fillRect(0, 0, W, H);
 
-        // Hafif mod: zemin bir kez pişiyor ama telefonda o "bir kez" de takılma
-        // olarak hissediliyor (2600 stroke + 60 gradyan). Yoğunluk üçte bire iner.
+        // Lite mode: the ground bakes only once, but on a phone even that "once" is felt
+        // as a stutter (2600 strokes + 60 gradients). Density drops to a third.
         let lite = Game.lite();
 
-        // Yumuşak renk lekeleri — düz yeşil zemin yerine benekli çayır
+        // Soft color blotches — a mottled meadow instead of a flat green ground
         for(let i = 0, n = lite ? 20 : 60; i < n; i++) {
             let x = Math.random()*W, y = Math.random()*H, r = 60 + Math.random()*140;
             let rg = c.createRadialGradient(x, y, 0, x, y, r);
@@ -1027,7 +1027,7 @@ const Battle = {
             rg.addColorStop(1, 'rgba(0,0,0,0)');
             c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
         }
-        // Çim tutamları
+        // Tufts of grass
         for(let i = 0, n = lite ? 700 : 2600; i < n; i++) {
             let x = Math.random()*W, y = Math.random()*H;
             c.strokeStyle = Math.random() > 0.5 ? 'rgba(126,166,92,0.30)' : 'rgba(28,52,26,0.35)';
@@ -1087,14 +1087,14 @@ const Battle = {
 
         if(this.siege && this.siege.wall) this.drawWall(c, this.siege.wall, H);
 
-        // Hafif karartma: birimler zeminin üstünde daha okunur dursun
+        // A slight darkening: keeps units more readable against the ground
         c.fillStyle = 'rgba(6,10,6,0.16)';
         c.fillRect(0, 0, W, H);
 
         this.ground = g;
     },
 
-    // Kuşatma suru: gedikler dışında taş bant + mazgal, kapıda kırık kanatlar (#25)
+    // Siege wall: stone band + crenellations outside the breaches, broken gate leaves at the gate (#25)
     drawWall(c, w, H) {
         let x0 = w.x - w.t/2, x1 = w.x + w.t/2;
         let sorted = w.gaps.slice().sort((a, b) => a.y - b.y);
@@ -1126,10 +1126,10 @@ const Battle = {
                 c.fillStyle = '#3a3129';
                 c.fillRect(x0 - 7, a - 14, w.t + 14, 14);
                 c.fillRect(x0 - 7, b, w.t + 14, 14);
-                c.fillStyle = '#5b3f22';   // kırılmış kapı kanatları
+                c.fillStyle = '#5b3f22';   // broken gate leaves
                 c.fillRect(x0 - 4, a + 3, 9, 22); c.fillRect(x0 - 4, b - 25, 9, 22);
             } else {
-                for(let i = 0; i < 9; i++)   // kule rampası: molozla dolmuş gedik
+                for(let i = 0; i < 9; i++)   // tower ramp: a breach filled with rubble
                     this.drawRock(c, x0 + Math.random()*w.t, a + 6 + Math.random()*(b - a - 12), 3 + Math.random()*4);
             }
         });
@@ -1151,10 +1151,10 @@ const Battle = {
         c.strokeStyle = 'rgba(20,22,24,0.8)'; c.lineWidth = 2; c.stroke();
     },
 
-    // Savaş zemininde bir kez, haritada HER KARE çağrılır (4 orman × ~15 ağaç).
-    // Taç gradyanı ağacın konumuna değil yalnız yarıçapına bağlı: çizim orijine
-    // kurulup translate ile yerine taşınırsa gradyan yarıçap başına bir kez üretilir.
-    // Gradyan onu üreten bağlama bağlı olduğu için önbellek bağlamın üstünde durur.
+    // Once for the battle ground, but called EVERY FRAME on the map (4 forests × ~15 trees).
+    // The canopy gradient depends only on the tree's radius, not its position: drawing is set up
+    // at the origin and moved into place with translate, so the gradient is built once per radius.
+    // Since the gradient is tied to the context that created it, the cache lives on the context itself.
     drawTree(c, x, y, r) {
         let cache = c._treeGrad || (c._treeGrad = {}), key = Math.round(r), rg = cache[key];
         if(!rg) {
@@ -1184,7 +1184,7 @@ const Battle = {
         ctx.clearRect(0,0,W,H);
         ctx.drawImage(this.ground, 0, 0);
 
-        // Su parıltısı (tek canlı arazi efekti)
+        // Water shimmer (the only animated terrain effect)
         if(this.terrain && this.terrain.rivers && !Game.lite()) {
             ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 2;
             this.terrain.rivers.forEach(r => {
@@ -1204,7 +1204,7 @@ const Battle = {
             ctx.fillStyle = `rgba(122,10,10,${b.alpha*0.8})`; ctx.fill();
         });
 
-        // Cesetler — düşenler meydanda kalır
+        // Corpses — the fallen stay on the field
         this.corpses.forEach(cp => {
             ctx.save();
             ctx.translate(cp.x, cp.y); ctx.rotate(cp.rot);
@@ -1216,7 +1216,7 @@ const Battle = {
             ctx.globalAlpha = 1;
         });
 
-        // Kılıç savurma izi
+        // Sword swing trail
         this.swings.forEach(sw => {
             let a = sw.life / 0.3;
             let half = this.swingHalfAngle();
@@ -1231,8 +1231,8 @@ const Battle = {
             ctx.restore();
         });
 
-        // Nişan yayı (#88): parmakla oynarken imleç yok, kılıcın nereye gideceği
-        // ancak çizilirse görünür. Tek kontur — hafif modda da kalır.
+        // Aim arc (#88): there's no cursor on touch, so where the sword will go
+        // is only visible if it's drawn. A single outline — kept even in lite mode.
         let aimP = Game.isTouch() && this.units.find(u => u.id === 'player' && u.hp > 0);
         if(aimP) {
             let a = Math.atan2(Input.mouse.y - aimP.y, Input.mouse.x - aimP.x), half = this.swingHalfAngle();
@@ -1242,10 +1242,10 @@ const Battle = {
             ctx.restore();
         }
 
-        // Birimler — y sırasına göre, derinlik hissi için
+        // Units — sorted by y for a sense of depth
         this.units.filter(u => u.hp > 0).sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));
 
-        // Oklar
+        // Arrows
         this.projectiles.forEach(p => {
             let angle = Math.atan2(p.vy, p.vx);
             ctx.save();
@@ -1261,7 +1261,7 @@ const Battle = {
             ctx.restore();
         });
 
-        // Kıvılcımlar
+        // Sparks
         this.sparks.forEach(sp => {
             ctx.globalAlpha = Math.max(0, sp.life / 0.4);
             ctx.strokeStyle = sp.color; ctx.lineWidth = 1.5;
@@ -1269,7 +1269,7 @@ const Battle = {
         });
         ctx.globalAlpha = 1;
 
-        // Uçan hasar yazıları
+        // Floating damage text
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         this.floatingTexts.forEach(f => {
             ctx.globalAlpha = Math.min(1, f.life / 0.4);
@@ -1280,7 +1280,7 @@ const Battle = {
         });
         ctx.globalAlpha = 1;
 
-        // Komutan pingleri
+        // Commander pings
         if(this.battlePings) {
             this.battlePings.forEach(p => {
                 let progress = 1 - (p.life / 3.0);
@@ -1296,7 +1296,7 @@ const Battle = {
             });
         }
 
-        // Vinyet
+        // Vignette
         if(!this._vignette || this._vignette.w !== W) {
             let vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.35, W/2, H/2, Math.max(W,H)*0.72);
             vg.addColorStop(0, 'rgba(0,0,0,0)');
@@ -1308,11 +1308,11 @@ const Battle = {
         this.drawHud(ctx, W, H, now);
     },
 
-    // Savaşta kullanılan bütün birim emojileri. warmUp() bunları savaş başlamadan
-    // pişirir; yoksa ilk kareler glif rasterizasyonu yüzünden takılıyordu.
+    // All the unit emoji used in battle. warmUp() bakes these before the battle
+    // starts; otherwise the first frames stuttered from glyph rasterization.
     UNIT_ICONS: ['💂', '🏹', '🐎', '🐺', '🐴', '🧑‍🌾'],
 
-    // Konturlu emoji sprite'ı (ikon başına bir kez üretilir).
+    // An outlined emoji sprite (built once per icon).
     unitSprite(icon) {
         if(!this._sprites) this._sprites = {};
         let c = this._sprites[icon];
@@ -1329,9 +1329,9 @@ const Battle = {
         return c;
     },
 
-    // Savaşın ilk karesinde rasterize edilecek yeni bir şey kalmasın.
+    // Make sure nothing new is left to rasterize on the battle's first frame.
     warmUp() {
-        this._swordGrad = null;   // bağlam yenilenmiş olabilir
+        this._swordGrad = null;   // the context may have been recreated
         this.UNIT_ICONS.forEach(i => this.unitSprite(i));
     },
 
@@ -1349,7 +1349,7 @@ const Battle = {
         let sway = isMoving ? Math.sin(now/150 + offset) * 0.15 : 0;
         let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
 
-        // Yer gölgesi + takım halkası (zeminde silik kalmasın diye dolgulu ve tam opak)
+        // Ground shadow + team ring (filled and fully opaque so it doesn't wash out against the ground)
         ctx.beginPath();
         ctx.ellipse(u.x, u.y + 9, 12, 5.5, 0, 0, Math.PI*2);
         ctx.fillStyle = `rgba(0,0,0,${0.5 - hop*0.03})`; ctx.fill();
@@ -1358,8 +1358,8 @@ const Battle = {
         ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
         ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
         ctx.fill();
-        // Takım ayrımı yalnız renge bırakılmaz (#55 madde 6): dost halkası dolu,
-        // düşmanınki kesiklidir — gri tonlamalı ekranda da ayırt edilir.
+        // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
+        // the enemy's is dashed — still distinguishable on a grayscale screen.
         ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
         ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
         ctx.setLineDash([]);
@@ -1379,8 +1379,8 @@ const Battle = {
         ctx.save();
         ctx.translate(u.x, u.y - hop);
         ctx.rotate(sway);
-        // Emoji her kare yeniden rasterize edilmesin: konturlu hâli bir kez
-        // sprite'a pişirilip blit ediliyor (ölçüldü: 13 us -> 3.4 us, 3.8x).
+        // The emoji shouldn't be re-rasterized every frame: its outlined form is baked once
+        // is baked into a sprite and blitted (measured: 13 us -> 3.4 us, 3.8x).
         let spr = this.unitSprite(icon);
         ctx.drawImage(spr, -spr.width/2, -spr.height/2);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1393,7 +1393,7 @@ const Battle = {
         }
         ctx.restore();
 
-        // İsabet parlaması
+        // Hit flash
         if(u.hitFlash > 0) {
             ctx.globalAlpha = Math.min(0.75, u.hitFlash * 4);
             ctx.fillStyle = '#fff';
@@ -1401,7 +1401,7 @@ const Battle = {
             ctx.globalAlpha = 1;
         }
 
-        // Kalkan (blok tutarken) — baktığı yay 60°, isabet alınca beyaz parlar
+        // Shield (while blocking) — a 60° arc it faces, flashes white on a hit
         if(u.blocking) {
             let ba = u.blockAngle || 0;
             ctx.save();
@@ -1414,7 +1414,7 @@ const Battle = {
             ctx.restore();
         }
 
-        // Yay (ok attıktan hemen sonra)
+        // Bow (right after firing an arrow)
         if(u.bowTimer > 0) {
             ctx.save();
             ctx.translate(u.x, u.y - hop);
@@ -1429,7 +1429,7 @@ const Battle = {
             ctx.restore();
         }
 
-        // Kılıç (savururken)
+        // Sword (while swinging)
         if(u.isAttacking) {
             ctx.save();
             ctx.translate(u.x, u.y - hop);
@@ -1442,14 +1442,14 @@ const Battle = {
             if(!this._swordGrad) {
                 let sg = ctx.createLinearGradient(10,-4,45,4);
                 sg.addColorStop(0, '#8a7a55'); sg.addColorStop(0.35, '#f2f2f6'); sg.addColorStop(1, '#9aa0aa');
-                this._swordGrad = sg;   // dönüşümden sonra çizildiği için yerel koordinatlar sabit
+                this._swordGrad = sg;   // drawn after the transform, so local coordinates stay fixed
             }
             ctx.fillStyle = this._swordGrad; ctx.fill();
             ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
         }
 
-        // Can çubuğu — sadece yaralıysa (ve oyuncuda hep)
+        // HP bar — only if wounded (and always for the player)
         if(u.hp < u.maxHp || isPlayer) {
             let bw = 26, r = Math.max(0, u.hp / u.maxHp);
             let by = u.y - 20 - hop;
@@ -1463,26 +1463,26 @@ const Battle = {
     },
 
     drawHud(ctx, W, H, now) {
-        // Emir şeridi
+        // Command strip
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        // Parmakla oynanan cihazda alt yarıyı sanal çubuk, düğmeler ve savaş kütüğü
-        // kaplar: emir şeridi ile oyuncu künyesi güç çubuğunun **altına**, ekranın
-        // üstüne taşınır (#65). Aşağıdaki `B - 40 / -26 / -56 / -76` aynı kalır.
+        // On a touch device the bottom half is taken up by the virtual stick, buttons, and battle log:
+        // the command strip and the player status line move **below** the power bar, toward
+        // the top of the screen instead (#65). The `B - 40 / -26 / -56 / -76` below stays the same.
         const B = Game.isTouch() ? 150 : H;
-        const dokun = Game.isTouch();
+        const touch = Game.isTouch();
         let cmdName = this.currentCommand === 'follow' ? T('Takip Et') : this.currentCommand === 'hold' ? T('Mevzini Koru') : T('Hücum Et');
-        // Parmakla oynarken emir listesi tuvale ikinci kez yazılmaz (#86): `#tcmds`
-        // düğmeleri zaten hangi emrin açık olduğunu gösteriyor. 390 px'lik ekranda
-        // iki liste yan yana sığmıyor, "⚑ Hücum Et" ile "[2] Hücum" birbirine giriyordu.
-        let hudW = dokun ? Math.min(150, W - 24) : Math.min(360, W - 24);
+        // On touch, the command list isn't written to the canvas a second time (#86): the `#tcmds`
+        // buttons already show which command is open. On a 390px screen
+        // the two lists didn't fit side by side, "⚑ Attack" and "[2] Attack" ran into each other.
+        let hudW = touch ? Math.min(150, W - 24) : Math.min(360, W - 24);
         ctx.fillStyle = 'rgba(12,14,10,0.72)';
         ctx.fillRect(12, B - 40, hudW, 28);
         ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1;
         ctx.strokeRect(12, B - 40, hudW, 28);
         ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
         ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
-        if(!dokun) {
-            // Henüz açılmamış emirler soluk: oyuncu neyin ne zaman geleceğini görür
+        if(!touch) {
+            // Commands not yet open are dim: the player sees what's coming and when
             ctx.font = '11px Inter, sans-serif';
             let lbl = { '1': T('Takip'), '2': T('Hücum'), '3': T('Bekle') };
             let x = 22 + hudW*0.42;
@@ -1494,17 +1494,17 @@ const Battle = {
             });
         }
 
-        // Oyuncu künyesi: binek, ok, blok
+        // Player status line: mount, arrows, block
         let pl = this._byId ? this._byId['player'] : null;
         if(pl && pl.hp > 0) {
             let bits = [pl.type === 'cavalry' ? T('🐴 Atlı') : T('🥾 Yaya')];
             if(this.playerHasBow()) bits.push(T`🏹 ${this.arrows} ok`);
-            const blokTus = dokun ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
-            // Parmakta blok düğmesi ekranda duruyor; nasıl blok yapılacağını her kare
-            // yazmak dar ekranda yalnız yer yiyordu (#86). Blok anı yine de yazılır.
+            const blockKeyHint = touch ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
+            // On touch the block button is right there on screen; writing how to block every frame
+            // just wasted space on a narrow screen (#86). The moment of blocking is still shown.
             if(pl.blocking) bits.push(T('🛡 BLOK'));
-            else if(!dokun) bits.push(this.playerHasShield() ? T`🛡 ${blokTus} blok` : T`${blokTus} savuştur`);
-            // Arazi ve soluk görünmez çarpanlardı: oyuncu neden yavaşladığını bilmiyordu.
+            else if(!touch) bits.push(this.playerHasShield() ? T`🛡 ${blockKeyHint} blok` : T`${blockKeyHint} savuştur`);
+            // Terrain and stamina used to be invisible multipliers: the player couldn't tell why they were slower.
             if(this.getTerrainEffects(pl).speedMod < 1) bits.push(T('🌲 Ağır Zemin'));
             if((pl.chargeCd || 0) > 0) bits.push(T('💨 Soluklanıyor'));
             ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
@@ -1517,7 +1517,7 @@ const Battle = {
             ctx.fillText(T('☠ Baygınsın — adamların savaşıyor'), 22, B - 76);
         }
 
-        // Güç çubuğu
+        // Power bar
         let playerAlive = this.units.filter(u => u.isPlayerTeam && u.hp > 0).length;
         let enemyAlive = this.units.filter(u => !u.isPlayerTeam && u.hp > 0).length;
         let total = playerAlive + enemyAlive;
@@ -1591,11 +1591,11 @@ const Battle = {
     },
 
     log(msg, side = 'left') {
-        // Telefonda iki köşe kütüğü ekranın alt yarısını yiyordu ve oyuncunun tam üstüne
-        // biniyordu — kendini göremiyordun. Parmakla oynarken her şey tek şeride düşer ve
-        // yalnız **son** satır durur; renk zaten hangi taraf olduğunu söylüyor.
-        const tek = Game.isTouch();
-        let b = document.getElementById(tek || side === 'left' ? 'battle-log-left' : 'battle-log-right');
+        // On a phone the two corner logs used to eat the bottom half of the screen and sit right
+        // on top of the player — you couldn't see yourself. On touch everything collapses into one strip and
+        // only the **last** line stays; the color already tells which side it's from.
+        const touch = Game.isTouch();
+        let b = document.getElementById(touch || side === 'left' ? 'battle-log-left' : 'battle-log-right');
         if(!b) return;
         let div = document.createElement('div');
         div.className = 'log-msg';
@@ -1606,7 +1606,7 @@ const Battle = {
         div.style.transition = 'opacity 0.5s';
         
         b.prepend(div);
-        while(b.children.length > (tek ? 1 : 5)) b.removeChild(b.lastChild);
+        while(b.children.length > (touch ? 1 : 5)) b.removeChild(b.lastChild);
         
         setTimeout(() => {
             if(b.contains(div)) div.style.opacity = '0';
@@ -1614,9 +1614,9 @@ const Battle = {
         }, 4500);
     },
 
-    // --- KISMİ KATILIM, DALGALAR VE OTOMATİK ÇÖZÜM (#30) ---
-    // Warband'ın "savaş alanı kapasitesi": 100 kişilik ordu tek seferde sahaya
-    // dolmaz; kapasite kadarı dövüşür, saha boşaldıkça yedekler dalga hâlinde girer.
+    // --- PARTIAL ENGAGEMENT, WAVES, AND AUTO-RESOLVE (#30) ---
+    // Warband's "battlefield capacity": a 100-strong army doesn't all
+    // pile onto the field at once; only capacity's worth fights, and reserves enter in waves as the field clears.
     FIELD_CAP: 30,
     reserves: { p: [], e: [] },
     splitReserves(H, startPlayerX, startEnemyX) {
@@ -1625,7 +1625,7 @@ const Battle = {
         [true, false].forEach(team => {
             let side = team ? 'p' : 'e';
             let list = this.units.filter(u => u.isPlayerTeam === team && u.id !== 'player');
-            let over = list.length - (this.FIELD_CAP - (team ? 1 : 0));   // oyuncu da bir yer tutar
+            let over = list.length - (this.FIELD_CAP - (team ? 1 : 0));   // the player also takes up a slot
             if(over <= 0) return;
             this.reserves[side] = list.slice(list.length - over);
             this.units = this.units.filter(u => this.reserves[side].indexOf(u) < 0);
@@ -1637,7 +1637,7 @@ const Battle = {
             let side = team ? 'p' : 'e', pool = this.reserves[side];
             if(!pool.length) return;
             let live = this.units.filter(u => u.isPlayerTeam === team && u.hp > 0).length;
-            // Damla damla değil dalga hâlinde: saha %70'in altına inince toptan takviye gelir
+            // In one wave, not a trickle: once the field drops under 70% a full batch of reinforcements comes in
             if(live > this.FIELD_CAP * 0.7) return;
             let n = 0;
             while(n < this.FIELD_CAP - live && pool.length) {
@@ -1649,38 +1649,38 @@ const Battle = {
             if(n) this.log(`🚩 <b>${T`Takviye dalgası:</b> ${n} ${team ? T('asker sahaya girdi') : T('düşman sahaya girdi')} (yedek: ${pool.length})`}`, team ? 'left' : 'right');
         });
     },
-    // Askerlerini gönder: kazananın kaybı güç oranıyla ters orantılıdır (Lanchester'ın
-    // *doğrusal* yasası). Kare yasası denendi — 5 kat üstün orduda kayıp %3'e düşüyor,
-    // otomatik çözüm bedavaya geliyordu. 0.45 katsayısıyla 2 kat üstünlük ~%22, 5 kat ~%9,
-    // 10 kat ~%4 kayıp verir; elle dövüşmek hâlâ ucuzdur. İdare yeteneği %40'a kadar indirir.
+    // Send your troops in: the winner's losses are inversely proportional to the strength ratio (Lanchester's
+    // *linear* law). The square law was tried — at 5x superiority losses dropped to 3%,
+    // making auto-resolve free. With a 0.45 coefficient, 2x superiority costs ~22%, 5x ~9%,
+    // 10x ~4%; fighting it by hand is still cheaper. The Leadership skill reduces it by up to 40%.
     autoResolve() {
         this.reserves = { p: [], e: [] };
         let str = team => this.units.filter(u => u.isPlayerTeam === team)
             .reduce((a, u) => a + u.hp * (u.attack + 2), 0);
-        let q = str(true) / Math.max(1, str(false)) * (0.85 + Math.random() * 0.3);   // ±%15 talih payı
+        let q = str(true) / Math.max(1, str(false)) * (0.85 + Math.random() * 0.3);   // ±15% luck factor
         let won = q > 1, ratio = won ? q : 1 / q;
         let loss = Math.min(0.85, 0.45 / ratio
             * (1 - Math.min(0.4, (Game.profLvl('leadership') - 1) * 0.04))
-            * (won ? Game.diff().taken : 1));   // zorluk: kazanırken senin kaybın ölçeklenir
+            * (won ? Game.diff().taken : 1));   // difficulty: your own losses scale when you win
         this.units.forEach(u => {
-            if(u.isPlayerTeam !== won) { u.hp = 0; return; }              // kaybeden taraf tamamen düşer
+            if(u.isPlayerTeam !== won) { u.hp = 0; return; }              // the losing side falls entirely
             if(u.id !== 'player' && Math.random() < loss) u.hp = 0;
         });
         let pu = this.units[0];
-        if(won) pu.hp = Math.max(5, Math.round(pu.hp * (1 - loss * 0.6)));   // oyuncu hırpalanır, ölmez
+        if(won) pu.hp = Math.max(5, Math.round(pu.hp * (1 - loss * 0.6)));   // the player is battered, not killed
         this.autoLoss = loss;
         this.active = false;
         this.endBattle(won);
     },
 
-    // --- BOZGUN VE TAKİP ---
-    // Ordu son adamına kadar dövüşmez. Mevcudu dörtte birin altına düşen taraf
-    // dövüşmeyi bırakıp kendi geldiği kenara koşar. Kaçan sahayı terk edince
-    // `units`ten silinir; ganimet, esir ve kayıp sayımı zaten o listeden yürüdüğü
-    // için kaçanın hesabı ek dal yazmadan doğru çıkar (ölmedi, soyulmadı, esir olmadı).
-    ROUT_AT: 0.25,       // kalan mevcut / başlangıç mevcudu
-    ROUT_MIN: 6,         // altı kişilik çetede bozgun safhası yok — çarpışma zaten bitmiştir
-    ROUT_SPEED: 1.2,     // can havliyle koşar: yavaş kaçak yakalanır, hızlı olan kurtulur
+    // --- ROUT AND PURSUIT ---
+    // An army doesn't fight to its last man. Once a side's headcount drops below a quarter
+    // of the start, it stops fighting and runs to the edge it came from. Once a fleeing unit
+    // leaves the field it's removed from `units`; since loot, capture, and casualty counts already
+    // run off that list, the fleeing unit's accounting comes out right with no extra branch (not dead, not looted, not captured).
+    ROUT_AT: 0.25,       // remaining headcount / starting headcount
+    ROUT_MIN: 6,         // a band of six or fewer never routs — the clash is already over by then
+    ROUT_SPEED: 1.2,     // runs for dear life: a slow fugitive gets caught, a fast one gets away
     routCheck() {
         ['p', 'e'].forEach(side => {
             if(this.routed[side] || this.startN[side] < this.ROUT_MIN) return;
@@ -1688,7 +1688,7 @@ const Battle = {
             let ayakta = this.units.filter(u => u.isPlayerTeam === team && u.hp > 0 && u.id !== 'player');
             if(ayakta.length + this.reserves[side].length > this.startN[side] * this.ROUT_AT) return;
             this.routed[side] = true;
-            this.reserves[side] = [];   // bozulan ordunun yedeği sahaya sürülmez
+            this.reserves[side] = [];   // a broken army's reserves are never sent into the field
             ayakta.forEach(u => {
                 u.routing = true;
                 this.floatingTexts.push({ x: u.x, y: u.y - 20, text: T('bozgun!'), color: '#ffdd55', life: 1.6 });
@@ -1713,8 +1713,8 @@ const Battle = {
         let d = document.getElementById('rout-prompt');
         if(d && d.parentNode) d.parentNode.removeChild(d);
     },
-    // Kovalamak da bırakmak da bedelli: kaçağı biçersen ganimet ve esir, bırakırsan
-    // şeref. Hangisini alabileceğin atının hızına bağlı — sayılar burada işe yarar.
+    // Both chasing and letting go have a cost: cut down the fleeing and you get loot and prisoners, let them go and
+    // you get honor. Which one you can afford depends on your horse's speed — the numbers do the work here.
     spareRouters() {
         if(!this.active || !this.routed.e) return;
         let n = 0;
@@ -1735,9 +1735,9 @@ const Battle = {
         else if(!eAlive) { this.active=false; this.endBattle(true); }
     },
 
-    // Seninle boy ölçüşemeyecek düşman doyurmaz: ganimet ve tecrübe güç oranına göre kısılır.
-    // Düşman gücü dışarıdan verilebilir (#55 madde 9): karşılaşma modali savaş
-    // başlamadan aynı formülle "kolay av" uyarısını yazabilsin diye.
+    // An enemy who can't match you isn't worth much: loot and experience are cut down by the strength ratio.
+    // Enemy strength can be supplied from outside (#55 item 9): so the encounter modal can write the
+    // "easy prey" warning with the same formula before the battle even starts.
     rewardScale(enemyPower) {
         let ep = enemyPower !== undefined ? enemyPower
                : this.units.filter(u => !u.isPlayerTeam).reduce((a, u) => a + (u.level || 1) + 1, 0);
@@ -1777,16 +1777,16 @@ const Battle = {
             return;
         }
 
-        // Canı biten asker doğrudan ölmez: Cerrahlık yeteneği onu yaralı olarak
-        // kurtarabilir. Yaralı grupta kalır, savaşamaz, birkaç günde iyileşir.
-        // Eşleştirme sıra yerine id ile yapılır: savaşa girmeyen yaralılar sırayı kaydırıyordu.
+        // A troop whose HP hits zero doesn't die outright: the Surgery skill can save them as
+        // wounded instead. The wounded stay in the group, can't fight, and heal over a few days.
+        // Matching is done by id instead of order: the already-wounded who skip battle used to shift the order.
         let surgery = (state.player.proficiencies.surgery || { level: 1 }).level;
         let saveChance = Math.min(0.75, 0.35 + surgery * 0.03);
         let saved = 0, killed = 0;
         state.player.party.forEach(t => {
             let u = this.units.find(x => x.id === t.id);
             if(!u || u.hp > 0) return;
-            // Yoldaşlar ölmez, yalnızca yaralanır
+            // Companions never die, only get wounded
             if(t.isCompanion || Math.random() < saveChance) {
                 t.wounded = Math.max(1, 3 + Math.floor(Math.random()*2) - Math.floor(surgery / 4));
                 saved++;
@@ -1796,13 +1796,13 @@ const Battle = {
         if(saved) Game.addProficiencyXp('surgery', 30 * saved);
         this.lastCasualties = { saved, killed };
 
-        // Düşen düşmanların bir kısmı ölmez, esir düşer (Warband'ın esir sistemi).
-        // Kapasite Esir Yönetimi yeteneğine bağlı; boss savaşında esir alınmaz.
+        // Some of the fallen enemies don't die, they're taken prisoner (Warband's captive system).
+        // Capacity depends on the Prisoner Management skill; nobody is captured in a boss fight.
         let captured = 0;
         if(won && !this.isBossFight) {
             let free = Game.prisonerCapacity() - state.player.prisoners.length;
             this.units.forEach(u => {
-                // Hayvan esir düşmez; ezici silahla bayıltılan neredeyse kesin düşer
+                // An animal is never captured; anyone knocked out with a blunt weapon almost certainly falls
                 if(u.isPlayerTeam || u.hp > 0 || u.beast || free <= 0) return;
                 if(Math.random() > (u.stunned ? 0.9 : 0.45)) return;
                 state.player.prisoners.push({
@@ -1816,18 +1816,18 @@ const Battle = {
 
         if(won) {
             let xpGain = 30 + state.player.party.length * 5;
-            // Ganimet düşmanın sayısı ve seviyesiyle ölçeklenir — eskiden
-            // 5 çapulcu ile 100 kişilik ordu aynı parayı getiriyordu.
+            // Loot scales with the enemy's count and level — it used to be that
+            // 5 bandits and a 100-strong army paid out the same amount.
             let loot = this.units.filter(u => !u.isPlayerTeam)
-                .reduce((a, u) => a + (u.beast ? 6 : 10) + (u.level || 1) * (u.beast ? 3 : 5), 0);  // post yağması daha az eder
+                .reduce((a, u) => a + (u.beast ? 6 : 10) + (u.level || 1) * (u.beast ? 3 : 5), 0);  // looting a hide pays less
             let moneyGain = Math.floor(loot * (0.85 + Math.random()*0.3) * (1 + (Game.profLvl('looting') - 1) * 0.04));
 
-            // Çapulcu avı sonsuza dek kârlı olmasın
+            // Bandit hunting shouldn't stay profitable forever
             let rScale = this.isBossFight ? 1 : this.rewardScale();
             moneyGain = Math.max(1, Math.floor(moneyGain * rScale));
             xpGain = Math.max(1, Math.floor(xpGain * rScale));
 
-            // Bayılıp adamlarının sırtından kazanılan zafer yarım zaferdir
+            // A victory won unconscious, on your men's backs, is only half a victory
             if(this.knockedOut) {
                 xpGain = Math.floor(xpGain * 0.5);
                 moneyGain = Math.floor(moneyGain * 0.5);
@@ -1842,8 +1842,8 @@ const Battle = {
                 alert(T('Tebrikler! Savaş Tanrısı\'nı yendin. Savaş Tanrısı Nişanı (Lvl 51 Upgrade) kazandın!'));
             }
             
-            // Kaçanı bırakmak: ganimeti değil şerefi seçtin. Kaçanlar zaten `units`ten
-            // silindiği için yukarıdaki ganimet ve esir hesabı onları saymadı bile.
+            // Letting the fleeing go: you chose honor over loot. Since the fleeing were already
+            // removed from `units`, the loot and prisoner counts above never counted them at all.
             let spareHonor = this.spared ? Game.addHonor('spare') : 0;
 
             state.player.money += moneyGain;
@@ -1859,13 +1859,13 @@ const Battle = {
             if(state.player.equipment.horse) Game.addProficiencyXp('riding', 40 * enemyCount);
             else Game.addProficiencyXp('athletics', 40 * enemyCount);
 
-            // Kuşatma
+            // Siege
             let conquestTxt = '';
             if(state.player.currentSiege) {
                 let s = state.player.currentSiege;
                 let loc = LOCATIONS.find(l=>l.id===s.locId);
                 if(loc) {
-                    let oldF = loc.faction;   // fethettiğin krallıkla savaş başlar
+                    let oldF = loc.faction;   // war begins with the kingdom you conquered from
                     if(s.foundingKingdom) {
                         FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+T(' Krallığı'), color:Game.bannerColor(), ruler:state.player.name};
                         state.player.vassalOf = 'player_kingdom';
@@ -1879,28 +1879,28 @@ const Battle = {
                         Game.declareWar(state.player.vassalOf, oldF);
                         conquestTxt = `<b>${T`${T(loc.name)} fethedildi!</b> ${T((FACTIONS[state.player.vassalOf]||{name:'?'}).name)} adına aldın; kralın burayı sana tımar verdi.`}`;
                     }
-                    // Fetih bilgisi zafer modalinde durur: alert() zafer ekranıyla eziliyordu
+                    // Conquest info stays in the victory modal: alert() used to clash with the victory screen
                     if(conquestTxt) conquestTxt += `<br>${T`Tımar geliri`} <b style="color:#ffcc00">${T`+${Game.fiefTax(loc)} dinar/gün`}</b>. `
                         + T`Garnizon bırakmazsan düşman ilk fırsatta geri alır (yerleşim ekranı → 🛡️ Garnizon).`;
                 }
                 state.player.currentSiege = null;
             }
 
-            // Haydut ini (#68) — köy yağmasıyla aynı desen: savaş bitti, kapı burada
+            // Bandit lair (#68) — same pattern as raiding a village: the battle's over, this is where it's wrapped up
             let lairTxt = '';
             if(state.player.currentLair) {
                 lairTxt = Game.clearLair(state.player.currentLair);
                 state.player.currentLair = null;
             }
 
-            // Köy yağması
+            // Raiding a village
             if(state.player.currentRaid) {
                 let locId = state.player.currentRaid.locId;
                 state.player.currentRaid = null;
                 Game.completeRaid(locId);
             }
 
-            // Yenilen NPC'yi haritadan kaldır
+            // Remove the defeated NPC from the map
             let nobleTaken = null, cargoTxt = '';
             if(state.player.currentEncounterNpcId) {
                 let beaten = state.npcParties.find(n => n.id === state.player.currentEncounterNpcId);
@@ -1912,7 +1912,7 @@ const Battle = {
                 state.npcParties = state.npcParties.filter(n => n.id !== state.player.currentEncounterNpcId);
                 state.player.currentEncounterNpcId = null;
 
-                // Kervan/kafile yükü ganimete eklenir (#22)
+                // A caravan/party's cargo is added to the loot (#22)
                 if(beaten && beaten.cargo) {
                     beaten.cargo.forEach(c => {
                         let it = ITEMS[c.id];
@@ -1924,7 +1924,7 @@ const Battle = {
                     if(beaten.purse) { state.player.money += beaten.purse; cargoTxt += T`💰 ${beaten.purse} dinar kese`; }
                 }
 
-                // Yenilen soylu esir düşer: ya fidyesini alırsın ya onurunla salıverirsin
+                // A defeated noble is taken prisoner: either collect the ransom or release them with honor
                 let lord = beaten && beaten.lordId ? Nobles.lord(beaten.lordId) : null;
                 if(lord) {
                     state.player.prisoners.push({
@@ -1958,27 +1958,27 @@ const Battle = {
             </div>`;
             Game.showModal(resultHtml);
         } else {
-            // Savaşı kaybettik — esir düştük.
-            // Nam kaybı parti dağılmadan hesaplanmalı: güç oranı ondan çıkıyor.
+            // We lost the battle — taken prisoner.
+            // Renown loss must be computed before the party disbands: the strength ratio comes from it.
             let epow = this.units.filter(u => !u.isPlayerTeam).reduce((a, u) => a + (u.level || 1) + 1, 0);
             let renownLost = this.isBossFight ? 0 : Game.defeatRenown(epow);
             state.player.renown = Math.max(0, state.player.renown - renownLost);
 
             let daysLost = 3 + Math.floor(Math.random() * 5);
-            // Kaybın oranı artık zar değil karar: tımar kasandaki pay onu düşürür (#53/1.2)
+            // The loss ratio is now a decision, not a die roll: your fief's coffer share reduces it (#53/1.2)
             let ratio = Game.defeatLootRatio();
             let moneyLost = Math.floor(state.player.money * ratio);
             state.player.money = Math.max(0, state.player.money - moneyLost);
 
             state.player.morale = Math.max(0, Game.morale() - 15);
 
-            // Askerler dağılır, esirler zincirlerinden kurtulur
+            // Troops disband, prisoners are freed from their chains
             state.player.party = [];
             state.player.prisoners.filter(p => p.noble).forEach(p => Game.respawnLordParty(p));
             state.player.prisoners = [];
             state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
 
-            // Esir sistemi
+            // Captivity system
             let captorId = state.player.currentEncounterNpcId;
             let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
             if(captor) {
@@ -1996,7 +1996,7 @@ const Battle = {
                 + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : ''));
         }
 
-        // Sync HP — yenilgide yukarıdaki %30 canı ezmesin
+        // Sync HP — so a defeat doesn't crush the 30% floor set above
         let pUnit = this.units[0];
         if(won) state.player.stats.hp = Math.max(1, Math.floor(pUnit ? pUnit.hp : 1));
 
@@ -2005,8 +2005,8 @@ const Battle = {
     },
 
     surrender() {
-        // Düello/arena maçından çekilmek esaret değil yenilgidir — eskiden bu yol
-        // _duelParty'yi geri koymadığı için grubu kalıcı olarak siliyordu.
+        // Withdrawing from a duel/arena match is a defeat, not a captivity — this path used to
+        // not restore _duelParty, permanently wiping out the group.
         if(this.isDuel || this.isArena) { this.active = false; this.endBattle(false); return; }
         this.active = false;
         this.canvas.removeEventListener('mousedown', this.clickHandler);
@@ -2017,9 +2017,9 @@ const Battle = {
 
         let captorId = state.player.currentEncounterNpcId;
         let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
-        // Kuşatma/boss gibi esir alacak kimsenin olmadığı savaşlarda da devam eden
-        // durum temizlenmeli; yoksa açık kalan currentSiege bir sonraki kazanılan
-        // savaşta o şehri fethetmiş sayıyordu.
+        // Ongoing state must be cleaned up even in battles with nobody to capture, like a siege or
+        // boss fight; otherwise a currentSiege left set would make the next battle won
+        // count as having conquered that city.
         let wasSiege = state.player.currentSiege;
         state.player.currentSiege = null;
         state.player.currentRaid = null;
@@ -2044,9 +2044,9 @@ const Battle = {
 const TournamentMinigame = {
     canvas:null, ctx:null, active:false, score:0, targets:[], spawnTimer:0, timeLeft:0, loopId:null, clickHandler:null,
 
-    // Turnuva tur tur elenir (#26). Her turda kuradan rastgele bir ekipman çıkar:
-    // uzun menzilli silah hedefi küçültür ama ekranda daha uzun tutar, kalkanlı topuz
-    // tam tersi. Bahis oranı elendiğin tura bağlı — şampiyonluk ×5 öder.
+    // The tournament eliminates round by round (#26). Each round draws a random piece of gear:
+    // a long-ranged weapon shrinks the target but keeps it up longer, a mace with a shield does
+    // the opposite. The betting odds depend on the round you're eliminated in — winning the championship pays ×5.
     ROUNDS: 4,
     ODDS: [0, 0.3, 0.8, 1.6, 5],
     GEAR: [
@@ -2065,7 +2065,7 @@ const TournamentMinigame = {
         this.perRound = Math.max(1, Math.ceil(this.goal / this.ROUNDS));
         this.gear = this.mode === 'chicken' ? null : this.rollGear();
         this.canvas = document.getElementById('battle-canvas');
-        this.ctx = Game.battleCtx();   // paylaşılan tuvalin tek kapısı (#54)
+        this.ctx = Game.battleCtx();   // single gate to the shared canvas (#54)
         Game.showScreen('battle');
         this.canvas.width = this.canvas.parentElement.clientWidth;
         this.canvas.height = this.canvas.parentElement.clientHeight;
@@ -2089,7 +2089,7 @@ const TournamentMinigame = {
             if(Game.skipFrame(t)) { this.loopId = requestAnimationFrame(loop); return; }
             let dt = Math.min((t-last)/1000, 0.05);
             last = t;
-            Debug.guard('turnuva döngüsü', () => { this.update(dt); this.render(); });
+            Debug.guard('tournament loop', () => { this.update(dt); this.render(); });
             if(this.active) this.loopId = requestAnimationFrame(loop);
         };
         this.loopId = requestAnimationFrame(loop);
@@ -2160,7 +2160,7 @@ const TournamentMinigame = {
                 this.score++;
                 this.targets.splice(i,1);
                 let msg = `${this.mode === 'chicken' ? T('Yakaladın!') : T('İsabet!')} (${this.score}/${this.goal})`;
-                // Tur bitti: yeni kura, temiz saha ve tur arası nefes payı
+                // Round over: a new draw, a clean field, and a breather between rounds
                 if(this.mode !== 'chicken' && this.score < this.goal && this.score % this.perRound === 0) {
                     this.round++;
                     this.gear = this.rollGear();
@@ -2187,7 +2187,7 @@ const TournamentMinigame = {
             return;
         }
 
-        // Bahis: para girişte kesildi, ödeme elenilen tura göre yapılır (#26)
+        // Bet: the money was taken at entry, payout is based on the round you were eliminated in (#26)
         let betTxt = '';
         if(this.bet) {
             let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
