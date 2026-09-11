@@ -450,6 +450,19 @@ input[type="text"]:focus {
     text-align: center;
     border-radius: 8px;
 }
+/* Gövdesine kendi düğmesini koymayan pencere çıkışsız görünüyordu (#70): Esc ve dışa
+   tıklama çalışıyordu ama ekranda "buradan çıkılır" diyen tek piksel yoktu. `sticky`,
+   uzun pencere kaydırılınca da × köşede kalsın diye — `absolute` olsa yukarı kaçardı. */
+#modal-close {
+    position: sticky; top: 0; z-index: 3;
+    display: block; margin: -1.2rem -1.2rem 0 auto;
+    width: 2.4rem; height: 2.4rem; padding: 0;
+    background: none; border: none; border-radius: 6px;
+    color: var(--text-muted); font-size: 1.9rem; line-height: 2.2rem;
+    cursor: pointer;
+}
+#modal-close:hover { color: var(--primary); background: rgba(212, 175, 55, 0.12); }
+
 #modal-body { margin-bottom: 1.5rem; text-align: left; line-height: 1.6; font-size: 1.05rem; }
 
 .hidden { display: none !important; }

@@ -236,6 +236,49 @@ test('Save.migrate: güncel kayda dokunmaz', () => {
     assert.strictEqual(d.state.meta.playtime, 99);
 });
 
+// --- Harita hızı (#72) ---
+// Atlı/yaya farkı 1.5×'i aşmamalı. Kritik nokta: grup bonusu paydada durduğu için
+// atlılık *toplama* olursa oran grup büyüdükçe kayar (eski kodda 2.1× → 2.6×).
+// Bu yüzden tek bir grupta değil, ceza eğrisinin her bölgesinde ölçülür.
+test('hız: atlı/yaya farkı her grup büyüklüğünde 1.5× ile sınırlı', () => {
+    const hiz = (mounted, size) => {
+        // Sınıf `t.type`'tan değil TROOP_TYPES[t.name]'den okunur (troopStats)
+        state.player.party = Array.from({ length: size - 1 }, (_, i) =>
+            ({ id: 'h' + i, name: mounted ? 'Svadya Süvarisi' : 'Svadya Milisi', level: 1 }));
+        state.player.equipment.horse = mounted ? { id: 'horse', name: 'At' } : null;
+        return Game.getPlayerSpeed().value;
+    };
+    [1, 5, 10, 20, 40, 65].forEach(size => {
+        const oran = hiz(true, size) / hiz(false, size);
+        assert.ok(Math.abs(oran - 1.5) < 0.001, `${size} kişilik grupta atlı/yaya farkı ${oran.toFixed(2)}×`);
+    });
+    state.player.party = [];
+    state.player.equipment.horse = null;
+});
+
+// --- Modal kapatma kapısı (#70) ---
+// Esc, dışa tıklama ve × aynı kapıdan (canDismiss) sorar; closeModal sormaz.
+// Bu ayrım önemli: karşılaşma penceresinin kendi düğmeleri ("Yoluna Bırak",
+// "Teslim Ol") pencereyi currentEncounterNpcId hâlâ doluyken kapatır — closeModal
+// da sorsaydı o pencere savaşın arkasında açık kalırdı.
+test('modal: karşılaşma penceresi kullanıcı elinden kapanmaz, kendi düğmesinden kapanır', () => {
+    const doc = g._sandbox.document;
+    const overlay = () => doc.getElementById('modal-overlay').classList.contains('hidden');
+
+    state.player.currentEncounterNpcId = null;
+    Game.showModal('<p>sıradan</p>');
+    Game.dismissModal();
+    assert.ok(overlay(), 'sıradan pencere × ile kapanmadı');
+
+    state.player.currentEncounterNpcId = 'npc_test';
+    Game.showModal('<p>karşılaşma</p>');
+    Game.dismissModal();
+    assert.ok(!overlay(), 'karşılaşma penceresi kullanıcı elinden kapandı');
+    Game.closeModal();
+    assert.ok(overlay(), 'karşılaşmanın kendi düğmesi pencereyi kapatamadı');
+    state.player.currentEncounterNpcId = null;
+});
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.

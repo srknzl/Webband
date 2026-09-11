@@ -343,9 +343,24 @@ Zaman **sadece** harita ekranında, modal kapalıyken ve oyuncu hareket ederken 
 `state.timeScale`'i 0.5 → 1 → 2 arasında döndürür (varsayılan 1; eskiden sabit 2 idi, gün çok hızlı geçiyordu).
 
 **Harita hızı** (`getPlayerSpeed`, Warband'ın modeline yakın):
-`(temel + çeviklik×1.5) × (1 + grup bonusu + atlı oranı×0.35) × arazi × gece × aşırı yük`.
-Temel atlıyken 105, yayayken 66. **Grup bonusu**: tek başına +%50, 10 kişide +%20, 20 kişide 0,
-sonrası kişi başı −%1 (taban −%45) — kalabalık ordu ağır ilerler, atlı oranı bu cezayı hafifletir. Atlı oranı = (süvari sayısı + atın varsa 1) / grup.
+`(temel + çeviklik×1.5) × (1 + grup bonusu) × (1 + atlı oranı×0.5) × arazi × gece × aşırı yük`.
+Temel **66**, atlıyken de aynı. **Grup bonusu**: tek başına +%50, 10 kişide +%20, 20 kişide 0,
+sonrası kişi başı −%1 (taban −%45) — kalabalık ordu ağır ilerler. Atlı oranı = (süvari sayısı + atın varsa 1) / grup.
+
+**Atlı/yaya farkı tam 1.5× ile sınırlıdır (#72)** ve atlılık bu yüzden *çarpandır*, toplama
+değil. Eskiden iki çarpan üst üste biniyordu — taban 105/66 (=1.59×) **ve** ayrıca toplama
+gelen `atlı oranı×0.35`. Toplama, grup bonusu paydada durduğu için sabit bir oran vermez:
+fark grup büyüdükçe kayıyordu. Ölçüldü (tohum 1, düzlük, gündüz), tam atlı / tam yaya:
+
+| Grup | Eski | Yeni |
+|---|---|---|
+| 1 | 1.83× | 1.50× |
+| 10 | 1.91× | 1.50× |
+| 20 | 2.00× | 1.50× |
+| 65 | 2.42× | 1.50× |
+
+Regresyonu `tools/test.js` → *"hız: atlı/yaya farkı her grup büyüklüğünde 1.5× ile sınırlı"*
+tutar; toplamaya geri dönülürse o satır düşer.
 Arazi `getTerrainInfo()`'dan gelir (orman ×0.8, nehir ×0.5, yol ×1.1) ve künyede adıyla yazar.
 Gece (saat <6 veya ≥20) ×0.85. Çantan taşıma sınırını aşarsa `Game.cargoMult()` devreye girer
 (bkz. "Taşıma kapasitesi").

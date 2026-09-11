@@ -503,7 +503,7 @@ const Input = {
             // Modal açıkken klavye modalindir (#55 madde 6): Esc kapatır, Enter ana
             // düğmeye basar. Karşılaşma modali Esc ile kapanmaz — savaştan kaçış değildir.
             if(!document.getElementById('modal-overlay').classList.contains('hidden')) {
-                if(e.key === 'Escape' && !state.player.currentEncounterNpcId) Game.closeModal();
+                if(e.key === 'Escape') Game.dismissModal();
                 else if(e.key === 'Enter') {
                     let b = document.querySelector('#modal-body button.primary') || document.querySelector('#modal-body button');
                     if(b) { e.preventDefault(); b.click(); }
@@ -679,7 +679,7 @@ const Game = {
         this.initTouchUI();
         document.getElementById('modal-overlay').addEventListener('click', e => {
             // Karşılaşma (savaş/teslim ol) modali açıkken dışa tıklayarak kapanmasın
-            if(e.target.id === 'modal-overlay' && !state.player.currentEncounterNpcId) this.closeModal();
+            if(e.target.id === 'modal-overlay') this.dismissModal();
         });
         window.addEventListener('resize', () => this.resizeCanvases());
 
@@ -1948,16 +1948,22 @@ const Game = {
         else if(size <= 20) speedBonus = 0.2 - ((size - 10) / 10) * 0.2;
         else speedBonus = -Math.min(0.45, (size - 20) * 0.01);
 
-        let base = state.player.equipment.horse ? 105 : 66;
+        // Atlı/yaya farkı tek yerden gelir (#72). Eskiden iki çarpan üst üste biniyordu:
+        // taban 105/66 (=1.59×) ve ayrıca atlı oranından gelen toplama +0.35 — tam atlı
+        // grupta fark 2.1×'e, kalabalık orduda (grup cezası paydayı küçültünce) 2.6×'e
+        // çıkıyordu. Şimdi taban ortak, atlılık *çarpan*: toplam fark her grup
+        // büyüklüğünde tam olarak 1.5× ile sınırlı. Toplamaya geri dönülürse sınır
+        // yine kaçar — grup bonusu paydada durduğu için oran sabit kalmaz.
+        let base = 66;
         let agiBonus = this.attr('agi') * 1.5;
-        let mountBonus = this.getMountedRatio() * 0.35; // atlı oranı
+        let mountBonus = this.getMountedRatio() * 0.5; // atlı oranı: yaya 1.0×, tam atlı 1.5×
         let nightMult = this.isNight() ? 0.85 : 1;      // gece yavaş yol alınır
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
         let pathMult = 1 + (this.profLvl('pathfinding') - 1) * 0.02;  // Yol Bulma yeteneği
         let cargoMult = this.cargoMult();                             // aşırı yük (#78)
 
         return {
-            value: (base + agiBonus) * (1 + speedBonus + mountBonus) * terrain.mult * nightMult * pathMult * cargoMult,
+            value: (base + agiBonus) * (1 + speedBonus) * (1 + mountBonus) * terrain.mult * nightMult * pathMult * cargoMult,
             base, agiBonus,
             partyMult: speedBonus,
             mountBonus,
@@ -1989,7 +1995,7 @@ const Game = {
         this.setHtml('ui-speed-breakdown', `
             <b style="font-family:Cinzel,serif">${T`Yol Alma Hızı`}</b>
             <hr style="border:0;border-top:1px solid rgba(212,175,55,.4);margin:5px 0">
-            ${row(T`Temel (${mounted ? T('atlı') : T('yaya')})`, spdData.base, true)}
+            ${row(T('Temel'), spdData.base, true)}
             ${row(T('Çeviklik'), '+' + spdData.agiBonus.toFixed(1), true)}
             ${row(T('Grup büyüklüğü'), this.pct(spdData.partyMult*100, true), spdData.partyMult >= 0)}
             ${row(T('Atlı oranı'), this.pct(spdData.mountBonus*100, true), true)}
@@ -4949,8 +4955,17 @@ const Game = {
         mb.querySelectorAll('button').forEach(b => {
             if(!this.btnLabelOk(b.textContent, 'showModal')) b.style.display = 'none';
         });
+        // × yalnız kapatılabilen pencerede görünür; Esc ve dışa tıklama ile aynı kapıdan sorar
+        let cb = document.getElementById('modal-close');
+        if(cb) { cb.classList.toggle('hidden', !this.canDismiss()); cb.title = T('Kapat'); }
         document.getElementById('modal-overlay').classList.remove('hidden');
     },
+    // Kullanıcının pencereyi *kendiliğinden* kapatabildiği üç yol — Esc, dışa tıklama, ×
+    // — tek yerden sorar; ayrı ayrı sorsalardı biri karşılaşmadan kaçış kapısı bırakırdı (#70).
+    // closeModal'ın kendisi sormaz: karşılaşma düğmeleri ("Savaş", "Teslim Ol") pencereyi
+    // currentEncounterNpcId hâlâ doluyken kapatır, orada da sorulsa pencere açık kalırdı.
+    canDismiss() { return !state.player.currentEncounterNpcId; },
+    dismissModal() { if(this.canDismiss()) this.closeModal(); },
     closeModal() { this.skipType(); document.getElementById('modal-overlay').classList.add('hidden'); },
 
     // --- YAZI MAKİNESİ (#59) ---

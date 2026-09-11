@@ -5,6 +5,16 @@ başlangıç ekranının sağ alt köşesinde yazar.
 
 ## 0.74 — Aç Ordu (2026-09-11)
 
+- **Her pencerenin köşesinde × var.** Esc ve dışarı tıklamak zaten kapatıyordu ama
+  ekranda "buradan çıkılır" diyen bir işaret yoktu; gövdesine kendi düğmesini koymayan
+  pencere çıkışsız görünüyordu. × uzun pencereyi kaydırınca da köşede duruyor.
+  Karşılaşma penceresinde (savaş / teslim ol) çıkmıyor — orası zaten bir karar anı.
+
+- **Atlı olmak artık iki kez saymıyor.** Haritada atlı/yaya farkı yayanın **1.5 katıyla**
+  sınırlı. Eskiden iki ayrı çarpan üst üste biniyordu: fark tek başınayken 1.8, kalabalık
+  orduda 2.4 katına kadar çıkıyordu — süvari toplamak her şeyi gölgede bırakıyordu.
+  Atın hâlâ değerli, sadece ölçüsü belli.
+
 - **Sayı sürgüleri parmakta artık kaçmıyor.** Gönüllü toplarken ya da paralı asker
   tutarken sürgüyü sağa çekmek "bazen" işe yaramıyordu: parmak biraz eğik kaydıysa
   tarayıcı hareketi sayfa kaydırması sanıp sürgüden çalıyordu. Sürgüde artık kaydırma

@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>WebBand - Kalradya</title>
+    <!-- Bağlantı paylaşılınca boş kart çıkıyordu (#88) -->
+    <meta name="description" content="Mount & Blade: Warband-style RPG that runs entirely in the browser. No build, no server.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="WebBand">
+    <meta property="og:description" content="Mount & Blade: Warband-style RPG that runs entirely in the browser. No build, no server.">
+    <meta property="og:image" content="https://serkanozel.me/webband/kingdom_crests.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9876;</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -268,6 +276,8 @@
     <!-- Modals -->
     <div id="modal-overlay" class="hidden">
         <div id="modal-content" class="glass-panel">
+            <!-- Başlığı Game.showModal yazar (Game.canDismiss() false ise gizlenir) -->
+            <button id="modal-close" onclick="Game.dismissModal()">&times;</button>
             <div id="modal-body"></div>
         </div>
     </div>

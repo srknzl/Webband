@@ -1,13 +1,28 @@
 # WebBand
 
+[![test](https://github.com/srknzl/Webband/actions/workflows/test.yml/badge.svg)](https://github.com/srknzl/Webband/actions/workflows/test.yml)
+
+**[▶ Play it here](https://serkanozel.me/webband/)**
+
 A single-page, Mount & Blade: Warband-style RPG that runs entirely in the browser.
-Turkish UI. No build step, no dependencies, no server.
+Turkish, English and Bahasa Indonesia UI, chosen on first launch. No build step, no
+dependencies, no server.
 
 ```bash
 git clone https://github.com/srknzl/Webband.git
 ```
 
-Then open `index.html` in a browser. That's the whole install.
+Then open `index.html` in a browser. That's the whole install. Saves are per-origin, so
+the hosted game and your local copy keep separate saves.
+
+## Controls
+
+Mouse and keyboard on desktop: click the map to move, `M`/`C`/`P`/`I`/`Q` switch screens,
+`Esc` closes a window, `Enter` presses its main button.
+
+On a touch screen the game switches to two sticks in battle: **the left stick walks, the
+right stick aims your sword** — where you pull is where you strike, lift to swing. The
+yellow arc in front of you shows where the blade will land.
 
 ## What's in it
 
@@ -29,7 +44,11 @@ JSON from the 💾 Kayıtlar screen.
 | `battle.js` | Battle arena and tournament minigame (`Battle`, `TournamentMinigame`) |
 | `nobles.js` | Lords, ladies, companions, courtship, feasts |
 | `quests.js` | Quest definitions and the quest engine |
+| `i18n.js` | Language layer; the Turkish source text is the key |
+| `lang-en.js`, `lang-id.js` | English and Bahasa Indonesia dictionaries (generated) |
 | `style.css` | Glassmorphism theme |
+| `tools/` | Headless test, simulation and balance tools, run by CI |
+| `docs/` | Design plans, system notes and measurements (Turkish) |
 | `CLAUDE.md` | Design notes and measured numbers (Turkish) |
 | `CHANGELOG.md` | Player-facing change log (Turkish) |
 
