@@ -573,8 +573,8 @@ Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara
 
 - `Game.basePriceMult(loc, id)` = **üretim bölgesi** (`Game.GOOD_ORIGIN`: Svadya tahıl 0.70,
   Rodok bira 0.65 / demir 0.80, Veagir et 0.70, Nord tuz 0.70, Kergit peynir 0.70; uzak
-  krallıkta 1.20–1.35) × yerleşim+mal hash'inden sabit ±%12 sapma × köy düzeltmesi
-  (erzak ×0.8, ticaret malı ×1.15) × refah (`1.15 − refah/400`).
+  krallıkta 1.20–1.35) × **konuma bağlı** ±%6 sapma (`Game.priceNoise`, aşağıda) × köy
+  düzeltmesi (erzak ×0.8, ticaret malı ×1.15) × refah (`1.15 − refah/400`).
 - `Game.priceMult(loc, id)` = taban × **arz eğrisi** (`supplyMul`). Fiyatın kendi durumu yoktur;
   oynayan tek şey **stoktur** (aşağıda). Aynı gün pazara ikinci kez girmek fiyatı değiştirmez —
   ölçüldü: Praven'de bira iki girişte de 44₺.
@@ -583,6 +583,35 @@ Fiyat artık şehre girerken atılan **tek zar** değil (eskiden bütün mallara
 - **Lonca fiyat defteri** (han → ⚖️ Lonca Ustası → 📈 Fiyat Defterine Bak,
   `Game.guildPrices`): en yakın 5 şehrin bütün erzak/ticaret mallarındaki fiyatı tek tabloda.
   Rota kurmanın bilgi kaynağı bu — Warband'daki "ticaret malları fiyatları" ekranı.
+
+#### Sapma coğrafyadır, hash değil (#77)
+Yerleşim başına sapma eskiden `loc.id + id` hash'inden geliyordu: **±%12**, coğrafyayla
+hiçbir ilgisi yok. Yan yana iki şehirden biri 0.88, öbürü 1.12 çekebiliyordu — yani fiyat
+haritadan okunamıyor, ancak her şehre tek tek girip ezberlenebiliyordu.
+
+`Game.priceNoise(x, y, id)` sapmayı **konumdan** üretir: iki düşük frekanslı sinüsün toplamı
+(`PRICE_WAVE = [1800, 1100]` birim ölçek, ağırlık 0.6 / 0.4), dalga yönü ve fazı **mal
+kimliğinin hash'inden** gelir. Yani tahılın ucuz olduğu bölge demirin ucuz olduğu bölge
+değildir, ama her malın kendi bölgesi vardır ve o bölge süreklidir. Genlik `PRICE_NOISE`
+= **0.06** (±%6). Kayda hiçbir şey girmez — `loc.x`/`loc.y` zaten kayıtlı.
+
+Ölçüldü (5 tohum, 25 yerleşim × 8 mal, sapma `GOOD_ORIGIN`/köy/refah bölünerek izole edildi):
+
+| | hash (eski) | konum (yeni) |
+|---|---|---|
+| Sapma aralığı | −%12 .. +%12 | **−%5.9 .. +%5.9** |
+| **En yakın komşu şehirle fark** (medyan / p90 / en kötü) | %6.0 / %15.0 / **%23.0** | **%1.1 / %2.4 / %5.8** |
+| Uzak çiftle fark (>3500 birim, medyan / en kötü) | %7.0 / %24.0 | **%3.0 / %11.4** |
+
+Okunacak sonuç son iki satırın **oranıdır**: eskiden komşu farkı (%6.0) ile uzak çift farkı
+(%7.0) neredeyse aynıydı — mesafe hiçbir şey söylemiyordu. Şimdi komşu %1.1, uzak %3.0:
+bölge gerçek bir bilgi. Ölçüldü (tohum 3, demir, batıdan doğuya): Veluca −%7 / Jelkala +%8
+(150 birim arayla %15 fark) yerine **−%2.6 / −%1.6**; Praven'den Suno'ya doğru sapma
+−%5.7 → −%1.7 diye **düzgün** azalıyor.
+
+Gerçek fiyat farkı böylece asıl kaynaklarına kalır: **üretim bölgesi** (`GOOD_ORIGIN`,
+±%35) ve **stok** (`supplyMul`, ×0.55–2.0). İkisi de öğrenilebilir, ikisi de oyuncunun
+davranışıyla değişir.
 
 #### Sınırlı stok ve arz eğrisi (#46)
 Pazarın elindeki mal sonsuz değil: `loc.stock[id]` (kayda girer, `Save`'deki `locations` dizisinde).

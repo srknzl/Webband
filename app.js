@@ -4848,13 +4848,27 @@ const Game = {
         nord:    { salt:0.70,  meat:0.85,  wheat:1.30,  iron:1.20 },   // kıyı, tuzla
         khergit: { cheese:0.70, meat:0.75, velvet:1.35, bread:1.25 }   // bozkır, sürü
     },
+    // Sapma hash değil coğrafyadır (#77). Eskiden `loc.id + id` hash'i ±%12 sapma
+    // veriyordu: yan yana iki şehirden biri 0.88, öbürü 1.12 çekebiliyordu ve rota
+    // kurmanın tek yolu her şehre tek tek girip ezberlemekti. Şimdi sapma konumdan
+    // gelen iki düşük frekanslı dalganın toplamı — komşu yerleşimler benzer sapma
+    // alır, uzak bölgeler ayrışır, yani harita okunabilir. Mal başına dalga yönü ve
+    // fazı ayrı olduğu için tahılın ucuz olduğu bölge demirin ucuz olduğu bölge değil.
+    PRICE_NOISE: 0.06,              // ±%6 (eski hash ±%12 idi)
+    PRICE_WAVE: [1800, 1100],       // dalga boyu ölçeği (birim) — kıta 9000 birim geniş
+    priceNoise(x, y, id) {
+        let h = 0;
+        for(let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+        let a1 = (h % 628) / 100, a2 = ((h >>> 7) % 628) / 100;          // dalga yönleri
+        let p1 = ((h >>> 3) % 628) / 100, p2 = ((h >>> 11) % 628) / 100; // fazlar
+        let [w1, w2] = this.PRICE_WAVE;
+        return 0.6 * Math.sin((x * Math.cos(a1) + y * Math.sin(a1)) / w1 + p1)
+             + 0.4 * Math.sin((x * Math.cos(a2) + y * Math.sin(a2)) / w2 + p2);
+    },
     basePriceMult(loc, id) {
         let it = ITEMS[id];
         let m = (this.GOOD_ORIGIN[loc.faction] || {})[id] || 1;
-        // Aynı krallığın her şehri aynı fiyatı vermesin: yerleşim+mal'dan türeyen sabit sapma
-        let h = 0, str = loc.id + id;
-        for(let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-        m *= 0.88 + (h % 25) / 100;
+        m *= 1 + this.PRICE_NOISE * this.priceNoise(loc.x || 0, loc.y || 0, id);
         if(loc.type === 'village' && it) m *= it.type === 'food' ? 0.8 : 1.15;   // köy erzağı ucuz, ticaret malı pahalı
         return m * (1.15 - (loc.prosperity || 50) / 400);                        // bolluk fiyatı düşürür
     },
