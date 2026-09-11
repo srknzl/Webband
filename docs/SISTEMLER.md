@@ -1249,6 +1249,16 @@ kendi birim karışımını doğurur. 6+ kişilik çetenin başında **reis** ç
     ölçüldü: 1v1'de kovalama 28.6 sn → 12 sn, piyadenin kalan canı 24 → 31.
     Regresyon kapısı `tools/test.js`'in üç *"kite: …"* iddiasıdır: atlı okçu, yaya okçu ve
     kurt sürüsü 180 sn'lik tavana takılmadan sonuçlanmalı.
+  - **Savaş kütüğü telefonda tek satır (#89)**: iki köşe yığını (`#battle-log-left/right`,
+    her biri 46vw × %20) ölüm satırlarını, düşman komutanının repliğini ve emir yazılarını
+    arenanın alt yarısına yığıyordu — oyuncu kendi silüetini göremiyordu. Parmakla oynanan
+    cihazda `Battle.log` her şeyi **sol** kütüğe yazar, orada yalnız **son** mesaj durur
+    (masaüstünde 5), ve CSS şeridi güç çubuğunun altına, tam enine, tek satıra alır
+    (`white-space:nowrap` + ellipsis; komutan repliğinin `display:block` parçaları da
+    `inline`'a çevrilir). Sağ kütük kapanır — taraf bilgisi zaten renkte.
+    Aynı sebeple emir fırsatının **oyuncunun başının üstündeki** uçan yazısı parmakta
+    çizilmez; o yazı tam olarak oyuncuyu kapatan yazıydı ve bilgi zaten şeritte.
+    Ölçüldü (375×812, komutan repliği): şerit `top:62`, yükseklik **16 px**, tek satır.
   - **Herkes arenaya kilitli** (12 birim kenar payı) — geri çekilen okçular haritadan kaçıp savaşı
     sonsuza kilitliyordu.
   - Oyuncu ölürse savaş bitmez: **bayılırsın** (`Battle.knockedOut`), adamların dövüşmeye devam eder.

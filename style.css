@@ -970,6 +970,29 @@ input[type="range"] { touch-action: none; height: 2.4rem; }
     body.in-battle #top-bar, body.in-battle #sidebar { display: none; }
     body.in-battle .content-area { padding: 0; gap: 0; }
     body.in-battle #battle-view { border-radius: 0; border-width: 0; }
+
+    /* Savaş kütüğü telefonda tek satır (#89). İki köşe yığını 46vw × %20'ydi: ölüm
+       satırları, komutan repliği ve emir yazıları arenanın alt yarısını kaplıyor,
+       oyuncu kendi silüetini göremiyordu. Artık güç çubuğunun altında, tam enine
+       tek satır; `battle.js` orada yalnız son mesajı bırakıyor. Sağ kütük kapanır —
+       taraf bilgisi zaten renkte. */
+    body.in-battle #battle-log-right { display: none; }
+    body.in-battle .battle-logs {
+        left: 8px !important; right: 8px !important; width: auto; max-width: none;
+        top: 62px; bottom: auto; max-height: 20px;
+        text-align: center !important;
+        -webkit-mask-image: none; mask-image: none;
+    }
+    body.in-battle .battle-logs .log-msg {
+        padding: 1px 8px !important;
+        font-size: 0.68rem; line-height: 1.5;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Komutan repliği `display:block` + 1.1rem ile iki satır açıyordu — şeritte hepsi
+       tek satırın parçası. */
+    body.in-battle .battle-logs .log-msg * {
+        display: inline !important; font-size: inherit !important; margin: 0 !important;
+    }
 }
 
 /* Alt şeritte "Teslim Ol" düğmesi duruyor: kumanda onun **üstünde** başlar,

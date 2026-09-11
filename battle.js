@@ -630,9 +630,10 @@ const Battle = {
             c.open = true;
             this.log(`<span style="color:#ffd479">${T`⚑ Fırsat:`} <b>[${c.key}] ${T(c.name)}</b></span>`);
             // Log 5 satırla sınırlı ve öldürme mesajları onu süpürüyor; fırsat
-            // oyuncunun kendi başının üstünde de belirsin.
+            // oyuncunun kendi başının üstünde de belirsin. Parmakta değil: orada yazı
+            // zaten üst şeritte duruyor ve bu, oyuncunun tam üstüne binen yazıydı.
             let pl = this._byId ? this._byId['player'] : null;
-            if(pl) this.floatingTexts.push({ x: pl.x, y: pl.y - 34, text: `⚑ [${c.key}] ${T(c.name)}`, color: '#ffd479', life: 2.2 });
+            if(pl && !Game.isTouch()) this.floatingTexts.push({ x: pl.x, y: pl.y - 34, text: `⚑ [${c.key}] ${T(c.name)}`, color: '#ffd479', life: 2.2 });
         });
 
         // Hem Tıklama Hem Boşluk saldırı tetikler
@@ -1559,7 +1560,11 @@ const Battle = {
     },
 
     log(msg, side = 'left') {
-        let b = document.getElementById(side === 'left' ? 'battle-log-left' : 'battle-log-right');
+        // Telefonda iki köşe kütüğü ekranın alt yarısını yiyordu ve oyuncunun tam üstüne
+        // biniyordu — kendini göremiyordun. Parmakla oynarken her şey tek şeride düşer ve
+        // yalnız **son** satır durur; renk zaten hangi taraf olduğunu söylüyor.
+        const tek = Game.isTouch();
+        let b = document.getElementById(tek || side === 'left' ? 'battle-log-left' : 'battle-log-right');
         if(!b) return;
         let div = document.createElement('div');
         div.className = 'log-msg';
@@ -1570,7 +1575,7 @@ const Battle = {
         div.style.transition = 'opacity 0.5s';
         
         b.prepend(div);
-        while(b.children.length > 5) b.removeChild(b.lastChild);
+        while(b.children.length > (tek ? 1 : 5)) b.removeChild(b.lastChild);
         
         setTimeout(() => {
             if(b.contains(div)) div.style.opacity = '0';

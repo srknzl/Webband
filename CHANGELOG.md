@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.76 — Tek Satır (2026-09-11)
+
+- **Telefonda savaşta artık kendini görüyorsun.** Ölüm satırları, düşman komutanının
+  nutku ve emir yazıları iki köşede yığılıp arenanın alt yarısını kaplıyordu; üstüne bir
+  de emir fırsatı senin başının üstüne yazılıyordu. Hepsi güç çubuğunun altında, tam
+  enine, **tek satıra** indi ve orada yalnız son mesaj duruyor. Masaüstünde hiçbir şey
+  değişmedi — orada yer zaten vardı.
+
 ## 0.75 — Nefes Payı (2026-09-11)
 
 Savaş hızlarının baştan aşağı dengelenmesi. Kısaca: kimse sonsuza dek hızlı değil, kimse
