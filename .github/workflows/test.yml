@@ -30,7 +30,9 @@ jobs:
       - env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           v=$(node -e "console.log(require('./tools/harness').load({quiet:true}).VERSION.no)")
-          gh release view "v$v" >/dev/null 2>&1 && { echo "v$v zaten yayımlanmış"; exit 0; }
+          # `a && exit 0` yazılamaz: bash -e altında `gh release view` başarısızken bütün
+          # liste 1 döner ve adım tam da release açılması gereken turda kırılır.
+          if gh release view "v$v" >/dev/null 2>&1; then echo "v$v zaten yayımlanmış"; exit 0; fi
           title=$(awk -v v="$v" '$0 ~ "^## " v "[ (]" {sub(/^## /,""); sub(/ \([0-9-]+\)$/,""); print; exit}' CHANGELOG.md)
           awk -v v="$v" '$0 ~ "^## " v "[ (]" {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
           # CHANGELOG'a satır girmeden sürüm artırılmışsa boş release açma, uyar ve kal
