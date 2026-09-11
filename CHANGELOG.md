@@ -3,6 +3,23 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.79 — Yolda Bir Adam (2026-09-11)
+
+İki şehir arası artık boş bir çizgi değil. Yolda biri seni durduruyor ve bir şey soruyor;
+cevabın bedava değil. Yirmi ayrı karşılaşma, her birinin iki-üç cevabı, her cevabın bir
+bedeli — para, saat, moral, şeref, bazen doğrudan kılıç.
+
+- **Yolda karar veriyorsun.** Yol kenarında dilenen ihtiyar, ateşler içindeki kervancı,
+  zincirli adam, haraç isteyen altı kişi, damgası başkasına ait üç at… Her biri sana
+  soruyor, sen seçiyorsun. "Yoluna devam et" de bir seçim — adamların onu da görüyor.
+- **Şeref yolda birikiyor.** Tek tek küçük: yardım eden ele +2, zayıfı ezene −2. Ama yirmi
+  olay sonunda huy oluyor ve lordlar bunu biliyor.
+- **Olaylar nereden geçtiğini biliyor.** Kurt postu ormanda çıkar, taşkın geçit nehirde,
+  gecenin ortasındaki ateş yalnız geceleyin. Yağmalanmış bir köyün dibinde külün içinden
+  biri çıkıyor. Şerefi yüksek olana köy yol kenarına peynir sepetiyle iniyor.
+- **Zar güne değil yola bağlı.** Kampta beklemek olay çıkarmaz; yol yürümek çıkarır.
+  Savaştan yeni çıkmışken de sayaç durur — üst üste iki karar konmaz önüne.
+
 ## 0.78 — Ağaçların Arasından (2026-09-11)
 
 Ormanda "hiç görmediğim bir şey bana saldırdı" diye bir şey kalmadı. Pusu da kurt sürüsü de

@@ -1599,6 +1599,38 @@ Sefer sessiz bir tabloya bakmak olmasın diye `Game.dailyEvent()` her günün so
 Ölçüldü (400 gün, gezen ve büyüyen 6 kişilik grup): **156 olay — 2.6 günde bir**, %60'ı
 olumsuz, 13 olayın 12'si çıktı (nal düşmesi at gerektirir).
 
+### Yol olayları — kararı olan karşılaşmalar (#67)
+Günün olayı sana *olur*; yol olayı sana **sorar**. `Game.ROAD_EVENTS` 20 olaydan oluşur,
+her birinin 2–3 seçeneği ve her seçeneğin gerçek bir bedeli vardır: para, saat, moral,
+şeref, bir askerin yaralanması ya da doğrudan savaş.
+
+- **Zar mesafeye bağlıdır, güne değil.** `Game.roadTick(step)` hareket dalında her karede
+  yürünen birimi toplar; `ROAD_EVERY` **1200** birimde bir `ROAD_CHANCE` **0.25** atar,
+  yani beklenen aralık 4800 birim. Esir iken ve `encounterCooldown` sürerken sayaç durur —
+  savaştan yeni çıkmış oyuncunun önüne hemen bir karar daha konmaz.
+- **İkinci bir olay sistemi kurulmadı.** Günün olayı ile yol olayı aynı üç parçayı
+  paylaşır: bağlam `Game.eventCtx()` (grup/kapasite, 900 birim içindeki en yakın yerleşim
+  ve onun fraksiyonu, erzak, moral, kese, şeref, gece mi, arazi adı, yolda mı), seçim
+  `Game.pickEvent(havuz, ctx, ek?)` ve ortak **son 6 olay** penceresi (`state.recentEvents`).
+  İki havuz, tek makine.
+- **Süzgeçler bağlamı gerçekten kullanır**: `pelt` yalnız ormanda, `ford` yalnız nehir
+  geçidinde, `lost_scout` yolun dışında, `peddler` yolun üstünde, `night_fire`/`tracks`
+  yalnız geceleyin, `survivor` yalnız son 10 gün içinde yağmalanmış bir köyün dibinde,
+  `treat` yalnız şerefin ≥10 iken çıkar.
+- **Ham dur, gösterimde çevir.** Havuzdaki `text` ve her `label` **fonksiyondur**: tablo
+  `I18N.load()`'dan önce kurulduğu için üst düzeyde yazılan `T('…')` çeviriyi dondururdu.
+  Fonksiyon gövdesindeki dize aynı zamanda statik çıkarıcının gördüğü bir literaldir —
+  *"her T anahtarı iki sözlükte de var"* iddiası bu havuzu da kapsar, ayrı kapı gerekmez.
+- **Tek kapı, iki kullanıcı**: sonuç `{ html, then }` döndürebilir; `then` modal
+  kapandıktan **sonra** çalışır (`Game.modalDone()`). Keşif noktası sonuçları da aynı
+  kapıdan geçer — modal kapanmadan açılan savaş ekranı altta kalıyordu.
+- Paylaşılan yardımcılar: `Game.spend(n)`, `Game.woundRandom(gün)`, `Game.addRecruit(loc)`
+  (kapasite doluysa `null`), `addMorale/addItem/takeFood/addHonor/advanceTime`.
+
+Ölçüldü (tohum 1–5, 30 gün **kesintisiz** yol, 6 kişilik grup ≈111 birim/saat):
+**13–20 olay, ortalama 16**. Gerçek oyunda günün tamamı yolda geçmediği için bunun
+yarısı kadar görünür.
+
 ### Debug raporu (#52)
 Hata yaşandığında elde ekran görüntüsünden fazlası olsun diye **🐞 Debug Raporu**
 düğmesi var (`Debug.open()`; ⚙️ Ayarlar panelinden ve hata rozetine tıklayarak açılır). `Debug` objesi `app.js`'in **en başında**
@@ -2700,7 +2732,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **58 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **62 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
@@ -2711,7 +2743,11 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
    Sürücü tablosunun `Object.keys(QUESTS)`'i kapsadığı ayrıca iddia edilir — yeni görev
    ekleyip testini yazmamak kırmızıya döner. Görev **başlıkları** ham veri olduğu için
    (`T(def.title)`, statik çıkarıcının göremediği biçim) iki sözlükte varlıkları ayrı bir
-   iddiayla kapılıdır.
+   iddiayla kapılıdır. **Yol olayları takımı** (#67) da burada: havuzdaki her seçenek
+   gerçekten koşturulur — `run` gövdesi koddur, adı değişen bir yardımcı yalnız o seçenek
+   seçildiğinde patlar ve bunu ancak oyuncu görürdü. Tetikleyicinin mesafeye bağlı olduğu
+   `ROAD_CHANCE`'i 1'e çekerek sınanır; motorun kendi `Math`'ı ayrı vm bağlamındadır,
+   dışarıdan `Math.random` değiştirmek işe yaramaz.
 2. **Eşikler** — 200 günlük oyuncusuz dünya (`sim.js`) ve 60 günlük ekonomi betikleri
    (`economy.js`). Dünya rastgele olduğu için kesin sayı değil **aralık** beklenir:
    fetih 1–20, kafile baskını 20–200, silinen krallık 0; boş gezen ordu günlük kâr etmemeli,

@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.78', date: '2026-09-11', name: 'Ağaçların Arasından' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.79', date: '2026-09-11', name: 'Yolda Bir Adam' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -974,14 +974,17 @@ const Game = {
         if(!k.renew) state.sites = state.sites.filter(x => x !== s);
         this.addProficiencyXp('spotting', 20);
         this.updateTopBar();
-        this._siteThen = r.then || null;
+        this._afterModal = r.then || null;
         this.showModal(`<h3>${k.icon} ${T(k.name)}</h3><p>${r.html}</p>
-            <button class="btn primary" style="margin-top:1rem" onclick="Game.siteDone()">${T`Tamam`}</button>`);
+            <button class="btn primary" style="margin-top:1rem" onclick="Game.modalDone()">${T`Tamam`}</button>`);
     },
 
-    siteDone() {
-        let f = this._siteThen;
-        this._siteThen = null;
+    // "Kapat, sonra devam et": keşif noktası da yol olayı da sonucu gösterip
+    // ardından bir savaş açabiliyor — modal kapanmadan başlatılan savaş ekranı
+    // altta kalıyordu. Tek kapı, iki kullanıcı.
+    modalDone() {
+        let f = this._afterModal;
+        this._afterModal = null;
         this.closeModal();
         if(f) f();
     },
@@ -2168,7 +2171,8 @@ const Game = {
                 state.player.x += dx * r; state.player.y += dy * r;
                 this.clampToMap(state.player); // Doğal sınırlardan taşmayı engelle
                 this.trainAttr('agi', (dist * r) / 1500);   // çeviklik yolda gelişir
-                
+                this.roadTick(dist * r);                    // yol olayı zarı (#67)
+
                 // Araziye göre hızın anlık değişebilmesi için UI'ı güncelle
                 if(Math.random() < 0.1) { // 60 FPS'te sürekli DOM güncellememek için
                     this.updateSpeedUI(spdData);
@@ -2796,9 +2800,7 @@ const Game = {
             return `${T`Sabah kese hafiflemişti. Kimse bir şey görmemiş, herkes birbirine bakıyor.<br><b>−${lost} dinar`}</b>.`;
         }},
         { id: 'sprain', bad: 1, when: c => c.party >= 2 && state.player.party.some(t => !t.wounded), run(c) {
-            let hurt = state.player.party.filter(t => !t.wounded);
-            let t = hurt[Math.floor(Math.random() * hurt.length)];
-            t.wounded = 2;
+            let t = Game.woundRandom(2);
             return `<b>${Game.troopLabel(t)}</b> ${T`kendi mızrağına takılıp ayağını burktu. İki gün savaşa giremez.`}`;
         }},
         { id: 'rumor_market', bad: 1, when: c => c.near && c.near.type === 'city', run(c) {
@@ -2829,10 +2831,8 @@ const Game = {
             return `${T`Avcı çıkışan askerin bu sefer şansı yaver gitti: akşam yemeğine <b>${n} et</b> geldi.`}`;
         }},
         { id: 'deserter', bad: 0, when: c => c.party + 1 < Game.getPartyCapacity(), run(c) {
-            let name = Game.recruitName(c.near || LOCATIONS[0]);
-            state.player.party.push({ id: 'troop_' + Math.random().toString(36).substr(2, 9),
-                name, level: 1, xp: 0, xpNext: 3, type: 'infantry' });
-            return `${T`Yolda başıboş dolaşan bir <b>${T(name)}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`}`;
+            let t = Game.addRecruit(c.near);
+            return `${T`Yolda başıboş dolaşan bir <b>${T(t.name)}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`}`;
         }},
         { id: 'blessing', bad: 0, when: c => c.near && c.near.type === 'village', run(c) {
             Game.addItem('cheese', 2);
@@ -2841,8 +2841,24 @@ const Game = {
         }}
     ],
 
-    // Olay yardımcıları: üçü de tek satır, ayrı ayrı yazılmasınlar diye burada
+    // Olay yardımcıları: hepsi tek satır, ayrı ayrı yazılmasınlar diye burada
     addMorale(n) { state.player.morale = Math.max(0, Math.min(100, this.morale() + n)); },
+    spend(n) { state.player.money = Math.max(0, state.player.money - n); },
+    woundRandom(days) {
+        let ok = state.player.party.filter(t => !t.wounded);
+        if(!ok.length) return null;
+        let t = ok[Math.floor(Math.random() * ok.length)];
+        t.wounded = days;
+        return t;
+    },
+    // Kapasite dolu ise `null` döner — çağıran "katılmak istedi ama yer yoktu" der
+    addRecruit(loc) {
+        if(state.player.party.length + 1 >= this.getPartyCapacity()) return null;
+        let t = { id: 'troop_' + Math.random().toString(36).substr(2, 9),
+                  name: this.recruitName(loc || LOCATIONS[0]), level: 1, xp: 0, xpNext: 3, type: 'infantry' };
+        state.player.party.push(t);
+        return t;
+    },
     addItem(id, qty) {
         let ex = state.player.inventory.find(i => i.id === id);
         if(ex) ex.qty += qty; else state.player.inventory.push({ ...ITEMS[id], qty });
@@ -2859,30 +2875,443 @@ const Game = {
         return got;
     },
 
+    // Dünyanın o anki hâli tek yerden okunur; hem gün hem yol olayının `when`
+    // süzgeci bunu görür. `near` yalnız 900 birim içindeki yerleşimdir (uzaktaki
+    // köyün adını anmak tuhaf kaçar), `land` ise kimin toprağındasın — en yakın
+    // yerleşimin fraksiyonu, mesafe gözetmeden.
+    eventCtx() {
+        let p = state.player;
+        let byDist = LOCATIONS.slice().sort((a, b) => this.dist(a, p) - this.dist(b, p));
+        let ter = this.getTerrainInfo(p.x, p.y);
+        let roadNames = Object.keys(this.ROAD_KINDS).map(k => this.ROAD_KINDS[k].name);
+        return {
+            party: p.party.length, cap: this.getPartyCapacity(),
+            near: byDist[0] && this.dist(byDist[0], p) < 900 ? byDist[0] : null,
+            land: byDist[0] && byDist[0].faction,
+            food: this.foodStock().total, morale: this.morale(), money: p.money,
+            honor: this.honor(), night: this.isNight(), day: state.time.day,
+            terrain: ter.name, onRoad: roadNames.includes(ter.name)
+        };
+    },
+
+    // Tek seçici, iki havuz: `when` süzgeci + son olaylar penceresi. Pencere iki
+    // havuz için **ortaktır** (`state.recentEvents`) — kimliği id belirler, havuz değil.
+    pickEvent(pool, ctx, extra) {
+        let recent = state.recentEvents || (state.recentEvents = []);
+        let avail = pool.filter(e => e.when(ctx) && (!extra || extra(e)));
+        if(!avail.length) return null;
+        let fresh = avail.filter(e => !recent.includes(e.id));
+        let side = fresh.length ? fresh : avail;
+        let ev = side[Math.floor(Math.random() * side.length)];
+        recent.push(ev.id);
+        if(recent.length > 6) recent.shift();
+        return ev;
+    },
+
     dailyEvent() {
         if(state.player.prisoner || state.player.status === 'besieging') return null;
         if(Math.random() > this.EVENT_CHANCE) return null;
-        let near = LOCATIONS.filter(l => this.dist(l, state.player) < 900)
-                            .sort((a, b) => this.dist(a, state.player) - this.dist(b, state.player))[0];
-        let ctx = { party: state.player.party.length, near, food: this.foodStock().total, morale: this.morale() };
-        let recent = state.recentEvents || (state.recentEvents = []);
-        let avail = this.DAY_EVENTS.filter(e => e.when(ctx));
+        let ctx = this.eventCtx();
         // Zar iki kez atılır: önce ton (%60 olumsuz), sonra o tondan olay. Tekrar
         // süzgeci **tonun içinde** çalışır — önce uygulanınca olumlu havuz "son
         // olaylar"a takılıp boşalıyor ve olumsuz oran %71'e çıkıyordu.
         let bad = Math.random() < 0.6 ? 1 : 0;
-        let side = avail.filter(e => e.bad === bad);
-        if(!side.length) side = avail;
-        if(!side.length) return null;
-        let pool = side.filter(e => !recent.includes(e.id));
-        if(!pool.length) pool = side;
-        let ev = pool[Math.floor(Math.random() * pool.length)];
-        recent.push(ev.id);
-        if(recent.length > 4) recent.shift();
+        let ev = this.pickEvent(this.DAY_EVENTS, ctx, e => e.bad === bad)
+              || this.pickEvent(this.DAY_EVENTS, ctx);
+        if(!ev) return null;
         let text = ev.run(ctx);
         this.updateTopBar();
         alert(`${ev.bad ? '🌧️' : '🌤️'} <b>${T`Günün Olayı`}</b><br><br>${text}`);
         return ev.id;
+    },
+
+    // --- YOL OLAYLARI (#67) ---
+    // Gün olayı kampta olur ve kendiliğinden çözülür; **yol olayı yürürken olur ve
+    // senden bir karar ister**. Her seçeneğin gerçek bir bedeli vardır — dinar,
+    // moral, şeref, asker ya da zaman; bedelsiz seçenek "Tamam" düğmesidir, o da
+    // gün olayının işi.
+    //
+    // `text` ve `label` **fonksiyondur**, ham dize değil: tablo `I18N.load()`'dan
+    // önce kurulur, üst düzeyde `T('…')` yazılsa çeviri orada donardı (CLAUDE.md,
+    // "Ham dur, gösterimde çevir"). Fonksiyon gövdesindeki her dize aynı zamanda
+    // statik çıkarıcının gördüğü bir literaldir — yani "her T anahtarı iki sözlükte
+    // de var" testi bu havuzu da kapsıyor, ayrı bir kapı gerekmiyor.
+    //
+    // Zar mesafeye bağlıdır, güne değil: ROAD_EVERY birimde bir ROAD_CHANCE,
+    // yani beklenen aralık 4800 birim. Altı kişilik grup ~111 birim/saat gider.
+    // Ölçüldü (tohum 1-5, 30 gün *kesintisiz* yol): 13-20 olay, ortalama 16.
+    // Gerçek oyunda günün tamamı yolda geçmediği için bunun yarısı kadar görürsün.
+    ROAD_EVERY: 1200,
+    ROAD_CHANCE: 0.25,
+    ROAD_EVENTS: [
+        { id: 'beggar', icon: '🥖', when: c => c.money >= 30,
+          text: () => T`Yol kenarında oturan yaşlı bir adam elini uzattı. "Üç gündür bir şey yemedim," diyor.`,
+          choices: [
+            { label: () => T`🪙 Sadaka ver (−20 dinar)`, run() {
+                Game.spend(20); Game.addMorale(2);
+                return T`Adamın duası arkandan geldi; adamların da bunu gördü.<br><b>−20 dinar</b>, moral <b>+2</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🚶 Yoluna devam et`, run() {
+                return T`Atını sürdün. Arkandan gelen sesi duymamış gibi yaptın.`;
+            }}
+          ]},
+
+        { id: 'sick_carter', icon: '🤒', when: c => c.party >= 1,
+          text: () => T`Devrilmiş bir arabanın yanında bir kervancı ateşler içinde yatıyor. Yoldaşları çoktan gitmiş.`,
+          choices: [
+            { label: () => T`⚕️ Cerrahını başına yolla (3 saat)`, run() {
+                Game.advanceTime(3); Game.addProficiencyXp('surgery', 60);
+                state.player.renown += 2;
+                return T`Adam akşama doğru gözlerini açtı. Bu hikâye yolun ilerisinde senden önce varacak.<br><b>Cerrahlık +60 tecrübe</b>, itibar <b>+2</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.<br><i>3 saat kaybettin.</i>`;
+            }},
+            { label: c => T`🍞 Erzak bırak, yoluna bak (−3 yiyecek)`, run() {
+                let n = Game.takeFood(3);
+                return T`Başucuna ${n} birim yiyecek bıraktın. Kalanı kendi şansına.<br><b>−${n} yiyecek</b>.`;
+            }},
+            { label: () => T`🚶 Bu senin işin değil`, run() {
+                Game.addMorale(-2);
+                return T`Adamların arkalarına baka baka geçti. Kimse bir şey söylemedi.<br>Moral <b>−2</b>, şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }}
+          ]},
+
+        { id: 'runaway', icon: '👦', when: c => c.near && c.near.type === 'village' && c.party + 1 < c.cap,
+          text: c => T`${T(c.near.name)} köyünden kaçtığını söyleyen bir delikanlı yolunu kesti. "Beni de al," diyor, "tarlaya dönmem."`,
+          choices: [
+            { label: () => T`⚔️ Yanına al`, run(c) {
+                let t = Game.addRecruit(c.near);
+                return T`<b>${T(t.name)}</b> gruba katıldı. Köyün ağası bunu duyunca hoşnut olmayacak.<br>Şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }},
+            { label: () => T`🏡 Köyüne geri yolla`, run(c) {
+                if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 3);
+                return T`Ensesinden tuttuğun gibi köyün yolunu gösterdin. Ağası duydu, borcunu bilecek.<br>${T(c.near.name)} refahı <b>+3</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }}
+          ]},
+
+        { id: 'mill', icon: '🏚️', when: c => c.near && c.near.type === 'village' && c.money >= 200,
+          text: c => T`${T(c.near.name)} değirmeni yıkılmış; çarkı derede çamura saplanmış duruyor. Köylüler taş taşıyor ama usta parası yok.`,
+          choices: [
+            { label: () => T`🔨 Ustanın parasını ver (−150 dinar)`, run(c) {
+                Game.spend(150);
+                if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 10);
+                state.player.renown += 2;
+                return T`Çark iki haftaya döner. Köy bunu unutmaz.<br><b>−150 dinar</b>, ${T(c.near.name)} refahı <b>+10</b>, itibar <b>+2</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🪨 Kesme taşlarını yükle, sat`, run(c) {
+                let n = 90 + Math.floor(Math.random() * 70);
+                state.player.money += n;
+                if(c.near.prosperity !== undefined) c.near.prosperity = Math.max(0, c.near.prosperity - 6);
+                return T`Köylüler bir şey diyemedi; senin adamların silahlıydı.<br><b>+${n} dinar</b>, ${T(c.near.name)} refahı <b>−6</b>, şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }},
+            { label: () => T`🚶 Yoluna devam et`, run() {
+                return T`Yıkık değirmen arkanda kaldı. Yarın da yıkık olacak.`;
+            }}
+          ]},
+
+        { id: 'chained', icon: '⛓️', when: c => c.party + 1 < c.cap,
+          text: () => T`Yol kenarındaki kazığa bağlı, ayağı zincirli bir adam. "Efendim beni burada unuttu," diyor. Gözlerinden bunun tam doğru olmadığı okunuyor.`,
+          choices: [
+            { label: () => T`🔓 Zincirini kır, yanına al`, run(c) {
+                let t = Game.addRecruit(c.near);
+                return T`<b>${T(t.name)}</b> gruba katıldı ve bir daha arkasına bakmadı.<br>Şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }},
+            { label: () => T`🪙 Fidyesini öde, azat et (−80 dinar)`, run() {
+                Game.spend(80); Game.addMorale(3);
+                return T`Parayı kazığın dibine bıraktın, zinciri çözdün. Adam koşarak gitti.<br><b>−80 dinar</b>, moral <b>+3</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🚶 Bu işe karışma`, run() {
+                return T`Zincirin sahibi kim bilinmez, ama kesin biri var. Yoluna devam ettin.`;
+            }}
+          ]},
+
+        { id: 'storm', icon: '⛈️', when: c => c.party >= 1,
+          text: () => T`Ufuktan gelen kara bulut yolu bir anda kapattı. Dolu taneleri miğferlerde çınlıyor.`,
+          choices: [
+            { label: () => T`⛺ Sığınak ara, bekle (4 saat)`, run() {
+                Game.advanceTime(4); Game.addProficiencyXp('pathfinding', 30);
+                return T`Kaya dibinde kuru bir oyuk buldun. Fırtına geçene kadar kimse ıslanmadı.<br><b>Yol Bulma +30 tecrübe</b>.<br><i>4 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🌧️ Doluda yürümeye devam et`, run() {
+                Game.addMorale(-5);
+                let t = Math.random() < 0.5 ? Game.woundRandom(2) : null;
+                return t ? T`Islak taşta kayan <b>${Game.troopLabel(t)}</b> bileğini kırdı.<br>Moral <b>−5</b>, iki gün savaşa giremez.`
+                         : T`Herkes sırılsıklam oldu ama yol bitti.<br>Moral <b>−5</b>.`;
+            }}
+          ]},
+
+        { id: 'treat', icon: '🧀', when: c => c.near && c.near.type === 'village' && c.honor >= 10,
+          text: c => T`${T(c.near.name)} köylüleri yol kenarına çıkmış seni bekliyor. Ellerinde bir sepet peynir, bir testi ayran var.`,
+          choices: [
+            { label: () => T`🙏 Kabul et`, run() {
+                Game.addItem('cheese', 3); Game.addMorale(4);
+                return T`Adamlar gölgede karnını doyurdu.<br><b>+3 peynir</b>, moral <b>+4</b>.`;
+            }},
+            { label: () => T`🪙 Kabul et ama parasını bırak (−40 dinar)`, run(c) {
+                Game.spend(40); Game.addItem('cheese', 3); Game.addMorale(4);
+                if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 2);
+                state.player.renown += 1;
+                return T`"Bu köy kimseye bedava yedirmez" dedin, para keseye girdi.<br><b>−40 dinar</b>, <b>+3 peynir</b>, moral <b>+4</b>, itibar <b>+1</b>.`;
+            }}
+          ]},
+
+        { id: 'toll', icon: '🪓', when: c => c.party >= 1 && c.money >= 60,
+          text: () => T`Yolun daraldığı yerde altı kişi önünü kesti. "Bu yol bizim," diyor sakallısı, "geçiş parası var."`,
+          choices: [
+            { label: () => T`🪙 Haracı öde (−60 dinar)`, run() {
+                Game.spend(60); Game.addMorale(-3);
+                return T`Parayı saydın, yol açıldı. Adamların yere bakıyordu.<br><b>−60 dinar</b>, moral <b>−3</b>.`;
+            }},
+            { label: () => T`⚔️ "Bu yol kimsenin değil"`, run() {
+                let npc = Game.spawnBand('bandit');
+                npc.x = npc.targetX = state.player.x + 40;
+                npc.y = npc.targetY = state.player.y;
+                return { html: T`Sakallı adam kılıcını çekti. Pazarlık bitti.`,
+                         then: () => Game.triggerEncounter(npc) };
+            }}
+          ]},
+
+        { id: 'lost_scout', icon: '🧭', when: c => !c.onRoad,
+          text: () => T`Tepenin ardından çıkan atlı yolunu şaşırmış: "Kaleye giden yol hangisi? İki gündür dönüp duruyorum."`,
+          choices: [
+            { label: () => T`🧭 Yolu tarif et`, run() {
+                Game.addProficiencyXp('pathfinding', 40);
+                return T`Adam teşekkür edip dörtnala uzaklaştı. Haritayı bir kez daha okumuş oldun.<br><b>Yol Bulma +40 tecrübe</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🗡️ Atını ve kesesini al`, run() {
+                let n = 70 + Math.floor(Math.random() * 90);
+                state.player.money += n; Game.addProficiencyXp('looting', 30);
+                return T`Adam yaya kaldı, sen zengin. Bu yolda kimse görmedi — bu sefer.<br><b>+${n} dinar</b>, <b>Yağmacılık +30 tecrübe</b>, şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }}
+          ]},
+
+        { id: 'pelt', icon: '🐺', when: c => c.terrain === 'Orman',
+          text: () => T`Ağaçların arasında yeni ölmüş bir kurt. Postu temiz, leşi henüz soğumamış — yani onu öldüren şey de yakında.`,
+          choices: [
+            { label: () => T`🔪 Postunu yüz (2 saat)`, run() {
+                Game.advanceTime(2);
+                let n = 50 + Math.floor(Math.random() * 60);
+                state.player.money += n; Game.addProficiencyXp('looting', 25);
+                return T`Post kürkçüye gider.<br><b>+${n} dinar</b>, <b>Yağmacılık +25 tecrübe</b>.<br><i>2 saat kaybettin.</i>`;
+            }},
+            { label: () => T`👀 Kimin öldürdüğünü ara (2 saat)`, run() {
+                Game.advanceTime(2); Game.addProficiencyXp('spotting', 50);
+                return T`İzler bir sürünün geceyi nerede geçirdiğini söyledi. Artık ormanda gözün daha keskin.<br><b>Gözcülük +50 tecrübe</b>.<br><i>2 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🚶 Burada durmak akıllıca değil`, run() {
+                return T`Leşi bıraktın, adımını sıklaştırdın.`;
+            }}
+          ]},
+
+        { id: 'deserters', icon: '🛡️', when: c => c.party >= 3 && c.party + 2 < c.cap,
+          text: () => T`Ateş başında iki firari asker. Silahları hâlâ üstlerinde, ama üniformalarındaki arma sökülmüş.`,
+          choices: [
+            { label: () => T`⚔️ Aralarına al`, run(c) {
+                let a = Game.addRecruit(c.near), b = Game.addRecruit(c.near);
+                Game.addMorale(-3);
+                return T`<b>${T(a.name)}</b> ve <b>${T(b.name)}</b> gruba katıldı. Eski askerlerin bu işe iyi bakmadı.<br>Moral <b>−3</b>.`;
+            }},
+            { label: () => T`⛓️ Bağla, en yakın kaleye teslim et (−4 saat)`, run() {
+                Game.advanceTime(4);
+                let n = 60 + Math.floor(Math.random() * 60);
+                state.player.money += n; state.player.renown += 1;
+                return T`Firari teslim etmenin bir bedeli vardır, alanın da.<br><b>+${n} dinar</b>, itibar <b>+1</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.<br><i>4 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🚶 Ateşlerini söndürmeden geç`, run() {
+                return T`Göz göze geldiniz, kimse kımıldamadı. İyisi de bu.`;
+            }}
+          ]},
+
+        { id: 'shrine', icon: '🕯️', when: c => c.money >= 40,
+          text: () => T`Yol ayrımında taştan bir türbe. Önündeki çanakta bozuk paralar ve kurumuş çiçekler var.`,
+          choices: [
+            { label: () => T`🪙 Adak bırak (−30 dinar)`, run() {
+                Game.spend(30); Game.addMorale(4);
+                return T`Adamlar sırayla çanağa dokunup yola dizildi. Bugün kimse kötü konuşmadı.<br><b>−30 dinar</b>, moral <b>+4</b>.`;
+            }},
+            { label: () => T`🫳 Çanaktakileri al`, run() {
+                let n = 15 + Math.floor(Math.random() * 25);
+                state.player.money += n; Game.addMorale(-6);
+                return T`Para keseye girdi ama adamların yüzü düştü.<br><b>+${n} dinar</b>, moral <b>−6</b>, şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }}
+          ]},
+
+        { id: 'night_fire', icon: '🔥', when: c => c.night && c.party >= 2,
+          text: () => T`Karanlıkta, yoldan sapa bir yerde ateş yanıyor. Kimin olduğu buradan seçilmiyor.`,
+          choices: [
+            { label: () => T`👣 Sessizce yaklaş, bak`, run() {
+                Game.addProficiencyXp('spotting', 45);
+                if(Math.random() < 0.45) {
+                    let n = 80 + Math.floor(Math.random() * 120);
+                    state.player.money += n;
+                    return T`Terk edilmiş bir kamp: aceleyle kalkmışlar, kese ateşin yanında unutulmuş.<br><b>+${n} dinar</b>, <b>Gözcülük +45 tecrübe</b>.`;
+                }
+                let npc = Game.spawnBand(Game.randomBandKind());
+                npc.x = npc.targetX = state.player.x + 40;
+                npc.y = npc.targetY = state.player.y;
+                return { html: T`Ateşin başındakiler seni önce gördü.<br><b>Gözcülük +45 tecrübe</b>.`,
+                         then: () => Game.triggerEncounter(npc) };
+            }},
+            { label: () => T`🌑 Ateşi arkanda bırak`, run() {
+                Game.advanceTime(1);
+                return T`Geniş bir kavis çizdin. Kim olduklarını hiç öğrenmeyeceksin.<br><i>1 saat kaybettin.</i>`;
+            }}
+          ]},
+
+        { id: 'survivor', icon: '🔥', when: c => c.near && c.near.type === 'village'
+                                             && c.day - (c.near.raidedDay || -99) < 10,
+          text: c => T`${T(c.near.name)} yakılalı birkaç gün olmuş. Kül kokusunun içinden çıkan bir kadın seni görünce durdu.`,
+          choices: [
+            { label: () => T`🪙 Eline para sıkıştır (−100 dinar)`, run(c) {
+                Game.spend(100);
+                if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 5);
+                return T`Ne söyleyeceğini bilemedi. Sen de bilemedin.<br><b>−100 dinar</b>, ${T(c.near.name)} refahı <b>+5</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🗡️ Kimin yaptığını sor`, run() {
+                Game.addProficiencyXp('spotting', 35); Game.addMorale(-2);
+                return T`Anlattıkları uzun sürdü ve hiçbiri iyi değildi. Bu yolda kimin gezindiğini artık biliyorsun.<br><b>Gözcülük +35 tecrübe</b>, moral <b>−2</b>.`;
+            }},
+            { label: () => T`🚶 Külün içinden geçip git`, run() {
+                Game.addMorale(-3);
+                return T`Adamların kadına baktı, sonra sana baktı.<br>Moral <b>−3</b>.`;
+            }}
+          ]},
+
+        { id: 'peddler', icon: '🧺', when: c => c.money >= 150 && c.onRoad,
+          text: () => T`Sırtında denk taşıyan bir seyyar satıcı: "Kervanım dağıldı, malı yarı fiyatına veriyorum. Buradan şehre canlı varamam."`,
+          choices: [
+            { label: () => T`🧺 Denkleri satın al (−140 dinar)`, run() {
+                Game.spend(140); Game.addItem('velvet', 2); Game.addProficiencyXp('trade', 40);
+                return T`İki top kadife, şehirde bunun iki katı eder — şehre varabilirsen.<br><b>−140 dinar</b>, <b>+2 kadife</b>, <b>Ticaret +40 tecrübe</b>.`;
+            }},
+            { label: () => T`🛡️ Şehre kadar yanında götür (−3 saat)`, run() {
+                Game.advanceTime(3);
+                let n = 100 + Math.floor(Math.random() * 80);
+                state.player.money += n; state.player.renown += 1;
+                return T`Adam sağ vardı ve bunu herkese anlattı.<br><b>+${n} dinar</b>, itibar <b>+1</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.<br><i>3 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🚶 İşine bak`, run() {
+                return T`Denklerini sürüyerek arkanda kaldı.`;
+            }}
+          ]},
+
+        { id: 'orphan', icon: '🗡️', when: c => c.near && c.party + 1 < c.cap,
+          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${T(c.near.name)}'de bana iş yok," diyor, "savaşmayı öğrenirim."`,
+          choices: [
+            { label: () => T`⚔️ Al yanına`, run(c) {
+                let t = Game.addRecruit(c.near);
+                Game.addProficiencyXp('trainer', 25);
+                return T`<b>${T(t.name)}</b> gruba katıldı. Kılıcı babasından kalmaydı, tutuşu değil.<br><b>Eğitmenlik +25 tecrübe</b>.`;
+            }},
+            { label: () => T`🪙 Kılıcını satın al, evine yolla (−60 dinar)`, run() {
+                Game.spend(60); Game.addItem('sword', 1);
+                return T`Para oğlanın eline, kılıç senin denginde. İkisi de kazandı sayılır.<br><b>−60 dinar</b>, <b>+1 kılıç</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }}
+          ]},
+
+        { id: 'old_soldier', icon: '🎯', when: c => c.party >= 3 && c.money >= 120,
+          text: () => T`Yol kenarındaki hanın önünde oturan yaşlı bir asker adamlarını süzdü: "Bunlar mızrağı yanlış tutuyor. Bir gün ver, düzeltirim."`,
+          choices: [
+            { label: () => T`🎯 Tut, bir gün eğitsin (−100 dinar, 8 saat)`, run() {
+                Game.spend(100); Game.advanceTime(8);
+                Game.addProficiencyXp('trainer', 80);
+                state.player.party.forEach(t => { t.xp = (t.xp || 0) + 2; });
+                return T`Akşama kadar bağırdı. Sabah duruşları gerçekten değişmişti.<br><b>−100 dinar</b>, <b>Eğitmenlik +80 tecrübe</b>, her askere <b>+2 tecrübe</b>.<br><i>8 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🍺 Bir bira ısmarla, hikâyesini dinle (−15 dinar)`, run() {
+                Game.spend(15); Game.addMorale(3);
+                return T`Anlattığı savaşların yarısı yalandı ama ateş başı şenlendi.<br><b>−15 dinar</b>, moral <b>+3</b>.`;
+            }},
+            { label: () => T`🚶 Adamlarım mızrağı iyi tutuyor`, run() {
+                return T`Yaşlı asker arkandan güldü. Duymamış gibi yaptın.`;
+            }}
+          ]},
+
+        { id: 'tracks', icon: '🐾', when: c => !c.night,
+          text: () => T`Yolun tozunda taze at izleri: çok sayıda, hepsi aynı yöne. Bir saat önce buradan geçmişler.`,
+          choices: [
+            { label: () => T`🐾 İzi sür (2 saat)`, run() {
+                Game.advanceTime(2); Game.addProficiencyXp('spotting', 40);
+                if(Math.random() < 0.5) {
+                    let n = 90 + Math.floor(Math.random() * 110);
+                    state.player.money += n;
+                    return T`İzler devrilmiş bir kervan arabasına çıktı; alacak bir şey kalmış.<br><b>+${n} dinar</b>, <b>Gözcülük +40 tecrübe</b>.<br><i>2 saat kaybettin.</i>`;
+                }
+                return T`İzler bir dereye girip kayboldu. Kaybedilen tek şey iki saat oldu.<br><b>Gözcülük +40 tecrübe</b>.<br><i>2 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🧭 Ters yöne sap, karşılaşma`, run() {
+                Game.advanceTime(1); state.encounterCooldown = Math.max(state.encounterCooldown, 8);
+                return T`Kimin geçtiğini öğrenmedin ama kimseyle de karşılaşmadın.<br><i>1 saat kaybettin.</i>`;
+            }}
+          ]},
+
+        { id: 'ford', icon: '🌊', when: c => c.terrain === 'Nehir Geçidi',
+          text: () => T`Nehir kabarmış; bilinen geçit boğaza kadar geliyor. Aşağıda daha sığ bir yer olduğunu söylüyorlar.`,
+          choices: [
+            { label: () => T`🧭 Sığ geçidi ara (3 saat)`, run() {
+                Game.advanceTime(3); Game.addProficiencyXp('pathfinding', 45);
+                return T`İki dirsek aşağıda çakıllı bir geçit buldun; kimsenin ayağı ıslanmadı.<br><b>Yol Bulma +45 tecrübe</b>.<br><i>3 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🌊 Buradan geç`, run() {
+                Game.addMorale(-3);
+                let n = Game.takeFood(2);
+                return T`Akıntı iki denk erzağı alıp götürdü.<br><b>−${n} yiyecek</b>, moral <b>−3</b>.`;
+            }}
+          ]},
+
+        { id: 'horse_trader', icon: '🐴', when: c => c.money >= 500 && !state.player.equipment.horse,
+          text: () => T`Yol kenarında üç at bağlı, başlarında bir adam. "Kervanımın atları," diyor. Atların sağrısında başka birinin damgası var.`,
+          choices: [
+            { label: () => T`🐴 Soru sormadan al (−400 dinar)`, run() {
+                Game.spend(400); Game.addItem('horse', 1); Game.addProficiencyXp('trade', 30);
+                return T`At senin. Damganın sahibi bir gün karşına çıkabilir.<br><b>−400 dinar</b>, <b>+1 at</b>, şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }},
+            { label: () => T`❓ Damgayı sor`, run() {
+                Game.addProficiencyXp('persuasion', 35);
+                return T`Adam önce kekeledi, sonra atları bırakıp tarlaya doğru koştu. Damgayı tanıyan birine haber saldın.<br><b>İkna +35 tecrübe</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🚶 Bu iş kokuyor`, run() {
+                return T`Atlara bakmadan geçtin. Bazen en ucuz at, almadığın attır.`;
+            }}
+          ]}
+    ],
+
+    // Yol olayı **mesafeye** bağlıdır: bir günü kampta geçiren olay görmez, yolda
+    // geçiren görür. Modal/savaş/esaret sırasında zaten `timeFlows` kapalı olduğu
+    // için buraya hiç gelinmez; karşılaşma bekleme süresi de sayacı durdurur ki
+    // savaştan yeni çıkmış oyuncunun önüne hemen bir karar daha konmasın.
+    roadTick(step) {
+        if(state.player.prisoner || state.encounterCooldown > 0) return null;
+        state.roadWalked = (state.roadWalked || 0) + step;
+        if(state.roadWalked < this.ROAD_EVERY) return null;
+        state.roadWalked -= this.ROAD_EVERY;
+        if(Math.random() > this.ROAD_CHANCE) return null;
+        return this.roadEvent();
+    },
+
+    roadEvent() {
+        let ctx = this.eventCtx();
+        let ev = this.pickEvent(this.ROAD_EVENTS, ctx);
+        if(!ev) return null;
+        this._roadEv = { ev, ctx };
+        state.player.status = 'idle';   // yürüyüş kararın önünde durur
+        this.showModal(`<h3>${ev.icon} ${T`Yolda`}</h3>
+            <p style="font-style:italic;color:var(--text-muted)">${ev.text(ctx)}</p>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
+                ${ev.choices.map((ch, i) =>
+                    `<button class="btn" style="text-align:left" onclick="Game.roadChoice(${i})">${ch.label(ctx)}</button>`).join('')}
+            </div>`);
+        return ev.id;
+    },
+
+    roadChoice(i) {
+        let e = this._roadEv;
+        if(!e) return this.closeModal();
+        this._roadEv = null;
+        let r = e.ev.choices[i].run(e.ctx);
+        if(typeof r === 'string') r = { html: r };
+        this.updateTopBar();
+        this._afterModal = r.then || null;
+        this.showModal(`<h3>${e.ev.icon} ${T`Yolda`}</h3><p>${r.html}</p>
+            <button class="btn primary" style="margin-top:1rem" onclick="Game.modalDone()">${T`Tamam`}</button>`);
     },
 
     dailyUpdate() {
@@ -6616,7 +7045,10 @@ const Game = {
         release:    [ 5,  'soyluyu onurla salıvermek'],
         abduct:     [-20, 'kız kaçırma'],
         oathBroken: [-5,  'sefer sözünü tutmamak'],
-        questDone:  [ 2,  'verilen sözü tutmak']
+        questDone:  [ 2,  'verilen sözü tutmak'],
+        // Yol olayları (#67): tek tek küçük, ama yirmi olayda huy olur
+        roadKind:   [ 2,  'yolda yardım eli uzatmak'],
+        roadCruel:  [-2,  'yolda zayıfı ezip geçmek']
     },
     honor() { return Math.max(-100, Math.min(100, Math.round(state.player.honor || 0))); },
     addHonor(kind) {

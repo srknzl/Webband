@@ -548,6 +548,80 @@ function ambushSuite() {
 }
 ambushSuite();
 
+// --- Yol olayları (#67) ---
+// Havuz veri, `run` gövdeleri koddur: bir yardımcının adı değişirse yalnız o
+// seçenek seçildiğinde patlar ve bunu ancak oyuncu görür. Bu yüzden testin
+// asıl işi **her seçeneği gerçekten çalıştırmak**. Tetikleyicinin mesafeye
+// bağlı olduğu ve tekrar penceresinin çalıştığı ayrıca sınanır.
+function roadSuite() {
+    const ga = H.world({ seed: 7 });
+    const { Game, state, LOCATIONS } = ga;
+
+    test('yol: her olayın ikişer gerçek seçeneği var', () => {
+        const ids = new Set();
+        Game.ROAD_EVENTS.forEach(ev => {
+            assert.ok(!ids.has(ev.id), `yinelenen olay kimliği: ${ev.id}`);
+            ids.add(ev.id);
+            assert.ok(ev.icon && typeof ev.when === 'function', `${ev.id}: ikon/koşul eksik`);
+            assert.strictEqual(typeof ev.text, 'function', `${ev.id}: text fonksiyon değil (çeviri donar)`);
+            assert.ok(ev.choices.length >= 2, `${ev.id}: tek seçenek karar değildir`);
+            ev.choices.forEach((ch, i) => {
+                assert.strictEqual(typeof ch.label, 'function', `${ev.id}[${i}]: label fonksiyon değil`);
+                assert.strictEqual(typeof ch.run, 'function', `${ev.id}[${i}]: run yok`);
+            });
+        });
+        assert.ok(ids.size >= 20, `havuz ${ids.size} olaya düştü`);
+    });
+
+    test('yol: her seçenek çalışıp gösterilebilir bir sonuç veriyor', () => {
+        // Her koşulun geçtiği bol keseli bir dünya: parayı ve grubu her
+        // seçenekten önce tazeliyoruz, yoksa ilk birkaç seçenek keseyi boşaltıp
+        // kalanını sınanmamış bırakır.
+        Game.ROAD_EVENTS.forEach(ev => ev.choices.forEach((ch, i) => {
+            state.player.x = LOCATIONS[0].x + 60; state.player.y = LOCATIONS[0].y;
+            state.player.money = 5000;
+            state.player.party = Array.from({ length: 4 }, (_, k) => ({ id: 'r' + k, name: 'Asker', level: 3, xp: 0, xpNext: 5, type: 'infantry' }));
+            state.npcParties.length = 0;
+            const ctx = Game.eventCtx();
+            assert.ok(ctx.near, 'yakın yerleşim bulunamadı — bağlam kurulmadı');
+            assert.ok(typeof ev.text(ctx) === 'string', `${ev.id}: metin dize değil`);
+            assert.ok(typeof ch.label(ctx) === 'string', `${ev.id}[${i}]: etiket dize değil`);
+            let r = ch.run(ctx);
+            if(typeof r === 'string') r = { html: r };
+            assert.ok(r && typeof r.html === 'string' && r.html.length > 0, `${ev.id}[${i}]: sonuç metni yok`);
+            assert.ok(!r.then || typeof r.then === 'function', `${ev.id}[${i}]: then çağrılabilir değil`);
+        }));
+    });
+
+    test('yol: zar mesafeye bağlıdır, güne değil', () => {
+        state.player.prisoner = null; state.encounterCooldown = 0;
+        state.roadWalked = 0;
+        const asil = Game.roadEvent;
+        let sayac = 0;
+        Game.roadEvent = () => { sayac++; return 'sahte'; };
+        // Zarı susturmanın yolu Math.random'ı değiştirmek değil: motor ayrı bir
+        // vm bağlamında koşuyor, oradaki Math bu Math değil. Şansı 1'e çekiyoruz.
+        const sans = Game.ROAD_CHANCE;
+        Game.ROAD_CHANCE = 1;
+        for(let i = 0; i < 40; i++) Game.roadTick(Game.ROAD_EVERY / 4);
+        Game.ROAD_CHANCE = sans;
+        Game.roadEvent = asil;
+        assert.strictEqual(sayac, 10, `40×(ROAD_EVERY/4) yolda ${sayac} olay çıktı, 10 bekleniyordu`);
+    });
+
+    test('yol: son olaylar penceresi tekrarı engelliyor', () => {
+        state.recentEvents = [];
+        const havuz = Game.ROAD_EVENTS.slice(0, 3);
+        const ctx = Game.eventCtx();
+        const hep = () => true;
+        const a = Game.pickEvent(havuz.map(e => ({ ...e, when: hep })), ctx);
+        const b = Game.pickEvent(havuz.map(e => ({ ...e, when: hep })), ctx);
+        assert.ok(a && b && a.id !== b.id, 'taze seçenek varken aynı olay üst üste geldi');
+        assert.ok(state.recentEvents.length <= 6, 'tekrar penceresi sınırsız büyüyor');
+    });
+}
+roadSuite();
+
 // --- Dil katmanı (#81) ---
 // İki bozukluk sınıfı da statik yakalanır: sözlükte olmayan anahtar (kod
 // sözlükten sonra değişmiş) ve üst düzey tabloda donmuş çeviri.
