@@ -515,6 +515,45 @@ QUESTS.guild_supply = {
     }
 };
 
+// İn görevi (#68). Lonca ustası ini *bilir* — soyulan kendi kervanları. Görevin
+// asıl değeri de bu: inler görüş menziline girmeden haritada çizilmez, usta ise
+// yerini söyleyip damgalar. Bulmak değil, basmak kalır sana.
+QUESTS.clear_lair = {
+    title: 'İni Bas',
+    givers: ['guild'],
+    minRelation: -100,
+    days: 20,
+    reward: { money: 1600, renown: 10, rel: 0 },
+    can(giver) { return Game.lairs().length > 0; },
+    setup(q, giver) {
+        let ev = LOCATIONS.find(l => l.id === giver.homeLocId) || { x: 4500, y: 4500 };
+        let l = Game.lairs().slice().sort((a, b) => Game.dist(a, ev) - Game.dist(b, ev))[0];
+        l.seen = true;                       // ustanın bildiğini sen de bilirsin
+        q.data = { lairId: l.id, guc: Math.round(l.strength) };
+    },
+    offer(q) {
+        return `${T`"Kervanlarım <b>üç haftadır</b> aynı yerde soyuluyor. Adamlarımı takip ettirdim:
+            kayaların arasında bir in var, kabaca <b>${q.data.guc} kişi</b>.<br><br>
+            Yerini haritana işaretledim. Git, dağıt. Ne bulursan senin — ben sadece yolun açılmasını istiyorum."`}`;
+    },
+    desc(q) {
+        let l = Game.lairs().find(x => x.id === q.data.lairId);
+        return l ? T`Haritada ☠️ <b>Haydut İni</b>ni bul ve bas — usta yerini işaretledi, ikon artık haritada`
+                 : T('İn dağıtıldı — loncaya haber ver.');
+    },
+    // "Nerede" tek kaynaktan: inin en yakın olduğu yerleşim. İn gezmez, yani
+    // damga sabit; asıl işaret haritadaki ikonun kendisi.
+    where(q) {
+        let l = Game.lairs().find(x => x.id === q.data.lairId);
+        if(!l) return null;
+        let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, l) - Game.dist(y, l))[0];
+        return near ? near.id : null;
+    },
+    on(q, ev, d) {
+        if(ev === 'lair_cleared' && d.lairId === q.data.lairId) return 'done';
+    }
+};
+
 const Quests = {
 
     active() { return state.player.quests; },

@@ -1988,4 +1988,14 @@ I18N.dicts.en = {
         'Bandit Lair',
     'Kayaların arasına sinmiş bir kamp. Etraftaki yollarda kimse geceleyin yürümüyor.':
         'A camp tucked in among the rocks. Nobody walks the roads around here after dark.',
+
+    // İn görevi (#68)
+    '"Kervanlarım <b>üç haftadır</b> aynı yerde soyuluyor. Adamlarımı takip ettirdim: kayaların arasında bir in var, kabaca <b>{0} kişi</b>.<br><br> Yerini haritana işaretledim. Git, dağıt. Ne bulursan senin — ben sadece yolun açılmasını istiyorum."':
+        '"My caravans have been robbed in the same spot for <b>three weeks</b>. I had my men follow them: there is a lair among the rocks, roughly <b>{0} men</b>.<br><br> I have marked it on your map. Go and break it up. Whatever you find is yours — all I want is the road open."',
+    'Haritada ☠️ <b>Haydut İni</b>ni bul ve bas — usta yerini işaretledi, ikon artık haritada':
+        'Find the ☠️ <b>Bandit Lair</b> on the map and storm it — the guild master marked it, so the icon is on your map now',
+    'İn dağıtıldı — loncaya haber ver.':
+        'The lair is broken up — report back to the guild.',
+    'İni Bas':
+        'Storm the Lair',
 };

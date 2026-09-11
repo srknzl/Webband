@@ -86,7 +86,7 @@ Darboğaz JS değil **compositor**: savaşın JS'i kare başına ~1.2 ms, bütç
 `{ load, world, run, mulberry32, args, seeds, writeReport }` — `boot` diye bir şey yok.
 
 ```
-node tools/test.js [--hizli]   # 66 iddia ~5 sn / yalnız saf mantık ~0.15 sn
+node tools/test.js [--hizli]   # 67 iddia ~5 sn / yalnız saf mantık ~0.15 sn
 node tools/framegate.js        # kare kapısı + #42 parite regresyonu
 node tools/sim.js --gun 200 --tohum 1-5 | duel.js --n 200 | economy.js --gun 60 --asker 10
 ```

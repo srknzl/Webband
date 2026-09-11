@@ -1988,4 +1988,14 @@ I18N.dicts.id = {
         'Sarang Bandit',
     'Kayaların arasına sinmiş bir kamp. Etraftaki yollarda kimse geceleyin yürümüyor.':
         'Perkemahan yang meringkuk di antara bebatuan. Tak ada yang berani lewat jalan sekitar sini saat malam.',
+
+    // İn görevi (#68)
+    '"Kervanlarım <b>üç haftadır</b> aynı yerde soyuluyor. Adamlarımı takip ettirdim: kayaların arasında bir in var, kabaca <b>{0} kişi</b>.<br><br> Yerini haritana işaretledim. Git, dağıt. Ne bulursan senin — ben sadece yolun açılmasını istiyorum."':
+        '"Kafilahku sudah <b>tiga minggu</b> dirampok di tempat yang sama. Anak buahku membuntuti mereka: ada sarang di antara bebatuan, kira-kira <b>{0} orang</b>.<br><br> Sudah kutandai di petamu. Pergi dan bubarkan. Apa pun yang kau temukan jadi milikmu — aku cuma mau jalannya aman."',
+    'Haritada ☠️ <b>Haydut İni</b>ni bul ve bas — usta yerini işaretledi, ikon artık haritada':
+        'Temukan ☠️ <b>Sarang Bandit</b> di peta lalu serbu — sang tuan guild sudah menandainya, ikonnya kini tampak di petamu',
+    'İn dağıtıldı — loncaya haber ver.':
+        'Sarang sudah dibubarkan — laporkan ke guild.',
+    'İni Bas':
+        'Serbu Sarang',
 };

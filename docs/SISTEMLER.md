@@ -1047,6 +1047,7 @@ Görevler Warband'ın görev listesinin kopyası değil; **WebBand'ın kendi mek
 | Lonca Siparişi | *(lonca)* 10 birim ticaret malını loncanın şehrine getir |
 | Arena Şampiyonu | Turnuvayı **kazanma** tarafı — Şike'nin aynadaki hâli |
 | Zincir Pazarı | Esir mekaniği: 4 asker esiri lordun kapısına teslim et |
+| İni Bas | *(lonca)* Ustanın işaretlediği haydut inini bas — görevin değeri **yeri**: in görülmeden çizilmez, usta `seen` damgalar (`can`: haritada in yoksa teklif edilmez) |
 | Şafak Baskını | Düşman köyünü yağmala (`raided` olayı). `can`: açık cephe yoksa teklif edilmez; ödül +1800 dinar ama **−8 nam** |
 
 Görev veren lord olabilir, **lonca ustası** da olabilir (`giverId = 'guild_<locId>'`,
@@ -1250,6 +1251,10 @@ yerleşimi in menzilindeydi, yani "bölgesel" bir şey kalmıyordu.
 içindekiler **54.1**, menzil dışındakiler **81.7**; aynı inler 40. günde temizlenirse
 menzil içi **78.4**'e toparlanıyor. Yani in bölgesel, kalıcı ve **geri alınabilir** bir
 baskı. Eksik in `LAIR_RESPAWN`=20 günde bir yeniden kurulur — dünya boşalmaz.
+
+Lonca ustası ini **bilir** (soyulan kendi kervanı): `QUESTS.clear_lair` kabul edilince
+ininin `seen` damgası düşer, yani görevin asıl ödülü yerin kendisi. Bitişi `clearLair`'in
+attığı `lair_cleared` olayı kapatır — savaş sonucu değil, **inin silinmesi** ölçüt.
 
 Görmek ayrı, *belirli birini* bulmak ayrı: "Zincirdeki Kardeş" gibi bir çeteyi avlatan
 görev **söylenti** verir (`QUESTS.brother_in_chains.where`) — çetenin *şu an* en yakın
@@ -2808,7 +2813,7 @@ elite karşı hâlâ kaybediyor (%0): mızrak zırhı deler, ama can havuzu tutm
 ### Test ve CI (#63)
 
 `tools/test.js` aynı koşum takımını (`harness.js`) test koşucusu olarak kullanır.
-Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **66 iddia**, iki bölüm:
+Çerçeve yok, bağımlılık yok: `test(ad, fn)` + `assert`. **67 iddia**, iki bölüm:
 
 1. **Saf mantık** — girdi/çıktı tablosu belli fonksiyonlar: `Battle.afterArmor`,
    `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,

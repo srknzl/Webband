@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.84 — Usta Yerini Biliyor (2026-09-12)
+
+- **Yeni lonca görevi: İni Bas.** Şehrin hanındaki lonca ustası, kervanlarını soyan inin
+  yerini biliyor — kabul ettiğin anda ini **haritana işaretliyor**. Görevin asıl değeri
+  bu: inler kendiliğinden ancak yanından geçersen görünüyor.
+- Ödül **1600 dinar + 10 nam**, üstüne inin biriktirdiği kese. Süre 20 gün.
+
 ## 0.83 — İnler (2026-09-11)
 
 Çete artık boşluktan doğmuyor. Haritada beş **haydut ini** var; çıkan her çete birinden

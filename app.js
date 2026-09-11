@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.83', date: '2026-09-11', name: 'İnler' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.84', date: '2026-09-12', name: 'Usta Yerini Biliyor' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -1013,6 +1013,7 @@ const Game = {
         if(!l) return '';
         state.sites = state.sites.filter(x => x !== l);
         state.npcParties.forEach(n => { if(n.lairId === l.id) n.lairId = null; });   // yetim kimlik kalmasın
+        Quests.emit('lair_cleared', { lairId: l.id });
         state.player.money += Math.round(l.purse);
         LOCATIONS.forEach(x => {
             if(x.prosperity !== undefined && this.dist(x, l) < this.LAIR_RANGE)
