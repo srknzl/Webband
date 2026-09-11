@@ -655,8 +655,7 @@ const Game = {
         this.initLang();
         Input.init();
         this.initTooltipClamp();
-        let vt = document.getElementById('ver-tag');
-        if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${T(VERSION.name)} · ${VERSION.date}`;
+        this.renderVerTag();
         this.applySettings();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         this.mapCanvas = document.getElementById('map-canvas');
@@ -4071,12 +4070,21 @@ const Game = {
                 <span class="lang-flag">${l.flag}</span>${T(l.name)}</button>`).join('');
     },
 
+    // #ver-tag boş doğar (index.html), yani I18N.prime() hiç yakalamaz — dil
+    // değişince applyDom'un dokunacağı bir _trKey'i olmaz. Bu yüzden boot'ta
+    // ve her dil değişiminde elle yeniden çizilir.
+    renderVerTag() {
+        let vt = document.getElementById('ver-tag');
+        if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${T(VERSION.name)} · ${VERSION.date}`;
+    },
+
     setLang(lang) {
         I18N.set(lang);
         const ask = document.getElementById('lang-ask');
         if(ask && !ask.classList.contains('hidden')) { ask.classList.add('hidden'); this.liteNotice(); }
         this.renderLangRow('lang-row');
         this.renderLangRow('lang-ask-row');
+        this.renderVerTag();
         I18N.applyDom(document.body);
         if(document.getElementById('settings-panel')) return this.showSettings();
         // Oyun içindeyken açık ekran kendi metnini yeniden kurar

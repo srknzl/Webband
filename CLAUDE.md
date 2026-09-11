@@ -3,6 +3,9 @@
 Mount & Blade: Warband tarzı, tarayıcıda çalışan tek sayfalık RPG. Türkçe arayüz.
 Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 
+**Deploy**: canlı site `serkanozel.me/webband` — güncellemek için bu repodaki dosyaları
+`~/git/serkanozelme/blog/public/webband/`'a kopyalayıp o repoya push et (auto-deploy tetiklenir).
+
 **Ayrıntı `docs/SISTEMLER.md`'dedir** — her mekaniğin tasarım kararı ve ölçülmüş sayısı.
 Burada yalnız değişmez kurallar var. Bir mekaniği değiştirmeden önce oradaki bölümü oku,
 değiştirdikten sonra "Ölçüldü" satırlarını güncelle.
