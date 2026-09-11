@@ -1859,6 +1859,25 @@ kuralı). Tablo zaten ham Türkçe tutuyordu; eksik olan **gösterim** tarafıyd
 `Ruins / Abandoned Farm / Watchtower / Cave / Abandoned Camp`, künye `🏚️ Ruins`,
 haritada çizilen hiçbir etikette Türkçe kalıntı yok.
 
+#### Yerleşim adı da haritada çevrilmiyordu (aynı sınıf, ikinci tur)
+
+Keşif noktalarıyla **birebir aynı hata**, bu kez `LOCATIONS`'ta: sözlükte altı kalenin
+karşılığı hazır duruyordu (`"Tevarin Kalesi": "Tevarin Castle"`), veri tablosu doğru şekilde
+ham Türkçeydi, ama üç **gösterim** yeri `T`ye hiç uğramıyordu — `renderMap`'in etiket çizimi,
+harita künyesinin başlığı (`handleMapHover`) ve yerleşim ekranının başlığı (`enterLocation`).
+Geri kalan ~30 çağrı yeri (pazar, han, arena, kuşatma, yağma, tımar, haber akışı) zaten
+`T(loc.name)` çağırıyordu; yani hata tablonun değil, üç satırın hatasıydı.
+
+Ders tekrar aynı: **bir veri alanı ham Türkçe duruyorsa, onu ekrana basan HER yol `T`den
+geçmeli.** Tarama yöntemi de aynı — `\$\{…\.name\}` kalıbını `T(` içermeyen satırlarda aramak
+üç yeri de tek geçişte buldu.
+
+Ölçüldü (EN ve ID, 25 yerleşimin her biri için künye + ekran başlığı + düğme listesi,
+14 keşif noktası, haritadaki bütün gruplar ve diplomasi ekranı taranarak):
+Türkçe kalıntı **0**, `I18N.missing` yalnız sürüm adını taşıyor (belgelenmiş yanlış pozitif),
+`Debug.errors 0`. Kale başlığı EN'de **"Tevarin Castle (Castle)"**, ID'de
+**"Kastil Tevarin (Benteng)"**.
+
 #### Zorluk — tek çarpan çifti (Kolay/Orta/Zor)
 
 "Kurtlar çok güçlü" şikâyetinin cevabı yeni bir denge tablosu değil, **tek bir knob**.

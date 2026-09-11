@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.73 — Kale Adı (2026-09-11)
+
+- **Haritadaki kale adları artık çevriliyor.** İngilizcede "Tevarin Kalesi" yazan altı kale
+  "Tevarin Castle", Endonezcede "Kastil Tevarin" oldu. Sözlükte karşılıkları zaten vardı;
+  haritanın etiket çizimi, harita künyesinin başlığı ve yerleşim ekranının başlığı
+  sözlüğe hiç uğramıyordu.
+
 ## 0.72 — Üç Kademe (2026-09-11)
 
 - **Zorluk ayarı geldi** (⚙️ Ayarlar → ⚔️ Zorluk): Kolay / Orta / Zor. Kurt sürüsü fazla

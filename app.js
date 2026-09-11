@@ -5,7 +5,7 @@
 // Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
 // yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
 // "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.72', date: '2026-09-11', name: 'Üç Kademe' };  // sürüm adı çevrilmez
+const VERSION = { no: '0.73', date: '2026-09-11', name: 'Kale Adı' };  // sürüm adı çevrilmez
 
 // --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
 // Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
@@ -3760,7 +3760,7 @@ const Game = {
                 this.emoji(ctx, '🏆', loc.x - big*0.55, loc.y - 15, 36*ik);
             }
 
-            this.mapLabel(ctx, loc.name, loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
+            this.mapLabel(ctx, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
         });
 
         // --- GÜNÜN VAKTİ ---
@@ -3921,7 +3921,7 @@ const Game = {
         let found = null;
 
         for(let loc of LOCATIONS) {
-            if(this.dist(loc, {x:mx,y:my}) < 36) { found = { name: loc.name, sub: this.locTipHtml(loc) }; break; }
+            if(this.dist(loc, {x:mx,y:my}) < 36) { found = { name: T(loc.name), sub: this.locTipHtml(loc) }; break; }
         }
         if(!found) {
             for(let npc of state.npcParties) {
@@ -4195,7 +4195,7 @@ const Game = {
         if(loc.type === 'site') return this.enterSite(loc);   // keşif noktası (#58): ekran değil modal
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById('settlement-view').classList.add('active');
-        document.getElementById('settlement-name').innerText = loc.name + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
+        document.getElementById('settlement-name').innerText = T(loc.name) + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
