@@ -1,10 +1,10 @@
 // ============================================
-// WEBBAND - SOYLULAR: İLİŞKİ, DİYALOG, FLÖRT, EVLİLİK
+// WEBBAND - NOBLES: RELATIONS, DIALOGUE, COURTSHIP, MARRIAGE
 // ============================================
 
-// --- KİŞİLİKLER ---
-// Kimin hangi hediyeden hoşlandığını, hangi görevi verdiğini ve drahomada
-// ne kadar açgözlü olduğunu belirler.
+// --- PERSONALITIES ---
+// Determines who likes which gift, which quest they give, and how
+// greedy they are about the dowry.
 const PERSONALITIES = {
     martial:     { name: 'Savaşçı',    likes: ['sword','axe','lance','horse'], dowry: 1.0, greet: 'Kılıcın keskin mi delikanlı? Laf değil, çelik konuşur burada.' },
     cunning:     { name: 'Kurnaz',     likes: ['iron','salt','velvet'],        dowry: 1.3, greet: 'Her sohbetin bir bedeli vardır. Seninkini henüz hesaplayamadım.' },
@@ -13,8 +13,8 @@ const PERSONALITIES = {
     quarrelsome: { name: 'Huysuz',     likes: [],                              dowry: 1.15, greet: 'Ne var? Konuşacaksan konuş, dikilip durma karşımda.' }
 };
 
-// --- LEYDİ HUYLARI ---
-// İltifatın tutup tutmayacağını belirler.
+// --- LADY TRAITS ---
+// Determines whether a compliment lands.
 const LADY_TRAITS = {
     romantic:  { name: 'Hülyalı',  likes: 'beauty',  hates: 'war',
                  hint: 'Pencere kenarında oturup uzaklara bakmayı sever.' },
@@ -48,8 +48,8 @@ const POEMS = [
       text:'"Nehir hep aynı yerden akar ama hiç aynı su değildir.\nBen her gün başka bir sebeple aynı kapıya geliyorum."' }
 ];
 
-// --- SOYLULAR ---
-// portraitIndex: lord_portraits.jpg 3x3 ızgarasındaki sıra (0-8)
+// --- LORDS ---
+// portraitIndex: position in lord_portraits.jpg's 3x3 grid (0-8)
 const LORDS = [
     // Svadya
     { id:'harlaus',  name:'Kral Harlaus',  faction:'swadia',  rank:'king',   personality:'debauched',   homeLocId:'praven',    portraitIndex:0, lore:'Tereyağına olan düşkünlüğü ile bilinir. Ülkesi elden giderken bile ziyafet vermekten geri durmayan, ağır zırhlı geleneksel bir hükümdardır.' },
@@ -100,18 +100,19 @@ const LADIES = [
     { id:'gokce',   name:'Leydi Gökçe',   faction:'khergit', guardianId:'arslan',   homeLocId:'narra',     trait:'romantic',  lore:'Bozkırda söylenen bütün ağıtları ezbere bilir; hiçbirini sonuna kadar söylemez.' }
 ];
 
-// --- TALİPLER (kadın oyuncu) ---
-// Kadın karakterin evlilik yolu leydilerden değil bekâr lordlardan geçer.
-// Flört makinesini ikiye ayırmamak için lord "leydi şeklinde" sarılır:
-// vasisi kendi kralı, huyu mizacından türer. SUITORS ilk istendiğinde dolar.
+// --- SUITORS (female player) ---
+// A female character's marriage path runs through unmarried lords, not ladies.
+// To avoid splitting the courtship machine in two, a lord is wrapped "shaped
+// like a lady": their guardian is their own king, their trait derives from
+// their personality. SUITORS fills in on first request.
 const SUITOR_TRAIT = { martial:'ambitious', cunning:'pious', debauched:'wild',
                        goodnatured:'romantic', quarrelsome:'wild' };
 const SUITORS = [];
 
-// --- YOLDAŞLAR ---
-// Handa bulunan isimli NPC kahramanlar. Sıradan askerden farkları: savaşta
-// ölmezler (yaralanırlar), seviye atlarlar ve uzmanlık yeteneklerini gruba
-// katarlar (Game.profLvl "gruptaki en yüksek" kuralını uygular).
+// --- COMPANIONS ---
+// Named NPC heroes found at the tavern. Unlike a regular soldier, they don't
+// die in battle (they're wounded), they level up, and they contribute their
+// proficiency to the party (Game.profLvl applies the "highest in party" rule).
 const COMPANIONS = [
     { id:'ferhat',  name:'Cerrah Ferhat',    city:'praven',   cost:800, skill:'surgery',      troopType:'infantry', icon:'🩺', level:10,
       lore:'Ordu cerrahıydı, bir lordun kolunu kesmeyi reddedince kovuldu. "Adam iyileşti ama beni kovdular. Kalradya böyle bir yer."',
@@ -136,10 +137,10 @@ const COMPANIONS = [
       dislikes:[] }
 ];
 
-// --- SOYLU SİSTEMİ ---
+// --- NOBLE SYSTEM ---
 const Nobles = {
 
-    // ---------- Yardımcılar ----------
+    // ---------- Helpers ----------
     lord(id)  { return LORDS.find(l => l.id === id); },
     lady(id)  {
         if(id && id.indexOf('suitor_') === 0) return this.suitors().find(l => l.id === id);
@@ -148,7 +149,7 @@ const Nobles = {
 
     isFemale() { return state.player.gender === 'female'; },
 
-    // Kur yapılabilecekler: erkek oyuncuda leydiler, kadın oyuncuda bekâr lordlar.
+    // Who can be courted: ladies for a male player, unmarried lords for a female player.
     courtables() { return this.isFemale() ? this.suitors() : LADIES; },
 
     suitors() {
@@ -185,11 +186,11 @@ const Nobles = {
         return T('<span style="color:#ff3333">Kan Davalı</span>');
     },
 
-    // 3x3 sprite sheet'ten portre karesi
+    // Portrait tile from the 3x3 sprite sheet
     portraitCss(n, size = 120) {
         let col = (n.portraitIndex ?? 0) % 3, row = Math.floor((n.portraitIndex ?? 0) / 3);
         if(n.isGuild) {
-            // Lonca ustasının portresi yok — terazi mührü
+            // The guild master has no portrait — a scale seal instead
             return `<div style="width:${size}px;height:${size}px;border-radius:8px;flex:0 0 auto;
                 background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
                 display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
@@ -201,10 +202,10 @@ const Nobles = {
             box-shadow:inset 0 0 15px #000;"></div>`;
     },
 
-    // Sprite sheet'te leydi yok (#39): portre kodla çizilir. Her şey id'nin hash'inden
-    // türer, yani aynı leydi her açılışta aynı yüzle gelir.
+    // There's no lady in the sprite sheet (#39): the portrait is drawn in code. Everything
+    // derives from a hash of the id, so the same lady gets the same face every time.
     LADY_LOOK: {
-        // fraksiyon: [elbise, elbise gölgesi, ten, saç seçenekleri]
+        // faction: [dress, dress shadow, skin, hair options]
         swadia:  ['#8d2230', '#5d1220', '#f0cdb0', ['#5a3418', '#241611', '#b06a2c']],
         rhodok:  ['#2f6b3a', '#1c4325', '#e8c4a4', ['#3a2412', '#161616', '#7b4a22']],
         vaegir:  ['#2b4f86', '#1a3054', '#f5dcc6', ['#c8a86a', '#e0cf9c', '#6b4a24']],
@@ -219,12 +220,12 @@ const Nobles = {
         let [dress, dressDark, skin, hairs] = look;
         let hair = hairs[h % hairs.length];
         let eye = ['#3c6e4a', '#4a6f9c', '#5a4230', '#6b6b74'][(h >> 3) % 4];
-        let faceW = 20 + (h >> 5) % 3;              // yüz genişliği biraz oynar
+        let faceW = 20 + (h >> 5) % 3;              // face width varies a little
         let lip = ['#a8434c', '#93394a', '#b95a55'][(h >> 7) % 3];
         let uid = 'ld' + n.id;
 
-        // Huya göre aksesuar. back yüzün ALTINA, front üstüne çizilir — tülbent
-        // yüzü kapatmasın diye ikiye ayrıldı.
+        // Accessory by trait. `back` is drawn UNDER the face, `front` over it — split in
+        // two so a headscarf doesn't cover the face.
         let back = '', front = '';
         if(n.trait === 'ambitious') {
             front = `<path d="M31 33 L37 24 L44 31 L50 21 L56 31 L63 24 L69 33 Z" fill="#e0b955" stroke="#8a6a1e" stroke-width="0.8"/>
@@ -254,8 +255,8 @@ const Nobles = {
                 <radialGradient id="${uid}vg" cx="50%" cy="45%">
                     <stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.55"/>
                 </radialGradient>
-                <!-- Lord portreleri yağlıboya; SVG'nin temiz kenarı yanlarında oyuncak duruyordu.
-                     Hafif dalgalanma + tuval taneciği ikisini aynı çerçeveye yaklaştırır. -->
+                <!-- Lord portraits are oil paintings; the SVG's clean edges looked like a toy
+                     next to them. A slight ripple + canvas grain brings the two closer to one frame. -->
                 <filter id="${uid}pt" x="-10%" y="-10%" width="120%" height="120%">
                     <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="${h % 100}" result="w"/>
                     <feDisplacementMap in="SourceGraphic" in2="w" scale="2.2" xChannelSelector="R" yChannelSelector="G"/>
@@ -299,8 +300,8 @@ const Nobles = {
             border:4px ridge #dca243;box-shadow:inset 0 0 15px #000;filter:sepia(0.35) contrast(1.05) saturate(0.9);">${svg}</div>`;
     },
 
-    // ---------- Nerede kim var ----------
-    // Bir lord "evinde" sayılır: partisi kendi yerleşimine yakınsa ya da orada şölen varsa.
+    // ---------- Who's where ----------
+    // A lord counts as "home" if their party is near their own location, or if a feast is there.
     partyOf(lordId) { return state.npcParties.find(n => n.lordId === lordId); },
 
     isAt(lordId, locId) {
@@ -319,8 +320,8 @@ const Nobles = {
 
     lordsAt(locId) { return LORDS.filter(l => this.isAt(l.id, locId)); },
 
-    // Leydiler seyahat etmez; evlerindedirler (şölendeyse şölen şehrinde).
-    // Talip lordlar ise gezer: ancak kendi salonundayken (ya da şölende) bulunur.
+    // Ladies don't travel; they're home (or at the feast city, if there's a feast).
+    // Suitor lords do roam: found only in their own hall (or at a feast).
     ladiesAt(locId) {
         return this.courtables().filter(l => {
             if(l.suitor) return this.isAt(l.lordId, locId);
@@ -329,14 +330,14 @@ const Nobles = {
         });
     },
 
-    // ---------- Lordlar Salonu ----------
+    // ---------- Lords' Hall ----------
     HALL_RENOWN: 80,
 
     openHall(loc) {
         let f = FACTIONS[loc.faction] || { name: '?' };
         let lords = this.lordsAt(loc.id);
         let ladies = this.ladiesAt(loc.id);
-        let renown = Game.peakRenown();   // kapılar ulaşılmış nama bakar (#55)
+        let renown = Game.peakRenown();   // gates look at peak renown reached (#55)
 
         let html = `<h3>${T`👑 Lordlar Salonu — ${T(loc.name)}`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-md)">${T(f.name)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
@@ -350,8 +351,8 @@ const Nobles = {
             html += `</div>`;
         }
 
-        // Kadın oyuncuda kur hedefi lordların kendisidir; ayrı bir konuk listesi
-        // aynı kartları ikinci kez basardı — kur yapma lordun diyaloğundan yürür.
+        // For a female player, the courtship target is the lords themselves; a separate
+        // guest list would print the same cards twice — courtship runs through the lord's dialogue.
         if(this.isFemale()) {
             html += `<p style="margin-top:1.2rem;font-size:var(--fs-sm);color:var(--text-muted)">
                 ${T`Salonun leydileri seninle ilgilenmiyor. Bekâr bir lorda kur yapmak istersen
@@ -375,7 +376,7 @@ const Nobles = {
             html += `<button class="btn" style="margin-top:1.5rem" onclick="Nobles.swearFealtyPrompt('${loc.faction}')">${T`⚔️ ${T(FACTIONS[loc.faction].ruler)}'a Bağlılık Yemini Et`}</button>`;
         }
         html += `<button class="btn" style="margin-top:0.5rem" onclick="Game.closeModal()">${T`Ayrıl`}</button>`;
-        Game.showModal(html, '760px', Game.sceneBg('hall'));   // kale içi (#60)
+        Game.showModal(html, '760px', Game.sceneBg('hall'));   // interior of the keep (#60)
     },
 
     nobleCard(n) {
@@ -401,7 +402,7 @@ const Nobles = {
         Game.updateTopBar();
     },
 
-    // ---------- Diyalog ----------
+    // ---------- Dialogue ----------
     talk(id) {
         let n = this.any(id);
         if(!n) return;
@@ -410,7 +411,7 @@ const Nobles = {
         let r = this.rel(id);
         let p = PERSONALITIES[n.personality];
         let line = this.greetLine(n, r);
-        let banter = this.retinueHtml(id);          // maiyet atışması (#59), replik bitince görünür
+        let banter = this.retinueHtml(id);          // retinue banter (#59), shown once the line finishes
         Quests.emit('talked_to', { lordId: id });
 
         let html = `<div style="display:flex;gap:1.5rem;align-items:flex-start">
@@ -439,11 +440,11 @@ const Nobles = {
         html += `<button class="btn" onclick="Nobles.askWhereMenu('${id}')">${T`🗺️ Birinin yerini sor`}</button>`;
         html += `<button class="btn" onclick="Nobles.giftMenu('${id}')">${T`🎁 Hediye ver`}</button>`;
 
-        // "Bir Şiir Getir" görevi bu lorddaysa ve ezberinde şiir varsa
+        // If the "Bring a Poem" quest is with this lord and one is memorized
         if(state.player.poems.length && state.player.quests.some(q => q.id === 'bring_poem' && q.giverId === id))
             html += `<button class="btn" onclick="Nobles.recitePoemToLord('${id}')">${T`🎵 Öğrendiğin şiiri oku`}</button>`;
 
-        // Kadın oyuncunun kur yolu: lordun kendi diyaloğundan (salon nam kapısı burada)
+        // A female player's courtship path: from the lord's own dialogue (the hall's renown gate lives here)
         let suitor = this.isFemale() ? this.suitors().find(x => x.lordId === id) : null;
         if(suitor) {
             html += Game.peakRenown() >= this.HALL_RENOWN
@@ -458,7 +459,7 @@ const Nobles = {
             });
         }
 
-        // Kral olan oyuncu lord tutabilir — bedeli tımardır (#40)
+        // A player who is king can retain lords — the price is a fief (#40)
         if(Game.isKing() && n.rank !== 'king' && n.faction !== 'player_kingdom')
             html += `<button class="btn" style="border-color:var(--primary);color:var(--primary)" onclick="Game.offerVassalage('${id}')">${T`👑 Krallığıma katıl (tımar teklif et)`}</button>`;
         else if(n.faction === 'player_kingdom')
@@ -468,7 +469,7 @@ const Nobles = {
         html += `<button class="btn" onclick="Game.closeModal()">${T`Ayrıl`}</button></div>`;
 
         Game.showModal(html, '680px');
-        // Replik kademeli yazılır; maiyet ancak lord sözünü bitirince araya girer
+        // The line is typed out gradually; the retinue only cuts in once the lord finishes
         let b = document.getElementById('lord-banter');
         if(b) b.style.visibility = 'hidden';
         Game.typeIn('lord-line', `"${line}"`, () => { if(b) b.style.visibility = 'visible'; });
@@ -480,8 +481,8 @@ const Nobles = {
         alert(T`${T(p.text)}\n\n${T(this.lord(id).name)} kadehini masaya bıraktı. "Fena değil. Ziyafette bunu okuyacaksın."`);
     },
 
-    // Oyuncunun soylu gözündeki ağırlığı: nam + ilişki + kapıya getirdiği ordu.
-    // -1 küçümsenen ... 4 çekinilen. Replikler ve sohbetin karşılığı buna bağlı.
+    // The player's standing in a noble's eyes: renown + relation + the army brought to the door.
+    // -1 looked down on ... 4 feared. Lines and the payoff of small talk depend on this.
     standing(id) {
         let p = state.player, r = this.rel(id);
         let theirs = (state.npcParties.find(x => x.lordId === id) || {}).size || 20;
@@ -490,17 +491,17 @@ const Nobles = {
                + (r >= 40 ? 1 : r <= -15 ? -1 : 0)
                + (power >= 1.2 ? 1 : power < 0.4 ? -1 : 0)
                - (this.lord(id).personality === 'quarrelsome' ? 1 : 0)
-               + Game.honorWeight(this.lord(id).personality);   // şeref lordun mizacına göre okunur (#53/1.5)
+               + Game.honorWeight(this.lord(id).personality);   // honor is read according to the lord's personality (#53/1.5)
         return Math.max(-1, Math.min(4, sc));
     },
     standingLabel(sc) {
         return [T('Bir hiç'), T('Tanınmayan'), T('Adı duyulmuş'), T('Saygı gören'), T('Ünlü'), T('Çekinilen')][sc + 1];
     },
 
-    // ---------- Lord kişilikleri ve replik havuzu (#59) ----------
-    // Mizaç (PERSONALITIES) lordun ne yaptığını, karakter özelliği nasıl konuştuğunu belirler.
-    // Özellik kayda yazılmaz: id'nin hash'inden türer, yani her açılışta ve her eski
-    // kayıtta aynı lorda aynı huy düşer — göç kodu gerekmez.
+    // ---------- Lord personalities and line pool (#59) ----------
+    // Personality (PERSONALITIES) decides what a lord does; character trait decides how they talk.
+    // The trait is never saved: it derives from a hash of the id, so the same lord gets
+    // the same trait on every load and in every old save — no migration code needed.
     LORD_TRAITS: {
         proud:     { name: 'Kibirli',  icon: '\ud83e\udd9a' },
         craven:    { name: 'Korkak',   icon: '\ud83d\udc01' },
@@ -512,17 +513,17 @@ const Nobles = {
     },
     traitOf(id) {
         let keys = Object.keys(this.LORD_TRAITS), str = String(id), h = 0;
-        for(let i = 0; i < str.length; i++) h = (h * 131 + str.charCodeAt(i)) % 1000003;   // 131: 23 lorda en dengeli dağılım (2-4)
+        for(let i = 0; i < str.length; i++) h = (h * 131 + str.charCodeAt(i)) % 1000003;   // 131: the most even spread across 23 lords (2-4)
         return keys[h % keys.length];
     },
     traitOb(id) { return this.LORD_TRAITS[this.traitOf(id)]; },
 
-    // Ağırlık kademesi (-1..4) üç konuşma bandına iner:
-    // 0 = seni ciddiye almıyor, 1 = normal, 2 = çekiniyor/yağcılık yapıyor
+    // The standing score (-1..4) collapses to three speech bands:
+    // 0 = doesn't take you seriously, 1 = normal, 2 = wary/fawning
     band(sc) { return sc <= 0 ? 0 : sc <= 2 ? 1 : 2; },
 
-    // Replik havuzu: 'b0/b1/b2' anahtarları banda, diğerleri karakter özelliğine bağlı.
-    // greet'te özellik havuzu ayrıca banda göre üçe ayrılmıştır.
+    // Line pool: keys 'b0/b1/b2' map to a band, the rest to a character trait.
+    // In greet, the trait pool is further split into three by band.
     LORD_LINES: {
         greet: {
             proud: [
@@ -647,7 +648,7 @@ const Nobles = {
             honorable: ['Söylediğinin arkasında kılıcınla durabiliyor musun? Hayır mı? Öyleyse çık.'],
             fawning: ['Ne dediniz? Yani... öyle demek istemediniz herhalde. Değil mi? Değil mi?']
         },
-        // Maiyet atışması: [maiyetin repliği, lordun cevabı]
+        // Retinue banter: [retinue's line, lord's reply]
         retinue: {
             proud: [['Efendim, portrenizin boyası hâlâ kurumadı.', 'Kurusun. Sanat acele etmez; ben ederim.'],
                     ['Misafirin adını deftere yazayım mı efendim?', 'Yaz. Silmesi kolay olur.']],
@@ -673,10 +674,10 @@ const Nobles = {
     },
     RETAINERS: ['Yaşlı çavuş', 'Kâhya', 'Silahtar', 'Danışman', 'Genç uşak', 'Kâtip'],
 
-    // Son N replik tekrar seçilmez (Game.dailyEvent'teki desen). İki fark var:
-    // sayaç tür başına tutulur ve geriye bakış havuzun %60'ıyla sınırlıdır —
-    // 5 replikli bir havuza 12'lik süzgeç uygulanınca havuz boşalıyor ve
-    // seçim tamamen rastgeleye düşüyordu (ölçüldü: bitişik tekrar %16).
+    // The last N lines are never picked again (the pattern from Game.dailyEvent). Two
+    // differences here: the counter is kept per kind, and the lookback is capped at
+    // 60% of the pool — applying a filter of 12 to a 5-line pool emptied the pool
+    // and selection fell back to fully random (measured: 16% back-to-back repeats).
     fresh(pool, kind = 'x') {
         if(!pool.length) return null;
         let mem = state.recentLines || (state.recentLines = {});
@@ -690,17 +691,18 @@ const Nobles = {
         if(recent.length > 12) recent.shift();
         return out;
     },
-    // Replik seçimi: türü + lordun karakter özelliği + oyuncunun ağırlık bandı
+    // Line selection: kind + the lord's character trait + the player's standing band
     lineFor(kind, id, extra = []) {
         let src = this.LORD_LINES[kind] || {}, b = this.band(this.standing(id));
         let mine = src[this.traitOf(id)] || [];
         if(kind === 'greet') mine = mine[b] || [];
-        // Havuz metinleri betik yüklenirken `T`den geçti — o an dil hep 'tr' olduğu
-        // için Türkçe kaldılar; çeviri seçim anında yapılır. `extra` çağıranda çevrilmiş gelir.
+        // The pool text passed through `T` while the script loaded — the language was
+        // always 'tr' at that point, so it stayed Turkish; translation happens at
+        // selection time. `extra` arrives from the caller already translated.
         let pool = mine.concat(src['b' + b] || []).map(x => Array.isArray(x) ? x.map(s => T(s)) : T(x));
         return this.fresh(pool.concat(extra), kind + b);
     },
-    // Maiyet atışması: her diyalogda değil, üçte bir ihtimalle araya girerler
+    // Retinue banter: doesn't cut in on every dialogue, only one time in three
     retinueHtml(id) {
         if(Math.random() > 0.34) return '';
         let pair = this.lineFor('retinue', id);
@@ -712,7 +714,7 @@ const Nobles = {
         </div>`;
     },
 
-    // Tek repliklik modal: portre + yazı makinesiyle yazılan söz + not, sonra diyaloğa dönüş
+    // A single-line modal: portrait + a typewriter-written line + a note, then back to dialogue
     say(id, line, note = '') {
         let n = this.lord(id);
         Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
@@ -726,8 +728,8 @@ const Nobles = {
         Game.typeIn('lord-line', `"${line}"`);
     },
 
-    // Selamlama: önce husumet, sonra dostluk, sonra oyuncunun ağırlığı.
-    // Sabit tek cevap yok — her kademenin kendi havuzu var.
+    // Greeting: hostility first, then friendship, then the player's standing.
+    // No single fixed reply — every tier has its own pool.
     GREETS: {
         '-1': [
             'Sen de kimsin? Kapıda bekleyen dilencilere sadaka veriyoruz, salonda değil.',
@@ -760,12 +762,12 @@ const Nobles = {
             'Bu salonda bugün iki lord var galiba. Söyle bakalım, ne istersin?'
         ]
     },
-    // Düz metin döner (tırnaksız): yazı makinesi textContent'e yazar (#59)
+    // Returns plain text (no quotes): the typewriter writes it into textContent (#59)
     greetLine(n, r) {
         if(r <= -50) return T('Sen hâlâ nefes alıyor musun? Bir gün bu hatayı düzelteceğim.');
         if(r <= -15) return T('Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini.');
         if(r >= 60)  return T('Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya.');
-        // Karakter özelliği + ağırlık bandı havuzu; eski GREETS kademe havuzu da ekli kalır
+        // Character trait + standing band pool; the old GREETS tier pool stays mixed in
         return this.lineFor('greet', n.id, (this.GREETS[String(this.standing(n.id))] || []).map(s => T(s)));
     },
 
@@ -776,8 +778,8 @@ const Nobles = {
         state.smallTalkDay[id] = today;
 
         let n = this.lord(id);
-        // Sohbet artık otomatik +1 değil: seni ciddiye almayan lord hiçbir şey
-        // vermez, hatta tersler. Ağırlığın arttıkça sohbetin de karşılığı artar.
+        // Small talk is no longer an automatic +1: a lord who doesn't take you
+        // seriously gives nothing, even snaps back. The payoff grows with your standing.
         let sc = this.standing(id);
         let gain = sc <= -1 ? -1 : sc === 0 ? 0 : sc <= 2 ? 1 : 2;
         if(gain) this.addRel(id, gain);
@@ -789,7 +791,7 @@ const Nobles = {
                 T`Nam kazan, kalabalık bir orduyla gel — kapılar o zaman açılır.`);
         }
 
-        // Havuza dünyanın o günkü hâlinden iki replik daha eklenir
+        // Two more lines are added to the pool from the world's current state
         let world = [
             T`${T(FACTIONS[n.faction].name)}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
             T`Duyduğuma göre ${T(LORDS[Math.floor(Math.random()*LORDS.length)].name)} yine bir sınırda dolaşıyormuş.`
@@ -802,10 +804,10 @@ const Nobles = {
         let n = this.lord(id);
         this.addRel(id, -15);
         state.player.renown += 2;
-        // Rakip krallıkların lordları bundan hoşlanır
+        // Rival kingdoms' lords enjoy this
         LORDS.filter(l => l.faction !== n.faction).forEach(l => this.addRel(l.id, 5));
         Game.updateTopBar();
-        // Cevap lordun karakter özelliğinden gelir (#59)
+        // The reply comes from the lord's character trait (#59)
         Game.showModal(`<div style="display:flex;gap:1.2rem;align-items:flex-start">
                 ${this.portraitCss(n, 110)}
                 <div style="flex:1">
@@ -818,7 +820,7 @@ const Nobles = {
         Game.typeIn('lord-line', `"${this.lineFor('retort', id)}"`);
     },
 
-    // ---------- Hediye ----------
+    // ---------- Gift ----------
     giftMenu(id) {
         let n = this.lord(id);
         let inv = state.player.inventory.filter(i => i.type !== 'special');
@@ -863,7 +865,7 @@ const Nobles = {
         this.talk(id);
     },
 
-    // ---------- "Birinin yerini sor" ----------
+    // ---------- "Ask someone's whereabouts" ----------
     askWhereMenu(askedId) {
         let asked = this.lord(askedId);
         let others = LORDS.filter(l => l.id !== askedId);
@@ -884,9 +886,9 @@ const Nobles = {
         if(!party) return alert(T`"${T(target.name)} mi? O adam artık yok. Kimse cesedini de bulamadı."`);
 
         let r = this.rel(askedId);
-        // Başka krallıktan birini soruyorsan bir kademe düşer
+        // Asking about someone from another kingdom drops a tier
         if(asked.faction !== target.faction) r -= 20;
-        // Yaydığın yalan geri döndü: o krallığın lordları da sana yalan söylüyor
+        // The lie you spread came back around: that kingdom's lords lie to you too
         if(state.liars && state.time.day <= state.liars.until && asked.faction === state.liars.faction) r = -1;
 
         let msg, accuracy = null, lie = false;
@@ -909,7 +911,7 @@ const Nobles = {
             let angle = Math.random() * Math.PI * 2;
             let ox, oy;
             if(lie) {
-                // Yalan: gerçek konumdan 800-1500 birim uzağa işaret koy
+                // Lie: place the marker 800-1500 units away from the real position
                 let d = 800 + Math.random() * 700;
                 ox = party.x + Math.cos(angle) * d;
                 oy = party.y + Math.sin(angle) * d;
@@ -934,7 +936,7 @@ const Nobles = {
         return dy > 0 ? T('güney') : T('kuzey');
     },
 
-    // Haritaya bilinen konum işaretlerini çiz (Game.renderMap içinden çağrılır)
+    // Draws known-location markers on the map (called from within Game.renderMap)
     drawMarkers(ctx) {
         for(let id in state.knownLocations) {
             let m = state.knownLocations[id];
@@ -959,7 +961,7 @@ const Nobles = {
         }
     },
 
-    // ---------- FLÖRT ----------
+    // ---------- COURTSHIP ----------
     courtMenu(ladyId) {
         let L = this.lady(ladyId);
         let a = this.aff(ladyId);
@@ -1108,8 +1110,8 @@ const Nobles = {
         this.courtMenu(ladyId);
     },
 
-    // ---------- Rakip talip ----------
-    // Rakip leydiyse kılıcı kendisi çekmez: şerefini vasisi savunur.
+    // ---------- Rival suitor ----------
+    // If the rival is a lady, she doesn't draw the sword herself: her guardian defends her honor.
     duelTarget(rival) {
         return (rival.guardianId !== undefined && !rival.suitor) ? this.lord(rival.guardianId) : rival;
     },
@@ -1171,7 +1173,7 @@ const Nobles = {
         this.courtMenu(ladyId);
     },
 
-    // ---------- Babadan isteme ve drahoma ----------
+    // ---------- Asking the father, and the dowry ----------
     dowryFor(ladyId) {
         let L = this.lady(ladyId);
         let g = this.lord(L.guardianId);
@@ -1180,8 +1182,8 @@ const Nobles = {
 
         let base = 8000;
         let fiefAdd = fiefs * 400;
-        // Nam indirimi logaritmik: doğrusalken 300 nam tek başına −6000 ediyor,
-        // drahoma hep 1500 tabanına çakılıyordu.
+        // The renown discount is logarithmic: linear, 300 renown alone was worth
+        // −6000, and the dowry kept pinning to its 1500 floor.
         let renownCut = Math.round(2200 * Math.log10(1 + p.renown / 60));
         let relCut = Math.max(0, this.rel(g.id)) * 25;
         let statusMult = p.vassalOf === 'player_kingdom' ? 0.6 : (p.vassalOf ? 0.8 : 1.0);
@@ -1322,7 +1324,7 @@ const Nobles = {
         this.addRel(L.guardianId, -60);
         LORDS.filter(l => l.faction === L.faction && l.id !== L.guardianId).forEach(l => this.addRel(l.id, -20));
         state.player.renown = Math.max(0, state.player.renown - 30);
-        Game.addHonor('abduct');   // kaçırma şerefin en pahalı kalemi (#53/1.5)
+        Game.addHonor('abduct');   // an abduction is honor's most expensive line item (#53/1.5)
         this.addAff(ladyId, -10);
         this.marry(ladyId, T('Şafak sökerken sınırı geçtiniz. Arkanızda bağıran bir kale kaldı.'));
     },
@@ -1333,7 +1335,7 @@ const Nobles = {
         let L = this.lady(ladyId);
         Game.closeModal();
         Game.updateTopBar();
-        // Şölen varsa hemen, yoksa vasi bir tane düzenlesin
+        // If a feast is running, right away; otherwise the guardian schedules one
         if(state.feast && state.feast.faction === L.faction) {
             this.marry(ladyId, msg + T('\nŞölen zaten sürüyordu; nikâh o akşam kıyıldı.'));
         } else {
@@ -1361,15 +1363,15 @@ const Nobles = {
         alert(T`${msg}\n\n💍 ${T(L.name)} ile evlendin!\n+15 idare hakkı, ${T(FACTIONS[L.faction].name)} lordlarıyla +20 ilişki, günlük +50 dinar drahoma geliri.`);
     },
 
-    // ---------- Günlük ----------
+    // ---------- Daily ----------
     dailyTick() {
-        // Bilinen konum işaretleri 3 gün sonra silinir
+        // Known-location markers are removed after 3 days
         for(let id in state.knownLocations) {
             if(state.time.day - state.knownLocations[id].day >= 3) delete state.knownLocations[id];
         }
 
-        // Rakip talipler ilerler — ama yarış asıl sen kur yapmaya başlayınca kızışır.
-        // Yoksa oyuncu daha 120 nama ulaşamadan bütün leydiler nişanlanıyor.
+        // Rival suitors advance — but the race only really heats up once you start courting.
+        // Otherwise every lady gets engaged before the player even reaches 120 renown.
         for(let ladyId in state.rivals) {
             let r = state.rivals[ladyId];
             r.affection += this.aff(ladyId) > 0 ? 1.2 : 0.15;
@@ -1383,10 +1385,10 @@ const Nobles = {
             }
         }
 
-        // Evlilik geliri
+        // Marriage income
         if(state.player.spouse) state.player.money += 50;
 
-        // Düğün günü geldi mi?
+        // Has the wedding day arrived?
         if(state.pendingWedding && state.time.day >= state.pendingWedding.day) {
             let w = state.pendingWedding;
             let atVenue = Game.dist(state.player, LOCATIONS.find(l => l.id === w.locId) || state.player) < 200;
@@ -1401,12 +1403,12 @@ const Nobles = {
         }
     },
 
-    // Oyun başında rakip talipleri kur
+    // Set up rival suitors at game start
     initRivals() {
         state.rivals = {};
         this.courtables().forEach(L => {
             if(Math.random() < 0.60) {
-                // Erkek oyuncunun rakibi bir lord, kadın oyuncununki aynı lorda talip bir leydi
+                // A male player's rival is a lord; a female player's rival is a lady also suiting the same lord
                 let pool = (this.isFemale() ? LADIES : LORDS)
                     .filter(l => l.faction === L.faction && l.id !== L.guardianId && l.id !== L.id && l.rank !== 'king');
                 if(pool.length) {
@@ -1420,7 +1422,7 @@ const Nobles = {
     }
 };
 
-// --- ŞÖLEN ---
+// --- FEAST ---
 const Feast = {
     schedule(faction, locId, day) {
         state.scheduledFeasts = state.scheduledFeasts || [];
@@ -1430,10 +1432,10 @@ const Feast = {
     RENOWN_REQ: 150,
 
     dailyTick() {
-        // Süresi dolan şöleni kapat
+        // Close a feast whose time is up
         if(state.feast && state.time.day >= state.feast.endDay) state.feast = null;
 
-        // Planlanmış şölenler
+        // Scheduled feasts
         state.scheduledFeasts = (state.scheduledFeasts || []).filter(f => {
             if(state.time.day >= f.day) {
                 state.feast = { faction: f.faction, locId: f.locId, endDay: state.time.day + 4, greeted: [] };
@@ -1442,7 +1444,7 @@ const Feast = {
             return true;
         });
 
-        // Kendiliğinden şölen (10-20 günde bir)
+        // Spontaneous feast (every 10-20 days)
         if(!state.feast && state.time.day >= (state.nextFeastDay || 8)) {
             let cities = LOCATIONS.filter(l => l.type === 'city' && FACTIONS[l.faction]);
             let c = cities[Math.floor(Math.random()*cities.length)];
@@ -1458,7 +1460,7 @@ const Feast = {
         if(Game.peakRenown() < this.RENOWN_REQ) {
             return alert(T`Kapıdaki teşrifatçı listeye baktı ve başını salladı.\n"Bu isim burada yazmıyor."\n\nGereken nam: ${this.RENOWN_REQ} (sende ${Game.peakRenown()})`);
         }
-        // Nam kapıyı açar, şeref kapıda tutar: köy yakan adam salona alınmaz (#53/1.5)
+        // Renown opens the door, honor decides who's kept at it: a village-burner isn't let into the hall (#53/1.5)
         if(Game.honor() < this.HONOR_REQ) {
             return alert(T`Teşrifatçı adını biliyor — fazlasıyla.\n"${Game.honorLabel()} birini bu salona sokamam."\n\n`
                 + T`Gereken şeref: ${this.HONOR_REQ} (sende ${Game.honor()})`);
@@ -1478,7 +1480,7 @@ const Feast = {
         html += `<h4 style="color:var(--primary);margin-top:1rem">${T`Lordlar`}</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
         guests.forEach(l => html += Nobles.nobleCard(l));
         html += `</div>`;
-        // Kadın oyuncuda kur hedefi lordların kendisi; ayrı leydi listesi basılmaz.
+        // For a female player, courtship targets the lords themselves; no separate lady list is printed.
         if(!Nobles.isFemale()) {
             html += `<h4 style="color:var(--primary);margin-top:1rem">${T`Leydiler`}</h4><div style="display:flex;flex-wrap:wrap;gap:1rem">`;
             ladies.forEach(l => html += Nobles.nobleCard(l));
@@ -1501,7 +1503,7 @@ const Feast = {
         Game.closeModal();
     },
 
-    // Kendi şölenini düzenle (kendi şehrin varsa)
+    // Host your own feast (if you have your own city)
     host(loc) {
         const COST = 3000, FOOD = 30;
         let food = state.player.inventory.filter(i => ['meat','cheese'].includes(i.id)).reduce((a,b) => a + b.qty, 0);
