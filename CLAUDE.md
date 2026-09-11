@@ -15,6 +15,7 @@ Build yok, bağımlılık yok — `index.html` doğrudan tarayıcıda açılır.
 | `i18n.js` | Dil katmanı: `I18N` + global `T` — anahtar Türkçe kaynak metnin kendisidir |
 | `lang-en.js` / `lang-id.js` | Üretilmiş sözlükler (1761 anahtar); elle düzenlenmez |
 | `docs/PLAN-soylular-ve-gorevler.md` | Bu sistemin tasarım planı |
+| `docs/PLAN-mobil-port.md` | Mobil port araştırması ve planı (ölçülmüş kod tabanı dökümü + framework karşılaştırması) |
 | `tools/` | Node ölçüm araçları (`harness.js` + `sim/duel/economy/framegate`) — bkz. "Ölçüm araçları" |
 | `docs/olcum/` | Araçların ürettiği tarihli ölçüm raporları |
 | `README.md` | İngilizce depo tanıtımı — kurulum tek satır: `index.html`'i aç |
