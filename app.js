@@ -406,7 +406,7 @@ const state = {
         wageLateHours: 0,     // kaç saattir gecikmiş (saat başı -1 moral)
         partyCapacity: 50,
         party: [],
-        inventory: [{...ITEMS.wheat, qty:3}],
+        inventory: [{...ITEMS.bread, qty:1}],   // tek ekmek: ilk gün erzak derdi başlar (#75)
         equipment: { weapon: null, armor: null, horse: null },
         x: 4500, y: 4500,
         targetLocation: null,
@@ -1583,7 +1583,9 @@ const Game = {
     // otomatik ödenir; sayaç ancak borç tamamen kapanınca sıfırlanır.
     // Can 5'lik sıçramalarla değil, Dirayet'in belirlediği aralıkta 1'er dolar.
     // Üst sınır açık: maxHp. Esaretteyken de işler, hücrede de iyileşirsin.
+    HUNGER_HP: 3,          // aç geçen günün can bedeli (#75)
     regenTick() {
+        if(state.player.wasHungry) return;     // aç adam iyileşmez (#75)
         let s2 = state.player.stats;
         s2.regenAcc = (s2.regenAcc || 0) + 1;
         if(s2.regenAcc < this.hpRegenHours()) return;
@@ -2831,15 +2833,22 @@ const Game = {
             // Oyuncu neden aç kaldığını görmeli. Warband'da da erzak biterken uyarı gelir;
             // burada hiç gelmiyordu, oyuncu moral çöküşünün sebebini anlamıyordu.
             let hungry = missingLow > 0;
+            let alone = state.player.party.length === 0;
             if(hungry && !state.player.wasHungry) {
-                alert(`🍽️ <b>${T`Ordu aç kaldı!</b><br>Günlük ihtiyaç <b>${Math.ceil(foodRequiredLow)} birim</b> yemekti,`} ` +
-                      T`<b>${Math.ceil(foodRequiredLow) - missingLow} birim</b> bulundu.<br>` +
-                      `${T`Moral <b>−30</b> — moral 25'in altına inerse asker firar etmeye başlar.`}<br>` +
+                alert(`🍽️ <b>${alone ? T('Aç kaldın!') : T('Ordu aç kaldı!')}</b><br>` +
+                      T`Günlük ihtiyaç <b>${Math.ceil(foodRequiredLow)} birim</b> yemekti, <b>${Math.ceil(foodRequiredLow) - missingLow} birim</b> bulundu.<br>` +
+                      (alone ? '' : `${T`Moral <b>−30</b> — moral 25'in altına inerse asker firar etmeye başlar.`}<br>`) +
+                      T`Her aç gün <b>−${this.HUNGER_HP} can</b> götürür, yaran da iyileşmez.<br>` +
                       `<i>${T`Köylerin erzak pazarı en ucuz kaynaktır.`}</i>`);
             } else if(!hungry && state.player.wasHungry) {
-                alert(T('🍞 Ordu doydu, açlık cezası kalktı.'));
+                alert(alone ? T('🍞 Karnını doyurdun, açlık cezası kalktı.') : T('🍞 Ordu doydu, açlık cezası kalktı.'));
             }
             state.player.wasHungry = hungry;
+            // Açlığın tek karşılığı moraldi; moral ise yalnız askerlere işliyor
+            // (Battle'daki moraleMult). Tek başına gezen oyuncu bu yüzden aç kalmaktan
+            // hiç etkilenmiyordu. Artık aç adam kilo verir: günde HUNGER_HP can gider
+            // ve regenTick iyileştirmez (bkz. regenTick) — ölmez, taban 1 candır.
+            if(hungry) state.player.stats.hp = Math.max(1, state.player.stats.hp - this.HUNGER_HP);
 
             // Kalite eksiği açlıktan ayrı bir şey: karnı tok ama seçkin asker homurdanıyor.
             // Oyuncu "envanterde ekmek var, neden debuff yiyorum" diye haklı olarak şaşırıyordu.
@@ -2948,10 +2957,11 @@ const Game = {
         set('ui-daypart', dp.icon);
         set('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
-        set('ui-food', fs.need ? (fs.days === Infinity ? '∞' : fs.days) : '—');
-        set('ui-food-sub', fs.need ? (fs.total ? T('gün erzak') : T('erzak yok')) : T('erzak'));
+        // Tüketim artık hiç sıfır olmuyor (oyuncu da yer, #75) — "ordu yok" dalı düştü.
+        set('ui-food', fs.days);
+        set('ui-food-sub', fs.total ? T('gün erzak') : T('erzak yok'));
         let fe = document.getElementById('chip-food');
-        if(fe) fe.classList.toggle('warn', fs.need > 0 && fs.days < 3);
+        if(fe) fe.classList.toggle('warn', fs.days < 3);
         set('ui-renown', p.renown);
         set('ui-party', `${p.party.length}/${cap}`);
         let ccap = this.cargoCap(), cload = this.cargoLoad();
@@ -3011,10 +3021,10 @@ const Game = {
             R(T('Elde'), T`${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
             R(T('Günlük tüketim'), T`-${fs.need} birim`, false) +
             (fs.spoil >= 0.05 ? R(T('Bozulma'), T`-${fs.spoil.toFixed(1)} birim/gün`, false) : '') +
-            R(T('Yeter'), fs.need ? T`${fs.days} gün` : T('ordu yok'), fs.days >= 3) +
+            R(T('Yeter'), T`${fs.days} gün`, fs.days >= 3) +
             (fs.needHigh ? R(T('Seçkin asker payı'), T`${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
             R(T('Yemek çeşidi'), T`${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
-            T('Erzak biterse moral −30 ve firar başlar. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).')));
+            T`Erzak biterse moral −30, firar başlar ve aç geçen her gün sana −${this.HUNGER_HP} can. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).`));
 
         this.setHtml('tip-renown', this.tipBox(T('Nam'),
             R(T('Namın'), p.renown, null) +
@@ -6889,7 +6899,11 @@ const Game = {
 
     // Günlük gider: maaş + yemek. dailyUpdate ve üst çubuk künyesi aynı hesabı kullanır.
     upkeep() {
-        let wage = 0, foodLow = 0, foodHigh = 0;
+        // Oyuncunun kendisi de karnını doyurur (#75). Eskiden yalnız parti sayılıyordu:
+        // tek başına gezen oyuncu hiç erzak yemiyor, üst çubukta "∞ gün" yazıyordu.
+        // Tek satır burada duruyor çünkü tüketim, "kaç gün yeter", açlık cezası ve
+        // künye dökümü hepsi bu tek fonksiyondan okuyor.
+        let wage = 0, foodLow = 1, foodHigh = 0;
         state.player.party.forEach(t => {
             wage += this.troopWage(t);                              // yoldaş 20, lvl51 bedava
             if(t.isCompanion) { foodLow += 1; return; }

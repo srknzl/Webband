@@ -322,6 +322,17 @@ Her gün:
   (`state.player.wasHungry` / `wasLowQuality`) — kalite eksiği açlıkla karıştırılmasın diye ayrı metin.
   Her erzağın kendi dayanıklılığı var (`ITEMS[].spoil` = gün): tahıl 60, peynir 40, et 30, ekmek 20.
   `Game.spoilFood()` her gün `qty/spoil` kadar eksiltir (kesirli kayıp `it.decay`'de birikir), `foodStock().days` bunu sayar.
+  **Oyuncu da yer (#75)**: `upkeep()` `foodLow = 1` ile başlar — eskiden yalnız parti sayılıyordu,
+  tek kişilik grup hiç erzak tüketmiyor ve rozette `—` yazıyordu. Açlığın karşılığı da artık
+  yalnız moral değil: moral yalnızca askerlere işlediği için (`moraleMult`) tek başına gezen
+  oyuncu aç kalmaktan hiç etkilenmiyordu. Şimdi aç geçen her gün **−`Game.HUNGER_HP` = 3 can**
+  ve `regenTick` o gün iyileştirmez (taban 1 can — açlık öldürmez, yatağa düşürür).
+  Başlangıç envanteri **3 tahıl → 1 ekmek**: erzak derdi ilk günden başlasın.
+  Ölçüldü (tohum 1, 20 gün): tek kişilik grup günde **0 → 1** birim yer, "kaç gün yeter"
+  rozeti `—` yerine gerçek sayı yazar (yeni karakter **0 gün**, kırmızı); erzak almadan
+  gezen oyuncu **3. günde** aç kalır, canı 50 → 5. günde 41 → 10. günde 26 → 20. günde 1.
+  30 ekmekle çıkan aynı oyuncu 12 gün dayanır (1 tüketim + 1.5 bozulma), ilk açlık **17. gün**.
+  10 asker + oyuncu = günde 11 birim (eskiden 10).
 - Moral yeniden hesaplanır (`Game.updateMorale`)
 - Oyuncu +5 HP
 - Köy gönüllüleri yenilenir (köy max 5; şehirler 2 günde bir 4–8)

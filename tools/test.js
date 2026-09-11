@@ -135,17 +135,17 @@ test('foodStock: gün sayısı bozulmayı da sayar', () => {
     p.inventory = [{ id: 'wheat', qty: 60 }];
     const fs = Game.foodStock();
     assert.strictEqual(fs.low, 60);
-    assert.strictEqual(fs.need, 10);
+    assert.strictEqual(fs.need, 11);                  // 10 asker + oyuncunun kendisi (#75)
     assert.strictEqual(fs.kinds, 1);
     assert.strictEqual(fs.spoil, 1);                  // 60 tahıl / 60 gün dayanıklılık
-    assert.strictEqual(fs.days, 5);                   // 60 / (10 + 1)
+    assert.strictEqual(fs.days, 5);                   // 60 / (11 + 1)
 });
 test('foodStock: seçkin asker et ister, çeşit sayılır', () => {
     const p = reset();
     p.party = [troop(30), troop(30)];
     p.inventory = [{ id: 'wheat', qty: 10 }, { id: 'meat', qty: 10 }];
     const fs = Game.foodStock();
-    assert.strictEqual(fs.need, 3);                   // 2 × 1.5
+    assert.strictEqual(fs.need, 4);                   // 2 × 1.5 + oyuncu 1 (#75)
     assert.strictEqual(fs.needHigh, 2);               // lvl 30+ başına 1 et
     assert.strictEqual(fs.high, 10);
     assert.strictEqual(fs.kinds, 2);
