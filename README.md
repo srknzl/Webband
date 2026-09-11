@@ -15,6 +15,12 @@ git clone https://github.com/srknzl/Webband.git
 Then open `index.html` in a browser. That's the whole install. Saves are per-origin, so
 the hosted game and your local copy keep separate saves.
 
+On Windows, one line in the repo folder puts it on the desktop:
+
+```powershell
+$s = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:USERPROFILE\Desktop\WebBand.lnk"); $s.TargetPath = "$PWD\index.html"; $s.Save()
+```
+
 ## Controls
 
 Mouse and keyboard on desktop: click the map to move, `M`/`C`/`P`/`I`/`Q` switch screens,
