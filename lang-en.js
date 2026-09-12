@@ -1365,6 +1365,8 @@ I18N.dicts.en = {
   "🧓 Köy Yaşlısı": "🧓 Village elder",
   "🧓 Köy Yaşlısıyla Konuş": "🧓 Speak to the Village Elder",
   "🩸 Kan Davaları": "🩸 Blood feuds",
+  "🎵 Müzik": "🎵 Music",
+  "Ortaçağ kilise makamlarında, her seferinde yeniden bestelenir: haritada sakin, savaşta davullu": "In medieval church modes, composed anew every time: calm on the map, drums in battle",
   "🩸 Kan ve cesetler": "🩸 Blood and corpses",
   "🩸 Pahalı Zafer": "🩸 A costly victory",
   "🩸 {0} ({1}), {2} kuvvetlerini dağıttı.": "🩸 {0} ({1}) scattered the forces of {2}.",

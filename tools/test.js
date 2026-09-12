@@ -1039,6 +1039,34 @@ test('a quest wave closes in where a plain band of the same size flees', () => {
     assert.ok(walk(false) > 200, 'an ordinary weak band still flees');
 });
 
+test('every generated phrase is singable: length, leaps and a resting final note', () => {
+    const { Game } = g, M = Game.Music;
+    // Ionian is the plain major scale — the one mode left out on purpose, because it is
+    // what makes "medieval" music sound like a fairground. A mode sneaking in later is a
+    // silent change in the music's whole character, so it is asserted rather than trusted.
+    const major = [0, 2, 4, 5, 7, 9, 11].join();
+    Object.values(M.modes).forEach(m => assert.notStrictEqual(m.join(), major, 'Ionian is excluded by design'));
+
+    const rnd = H.mulberry32(7);
+    const cfg = { start: 0, span: [6, 10], durs: [1, 1, 1.5, 2, 3], lo: -2, hi: 9 };
+    for(let i = 0; i < 400; i++) {
+        const ph = M.phrase(rnd, cfg);
+        const beats = ph.reduce((a, n) => a + n.beats, 0);
+        assert.ok(beats >= cfg.span[0] && beats <= cfg.span[1], 'a phrase fills its bar exactly: ' + beats);
+        assert.ok(M.ENDS.includes(ph[ph.length - 1].deg), 'a phrase comes to rest');
+        // An unbounded random walk drifts out of the instrument's range and a leap past a
+        // fifth stops sounding like a line. Both are held by the wrap in phrase().
+        ph.forEach((n, j) => {
+            assert.ok(n.beats > 0, 'no zero-length note');
+            if(j && j < ph.length - 1) assert.ok(Math.abs(n.deg - ph[j - 1].deg) <= 5, 'no wild leap: ' + n.deg);
+        });
+        cfg.start = ph[ph.length - 1].deg;
+    }
+    // Degrees wrap by octave, so the scale's length above the tonic is exactly 2x its pitch.
+    assert.ok(Math.abs(M.hz(50, 'dorian', 7) - 2 * M.hz(50, 'dorian', 0)) < 1e-9);
+    assert.ok(Math.abs(M.hz(50, 'dorian', -7) - M.hz(50, 'dorian', 0) / 2) < 1e-9);
+});
+
 // The static extractor only sees `T('…')` **literals**; raw data translated
 // via a variable like `T(def.title)` is invisible to it. Quest titles are
 // written exactly that way — in 0.77 two new titles came out with no

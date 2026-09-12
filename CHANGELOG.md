@@ -3,6 +3,19 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.94 — Ozan Geldi (2026-09-12)
+
+- **Oyunun müziği var.** Haritada sakin bir telli saz ile altında duran kalın bir dem
+  sesi, savaşta çerçeve davul ve üflemeli bir ezgi. Ortaçağ kilise makamlarında
+  (majör kasıtlı olarak dışarıda — panayır havası oradan geliyor), ölçüleri eşit
+  olmayan cümlelerle ve aralarında gerçek sessizlikle.
+- **Hiçbir müzik dosyası inmiyor.** Her parça o an besteleniyor: makamı, tonu ve temposu
+  her seferinde yeniden seçiliyor, bu yüzden aynı ezgiyi iki kez duymuyorsun ve oyunun
+  boyutu bir bayt bile büyümüyor.
+- **Savaşa girince müzik davullara geçiyor**, çıkınca haritaya dönüyor.
+- **⚙️ Ayarlar'da 🎵 Müzik anahtarı** var; ses seviyesi ve 🔇 sessiz düğmesi müziği de
+  kapsıyor.
+
 ## 0.93 — Çentik Aşıldı (2026-09-12)
 
 - **Telefon uygulamasında üst satır çentiğin altında kalmıyor.** Kabuk sayfayı saatin

@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.93', date: '2026-09-12', name: 'Çentik Aşıldı' };  // the version name is not translated
+const VERSION = { no: '0.94', date: '2026-09-12', name: 'Ozan Geldi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3969,6 +3969,8 @@ const Game = {
         this.renderRaidUI();    // the raid panel too (#49)
         this.renderWaitUI();    // the camp panel too (#53)
         this.applyViewBg(screenId);   // themed background, once per screen (#61)
+        // Map music or battle music: the `in-battle` stamp set above is the same answer
+        this.Music.sync();
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
@@ -5890,10 +5892,9 @@ const Game = {
     sfx(kind) {
         let s = this.SFX[kind];
         if(!s || this.opt('muted')) return;
+        let ac = this.ac();
+        if(!ac) return;
         try {
-            let AC = window.AudioContext || window.webkitAudioContext;
-            let ac = this._audio || (this._audio = new AC());
-            if(ac.state === 'suspended') ac.resume();
             s.f.forEach((freq, i) => {
                 let o = ac.createOscillator(), g = ac.createGain();
                 let t0 = ac.currentTime + i * s.d * 0.6;
@@ -5908,12 +5909,287 @@ const Game = {
             });
         } catch(e) { /* the game doesn't stop if there's no sound */ }
     },
-    toggleMute() { this.setOpt('muted', !this.opt('muted')); this.updateTopBar(); if(!this.opt('muted')) this.sfx('buy'); },
+    // The one AudioContext in the game. A browser only hands one out after a gesture and
+    // only so many per page, so SFX and Music share it — and an autoplay-suspended context
+    // is resumed here rather than at each of the two call sites.
+    ac() {
+        try {
+            let AC = window.AudioContext || window.webkitAudioContext;
+            let ac = this._audio || (this._audio = new AC());
+            if(ac.state === 'suspended') ac.resume();
+            return ac;
+        } catch(e) { return null; }   // no Web Audio: the game runs silently
+    },
+    toggleMute() { this.setOpt('muted', !this.opt('muted')); this.updateTopBar(); if(!this.opt('muted')) this.sfx('buy'); this.Music.sync(); },
+
+    // ============ MUSIC (#95) ============
+    // Same rule as the SFX above: no audio file ships. That is not only about repo size —
+    // the worker precaches everything, so a soundtrack would have to be carried offline in
+    // full, and a fixed track loops audibly on a map you stare at for an hour. So the music
+    // is written rather than recorded: church modes over a drone, phrases of uneven length,
+    // a different piece every few minutes. Medieval European music really was modal, droned
+    // and largely unmetered, so here the honest version and the cheap version coincide.
+    Music: {
+        // Semitones from the tonic. Ionian — the plain major scale — is left out on purpose:
+        // it is the one thing that makes "medieval" music sound like a fairground.
+        modes: {
+            dorian:     [0, 2, 3, 5, 7, 9, 10],
+            aeolian:    [0, 2, 3, 5, 7, 8, 10],
+            phrygian:   [0, 1, 3, 5, 7, 8, 10],
+            mixolydian: [0, 2, 4, 5, 7, 9, 10],
+            lydian:     [0, 2, 4, 6, 7, 9, 11]
+        },
+        // tonic is a MIDI note (50 = D3), bpm a range, len the number of phrases before the
+        // piece is re-rolled. Phrases end on degree 0/1/3/4 — always landing on the tonic is
+        // the cliché the modes are here to avoid.
+        MAP:    { modes: ['dorian', 'aeolian', 'lydian', 'mixolydian'], tonic: [50, 57], bpm: [52, 66],   rest: [2, 5.5], len: 9 },
+        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [124, 148], rest: [0, 0],   len: 28 },
+        ENDS: [0, 1, 3, 4],
+
+        // ---- the score: no audio in here, which is the half worth testing ----
+
+        // One phrase as [{ deg, beats }]. `deg` indexes the mode (0 = tonic) and may run past
+        // an octave either way; hz() turns it into a pitch.
+        phrase(rnd, cfg) {
+            let out = [], deg = cfg.start, beats = 0;
+            let span = cfg.span[0] + Math.floor(rnd() * (cfg.span[1] - cfg.span[0] + 1));
+            while(beats < span) {
+                let d = Math.min(cfg.durs[Math.floor(rnd() * cfg.durs.length)], span - beats);
+                out.push({ deg, beats: d });
+                beats += d;
+                // Stepwise by default; the occasional leap of a fourth or fifth is what keeps
+                // a modal line from sounding like a scale exercise.
+                deg += rnd() < 0.76 ? (rnd() < 0.5 ? -1 : 1) : (rnd() < 0.5 ? -3 : 4);
+                if(deg > cfg.hi) deg -= 5;
+                if(deg < cfg.lo) deg += 5;
+            }
+            out[out.length - 1].deg = this.ENDS[Math.floor(rnd() * this.ENDS.length)];
+            return out;
+        },
+
+        // Degree -> Hz. Degrees outside 0..6 wrap into the octaves above and below.
+        hz(tonic, mode, deg) {
+            let s = this.modes[mode], oct = Math.floor(deg / s.length);
+            return 440 * Math.pow(2, (tonic + s[deg - oct * s.length] + 12 * oct - 69) / 12);
+        },
+
+        // ---- synthesis ----
+
+        // Karplus-Strong: a burst of noise in a delay line one period long that loses its
+        // highs on every pass. It is the one trick that sounds like a plucked gut string
+        // instead of a beep, and it is pure arithmetic — no sample, no library. Built per
+        // note rather than cached: the adds are nothing next to holding PCM on a phone, and
+        // fresh noise means no two plucks are identical.
+        pluck(t, f, dur, vol) {
+            let ac = this.ac, sr = ac.sampleRate;
+            let len = Math.floor(sr * Math.min(3, dur + 1.2)), n = Math.max(2, Math.round(sr / f));
+            let buf = ac.createBuffer(1, len, sr), d = buf.getChannelData(0), ring = new Float32Array(n);
+            for(let i = 0; i < n; i++) ring[i] = Math.random() * 2 - 1;
+            for(let i = 0, j = 0; i < len; i++, j = (j + 1) % n) {
+                d[i] = ring[j];
+                ring[j] = (ring[j] + ring[(j + 1) % n]) * 0.498;   // 0.996 per period: highs fade first, as on a real string
+            }
+            let src = ac.createBufferSource(), g = ac.createGain();
+            src.buffer = buf;
+            g.gain.setValueAtTime(vol, t);
+            g.gain.setTargetAtTime(0.0001, t + dur * 0.85, 0.22);
+            src.connect(g); g.connect(this.bus);
+            src.start(t); src.stop(t + len / sr);
+        },
+
+        // Vielle on the map, shawm in battle: a sawtooth under a lowpass, with a bow's slow
+        // attack and a little vibrato. `bright` opens the filter and shortens the attack.
+        bow(t, f, dur, vol, bright) {
+            let ac = this.ac, o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
+            let vib = ac.createOscillator(), va = ac.createGain();
+            o.type = 'sawtooth'; o.frequency.value = f;
+            vib.type = 'sine'; vib.frequency.value = 4.3 + Math.random(); va.gain.value = f * 0.006;
+            vib.connect(va); va.connect(o.frequency);
+            lp.type = 'lowpass'; lp.frequency.value = f * (bright ? 5 : 2.6); lp.Q.value = 0.9;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.linearRampToValueAtTime(vol, t + (bright ? 0.03 : 0.2));
+            g.gain.setValueAtTime(vol, t + dur * 0.7);
+            g.gain.linearRampToValueAtTime(0.0001, t + dur);
+            o.connect(lp); lp.connect(g); g.connect(this.bus);
+            o.start(t); vib.start(t);
+            o.stop(t + dur + 0.05); vib.stop(t + dur + 0.05);
+        },
+
+        // Frame drum. The noise burst alone is a click; the skin's pitch falling from 150 to
+        // 52 Hz underneath it is what makes the low stroke read as a drum.
+        drum(t, low, vol) {
+            let ac = this.ac, sr = ac.sampleRate, len = Math.floor(sr * 0.16);
+            let buf = ac.createBuffer(1, len, sr), d = buf.getChannelData(0);
+            for(let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, low ? 3 : 7);
+            let src = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain();
+            src.buffer = buf;
+            bp.type = 'bandpass'; bp.frequency.value = low ? 190 : 2200; bp.Q.value = low ? 1.1 : 0.7;
+            g.gain.value = vol;
+            src.connect(bp); bp.connect(g); g.connect(this.bus);
+            src.start(t);
+            if(low) {
+                let o = ac.createOscillator(), og = ac.createGain();
+                o.frequency.setValueAtTime(150, t);
+                o.frequency.exponentialRampToValueAtTime(52, t + 0.13);
+                og.gain.setValueAtTime(vol * 1.3, t);
+                og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+                o.connect(og); og.connect(this.bus); o.start(t); o.stop(t + 0.18);
+            }
+        },
+
+        // The drone carries the harmony the period actually used: a held tonic and its fifth
+        // (organum), not a chord progression. Retuned rather than restarted, so a new piece
+        // slides into place instead of cutting.
+        setDrone(f, bright) {
+            let ac = this.ac;
+            if(!this._dr) this._dr = [0, 1].map(() => {   // rebuilt with the bus: retire() stops the old pair
+                let o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
+                o.type = 'sawtooth'; lp.type = 'lowpass'; lp.Q.value = 0.6; g.gain.value = 0;
+                o.connect(lp); lp.connect(g); g.connect(this.bus); o.start();
+                return { o, lp, g };
+            });
+            this._dr.forEach((v, i) => {
+                // 1.4983, not 1.5: a fifth a shade narrow beats slowly, like two real strings
+                let vf = f * (i ? 1.4983 : 1);
+                v.o.frequency.setTargetAtTime(vf, ac.currentTime, 0.8);
+                v.lp.frequency.setTargetAtTime(vf * (bright ? 4 : 2.2), ac.currentTime, 0.8);
+                v.g.gain.setTargetAtTime(bright ? 0.05 : 0.035, ac.currentTime, 1.2);
+            });
+        },
+
+        // A generated impulse response: exponentially decaying noise. Ten lines, and the
+        // difference between a stone hall and a ringtone.
+        verb() {
+            let ac = this.ac, sr = ac.sampleRate, len = Math.floor(sr * 2.2);
+            let b = ac.createBuffer(2, len, sr);
+            for(let c = 0; c < 2; c++) {
+                let d = b.getChannelData(c);
+                for(let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+            }
+            let cv = ac.createConvolver(); cv.buffer = b;
+            return cv;
+        },
+
+        // ---- transport ----
+
+        // Web Audio's clock is the only accurate one but cannot fire callbacks, so notes go in
+        // ahead of time and a plain timer tops the queue up — the standard two-clock
+        // arrangement, which makes setTimeout's drift harmless.
+        LOOKAHEAD: 0.6,
+
+        // Rolls a fresh piece: mode, key, tempo. Twice the same one is a coincidence.
+        newPiece(battle) {
+            let c = battle ? this.BATTLE : this.MAP, r = Math.random;
+            this.piece = {
+                battle, rest: c.rest, left: c.len, start: 0,
+                mode: c.modes[Math.floor(r() * c.modes.length)],
+                tonic: c.tonic[0] + Math.floor(r() * (c.tonic[1] - c.tonic[0] + 1)),
+                bpm: c.bpm[0] + r() * (c.bpm[1] - c.bpm[0])
+            };
+            this.setDrone(this.hz(this.piece.tonic, this.piece.mode, 0) / 2, battle);
+        },
+
+        // One phrase, then silence. The rest is not filler: a chill screen needs the space
+        // more than it needs another note.
+        emitMap(spb) {
+            let p = this.piece, t = this._at;
+            let ph = this.phrase(Math.random, { start: p.start, span: [6, 10], durs: [1, 1, 1.5, 2, 3], lo: -2, hi: 9 });
+            ph.forEach(n => {
+                let f = this.hz(p.tonic, p.mode, n.deg);
+                this.pluck(t, f, n.beats * spb, 0.2);
+                // The vielle answers the psaltery an octave down, but only under long notes
+                if(n.beats >= 2 && Math.random() < 0.45) this.bow(t, f / 2, n.beats * spb, 0.045, false);
+                t += n.beats * spb;
+            });
+            p.start = ph[ph.length - 1].deg;
+            this._at = t + (p.rest[0] + Math.random() * (p.rest[1] - p.rest[0])) * spb;
+        },
+
+        // One bar of 6/8. An estampie moves in threes, and a four-square battle loop is
+        // exactly the film-trailer cliché this is meant to dodge.
+        emitBattle(spb) {
+            let p = this.piece, t = this._at, e = spb / 2;
+            for(let i = 0; i < 6; i++) {
+                if(i === 0 || i === 3) this.drum(t + i * e, true, 0.45);
+                else if(i % 3 === 2 || Math.random() < 0.22) this.drum(t + i * e, false, 0.2);
+            }
+            let ph = this.phrase(Math.random, { start: p.start, span: [6, 6], durs: [1, 1, 1, 2], lo: 0, hi: 9 });
+            let tt = t;
+            ph.forEach(n => { this.bow(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * e, 0.11, true); tt += n.beats * e; });
+            p.start = ph[ph.length - 1].deg;
+            this._at = t + 6 * e;
+        },
+
+        tick() {
+            if(!this.ac || !this.piece) return;
+            let now = this.ac.currentTime, spb = 60 / this.piece.bpm;
+            // A backgrounded tab throttles timers; the queue is rebased rather than firing a
+            // burst of notes whose start times are already in the past.
+            if(this._at < now) this._at = now + 0.1;
+            while(this._at < now + this.LOOKAHEAD) {
+                this.piece.battle ? this.emitBattle(spb) : this.emitMap(spb);
+                if(--this.piece.left <= 0) { this.newPiece(this.piece.battle); spb = 60 / this.piece.bpm; }
+            }
+            this._timer = setTimeout(() => this.tick(), 150);
+        },
+
+        // A whole phrase is queued at once, so when the battle starts there can still be ten
+        // seconds of lute in the pipeline — and Web Audio has no "cancel what I scheduled".
+        // Every note of a piece therefore hangs off one bus gain: retiring the bus silences
+        // the lot. The 0.25s fade is not politeness, it is the crossfade into the drums.
+        retire() {
+            let t = this.ac.currentTime;
+            if(this._dr) this._dr.forEach(v => { v.g.gain.setTargetAtTime(0, t, 0.12); v.o.stop(t + 0.6); });
+            this._dr = null;
+            let old = this.bus;
+            this.bus = null; this.piece = null;
+            if(!old) return;
+            old.gain.setTargetAtTime(0, t, 0.08);
+            setTimeout(() => old.disconnect(), 1500);   // long after the fade: an early disconnect clicks
+        },
+
+        // The only entry point: 'map', 'battle', or null for silence.
+        set(mode) {
+            if(mode === this._mode) return;
+            clearTimeout(this._timer); this._timer = null;
+            let ac = mode ? Game.ac() : this.ac;
+            if(!ac) return;                      // no Web Audio: the game is simply quiet
+            this.ac = ac;
+            this.retire();
+            this._mode = mode;
+            if(!mode) return;
+            if(!this.out) {                      // the hall outlives the pieces played in it
+                this.out = ac.createGain();
+                this.wet = ac.createGain(); this.wet.gain.value = 0.3;
+                this.cv = this.verb();
+                this.cv.connect(this.wet); this.wet.connect(this.out);
+                this.out.connect(ac.destination);
+            }
+            this.bus = ac.createGain();
+            this.bus.connect(this.out); this.bus.connect(this.cv);
+            this.volume();
+            this.newPiece(mode === 'battle');
+            this._at = ac.currentTime + 0.2;
+            this.tick();
+        },
+
+        volume() { if(this.out) this.out.gain.value = 0.5 * Game.opt('volume'); },
+
+        // Music follows the screen. Called from showScreen (which knows the screen) and from
+        // applySettings (which knows the settings), so neither has to know about the other.
+        sync() {
+            let live = document.getElementById('main-ui');
+            this.volume();
+            this.set(!live || !live.classList.contains('active') || Game.opt('muted') || !Game.opt('music') ? null
+                : document.body.classList.contains('in-battle') ? 'battle' : 'map');
+        }
+    },
+
 
     // ============ SETTINGS (#55 item 7) ============
     // One screen, one read gate: every setting's default lives in OPTS, and a deviating
     // key is written to state.settings (so it enters the save and stays blank in an old save).
-    OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal', edgePan: 'auto' },
+    OPTS: { muted: false, volume: 0.6, music: true, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal', edgePan: 'auto' },
 
     // Difficulty is a single pair of multipliers: damage **taken** and **dealt**. No other
     // number moves — a wolf pack and a lord's army pass through the same gate, so the
@@ -5963,6 +6239,7 @@ const Game = {
         });
         let cur = document.querySelector('.view.active');
         if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
+        this.Music.sync();   // mute, volume and the music switch all land here
     },
     // Only four tabs fit in a narrow screen's bottom strip; Quests, Saves, Sound and
     // Settings open from here (#86). The strip itself is still the one real menu — this page
@@ -6009,6 +6286,7 @@ const Game = {
         ${row(T('🎚️ Ses seviyesi'), `<input type="range" min="0" max="100" value="${Math.round(this.opt('volume') * 100)}"
             oninput="Game.setOpt('volume', this.value / 100)" onchange="Game.sfx('buy')" style="vertical-align:middle">
             <span style="font-size:var(--fs-sm);color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
+        ${row(T('🎵 Müzik'), sw('music', T('Açık'), T('Kapalı')), T('Ortaçağ kilise makamlarında, her seferinde yeniden bestelenir: haritada sakin, savaşta davullu'))}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}

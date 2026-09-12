@@ -1365,6 +1365,8 @@ I18N.dicts.id = {
   "🧓 Köy Yaşlısı": "🧓 Tetua desa",
   "🧓 Köy Yaşlısıyla Konuş": "🧓 Bicara dengan Tetua Desa",
   "🩸 Kan Davaları": "🩸 Dendam darah",
+  "🎵 Müzik": "🎵 Musik",
+  "Ortaçağ kilise makamlarında, her seferinde yeniden bestelenir: haritada sakin, savaşta davullu": "Dalam modus gereja abad pertengahan, digubah ulang setiap kali: tenang di peta, bergendang saat bertempur",
   "🩸 Kan ve cesetler": "🩸 Darah dan mayat",
   "🩸 Pahalı Zafer": "🩸 Kemenangan mahal",
   "🩸 {0} ({1}), {2} kuvvetlerini dağıttı.": "🩸 {0} ({1}) memukul mundur pasukan {2}.",

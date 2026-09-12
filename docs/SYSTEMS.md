@@ -2779,6 +2779,49 @@ Tribute per day (seed 3): Azgad (prosperity 56) **22** · Emirin (90) **36** · 
 a **playerless** world — it has no renown curve to read — so that number would be invented,
 not measured. It needs a player-driving sim first.
 
+## Audio layer (#95)
+
+Nothing is loaded, everything is synthesised — the same rule the transaction SFX already
+followed, now applied to a whole score. Three reasons it is not mp3 files: `sw.js` precaches
+the fixed file list, so a soundtrack would have to be carried offline in full; a fixed track
+loops audibly on a map screen you stare at for an hour; and the repo stays asset-free.
+`Game.ac()` is the single AudioContext both halves share (a browser hands one out per gesture
+and only so many per page).
+
+`Game.Music` splits in two on purpose:
+
+- **The score** — `phrase(rnd, cfg)` and `hz(tonic, mode, deg)` are pure functions with no
+  audio in them, which is why `tools/test.js` can gate them without a sound card.
+  `phrase()` is a random walk over scale degrees: stepwise 76% of the time, otherwise a leap
+  of a fourth or fifth, wrapped back inside `lo..hi`, filling an uneven span of beats and
+  landing on a resting degree (`ENDS` = tonic/second/fourth/fifth — always the tonic is the
+  cliché). `modes` holds five church modes; **Ionian is deliberately absent** — the plain
+  major scale is the single thing that makes "medieval" music sound like a fairground, and
+  a test asserts it stays out.
+- **The synthesis** — `pluck()` is Karplus-Strong (a noise burst in a one-period delay line
+  losing 0.4% per pass), rendered into an `AudioBuffer` per note; `bow()` is a sawtooth under
+  a lowpass with a bowed attack and vibrato (vielle on the map, shawm in battle); `drum()` is
+  a bandpassed noise burst with a 150→52 Hz pitch drop under the low stroke; `setDrone()`
+  holds a tonic and a slightly narrow fifth (organum, and the narrowness is what makes it
+  beat like two real strings); `verb()` is a generated noise-decay impulse response.
+
+**Measured / decided numbers.** Map: 52–66 bpm, dorian/aeolian/lydian/mixolydian, tonic
+D3–A3, 2–5.5 beats of silence between phrases, 9 phrases per piece. Battle: 124–148 bpm,
+dorian/phrygian/aeolian, tonic A2–D3, 6/8 with the drum on beats 1 and 4, 28 bars per piece.
+
+**Transport.** The standard two-clock scheduler: notes go into Web Audio's clock ~0.6 s ahead
+and a 150 ms `setTimeout` tops the queue up, so the timer's drift is harmless and a
+backgrounded tab rebases instead of firing a burst of past-due notes.
+
+**Why a bus per piece.** A whole map phrase is queued at once — up to ten seconds — and Web
+Audio cannot cancel what is already scheduled. Every note of a piece therefore hangs off one
+gain node, so `retire()` fades that one node and the entire queued tail goes with it; the
+0.25 s fade *is* the crossfade into the drums.
+
+**One switch point.** `Music.sync()` reads the screen (`#main-ui` active, the `in-battle`
+class) and the settings (`muted`, `volume`, `music`) and picks `'map' | 'battle' | null`.
+It is called from `showScreen()` and `applySettings()`, so neither knows about the other.
+
 ## Visual layer (renovation)
 
 All drawing lives inside `app.js` + `battle.js`, no library. Shared approach: **bake the
