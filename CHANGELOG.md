@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.98 — Hücum (2026-09-12)
+
+- **Savaş müziği hızlandı**: 92–112 yerine 126–152 vuruş. Aynı ezgi, koşan hâli.
+- **Her parçanın bir düzenleme stili var.** Savaşta beşi: *march* (düz sekizlikler),
+  *gallop* (filmlerdeki süvari ritmi), *storm* (onaltılıklar, koro yok), *hymn* (koro
+  oktavlarda, yaylar uzun), *charge* (onaltılıklar + koro + kısa yay darbeleri). Ağır
+  stillerde kalın yaylılar kök notayı sekizlik sekizlik pompalıyor — "epik"in büyük kısmı
+  aslında o.
+- **Haritada dört stil**: flütün dört barın kaçında çaldığı değişiyor, bazılarında da
+  akorun altına sıcak bir çello uzatması giriyor.
+
 ## 0.97 — Gitar ve Keman (2026-09-12)
 
 - **Müzik baştan yazıldı.** Eski hâlinde her nota bağımsız olarak rastgele seçiliyordu, bu

@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.97', date: '2026-09-12', name: 'Gitar ve Keman' };  // the version name is not translated
+const VERSION = { no: '0.98', date: '2026-09-12', name: 'Hücum' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -5948,7 +5948,7 @@ const Game = {
         // piece is re-rolled. Phrases end on degree 0/1/3/4 — always landing on the tonic is
         // the cliché the modes are here to avoid.
         MAP:    { modes: ['dorian', 'aeolian', 'lydian', 'mixolydian'], tonic: [52, 59], bpm: [66, 80] },
-        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [92, 112] },
+        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [126, 152] },
         // One band per mode, and both are the line-up that was asked for: acoustic guitar
         // with a flute on the map, drums, violins and a choir in battle. The psaltery and the
         // lone shawm that used to share the draw are deleted (#96) — variety nobody wants to
@@ -5958,6 +5958,27 @@ const Game = {
             { id: 'cayir', battle: false, name: 'Çayır Yolu',  emit: 'emitGuitar', len: 16, gain: 1.5 },
             { id: 'cenk',  battle: true,  name: 'Cenk Korosu', emit: 'emitChoir',  len: 24, gain: 1, drone: true }
         ],
+        // What changes from one piece to the next beyond key, tempo and motif: the
+        // arrangement itself. Without these every battle sounded like the same battle —
+        // "epic" is mostly a question of what the drums are doing under the tune and whether
+        // the low strings are pumping (#97).
+        //   pulse — the drum subdivision       ost   — staccato low-string ostinato
+        //   choir — triad / octaves / silent   bow   — long bowed lines or short stabs
+        BSTYLES: [
+            { id: 'march',  pulse: 'eighth',    ost: false, choir: 'triad',  bow: 'long' },
+            { id: 'gallop', pulse: 'gallop',    ost: true,  choir: 'octave', bow: 'short' },
+            { id: 'storm',  pulse: 'sixteenth', ost: true,  choir: 'none',   bow: 'short' },
+            { id: 'hymn',   pulse: 'eighth',    ost: false, choir: 'octave', bow: 'long' },
+            { id: 'charge', pulse: 'sixteenth', ost: true,  choir: 'triad',  bow: 'short' }
+        ],
+        //   flute — how many bars in every four carry it   cello — a warm bowed root under the bar
+        MSTYLES: [
+            { id: 'plain',  flute: 2, cello: false },
+            { id: 'breath', flute: 1, cello: false },
+            { id: 'valley', flute: 2, cello: true },
+            { id: 'strings', flute: 0, cello: true }
+        ],
+
         // One chord per bar, as scale degrees. No progression contains the seventh degree as
         // a chord root, so there is never a leading tone pulling home: the chords lean
         // instead of resolving, which is the modal sound and not the Renaissance-fair one.
@@ -6197,7 +6218,8 @@ const Game = {
                 bpm: c.bpm[0] + r() * (c.bpm[1] - c.bpm[0]),
                 prog: any(this.PROGS),
                 motif: { r: any(this.RHYTHMS), c: any(this.CONTOURS) },
-                pick: any(this.PICK)
+                pick: any(this.PICK),
+                style: any(battle ? this.BSTYLES : this.MSTYLES)
             };
             if(this.bus) this.bus.gain.value = ens.gain;
             // Çayır Yolu has no drone: its guitar chords already carry the harmony, and a
@@ -6231,10 +6253,11 @@ const Game = {
                 this.pluck(t + i * e, this.hz(p.tonic, p.mode, bass ? root - 7 + (i ? 4 : 0) : root + d),
                            e * 2.6, bass ? 0.2 : 0.1);
             });
-            // The flute breathes: two bars of melody, two off. Always playing is exhausting to
-            // listen to, and a chill screen is the one place that shows.
-            if(p.bar % 4 < 2) this.bar(p, 7).forEach(n =>
+            // The flute breathes: `flute` bars of melody in every four, the rest off. Always
+            // playing is exhausting to listen to, and a chill screen is where that shows.
+            if(p.bar % 4 < p.style.flute) this.bar(p, 7).forEach(n =>
                 this.flute(t + n.at * spb, this.hz(p.tonic, p.mode, n.deg), n.beats * spb * 0.92, 0.09));
+            if(p.style.cello) this.bow(t, this.hz(p.tonic, p.mode, root) / 2, 4 * spb, 0.05);
             p.bar++;
             this._at = t + 4 * spb;
         },
@@ -6243,22 +6266,45 @@ const Game = {
         // low drum on 1 and 3 with eighths running between them, the violins on the motif an
         // octave up, and the choir holding the chord under both. The 6/8 estampie this
         // replaces was the more authentic answer and nobody wanted to listen to it (#96).
-        emitChoir(spb) {
-            let p = this.piece, t = this._at, e = spb / 2, root = p.prog[p.bar % p.prog.length];
-            for(let i = 0; i < 8; i++) {
-                if(i === 0 || i === 4) this.drum(t + i * e, true, 0.38);
-                else if(i % 2 === 0) this.drum(t + i * e, false, 0.16);
-                else if(Math.random() < 0.3) this.drum(t + i * e, false, 0.1);
+        // One bar of 4/4 on the drums. `pulse` is the whole difference between a march and a
+        // charge: straight eighths, the dotted gallop every cavalry charge on film is built
+        // on, or sixteenths when the piece wants to run.
+        beat(t, e, pulse) {
+            for(let b = 0; b < 4; b++) {
+                let tb = t + b * 2 * e, heavy = b === 0 || b === 2;
+                this.drum(tb, heavy, heavy ? 0.38 : 0.2);
+                if(pulse === 'gallop') this.drum(tb + 1.5 * e, false, 0.17);
+                else if(pulse === 'sixteenth') [0.5, 1, 1.5].forEach(k => this.drum(tb + k * e, false, 0.13));
+                else this.drum(tb + e, false, 0.16);
             }
+        },
+
+        // Cenk Korosu — 4/4 at a charging tempo. Drums underneath, violins on the motif an
+        // octave up, the choir holding the chord over both, and on the heavier styles a
+        // staccato low-string ostinato that is most of what "epic" turns out to mean. The 6/8
+        // estampie this replaced was the more authentic answer and nobody wanted it (#96).
+        emitChoir(spb) {
+            let p = this.piece, t = this._at, e = spb / 2, st = p.style;
+            let root = p.prog[p.bar % p.prog.length];
+            this.beat(t, e, st.pulse);
             // A fill over the last half-bar of the progression: the one place the drums stop
             // being a pulse and say something, and it lands where the melody turns around.
             if(p.bar % p.prog.length === p.prog.length - 1)
                 [0, 1, 2, 3].forEach(i => this.drum(t + 3.5 * spb + i * e / 2, i === 3, 0.22 + i * 0.06));
-            // The chord spread the way a choir stands: root, the third above it, the octave.
-            [0, 2, 7].forEach((d, i) =>
-                this.voice(t, this.hz(p.tonic, p.mode, root + 7 + d), 4 * spb, [0.07, 0.05, 0.038][i]));
-            this.bar(p, 7).forEach(n =>
-                this.section(t + n.at * spb, this.hz(p.tonic, p.mode, n.deg), n.beats * spb * 0.9, 0.105));
+            // The engine room: the root an octave down, bowed short, once per eighth.
+            if(st.ost) for(let i = 0; i < 8; i++)
+                this.bow(t + i * e, this.hz(p.tonic, p.mode, root) / 2, e * 0.75, 0.055);
+            // The chord spread the way a choir stands: root, the third above it, the octave —
+            // or bare octaves, which is the older and colder sound.
+            if(st.choir !== 'none')
+                (st.choir === 'octave' ? [0, 7] : [0, 2, 7]).forEach((d, i) =>
+                    this.voice(t, this.hz(p.tonic, p.mode, root + 7 + d), 4 * spb, [0.07, 0.05, 0.038][i]));
+            this.bar(p, 7).forEach(n => {
+                let dur = n.beats * spb;
+                this.section(t + n.at * spb, this.hz(p.tonic, p.mode, n.deg),
+                             st.bow === 'short' ? Math.min(dur, e * 0.9) : dur * 0.9,
+                             st.bow === 'short' ? 0.12 : 0.105);
+            });
             p.bar++;
             this._at = t + 4 * spb;
         },

@@ -1045,6 +1045,13 @@ test('every generated bar is the same motif over a new chord', () => {
     Object.values(M.modes).forEach(m => assert.notStrictEqual(m.join(), major, 'Ionian is excluded by design'));
     M.RHYTHMS.forEach(r => assert.strictEqual(r.reduce((a, b) => a + b, 0), 4, 'a rhythm is exactly one bar'));
     M.PICK.forEach(p => assert.strictEqual(p.length, 8, 'a picking pattern is eight eighths'));
+    // A style with a typo in it is silent or throws mid-bar, and only on the piece that draws it.
+    M.BSTYLES.forEach(st => {
+        assert.ok(['eighth', 'gallop', 'sixteenth'].includes(st.pulse), 'known pulse: ' + st.pulse);
+        assert.ok(['triad', 'octave', 'none'].includes(st.choir), 'known choir: ' + st.choir);
+        assert.ok(['long', 'short'].includes(st.bow), 'known bowing: ' + st.bow);
+    });
+    M.MSTYLES.forEach(st => assert.ok(st.flute >= 0 && st.flute <= 4, 'flute bars fit in four'));
     const shapes = new Set();
     M.RHYTHMS.forEach(r => M.CONTOURS.forEach(c => {
         const p = { motif: { r, c }, prog: M.PROGS[0], bar: 0 };

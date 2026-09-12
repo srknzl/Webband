@@ -2835,8 +2835,16 @@ Two bands, one per screen, and both are the line-up that was asked for by name. 
 (`emitLute`) and the lone shawm (`emitShawm`) that used to share the draw are deleted:
 variety nobody wants to listen to is not variety.
 
+**Styles.** Key, tempo and motif were not enough variety on their own — every battle came
+out sounding like the same battle. Each piece also draws an *arrangement*: `BSTYLES` sets the
+drum subdivision (straight eighths / the dotted film-cavalry gallop / sixteenths), whether the
+low strings pump the root in staccato eighths (most of what "epic" turns out to mean), whether
+the choir sings a triad, bare octaves or nothing, and whether the violins play long lines or
+short stabs. `MSTYLES` sets how many bars in four carry the flute and whether a warm bowed
+cello sits under the chord (#97).
+
 **Measured / decided numbers.** Map: 66–80 bpm, dorian/aeolian/lydian/mixolydian, tonic
-E3–B3, 16 bars per piece. Battle: 92–112 bpm, dorian/phrygian/aeolian, tonic A2–D3, 24 bars
+E3–B3, 16 bars per piece. Battle: 126–152 bpm, dorian/phrygian/aeolian, tonic A2–D3, 24 bars
 per piece. Rendered offline through the same `emit*` functions at the default volume: map
 peak 0.39 / rms 0.071, battle peak 0.53 / rms 0.067.
 
