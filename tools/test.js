@@ -1002,6 +1002,24 @@ test('key shortcuts read the physical key, not the layout letter', () => {
     assert.strictEqual(Input.letter({ code: 'Escape', key: 'Escape' }), 'escape');
 });
 
+// A manual pan is anchored to the map: the camera target is player + offset, so
+// without cancelling the player's own step out of the offset the view slid away in
+// the direction of travel while you were looking at your destination (#94).
+test('a panned camera holds its world position while the player walks', () => {
+    const { Game, state } = g;
+    Game.camera.offsetX = 600; Game.camera.offsetY = 400;
+    Game.update(0.016);                                  // seeds the previous-position pair
+    const tx = state.player.x + Game.camera.offsetX, ty = state.player.y + Game.camera.offsetY;
+    for(let i = 0; i < 50; i++) { state.player.x += 7; state.player.y += 4; Game.update(0.016); }
+    assert.strictEqual(state.player.x + Game.camera.offsetX, tx);
+    assert.strictEqual(state.player.y + Game.camera.offsetY, ty);
+
+    // With no pan the camera still follows: a zero offset stays zero.
+    Game.camera.offsetX = 0; Game.camera.offsetY = 0;
+    for(let i = 0; i < 50; i++) { state.player.x += 7; Game.update(0.016); }
+    assert.strictEqual(Game.camera.offsetX, 0);
+});
+
 // The static extractor only sees `T('…')` **literals**; raw data translated
 // via a variable like `T(def.title)` is invisible to it. Quest titles are
 // written exactly that way — in 0.77 two new titles came out with no

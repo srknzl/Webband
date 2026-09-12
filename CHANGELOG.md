@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.91 — Bakış Sabit (2026-09-12)
+
+- **Haritayı kaydırınca bakış orada kalıyor.** Karakterden başka bir yere (mesela hedefine)
+  bakarken, karakter yürüdükçe harita da yavaşça onun gittiği yöne kayıyordu. Artık kamera
+  elle kaydırıldığı noktada duruyor; Boşluk ve 🎯 Beni Bul yine karaktere döndürüyor.
+
 ## 0.90 — Tam İsim (2026-09-12)
 
 - **Haritadaki birlik isimleri tam yazıyor.** "Orman Haydutları" sadece "Orman" görünüyordu;

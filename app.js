@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.90', date: '2026-09-12', name: 'Tam İsim' };  // the version name is not translated
+const VERSION = { no: '0.91', date: '2026-09-12', name: 'Bakış Sabit' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2228,7 +2228,18 @@ const Game = {
             }
         }
 
-        // Smooth Zoom and Camera Follow
+        // Smooth Zoom and Camera Follow.
+        // A manual pan sticks to the MAP, not to the party. The camera target is
+        // player + offset, so a constant offset dragged the view along as the player
+        // walked: look at your destination and it slid away in your direction of travel
+        // (#94). Cancelling the player's own step out of the offset holds the view still.
+        // Space and 🎯 Beni Bul zero the offset and resume following, as before.
+        if(this._camPx !== undefined && (this.camera.offsetX || this.camera.offsetY)) {
+            this.camera.offsetX -= state.player.x - this._camPx;
+            this.camera.offsetY -= state.player.y - this._camPy;
+        }
+        this._camPx = state.player.x; this._camPy = state.player.y;
+
         let targetCamX = state.player.x + this.camera.offsetX;
         let targetCamY = state.player.y + this.camera.offsetY;
         // With reduced motion on, there's no camera/zoom smoothing, it snaps instantly (#55 item 6)
