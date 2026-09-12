@@ -957,6 +957,51 @@ test('i18n: every T key in the code is in both dictionaries', () => {
     assert.ok(missing.length === 0, `${missing.length} keys missing from a dictionary, first: ${JSON.stringify(missing[0])}`);
 });
 
+// An inline handler lives inside a double-quoted attribute, so anything it
+// interpolates must not contain a raw `"`. JSON.stringify does — `'auto'` became
+// `"auto"`, which ended the attribute mid-call and left the button uncompilable
+// (#94). Game.lit is the escape; this is the gate that keeps it in use.
+test('inline handlers never interpolate a raw double quote', () => {
+    const fs = require('fs'), path = require('path');
+    const root = path.join(__dirname, '..');
+    const bad = [];
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'index.html']) {
+        const src = fs.readFileSync(path.join(root, f), 'utf8');
+        const re = /\bon[a-z]+\s*=\s*"/g;
+        let m;
+        while((m = re.exec(src))) {
+            // Walk the attribute brace-aware: an interpolation may hold the " itself.
+            let i = m.index + m[0].length;
+            while(i < src.length && src[i] !== '"' && src[i] !== '\n') {
+                if(src[i] === '$' && src[i + 1] === '{') {
+                    let d = 1, s = i;
+                    i += 2;
+                    while(i < src.length && d) { if(src[i] === '{') d++; else if(src[i] === '}') d--; i++; }
+                    const expr = src.slice(s, i);
+                    if(/JSON\.stringify\(/.test(expr))
+                        bad.push(`${f}:${src.slice(0, s).split('\n').length}  ${expr}`);
+                } else i++;
+            }
+        }
+    }
+    assert.ok(bad.length === 0, `use Game.lit() instead: ${bad.join(' | ')}`);
+});
+
+test('Game.lit escapes the quotes an inline handler cannot carry', () => {
+    assert.strictEqual(Game.lit('auto'), '&quot;auto&quot;');
+    assert.strictEqual(Game.lit(true), 'true');
+    assert.strictEqual(Game.lit(false), 'false');
+});
+
+// A Turkish keyboard sends 'ı' from the key engraved I, and 'ı'.toLowerCase() is
+// still 'ı' — reading e.key made every letter shortcut US-layout-only (#94).
+test('key shortcuts read the physical key, not the layout letter', () => {
+    const { Input } = g;
+    assert.strictEqual(Input.letter({ code: 'KeyI', key: 'ı' }), 'i');
+    assert.strictEqual(Input.letter({ code: 'KeyW', key: 'w' }), 'w');
+    assert.strictEqual(Input.letter({ code: 'Escape', key: 'Escape' }), 'escape');
+});
+
 // The static extractor only sees `T('…')` **literals**; raw data translated
 // via a variable like `T(def.title)` is invisible to it. Quest titles are
 // written exactly that way — in 0.77 two new titles came out with no

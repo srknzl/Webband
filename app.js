@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.88', date: '2026-09-12', name: 'Tek Dokunuşta Kurulur' };  // the version name is not translated
+const VERSION = { no: '0.89', date: '2026-09-12', name: 'Tuş Yerini Buldu' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -97,6 +97,10 @@ const Debug = {
     text() { return JSON.stringify(this.report(), null, 1); },
     open() {
         let n = this.errors.length;
+        // The badge counts *unseen* errors, and opening the report is seeing them —
+        // otherwise it stayed on screen forever with no way to dismiss it.
+        this.seen = 0;
+        this.badge();
         Game.showModal(`<h3>${T`🐞 Debug Raporu`}</h3>
             <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.`}</p>
             <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
@@ -501,10 +505,17 @@ const Input = {
         this.mouse.y = u.y + d.y * 120;
     },
 
+    // The layout-independent name of a letter key; anything else falls back to e.key.
+    letter(e) { return /^Key[A-Z]$/.test(e.code || '') ? e.code[3].toLowerCase() : (e.key || '').toLowerCase(); },
+
     init() {
         window.addEventListener('keydown', e => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            this.keys[e.key.toLowerCase()] = true;
+            // A Turkish keyboard sends 'ı' from the key engraved I, and 'ı'.toLowerCase()
+            // is still 'ı' — so the menu shortcuts and WASD only worked on a US layout.
+            // e.code names the *physical* key, which is what a keycap hint promises (#94).
+            let k = Input.letter(e);
+            this.keys[k] = true;
             if(e.key === ' ') e.preventDefault(); // Prevent scrolling with Space
             // While a modal is open the keyboard belongs to the modal (#55 item 6): Esc
             // closes it, Enter presses the primary button. The encounter modal doesn't close with Esc — it isn't an escape from battle.
@@ -520,19 +531,19 @@ const Input = {
             if(!Battle.active && !TournamentMinigame.active && !e.ctrlKey && !e.metaKey &&
                document.getElementById('modal-overlay').classList.contains('hidden') &&
                document.getElementById('main-ui').classList.contains('active')) {
-                let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[e.key.toLowerCase()];
+                let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[k];
                 if(scr) Game.showScreen(scr);
                 // Esc returns to the map from any screen
                 else if(e.key === 'Escape') Game.showScreen('map');
                 // Space brings the camera back to the player (if the map was panned away from the edge)
                 else if(e.key === ' ' && document.getElementById('map-view').classList.contains('active')) Game.centerOnPlayer();
                 // K: kingdoms' war/peace status
-                else if(e.key.toLowerCase() === 'k') Game.showDiplomacy();
+                else if(k === 'k') Game.showDiplomacy();
             }
         });
         window.addEventListener('keyup', e => { 
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            if(e.key) Input.keys[e.key.toLowerCase()] = false; 
+            if(e.key) Input.keys[Input.letter(e)] = false; 
         });
         window.addEventListener('blur', () => {
             Input.keys = {}; // Prevent keys from getting stuck down when window focus is lost
@@ -1561,7 +1572,7 @@ const Game = {
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap">`;
         for(let v of ['auto', true, false]) {
             html += `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm)"
-                onclick="Game.setOpt('lite', ${JSON.stringify(v)}); Game.renderDiffStep()">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`;
+                onclick="Game.setOpt('lite', ${this.lit(v)}); Game.renderDiffStep()">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`;
         }
         html += `</div><div style="display:flex;gap:0.5rem;margin-top:1.2rem">
             <button class="btn" onclick="Game.creationBack()">${T`← Geri`}</button>
@@ -4794,7 +4805,14 @@ const Game = {
     },
 
     onMapUp(e) {
-        if(e.pointerType === 'mouse') return this.endTargetDrag(e);
+        // Mouse: there is no separate 'click' listener (#65) — pointerup carries the
+        // click. endTargetDrag sets suppressClick on a real drag and handleMapClick eats
+        // it, so a drag assigns one target, not two. (Restored: #83 reverted this.)
+        if(e.pointerType === 'mouse') {
+            if(e.button !== 0) return;
+            this.endTargetDrag(e);
+            return this.handleMapClick(e);
+        }
         let p = this._ptr.get(e.pointerId);
         this._ptr.delete(e.pointerId);
         if(this._ptr.size < 2) this._pinch = 0;
@@ -5875,6 +5893,11 @@ const Game = {
     // The single call site is `Battle.afterArmor` — melee and arrows both pass through it.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
+
+    // A JS literal that survives a double-quoted inline handler: JSON.stringify('auto')
+    // is `"auto"`, and those quotes closed the onclick attribute mid-call — the button
+    // then failed to compile (SyntaxError: Unexpected token '}') and did nothing (#94).
+    lit(v) { return JSON.stringify(v).replace(/"/g, '&quot;'); },
     // The map panning when the mouse rests at the screen edge is desktop-only: on touch
     // there's no cursor, the last touch's coordinate stays in Input.mouse, and if it lands
     // on the edge the map would pan on its own. 'auto' asks the device, the two extremes are the player's call.
@@ -5929,16 +5952,16 @@ const Game = {
             <div><div>${label}</div>${note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted)">${note}</div>` : ''}</div><div style="white-space:nowrap">${ctrl}</div></div>`;
         let rm = this.opt('reducedMotion');
         let rmBtn = ['auto', true, false].map(v => `<button class="btn${rm === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
-            onclick="Game.setOpt('reducedMotion', ${JSON.stringify(v)})">${v === 'auto' ? T('Sistem') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+            onclick="Game.setOpt('reducedMotion', ${this.lit(v)})">${v === 'auto' ? T('Sistem') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let fs = this.opt('fontScale');
         let fsBtn = [0.9, 1, 1.15].map(v => `<button class="btn${fs === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('fontScale', ${v})">${v === 0.9 ? T('Küçük') : v === 1 ? T('Normal') : T('Büyük')}</button>`).join(' ');
         let lt = this.opt('lite');
         let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
-            onclick="Game.setOpt('lite', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+            onclick="Game.setOpt('lite', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let ep = this.opt('edgePan');
         let epBtn = ['auto', true, false].map(v => `<button class="btn${ep === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
-            onclick="Game.setOpt('edgePan', ${JSON.stringify(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+            onclick="Game.setOpt('edgePan', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let df = this.opt('difficulty');
         let dfBtn = ['easy', 'normal', 'hard'].map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('difficulty', '${v}')">${T(this.DIFFS[v].name)}</button>`).join(' ');
@@ -8100,7 +8123,7 @@ const Game = {
                     upgradeChoices.forEach(choice => {
                         // Which option is infantry, which is mounted archer — a promotion shouldn't be a blind pick (#51)
                         let ci = this.troopStats({ name: choice.name });
-                        html += `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name.replace(/'/g,"\\'"))}', ${choice.cost})">
+                        html += `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name).replace(/'/g,"\\'")}', ${choice.cost})">
                             ${T`Sınıf Terfisi: ${ci.icon} ${T(choice.name)} (${choice.cost} Dinar)`}
                             <div style="font-size:var(--fs-xs);opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + T(DMG_TYPES[ci.dmgType].name) : ''}</div>
                         </button>`;
@@ -8353,7 +8376,7 @@ const Game = {
                 let g = groups[name];
                 html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
                     <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(tanesi ${g.value} dinar)`}</span></span>
-                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Sat (+${g.count * g.value})`}</button>
+                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name).replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
             }
             html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">${T`Hepsini Sat (+${total} Dinar)`}</button>`;
@@ -8455,7 +8478,7 @@ const Game = {
             let g = groups[name];
             html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
                 <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
-                <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name.replace(/'/g,"\\'"))}')">${T`Salıver`}</button>
+                <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name).replace(/'/g,"\\'")}')">${T`Salıver`}</button>
             </li>`;
         }
         return html + '</ul>';

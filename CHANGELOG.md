@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.89 — Tuş Yerini Buldu (2026-09-12)
+
+- **Fareyle haritaya tıklamak yine yürütüyor.** 0.83'te kazara geri alınmıştı; masaüstünde
+  tıklama hedef kurmuyor, sadece var olan işareti sürüklemek çalışıyordu.
+- **Türkçe klavyede kısayollar çalışıyor.** I tuşu Türkçe düzende `ı` gönderdiği için
+  envanter açılmıyordu; artık tuşun kendisi okunuyor, harfi değil. Envanter rozeti de
+  Türkçede **İ** yazıyor.
+- **Ayarlardaki "Cihaza göre" / "Sistem" düğmeleri düzeldi.** Üçü de hiç çalışmıyordu ve
+  oyun açılışında sessizce hata veriyordu.
+- **iPhone'da çentik üst şeridi yemiyor.** Gün, saat ve can artık saat ile pilin altından
+  çıktı.
+- **Hata rozeti raporu açınca kayboluyor** ve telefonda alt menünün üstüne çıkıyor.
+- Başlangıç ekranında dil düğmeleri alt sıradaki düğmelerle çakışmıyor.
+- Telefon uygulaması artık canlı siteyi açıyor: oyun her güncellendiğinde uygulama da
+  güncelleniyor, yeniden kurmak gerekmiyor.
+
 ## 0.88 — Tek Dokunuşta Kurulur (2026-09-12)
 
 - **Başlangıç ekranına 📲 Yükle düğmesi geldi.** Oyunu telefona kurmak için tarayıcının

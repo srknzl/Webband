@@ -50,7 +50,7 @@
                 <button id="start-btn" class="btn primary">Maceraya Başla</button>
             </div>
             
-            <div style="position: absolute; bottom: 40px; display:flex; gap: 2rem; justify-content:center; width:100%;">
+            <div class="start-actions">
                 <button class="btn hex-btn-small" onclick="Game.showLore('lords')">🏇 Lordlar</button>
                 <button class="btn hex-btn-small" onclick="Game.showLore('kingdoms')">🏰 Krallıklar</button>
                 <button class="btn hex-btn-small" onclick="Save.continueGame()">📂 Kayıttan Devam</button>
@@ -155,7 +155,7 @@
                     <button class="menu-btn" data-view="party" onclick="Game.showScreen('party')">
                         <span class="mb-ico">⚔️</span><span class="mb-lbl">Grup</span><kbd>P</kbd></button>
                     <button class="menu-btn" data-view="inventory" onclick="Game.showScreen('inventory')">
-                        <span class="mb-ico">🎒</span><span class="mb-lbl">Envanter</span><kbd>I</kbd></button>
+                        <span class="mb-ico">🎒</span><span class="mb-lbl">Envanter</span><kbd>İ</kbd></button>
                     <button class="menu-btn sb-extra" data-view="quests" onclick="Game.showScreen('quests')">
                         <span class="mb-ico">📜</span><span class="mb-lbl">Görevler</span><kbd>Q</kbd></button>
                     <div style="flex:1"></div>
@@ -302,10 +302,13 @@
     <script src="battle.js"></script>
     <script src="nobles.js"></script>
     <script src="quests.js"></script>
-    <!-- Offline copy for the web build only. Inside the Capacitor app the assets are
-         already on disk and `window.Capacitor` exists, so the worker stays out of it. -->
+    <!-- Offline copy. The native app now loads the live site (capacitor.config.json's
+         `server.url`), so it wants the worker too — that is what keeps it playable with
+         no signal. The one case to skip is Capacitor serving its own bundled copy from
+         capacitor://localhost: a worker there would shadow the assets already on disk. -->
     <script>
-        if('serviceWorker' in navigator && !window.Capacitor && location.protocol.startsWith('http'))
+        if('serviceWorker' in navigator && location.protocol.startsWith('http')
+           && !(window.Capacitor && location.hostname === 'localhost'))
             addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
     </script>
 </body>

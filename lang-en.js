@@ -1290,6 +1290,7 @@ I18N.dicts.en = {
   "💰 {0} dinar kese": "💰 {0} denars in purse",
   "💾 Dosya Olarak İndir": "💾 Download as a file",
   "💾 Kayıtlar": "💾 Saves",
+  "İ": "I",
   "📲 Yükle": "📲 Install",
   "💾 Otomatik kayıt": "💾 Autosave",
   "📈 Fiyat Defterine Bak": "📈 Look at the price ledger",

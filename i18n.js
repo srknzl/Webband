@@ -37,7 +37,10 @@ const I18N = {
         for(let n = walk.nextNode(); n; n = walk.nextNode()) {
             const p = n.parentElement;
             if(!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE') continue;
-            if(!/[A-Za-zÇĞİÖŞÜçğıöşü]{2,}/.test(n.nodeValue)) continue;
+            // One letter is enough: the keycap hints are single characters and the I/İ
+            // pair differs between Turkish and English. A letter with no dictionary entry
+            // still falls back to itself, so widening this costs nothing.
+            if(!/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(n.nodeValue)) continue;
             out.push(n);
         }
         return out;

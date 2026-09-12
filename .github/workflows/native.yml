@@ -1,6 +1,10 @@
 # The second pipeline (#91). test.yml is the web one — it runs the game's own code and
 # cuts a release; this one turns the exact same files into installable apps.
 #
+# The shell loads the live site (`server.url` in native/capacitor.config.json), so this
+# pipeline only has to change when the *shell* changes — a game update reaches both
+# phones on the next launch, no rebuild and no reinstall.
+#
 # Nothing under native/ios or native/android is committed: `cap add` regenerates both
 # from native/capacitor.config.json on every run. The trade is that a hand-edit to
 # Info.plist or AndroidManifest.xml would not survive — anything needed there has to
