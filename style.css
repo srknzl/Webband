@@ -177,8 +177,13 @@ h1, h2, h3 {
 
 /* --- START SCREEN REDESIGN --- */
 #start-screen {
-    justify-content: center;
+    /* `safe center` centers while there is room and falls back to flex-start when there
+       is not — plain `center` overflows *both* ends of a scroll container, so on a short
+       window the title was cut off above and unreachable (#94). */
+    justify-content: safe center;
     align-items: center;
+    overflow-y: auto;
+    padding-block: 1.5rem;
     background: radial-gradient(circle at center, rgba(15,20,25,0.2) 0%, rgba(5,5,8,0.9) 100%), url('bg_hdr.jpg');
     background-size: cover;
     background-position: center;
@@ -1016,8 +1021,11 @@ body.touch .menu-btn kbd { display: none; }
 .fx-float.bad { color: var(--danger); }
 
 /* ---- Sürüm damgası, hata rozeti, erişilebilirlik (#55) ---- */
+/* In the flow, not pinned to a corner: #start-screen scrolls now, so an absolutely
+   positioned stamp sits at the bottom of the *content* and lands on the button row
+   (#94) — the same collision .start-actions had. Mobile already did it this way. */
 #ver-tag {
-    position: absolute; right: 14px; bottom: 10px;
+    margin-top: 1rem; text-align: center;
     font-size: var(--fs-xs); color: rgba(255,255,255,0.45); letter-spacing: .05em;
     pointer-events: none;
 }
@@ -1324,7 +1332,7 @@ input[type="range"] { touch-action: none; height: 2.4rem; }
 
 /* --- Başlangıç ekranı dar ekranda --- */
 @media (max-width: 820px) {
-    #start-screen { padding: 1rem; overflow-y: auto; justify-content: flex-start; padding-top: 2.5rem; }
+    #start-screen { padding: 1rem; justify-content: flex-start; padding-top: 2.5rem; }
     #start-screen h1 { font-size: clamp(2.6rem, 15vw, 5rem); letter-spacing: 3px; }
     #start-screen .title-container { margin-bottom: 1.5rem; }
     #start-screen p { font-size: 1.25rem; }
@@ -1337,7 +1345,6 @@ input[type="range"] { touch-action: none; height: 2.4rem; }
     }
     .start-actions { gap: 0.5rem; margin-top: 1.2rem; }
     #start-screen .hex-btn-small { font-size: 0.92rem; padding: 0.7rem 0.9rem; }
-    #ver-tag { position: static !important; margin-top: 1rem; text-align: center; }
 }
 
 /* ============================================================

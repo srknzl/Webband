@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.89', date: '2026-09-12', name: 'Tuş Yerini Buldu' };  // the version name is not translated
+const VERSION = { no: '0.90', date: '2026-09-12', name: 'Tam İsim' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -561,7 +561,11 @@ const Input = {
             }
         });
         window.addEventListener('wheel', e => {
-            if (document.getElementById('map-view').classList.contains('active')) {
+            // `#map-view` carries `active` from page load — it is the selected *tab*, not a
+            // visible map. Wheeling the start screen (which scrolls since #94) therefore
+            // zoomed the map all the way out before the game even began. offsetParent is
+            // the same visibility test the battle canvas uses above.
+            if (Game.mapCanvas && Game.mapCanvas.offsetParent !== null) {
                 Game.camera.targetZoom -= e.deltaY * 0.001;
                 Game.camera.targetZoom = Math.max(Game.minZoom(), Math.min(Game.camera.targetZoom, 3.0));
             }
@@ -4530,14 +4534,14 @@ const Game = {
                 this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
             }
             
-            // The label is trimmed to the first word so the map isn't buried in names. But a
-            // caravan or villager party's name is already a compound: "Praven Köylüleri"'s first
-            // word leaves just "Praven", which got confused with the settlement itself on the map.
-            let shortName = this.npcName(npc).split(' ')[0];
+            // The label used to be trimmed to the first word to keep the map readable, but
+            // a band's name is a qualifier plus a noun and the first word is the throwaway
+            // half: "Orman Haydutları" showed as "Orman", "Forest Bandits" as "Forest" (#94).
+            // The full name is short enough in all three languages; the only thing worth
+            // dropping is a lord's army suffix, which repeats on every lord on screen.
+            let shortName = this.npcName(npc);
             if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
-                shortName = this.npcName(npc).replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
-            } else if(npc.trade) {
-                shortName = this.npcName(npc);
+                shortName = shortName.replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
             }
             this.mapLabel(ctx, `${shortName} (${npc.size})`, npc.x, npc.y + 50, '#ffffff', nCol);
         });

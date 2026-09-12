@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.90 — Tam İsim (2026-09-12)
+
+- **Haritadaki birlik isimleri tam yazıyor.** "Orman Haydutları" sadece "Orman" görünüyordu;
+  isim ilk kelimesine kısaltılıyordu ve atılan yarı asıl anlamı taşıyan yarıydı. Üç dilde de
+  tam isim yazıyor; sadece lordların tekrar eden "Ordusu" eki atılıyor.
+- **Başlangıç ekranı kısa pencerede kayıyor.** Pencere alçaldığında dil düğmeleri ekranın
+  altında kalıyor ve ulaşılamıyordu.
+
 ## 0.89 — Tuş Yerini Buldu (2026-09-12)
 
 - **Fareyle haritaya tıklamak yine yürütüyor.** 0.83'te kazara geri alınmıştı; masaüstünde
