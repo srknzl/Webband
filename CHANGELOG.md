@@ -3,6 +3,31 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.85 — Köşedeki Fısıltılar (2026-09-12)
+
+Bilgi bedava değil artık — ne handa, ne loncada. Nam merdiveni de 300'ün üstünde bitmiyor.
+
+- **👂 Söylenti Dinle.** Handa köşeye oturup kadehleri ödüyorsun: **20 dinar, 2-4 saat**.
+  Duyduğun sözün ağırlığı **Gözcülük** yeteneğine bağlı: düşük seviyede yalnızca bir yön
+  ("kuzeyde çete var"), ortada kim nerede (hangi lord nereyi kuşatmış, ordu nereye yürüyor),
+  yüksekte rakamlar (hangi mal nereye götürülünce kaç para eder, turnuva, şölen, inin kesesi).
+- **Handa duyulan her söz doğru değil.** Yalan çıkma ihtimali Gözcülük 1'de **%45**, 12'de
+  **%5**. Yalan uydurma bir hikâye değil — doğru hikâye, **yanlış yere** yapıştırılmış olanı.
+  Yani bedeli üç günlük boşa yol.
+- **📈 Fiyat defteri artık 50 dinar.** Günde bir kez, şehir başına. Ticaretin haritası
+  bedavaydı, değil.
+- **👑 300 nam — hükmetme hakkı.** Bağımsızken, arkanda yeterince kılıçla bir köyün meydanında
+  durup fiyatı söylüyorsun: kuşatma yok, kılıç yok. Köy sana **her gün haraç** ödüyor (vergisinin
+  %40'ı) ve **+3 idare hakkı** kazanıyorsun. Sahibi ve krallığının lordları bunu unutmuyor.
+  Krallığıyla savaşa girersen para durur.
+- **🕊️ 500 nam — yoldaş elçiliği.** Bir yoldaşını lorda elçi yolluyorsun: ilişki pazarlığı ya
+  da ateşkes. **3-6 gün** gruptan ayrılıyor — yeteneği de onunla gidiyor, asıl bedel bu.
+- **🎖️ 800 nam — mareşallik.** Derebeyiysen kralından sancağı istiyorsun. Kabul ederse krallık
+  sefere çıktığında hedefi **sen** seçiyorsun ve lordlar oraya yürüyor. Ölçüldü: bilerek
+  lordlardan en uzak hedefi seçtiğimizde bile **27 lorddan 24'ü 20 gün içinde** oraya vardı,
+  ortanca varış **4. gün**. Görev tek seferlik; sefer bitince sancağı yeniden istemen gerek.
+- Nam rozetinin ipucu artık beş kapıyı da gösteriyor (80 / 150 / 300 / 500 / 800).
+
 ## 0.84 — Usta Yerini Biliyor (2026-09-12)
 
 - **Yeni lonca görevi: İni Bas.** Şehrin hanındaki lonca ustası, kervanlarını soyan inin
