@@ -310,11 +310,13 @@
         if('serviceWorker' in navigator && location.protocol.startsWith('http')
            && !(window.Capacitor && location.hostname === 'localhost'))
             addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-        // The native shell draws under the status bar but reports every safe-area inset as
-        // 0, so the HUD sat beneath the clock even with the padding in place (#94). The
-        // class lets style.css put a floor under the value it cannot trust; env() still
-        // wins wherever it is real, so the browser and a future fixed shell are untouched.
-        if(window.Capacitor) document.documentElement.classList.add('native-shell');
+        // A shell that draws under the status bar while reporting a 0 top inset looks
+        // exactly like a flat screen to CSS, so style.css cannot tell them apart on its
+        // own. Measured here instead, and the fixed fallback is only switched on when the
+        // value really is 0 inside a native shell — a phone that reports its notch keeps
+        // its own number (#95).
+        if(window.Capacitor && !parseFloat(Game.safeArea()[0]))
+            document.documentElement.classList.add('native-shell');
     </script>
 </body>
 </html>

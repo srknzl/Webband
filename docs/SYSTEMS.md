@@ -2818,6 +2818,11 @@ Audio cannot cancel what is already scheduled. Every note of a piece therefore h
 gain node, so `retire()` fades that one node and the entire queued tail goes with it; the
 0.25 s fade *is* the crossfade into the drums.
 
+**Coming back from another app.** Backgrounding suspends the AudioContext and iOS does not
+resume it on return, while the `setTimeout` chain is throttled to a stop — the music simply
+never came back. One `visibilitychange` listener calls `Game.ac()` (which resumes) and
+re-arms `tick()`, whose rebasing handles the gap in the clock.
+
 **One switch point.** `Music.sync()` reads the screen (`#main-ui` active, the `in-battle`
 class) and the settings (`muted`, `volume`, `music`) and picks `'map' | 'battle' | null`.
 It is called from `showScreen()` and `applySettings()`, so neither knows about the other.
@@ -3268,6 +3273,24 @@ Registration is guarded with `!window.Capacitor`, not just a protocol check. Wit
 `androidScheme: https` the native app's origin is `https://localhost` — a protocol check
 alone would install a second, stale copy of every asset on top of the one already in the
 app bundle.
+
+### The notch — why two fixes did nothing (#95)
+
+`.screen` is `position: absolute` inside `#game-container`. The inset was written as
+**padding on the container**, on the reasoning that an absolutely positioned child is laid
+out against its containing block's padding box — true, but that box's *origin* is the border
+edge, so padding does not move such a child at all. Measured in the browser: 59px of
+`padding-top` on `#game-container` shifts `#top-bar` by **0px**; the same 59px as `top` on
+`.screen` shifts it by **59px**. Both 0.89's `env()` padding and 0.93's `max(env(), 59px)`
+floor were therefore no-ops on every platform, which also explains why the phone looked
+identical after each release.
+
+The inset now lives on `.screen` itself as `inset: env(top) env(right) 0 env(left)` — bottom
+stays 0 because `--tui-lift` already adds `safe-area-inset-bottom` and counting it twice
+lifts the touch controls off the screen. `Game.safeArea()` measures the four insets on a real
+box (a custom property holding `env()` computes to the unresolved token), and index.html adds
+`.native-shell` only when a native shell reports a top inset of **0** — a phone that reports
+its real notch keeps its own number instead of a blanket 59px.
 
 ### The native shell (Capacitor)
 

@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.95 — Tepe Temiz (2026-09-12)
+
+- **Telefon uygulamasında üst satır artık gerçekten çentiğin altında.** 0.89'da eklenen ve
+  0.93'te büyütülen boşluk hiçbir işe yaramıyormuş: boşluk yanlış kutuya veriliyordu, o
+  yüzden ekranı bir piksel bile aşağı itmiyordu. Ölçüldü, doğru yere taşındı.
+- **Başka bir uygulamaya geçip dönünce müzik susmuyor.** iOS sesi askıya alıp geri
+  açmıyordu; artık oyun geri gelince kendi devam ettiriyor.
+
 ## 0.94 — Ozan Geldi (2026-09-12)
 
 - **Oyunun müziği var.** Haritada sakin bir telli saz ile altında duran kalın bir dem

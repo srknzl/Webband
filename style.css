@@ -158,27 +158,26 @@ h1, h2, h3 {
     height: 100vh;
     height: 100dvh;
     position: relative;
-    /* iOS draws under the notch (viewport-fit=cover + black-translucent status bar),
-       so the HUD sat beneath the clock and the battery. `.screen` is absolutely
-       positioned against this element's *padding* box, so insetting here moves every
-       screen at once. The bottom is left alone on purpose: --tui-lift already adds
-       safe-area-inset-bottom, and padding here too would count it twice. */
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
-/* 59px is the tallest iPhone status bar (Dynamic Island); a plain notch wants 44-48 and a
-   flat screen 20. max() takes the real inset wherever the shell reports one, so this only
-   bites when the value is a bogus 0 — and there, too much top padding is a few dark pixels
-   while too little hides the HUD under the clock. ponytail: one number for every device;
-   a per-device table is not worth it until a debug report shows one that needs it. */
-.native-shell #game-container { padding-top: max(env(safe-area-inset-top), 59px); }
 
 .screen {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    /* iOS draws under the notch (viewport-fit=cover + black-translucent status bar), so the
+       HUD sat beneath the clock and the battery. The inset used to live on #game-container
+       as padding, on the reasoning that a screen is positioned against its padding box —
+       but that box's origin is the *border* edge, so padding never moves an absolutely
+       positioned child at all. Measured: 59px of padding there shifts #top-bar by 0px; the
+       same 59px here shifts it by 59. That is why the notch survived both 0.89 and 0.93
+       (#95). The bottom stays 0: --tui-lift already adds safe-area-inset-bottom, and
+       counting it twice would lift the touch controls off the screen. */
+    inset: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
     display: none;
     flex-direction: column;
 }
+/* A shell that draws under the status bar while reporting a 0 inset cannot be told apart
+   from a flat screen in CSS, so index.html measures it and only then adds the class. 59px
+   is the tallest iPhone status bar (Dynamic Island); a plain notch wants 44-48. */
+.native-shell .screen { top: 59px; }
 .screen.active { display: flex; }
 
 /* --- START SCREEN REDESIGN --- */

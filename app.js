@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.94', date: '2026-09-12', name: 'Ozan Geldi' };  // the version name is not translated
+const VERSION = { no: '0.95', date: '2026-09-12', name: 'Tepe Temiz' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -93,16 +93,7 @@ const Debug = {
                 // the status bar — and a 0 here is indistinguishable from a flat screen (#94).
                 // A custom property holding env() computes to the unresolved token, so the
                 // insets have to be measured on a real box.
-                safeArea: g(() => {
-                    let p = document.createElement('div');
-                    p.style.cssText = 'position:fixed;visibility:hidden;top:0;left:0;'
-                        + 'padding:env(safe-area-inset-top) env(safe-area-inset-right)'
-                        + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
-                    document.body.appendChild(p);
-                    let c = getComputedStyle(p), v = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].join(' ');
-                    p.remove();
-                    return v;
-                }),
+                safeArea: g(() => Game.safeArea().join(' ')),
                 shell: window.Capacitor ? 'capacitor' : 'web',
                 memory: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + T(' MB') : 'unknown')
             },
@@ -5909,6 +5900,20 @@ const Game = {
             });
         } catch(e) { /* the game doesn't stop if there's no sound */ }
     },
+    // The notch, measured. A custom property holding env() computes to the unresolved
+    // token, so the insets only become numbers on a real box. Read by the debug report and
+    // by index.html, which needs to know whether a native shell reports a believable value.
+    safeArea() {
+        let p = document.createElement('div');
+        p.style.cssText = 'position:fixed;visibility:hidden;top:0;left:0;'
+            + 'padding:env(safe-area-inset-top) env(safe-area-inset-right)'
+            + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
+        document.body.appendChild(p);
+        let c = getComputedStyle(p), v = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft];
+        p.remove();
+        return v;
+    },
+
     // The one AudioContext in the game. A browser only hands one out after a gesture and
     // only so many per page, so SFX and Music share it — and an autoplay-suspended context
     // is resumed here rather than at each of the two call sites.
@@ -6159,6 +6164,16 @@ const Game = {
             this._mode = mode;
             if(!mode) return;
             if(!this.out) {                      // the hall outlives the pieces played in it
+                // Switching to another app suspends the AudioContext and iOS does not
+                // resume it on return, while the timer chain is throttled to a stop — the
+                // music simply never came back (#95). Registered here because this block
+                // runs exactly once; Game.ac() is what does the resuming.
+                document.addEventListener('visibilitychange', () => {
+                    if(document.hidden || !this._mode) return;
+                    Game.ac();
+                    clearTimeout(this._timer);
+                    this.tick();
+                });
                 this.out = ac.createGain();
                 this.wet = ac.createGain(); this.wet.gain.value = 0.3;
                 this.cv = this.verb();
