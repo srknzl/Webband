@@ -11,6 +11,8 @@ başlangıç ekranının sağ alt köşesinde yazar.
   *Kanun Cengi* 7/8 aksak, *Çelik Halay* 9/8, *Kılıç Gölgesi* sinematik. Altlarındaki ezgi hâlâ
   ortaçağ kilise makamlarından geliyor — yani synthwave'e çalınan ortaçağ havaları, ortaçağ
   havasının üstüne serpiştirilmiş synthwave değil.
+- **Soru ve cevap.** *Kılıç Gölgesi*'nde ezgiyi iki çalgı sırayla taşıyor: dört bar yaylılar
+  söylüyor, dört bar koro bir oktav aşağıdan cevap veriyor — aynı ezginin tersten yürüyen hâliyle.
 - **Kılıç, hücum ve nara.** Kılıç çınlaması, hava kesen bıçak ve savaş narası artık davul
   ızgarasının parçası; on parçanın altısında, her birinde birer kez, vurmalıların boş bıraktığı
   vuruşta.

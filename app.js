@@ -6089,7 +6089,8 @@ const Game = {
               drums: 'O..W.xO..w.xO.WR',           // the fight itself, written into the grid
               ost: { v: 'sub', n: 4, vol: 0.085 },
               pad: { v: 'voice', deg: [0, 2, 7], lift: 7, vol: 0.06 },
-              lead: { v: 'section', lift: 7, vol: 0.095, bars: 3, hold: 1.15 },
+              lead: { v: 'section', lift: 7, vol: 0.095, bars: 3, hold: 1.15,
+                      alt: { v: 'voice', lift: 0, vol: 0.1, bars: 4, hold: 0.95 } },
               harm: { v: 'flute', deg: 0, vol: 0.055 } }
         ],
 
@@ -6129,9 +6130,13 @@ const Game = {
         // `lift` raises the whole shape by scale degrees (7 = the octave, where the flute and
         // the violins live). The progression's last bar plays the contour backwards: a repeat
         // needs one variation or it turns into wallpaper.
-        bar(p, lift) {
+        bar(p, lift, alt) {
             let i = p.bar % p.prog.length, m = p.motif;
-            let c = i === p.prog.length - 1 ? m.c.slice().reverse() : m.c;
+            // `alt` answers the motif with its own shape — the same rhythm walking the other
+            // way. It is still the piece's motif, which is why it sounds like a reply and not
+            // like a second tune (#98).
+            let c = alt ? m.c.slice().reverse() : m.c;
+            if(i === p.prog.length - 1) c = c.slice().reverse();
             let root = p.prog[i] + (lift || 0), at = 0;
             return m.r.map((beats, j) => {
                 let n = { deg: root + c[j % c.length], beats, at };
@@ -6757,10 +6762,15 @@ const Game = {
                 this[b.pad.v](t, f(root + (b.pad.lift || 0) + d), bar * 0.95, b.pad.vol * [1, 0.72, 0.55][i])));
             // The lead breathes: `bars` of melody in every four, the rest off. Always playing
             // is exhausting to listen to, and a chill screen is where that shows.
-            if(b.lead && p.bar % 4 < b.lead.bars) this.bar(p, b.lead.lift).forEach(n => {
-                let dur = n.beats * spb * (b.lead.hold || 0.92);
-                let d = b.lead.stab ? Math.min(dur, spb * 0.45) : dur;
-                this[b.lead.v](t + n.at * spb, f(n.deg), d, b.lead.vol);
+            // `alt` is a second lead the band trades four-bar phrases with: another
+            // instrument, another register, the motif answering itself. Without it a piece is
+            // one melody for two minutes, which is what "hep aynı melodi" means.
+            let ld = b.lead, answer = b.lead && b.lead.alt && Math.floor(p.bar / 4) % 2;
+            if(answer) ld = Object.assign({}, b.lead, b.lead.alt);
+            if(ld && p.bar % 4 < ld.bars) this.bar(p, ld.lift, answer).forEach(n => {
+                let dur = n.beats * spb * (ld.hold || 0.92);
+                let d = ld.stab ? Math.min(dur, spb * 0.45) : dur;
+                this[ld.v](t + n.at * spb, f(n.deg), d, ld.vol);
                 if(b.harm) this.part(this.PANS.harm, () => this[b.harm.v](t + n.at * spb, f(n.deg + b.harm.deg), d, b.harm.vol));
             });
             p.bar++;

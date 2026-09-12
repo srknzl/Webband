@@ -2974,6 +2974,16 @@ synchronous JS on the shared `Music` graph and has to stay serial — but it is 
 ten; `startRendering()` is off-thread and is everything else. Schedule all ten, then
 `Promise.all` the renders.
 
+**Call and answer (#98).** *"Hep aynı melodi, bi o bi bu gibi olsun."* A piece repeats one
+motif over every chord — that is what makes it a piece rather than a random walk, but for two
+minutes it is also all an ear gets. A band may now declare `lead.alt`, a second lead it trades
+four-bar phrases with: `emit` merges it over `lead` on odd phrases and passes a flag down to
+`bar()`, which answers with the motif's contour reversed. Same rhythm, same harmony, other
+instrument and other register — so it reads as a reply rather than a second tune. Kılıç Gölgesi
+is the first to use it, a string section calling and a choir an octave below answering. Its
+`stab` came off in the same pass: a stab is punctuation, and a phrase that is nothing but
+punctuation nags.
+
 **Measured / decided numbers.** Map: 52–88 bpm, dorian/aeolian/lydian/mixolydian (a band may
 narrow that), tonic E3–B3, 12–16 bars per piece. Battle: 152–170 bpm, dorian/phrygian/aeolian,
 tonic A2–D3, 24–28 bars. Rendered offline through `emit` at the default volume, 45 s per band,
