@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.93 — Çentik Aşıldı (2026-09-12)
+
+- **Telefon uygulamasında üst satır çentiğin altında kalmıyor.** Kabuk sayfayı saatin
+  altına çiziyor ama çentiğin yüksekliğini 0 olarak bildiriyordu; 0.89'daki boşluk bu
+  yüzden hiçbir işe yaramamıştı. Artık uygulama içinde 0'a güvenilmiyor.
+- **Debug raporu çentik ölçüsünü de yazıyor** — bir sonraki seferde tahmin etmeye gerek
+  kalmasın diye.
+
 ## 0.92 — Nöbet Tutulur (2026-09-12)
 
 - **Hasat Nöbeti'nde çapulcular artık kaçmıyor.** Görev "gelince savaş" diyordu ama gelen

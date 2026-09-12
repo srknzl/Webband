@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.92', date: '2026-09-12', name: 'Nöbet Tutulur' };  // the version name is not translated
+const VERSION = { no: '0.93', date: '2026-09-12', name: 'Çentik Aşıldı' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -88,6 +88,22 @@ const Debug = {
             browser: {
                 ua: navigator.userAgent, lang: navigator.language, dpr: window.devicePixelRatio,
                 window: innerWidth + 'x' + innerHeight, screen: screen.width + 'x' + screen.height,
+                // The notch. iOS reports it through env(safe-area-inset-*), but a shell that
+                // zeroes the WKWebView's content inset reports 0 while still drawing under
+                // the status bar — and a 0 here is indistinguishable from a flat screen (#94).
+                // A custom property holding env() computes to the unresolved token, so the
+                // insets have to be measured on a real box.
+                safeArea: g(() => {
+                    let p = document.createElement('div');
+                    p.style.cssText = 'position:fixed;visibility:hidden;top:0;left:0;'
+                        + 'padding:env(safe-area-inset-top) env(safe-area-inset-right)'
+                        + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
+                    document.body.appendChild(p);
+                    let c = getComputedStyle(p), v = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].join(' ');
+                    p.remove();
+                    return v;
+                }),
+                shell: window.Capacitor ? 'capacitor' : 'web',
                 memory: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + T(' MB') : 'unknown')
             },
             errors: this.errors.slice(),

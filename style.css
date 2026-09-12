@@ -165,6 +165,12 @@ h1, h2, h3 {
        safe-area-inset-bottom, and padding here too would count it twice. */
     padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
+/* 59px is the tallest iPhone status bar (Dynamic Island); a plain notch wants 44-48 and a
+   flat screen 20. max() takes the real inset wherever the shell reports one, so this only
+   bites when the value is a bogus 0 — and there, too much top padding is a few dark pixels
+   while too little hides the HUD under the clock. ponytail: one number for every device;
+   a per-device table is not worth it until a debug report shows one that needs it. */
+.native-shell #game-container { padding-top: max(env(safe-area-inset-top), 59px); }
 
 .screen {
     position: absolute;
