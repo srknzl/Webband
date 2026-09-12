@@ -1043,22 +1043,34 @@ test('every generated bar is the same motif over a new chord', () => {
     const { Game } = g, M = Game.Music;
     const major = [0, 2, 4, 5, 7, 9, 11].join();
     Object.values(M.modes).forEach(m => assert.notStrictEqual(m.join(), major, 'Ionian is excluded by design'));
-    M.RHYTHMS.forEach(r => assert.strictEqual(r.reduce((a, b) => a + b, 0), 4, 'a rhythm is exactly one bar'));
-    M.PICK.forEach(p => assert.strictEqual(p.length, 8, 'a picking pattern is eight eighths'));
-    // A style with a typo in it is silent or throws mid-bar, and only on the piece that draws it.
-    M.BSTYLES.forEach(st => {
-        assert.ok(['eighth', 'gallop', 'sixteenth'].includes(st.pulse), 'known pulse: ' + st.pulse);
-        assert.ok(['triad', 'octave', 'none'].includes(st.choir), 'known choir: ' + st.choir);
-        assert.ok(['long', 'short'].includes(st.bow), 'known bowing: ' + st.bow);
+    const metres = new Set(M.BANDS.map(b => b.beats));
+    M.RHYTHMS.forEach(r => assert.ok(metres.has(r.reduce((a, b) => a + b, 0)), 'a rhythm fills someone\'s bar: ' + r));
+    // A band with a typo in it is silent or throws mid-bar, and only on the piece that draws
+    // it — which is a bug reported as "the music stopped once, last week".
+    const ids = new Set();
+    M.BANDS.forEach(b => {
+        assert.ok(!ids.has(b.id), 'band ids are unique: ' + b.id); ids.add(b.id);
+        assert.ok(M.RHYTHMS.some(r => r.reduce((x, y) => x + y, 0) === b.beats), b.id + ' has a rhythm for its metre');
+        ['arp', 'ost', 'pad', 'lead', 'harm'].forEach(k => b[k] &&
+            assert.strictEqual(typeof M[b[k].v], 'function', b.id + '.' + k + ' names a voice: ' + b[k].v));
+        (b.drums || '').split('').forEach(c =>
+            assert.ok(c === '.' || M.HITS[c], b.id + ' drum char is in the alphabet: ' + c));
+        (b.modes || []).forEach(m => assert.ok(M.modes[m], b.id + ' knows its mode: ' + m));
+        assert.ok(b.harm ? !!b.lead : true, b.id + ' has a lead for its harmony');
+        // The one rule the user set: the map is calm, the battle is not (#97).
+        if(b.battle) assert.ok(b.bpm[0] >= 120, b.id + ' is a battle, so it moves: ' + b.bpm[0]);
+        else assert.ok(b.bpm[1] <= 100, b.id + ' is a map, so it stays slow: ' + b.bpm[1]);
     });
-    M.MSTYLES.forEach(st => assert.ok(st.flute >= 0 && st.flute <= 4, 'flute bars fit in four'));
+    assert.strictEqual(M.BANDS.filter(b => b.battle).length, 10, 'ten battle bands');
+    assert.strictEqual(M.BANDS.filter(b => !b.battle).length, 10, 'ten map bands');
     const shapes = new Set();
     M.RHYTHMS.forEach(r => M.CONTOURS.forEach(c => {
         const p = { motif: { r, c }, prog: M.PROGS[0], bar: 0 };
         for(p.bar = 0; p.bar < 8; p.bar++) {
             const b = M.bar(p, 7);
             assert.strictEqual(b.length, r.length, 'one note per rhythm slot');
-            assert.strictEqual(b[b.length - 1].at + b[b.length - 1].beats, 4, 'the bar is filled exactly');
+            assert.strictEqual(b[b.length - 1].at + b[b.length - 1].beats,
+                               r.reduce((x, y) => x + y, 0), 'the bar is filled exactly');
             b.forEach((n, i) => {
                 assert.ok(n.beats > 0, 'no zero-length note');
                 assert.ok(n.deg >= -2 && n.deg <= 20, 'the melody stays in range: ' + n.deg);

@@ -3,6 +3,23 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.99 — Yirmi Topluluk (2026-09-12)
+
+- **Yirmi ayrı topluluk.** Haritada on, savaşta on — ve her biri gerçekten başka bir grup:
+  çalgıları, ölçüsü, temposu ve dokusu kendine ait. Önceki sürümde iki düzenleme vardı,
+  üstüne birkaç ayar; bu yüzden bütün parçalar birbirine benziyordu.
+- **Yeni çalgılar**: santur/arp ve çan (vurulmuş tel — armonikleri kasten tam katlar değil),
+  boru (nefesle açılan pirinç), zurna/duduk (kamış), zil ve marakas, örs.
+- **Harita hep sakin**: 52–88 vuruş. *Çayır Yolu* (gitar + flüt), *Göl Aynası* (santur),
+  *Kav Ateşi* (tek gitar + çello), *Kar Sessizliği* (çanlar + koro), *Çoban Düdüğü* (kamış
+  ve dem), *Yolcu Adımı* (gitar + hafif marakas), *Manastır* (ilahi), *Ney ve Su* (iki flüt
+  paralel), *Kopuz Havası* (6/8), *Yaylı Vadi* (yaylılar).
+- **Savaş hep hızlı**: 128–164 vuruş. *Cenk Korosu*, *Nal Sesi* (üçleme dörtnal), *Boru ve
+  Davul* (paralel beşlilerle boru), *Zurna ve Davul*, *Fırtına* (onaltılıklar + zil),
+  *Kara Ayin* (kalın ilahi + ağır davul), *Kaval Süvari* (6/8), *Demirhane* (örs),
+  *Sancak* (hepsi bir arada), *Yedi Vuruş* (7/8).
+- Ölçü artık 4/4 ile sınırlı değil: 6/8 ve 7/8 parçalar da çıkıyor.
+
 ## 0.98 — Hücum (2026-09-12)
 
 - **Savaş müziği hızlandı**: 92–112 yerine 126–152 vuruş. Aynı ezgi, koşan hâli.

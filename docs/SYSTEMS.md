@@ -2779,7 +2779,7 @@ Tribute per day (seed 3): Azgad (prosperity 56) **22** · Emirin (90) **36** · 
 a **playerless** world — it has no renown curve to read — so that number would be invented,
 not measured. It needs a player-driving sim first.
 
-## Audio layer (#95, reworked #96)
+## Audio layer (#95, reworked #96, twenty bands #97)
 
 Nothing is loaded, everything is synthesised — the same rule the transaction SFX already
 followed, now applied to a whole score. Three reasons it is not mp3 files: `sw.js` precaches
@@ -2792,7 +2792,8 @@ and only so many per page).
 
 - **The score** — `bar(p, lift)` and `hz(tonic, mode, deg)` are pure functions with no audio
   in them, which is why `tools/test.js` can gate them without a sound card. A piece draws one
-  rhythm (`RHYTHMS`, each summing to exactly four beats) and one contour (`CONTOURS`, scale
+  rhythm (`RHYTHMS`, grouped by the bar they fill — four beats, three, or three and a
+  half, since not every band is in 4/4) and one contour (`CONTOURS`, scale
   steps relative to the bar's chord root) and plays that **motif** over every chord of the
   progression, the progression's last bar taking the contour backwards. The first version
   generated each note from an independent random walk and it noodled: nothing ever came back,
@@ -2814,44 +2815,55 @@ and only so many per page).
   thing between it and a test tone. `voice()` is formant synthesis: a sawtooth through three
   bandpasses parked on a vowel's formants (`VOWEL`), which is what separates a choir from a
   synth pad. `section()` stacks detuned unison plus the octave below, because one bow is a
-  soloist and three are an orchestra.
+  soloist and three are an orchestra. `struck()` is everything hit — dulcimer, harp, bell,
+  anvil — and its partials are deliberately *not* whole multiples: a stretched series is what
+  the ear hears as something struck rather than something blown, and the high partials have to
+  die first. `horn()` is brass: a sawtooth whose lowpass snaps open on the attack and settles
+  back, which is the entire signature. `reed()` is a zurna outdoors and a duduk indoors — a
+  square wave for the reed's buzz through a narrow bandpass for the bore. `shake()` is
+  bandpassed noise with a tail: shaker, tambourine, everything that is not a skin.
 
-**Arrangement.** Both modes are built a bar at a time over a four-chord modal progression
-(`PROGS`; no progression uses the seventh degree as a root, so there is no leading tone
-pulling home).
+**Arrangement.** Every piece is built a bar at a time over a four-chord modal progression
+(`PROGS`; no progression uses the seventh degree as a root, so there is no leading tone pulling
+home). What plays that bar is the *band*, and there are twenty of them — ten for the map, ten
+for battle. The pass before this one had two line-ups with a handful of knobs on top, and the
+report was the obvious one: every piece sounded like the same piece (#97). A band now owns its
+instruments, its metre, its tempo and its texture.
 
-- *Çayır Yolu (map)* — 4/4, continuous fingerpicking (`PICK`, thumb alternating root and
-  fifth on beats 1 and 3 an octave down, fingers on the chord tones between), with the flute
-  taking the motif an octave up for two bars out of every four. The first version plucked one
-  note and then rested; that read as *broken*, not as space, so the guitar never stops and the
-  silence lives in the flute's line instead. No drone: the chords carry the harmony and a
-  fixed tonic under a VI or VII bar is mud.
-- *Cenk Korosu (battle)* — 4/4 at a marching tempo, low drum on 1 and 3 with eighths between
-  them and a sixteenth fill over the last half-bar of the progression, `section()` violins on
-  the motif an octave up, and three `voice()` parts holding the chord for the whole bar. The
-  6/8 estampie this replaced was the more authentic answer and nobody wanted to listen to it.
+`BANDS` is the whole table, and one renderer (`emit`) plays whatever a row declares:
 
-Two bands, one per screen, and both are the line-up that was asked for by name. The psaltery
-(`emitLute`) and the lone shawm (`emitShawm`) that used to share the draw are deleted:
-variety nobody wants to listen to is not variety.
+| field | what it does |
+|---|---|
+| `beats` | bar length (4 = 4/4, 3 = 6/8 counted in dotted beats, 3.5 = 7/8) |
+| `drums` | one char per grid step across the bar — `HITS` is the alphabet, `.` a rest |
+| `arp` | a running figure; `pat` are scale steps, `bass` puts the thumb on the root at the halves |
+| `ost` | low staccato ostinato, `n` strokes to the bar — the engine room of anything epic |
+| `pad` | held chord, `deg` the voicing |
+| `lead` | the motif: `bars` of every four that carry it, `lift` in scale degrees, `stab` cuts it short |
+| `harm` | a second instrument on the same motif, `deg` steps away (0 = doubling) |
 
-**Styles.** Key, tempo and motif were not enough variety on their own — every battle came
-out sounding like the same battle. Each piece also draws an *arrangement*: `BSTYLES` sets the
-drum subdivision (straight eighths / the dotted film-cavalry gallop / sixteenths), whether the
-low strings pump the root in staccato eighths (most of what "epic" turns out to mean), whether
-the choir sings a triad, bare octaves or nothing, and whether the violins play long lines or
-short stabs. `MSTYLES` sets how many bars in four carry the flute and whether a warm bowed
-cello sits under the chord (#97).
+Twenty rows of data rather than twenty near-copies of the same forty lines, which is also why
+a band can be deleted on a shrug. The one rule that is not negotiable, and the reason the test
+asserts it: **the map is slow and calm (52–88 bpm), battle is fast and loud (128–164)** —
+everything else about a band is free to differ, and does. Map: fingerpicked guitar and flute,
+dulcimer, solo guitar with a cello under it, bells over a choir, a lone reed on a drone, two
+flutes in parallel, a hymn, a 6/8 lute tune, a string valley. Battle: the marching choir, a
+triplet gallop, brass calls in parallel fifths, zurna and drum, sixteenths with a tambourine,
+a low chant over heavy skins, 6/8 cavalry, an anvil, everything at once, and a 7/8.
 
-**Measured / decided numbers.** Map: 66–80 bpm, dorian/aeolian/lydian/mixolydian, tonic
-E3–B3, 16 bars per piece. Battle: 126–152 bpm, dorian/phrygian/aeolian, tonic A2–D3, 24 bars
-per piece. Rendered offline through the same `emit*` functions at the default volume: map
-peak 0.39 / rms 0.071, battle peak 0.53 / rms 0.067.
+**Measured / decided numbers.** Map: 52–88 bpm, dorian/aeolian/lydian/mixolydian (a band may
+narrow that), tonic E3–B3, 12–16 bars per piece. Battle: 128–164 bpm, dorian/phrygian/aeolian,
+tonic A2–D3, 24–28 bars. Rendered offline through `emit` at the default volume, 45 s per band,
+all twenty: battle peak 0.45–0.72 / rms 0.066–0.068, map peak 0.26–0.78 / rms 0.067–0.073. The
+peak spread is instrumentation, not imbalance — a gallop and a plucked lute are transients, a
+choir is not.
 
 **Levels.** Every part has its own gain, and with those alone the battle came out three times
 the map's loudness (rms 0.147 against 0.051) — an army of strings and a choir against one
-guitar. The correction is a single per-band gain on the bus (1.0 battle / 1.5 map) rather than
-re-tuning eight numbers, so the balance *inside* each band stays as written. Within the
+guitar. The correction is a single per-band gain on the bus (`gain`, 0.8–2.4 across the twenty)
+rather than re-tuning every part, so the balance *inside* each band stays as written; the
+numbers come from an offline rms scan of all twenty and are re-measured whenever a band's
+parts change. Within the
 battle band the drums were then cut and the sustained parts raised: a 0.5 drum left the
 violins and the choir no room, and "epic" is the sustained parts, not the transients. A
 `DynamicsCompressorNode` sits on the output as a limiter: the parts are independent, so a bass
