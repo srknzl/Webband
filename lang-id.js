@@ -1290,6 +1290,7 @@ I18N.dicts.id = {
   "💰 {0} dinar kese": "💰 kantong berisi {0} dinar",
   "💾 Dosya Olarak İndir": "💾 Unduh sebagai berkas",
   "💾 Kayıtlar": "💾 Simpanan",
+  "📲 Yükle": "📲 Pasang",
   "💾 Otomatik kayıt": "💾 Simpan otomatis",
   "📈 Fiyat Defterine Bak": "📈 Lihat buku harga",
   "📈 Lonca Fiyat Defteri": "📈 Buku harga serikat",

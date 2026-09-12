@@ -1318,7 +1318,8 @@ input[type="range"] { touch-action: none; height: 2.4rem; }
         flex-wrap: wrap;
         gap: 0.5rem !important;
     }
-    /* Alt köşedeki dört düğme mutlak konumdaydı: dar ekranda taşıyordu, akışa alınır */
+    /* The corner buttons were absolutely positioned and overflowed a narrow screen;
+       on a phone they join the flow and wrap instead. */
     #start-screen > div[style*="position: absolute"] {
         position: static !important;
         flex-wrap: wrap;

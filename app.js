@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.87', date: '2026-09-12', name: 'Sancak Yerine Oturdu' };  // the version name is not translated
+const VERSION = { no: '0.88', date: '2026-09-12', name: 'Tek Dokunuşta Kurulur' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -4709,6 +4709,26 @@ const Game = {
         if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${T(VERSION.name)} · ${VERSION.date}`;
     },
 
+    // Install (#93). Chrome and the desktop browsers won't install on their own: they
+    // fire `beforeinstallprompt`, and whoever calls `preventDefault()` on it owns the
+    // moment the prompt appears. The event is stashed below and spent here — it is
+    // single-use, so the button hides itself either way.
+    // Safari fires nothing, on iPhone or on Mac: there the only route is the Share
+    // sheet's "Add to Home Screen", which is why the button stays hidden rather than
+    // opening a dialog that would lead nowhere.
+    install() {
+        const e = this.deferredInstall;
+        if(!e) return;
+        this.deferredInstall = null;
+        this.showInstallBtn();
+        e.prompt();
+    },
+
+    showInstallBtn() {
+        const b = document.getElementById('install-btn');
+        if(b) b.classList.toggle('hidden', !this.deferredInstall);
+    },
+
     setLang(lang) {
         I18N.set(lang);
         const ask = document.getElementById('lang-ask');
@@ -8837,5 +8857,20 @@ const Save = {
         alert(T`Kayıt içe aktarıldı ve 1. slota yazıldı. Gün ${state.time.day}.`);
     }
 };
+
+// The browser can decide the game is installable before `load` fires, and the event is
+// not replayed — so these are registered at parse time rather than inside `Game.init()`.
+// `deferredInstall` is the whole state: holding the event is what lets `Game.install()`
+// open the prompt later, from a real click.
+addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    Game.deferredInstall = e;
+    Game.showInstallBtn();
+});
+// Installed from our button or from the browser's own menu — either way it's done.
+addEventListener('appinstalled', () => {
+    Game.deferredInstall = null;
+    Game.showInstallBtn();
+});
 
 window.onload = () => Game.init();

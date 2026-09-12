@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.88 — Tek Dokunuşta Kurulur (2026-09-12)
+
+- **Başlangıç ekranına 📲 Yükle düğmesi geldi.** Oyunu telefona kurmak için tarayıcının
+  ⋮ menüsünü aramak gerekmiyor artık; düğme yalnızca tarayıcı "bu kurulabilir" dediğinde
+  beliriyor, kurulduktan sonra kendiliğinden kayboluyor.
+- iPhone'da düğme çıkmıyor: Safari böyle bir şey sunmuyor, orada yol hâlâ Paylaş →
+  **Ana Ekrana Ekle**.
+
 ## 0.87 — Sancak Yerine Oturdu (2026-09-12)
 
 - **Krallık armaları düzeldi.** Arma resmi dört sancak içeriyor ama oyun onu dokuza

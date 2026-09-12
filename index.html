@@ -55,6 +55,11 @@
                 <button class="btn hex-btn-small" onclick="Game.showLore('kingdoms')">🏰 Krallıklar</button>
                 <button class="btn hex-btn-small" onclick="Save.continueGame()">📂 Kayıttan Devam</button>
                 <button class="btn hex-btn-small" onclick="Save.open()">💾 Kayıtlar</button>
+                <!-- Install button (#93): hidden until the browser says the game is
+                     installable. Chrome/Android and desktop fire `beforeinstallprompt`
+                     and let us hold onto it; iOS never does, so on iPhone this stays
+                     hidden and Safari's Share sheet is the only route. -->
+                <button class="btn hex-btn-small hidden" id="install-btn" onclick="Game.install()">📲 Yükle</button>
             </div>
             <!-- Dil seçimi: ilk açılışta `#lang-ask` perdesi sorar, sonrasında
                  bu sıra başlangıç ekranında durur ve her an değiştirilebilir. -->
