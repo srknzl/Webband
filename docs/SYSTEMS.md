@@ -2803,11 +2803,39 @@ and only so many per page).
   a lowpass with a bowed attack and vibrato (vielle on the map, shawm in battle); `drum()` is
   a bandpassed noise burst with a 150→52 Hz pitch drop under the low stroke; `setDrone()`
   holds a tonic and a slightly narrow fifth (organum, and the narrowness is what makes it
-  beat like two real strings); `verb()` is a generated noise-decay impulse response.
+  beat like two real strings); `verb()` is a generated noise-decay impulse response. `flute()` is nearly a sine plus a soft
+  octave, with a breath of bandpassed noise on the same envelope — that breath is the only
+  thing between it and a test tone. `voice()` is formant synthesis: a sawtooth through three
+  bandpasses parked on a vowel's formants (`VOWEL`), which is what separates a choir from a
+  synth pad. `section()` stacks detuned unison plus the octave below, because one bow is a
+  soloist and three are an orchestra.
 
-**Measured / decided numbers.** Map: 52–66 bpm, dorian/aeolian/lydian/mixolydian, tonic
-D3–A3, 2–5.5 beats of silence between phrases, 9 phrases per piece. Battle: 124–148 bpm,
-dorian/phrygian/aeolian, tonic A2–D3, 6/8 with the drum on beats 1 and 4, 28 bars per piece.
+**Arrangement.** Both modes are built a bar at a time over a four-chord modal progression
+(`PROGS`; no progression uses the seventh degree as a root, so there is no leading tone
+pulling home).
+
+- *Map* — 4/4, a continuous fingerpicked guitar (`PICK`, thumb on beats 1 and 3 an octave
+  down, fingers between) with a flute line over every other bar. The first version played one
+  `phrase()` and then rested for 2–5.5 beats; that read as *broken*, not as space, so the
+  guitar now never stops and the silence lives in the flute's line instead. No drone: the
+  chords carry the harmony and a fixed tonic under a VI or VII bar is mud.
+- *Battle* — 6/8, frame drum on 1 and 4, the string `section()` on the tune and two `voice()`
+  parts holding the chord across every other bar.
+
+**Measured / decided numbers.** Map: 58–72 bpm, dorian/aeolian/lydian/mixolydian, tonic
+D3–A3, 16 bars per piece. Battle: 124–148 bpm, dorian/phrygian/aeolian, tonic A2–D3, 40 bars
+per piece. Output at the default volume: map peak 0.18 / rms 0.075, battle peak 0.27 /
+rms 0.091 — measured with an `AnalyserNode` on `Music.out`.
+
+**Levels.** Every part has its own gain, and with those alone the battle came out three times
+the map's loudness (rms 0.147 against 0.051) — an army of strings and a choir against one
+guitar. The correction is a single per-mode gain on the bus (0.6 battle / 1.5 map) rather than
+re-tuning eight numbers, so the balance *inside* each mode stays as written. A
+`DynamicsCompressorNode` sits on the output as a limiter: the parts are independent, so a bass
+note, a flute entry and a reverb tail can land on the same sample.
+
+**Cost.** `section()` is the only part whose cost scales with how many notes are sounding, so
+it drops from four voices to one under `Game.lite()` — the same knob the renderer uses.
 
 **Transport.** The standard two-clock scheduler: notes go into Web Audio's clock ~0.6 s ahead
 and a 150 ms `setTimeout` tops the queue up, so the timer's drift is harmless and a

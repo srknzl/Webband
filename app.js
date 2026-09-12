@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.95', date: '2026-09-12', name: 'Tepe Temiz' };  // the version name is not translated
+const VERSION = { no: '0.96', date: '2026-09-12', name: 'Koro ve Flüt' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -5947,9 +5947,27 @@ const Game = {
         // tonic is a MIDI note (50 = D3), bpm a range, len the number of phrases before the
         // piece is re-rolled. Phrases end on degree 0/1/3/4 — always landing on the tonic is
         // the cliché the modes are here to avoid.
-        MAP:    { modes: ['dorian', 'aeolian', 'lydian', 'mixolydian'], tonic: [50, 57], bpm: [52, 66],   rest: [2, 5.5], len: 9 },
-        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [124, 148], rest: [0, 0],   len: 28 },
+        MAP:    { modes: ['dorian', 'aeolian', 'lydian', 'mixolydian'], tonic: [50, 57], bpm: [58, 72] },
+        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [124, 148] },
+        // Who plays the piece. Each mode has two bands and one is drawn at random per piece,
+        // which is the other half of "varied": not only a new tune every time but a different
+        // group playing it. `gain` is measured, not guessed — a lone lute and a choir with a
+        // string section do not arrive at the same loudness on their own. Names stay raw
+        // Turkish here and go through T() at the display site, as every data table does.
+        ENSEMBLES: [
+            { id: 'ozan',  battle: false, name: 'Yalnız Ozan',    emit: 'emitLute',   len: 9,  gain: 1.7,  drone: true },
+            { id: 'cayir', battle: false, name: 'Çayır Yolu',     emit: 'emitGuitar', len: 16, gain: 1.5 },
+            { id: 'davul', battle: true,  name: 'Davul ve Zurna', emit: 'emitShawm',  len: 28, gain: 0.55, drone: true },
+            { id: 'cenk',  battle: true,  name: 'Cenk Korosu',    emit: 'emitChoir',  len: 40, gain: 0.6,  drone: true }
+        ],
         ENDS: [0, 1, 3, 4],
+        // One chord per bar, as scale degrees. No progression contains the seventh degree as
+        // a chord root, so there is never a leading tone pulling home: the chords lean
+        // instead of resolving, which is the modal sound and not the Renaissance-fair one.
+        PROGS: [[0, 0, 5, 6], [0, 6, 0, 4], [0, 3, 5, 0], [0, 4, 6, 5], [0, 5, 3, 4]],
+        // Choir "ah". Formant synthesis is the whole trick: the same sawtooth through one
+        // lowpass is a synth pad, through these three bandpasses it is a human vowel.
+        VOWEL: [800, 1150, 2900],
 
         // ---- the score: no audio in here, which is the half worth testing ----
 
@@ -5985,7 +6003,7 @@ const Game = {
         // instead of a beep, and it is pure arithmetic — no sample, no library. Built per
         // note rather than cached: the adds are nothing next to holding PCM on a phone, and
         // fresh noise means no two plucks are identical.
-        pluck(t, f, dur, vol) {
+        pluck(t, f, dur, vol, tone) {
             let ac = this.ac, sr = ac.sampleRate;
             let len = Math.floor(sr * Math.min(3, dur + 1.2)), n = Math.max(2, Math.round(sr / f));
             let buf = ac.createBuffer(1, len, sr), d = buf.getChannelData(0), ring = new Float32Array(n);
@@ -5994,12 +6012,79 @@ const Game = {
                 d[i] = ring[j];
                 ring[j] = (ring[j] + ring[(j + 1) % n]) * 0.498;   // 0.996 per period: highs fade first, as on a real string
             }
-            let src = ac.createBufferSource(), g = ac.createGain();
+            let src = ac.createBufferSource(), g = ac.createGain(), lp = ac.createBiquadFilter();
             src.buffer = buf;
+            // Raw Karplus-Strong is a psaltery: bright and wiry. A lowpass at 3.2k is the
+            // wooden body an acoustic guitar has and a bare string does not — so the cutoff
+            // is what tells the two map bands apart, not a second synthesis routine.
+            lp.type = 'lowpass'; lp.frequency.value = tone || 3200; lp.Q.value = 0.7;
             g.gain.setValueAtTime(vol, t);
             g.gain.setTargetAtTime(0.0001, t + dur * 0.85, 0.22);
-            src.connect(g); g.connect(this.bus);
+            src.connect(lp); lp.connect(g); g.connect(this.bus);
             src.start(t); src.stop(t + len / sr);
+        },
+
+        // White noise as a buffer source. Cheaper to write once than to inline three times.
+        noise(dur) {
+            let ac = this.ac, sr = ac.sampleRate, len = Math.max(1, Math.floor(sr * dur));
+            let b = ac.createBuffer(1, len, sr), d = b.getChannelData(0);
+            for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+            let src = ac.createBufferSource(); src.buffer = b; return src;
+        },
+
+        // Flute: almost a pure sine with a soft octave above it — and a breath of filtered
+        // noise riding the same envelope, which is the only thing standing between a sine
+        // and a test tone.
+        flute(t, f, dur, vol) {
+            let ac = this.ac, g = ac.createGain();
+            let vib = ac.createOscillator(), va = ac.createGain();
+            vib.type = 'sine'; vib.frequency.value = 4.8; va.gain.value = f * 0.007;
+            vib.connect(va);
+            [[1, 1], [2, 0.16]].forEach(([m, lvl]) => {
+                let o = ac.createOscillator(), og = ac.createGain();
+                o.type = 'sine'; o.frequency.value = f * m; og.gain.value = lvl;
+                va.connect(o.frequency);
+                o.connect(og); og.connect(g);
+                o.start(t); o.stop(t + dur + 0.08);
+            });
+            let nb = this.noise(dur + 0.1), bp = ac.createBiquadFilter(), ng = ac.createGain();
+            bp.type = 'bandpass'; bp.frequency.value = f * 2; bp.Q.value = 0.8; ng.gain.value = 0.05;
+            nb.connect(bp); bp.connect(ng); ng.connect(g);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.linearRampToValueAtTime(vol, t + 0.07);          // a player's tongue, not a bow
+            g.gain.setValueAtTime(vol, t + dur * 0.75);
+            g.gain.linearRampToValueAtTime(0.0001, t + dur);
+            g.connect(this.bus);
+            vib.start(t); vib.stop(t + dur + 0.08); nb.start(t); nb.stop(t + dur + 0.08);
+        },
+
+        // Voices holding a vowel. See VOWEL above for why the three filters are the point.
+        voice(t, f, dur, vol) {
+            let ac = this.ac, o = ac.createOscillator(), g = ac.createGain();
+            let vib = ac.createOscillator(), va = ac.createGain();
+            o.type = 'sawtooth'; o.frequency.value = f;
+            vib.type = 'sine'; vib.frequency.value = 5.2; va.gain.value = f * 0.009;
+            vib.connect(va); va.connect(o.frequency);
+            this.VOWEL.forEach((fq, i) => {
+                let bp = ac.createBiquadFilter(), fg = ac.createGain();
+                bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = 6 + i * 3;
+                fg.gain.value = [1, 0.5, 0.22][i];
+                o.connect(bp); bp.connect(fg); fg.connect(g);
+            });
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.linearRampToValueAtTime(vol, t + dur * 0.3);     // a choir does not start suddenly
+            g.gain.setValueAtTime(vol, t + dur * 0.65);
+            g.gain.linearRampToValueAtTime(0.0001, t + dur);
+            g.connect(this.bus);
+            o.start(t); vib.start(t); o.stop(t + dur + 0.05); vib.stop(t + dur + 0.05);
+        },
+
+        // A string section is detuned unison plus the octave below — one bow is a soloist,
+        // three are an orchestra. Lite mode drops to a single voice: this is the only part
+        // of the score whose cost scales with how many notes are playing at once.
+        section(t, f, dur, vol) {
+            let v = Game.lite() ? [1] : [1, 1.005, 0.995, 0.5];
+            v.forEach(m => this.bow(t, f * m, dur, vol * (m === 0.5 ? 0.8 : 0.62), true));
         },
 
         // Vielle on the map, shawm in battle: a sawtooth under a lowpass, with a bow's slow
@@ -6082,37 +6167,56 @@ const Game = {
         // arrangement, which makes setTimeout's drift harmless.
         LOOKAHEAD: 0.6,
 
-        // Rolls a fresh piece: mode, key, tempo. Twice the same one is a coincidence.
+        // Rolls a fresh piece: mode, key, tempo, chords. Twice the same one is a coincidence.
         newPiece(battle) {
             let c = battle ? this.BATTLE : this.MAP, r = Math.random;
+            let band = this.ENSEMBLES.filter(e => e.battle === battle);
+            let ens = band[Math.floor(r() * band.length)];
             this.piece = {
-                battle, rest: c.rest, left: c.len, start: 0,
+                battle, ens, left: ens.len, start: 0, bar: 0,
                 mode: c.modes[Math.floor(r() * c.modes.length)],
                 tonic: c.tonic[0] + Math.floor(r() * (c.tonic[1] - c.tonic[0] + 1)),
-                bpm: c.bpm[0] + r() * (c.bpm[1] - c.bpm[0])
+                bpm: c.bpm[0] + r() * (c.bpm[1] - c.bpm[0]),
+                prog: this.PROGS[Math.floor(r() * this.PROGS.length)]
             };
-            this.setDrone(this.hz(this.piece.tonic, this.piece.mode, 0) / 2, battle);
+            if(this.bus) this.bus.gain.value = ens.gain;
+            // Çayır Yolu is the one band without a drone: its guitar chords already carry the
+            // harmony, and a fixed tonic under a VI or VII bar is mud.
+            if(ens.drone) this.setDrone(this.hz(this.piece.tonic, this.piece.mode, 0) / 2, battle);
+            else if(this._dr) this._dr.forEach(v => v.g.gain.setTargetAtTime(0, this.ac.currentTime, 0.5));
+            let el = document.getElementById('music-now');   // ⚙️ Ayarlar, if it happens to be open
+            if(el) el.innerHTML = this.nowPlaying();
         },
 
-        // One phrase, then silence. The rest is not filler: a chill screen needs the space
-        // more than it needs another note.
-        emitMap(spb) {
+        // What the settings screen shows. The piece changes every minute or so, so newPiece
+        // writes straight into the row when the panel is open rather than leaving it stale.
+        nowPlaying() {
+            let p = this.piece;
+            if(!p || !this._mode) return T('🎶 Müzik kapalı');
+            let mode = p.mode[0].toUpperCase() + p.mode.slice(1);
+            return T`🎶 Çalan: <b>${T(p.ens.name)}</b> · ${mode}`;
+        },
+
+        // Yalnız Ozan — the first arrangement, kept: one plucked line, a vielle under its long
+        // notes, and a real rest between phrases. Sparse on purpose; it is the band for a map
+        // you are staring at, where Çayır Yolu is the one for a map you are travelling.
+        emitLute(spb) {
             let p = this.piece, t = this._at;
             let ph = this.phrase(Math.random, { start: p.start, span: [6, 10], durs: [1, 1, 1.5, 2, 3], lo: -2, hi: 9 });
             ph.forEach(n => {
                 let f = this.hz(p.tonic, p.mode, n.deg);
-                this.pluck(t, f, n.beats * spb, 0.2);
-                // The vielle answers the psaltery an octave down, but only under long notes
+                this.pluck(t, f, n.beats * spb, 0.2, 6000);      // bright: a psaltery, not a guitar
                 if(n.beats >= 2 && Math.random() < 0.45) this.bow(t, f / 2, n.beats * spb, 0.045, false);
                 t += n.beats * spb;
             });
             p.start = ph[ph.length - 1].deg;
-            this._at = t + (p.rest[0] + Math.random() * (p.rest[1] - p.rest[0])) * spb;
+            p.bar++;
+            this._at = t + (2 + Math.random() * 3.5) * spb;
         },
 
-        // One bar of 6/8. An estampie moves in threes, and a four-square battle loop is
-        // exactly the film-trailer cliché this is meant to dodge.
-        emitBattle(spb) {
+        // Davul ve Zurna — the first battle arrangement, kept: frame drum and a single shawm.
+        // Thinner than Cenk Korosu and all the better for a skirmish with eight men a side.
+        emitShawm(spb) {
             let p = this.piece, t = this._at, e = spb / 2;
             for(let i = 0; i < 6; i++) {
                 if(i === 0 || i === 3) this.drum(t + i * e, true, 0.45);
@@ -6122,6 +6226,55 @@ const Game = {
             let tt = t;
             ph.forEach(n => { this.bow(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * e, 0.11, true); tt += n.beats * e; });
             p.start = ph[ph.length - 1].deg;
+            p.bar++;
+            this._at = t + 6 * e;
+        },
+
+        // Çayır Yolu — one bar, 4 beats: a fingerpicked guitar all the way through, a flute
+        // over every other one. The first version played a single string and then waited — "sparse"
+        // read as "broken" rather than as space, so the guitar never stops now and the
+        // silence lives in the flute's line instead (#95).
+        PICK: [0, 2, 4, 2, 7, 2, 4, 2],
+        emitGuitar(spb) {
+            let p = this.piece, t = this._at, e = spb / 2, root = p.prog[p.bar % p.prog.length];
+            this.PICK.forEach((d, i) => {
+                let bass = i === 0 || i === 4;            // thumb on the beat, fingers between
+                this.pluck(t + i * e, this.hz(p.tonic, p.mode, root + d - (bass ? 7 : 0)),
+                           e * 2.4, bass ? 0.17 : 0.1);
+            });
+            // The flute breathes: a bar of melody, a bar off. Always playing is exhausting
+            // to listen to, and a chill screen is the one place that shows.
+            if(p.bar % 2 === 1 && Math.random() < 0.85) {
+                let ph = this.phrase(Math.random, { start: p.start, span: [4, 4], durs: [1, 1, 1.5, 2], lo: 2, hi: 10 });
+                let tt = t;
+                ph.forEach(n => { this.flute(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * spb, 0.08); tt += n.beats * spb; });
+                p.start = ph[ph.length - 1].deg;
+            }
+            p.bar++;
+            this._at = t + 4 * spb;
+        },
+
+        // Cenk Korosu — 6/8, because an estampie moves in threes and a four-square battle
+        // loop is exactly the film-trailer cliché this is meant to dodge. Drums underneath,
+        // the string section on the tune, the choir holding the chord above both.
+        emitChoir(spb) {
+            let p = this.piece, t = this._at, e = spb / 2, root = p.prog[p.bar % p.prog.length];
+            for(let i = 0; i < 6; i++) {
+                if(i === 0 || i === 3) this.drum(t + i * e, true, 0.45);
+                else if(i % 3 === 2 || Math.random() < 0.3) this.drum(t + i * e, false, 0.2);
+            }
+            // Two voices, a bar at a time: the chord root and its fifth, an octave up where
+            // a choir actually sits. Held across the bar, so they are the long line the
+            // drums and the strings move against.
+            if(p.bar % 2 === 0) {
+                this.voice(t, this.hz(p.tonic, p.mode, root + 7), 6 * e, 0.06);
+                this.voice(t, this.hz(p.tonic, p.mode, root + 11), 6 * e, 0.042);
+            }
+            let ph = this.phrase(Math.random, { start: p.start, span: [6, 6], durs: [1, 1, 1, 2], lo: 0, hi: 9 });
+            let tt = t;
+            ph.forEach(n => { this.section(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * e, 0.08); tt += n.beats * e; });
+            p.start = ph[ph.length - 1].deg;
+            p.bar++;
             this._at = t + 6 * e;
         },
 
@@ -6132,7 +6285,7 @@ const Game = {
             // burst of notes whose start times are already in the past.
             if(this._at < now) this._at = now + 0.1;
             while(this._at < now + this.LOOKAHEAD) {
-                this.piece.battle ? this.emitBattle(spb) : this.emitMap(spb);
+                this[this.piece.ens.emit](spb);
                 if(--this.piece.left <= 0) { this.newPiece(this.piece.battle); spb = 60 / this.piece.bpm; }
             }
             this._timer = setTimeout(() => this.tick(), 150);
@@ -6178,9 +6331,20 @@ const Game = {
                 this.wet = ac.createGain(); this.wet.gain.value = 0.3;
                 this.cv = this.verb();
                 this.cv.connect(this.wet); this.wet.connect(this.out);
-                this.out.connect(ac.destination);
+                // Measured peak sits around a quarter of full scale, but the parts are
+                // independent: a guitar bass note, a flute entry and a reverb tail can land
+                // on the same sample. A limiter costs one node and removes the whole class
+                // of "it crackled once" bugs.
+                let lim = ac.createDynamicsCompressor();
+                lim.threshold.value = -6; lim.knee.value = 3; lim.ratio.value = 12;
+                lim.attack.value = 0.003; lim.release.value = 0.25;
+                this.out.connect(lim); lim.connect(ac.destination);
             }
             this.bus = ac.createGain();
+            // Measured: with every part at its own level Cenk Korosu came out three times the
+            // map's loudness (rms 0.147 against 0.051) — an army of strings and a choir
+            // against one guitar. Levelled with one gain per band (set in newPiece) rather
+            // than by re-tuning eight numbers, so each arrangement stays as written.
             this.bus.connect(this.out); this.bus.connect(this.cv);
             this.volume();
             this.newPiece(mode === 'battle');
@@ -6188,13 +6352,17 @@ const Game = {
             this.tick();
         },
 
-        volume() { if(this.out) this.out.gain.value = 0.5 * Game.opt('volume'); },
+        // 1.2 puts the music a little below the transaction SFX (0.12 peak): measured peak
+        // lands near 0.16 at the default volume, which is background, not foreground.
+        volume() { if(this.out) this.out.gain.value = 1.2 * Game.opt('volume'); },
 
         // Music follows the screen. Called from showScreen (which knows the screen) and from
         // applySettings (which knows the settings), so neither has to know about the other.
         sync() {
             let live = document.getElementById('main-ui');
             this.volume();
+            let el = document.getElementById('music-now');
+            if(el) setTimeout(() => { let e2 = document.getElementById('music-now'); if(e2) e2.innerHTML = this.nowPlaying(); });
             this.set(!live || !live.classList.contains('active') || Game.opt('muted') || !Game.opt('music') ? null
                 : document.body.classList.contains('in-battle') ? 'battle' : 'map');
         }
@@ -6301,7 +6469,9 @@ const Game = {
         ${row(T('🎚️ Ses seviyesi'), `<input type="range" min="0" max="100" value="${Math.round(this.opt('volume') * 100)}"
             oninput="Game.setOpt('volume', this.value / 100)" onchange="Game.sfx('buy')" style="vertical-align:middle">
             <span style="font-size:var(--fs-sm);color:var(--text-muted)">${this.pct(this.opt('volume') * 100)}</span>`)}
-        ${row(T('🎵 Müzik'), sw('music', T('Açık'), T('Kapalı')), T('Ortaçağ kilise makamlarında, her seferinde yeniden bestelenir: haritada sakin, savaşta davullu'))}
+        ${row(T('🎵 Müzik'), sw('music', T('Açık'), T('Kapalı')),
+            T('Ortaçağ kilise makamlarında, her seferinde yeniden bestelenir: haritada sakin, savaşta davullu')
+            + `<br><span id="music-now">${this.Music.nowPlaying()}</span>`)}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}

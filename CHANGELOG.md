@@ -3,6 +3,23 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.96 — Koro ve Flüt (2026-09-12)
+
+- **Harita müziği artık gerçekten müzik.** Önceki sürümde tek bir tele arada bir basılıyordu;
+  şimdi kesintisiz parmakla çalınan akustik gitar arpeji var, üstünde bir bar çalıp bir bar
+  soluklanan flüt geziyor. Her bar için akor değişiyor.
+- **Savaş müziği epik oldu.** Davulun üstüne akortları hafif kaydırılmış yaylı grubu (tek
+  keman değil, orkestra) ve akoru tutan koro eklendi — koro gerçek bir insan sesi gibi
+  duyulsun diye ünlü harf formantlarıyla üretiliyor.
+- **Ses seviyesi düzeldi.** Müzik fazla kısıktı; ölçülüp yükseltildi ve savaşın haritadan üç
+  kat gürültülü olması dengelendi. Çıkışa bir sınırlayıcı kondu, üst üste binen notalarda
+  cızırtı olmuyor.
+- **Dört topluluk, her birinin adı var.** Haritada *Yalnız Ozan* ile *Çayır Yolu*, savaşta
+  *Davul ve Zurna* ile *Cenk Korosu*; her yeni parçada içlerinden biri çekiliyor, yani
+  sadece ezgi değil çalan grup da değişiyor. Eski düzenlemeler silinmedi, isim aldı.
+- **⚙️ Ayarlar'daki 🎵 Müzik satırı o an ne çaldığını yazıyor** — topluluğun adı ve makam.
+- Hafif modda yaylı grubu tek sese düşüyor — zayıf telefonda ses için CPU harcanmıyor.
+
 ## 0.95 — Tepe Temiz (2026-09-12)
 
 - **Telefon uygulamasında üst satır artık gerçekten çentiğin altında.** 0.89'da eklenen ve
