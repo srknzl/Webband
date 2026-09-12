@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.91', date: '2026-09-12', name: 'Bakış Sabit' };  // the version name is not translated
+const VERSION = { no: '0.92', date: '2026-09-12', name: 'Nöbet Tutulur' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2545,7 +2545,12 @@ const Game = {
             // A noble doesn't flee: an enemy lord will still walk toward an army a little bigger
             // than theirs, but pulls back if you're clearly stronger (×1.5) (#48).
             let might = npc.size * (npc.lordId ? 1.5 : 1);
-            if(notices && (might > ps ? hostile : true)) {
+            // A quest wave was summoned to fight *you*, and it is deliberately smaller than
+            // your army — so the generic "a weak band runs" rule below sent it fleeing from
+            // the very fight the quest promises, and Hasat Nöbeti became a chase (#94).
+            if(npc.questWave) {
+                npc.targetX = state.player.x; npc.targetY = state.player.y;
+            } else if(notices && (might > ps ? hostile : true)) {
                 if(might > ps) {
                     npc.targetX = state.player.x; npc.targetY = state.player.y;
                 } else {

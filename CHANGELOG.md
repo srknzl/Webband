@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.92 — Nöbet Tutulur (2026-09-12)
+
+- **Hasat Nöbeti'nde çapulcular artık kaçmıyor.** Görev "gelince savaş" diyordu ama gelen
+  grup senin ordundan küçük olduğu için genel "zayıf grup kaçar" kuralına takılıyor, seni
+  görüp ters yöne koşuyordu. Görev için çağrılan dalga doğrudan üstüne geliyor.
+- **Nöbette olup olmadığın yazıyor.** Köyden uzaktayken hiç çapulcu çıkmıyor, ama bu
+  ekranda şanssızlıktan ayırt edilemiyordu; görev kartı artık "✅ Nöbettesin" ya da
+  "❌ Nöbet yerinden uzaktasın" diyor.
+- **Görev biten dalga haritada kalmıyor.** Görev tamamlanınca ya da yanınca o göreve ait
+  gruplar siliniyor — yoksa artık kaçmadıkları için peşini hiç bırakmazlardı.
+
 ## 0.91 — Bakış Sabit (2026-09-12)
 
 - **Haritayı kaydırınca bakış orada kalıyor.** Karakterden başka bir yere (mesela hedefine)

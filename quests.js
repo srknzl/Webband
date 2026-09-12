@@ -298,8 +298,21 @@ const QUESTS = {
             return `${T`"Hasat başlıyor, çapulcular da bunu biliyor. ${q.data.locName} köyünün yanında bekle.<br><br>
                 <b>İki dalga</b> gelecek. İkisini de kır. Köylüler bir gün bile durmadan biçecek."`}`;
         },
-        desc(q) { return T`<b>${T(q.data.locName)}</b> köyünün yakınında (yarım günlük mesafede) bekle;
-            çapulcular gelince savaş — <b>${q.data.waves}/${q.data.need}</b> dalga püskürtüldü`; },
+        // The 500-unit gate in day() is invisible: out of range looks exactly like being
+        // in range and rolling badly, so a player who wandered off had no way to tell they
+        // were doing it wrong (#94). The treasure hunt above solves the same problem with
+        // its hot/cold scale. Only shown once the quest is taken — at offer time, standing
+        // in a lord's hall, "too far" is the normal state and would read as a warning.
+        desc(q) {
+            let v = LOCATIONS.find(l => l.id === q.data.locId);
+            let watch = state.player.quests.includes(q) && v
+                ? '<br>' + (Game.dist(state.player, v) <= 500
+                    ? T`✅ <b>Nöbettesin</b> — her gün gelebilirler.`
+                    : T`❌ <b>Nöbet yerinden uzaktasın</b> — sen dönene kadar kimse gelmez.`)
+                : '';
+            return T`<b>${T(q.data.locName)}</b> köyünün yakınında (yarım günlük mesafede) bekle;
+                çapulcular gelince savaş — <b>${q.data.waves}/${q.data.need}</b> dalga püskürtüldü` + watch;
+        },
         where(q) { return q.data.locId; },
         day(q) {
             let v = LOCATIONS.find(l => l.id === q.data.locId);
@@ -823,6 +836,9 @@ const Quests = {
 
     complete(q) {
         let def = QUESTS[q.id];
+        // Waves summoned for this quest no longer have a quest to belong to, and since
+        // they never flee they would follow the player for good (#94).
+        state.npcParties = state.npcParties.filter(n => n.questWave !== q.id);
         state.player.quests = state.player.quests.filter(x => x !== q);
         state.questCooldown = state.questCooldown || {};
         state.questCooldown[q.giverId] = state.time.day + 3;
@@ -848,6 +864,7 @@ const Quests = {
 
     fail(q, why) {
         let def = QUESTS[q.id];
+        state.npcParties = state.npcParties.filter(n => n.questWave !== q.id);   // see complete()
         let g = this.giver(q.giverId);
         state.player.quests = state.player.quests.filter(x => x !== q);
         if(!g.isGuild) Nobles.addRel(q.giverId, -10);

@@ -1020,6 +1020,25 @@ test('a panned camera holds its world position while the player walks', () => {
     assert.strictEqual(Game.camera.offsetX, 0);
 });
 
+// A quest wave is deliberately smaller than the player's army, so the generic
+// "a weak band runs" rule made Hasat Nöbeti a chase instead of a fight (#94).
+test('a quest wave closes in where a plain band of the same size flees', () => {
+    const { Game, state } = g;
+    state.player.party.length = 0;
+    for(let i = 0; i < 25; i++) state.player.party.push({ level: 10, hp: 10, maxHp: 10 });
+    const walk = (wave) => {
+        const n = Game.createNPC('Hasat Çapulcuları', 'bandit', 10, '#8b0000');
+        n.x = state.player.x + 200; n.y = state.player.y;
+        n.targetX = n.x; n.targetY = n.y;
+        if(wave) n.questWave = 'harvest_watch';
+        state.npcParties.length = 0; state.npcParties.push(n);
+        for(let i = 0; i < 30; i++) Game.updateNPCs(0.1);
+        return Game.dist(n, state.player);
+    };
+    assert.ok(walk(true) < 200, 'a summoned wave must come to the player');
+    assert.ok(walk(false) > 200, 'an ordinary weak band still flees');
+});
+
 // The static extractor only sees `T('…')` **literals**; raw data translated
 // via a variable like `T(def.title)` is invisible to it. Quest titles are
 // written exactly that way — in 0.77 two new titles came out with no

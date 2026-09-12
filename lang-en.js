@@ -467,6 +467,8 @@ I18N.dicts.en = {
   "Haritada yol katetmek": "Covering ground on the map",
   "Hasat Nöbeti": "Harvest Watch",
   "Hasat Çapulcuları": "Harvest Looters",
+  "✅ <b>Nöbettesin</b> — her gün gelebilirler.": "✅ <b>On watch</b> — they can come any day.",
+  "❌ <b>Nöbet yerinden uzaktasın</b> — sen dönene kadar kimse gelmez.": "❌ <b>Away from your post</b> — nobody comes until you return.",
   "Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.": "The weather? Fine. The harvest? Not bad. Anything else? No? Good day.",
   "Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.": "I have no time for small talk. The day I hear your name, we'll sit down.",
   "Haydut çetesi": "Bandit band",

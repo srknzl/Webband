@@ -467,6 +467,8 @@ I18N.dicts.id = {
   "Haritada yol katetmek": "Menempuh jarak di peta",
   "Hasat Nöbeti": "Jaga Panen",
   "Hasat Çapulcuları": "Perampok Panen",
+  "✅ <b>Nöbettesin</b> — her gün gelebilirler.": "✅ <b>Sedang berjaga</b> — mereka bisa datang kapan saja.",
+  "❌ <b>Nöbet yerinden uzaktasın</b> — sen dönene kadar kimse gelmez.": "❌ <b>Jauh dari posmu</b> — tidak ada yang datang sebelum kamu kembali.",
   "Hava mı? Güzel. Hasat mı? Fena değil. Başka? Yok mu? Güle güle.": "Cuaca? Bagus. Panen? Lumayan. Ada lagi? Tidak? Selamat jalan.",
   "Havadan sudan konuşacak vaktim yok. Adını duyduğum gün otururuz.": "Aku tak punya waktu untuk basa-basi. Di hari aku mendengar namamu, kita duduk bersama.",
   "Haydut çetesi": "Gerombolan bandit",
