@@ -22,6 +22,8 @@ after changing it, update the "Measured" lines.
 | `i18n.js` | `I18N` + global `T` |
 | `lang-en.js` / `lang-id.js` | Generated dictionaries — never hand-edited |
 | `style.css` | Glass panel theme, CSS variables |
+| `sw.js`, `manifest.webmanifest`, `fonts/`, `icon-*.png` | PWA: offline cache, install metadata, self-hosted Cinzel/Inter |
+| `native/` | Capacitor shell — the only place npm exists. `ios/`/`android/` are generated, never committed |
 | `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`) |
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
@@ -41,7 +43,9 @@ checks `typeof Game`).
 **One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
 `Save.migrate` is a single migration chain; a new field is usually enough with the
 `ensureX()` pattern). **`VERSION = { no, date, name }`** sits at the top of `app.js`, is
-**bumped by hand**, and gets a line in `CHANGELOG.md` in the same pass.
+**bumped by hand**, and gets a line in `CHANGELOG.md` **and** a matching `CACHE` name in
+`sw.js` in the same pass — the worker serves cache-first, so an unbumped cache name ships
+the old game forever. `tools/test.js` asserts both.
 
 **Raw stays, translate at display.** The i18n key is the Turkish source text itself
 (`T('Yeni Oyun')`, `` T`${n} asker` `` → `{0}`). Never call `T()` inside a **top-level data
@@ -57,6 +61,12 @@ assertion is the regression gate for this. Percent formatting is `Game.pct(n, si
 **Settings through one gate**: defaults in `Game.OPTS`, read via `Game.opt(k)`, write via
 `Game.setOpt(k,v)` — `state.settings` only holds **deviations**. Tri-state device settings
 are `'auto' | true | false`.
+
+**`touch-action` is not inherited.** The gate is `* { touch-action: pan-x pan-y }` in
+`style.css`, not `html, body` — a rule on the body leaves every button inside it on `auto`
+and the browser keeps its double-tap zoom (#91). The six elements that own their own
+gestures (three canvases, two sticks, the block button) override it with `none`; an id or
+class selector outranks `*`.
 
 **There's no single "mobile mode" switch for devices** — four separate questions, four
 knobs: *how input arrives* `Game.isTouch()` (= `pointer: coarse`; `body.touch`, help text,
@@ -97,7 +107,10 @@ node tools/framegate.js         # frame-skip gate + #42 parity regression
 node tools/sim.js --days 200 --seed 1-5 | duel.js --n 200 | economy.js --days 60 --troops 10
 ```
 
-CI runs the first two on every push; there's no `npm install` step. The expected numbers are
+CI runs the first two on every push; the web build has no `npm install` step. `native.yml`
+is the second pipeline — it assembles `native/www` from these same files, runs
+`npx cap add`, and leaves a sideloadable Android `.apk` plus a compiled iOS build as run
+artifacts. npm lives only under `native/`. The expected numbers are
 the "Measured" lines in `docs/SYSTEMS.md` — if one changes, either the code or the doc is
 wrong.
 

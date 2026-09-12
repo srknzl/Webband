@@ -1,5 +1,13 @@
 # Mobile port plan
 
+> **Status (0.86, #91):** phase 1 step **1 is done** — a Capacitor shell builds on every push
+> (`.github/workflows/native.yml`), and the PWA/touch work that rode along with it is written
+> up in `SYSTEMS.md`. Steps **2 and 3** (the `Game.gfx` abstraction and the PixiJS renderer)
+> are **still gated on phase 0**: nobody has taken a debug report from a real device yet.
+> One measurement worth adding to that reading — `resizeCanvases()` never applies DPR, so the
+> canvas backing store is already 1 CSS px per pixel and raster cost is at the floor. That
+> makes cause (2) below, the DOM compositor, the likelier of the three.
+
 **Question:** "It stutters badly on mobile. Which framework/language gives the best
 performance/graphics quality and can use the GPU natively? Let's port it directly."
 

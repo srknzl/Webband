@@ -12,7 +12,15 @@
     <meta property="og:image" content="https://serkanozel.me/webband/kingdom_crests.jpg">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9876;</text></svg>">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Installable on the phone (#91): the same files that serve the site are the app.
+         Fonts are self-hosted in style.css now, so nothing here hits the network. -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0a0a0e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WebBand">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -289,5 +297,11 @@
     <script src="battle.js"></script>
     <script src="nobles.js"></script>
     <script src="quests.js"></script>
+    <!-- Offline copy for the web build only. Inside the Capacitor app the assets are
+         already on disk and `window.Capacitor` exists, so the worker stays out of it. -->
+    <script>
+        if('serviceWorker' in navigator && !window.Capacitor && location.protocol.startsWith('http'))
+            addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    </script>
 </body>
 </html>

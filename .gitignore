@@ -1,1 +1,10 @@
 .DS_Store
+
+# Capacitor: node_modules, the assembled web payload and the generated native
+# projects are all build output. `npx cap add` recreates ios/ and android/ from
+# capacitor.config.json on every CI run, so nothing hand-edited may live there.
+native/node_modules/
+native/www/
+native/ios/
+native/android/
+native/icons/

@@ -1,0 +1,21 @@
+{
+  "name": "webband-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Capacitor shell for WebBand. The repo root stays build-free; everything npm touches lives in here.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "www": "rm -rf www && mkdir -p www && cp -R ../index.html ../style.css ../sw.js ../manifest.webmanifest ../i18n.js ../lang-en.js ../lang-id.js ../app.js ../battle.js ../nobles.js ../quests.js ../bg_hdr.jpg ../kingdom_crests.jpg ../lord_portraits.jpg ../icon-192.png ../icon-512.png ../fonts www/",
+    "sync": "npm run www && npx cap sync",
+    "icons": "npx capacitor-assets generate --assetPath assets"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  }
+}

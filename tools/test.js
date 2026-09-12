@@ -421,14 +421,35 @@ test('kite: even if foot can\'t catch cavalry, the battle resolves', () => {
     assert.notStrictEqual(r.won, null, `fight didn't end in ${r.duration.toFixed(0)} s`);
 });
 
-// --- Version stamp (#88 item 8) ---
-// CI opens the release and reads its notes from that version's CHANGELOG
-// section. If the section is missing, the build breaks there; breaking here is cheaper.
-test('version: VERSION.no finds a section in CHANGELOG.md', () => {
-    const md = require('fs').readFileSync(require('path').join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
-    const v = g.VERSION.no;
-    assert.ok(new RegExp(`^## ${v.replace('.', '\\.')}[ (]`, 'm').test(md),
-        `no "## ${v}" section in CHANGELOG.md — version bumped but no line was added`);
+// --- Service worker (#91) ---
+// The web build is installable and caches itself, which means a stale cache is now a
+// way to ship nothing at all: the worker serves cache-first, so it only picks up new
+// code when the cache NAME changes. That name carries VERSION.no by hand, and hands
+// forget. Two things are checked: the name tracks the version, and every file the
+// worker promises to precache exists — `cache.addAll` rejects wholesale on one 404,
+// which would leave the install with no cache and no offline mode at all.
+test('pwa: sw.js cache name tracks VERSION.no and precaches only real files', () => {
+    const fs = require('fs'), path = require('path');
+    const root = path.join(__dirname, '..');
+    const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+
+    const name = /const CACHE = '([^']+)'/.exec(sw);
+    assert.ok(name, 'sw.js has no `const CACHE = ...` line');
+    assert.strictEqual(name[1], `webband-v${g.VERSION.no}`,
+        `sw.js cache is ${name[1]} but VERSION.no is ${g.VERSION.no} — bump it in the same pass`);
+
+    const list = /const FILES = \[([\s\S]*?)\];/.exec(sw);
+    assert.ok(list, 'sw.js has no `const FILES = [...]` list');
+    const files = list[1].match(/'([^']+)'/g).map(x => x.slice(1, -1)).filter(f => f !== './');
+    const gone = files.filter(f => !fs.existsSync(path.join(root, f)));
+    assert.strictEqual(gone.length, 0, `sw.js precaches files that don't exist: ${gone.join(', ')}`);
+
+    // The other direction: a script added to index.html but not to the worker would
+    // be fetched from the network and the game would simply not start offline.
+    const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const srcs = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
+    const miss = srcs.filter(f => !files.includes(f));
+    assert.strictEqual(miss.length, 0, `index.html loads scripts sw.js never caches: ${miss.join(', ')}`);
 });
 
 // --- Quests: can every quest actually be finished ---

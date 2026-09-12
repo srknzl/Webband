@@ -1,0 +1,86 @@
+# The second pipeline (#91). test.yml is the web one — it runs the game's own code and
+# cuts a release; this one turns the exact same files into installable apps.
+#
+# Nothing under native/ios or native/android is committed: `cap add` regenerates both
+# from native/capacitor.config.json on every run. The trade is that a hand-edit to
+# Info.plist or AndroidManifest.xml would not survive — anything needed there has to
+# go through the config file instead.
+name: native
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm, cache-dependency-path: native/package-lock.json }
+      # The runner image already carries the Android SDK; only a JDK has to be picked.
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+
+      - run: npm ci
+        working-directory: native
+      # `www` copies the repo's own files in — the web build itself stays build-free.
+      - run: npm run www
+        working-directory: native
+      - run: npx cap add android
+        working-directory: native
+      # Icons and splash screens are derived from assets/icon.png + splash.png, so no
+      # per-density image is kept in git. Has to run after `cap add` creates res/.
+      - run: npx capacitor-assets generate --assetPath assets --android
+        working-directory: native
+      - run: npx cap sync android
+        working-directory: native
+
+      # Debug-signed: installs by sideload with no developer account anywhere.
+      - run: ./gradlew --no-daemon assembleDebug
+        working-directory: native/android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webband-android-apk
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm, cache-dependency-path: native/package-lock.json }
+
+      - run: npm ci
+        working-directory: native
+      - run: npm run www
+        working-directory: native
+      # CocoaPods ships with the macOS runner image; `cap add ios` needs it.
+      - run: npx cap add ios
+        working-directory: native
+      - run: npx capacitor-assets generate --assetPath assets --ios
+        working-directory: native
+      - run: npx cap sync ios
+        working-directory: native
+
+      # Simulator build, unsigned. A device .ipa needs a paid Apple Developer
+      # membership: add APPLE_CERT_P12 / APPLE_CERT_PASSWORD / APPLE_PROVISIONING_PROFILE
+      # as repository secrets, then swap this for `xcodebuild archive` +
+      # `-exportArchive`. Until then, installing on a real iPhone is a local Xcode
+      # step with a free 7-day profile — this job's job is to prove it still compiles.
+      - name: Build for simulator
+        working-directory: native/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webband-ios-simulator-app
+          path: native/ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+          if-no-files-found: error

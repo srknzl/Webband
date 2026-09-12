@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.86 — Cepte Taşınır (2026-09-12)
+
+- **Düğmeye iki kez hızlı dokununca sayfa zıplamıyor artık.** Telefonda herhangi bir
+  düğmeye çift dokunmak tarayıcının kendi yakınlaştırmasını açıyordu; paneller ekran
+  ölçüsüne göre hesaplandığı için de hiçbir şey yerinde kalmıyordu. Jest artık
+  arayüzün tamamında kapalı.
+- Dokununca çıkan gri parlama kalktı; basılı tutunca iOS'un metin seçme büyüteci
+  ipucunun üstüne binmiyor.
+- **Yazı tipleri oyunun içinde.** Cinzel ve Inter Google'dan çekiliyordu — internetsiz
+  açıldığında oyun başka bir yazı tipiyle görünüyordu. Artık tek bir dış bağlantı yok.
+- **Oyun telefona kurulabiliyor.** Tarayıcıdan "Ana ekrana ekle" dendiğinde tam ekran,
+  kendi simgesiyle ve **internetsiz** açılan bir uygulama oluyor.
+- Android ve iOS için gerçek uygulama paketi: her itmede derleniyor, Android'in `.apk`
+  dosyası doğrudan kurulabiliyor.
+
 ## 0.85 — Köşedeki Fısıltılar (2026-09-12)
 
 Bilgi bedava değil artık — ne handa, ne loncada. Nam merdiveni de 300'ün üstünde bitmiyor.

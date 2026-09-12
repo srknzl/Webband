@@ -3154,6 +3154,94 @@ The job depends on `needs: test` — a red build doesn't release. If the version
 without a CHANGELOG line, the job **breaks**; the same assertion also lives in the local test
 (*"version: VERSION.no finds a section inside CHANGELOG.md"*), where breaking is cheaper.
 
+## Two pipelines: the site and the app (#91)
+
+The same files are both. `test.yml` is the **web** pipeline — it runs the game's own code and
+cuts a release. `native.yml` is the **app** pipeline — it wraps those same files in a
+Capacitor shell and leaves an installable `.apk` (and a compiled iOS build) as run artifacts.
+Nothing was forked: the repo root is still build-free and dependency-free, and `tools/` and
+the test suite are untouched by either.
+
+### What was actually wrong on the phone
+
+**Double-tapping a button zoomed the page.** The rule was there
+(`html, body { touch-action: pan-x pan-y }`) and the value was right — `pan-x pan-y` is
+stricter than `manipulation`, so it closes the double-tap gesture as well as pinch. The bug
+was **where** it reached: `touch-action` is not an inherited property, so a rule on the body
+governs the body and nothing inside it. Every button, panel, modal and badge in the game
+computed the initial `auto` and kept the browser's own gesture.
+
+The fix is the selector, not the value: `*`. Measured on the start screen, before: **231
+elements** on `auto`, the three canvases and the two sticks on `none`. After: **0 elements**
+on `auto` — everything is `pan-x pan-y` except the six that own their own gestures
+(`#map-canvas`, `#battle-canvas`, `#scene-canvas`, `#tstick`, `#tastick`, `#tb-block`), whose
+id/class selectors outrank `*`. A modal injected by `showModal` after load lands on
+`pan-x pan-y` too, and its `input[type="range"]` still keeps `none`.
+
+Two smaller things travel with it, both inherited so `body` covers the tree:
+`-webkit-tap-highlight-color: transparent` (the grey box that flashed under every tap) and
+`-webkit-touch-callout: none` + `user-select: none` — a finger *holds* a button to open its
+tooltip, and iOS answered the same hold with its selection magnifier on top of the tooltip.
+`input`/`textarea` take selection back, so the name field and the save-import box still work.
+
+### The last network dependency
+
+Cinzel and Inter arrived from `fonts.googleapis.com`. Offline, under `file://` and inside the
+native WebView that link silently failed and the game fell back to serif — the installed app
+would not have looked like the site. The woff2 subsets now live in `fonts/` (both SIL OFL,
+~174 KB for four files) and the `@font-face` block at the top of `style.css` is Google's own
+with the URLs rewritten. **latin and latin-ext both**, because Turkish needs latin-ext; the
+`unicode-range` split is kept, so a page with no Turkish characters never fetches the ext
+file. Measured: `performance.getEntriesByType('resource')` lists **zero** non-same-origin
+entries, and `document.fonts` reports Cinzel and Inter loaded.
+
+### Installable from the browser (PWA)
+
+`manifest.webmanifest` + `sw.js`. The worker precaches the fixed file list on install and
+serves cache-first — there is no API behind the game, so nothing cleverer is warranted.
+
+Cache-first means a **stale cache is a way to ship nothing**: new code only lands when the
+cache *name* changes. `CACHE` therefore carries `VERSION.no` and is bumped in the same
+by-hand pass as `VERSION` and the CHANGELOG line. Hands forget, so `tools/test.js` asserts
+three things: the cache name tracks `VERSION.no`, every precached path exists (one 404 makes
+`cache.addAll` reject wholesale, leaving the install with no cache at all), and every
+`<script src>` in `index.html` is in the list.
+
+Registration is guarded with `!window.Capacitor`, not just a protocol check. With
+`androidScheme: https` the native app's origin is `https://localhost` — a protocol check
+alone would install a second, stale copy of every asset on top of the one already in the
+app bundle.
+
+### The native shell (Capacitor)
+
+Everything npm touches lives under `native/`; the repo root gains no `package.json`.
+`native/www/` is assembled by one `cp` line from the repo's own files, so the web build
+still has no build step.
+
+`ios/` and `android/` are **not committed** — `cap add` regenerates both from
+`capacitor.config.json` on every CI run, and `@capacitor/assets` derives every icon and
+splash density from two 1024px source images. The cost of that choice is real and worth
+stating: a hand-edit to `Info.plist` or `AndroidManifest.xml` would not survive, so anything
+needed there has to go through the config file. Android immersive mode is the first thing
+that wants a manifest edit, and is deferred for exactly this reason.
+
+Android ships a debug-signed `.apk` that sideloads with no developer account anywhere. iOS
+builds for the simulator, unsigned: a device `.ipa` needs a paid Apple Developer membership,
+and until there is one, installing on a real iPhone is a local Xcode step with a free 7-day
+profile. The workflow names the three secrets to add when that changes.
+
+### What this does *not* fix
+
+A Capacitor shell runs the **same WebView engine** as the browser, so the canvas is not
+faster inside it. What the app gains is full-screen (no toolbar/`dvh` dance), no font fetch,
+and a launch that does not go through the address bar. The stutter question in
+`docs/PLAN-mobile-port.md` stays open, and its phase 0 — a debug report from the real
+device, compared between the browser and the installed app — is still the gate on whether
+the PixiJS renderer is ever worth building. Worth carrying into that reading:
+`resizeCanvases()` sets `canvas.width = parentElement.clientWidth`, so DPR is never applied
+and the backing store is already 1 CSS px per pixel. Raster cost is at the floor, which
+makes the DOM compositor the likelier suspect of the two.
+
 ## Code style
 
 - English comments and variable/function names; UI text stays Turkish (see below).

@@ -21,6 +21,20 @@ git clone https://github.com/srknzl/Webband.git
 Then open `index.html` in a browser. That's the whole install. Saves are per-origin, so
 the hosted game and your local copy keep separate saves.
 
+On a phone, open the [hosted game](https://serkanozel.me/webband/) and use your browser's
+**Add to Home Screen** — it installs as a full-screen app with its own icon and keeps
+working with no connection.
+
+For a real Android or iOS package, the `native` workflow builds one on every push: grab
+`webband-android-apk` from the
+[Actions tab](https://github.com/srknzl/Webband/actions/workflows/native.yml) and sideload
+it. The iOS job builds for the Simulator — an installable iPhone build needs a paid Apple
+Developer membership, so until then it is a local Xcode step. To build either locally:
+
+```bash
+cd native && npm install && npm run sync && npx cap open android
+```
+
 On Windows, one line in the repo folder puts it on the desktop:
 
 ```powershell
@@ -59,6 +73,8 @@ JSON from the 💾 Kayıtlar screen.
 | `i18n.js` | Language layer; the Turkish source text is the key |
 | `lang-en.js`, `lang-id.js` | English and Bahasa Indonesia dictionaries (generated) |
 | `style.css` | Glassmorphism theme |
+| `sw.js`, `manifest.webmanifest`, `fonts/` | Offline cache, install metadata, self-hosted fonts |
+| `native/` | Capacitor shell that turns the same files into Android and iOS apps |
 | `tools/` | Headless test, simulation and balance tools, run by CI |
 | `docs/` | Design plans, system notes and measurements (Turkish) |
 | `CLAUDE.md` | Design notes and measured numbers (Turkish) |

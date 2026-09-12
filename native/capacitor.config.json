@@ -1,0 +1,12 @@
+{
+  "appId": "me.serkanozel.webband",
+  "appName": "WebBand",
+  "webDir": "www",
+  "android": {
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false
+  }
+}
