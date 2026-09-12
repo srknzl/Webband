@@ -3,6 +3,27 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.00 — Cenk Sahnesi (2026-09-12)
+
+- **Savaş müzikleri baştan yazıldı, bu sefer tür tür.** On savaş parçasının her biri artık ayrı
+  bir müzik türünde: *Neon Sefer* synthwave, *Kara Devre* darksynth, *Demir Tel* rock,
+  *Altın Sancak* pop, *Meydan Dansı* disco, *Dörtnala* hızlı country, *Halay Ateşi* zurna-davul,
+  *Kanun Cengi* 7/8 aksak, *Çelik Halay* 9/8, *Kılıç Gölgesi* sinematik. Altlarındaki ezgi hâlâ
+  ortaçağ kilise makamlarından geliyor — yani synthwave'e çalınan ortaçağ havaları, ortaçağ
+  havasının üstüne serpiştirilmiş synthwave değil.
+- **Kılıç, hücum ve nara.** Kılıç çınlaması, hava kesen bıçak ve savaş narası artık davul
+  ızgarasının parçası; on parçanın altısında, her birinde birer kez, vurmalıların boş bıraktığı
+  vuruşta.
+- **Stereo.** Şimdiye kadar sadece salon yankısı stereoydu, bütün çalgılar tam ortadaydı.
+  Artık arpej solda, bas ve ikinci ses sağda, pedin akor sesleri iki yana, dem sesinin karar ve
+  beşlisi tam karşılıklı; davul ve ezgi ortada kalıyor.
+- **Metalik gitar sesi yumuşadı.** Oyunun her yerinde duyulan o telli/cırtlak tını, artık daha
+  akustik ve kibar — telin kendisi değil, ona vuran şey yumuşatıldı. Haritadaki bütün parçalar
+  da bundan payını aldı.
+- **Yeni çalgı: kanun.** 7/8 ve 9/8 parçaların arpejlerini o taşıyor.
+- **🎵 Sıradaki tuşu (N).** Haritada, çalan parçayı bırakıp yenisini besteler. Aynı topluluk
+  arka arkaya gelmez.
+
 ## 0.99 — Yirmi Topluluk (2026-09-12)
 
 - **Yirmi ayrı topluluk.** Haritada on, savaşta on — ve her biri gerçekten başka bir grup:

@@ -1053,14 +1053,45 @@ test('every generated bar is the same motif over a new chord', () => {
         assert.ok(M.RHYTHMS.some(r => r.reduce((x, y) => x + y, 0) === b.beats), b.id + ' has a rhythm for its metre');
         ['arp', 'ost', 'pad', 'lead', 'harm'].forEach(k => b[k] &&
             assert.strictEqual(typeof M[b[k].v], 'function', b.id + '.' + k + ' names a voice: ' + b[k].v));
-        (b.drums || '').split('').forEach(c =>
+        [].concat(b.drums || '').join('').split('').forEach(c =>
             assert.ok(c === '.' || M.HITS[c], b.id + ' drum char is in the alphabet: ' + c));
         (b.modes || []).forEach(m => assert.ok(M.modes[m], b.id + ' knows its mode: ' + m));
         assert.ok(b.harm ? !!b.lead : true, b.id + ' has a lead for its harmony');
         // The one rule the user set: the map is calm, the battle is not (#97).
-        if(b.battle) assert.ok(b.bpm[0] >= 120, b.id + ' is a battle, so it moves: ' + b.bpm[0]);
+        if(b.battle) assert.ok(b.bpm[0] >= 152, b.id + ' is a battle, so it moves: ' + b.bpm[0]);
         else assert.ok(b.bpm[1] <= 100, b.id + ' is a map, so it stays slow: ' + b.bpm[1]);
+        // A sawtooth may sustain, it may not walk: `bow` pedalling on the root reads as a
+        // string section, `bow` walking a bass line reads as a synth, and six bands were
+        // rejected on exactly that (#97).
+        ['ost', 'arp'].forEach(k => assert.ok(!(b[k] && b[k].v === 'bow' && b[k].pat),
+            b.id + '.' + k + ' walks a line, so it cannot be a sawtooth'));
     });
+    // 🎵 Sıradaki exists to get a different band; rolling the same one back is the one
+    // answer it must never give. newPiece is safe to call here — with no `bus` it is a pure data roll.
+    for(const battle of [false, true]) {
+        M._last = null; M.piece = null;
+        let prev = null;
+        for(let i = 0; i < 60; i++) {
+            M.newPiece(battle);
+            assert.notStrictEqual(M.piece.band.id, prev, 'a fresh piece is a fresh band: ' + prev);
+            assert.strictEqual(M.piece.band.battle || false, battle, 'and it is on the right side');
+            prev = M.piece.band.id;
+            if (i % 3 === 2) M.piece = null;   // what a skip's retire() does: the piece goes, the memory stays
+        }
+    }
+    M._last = null; M.piece = null;
+
+    // Twice now the battle set came back as "they all sound the same", and both times the
+    // cause was one voice carrying the tune in nearly every band. Ten genres means ten
+    // line-ups: no single instrument fronts more than three of the ten (#98). Battle only —
+    // the map is calm by design, five flutes is what calm sounds like, and that set is
+    // signed off.
+    const leads = {};
+    M.BANDS.filter(b => b.battle).forEach(b => leads[b.lead.v] = (leads[b.lead.v] || 0) + 1);
+    assert.ok(Object.keys(leads).length >= 5, 'the battle fronts at least five instruments: ' + Object.keys(leads));
+    Object.entries(leads).forEach(([v, n]) =>
+        assert.ok(n <= 3, 'the battle leans on ' + v + ' for ' + n + ' of ten leads'));
+
     assert.strictEqual(M.BANDS.filter(b => b.battle).length, 10, 'ten battle bands');
     assert.strictEqual(M.BANDS.filter(b => !b.battle).length, 10, 'ten map bands');
     const shapes = new Set();

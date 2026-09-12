@@ -2821,7 +2821,10 @@ and only so many per page).
   die first. `horn()` is brass: a sawtooth whose lowpass snaps open on the attack and settles
   back, which is the entire signature. `reed()` is a zurna outdoors and a duduk indoors — a
   square wave for the reed's buzz through a narrow bandpass for the bore. `shake()` is
-  bandpassed noise with a tail: shaker, tambourine, everything that is not a skin.
+  bandpassed noise with a tail: shaker, tambourine, everything that is not a skin. `pizz()` is
+  `pluck()` through a different box — a violin's is small and an octave above a guitar's, and
+  the note is over before a bowed one would have arrived; the body is a `pluck()` argument
+  rather than a second copy of the Karplus-Strong loop.
 
 **Arrangement.** Every piece is built a bar at a time over a four-chord modal progression
 (`PROGS`; no progression uses the seventh degree as a root, so there is no leading tone pulling
@@ -2834,33 +2837,153 @@ instruments, its metre, its tempo and its texture.
 
 | field | what it does |
 |---|---|
-| `beats` | bar length (4 = 4/4, 3 = 6/8 counted in dotted beats, 3.5 = 7/8) |
-| `drums` | one char per grid step across the bar — `HITS` is the alphabet, `.` a rest |
+| `beats` | bar length (4 = 4/4, 3 = 6/8 counted in dotted beats, 3.5 = 7/8, 4.5 = 9/8) |
+| `drums` | one char per grid step across the bar — `HITS` is the alphabet, `.` a rest. An *array* of grids is a build-up: the piece walks through them over its `len` bars |
 | `arp` | a running figure; `pat` are scale steps, `bass` puts the thumb on the root at the halves |
-| `ost` | low staccato ostinato, `n` strokes to the bar — the engine room of anything epic |
+| `ost` | low ostinato, `n` strokes to the bar — the engine room of anything epic; with a `pat` it becomes a bass *line* instead of a pedal |
 | `pad` | held chord, `deg` the voicing |
 | `lead` | the motif: `bars` of every four that carry it, `lift` in scale degrees, `stab` cuts it short |
 | `harm` | a second instrument on the same motif, `deg` steps away (0 = doubling) |
 
 Twenty rows of data rather than twenty near-copies of the same forty lines, which is also why
 a band can be deleted on a shrug. The one rule that is not negotiable, and the reason the test
-asserts it: **the map is slow and calm (52–88 bpm), battle is fast and loud (128–164)** —
+asserts it: **the map is slow and calm (52–88 bpm), battle is fast and loud (152–170)** —
 everything else about a band is free to differ, and does. Map: fingerpicked guitar and flute,
-dulcimer, solo guitar with a cello under it, bells over a choir, a lone reed on a drone, two
-flutes in parallel, a hymn, a 6/8 lute tune, a string valley. Battle: the marching choir, a
-triplet gallop, brass calls in parallel fifths, zurna and drum, sixteenths with a tambourine,
-a low chant over heavy skins, 6/8 cavalry, an anvil, everything at once, and a 7/8.
+dulcimer, a piano room, a 7/8 watermill figure, a hand-drum courtyard under a reed, a soft horn
+over a harp, a synth pad under a piano, a shaker walk, a 6/8 lute tune, a string valley. The first cut of the ten included a lone reed on a drone, bells over a held choir, two
+flutes in parallel and a hymn; all four were rejected on the same ground, which named the rule
+the map actually runs on — **slow is not the same as static**. A calm piece still needs
+something moving underneath it, and the replacements all have a running figure or a pulse. Two
+of *those* were then rejected in turn, on a different ground and one worth writing down: with
+`pluck` and `flute` as the default pair, ten calm pieces drift into one timbre no matter how
+their figures differ — "çok gitar+flüt oldu". `piano()` and `synth()` exist because of that
+note, and the map now has a band that is only piano and one that is a synth pad under it. The
+synth one earned the `drums` array: what worked about it was the ticking shaker at the top, so
+the band now names five grids and the piece walks through them, the tick staying put while the
+rest fills in underneath. A build-up is the one way percussion gets to be interesting without
+breaking the map's calm — nothing speeds up, only more of the bar is occupied.
+
+**The battle set is on its third line-up, and the third try changed the question (#98).** The
+first two were both rejected wholesale, and the second rejection — of a set that was correct
+bar by bar — is the one that mattered: *"bazılarını synthwave, bazılarını rock, bazılarını
+pop, bazılarını hızlı bir country edasında, bazılarını darksynth cyberpunk edasında,
+bazılarını türkü folk ama hareketli, bazılarını disco dans müziği gibi."* Ten arrangements of
+one orchestra is one piece heard ten times however carefully the arrangements differ; the fix
+is not another arrangement but another **genre**, and a genre is not expressible on a palette
+of lutes, horns and taikos. So a band now owns an idiom: **Neon Sefer** (synthwave), **Kara
+Devre** (darksynth), **Demir Tel** (rock), **Altın Sancak** (pop), **Meydan Dansı** (disco),
+**Dörtnala** (fast country), **Halay Ateşi** (zurna-and-davul folk), **Kanun Cengi** (7/8
+Anatolian), **Çelik Halay** (9/8 electro-folk) and **Kılıç Gölgesi** (cinematic). The score
+engine underneath is untouched, which is the point: every one of these still draws a church
+mode, a modal progression and one motif, so they are medieval tunes *played* as synthwave,
+not synthwave with a lute on top.
+
+Six voices were added for it and not one more than the genres need. `kick()`, `snare()` and
+`clap()` are the dance kit — the existing `drum()` is a taiko, a bandpassed noise burst around
+190 Hz, and no amount of pattern turns that into four-on-the-floor. `sub()` is the bass:
+`synth()` already makes the right waveform but sweeps its filter over most of a second, which
+is a pad's gesture, and a bass has to be gone before the next eighth lands — the envelope is
+the difference, not the oscillator. `dist()` is the guitar: two detuned saws through a
+`WaveShaper` and then a lowpass at 2.4 kHz over a peak at 220 Hz, and **that pair is the whole
+difference between a guitar and a fizz** — they are the speaker cabinet and the wooden box it
+sits in, not the amp. `clang()` and `whoosh()` are the
+sword sounds the user asked for, written *into the drum grid* rather than bolted on as a
+separate layer, so they sit on the beat like any other percussion; `roar()` is a line of men
+shouting, two vowel formants over noise with a slow swell, mixed low enough to be texture —
+close up it would be comic. No hi-hat voice was written: `shake()` bandpassed at 6–8 kHz
+already is one, and `s`/`H` in the alphabet are the closed and open hat.
+
+The tempo floor holds at 152 even for the genres that would normally sit slower. That was an
+explicit instruction and it costs nothing to keep: a half-time drum grid at 152 reads as 76
+while the melody keeps its drive, so the *feel* is available without breaking the rule.
+
+Six of the first ten battle bands were rejected in one pass, and the notes were all about
+timbre, not tempo. Their replacements were rejected too, on one word — *synth* — and the
+diagnosis is the useful part. All six put `bow` on the low line **and gave that line a `pat`**,
+so it moved; the four that survived all use `bow` as a pedal on the root. `bow()` is a sawtooth
+under a filter, which is literally how a synth string is made: parked on one note under a
+choir and a reverb it passes for a section, but walking a bass line it steps into the
+foreground and the sawtooth is audible for what it is. The rule that came out of it: **a
+sawtooth may sustain, it may not walk.** The moving low line now belongs to `piano`, `horn` or
+low `voice`, spread across the six so no one instrument is common to all of them again. Two of them (brass calls, the forge) put a *low* `pluck` under the horns:
+Karplus-Strong that far down is a metallic scrape, not a lute, and the anvil `HITS` entry was
+worse — a struck bell in the middle of a battle reads as a mistake. So the anvil is gone from
+the alphabet, and **nothing in a battle band plays `pluck` below the stave any more**; the low
+engine room is `bow`, which is what an orchestra actually puts there. The other rejections were
+melodic rather than timbral, and the replacements answer them by changing what carries the
+motif — a doubling flute, a stab, a bowed arpeggio — rather than by rewriting the texture.
+
+**The plectrum was the problem, not the string (#98).** *"O metalik gitar sesi app'te her
+yerde var, daha akustik kibar bir şey seç."* Correct, and the diagnosis is one line of
+`pluck()`: Karplus-Strong is excited with white noise, so every harmonic up to Nyquist enters
+the delay line at full strength and the first fifty milliseconds are pure wire. Two smoothing
+passes over the ring before it is ever plucked roll that off — the string is unchanged, the
+finger is softer — and the body lowpass came down from 3400 Hz to 2200. Fixing the voice
+rather than swapping it out of one band is what reaches the map too, which is where the user
+actually hears it most; the map arrangements are untouched and only get gentler. On top of
+that the 7/8 band stopped fronting a plucked steel string altogether: **Bağlama Cengi** became
+**Kanun Cengi**, `struck` over `piano` under a `flute` lead. A plucked wire rings; a struck one
+is over.
+
+**The sword travelled (#98).** `W` (`clang`) and `w` (`whoosh`) were signed off in Kılıç
+Gölgesi — *"güzel olmuş kılıç sesi"* — so they now appear in four more grids, one stroke each
+and always on a step the kit left empty: Demir Tel takes the blade on the bar's last eighth
+where a crash would sit, Halay Ateşi takes a blade and then the `R` war cry on the two steps
+that close its bar, Çelik Halay takes one inside the 9/8 limp, and Neon Sefer takes the soft
+`w` instead — a blade passing rather than landing, which is what a synthwave bar can carry.
+Six of the ten now have steel in them; the other four are left clean so the sound stays an
+event.
+
+**The genre is the bed, the tune is played on something with a body (#98).** The set still read
+as synthetic after the timbre work, and the reason was structural rather than per-voice: five
+of the ten put `synth` or `dist` on the **lead**, so the one line an ear follows was the one
+made of sawtooth. Nothing in a battle band fronts a synthesised waveform any more — Neon Sefer
+is a flute over the synthwave bed, Kara Devre a zurna over the darksynth sub (the `dist` stays,
+as the grit under it), Demir Tel a string section over the guitar riff, Altın Sancak a choir
+over the pop kit. The bed keeps the genre; the melody keeps the century. Two knobs came down
+with it: `synth()`'s filter Q from 6 to 2.5 (a filter singing at its cutoff *is* the cheap-preset
+sound) and `dist()`'s drive from 5 to 3.5, past which tanh stops adding harmonics and only adds
+fizz.
+
+**Stereo, finally (#98).** Only the convolver was ever stereo: every dry voice connects to
+`this.bus` and so sat dead centre, which is a mono record with a wide tail on it. `part(pan, fn)`
+places a part by pointing the bus at a `StereoPannerNode` for the length of the call — cheaper
+than threading a destination argument through fourteen voices, and the panners hang off the
+real bus, so `retire()` still silences everything in one fade. The cache is keyed on the bus it
+was built from, because the bus is rebuilt with every piece and a node may not be connected
+across two `AudioContext`s. Positions are by role, not per band: drums and lead centre (where an
+ear expects the beat and the tune), arpeggio left, ostinato and harmony right, the pad's chord
+tones thrown to opposite sides, the drone's root and fifth hard apart — which is what organum on
+two instruments actually sounds like. Hats, shakers and the sword sit off-centre; kick and snare
+do not.
+
+**Three rejections, three root causes (#98).** Kanun Cengi and Çelik Halay were given `struck`
+arpeggios to get away from the metallic `pluck`, and that was a worse answer than the problem:
+`struck`'s default partials include a 4.72, which is a **bell**, and a bell arpeggiating under a
+flute is a glockenspiel. They now use `kanun()` — the softened `pluck` with a small bright box
+(2600/300/6), one line beside `pizz()`, because a kanun *is* a plucked string. Kılıç Gölgesi was
+rejected on the horn: `harm` doubles the melody at the unison, which is the one place brass has
+nowhere to hide, so **no battle band plays `horn` any more** (Altın Sancak's went to `piano`,
+Kılıç Gölgesi's to `flute`). And `voice()`'s breath burst was firing per chord tone per bar on
+the pads that use it — a singer breathes once and then holds, so the breath now scales as
+`0.6 / dur` and a bar-long note barely gets one.
+
+**Rendering the audition set.** Ten 60-second takes through `OfflineAudioContext` took 35
+minutes when rendered one after another and **two** when rendered together. Scheduling is
+synchronous JS on the shared `Music` graph and has to stay serial — but it is only 1.8 s for all
+ten; `startRendering()` is off-thread and is everything else. Schedule all ten, then
+`Promise.all` the renders.
 
 **Measured / decided numbers.** Map: 52–88 bpm, dorian/aeolian/lydian/mixolydian (a band may
-narrow that), tonic E3–B3, 12–16 bars per piece. Battle: 128–164 bpm, dorian/phrygian/aeolian,
+narrow that), tonic E3–B3, 12–16 bars per piece. Battle: 152–170 bpm, dorian/phrygian/aeolian,
 tonic A2–D3, 24–28 bars. Rendered offline through `emit` at the default volume, 45 s per band,
-all twenty: battle peak 0.45–0.72 / rms 0.066–0.068, map peak 0.26–0.78 / rms 0.067–0.073. The
+all twenty: battle peak 0.47–0.79 / rms 0.066–0.070, map peak 0.31–0.85 / rms 0.065–0.071. The
 peak spread is instrumentation, not imbalance — a gallop and a plucked lute are transients, a
 choir is not.
 
 **Levels.** Every part has its own gain, and with those alone the battle came out three times
 the map's loudness (rms 0.147 against 0.051) — an army of strings and a choir against one
-guitar. The correction is a single per-band gain on the bus (`gain`, 0.8–2.4 across the twenty)
+guitar. The correction is a single per-band gain on the bus (`gain`, 0.61–2.5 across the twenty — 0.61–1.11 across the ten genre bands)
 rather than re-tuning every part, so the balance *inside* each band stays as written; the
 numbers come from an offline rms scan of all twenty and are re-measured whenever a band's
 parts change. Within the
@@ -2875,6 +2998,19 @@ it drops from four voices to one under `Game.lite()` — the same knob the rende
 **Transport.** The standard two-clock scheduler: notes go into Web Audio's clock ~0.6 s ahead
 and a 150 ms `setTimeout` tops the queue up, so the timer's drift is harmless and a
 backgrounded tab rebases instead of firing a burst of past-due notes.
+
+**Skipping a piece (🎵 Sıradaki, `N`).** The score re-composes itself, so the only way to hear
+a different band is to wait out the current one — twelve to sixteen bars, a minute or more.
+The button sits in the map HUD row next to ⏳ Bekle and 🌍 Diplomasi, where the map-only
+shortcuts already live; it is deliberately absent from battle, where the player has other
+things to press. `Music.skip()` is `set(null); set(mode)` — the same move `revive()` makes,
+because a bar is already queued ahead of the clock and retiring the bus is the only thing that
+cuts it. `newPiece` therefore cannot look at `this.piece` to avoid a repeat (retire() has
+already thrown it away), so the previous band is remembered in `_last` and filtered out of the
+pool: with ten to choose from, one roll in ten handing back the band you just skipped is
+exactly the answer the button exists to avoid. Everything in `newPiece` below the `this.bus`
+guard needs a live graph; everything above it is a pure data roll, which is what lets
+`tools/test.js` assert the no-repeat rule without a sound card.
 
 **Why a bus per piece.** A whole map phrase is queued at once — up to ten seconds — and Web
 Audio cannot cancel what is already scheduled. Every note of a piece therefore hangs off one

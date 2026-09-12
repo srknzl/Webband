@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.99', date: '2026-09-12', name: 'Yirmi Topluluk' };  // the version name is not translated
+const VERSION = { no: '1.00', date: '2026-09-12', name: 'Cenk Sahnesi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -546,6 +546,9 @@ const Input = {
                 else if(e.key === ' ' && document.getElementById('map-view').classList.contains('active')) Game.centerOnPlayer();
                 // K: kingdoms' war/peace status
                 else if(k === 'k') Game.showDiplomacy();
+                // N: next piece — the music re-composes itself, so skipping is the only way
+                // to hear a different band without waiting out the current one
+                else if(k === 'n') Game.Music.skip();
             }
         });
         window.addEventListener('keyup', e => { 
@@ -3866,6 +3869,7 @@ const Game = {
             + pts
             + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${T`⏳ Bekle`}</button>`
             + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul`}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
+            + `<button id="btn-track" onclick="Game.Music.skip()" title="${touch ? T('Sıradaki parçaya geç') : T('Sıradaki parçaya geç (N)')}">${T`🎵 Sıradaki`}${touch ? '' : ' <kbd>N</kbd>'}</button>`
             + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
     },
 
@@ -5976,95 +5980,130 @@ const Game = {
               modes: ['lydian', 'mixolydian'],
               arp: { v: 'struck', pat: [0, 2, 4, 7, 9, 7, 4, 2], vol: 0.085, hold: 3.5 },
               lead: { v: 'flute', lift: 7, vol: 0.07, bars: 1 } },
-            { id: 'kav', name: 'Kav Ateşi', beats: 4, bpm: [56, 64], len: 14, gain: 1.9,
-              modes: ['aeolian', 'phrygian'],
-              arp: { v: 'pluck', pat: [0, 4, 2, 4], vol: 0.11, bass: true, hold: 3 },
-              ost: { v: 'bow', n: 1, vol: 0.05 },
-              lead: { v: 'pluck', lift: 7, vol: 0.13, bars: 2 } },
-            { id: 'kar', name: 'Kar Sessizliği', beats: 4, bpm: [52, 58], len: 12, gain: 2.05,
-              modes: ['lydian', 'aeolian'], drone: true,
-              pad: { v: 'voice', deg: [0, 4], lift: 7, vol: 0.05 },
-              lead: { v: 'struck', lift: 7, vol: 0.1, bars: 2, hold: 2.2 } },
-            { id: 'coban', name: 'Çoban Düdüğü', beats: 4, bpm: [54, 62], len: 12, gain: 2.4,
-              modes: ['phrygian', 'aeolian'], drone: true,
+            { id: 'oda', name: 'Oda Penceresi', beats: 4, bpm: [60, 70], len: 14, gain: 1.8,
+              modes: ['aeolian', 'dorian'],
+              arp: { v: 'piano', pat: [0, 4, 2, 7, 4, 2, 4, 2], vol: 0.09, hold: 2.2, bass: true },
+              lead: { v: 'piano', lift: 7, vol: 0.085, bars: 2, hold: 1.6 } },
+            { id: 'degirmen', name: 'Su Değirmeni', beats: 3.5, bpm: [70, 80], len: 14, gain: 1.9,
+              modes: ['dorian', 'mixolydian'],
+              arp: { v: 'struck', pat: [0, 2, 4, 2, 7, 4, 2], vol: 0.08, hold: 2 },
+              ost: { v: 'pluck', n: 7, pat: [0, 0, 4, 4, 2, 2, 0], vol: 0.085 },
+              lead: { v: 'flute', lift: 7, vol: 0.075, bars: 1 } },
+            { id: 'han', name: 'Han Avlusu', beats: 4, bpm: [72, 82], len: 16, gain: 1.95,
+              modes: ['dorian', 'phrygian'], drums: 'o.xx.ox.',
+              ost: { v: 'pluck', n: 4, pat: [0, 4, 2, 4], vol: 0.17 },
               lead: { v: 'reed', lift: 0, vol: 0.075, bars: 3 } },
+            { id: 'alaca', name: 'Alacakaranlık', beats: 4, bpm: [58, 66], len: 12, gain: 2.1,
+              modes: ['lydian', 'mixolydian'], drums: 's.s.s.s.',
+              arp: { v: 'struck', pat: [0, 4, 7, 4, 2, 4, 7, 4], vol: 0.075, hold: 2.5 },
+              lead: { v: 'horn', lift: 0, vol: 0.07, bars: 2 } },
+            { id: 'sis', name: 'Sis Vadisi', beats: 4, bpm: [56, 64], len: 12, gain: 2.5,
+              modes: ['lydian', 'mixolydian'],
+              drums: ['s.......', 's...s...', 's.s.s.s.', 'sos.s.so', 'sostsoso'],
+              ost: { v: 'synth', n: 2, pat: [0, 4], vol: 0.18 },
+              pad: { v: 'synth', deg: [0, 2, 7], lift: 0, vol: 0.13 },
+              lead: { v: 'piano', lift: 7, vol: 0.06, bars: 2, hold: 1.8 } },
             { id: 'yolcu', name: 'Yolcu Adımı', beats: 4, bpm: [74, 84], len: 16, gain: 1.45,
               drums: 'o..s..s.',
               arp: { v: 'pluck', pat: [0, 2, 4, 2, 0, 2, 4, 2], vol: 0.09, bass: true },
               lead: { v: 'flute', lift: 7, vol: 0.085, bars: 2 } },
-            { id: 'manastir', name: 'Manastır', beats: 4, bpm: [52, 58], len: 12, gain: 2.05,
-              modes: ['aeolian', 'dorian'], drone: true,
-              pad: { v: 'voice', deg: [0, 2, 7], lift: 7, vol: 0.06 },
-              ost: { v: 'bow', n: 1, vol: 0.055 },
-              lead: { v: 'voice', lift: 7, vol: 0.05, bars: 2 } },
-            { id: 'ney', name: 'Ney ve Su', beats: 4, bpm: [58, 66], len: 12, gain: 1.2,
-              drone: true,
-              lead: { v: 'flute', lift: 7, vol: 0.085, bars: 3 },
-              harm: { v: 'flute', deg: -2, vol: 0.05 } },
-            { id: 'kopuz', name: 'Kopuz Havası', beats: 3, bpm: [76, 88], len: 16, gain: 1.9,
+            { id: 'kopuz', name: 'Kopuz Havası', beats: 3, bpm: [76, 88], len: 16, gain: 2.4,
               modes: ['mixolydian', 'dorian'], drums: 'o..x..',
-              arp: { v: 'pluck', pat: [0, 4, 2, 7, 4, 2], vol: 0.1, bass: true },
-              lead: { v: 'pluck', lift: 7, vol: 0.11, bars: 2 } },
+              arp: { v: 'pluck', pat: [0, 4, 2, 7, 4, 2], vol: 0.065, bass: true },
+              lead: { v: 'pluck', lift: 7, vol: 0.09, bars: 2 } },
             { id: 'vadi', name: 'Yaylı Vadi', beats: 4, bpm: [54, 62], len: 12, gain: 1.25,
               pad: { v: 'bow', deg: [0, 2, 7], lift: 0, vol: 0.06 },
               ost: { v: 'bow', n: 1, vol: 0.05 },
               lead: { v: 'flute', lift: 7, vol: 0.085, bars: 2 } },
 
-            // ---- battle: ten loud ones ----
-            { id: 'cenk', name: 'Cenk Korosu', battle: true, beats: 4, bpm: [132, 144], len: 24, gain: 0.85,
-              drone: true, drums: 'O.x.O.xx',
-              ost: { v: 'bow', n: 8, vol: 0.055 },
-              pad: { v: 'voice', deg: [0, 2, 7], lift: 7, vol: 0.07 },
-              lead: { v: 'section', lift: 7, vol: 0.105, bars: 4 } },
-            { id: 'nal', name: 'Nal Sesi', battle: true, beats: 4, bpm: [140, 152], len: 24, gain: 1.45,
-              drums: 'O..x.xO..x.x',      // triplet grid: the gallop every charge on film rides on
-              ost: { v: 'bow', n: 8, vol: 0.06 },
-              lead: { v: 'horn', lift: 7, vol: 0.09, bars: 4, stab: true } },
-            { id: 'boru', name: 'Boru ve Davul', battle: true, beats: 4, bpm: [130, 142], len: 24, gain: 0.9,
-              drums: 'O.x.OOx.',
-              ost: { v: 'pluck', n: 8, vol: 0.16 },
-              lead: { v: 'horn', lift: 7, vol: 0.1, bars: 4 },
-              harm: { v: 'horn', deg: -3, vol: 0.06 } },       // parallel fifths: two brass calls
-            { id: 'zurna', name: 'Zurna ve Davul', battle: true, beats: 4, bpm: [146, 158], len: 24, gain: 1.3,
-              modes: ['phrygian'], drums: 'O.xxO.x.', drone: true,
-              lead: { v: 'reed', lift: 7, vol: 0.1, bars: 4 } },
-            { id: 'firtina', name: 'Fırtına', battle: true, beats: 4, bpm: [150, 164], len: 28, gain: 1.1,
-              drums: 'OxxsXxxsOxxsXxxs',
-              ost: { v: 'bow', n: 8, vol: 0.06 },
-              lead: { v: 'section', lift: 7, vol: 0.12, bars: 4, stab: true } },
-            { id: 'ayin', name: 'Kara Ayin', battle: true, beats: 4, bpm: [128, 138], len: 24, gain: 0.8,
-              modes: ['phrygian', 'aeolian'], drone: true, drums: 'O.x.O.OO',
-              pad: { v: 'voice', deg: [0, 7], lift: 0, vol: 0.085 },
-              ost: { v: 'bow', n: 4, vol: 0.07 },
-              lead: { v: 'section', lift: 7, vol: 0.1, bars: 4 } },
-            { id: 'suvari', name: 'Kaval Süvari', battle: true, beats: 3, bpm: [150, 164], len: 28, gain: 0.8,
-              drums: 'O.xO.x',
-              ost: { v: 'bow', n: 6, vol: 0.055 },
-              lead: { v: 'flute', lift: 7, vol: 0.11, bars: 4 },
-              harm: { v: 'section', deg: 0, vol: 0.07 } },
-            { id: 'demir', name: 'Demirhane', battle: true, beats: 4, bpm: [138, 150], len: 24, gain: 1.1,
-              drums: 'c.x.O.xc',
-              ost: { v: 'pluck', n: 8, vol: 0.18 },
-              lead: { v: 'horn', lift: 7, vol: 0.095, bars: 4, stab: true } },
-            { id: 'sancak', name: 'Sancak', battle: true, beats: 4, bpm: [134, 146], len: 24, gain: 0.8,
-              drone: true, drums: 'O.x.OOxx',
-              ost: { v: 'bow', n: 8, vol: 0.055 },
-              pad: { v: 'voice', deg: [0, 2, 7], lift: 7, vol: 0.065 },
-              lead: { v: 'section', lift: 7, vol: 0.1, bars: 4 },
-              harm: { v: 'horn', deg: 0, vol: 0.055 } },
-            { id: 'yedi', name: 'Yedi Vuruş', battle: true, beats: 3.5, bpm: [150, 162], len: 28, gain: 1.45,
-              modes: ['phrygian', 'dorian'], drums: 'Ox.Ox.x',
-              ost: { v: 'bow', n: 7, vol: 0.06 },
-              lead: { v: 'reed', lift: 7, vol: 0.095, bars: 4 } }
+            // ---- battle: ten loud ones, one genre each (#98) ----
+            // Ten pieces in one orchestral idiom is one piece heard ten times, which is what
+            // came back the first two times. A band now owns a *genre* as well as a line-up:
+            // the modal score engine underneath is unchanged, so every one of these is still
+            // a medieval tune — it is the kit, the bass and the guitar that place it.
+            { id: 'neon', name: 'Neon Sefer', battle: true, beats: 4, bpm: [152, 158], len: 24, gain: 0.67,
+              modes: ['phrygian', 'aeolian'],
+              drums: 'K.s.N.s.K.sKN.sw',           // 16 steps: the grid a drum machine is written on
+              ost: { v: 'sub', n: 8, pat: [0, 0, 0, 0, 0, 0, 4, 2], vol: 0.1 },
+              pad: { v: 'synth', deg: [0, 2, 4], lift: 0, vol: 0.055 },
+              lead: { v: 'flute', lift: 7, vol: 0.09, bars: 4, hold: 1.1 },
+              harm: { v: 'synth', deg: 0, vol: 0.04 } },
+            { id: 'devre', name: 'Kara Devre', battle: true, beats: 4, bpm: [156, 164], len: 24, gain: 0.75,
+              modes: ['phrygian'], drone: true,
+              drums: 'K..kN..WK.k.N.w.',
+              ost: { v: 'sub', n: 16, pat: [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 3, 2, 1, 0], vol: 0.09 },
+              lead: { v: 'reed', lift: 7, vol: 0.085, bars: 4, stab: true },
+              harm: { v: 'dist', deg: 0, vol: 0.05 } },
+            { id: 'tel', name: 'Demir Tel', battle: true, beats: 4, bpm: [158, 166], len: 24, gain: 0.61,
+              modes: ['aeolian', 'dorian'],
+              drums: 'K.s.N.s.K.sKN.sW',
+              ost: { v: 'dist', n: 8, pat: [0, 0, 0, 0, 4, 4, 2, 2], vol: 0.075 },
+              lead: { v: 'section', lift: 7, vol: 0.09, bars: 4 },
+              harm: { v: 'dist', deg: 4, vol: 0.045 } },   // the fifth on top: a power chord, not a third
+            { id: 'sancak', name: 'Altın Sancak', battle: true, beats: 4, bpm: [152, 160], len: 24, gain: 0.97,
+              modes: ['mixolydian', 'dorian'],
+              drums: 'K.s.c.s.K.s.c.sH',
+              ost: { v: 'sub', n: 8, pat: [0, 0, 4, 4, 2, 2, 0, 0], vol: 0.09 },
+              pad: { v: 'voice', deg: [0, 2, 4], lift: 0, vol: 0.055 },
+              lead: { v: 'voice', lift: 7, vol: 0.1, bars: 4 },
+              harm: { v: 'piano', deg: 0, vol: 0.05 } },
+            { id: 'meydan', name: 'Meydan Dansı', battle: true, beats: 4, bpm: [152, 158], len: 24, gain: 0.7,
+              modes: ['dorian', 'aeolian'],
+              drums: 'K.sHK.sHK.sHK.sH',           // four on the floor, hat on every off-beat
+              ost: { v: 'sub', n: 8, pat: [0, 7, 0, 7, 0, 7, 0, 7], vol: 0.095 },
+              arp: { v: 'section', pat: [0, 0, 4, 4, 2, 2, 4, 4], vol: 0.055, hold: 0.35 },
+              lead: { v: 'section', lift: 7, vol: 0.09, bars: 4, stab: true } },
+            { id: 'dortnala', name: 'Dörtnala', battle: true, beats: 4, bpm: [160, 170], len: 24, gain: 1.11,
+              modes: ['mixolydian', 'dorian'],
+              drums: 'o.s.X.s.o.s.X.s.',           // the train beat, brushes rather than sticks
+              arp: { v: 'pluck', pat: [0, 2, 4, 2, 0, 2, 4, 2], vol: 0.085, bass: true },
+              ost: { v: 'pizz', n: 4, pat: [0, 4, 0, 4], vol: 0.1 },
+              lead: { v: 'bow', lift: 7, vol: 0.09, bars: 4 },
+              harm: { v: 'pluck', deg: 2, vol: 0.06 } },
+            { id: 'halay', name: 'Halay Ateşi', battle: true, beats: 4, bpm: [158, 166], len: 24, gain: 0.98,
+              modes: ['phrygian', 'dorian'], drone: true,
+              drums: 'O.xxO.x.O.xxOxWR',
+              ost: { v: 'pluck', n: 8, pat: [0, 0, 4, 2, 0, 0, 4, 2], vol: 0.1 },
+              lead: { v: 'reed', lift: 7, vol: 0.09, bars: 4 },
+              harm: { v: 'reed', deg: 2, vol: 0.06 } },   // two zurnas a third apart, as they are played
+            // Karplus-Strong out in front reads as a wiry electric guitar, not a lute — and it
+            // is already the map's main voice, so hearing it lead here too is what "that
+            // metallic guitar is everywhere" meant. The kanun is the right Anatolian answer
+            // and it is `struck`, which is sweeter by construction: a plucked wire rings, a
+            // struck one is over (#98).
+            { id: 'kanun', name: 'Kanun Cengi', battle: true, beats: 3.5, bpm: [156, 164], len: 28, gain: 0.91,
+              modes: ['phrygian', 'dorian'],
+              drums: 'O.xO.x.',                    // 7/8 counted 3+2+2, the Anatolian limp
+              arp: { v: 'kanun', pat: [0, 2, 4, 2, 0, 4, 2], vol: 0.085, hold: 1.4 },
+              ost: { v: 'piano', n: 7, pat: [0, 0, 4, 4, 2, 2, 0], vol: 0.085 },
+              lead: { v: 'flute', lift: 7, vol: 0.1, bars: 4 },
+              harm: { v: 'voice', deg: 0, vol: 0.05 } },
+            { id: 'celik', name: 'Çelik Halay', battle: true, beats: 4.5, bpm: [158, 166], len: 28, gain: 0.86,
+              modes: ['phrygian', 'dorian'], drone: true,
+              drums: 'K.xK.xW.N',                  // 9/8 with a dance kick under it: the fusion, stated
+              ost: { v: 'sub', n: 9, pat: [0, 0, 0, 4, 4, 2, 2, 0, 0], vol: 0.09 },
+              arp: { v: 'kanun', pat: [0, 4, 2, 0, 4, 2, 0, 4, 2], vol: 0.07, hold: 1.2 },
+              lead: { v: 'reed', lift: 7, vol: 0.085, bars: 4 } },
+            { id: 'kilic', name: 'Kılıç Gölgesi', battle: true, beats: 4, bpm: [152, 160], len: 28, gain: 0.96,
+              modes: ['aeolian', 'dorian'], drone: true,
+              drums: 'O..W.xO..w.xO.WR',           // the fight itself, written into the grid
+              ost: { v: 'sub', n: 4, vol: 0.085 },
+              pad: { v: 'voice', deg: [0, 2, 7], lift: 7, vol: 0.06 },
+              lead: { v: 'section', lift: 7, vol: 0.095, bars: 3, hold: 1.15 },
+              harm: { v: 'flute', deg: 0, vol: 0.055 } }
         ],
 
         // One chord per bar, as scale degrees. No progression contains the seventh degree as
         // a chord root, so there is never a leading tone pulling home: the chords lean
         // instead of resolving, which is the modal sound and not the Renaissance-fair one.
         PROGS: [[0, 0, 5, 6], [0, 6, 0, 4], [0, 3, 5, 0], [0, 4, 6, 5], [0, 5, 3, 4]],
-        // Choir "ah". Formant synthesis is the whole trick: the same sawtooth through one
-        // lowpass is a synth pad, through these three bandpasses it is a human vowel.
+        // Two vowels, not one. Formant synthesis is the trick — the same sawtooth through one
+        // lowpass is a synth pad, through these three bandpasses it is a human vowel — but a
+        // *held* vowel is still a pad, because nothing in it moves. VOWEL is an open "ah" and
+        // VOWEL_O a rounder "oh"; a sung note travels from the second to the first, and that
+        // journey is most of what makes the ear hear a mouth instead of a filter (#98).
         VOWEL: [800, 1150, 2900],
+        VOWEL_O: [520, 1000, 2500],
 
         // ---- the score: no audio in here, which is the half worth testing ----
 
@@ -6077,7 +6116,8 @@ const Game = {
         RHYTHMS: [
             [1, 1, 2], [2, 1, 1], [1, 0.5, 0.5, 2], [1.5, 0.5, 2], [1, 1, 1, 1], [2, 2], [0.5, 0.5, 1, 2],
             [1, 1, 1], [1.5, 1.5], [1, 0.5, 0.5, 1], [2, 1],
-            [1, 1, 1.5], [1.5, 1, 1], [1, 0.5, 1, 1], [2, 1.5]
+            [1, 1, 1.5], [1.5, 1, 1], [1, 0.5, 1, 1], [2, 1.5],
+            [1, 1, 1, 1.5], [1.5, 1.5, 1.5], [2, 1, 1.5], [1, 0.5, 1, 2]
         ],
         // Steps of the mode, relative to the bar's chord root. They lean on the chord tones
         // (0, 2, 4) so the melody sits on the harmony instead of arguing with it.
@@ -6113,13 +6153,19 @@ const Game = {
         // instead of a beep, and it is pure arithmetic — no sample, no library. Built per
         // note rather than cached: the adds are nothing next to holding PCM on a phone, and
         // fresh noise means no two plucks are identical.
-        pluck(t, f, dur, vol) {
+        pluck(t, f, dur, vol, body) {
             let ac = this.ac, sr = ac.sampleRate;
             t = Math.max(0, t + (Math.random() - 0.5) * 0.012);   // a picking hand is not a sequencer,
             // and a humanised note that lands before the clock's zero throws rather than plays
             let len = Math.floor(sr * Math.min(3, dur + 1.2)), n = Math.max(2, Math.round(sr / f));
             let buf = ac.createBuffer(1, len, sr), d = buf.getChannelData(0), ring = new Float32Array(n);
             for(let i = 0; i < n; i++) ring[i] = Math.random() * 2 - 1;
+            // White noise is a plectrum on steel: every harmonic up to Nyquist enters at full
+            // strength and the first 50 ms are pure wire. Two smoothing passes over the ring
+            // roll the excitation off before it is ever plucked, which is what a fingertip on
+            // gut does — the string is the same, the finger is softer (#98).
+            for(let p = 0; p < 2; p++)
+                for(let i = 0; i < n; i++) ring[i] = (ring[i] + ring[(i + 1) % n]) * 0.5;
             for(let i = 0, j = 0; i < len; i++, j = (j + 1) % n) {
                 d[i] = ring[j];
                 ring[j] = (ring[j] + ring[(j + 1) % n]) * 0.498;   // 0.996 per period: highs fade first, as on a real string
@@ -6131,13 +6177,24 @@ const Game = {
             // did not sound acoustic. The lowpass is the wooden top; the peak at 190 Hz is the
             // air inside the box, and that resonance is most of the difference between "a
             // string" and "a guitar" (#96).
-            lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.7;
-            bd.type = 'peaking'; bd.frequency.value = 190; bd.Q.value = 1.1; bd.gain.value = 7;
+            let bx = body || [2200, 190, 7];
+            lp.type = 'lowpass'; lp.frequency.value = bx[0]; lp.Q.value = 0.7;
+            bd.type = 'peaking'; bd.frequency.value = bx[1]; bd.Q.value = 1.1; bd.gain.value = bx[2];
             g.gain.setValueAtTime(vol, t);
             g.gain.setTargetAtTime(0.0001, t + dur * 0.85, 0.22);
             src.connect(lp); lp.connect(bd); bd.connect(g); g.connect(this.bus);
             src.start(t); src.stop(t + len / sr);
         },
+
+        // The same string plucked instead of bowed. A violin's box is small and sits an octave
+        // above a guitar's, and a pizzicato note is over before a bowed one has arrived.
+        pizz(t, f, dur, vol) { this.pluck(t, f, Math.min(dur, 0.5), vol, [5200, 420, 5]); },
+
+        // A kanun is a small trapezoid box of thin strings plucked with two plectra: brighter
+        // than a lute's belly, far smaller than a guitar's, and the note is gone in a second.
+        // `struck` was tried here first and was worse than what it replaced — its 4.72 partial
+        // is a bell, and a bell arpeggiating under a flute is a glockenspiel (#98).
+        kanun(t, f, dur, vol) { this.pluck(t, f, Math.min(dur, 1.1), vol, [2600, 300, 6]); },
 
         // White noise as a buffer source. Cheaper to write once than to inline three times.
         noise(dur) {
@@ -6173,19 +6230,41 @@ const Game = {
             vib.start(t); vib.stop(t + dur + 0.08); nb.start(t); nb.stop(t + dur + 0.08);
         },
 
-        // Voices holding a vowel. See VOWEL above for why the three filters are the point.
+        // Voices singing a vowel. See VOWEL above for why the filters are the point — and why
+        // there are two vowels. Four things separate this from the pad it used to be, and all
+        // four are things a singer does rather than things a synth does: the vowel opens over
+        // the note, the vibrato arrives *after* the onset (nobody shakes a note they have only
+        // just started), there is a breath at the front, and the sawtooth is rolled off before
+        // it reaches the formants, because a glottal pulse is nothing like as bright as a saw.
         voice(t, f, dur, vol) {
             let ac = this.ac, o = ac.createOscillator(), g = ac.createGain();
-            let vib = ac.createOscillator(), va = ac.createGain();
+            let vib = ac.createOscillator(), va = ac.createGain(), src = ac.createBiquadFilter();
             o.type = 'sawtooth'; o.frequency.value = f;
-            vib.type = 'sine'; vib.frequency.value = 5.2; va.gain.value = f * 0.009;
+            src.type = 'lowpass'; src.frequency.value = 2400; src.Q.value = 0.4;
+            o.connect(src);
+            vib.type = 'sine'; vib.frequency.value = 5.2;
+            va.gain.setValueAtTime(0.0001, t);
+            va.gain.linearRampToValueAtTime(f * 0.011, t + Math.min(dur * 0.55, 0.5));
             vib.connect(va); va.connect(o.frequency);
+            let move = Math.min(dur * 0.45, 0.4);
             this.VOWEL.forEach((fq, i) => {
                 let bp = ac.createBiquadFilter(), fg = ac.createGain();
-                bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = 6 + i * 3;
+                bp.type = 'bandpass'; bp.Q.value = 6 + i * 3;
+                bp.frequency.setValueAtTime(this.VOWEL_O[i], t);
+                bp.frequency.exponentialRampToValueAtTime(fq, t + move);
                 fg.gain.value = [1, 0.5, 0.22][i];
-                o.connect(bp); bp.connect(fg); fg.connect(g);
+                src.connect(bp); bp.connect(fg); fg.connect(g);
             });
+            // The breath: through the same mouth, so it runs into the formants rather than
+            // straight to the bus. Without it every entry starts out of nowhere.
+            let br = this.noise(0.07), bh = ac.createBiquadFilter(), bg = ac.createGain();
+            bh.type = 'highpass'; bh.frequency.value = 1800;
+            // Scaled down on long notes: a singer takes one breath and then holds, so a
+            // bar-long pad chord getting the same burst per tone every bar is a hiss (#98).
+            bg.gain.setValueAtTime(vol * 0.5 * Math.min(1, 0.6 / dur), t);
+            bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+            br.connect(bh); bh.connect(bg); bg.connect(g);
+            br.start(t); br.stop(t + 0.08);
             g.gain.setValueAtTime(0.0001, t);
             g.gain.linearRampToValueAtTime(vol, t + dur * 0.3);     // a choir does not start suddenly
             g.gain.setValueAtTime(vol, t + dur * 0.65);
@@ -6249,12 +6328,13 @@ const Game = {
             }
         },
 
-        // Struck wire and metal: hammered dulcimer, harp, bell, anvil. The partials are
-        // deliberately NOT whole multiples — a stretched series is what the ear hears as
-        // something hit rather than something blown, and the high ones have to die first.
-        struck(t, f, dur, vol) {
+        // Struck wire and metal: hammered dulcimer, harp, bell. The partials are deliberately
+        // NOT whole multiples — a stretched series is what the ear hears as something hit
+        // rather than something blown, and the high ones have to die first. `parts` swaps the
+        // series, which is the whole difference between a dulcimer and a piano.
+        struck(t, f, dur, vol, parts) {
             let ac = this.ac, g = ac.createGain();
-            [[1, 1], [2.01, 0.4], [3.03, 0.17], [4.72, 0.07]].forEach(([m, lvl]) => {
+            (parts || [[1, 1], [2.01, 0.4], [3.03, 0.17], [4.72, 0.07]]).forEach(([m, lvl]) => {
                 let o = ac.createOscillator(), og = ac.createGain();
                 o.type = 'sine'; o.frequency.value = f * m;
                 og.gain.setValueAtTime(lvl * vol, t);
@@ -6263,6 +6343,41 @@ const Game = {
                 o.start(t); o.stop(t + dur + 0.05);
             });
             g.connect(this.bus);
+        },
+
+        // A piano is a struck string that is *nearly* harmonic — the stretch is a fraction of a
+        // percent, not the dulcimer's two — plus the hammer itself, which is the felt thump the
+        // ear uses to tell a piano from a bell. Same oscillator bank, two different numbers.
+        piano(t, f, dur, vol) {
+            this.struck(t, f, dur, vol, [[1, 1], [2.002, 0.42], [3.008, 0.2], [4.02, 0.09], [5.04, 0.04]]);
+            let ac = this.ac, src = this.noise(0.03), lp = ac.createBiquadFilter(), g = ac.createGain();
+            lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 6, 5000);
+            g.gain.setValueAtTime(vol * 0.22, t);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+            src.connect(lp); lp.connect(g); g.connect(this.bus);
+            src.start(t); src.stop(t + 0.04);
+        },
+
+        // The one voice in here that is not pretending to be wood or gut: two saws a few cents
+        // apart through a resonant lowpass that falls over the note. The detune is the width and
+        // the falling filter is the movement — an analogue synth is those two things.
+        synth(t, f, dur, vol) {
+            let ac = this.ac, lp = ac.createBiquadFilter(), g = ac.createGain();
+            // Q 6 is a filter singing at its cutoff, which is the exact sound of cheap plastic
+            // preset; 2.5 still sweeps audibly but stops whistling. The ceiling comes down with
+            // it — above 4.5 kHz a detuned saw pair is fizz, not brightness (#98).
+            lp.type = 'lowpass'; lp.Q.value = 2.5;
+            lp.frequency.setValueAtTime(Math.min(f * 6, 4500), t);
+            lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.4, 110), t + Math.min(dur, 1.5));
+            [-7, 7].forEach(cents => {
+                let o = ac.createOscillator();
+                o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = cents;
+                o.connect(lp); o.start(t); o.stop(t + dur + 0.08);
+            });
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol * 0.5, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            lp.connect(g); g.connect(this.bus);
         },
 
         // Brass. A horn is a sawtooth whose filter snaps open on the attack and settles back:
@@ -6312,24 +6427,220 @@ const Game = {
             src.start(t); src.stop(t + dur + 0.02);
         },
 
+        // ---- the electric half (#98) ----
+        // Ten battle bands in one idiom is one band; the ask was synthwave, rock, pop,
+        // country, darksynth, folk and disco, and none of those are playable on a palette of
+        // lutes and horns. What follows is the smallest set of voices that makes them
+        // possible — a dance kit, a bass, a guitar, and the sound of the fight itself.
+
+        // The acoustic drum() is a taiko: bandpassed noise around 190 Hz. A dance kick is the
+        // opposite — barely any noise, a sine dropping fast, and a click on top, because a
+        // phone speaker cannot reproduce the fundamental at all and the click is what is left.
+        kick(t, vol) {
+            let ac = this.ac, o = ac.createOscillator(), g = ac.createGain();
+            o.frequency.setValueAtTime(155, t);
+            o.frequency.exponentialRampToValueAtTime(41, t + 0.09);
+            g.gain.setValueAtTime(vol, t);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+            o.connect(g); g.connect(this.bus); o.start(t); o.stop(t + 0.3);
+            let src = this.noise(0.012), hp = ac.createBiquadFilter(), cg = ac.createGain();
+            hp.type = 'highpass'; hp.frequency.value = 1400;
+            cg.gain.setValueAtTime(vol * 0.5, t);
+            cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.012);
+            src.connect(hp); hp.connect(cg); cg.connect(this.bus);
+            src.start(t); src.stop(t + 0.02);
+        },
+
+        // The backbeat, and it is two things at once: a band of noise for the wires under the
+        // head and a short tuned thud for the head itself. Noise alone is a hiss, the tone
+        // alone is a tom.
+        snare(t, vol) {
+            let ac = this.ac, src = this.noise(0.2), hp = ac.createBiquadFilter(), g = ac.createGain();
+            hp.type = 'highpass'; hp.frequency.value = 1100;
+            g.gain.setValueAtTime(vol, t);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+            src.connect(hp); hp.connect(g); g.connect(this.bus);
+            src.start(t); src.stop(t + 0.22);
+            [188, 331].forEach((f, i) => {
+                let o = ac.createOscillator(), og = ac.createGain();
+                o.type = 'triangle'; o.frequency.value = f;
+                og.gain.setValueAtTime(vol * (i ? 0.3 : 0.5), t);
+                og.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+                o.connect(og); og.connect(this.bus); o.start(t); o.stop(t + 0.1);
+            });
+        },
+
+        // Not one clap but a room of them: three bursts a few milliseconds apart and a longer
+        // tail. The scatter is the entire effect — a single burst is a snare with the tone
+        // missing, which is why a drum machine without it never sounded like a disco.
+        clap(t, vol) {
+            let ac = this.ac;
+            [0, 0.009, 0.019, 0.03].forEach((dt, i) => {
+                let tail = i === 3, dur = tail ? 0.18 : 0.02;
+                let src = this.noise(dur), bp = ac.createBiquadFilter(), g = ac.createGain();
+                bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.8;
+                g.gain.setValueAtTime(vol * (tail ? 0.55 : 1), t + dt);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + dt + dur);
+                src.connect(bp); bp.connect(g); g.connect(this.bus);
+                src.start(t + dt); src.stop(t + dt + dur + 0.02);
+            });
+        },
+
+        // Steel meeting steel, behind the band and never in front of it. The first version led
+        // with tuned partials around 600 Hz and came back as **a cowbell** — which is fair,
+        // because two inharmonic tones down there *is* how a cowbell is made. A blade is the
+        // other way round: almost all of it is a very bright, very short noise transient, and
+        // the ring on top is thin, high and quiet. Partials close enough together to beat
+        // against each other, rolled per hit so a row of clashes is a fight, not a machine.
+        clang(t, vol) {
+            let ac = this.ac, src = this.noise(0.09), hp = ac.createBiquadFilter(), g = ac.createGain();
+            hp.type = 'highpass'; hp.frequency.value = 3600;
+            g.gain.setValueAtTime(vol * 1.6, t);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+            src.connect(hp); hp.connect(g); g.connect(this.bus);
+            src.start(t); src.stop(t + 0.1);
+            this.struck(t + 0.004, 2400 + Math.random() * 900, 0.5, vol * 0.22,
+                        [[1, 1], [1.41, 0.8], [1.93, 0.55], [2.37, 0.35]]);
+        },
+
+        // A blade going past: one narrow band of noise sweeping up and back down. Nothing
+        // else is needed — a moving resonance is how the ear recognises something passing it.
+        whoosh(t, vol) {
+            let ac = this.ac, src = this.noise(0.26), bp = ac.createBiquadFilter(), g = ac.createGain();
+            bp.type = 'bandpass'; bp.Q.value = 3.5;
+            bp.frequency.setValueAtTime(500, t);
+            bp.frequency.exponentialRampToValueAtTime(2600, t + 0.11);
+            bp.frequency.exponentialRampToValueAtTime(420, t + 0.26);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol, t + 0.1);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+            src.connect(bp); bp.connect(g); g.connect(this.bus);
+            src.start(t); src.stop(t + 0.28);
+        },
+
+        // A line of men shouting, far enough off to be texture. Noise through two vowel
+        // formants with a slow swell: close up it would be comic, at this level and this
+        // distance it is a crowd, and it is mixed to sit under everything.
+        roar(t, vol) {
+            let ac = this.ac, src = this.noise(0.9), g = ac.createGain();
+            [700, 1150].forEach(f => {
+                let bp = ac.createBiquadFilter();
+                bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 5;
+                src.connect(bp); bp.connect(g);
+            });
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol, t + 0.3);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+            g.connect(this.bus); src.start(t); src.stop(t + 0.92);
+        },
+
+        // Synth bass. `synth()` sweeps its filter over the best part of a second, which is a
+        // pad's gesture; a bass has to be gone before the next eighth arrives, so the envelope
+        // is the difference between them, not the waveform. A sine doubles the saw because
+        // nothing the player owns reproduces 55 Hz — the sine at least leaves a harmonic to fold.
+        sub(t, f, dur, vol) {
+            let ac = this.ac, lp = ac.createBiquadFilter(), g = ac.createGain();
+            lp.type = 'lowpass'; lp.Q.value = 4;
+            lp.frequency.setValueAtTime(Math.min(f * 14, 2600), t);
+            lp.frequency.exponentialRampToValueAtTime(Math.max(f * 2, 90), t + Math.min(dur, 0.3));
+            let saw = ac.createOscillator(), sg = ac.createGain();
+            saw.type = 'sawtooth'; saw.frequency.value = f;
+            sg.gain.value = 0.5; saw.connect(sg); sg.connect(lp);
+            let sin = ac.createOscillator();
+            sin.type = 'sine'; sin.frequency.value = f; sin.connect(lp);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            lp.connect(g); g.connect(this.bus);
+            [saw, sin].forEach(o => { o.start(t); o.stop(t + dur + 0.05); });
+        },
+
+        // Electric guitar: two detuned saws folded through a waveshaper, then a cabinet — a
+        // lowpass near 3 kHz, which is the speaker rather than the amp. Distortion without
+        // that filter is a fizz; the cab is the whole difference between fuzz and a guitar.
+        // The curve is built once and kept: it is the same 1024 numbers for every note.
+        dist(t, f, dur, vol) {
+            let ac = this.ac, ws = ac.createWaveShaper(), cab = ac.createBiquadFilter();
+            let body = ac.createBiquadFilter(), pre = ac.createGain(), g = ac.createGain();
+            if(!this._curve) {
+                let n = 1024, c = new Float32Array(n);
+                // Drive 3.5, not 5: past tanh's knee the odd harmonics stop growing and only the
+                // fizz does. A real amp is driven until it sings, not until it buzzes (#98).
+                for(let i = 0; i < n; i++) c[i] = Math.tanh((i / (n - 1) * 2 - 1) * 3.5);
+                this._curve = c;
+            }
+            ws.curve = this._curve; ws.oversample = '2x';
+            cab.type = 'lowpass'; cab.frequency.value = 2400; cab.Q.value = 0.8;
+            // The cabinet is a wooden box as well as a speaker, and the bump at 220 Hz is the
+            // box. Without it the lowpass alone reads as a muffled buzzer.
+            body.type = 'peaking'; body.frequency.value = 220; body.Q.value = 1.2; body.gain.value = 4;
+            pre.gain.value = 0.45;
+            [-6, 6].forEach(cents => {
+                let o = ac.createOscillator();
+                o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = cents;
+                o.connect(pre); o.start(t); o.stop(t + dur + 0.05);
+            });
+            // Held, then released: a guitar note does not decay like a struck one, and the
+            // sustain is clamped off zero so a stab cannot put two events out of order.
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+            g.gain.setValueAtTime(vol, t + Math.max(dur * 0.7, 0.02));
+            g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(dur, 0.05));
+            pre.connect(ws); ws.connect(cab); cab.connect(body); body.connect(g); g.connect(this.bus);
+        },
+
         // The percussion alphabet a band's `drums` string is written in: loud and soft skin,
-        // rim, shaker, anvil. One table beats a switch, and a band reads as a rhythm you can
-        // see at a glance.
+        // rim, shaker, tambourine. One table beats a switch, and a band reads as a rhythm you
+        // can see at a glance. An anvil lived here too and was struck from the roster: a
+        // metallic hit in the middle of a battle is a scrape, not a weapon (#97).
         HITS: {
             O: ['drum', true, 0.38], o: ['drum', true, 0.2], X: ['drum', false, 0.26],
             x: ['drum', false, 0.15], s: ['shake', 0.05, 6200, 0.05], S: ['shake', 0.09, 5200, 0.09],
-            t: ['shake', 0.3, 3800, 0.06], c: ['struck', 1174, 0.6, 0.075]
+            t: ['shake', 0.3, 3800, 0.06], H: ['shake', 0.26, 7600, 0.045],
+            // The dance kit and the fight (#98). `s`/`H` double as closed and open hi-hat —
+            // a bandpass at 6–8 kHz already is one, so no new voice was written for it.
+            K: ['kick', 0.6], k: ['kick', 0.34], N: ['snare', 0.3], n: ['snare', 0.13],
+            c: ['clap', 0.22], W: ['clang', 0.13], w: ['whoosh', 0.1], R: ['roar', 0.11]
         },
-        hit(c, t) { let h = this.HITS[c]; if(h) this[h[0]](t, ...h.slice(1)); },
+        // Placing the parts (#98). Only the reverb was ever stereo — every dry voice connects to
+        // `this.bus` and so landed dead centre, which is a mono record with a wide tail on it.
+        // A part is positioned by pointing the bus at a panner for the length of the call:
+        // cheaper than threading a destination argument through fourteen voices, and the
+        // panners hang off the real bus, so `retire()` still silences the lot in one fade.
+        // Drums and the lead stay centre — that is where an ear expects the beat and the tune;
+        // everything else opens up around them.
+        PANS: {
+            arp: -0.4, ost: 0.22, harm: 0.45, pad: [-0.55, 0.55, 0], drone: [-0.5, 0.5],
+            // The kit: kick and snare are the centre of the record, the hands and the metal
+            // are what a room hears from the sides.
+            hit: { s: 0.35, S: 0.35, t: -0.3, H: -0.4, c: 0.3, W: -0.5, w: 0.5, R: 0, x: 0.25, X: 0.25 }
+        },
+
+        // Cached per bus, because the bus is rebuilt with every piece and a node may not be
+        // connected across two AudioContexts.
+        part(pan, fn) {
+            let real = this.bus;
+            if(pan) {
+                let c = this._pans;
+                if(!c || c.bus !== real) c = this._pans = { bus: real, m: {} };
+                if(!c.m[pan]) { let n = this.ac.createStereoPanner(); n.pan.value = pan; n.connect(real); c.m[pan] = n; }
+                this.bus = c.m[pan];
+            }
+            fn();
+            this.bus = real;
+        },
+
+        hit(c, t) { let h = this.HITS[c]; if(h) this.part(this.PANS.hit[c] || 0, () => this[h[0]](t, ...h.slice(1))); },
         // The drone carries the harmony the period actually used: a held tonic and its fifth
         // (organum), not a chord progression. Retuned rather than restarted, so a new piece
         // slides into place instead of cutting.
         setDrone(f, bright) {
             let ac = this.ac;
-            if(!this._dr) this._dr = [0, 1].map(() => {   // rebuilt with the bus: retire() stops the old pair
+            if(!this._dr) this._dr = [0, 1].map(i => {   // rebuilt with the bus: retire() stops the old pair
                 let o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
                 o.type = 'sawtooth'; lp.type = 'lowpass'; lp.Q.value = 0.6; g.gain.value = 0;
-                o.connect(lp); lp.connect(g); g.connect(this.bus); o.start();
+                o.connect(lp); lp.connect(g); o.start();
+                this.part(this.PANS.drone[i], () => g.connect(this.bus));
                 return { o, lp, g };
             });
             this._dr.forEach((v, i) => {
@@ -6366,7 +6677,12 @@ const Game = {
         newPiece(battle) {
             let c = battle ? this.BATTLE : this.MAP, r = Math.random;
             let any = a => a[Math.floor(r() * a.length)];
-            let b = any(this.BANDS.filter(x => !!x.battle === battle));
+            // Never the band that just finished: with ten to choose from a repeat is one roll
+            // in ten, and back-to-back is exactly what the 🎵 Sıradaki button is pressed to
+            // escape. `_last` rather than `this.piece.band`, because a skip goes through
+            // retire() — which has already thrown the piece away by the time this runs.
+            let pool = this.BANDS.filter(x => !!x.battle === battle && x !== this._last);
+            let b = this._last = any(pool.length ? pool : this.BANDS.filter(x => !!x.battle === battle));
             let sum = a => a.reduce((x, y) => x + y, 0);
             this.piece = {
                 battle, band: b, left: b.len, bar: 0,
@@ -6376,11 +6692,15 @@ const Game = {
                 prog: any(this.PROGS),
                 motif: { r: any(this.RHYTHMS.filter(x => sum(x) === b.beats)), c: any(this.CONTOURS) }
             };
-            if(this.bus) this.bus.gain.value = b.gain;
-            // A drone only suits a band whose harmony sits still. Under a guitar working
-            // through a VI or a VII it is mud, so most of the map bands do without.
-            if(b.drone) this.setDrone(this.hz(this.piece.tonic, this.piece.mode, 0) / 2, battle);
-            else if(this._dr) this._dr.forEach(v => v.g.gain.setTargetAtTime(0, this.ac.currentTime, 0.5));
+            // Everything below needs a live graph; above this line the roll is pure data,
+            // which is what lets the no-repeat rule be tested without an AudioContext.
+            if(this.bus) {
+                this.bus.gain.value = b.gain;
+                // A drone only suits a band whose harmony sits still. Under a guitar working
+                // through a VI or a VII it is mud, so most of the map bands do without.
+                if(b.drone) this.setDrone(this.hz(this.piece.tonic, this.piece.mode, 0) / 2, battle);
+                else if(this._dr) this._dr.forEach(v => v.g.gain.setTargetAtTime(0, this.ac.currentTime, 0.5));
+            }
             let el = document.getElementById('music-now');   // ⚙️ Ayarlar, if it happens to be open
             if(el) el.innerHTML = this.nowPlaying();
         },
@@ -6402,13 +6722,19 @@ const Game = {
             let root = p.prog[p.bar % p.prog.length], last = p.bar % p.prog.length === p.prog.length - 1;
             let f = d => this.hz(p.tonic, p.mode, d);
             if(b.drums) {
-                let n = b.drums.length, st = bar / n;
-                for(let i = 0; i < n; i++) this.hit(b.drums[i], t + i * st);
+                // A `drums` array is a set of stages the piece walks through, one after another
+                // over its `len` bars: the same grid, filling in. That is a build-up, and it is
+                // the one way percussion is allowed to be interesting on a calm map.
+                let g = Array.isArray(b.drums)
+                    ? b.drums[Math.min(b.drums.length - 1, Math.floor(p.bar / b.len * b.drums.length))]
+                    : b.drums;
+                let n = g.length, st = bar / n;
+                for(let i = 0; i < n; i++) this.hit(g[i], t + i * st);
                 // A fill over the last half of the closing bar: the one place the drums stop
                 // being a pulse and say something, and it lands where the melody turns around.
                 if(last) [0, 1, 2, 3].forEach(i => this.drum(t + bar - 4 * st + i * st, i === 3, 0.22 + i * 0.06));
             }
-            if(b.arp) {
+            if(b.arp) this.part(this.PANS.arp, () => {
                 let n = b.arp.pat.length, st = bar / n;
                 b.arp.pat.forEach((d, i) => {
                     // Thumb on the root at the halves, fingers on the chord tones between —
@@ -6417,20 +6743,25 @@ const Game = {
                     this[b.arp.v](t + i * st, f(bass ? root - 7 + (i ? 4 : 0) : root + d),
                                   st * (b.arp.hold || 2.6), b.arp.vol * (bass ? 2 : 1));
                 });
-            }
-            if(b.ost) {
-                let st = bar / b.ost.n;
-                for(let i = 0; i < b.ost.n; i++) this[b.ost.v](t + i * st, f(root) / 2, st * 0.75, b.ost.vol);
-            }
-            if(b.pad) b.pad.deg.forEach((d, i) =>
-                this[b.pad.v](t, f(root + (b.pad.lift || 0) + d), bar * 0.95, b.pad.vol * [1, 0.72, 0.55][i]));
+            });
+            if(b.ost) this.part(this.PANS.ost, () => {
+                let st = bar / b.ost.n, p2 = b.ost.pat;
+                // With a `pat` the engine room becomes a bass *line*; without one it pedals on
+                // the root, which is what anything epic wants underneath it.
+                for(let i = 0; i < b.ost.n; i++)
+                    this[b.ost.v](t + i * st, f(root + (p2 ? p2[i % p2.length] : 0)) / 2, st * 0.75, b.ost.vol);
+            });
+            // A chord's tones go to different places, which is the one thing that makes a pad
+            // sound like players rather than a preset.
+            if(b.pad) b.pad.deg.forEach((d, i) => this.part(this.PANS.pad[i] || 0, () =>
+                this[b.pad.v](t, f(root + (b.pad.lift || 0) + d), bar * 0.95, b.pad.vol * [1, 0.72, 0.55][i])));
             // The lead breathes: `bars` of melody in every four, the rest off. Always playing
             // is exhausting to listen to, and a chill screen is where that shows.
             if(b.lead && p.bar % 4 < b.lead.bars) this.bar(p, b.lead.lift).forEach(n => {
                 let dur = n.beats * spb * (b.lead.hold || 0.92);
                 let d = b.lead.stab ? Math.min(dur, spb * 0.45) : dur;
                 this[b.lead.v](t + n.at * spb, f(n.deg), d, b.lead.vol);
-                if(b.harm) this[b.harm.v](t + n.at * spb, f(n.deg + b.harm.deg), d, b.harm.vol);
+                if(b.harm) this.part(this.PANS.harm, () => this[b.harm.v](t + n.at * spb, f(n.deg + b.harm.deg), d, b.harm.vol));
             });
             p.bar++;
             this._at = t + bar;
@@ -6458,7 +6789,7 @@ const Game = {
             if(this._dr) this._dr.forEach(v => { v.g.gain.setTargetAtTime(0, t, 0.12); v.o.stop(t + 0.6); });
             this._dr = null;
             let old = this.bus;
-            this.bus = null; this.piece = null;
+            this.bus = null; this.piece = null; this._pans = null;
             if(!old) return;
             old.gain.setTargetAtTime(0, t, 0.08);
             setTimeout(() => old.disconnect(), 1500);   // long after the fade: an early disconnect clicks
@@ -6506,6 +6837,11 @@ const Game = {
                 this.set(m);
             }, 500);
         },
+
+        // A bar is queued ahead of the clock and Web Audio cannot un-schedule it, so a skip
+        // retires the whole bus — the same move `revive()` makes — and `set` rolls a fresh
+        // band on the way back in.
+        skip() { let m = this._mode; if(!m) return; this.set(null); this.set(m); },
 
         // The only entry point: 'map', 'battle', or null for silence.
         set(mode) {
@@ -6695,7 +7031,7 @@ const Game = {
     // Stays raw; translated at display with `T` (the table is built at load time,
     // when the language is still 'tr', so translating here would freeze the translation)
     KEYS: [['M', 'Harita'], ['C', 'Karakter'], ['P', 'Grup'], ['I', 'Envanter'], ['Q', 'Görevler'],
-           ['K', 'Diplomasi'], ['Esc', 'Haritaya dön / modalı kapat'], ['Enter', 'Modaldeki ana düğme'],
+           ['K', 'Diplomasi'], ['N', 'Sıradaki müzik parçası'], ['Esc', 'Haritaya dön / modalı kapat'], ['Enter', 'Modaldeki ana düğme'],
            ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['Boşluk', 'Kamerayı oyuncuya getir'],
            ['Savaşta W A S D', 'Hareket'], ['Sol tık / Boşluk', 'Vur veya ok at'],
            ['Sağ tık / Shift', 'Blok'], ['1 2 3', 'Taktik emirleri']],
@@ -6704,6 +7040,7 @@ const Game = {
                  ['✋ Sürükle', 'Haritayı kaydır'], ['🤏 İki parmak', 'Yakınlaştır / uzaklaştır'],
                  ['🎯 Beni Bul', 'Kamerayı sana getirir'], ['📋 Menü', 'Ekranlar arasında geçiş'],
                  ['🌍 Diplomasi', 'Krallıkların savaş/barış hâli'],
+                 ['🎵 Sıradaki', 'Yeni bir parça besteler'],
                  ['🕹️ Sol çubuk', 'Savaşta hareket'],
                  ['⚔️ Sağ çubuk', 'Kılıca yön ver — çektiğin yere vurur, bıraktığında savurur'],
                  ['🛡️ Düğme', 'Blok — basılı tut'],

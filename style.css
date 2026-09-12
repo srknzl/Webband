@@ -896,8 +896,10 @@ body {
 #top-bar #chip-time { cursor: pointer; }
 #top-bar .tooltip-content { max-width: min(340px, calc(100vw - 24px)); }
 
-/* Harita künyesindeki "Beni Bul" düğmesi — künye pointer-events:none olduğu için geri açılır */
-#btn-center, #btn-diplo, #btn-points, #btn-wait {
+/* Map HUD buttons — the badge is pointer-events:none, so they switch it back on.
+   Selected by their container, not by id: a fifth button was being added to four
+   separate id lists, which is how one of them ends up unstyled. */
+#map-comp button {
     pointer-events: auto;
     margin-left: 0.4rem;
     display: inline-flex; align-items: center; gap: 4px;
@@ -907,10 +909,10 @@ body {
     font-family: inherit; font-size: 0.72rem;
     padding: 1px 7px; border-radius: 5px; cursor: pointer;
 }
-#btn-center:hover, #btn-diplo:hover, #btn-points:hover, #btn-wait:hover { background: rgba(212,175,55,0.25); }
+#map-comp button:hover { background: rgba(212,175,55,0.25); }
 
 /* Harcanmamış nitelik/odak puanı rozeti (#35): dikkat çeker ama sıçramaz — yalnız ışık nefes alır */
-#btn-points {
+#map-comp #btn-points {
     color: #ffe9a8; font-weight: 600;
     background: rgba(212,175,55,0.22); border-color: rgba(212,175,55,0.65);
     animation: pointsGlow 2.2s ease-in-out infinite;
@@ -922,7 +924,7 @@ body {
 /* Klavyesiz cihazda kenar menüsünün tuş rozetleri yalan (#65).
    Dar ekran kuralı yetmiyordu: tablet geniş ama parmakla sürülür. */
 body.touch .menu-btn kbd { display: none; }
-#btn-center kbd, #btn-diplo kbd {
+#map-comp kbd {
     font-size: 0.62rem; padding: 0 4px; border-radius: 3px;
     background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted);
 }
@@ -1322,7 +1324,7 @@ input[type="range"] { touch-action: none; height: 2.4rem; }
        "düğmede yazı yok" demekti). Dokunma hedefi yine 44 px. */
     #map-hud { font-size: 0.66rem; padding: 0.3rem 0.4rem; }
     #map-comp { gap: 1px; }
-    #btn-center, #btn-diplo, #btn-points, #btn-wait {
+    #map-comp button {
         font-size: 0.6rem; margin-left: 0.15rem; padding: 1px 4px; gap: 2px;
     }
 }
@@ -1403,7 +1405,7 @@ body.lite #sidebar {
 body.lite .glass-panel { background: rgba(16,17,22,0.94); box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
 body.lite #modal-overlay { background: rgba(6,6,10,0.82); }
 /* Sürekli dönen animasyonlar kare başına bir kompozit katmanı demek */
-body.lite #btn-points, body.lite .fx-flash, body.lite .fx-flash-bad { animation: none; }
+body.lite #map-comp #btn-points, body.lite .fx-flash, body.lite .fx-flash-bad { animation: none; }
 body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 
 /* --- Öğretici (#87) ---
