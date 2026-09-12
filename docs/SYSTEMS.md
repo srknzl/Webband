@@ -2683,6 +2683,88 @@ the **purse on hand**. Measured (10,000 denars total): all of it on hand gives a
 0.90, leaving **1,000**; 90% in the treasury gives a ratio of 0.63, leaving **9,370**. The
 storage becomes real insurance this way.
 
+### Rumours — information has a price (#71)
+
+The tavern is the one place information costs something. **👂 Söylenti Dinle**: **20 denars**
+and **2-4 hours** of game time (`Game.listenRumor`, `RUMOR_COST` / `RUMOR_HOURS`). Skill buys
+two things and only two: **which stories reach you at all** and **how often they are wrong**.
+
+| Spotting | Tier | Lie chance | What you hear |
+|---|---|---|---|
+| 1-3 | 1 | 45% → 35% | a direction and nothing more ("a band to the north", "an army came through") |
+| 4-6 | 2 | 30% → 20% | who is where — a siege, a marshal's campaign, a lord's party and its size |
+| 7+ | 3 | 15% → 5% | numbers and dates — the best trade margin, a tournament/feast, a lair's purse |
+
+`rumorTier()` = 3 at Spotting ≥ 7, 2 at ≥ 4, else 1. `rumorLieChance()` =
+`max(0.05, 0.45 − (lvl−1) × 0.05)`. Generators below your tier stay in the bag, and each is
+weighted by its own tier — a trained ear doesn't just unlock the good stories, it hears them
+more often. Every draw grants 25 Spotting XP, so the skill trains itself by being used.
+
+**A false rumour is never an invented story** — it's a true story pinned to the wrong place.
+Each generator takes an `L` function and passes its subject through it before naming or
+marking it: the facts come from the real subject, the *place* comes from `L(subject)`, which
+is the subject itself when truthful and a random `LOCATIONS` entry when lying. One knob, no
+duplicated prose, and the lie costs you a three-day ride to a village nobody touched.
+
+Tier 2 and 3 stories drop a `state.knownLocations['rumor']` marker (3 days, the standard
+lifetime); tier 1 never does — a direction is not a map pin. The lair story sets `l.seen` on
+a **true** rumour, so paying for the right story genuinely puts a lair on the map.
+
+**The guild ledger** (`guildPrices`, 📈 in the town) used to hand over the whole trade map
+free and instantly. It now costs **50 denars** (`GUILD_FEE`), charged **once per town per
+day** (`state.guildPaid[locId]`) so paging back out of the table and in again is free.
+
+Measured (seed 3, 20 draws per level): Spotting **1** → tier 1, 45% lies, **0/20** markers,
+3.3 h/draw, story mix 400/0/0 · **4** → tier 2, 30%, 18/20, 2.9 h, 71/329/0 · **7** → tier 3,
+15%, 15/20, 2.9 h, 27/146/227 · **12** → tier 3, 5%, 17/20, 3.0 h, 31/148/221. Those 20 draws
+alone carry Spotting from 1 to 3. Guild fee: 50 denars charged on the first look, the second
+look the same day free.
+
+### Renown gates above 300 (#69, #53 item 1.4)
+
+`AMBITIONS` ended at "a landholder" and the game flattened into collecting the tax. Three
+gates open the late game's own ladder (`Game.RENOWN_GATES`), and the renown badge tooltip
+lists all five now (80 / 150 / 300 / 500 / 800). Gates read `peakRenown()`, so losing renown
+never takes a right back.
+
+**300 — hükmetme hakkı.** While **independent** (no `vassalOf`), stand in a village square
+with enough men and name a price: no siege, no sword. Needs the party to outweigh **80% of
+the militia** (`villageMilitia` = `max(4, prosperity/5)`). Costs the owner **−20 relation**,
+its kingdom's lords **−4**, the village **−5 prosperity**; pays **40% of `fiefTax`** daily
+(`TRIBUTE_CUT`) and **+3 right to rule**. War with the village's kingdom **zeroes** the
+payment the way an enterprise's gate closing stops its earnings; a new conqueror honours no
+old tribute (`captureSettlement` clears `tributeTo`). Shows up as `fiefIncome().levy`, its own
+treasury-tooltip row, and a `+N köy haracı` tail on the fief screen.
+
+**500 — yoldaş elçiliği.** Send a **companion** to a lord to negotiate relation or a truce
+(`envoyMenu` / `sendEnvoy` / `envoyTick`, `state.envoy`). The companion is **spliced out of
+the party for 3-6 days** — their skill leaves with them, which is the real cost. Chance =
+`0.25 + level × 0.02 + (Persuasion−1) × 0.03 + relation × 0.004`, clamped to 10-90%. Success
+gives +12..20 relation, or a truce via `makePeace`; failure −3 (−5 on a refused truce). One
+envoy at a time.
+
+**800 — mareşal adaylığı.** As a vassal, ask your king for the banner (`askMarshal`, needs
+relation ≥ 20 and the kingdom **at war**). `state.marshalOf` then makes the player the
+marshal in `campaignTick`: no lord is picked, and instead of being summoned to arms **you**
+choose the target (`chooseCampaignTarget` → `setCampaignTarget`). No new movement code —
+`updateNPCs` already walks lords toward `state.campaigns[f].targetLocId`. The post lasts
+**exactly one campaign**; `endCampaign` clears `marshalOf` (+10 renown, +5 right to rule if
+the target fell) and it has to be asked for again.
+
+Measured — **does the marshal's target actually pull lords?** 8 seeds, target picked
+*farthest from the lords* on purpose: **24/27 lords reached it within 20 days**, average
+distance to target **3788 → 2292**, arrival on a **median day 4** (range 1-11). Picking the
+target nearest the player instead: 15/27, 2629 → 2190, median day 3 (range 1-14). So the pen
+is real — pointing at the far side of the map still moves the army.
+
+Tribute per day (seed 3): Azgad (prosperity 56) **22** · Emirin (90) **36** · Pagundur (67)
+**27** · Yruma (65) **26** · Uslum (31) **12**; militia to outweigh 9/11 · 15/18 · 11/13 ·
+11/13 · 5/6.
+
+**Not measured**: the issue also asks which day each gate typically opens. `tools/sim.js` runs
+a **playerless** world — it has no renown curve to read — so that number would be invented,
+not measured. It needs a player-driving sim first.
+
 ## Visual layer (renovation)
 
 All drawing lives inside `app.js` + `battle.js`, no library. Shared approach: **bake the

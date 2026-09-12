@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.84', date: '2026-09-12', name: 'Usta Yerini Biliyor' };  // the version name is not translated
+const VERSION = { no: '0.85', date: '2026-09-12', name: 'Köşedeki Fısıltılar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -476,6 +476,9 @@ const state = {
     allies: {},          // 'a|b' -> the day the alliance was formed
     campaigns: {},       // faction -> { marshalId, marshalName, targetLocId, day, pledged, helped }
     campaignCooldown: {}, // faction -> the day the last campaign ended
+    guildPaid: {},       // locId -> the day the guild ledger fee was paid (#71)
+    marshalOf: null,     // the faction whose marshal the player is (#69)
+    envoy: null,         // { compId, name, lordId, backDay, mission } — companion sent as envoy (#69)
 };
 
 // --- INPUT ---
@@ -3617,6 +3620,7 @@ const Game = {
         }
 
         this.campaignTick();    // marshal selection, campaign target, calling the player
+        this.envoyTick();       // a companion sent as envoy comes back with an answer (#69)
         this.banditTick();      // bandits hit caravans on the road
         this.siegeTick();       // siege camp: preparation, starvation, relief army (#25)
 
@@ -3701,6 +3705,7 @@ const Game = {
             R(T('Günlük yemek'), T`-${Math.ceil(up.foodLow)} birim${up.foodHigh ? T` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
             (this.myFiefs().length ? R(T('Tımar vergisi'), T`+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
             (this.myEnterprises().length ? R(T('İşletme'), T`+${this.fiefIncome().trade} (${this.myEnterprises().length} işletme)`, true) : '') +
+            (this.tributaries().length ? R(T('Haraç'), T`+${this.fiefIncome().levy} (${this.tributaries().length} köy)`, true) : '') +
             (p.spouse ? R(T('Evlilik geliri'), '+50', true) : '') +
             (p.wageDebt > 0 ? R(T('Gecikmiş maaş'), T`${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
             (p.wageDebt > 0 ? R(T('Saatlik moral kaybı'), '-1', false) : ''),
@@ -3721,7 +3726,10 @@ const Game = {
             R(T('Ulaşılan en yüksek'), this.peakRenown(), null) +
             R(T('Salon konukları'), T('80 nam'), this.peakRenown() >= 80) +
             R(T('Kız isteme'), T('120 nam'), this.peakRenown() >= 120) +
-            R(T('Şölen daveti'), T('150 nam'), this.peakRenown() >= 150),
+            R(T('Şölen daveti'), T('150 nam'), this.peakRenown() >= 150) +
+            R(T('Hükmetme hakkı (köyü haraca bağla)'), T`${this.RENOWN_GATES.tribute} nam`, this.peakRenown() >= this.RENOWN_GATES.tribute) +
+            R(T('Yoldaş elçiliği'), T`${this.RENOWN_GATES.envoy} nam`, this.peakRenown() >= this.RENOWN_GATES.envoy) +
+            R(T('Mareşal adaylığı'), T`${this.RENOWN_GATES.marshal} nam`, this.peakRenown() >= this.RENOWN_GATES.marshal),
             T('Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.')));
 
         this.setHtml('tip-hp', this.tipBox(T('Can'),
@@ -4954,6 +4962,12 @@ const Game = {
                     this.addBtn(ac, T('🛒 Erzak Al'), () => this.openMarket(loc));
                 }
                 this.addBtn(ac, T('🔥 Köyü Yağmala'), () => this.raidVillage(loc));
+                // 300 renown: the right to rule — tribute without a siege (#69)
+                if(!state.player.vassalOf && loc.owner !== 'player') {
+                    this.addBtn(ac, loc.tributeTo === 'player'
+                        ? T`👑 Haraç (+${this.tributeOf(loc)} dinar/gün)` : T('👑 Haraca Bağla'),
+                        () => this.tributeVillage(loc));
+                }
             }
         }
         if(!isEnemy && !state.player.vassalOf && (loc.type==='city'||loc.type==='castle')) {
@@ -5708,8 +5722,18 @@ const Game = {
     },
     // The guildmaster's ledger: which good is cheap where, expensive where (like Warband's
     // "trade goods prices" screen). The only source of information for planning a route.
+    // The ledger is the trade game's only map, and it used to be free and instant. It now
+    // costs a fee — paid once per town per day, so paging back from the table is free (#71).
+    GUILD_FEE: 50,
     guildPrices(locId) {
         let here = LOCATIONS.find(l => l.id === locId);
+        if(state.guildPaid[locId] !== state.time.day) {
+            if(state.player.money < this.GUILD_FEE)
+                return alert(T`Lonca ustası defteri kapattı: "Bu defter ${this.GUILD_FEE} dinar. Bedava bilgi yok."`);
+            state.player.money -= this.GUILD_FEE;
+            state.guildPaid[locId] = state.time.day;
+            this.updateTopBar();
+        }
         let towns = LOCATIONS.filter(l => l.type === 'city')
                              .sort((a, b) => this.dist(a, here) - this.dist(b, here)).slice(0, 5);
         let goods = Object.values(ITEMS).filter(i => i.type === 'trade' || i.type === 'food');
@@ -6134,6 +6158,10 @@ const Game = {
         <p>Burada dinlenip canını yenileyebilirsin. (10 Dinar)`}</p>
         <button class="btn primary" onclick="Game.restAtTavern()">${T`Dinlen`}</button>
         <hr style="border-color:var(--panel-border);margin:1.2rem 0">
+        <h4 style="color:var(--primary)">${T`👂 Köşedeki Fısıltılar`}</h4>
+        <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`"Kadehi sen ödersen dilim çözülür. Ne kadar doğrudur, orasını bilmem."`}</p>
+        <button class="btn" onclick="Game.listenRumor('${loc.id}')">${T`👂 Söylenti Dinle (${this.RUMOR_COST} dinar, ${this.RUMOR_HOURS[0]}-${this.RUMOR_HOURS[1]} saat)`}</button>
+        <hr style="border-color:var(--panel-border);margin:1.2rem 0">
         <h4 style="color:var(--primary)">${T`🎵 Köşedeki Ozan`}</h4>
         <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`"Bir kadeh ve biraz gümüş, sana bir dize öğretirim. Kime okuyacağın seni ilgilendirir."`}</p>
         <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.6rem">`;
@@ -6171,7 +6199,8 @@ const Game = {
             <h4 style="color:var(--primary)">${T`⚖️ Lonca Ustası`}</h4>
             <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`Köşedeki masada, defterine bir şeyler yazıyor.`}</p>
             <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">${T`İşi Sor`}</button>
-            <button class="btn" onclick="Game.guildPrices('${loc.id}')">${T`📈 Fiyat Defterine Bak`}</button>`;
+            <button class="btn" onclick="Game.guildPrices('${loc.id}')">${state.guildPaid[loc.id] === state.time.day
+                ? T`📈 Fiyat Defterine Bak` : T`📈 Fiyat Defterine Bak (${this.GUILD_FEE} dinar)`}</button>`;
 
         // Companions at the tavern
         let here = COMPANIONS.filter(c => c.city === loc.id && !state.player.party.some(t => t.companionId === c.id));
@@ -6294,6 +6323,146 @@ const Game = {
             this.updateTopBar(); this.closeModal();
             alert(T('Bir gece handa kaldın (8 saat). Canın tamamen yenilendi.'));
         } else alert(T('Yeterli dinarın yok!'));
+    },
+
+    // --- RUMOURS (#71) ---
+    // The tavern is the one place information has a price: a round of drinks, a few hours
+    // of listening, and an ear trained by Spotting. Skill buys two things — which kinds of
+    // story reach you at all (tier), and how often the story is wrong.
+    //
+    // A false rumour is never a made-up story: it's a true story pinned to the wrong place.
+    // Every generator takes `L` and passes the subject through it before naming or marking
+    // it — the FACTS come from the real subject, the PLACE comes from `L(subject)`. So a
+    // lie costs you a three-day ride to a village that was never touched, which is the
+    // point: information you didn't pay enough for.
+    RUMOR_COST: 20,
+    RUMOR_HOURS: [2, 4],
+    // 1 — a direction and nothing more · 2 — who is where · 3 — numbers and dates
+    rumorTier() { let l = this.profLvl('spotting'); return l >= 7 ? 3 : l >= 4 ? 2 : 1; },
+    rumorLieChance() { return Math.max(0.05, 0.45 - (this.profLvl('spotting') - 1) * 0.05); },
+
+    RUMORS: [
+        // --- tier 1: a direction, no names ---
+        { tier: 1, run(here, L) {
+            let b = state.npcParties.filter(n => n.type === 'bandit' && Game.dist(n, here) < 3500)
+                                    .sort((a, c) => Game.dist(a, here) - Game.dist(c, here))[0];
+            if(!b) return null;
+            return { html: T`"Duyduğuma göre <b>${Nobles.compass(L(b))}</b> tarafta bir çete dolaşıyor. Yalnız yola çıkma."` };
+        }},
+        { tier: 1, run(here, L) {
+            // Any open front, not just this town's: a tavern hears about the big war too
+            let war = Object.keys(state.wars)[0];
+            if(!war) return null;
+            let [a, b] = war.split('|');
+            let front = LOCATIONS.filter(l => l.type !== 'village' && (l.faction === a || l.faction === b))
+                                 .sort((x, c) => Game.dist(x, here) - Game.dist(c, here))[0];
+            if(!front) return null;
+            let mine = Game.playerFaction();
+            return { html: T`"${Game.factionName(a)} ile ${Game.factionName(b)} birbirine girmiş.
+                <b>${Nobles.compass(L(front))}</b> tarafta ordu geçmiş, yollar tekin değil."${mine === a || mine === b ? T(' Hancı sana bir de yan yan baktı.') : ''}` };
+        }},
+        // --- tier 2: who, and where ---
+        { tier: 2, run(here, L) {
+            let a = state.npcParties.filter(n => n.lordId && n.siegeLocId)[0];
+            if(!a) return null;
+            let target = LOCATIONS.find(l => l.id === a.siegeLocId);
+            if(!target) return null;
+            let at = L(target);
+            return { html: T`"<b>${T(a.name)}</b> ordusunu <b>${T(at.name)}</b> kapısına dayamış. Surlar ne kadar dayanır bilinmez."`,
+                     mark: { x: at.x, y: at.y, radius: 150, name: T`Kuşatma: ${T(at.name)}` } };
+        }},
+        { tier: 2, run(here, L) {
+            let f = Object.keys(state.campaigns)[0];
+            if(!f) return null;
+            let c = state.campaigns[f], target = LOCATIONS.find(l => l.id === c.targetLocId);
+            if(!target) return null;
+            let at = L(target);
+            return { html: T`"<b>${T(c.marshalName)}</b> mareşal seçilmiş. ${Game.factionName(f)} ordusu
+                <b>${T(at.name)}</b> üzerine yürüyor — oralarda işin varsa acele et."`,
+                     mark: { x: at.x, y: at.y, radius: 200, name: T`Sefer: ${T(at.name)}` } };
+        }},
+        { tier: 2, run(here, L) {
+            let lp = state.npcParties.filter(n => n.lordId && Game.dist(n, here) < 2500)
+                                     .sort((a, c) => Game.dist(a, here) - Game.dist(c, here))[0];
+            if(!lp) return null;
+            let at = L(lp);
+            return { html: T`"<b>${T(lp.name)}</b> geçen gün buradan geçti, ${T(String(lp.size))} kişi kadar vardılar.
+                Şu sıra ${Nobles.compass(at)} tarafta olmalı."`,
+                     mark: { x: at.x, y: at.y, radius: 500, name: T(lp.name) } };
+        }},
+        // --- tier 3: numbers and dates ---
+        { tier: 3, run(here, L) {
+            // The best margin between this town and the nearest five: which good, where, how much
+            let towns = LOCATIONS.filter(l => l.type === 'city' && l.id !== here.id)
+                                 .sort((a, c) => Game.dist(a, here) - Game.dist(c, here)).slice(0, 5);
+            let goods = Object.values(ITEMS).filter(i => i.type === 'trade');
+            let best = null;
+            towns.forEach(t => goods.forEach(g => {
+                let gap = Game.priceMult(t, g.id) - Game.priceMult(here, g.id);
+                if(!best || gap > best.gap) best = { gap, town: t, good: g };
+            }));
+            if(!best || best.gap < 0.15) return null;
+            let at = L(best.town);
+            return { html: T`"Buradan <b>${T(best.good.name)}</b> alıp <b>${T(at.name)}</b>'a götüren adam
+                yüzde <b>${Math.round(best.gap * 100)}</b> kâr ediyor. Bunu sana ben söylemedim."` };
+        }},
+        { tier: 3, run(here, L) {
+            let cid = Object.keys(state.activeTournaments)[0];
+            let feast = state.feast && LOCATIONS.find(l => l.id === state.feast.locId);
+            let town = feast || LOCATIONS.find(l => l.id === cid);
+            if(!town) return null;
+            let at = L(town);
+            return { html: feast
+                ? T`"<b>${T(at.name)}</b>'da şölen var, soylular oraya akıyor. Namın varsa kapıdan çevirmezler."`
+                : T`"<b>${T(at.name)}</b>'da turnuva kuruluyor. Kılıcına güveniyorsan kese doldurursun."`,
+                     mark: { x: at.x, y: at.y, radius: 150, name: T(at.name) } };
+        }},
+        { tier: 3, run(here, L) {
+            let l = Game.lairs().filter(x => x.purse > 150)
+                                .sort((a, c) => Game.dist(a, here) - Game.dist(c, here))[0];
+            if(!l) return null;
+            let at = L(l);
+            if(at === l) l.seen = true;   // a true rumour genuinely puts the lair on the map
+            return { html: T`"${Nobles.compass(at)} tarafta bir haydut ini var. Soydukları neredeyse
+                <b>${Math.round(l.purse)} dinar</b> etmiş diyorlar. Kimse üstüne gitmeye cesaret edemiyor."`,
+                     mark: { x: at.x, y: at.y, radius: 250, name: T('Haydut İni') } };
+        }}
+    ],
+
+    listenRumor(locId) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc) return;
+        if(state.player.money < this.RUMOR_COST)
+            return alert(T`Hancı kadehi geri aldı: "Bir hikâye ${this.RUMOR_COST} dinar. Bedava konuşan yok."`);
+        state.player.money -= this.RUMOR_COST;
+
+        let tier = this.rumorTier();
+        let lie = Math.random() < this.rumorLieChance();
+        let L = t => lie ? LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)] : t;
+        // Weighted by tier: a trained ear doesn't just unlock the good stories, it hears them more often
+        let bag = [];
+        this.RUMORS.filter(r => r.tier <= tier).forEach(r => {
+            let out = r.run(loc, L);
+            if(out) for(let i = 0; i < r.tier; i++) bag.push(out);
+        });
+
+        let hours = this.RUMOR_HOURS[0] + Math.floor(Math.random() * (this.RUMOR_HOURS[1] - this.RUMOR_HOURS[0] + 1));
+        this.advanceTime(hours);
+        this.addProficiencyXp('spotting', 25);
+        this.updateTopBar();
+
+        let r = bag[Math.floor(Math.random() * bag.length)];
+        if(r && r.mark) state.knownLocations['rumor'] =
+            { x: r.mark.x, y: r.mark.y, radius: r.mark.radius, day: state.time.day, name: r.mark.name };
+
+        this.showModal(`<h3>${T`👂 Söylenti — ${T(loc.name)}`}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`${hours} saat kadar köşede oturdun, kadehleri ödedin (−${this.RUMOR_COST} dinar).`}</p>
+            <p style="font-style:italic;line-height:1.6">${r ? r.html : T`"Bugün anlatacak bir şey yok. Herkes kendi derdinde."`}</p>
+            ${r && r.mark ? `<p style="color:var(--primary);font-size:var(--fs-sm)">${T`📍 Haritaya bir işaret düştü (3 gün geçerli).`}</p>` : ''}
+            <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Gözcülük ${this.profLvl('spotting')} — duyduğun sözün ağırlığı ${tier}/3,
+            yanlış çıkma ihtimali ${this.pct(Math.round(this.rumorLieChance() * 100))}. Handa duyulan her söz doğru değildir.`}</p>
+            <button class="btn primary" onclick="Game.listenRumor('${loc.id}')">${T`👂 Bir tur daha (${this.RUMOR_COST} dinar)`}</button>
+            <button class="btn" onclick="Game.openTavern(LOCATIONS.find(l=>l.id==='${loc.id}'))">${T`Geri`}</button>`, '620px');
     },
 
     // --- ARENA (#26) ---
@@ -6453,15 +6622,20 @@ const Game = {
             // A new campaign summons shouldn't stomp the finished one's reward modal
             if(state.time.day - (state.campaignCooldown[f] || -99) < 3) return;
             if(state.campaigns[f] || !this.warsOf(f).length || Math.random() > 0.25) return;
-            let marshal = this.pickMarshal(f);
+            // The player holds the post (#69): the banner is theirs, no lord is picked
+            let mine = state.marshalOf === f;
+            let marshal = mine ? state.player : this.pickMarshal(f);
             if(!marshal) return;
             let target = LOCATIONS.filter(l => l.type !== 'village' && this.atWar(f, l.faction))
                                   .sort((a, b) => this.dist(a, marshal) - this.dist(b, marshal))[0];
             if(!target) return;
-            state.campaigns[f] = { marshalId: marshal.lordId, marshalName: marshal.name,
-                                   targetLocId: target.id, day: state.time.day };
-            this.news(T`🎖️ ${T(marshal.name)} mareşal seçildi — ${this.factionName(f)} ordusu ${T(target.name)} üzerine yürüyor.`);
-            if(f === this.playerFaction() && f !== 'player_kingdom') this.summonToArms(f);
+            state.campaigns[f] = { marshalId: mine ? 'player' : marshal.lordId,
+                                   marshalName: mine ? state.player.name : marshal.name,
+                                   targetLocId: target.id, day: state.time.day, pledged: mine || undefined };
+            this.news(T`🎖️ ${T(state.campaigns[f].marshalName)} mareşal seçildi — ${this.factionName(f)} ordusu ${T(target.name)} üzerine yürüyor.`);
+            // The marshal isn't summoned to arms, the marshal picks where the arms go
+            if(mine) this.chooseCampaignTarget(f);
+            else if(f === this.playerFaction() && f !== 'player_kingdom') this.summonToArms(f);
         });
     },
     endCampaign(f) {
@@ -6473,6 +6647,13 @@ const Game = {
         let won = loc && loc.faction === f;
         this.news(won ? T`🎖️ ${this.factionName(f)} seferi ${T(loc.name)} ile taçlandı.`
                       : T`🏳️ ${this.factionName(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
+        // A marshal serves one campaign; the post has to be asked for again (#69)
+        if(state.marshalOf === f) {
+            state.marshalOf = null;
+            if(won) { state.player.renown += 10; state.player.rightToRule += 5; }
+            this.news(won ? T`🎖️ Mareşallik görevin zaferle bitti (+10 nam, +5 idare hakkı).`
+                          : T`🎖️ Mareşallik görevin sonuçsuz bitti; sancak başkasına geçti.`, true);
+        }
         if(c.pledged === undefined || f !== this.playerFaction()) return;
         delete state.knownLocations['campaign'];
         if(!c.pledged) return;                       // the cost of refusing was already paid at the summons
@@ -6514,6 +6695,142 @@ const Game = {
         if(join) return alert(T('Sancağını kaldırdın. Ordunun hedefine yürü — sefer işareti haritada.'));
         LORDS.filter(l => l.faction === f).forEach(l => Nobles.addRel(l.id, -5));
         alert(T('Çağrıyı geri çevirdin. Krallığın bütün lordlarıyla ilişkin −5.'));
+    },
+
+    // --- COMPANION ENVOY (#69, 500 renown) ---
+    // A name worth 500 renown can speak through someone else's mouth. A companion rides out
+    // to a lord and negotiates; the price is that they are out of your party for days —
+    // their party skill goes with them, so sending the surgeon before a war is a real choice.
+    ENVOY_DAYS: [3, 6],
+    envoyCompanions() { return state.player.party.filter(t => t.isCompanion && !t.wounded); },
+    envoyMenu(lordId) {
+        let lord = Nobles.lord(lordId), gate = this.RENOWN_GATES.envoy;
+        let back = `<button class="btn" onclick="Nobles.talk('${lordId}')">${T`Geri`}</button>`;
+        let no = msg => this.showModal(`<h3>${T`🕊️ Elçilik`}</h3><p>${msg}</p>${back}`);
+        if(this.peakRenown() < gate)
+            return no(T`Elçi göndermek, gönderenin adının tanınmasını ister — gereken nam <b>${gate}</b>,
+                sende <b>${this.peakRenown()}</b>. Bu kapıdan geçmeden yoldaşını kapıdan çevirirler.`);
+        if(state.envoy)
+            return no(T`<b>${T(state.envoy.name)}</b> zaten yolda; <b>${Math.max(0, state.envoy.backDay - state.time.day)}</b> gün sonra döner.
+                Aynı anda tek elçin olabilir.`);
+        let comps = this.envoyCompanions();
+        if(!comps.length) return no(T`Gönderecek yoldaşın yok. Elçilik sıradan bir askerin işi değil.`);
+
+        let atWar = this.atWar(this.playerFaction(), lord.faction);
+        let html = `<h3>${T`🕊️ ${T(lord.name)}'a Elçi Gönder`}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`Yoldaşın gruptan
+            ${this.ENVOY_DAYS[0]}-${this.ENVOY_DAYS[1]} gün ayrılır; yeteneği de onunla gider.
+            İkna kabiliyeti ve seviyesi işin sonucunu belirler.`}</p>`;
+        comps.forEach(c => {
+            let ch = Math.round(this.envoyChance(c, lordId) * 100);
+            html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.7rem;margin-bottom:0.5rem">
+                <b>${T(c.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`· seviye ${c.level} · başarı ${ch}%`}</span>
+                <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap">
+                <button class="btn" style="font-size:var(--fs-sm)" onclick="Game.sendEnvoy('${lordId}','${c.id}','rel')">${T`🤝 İlişki pazarlığı`}</button>
+                ${atWar
+                    ? `<button class="btn" style="font-size:var(--fs-sm)" onclick="Game.sendEnvoy('${lordId}','${c.id}','truce')">${T`🏳️ Ateşkes teklif et`}</button>`
+                    : `<button class="btn" disabled style="opacity:0.4;font-size:var(--fs-sm)">${T`🏳️ Ateşkes (savaşta değilsiniz)`}</button>`}
+                </div></div>`;
+        });
+        this.showModal(html + back, '620px');
+    },
+    // Level is the companion's own weight, Persuasion the party's silver tongue, relation the door already open
+    envoyChance(comp, lordId) {
+        return Math.max(0.1, Math.min(0.9,
+            0.25 + comp.level * 0.02 + (this.profLvl('persuasion') - 1) * 0.03 + Nobles.rel(lordId) * 0.004));
+    },
+    sendEnvoy(lordId, compId, mission) {
+        let i = state.player.party.findIndex(t => t.id === compId);
+        if(i < 0 || state.envoy) return;
+        let comp = state.player.party[i];
+        let days = this.ENVOY_DAYS[0] + Math.floor(Math.random() * (this.ENVOY_DAYS[1] - this.ENVOY_DAYS[0] + 1));
+        state.envoy = { compId, mission, lordId, name: comp.name, troop: comp,
+                        chance: this.envoyChance(comp, lordId), backDay: state.time.day + days };
+        state.player.party.splice(i, 1);
+        this.closeModal();
+        this.updateTopBar();
+        alert(T`<b>${T(comp.name)}</b> atına atladı. <b>${days} gün</b> sonra haberle döner.`);
+    },
+    envoyTick() {
+        let e = state.envoy;
+        if(!e || state.time.day < e.backDay) return;
+        state.envoy = null;
+        state.player.party.push(e.troop);           // comes back even if the party is over capacity — morale pays for that
+        let lord = Nobles.lord(e.lordId);
+        let won = Math.random() < e.chance;
+        if(!lord) return alert(T`<b>${T(e.name)}</b> eli boş döndü — gittiği lordu bulamamış.`);
+        if(e.mission === 'truce') {
+            let f = this.playerFaction();
+            if(won && this.atWar(f, lord.faction)) {
+                this.makePeace(f, lord.faction);
+                Nobles.addRel(e.lordId, 5);
+                alert(T`<b>${T(e.name)}</b> döndü: <b>${this.factionName(lord.faction)}</b> ile ateşkes imzalandı.`);
+            } else {
+                Nobles.addRel(e.lordId, -5);
+                alert(T`<b>${T(e.name)}</b> kapıdan çevrilmiş. <i>"Kılıç konuşurken elçi dinlenmez,"</i> demişler.
+                    ${T(lord.name)} ile −5 ilişki.`);
+            }
+        } else {
+            let n = won ? 12 + Math.floor(Math.random() * 9) : -3;
+            Nobles.addRel(e.lordId, n);
+            alert(won
+                ? T`<b>${T(e.name)}</b> masadan gülerek kalkmış. ${T(lord.name)} ile <b>+${n}</b> ilişki.`
+                : T`<b>${T(e.name)}</b> lafı ağzına tıkanmış döndü. ${T(lord.name)} ile <b>−3</b> ilişki.`);
+        }
+        this.updateTopBar();
+    },
+
+    // --- MARSHALCY (#69, 800 renown) ---
+    // The campaign system already marches every lord of a kingdom onto a single target
+    // (updateNPCs). Marshalcy simply hands the player the pen that writes that target:
+    // no new pathfinding, the army that used to march for an NPC now marches for you.
+    // The post is for one campaign — it has to be asked for again next time.
+    askMarshal(lordId) {
+        let f = state.player.vassalOf, gate = this.RENOWN_GATES.marshal, r = Nobles.rel(lordId);
+        let back = `<button class="btn" onclick="Nobles.talk('${lordId}')">${T`Geri`}</button>`;
+        let no = msg => this.showModal(`<h3>${T`🎖️ Mareşallik`}</h3><p>${msg}</p>${back}`);
+        if(this.peakRenown() < gate)
+            return no(T`Kral kadehini bırakmadı bile: <i>"Sancağı taşıyacak adamın adı ordudan önce varmalı."</i><br><br>
+                Gereken nam <b>${gate}</b>, sende <b>${this.peakRenown()}</b>.`);
+        if(state.marshalOf === f) return no(T`Mareşal zaten sensin. Seferin hedefini sen belirliyorsun.`);
+        if(!this.warsOf(f).length) return no(T`<i>"Barış zamanı mareşale ne gerek var?"</i> Krallığın şu an savaşta değil.`);
+        if(r < this.MARSHAL_REL)
+            return no(T`<i>"Sancağı tanımadığım adama vermem."</i><br><br>Gereken ilişki <b>${this.MARSHAL_REL}</b>,
+                aranızdaki <b>${r}</b>.`);
+        this.closeModal();
+        state.marshalOf = f;
+        LORDS.filter(l => l.faction === f && l.id !== lordId).forEach(l => Nobles.addRel(l.id, -2));   // the passed-over lords sulk
+        this.news(T`🎖️ ${T(state.player.name)} mareşal seçildi — ${this.factionName(f)} ordusu senin hedefine yürüyecek.`);
+        let c = state.campaigns[f];
+        if(c) {                       // a campaign already under way: you take the banner over mid-march
+            c.marshalId = 'player'; c.marshalName = state.player.name; c.pledged = true;
+            return this.chooseCampaignTarget(f);
+        }
+        alert(T`Kral sancağı sana verdi. Krallık sefere çıktığında hedefi <b>sen</b> seçeceksin.
+            Diğer lordlar bu tercihten pek hoşlanmadı (−2 ilişki).`);
+    },
+    MARSHAL_REL: 20,
+    chooseCampaignTarget(f) {
+        let c = state.campaigns[f];
+        if(!c) return;
+        let targets = LOCATIONS.filter(l => l.type !== 'village' && this.atWar(f, l.faction))
+                               .sort((a, b) => this.dist(a, state.player) - this.dist(b, state.player)).slice(0, 6);
+        if(!targets.length) return this.endCampaign(f);
+        let rows = targets.map(l => `<button class="btn" style="text-align:left" onclick="Game.setCampaignTarget('${f}','${l.id}')">
+            ${l.type === 'city' ? '🏰' : '🗼'} <b>${T(l.name)}</b>
+            <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`· ${this.factionName(l.faction)} · garnizon ~${this.garrisonOf(l)} · ${Math.round(this.dist(l, state.player))} birim uzakta`}</span></button>`).join('');
+        this.showModal(`<h3>${T`🎖️ Sefer Hedefini Seç`}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`Mareşal sensin. Seçtiğin yere
+            ${this.factionName(f)} lordları yürüyecek — ama sancağın onların yanında olmazsa nam da olmaz.`}</p>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">${rows}</div>`, '620px');
+    },
+    setCampaignTarget(f, locId) {
+        let c = state.campaigns[f], loc = LOCATIONS.find(l => l.id === locId);
+        this.closeModal();
+        if(!c || !loc) return;
+        c.targetLocId = locId;
+        c.day = state.time.day;         // the clock restarts with the new target
+        this.news(T`🎖️ Mareşal ${T(state.player.name)} ordunun yönünü ${T(loc.name)} üzerine çevirdi.`, true);
     },
 
     // One front starts open when the world is built (Calradia is never at peace)
@@ -6621,7 +6938,7 @@ const Game = {
         atk.size = Math.max(10, Math.round(atk.size * 0.6));   // the siege eats into the army
         // The villages around the castle/city change hands too
         this.villagesOf(loc).filter(l => l.faction === old)
-            .forEach(l => { l.faction = atk.faction; l.owner = null; });
+            .forEach(l => { l.faction = atk.faction; l.owner = null; l.tributeTo = null; });   // a new lord honours no old tribute (#69)
         // A fief you left undefended is lost; its garrison is put to the sword
         // ponytail: the storage doesn't change hands — the new owner is assumed not to find the cellar
         let lostFief = '';
@@ -6680,7 +6997,7 @@ const Game = {
                     <span style="color:#ffcc00;min-width:110px">${T`+${this.fiefTax(l)} dinar/gün`}</span>
                     <span style="color:${(l.garrison || []).length ? '#2ecc71' : '#e0463a'}">${T`🛡️ ${(l.garrison || []).length} garnizon`}</span>
                     ${this.vassals().length && l.type !== 'village' ? `<button class="btn" style="padding:0.1rem 0.5rem;font-size:var(--fs-xs)" onclick="Game.grantFiefMenu('${l.id}')">${T`👑 Vassala ver`}</button>` : ''}
-                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi${this.fiefIncome().tribute ? T` · +${this.fiefIncome().tribute} haraç` : ''} · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> ${T`dinar/gün`}</div>` : ''}
+                </div>`).join('') + `<div style="padding:0.4rem 0;color:var(--text-muted)">Toplam: +${this.fiefIncome().tax} vergi${this.fiefIncome().tribute ? T` · +${this.fiefIncome().tribute} haraç` : ''}${this.fiefIncome().levy ? T` · +${this.fiefIncome().levy} köy haracı` : ''} · −${this.fiefIncome().wage} garnizon maaşı · <b style="color:${this.fiefIncome().net >= 0 ? '#2ecc71' : '#e0463a'}">net ${this.fiefIncome().net >= 0 ? '+' : ''}${this.fiefIncome().net}</b> ${T`dinar/gün`}</div>` : ''}
             ${this.vassals().length ? `<h3 style="margin-top:1rem">${T`👑 Vassalların`}</h3>` + this.vassals().map(v =>
                 `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
                     <span style="min-width:150px;font-weight:600">${T(v.name)}</span>
@@ -6740,7 +7057,9 @@ const Game = {
             a + this.fiefsOf(v.id).reduce((b, l) => b + Math.round(this.fiefTax(l) * this.VASSAL_TRIBUTE), 0), 0);
         // Enterprise income is part of the daily flow too (#53/1.6)
         let trade = this.myEnterprises().reduce((a, l) => a + (this.enterpriseWorks(l) ? this.enterpriseIncome(l) : 0), 0);
-        return { tax, tribute, trade, wage, troops, net: tax + tribute + trade - wage };
+        // Villages you put under tribute without taking them (#69)
+        let levy = this.tributaries().reduce((a, l) => a + this.tributeOf(l), 0);
+        return { tax, tribute, trade, levy, wage, troops, net: tax + tribute + trade + levy - wage };
     },
     // After a conquest: the settlement becomes your fief, the villages around it change flag too
     grantFief(loc, oldFaction) {
@@ -7013,6 +7332,9 @@ const Game = {
     // which closed the hall (80) / marriage proposal (120) / feast (150) gates all at
     // once — losing honor should hit your purse and relationships, not the gate.
     // Every reader also updates the peak value at the same time — no separate hook needed.
+    // Gates above 300 (#69): the AMBITIONS chain ended at "a landholder" and the game
+    // flattened into "collect the tax". These three open the late game's own ladder.
+    RENOWN_GATES: { tribute: 300, envoy: 500, marshal: 800 },
     peakRenown() {
         let p = state.player;
         return (p.maxRenown = Math.max(p.maxRenown || 0, p.renown || 0));
@@ -7169,6 +7491,64 @@ const Game = {
         <button class="btn primary" onclick="Game.closeModal(); Game.startRaid('${loc.id}', ${militia})">${T`🔥 Yak ve Yağmala`}</button>
         <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`);
     },
+    // --- TRIBUTE: THE RIGHT TO RULE (#69, 300 renown) ---
+    // Warband's answer to "I have a name but no land" was: take a castle. At 300 renown an
+    // independent captain can do the smaller thing instead — ride up to a village with an
+    // army at his back and name a price. No siege, no battle; the village keeps its lord,
+    // you take a cut of its tax. The lord it belongs to does not forget who did this.
+    TRIBUTE_CUT: 0.4,
+    TRIBUTE_MILITIA: 0.8,     // the share of the militia your party has to outweigh
+    tributaries() { return LOCATIONS.filter(l => l.tributeTo === 'player'); },
+    // Nothing comes through a closed front: war with its kingdom stops the payments (like an enterprise)
+    tributeOf(loc) {
+        return this.atWar(this.playerFaction(), loc.faction) ? 0 : Math.round(this.fiefTax(loc) * this.TRIBUTE_CUT);
+    },
+    villageMilitia(loc) { return Math.max(4, Math.round((loc.prosperity || 50) / 5)); },
+    tributeVillage(loc) {
+        let gate = this.RENOWN_GATES.tribute, militia = this.villageMilitia(loc);
+        let need = Math.ceil(militia * this.TRIBUTE_MILITIA);
+        let owner = this.ownerLord(loc);
+        let back = `<button class="btn" onclick="Game.closeModal()">${T`Geri`}</button>`;
+        let no = msg => this.showModal(`<h3>${T`👑 Haraç — ${T(loc.name)}`}</h3><p>${msg}</p>${back}`);
+
+        if(this.peakRenown() < gate)
+            return no(T`Köy yaşlısı omuz silkti: <i>"Sen de kimsin?"</i><br><br>
+                Bir köyü kılıç çekmeden haraca bağlamak için adının önden gitmesi gerekir —
+                gereken nam <b>${gate}</b>, sende <b>${this.peakRenown()}</b>.`);
+        if(state.player.vassalOf)
+            return no(T`Sen bir derebeyisin; bu köyün vergisi senin kralının. Kendi bayrağın altında olmadan haraç toplayamazsın.`);
+        if(loc.tributeTo === 'player')
+            return no(T`<b>${T(loc.name)}</b> zaten sana haraç veriyor — günde <b>${this.tributeOf(loc)} dinar</b>.`);
+        if(state.player.party.length < need)
+            return no(T`Köy milisi <b>${militia}</b> kişi; arkanda <b>${need}</b> kılıç olmadan kimse keseyi açmaz.
+                Grubunda <b>${state.player.party.length}</b> asker var.`);
+
+        this.showModal(`<h3>${T`👑 ${T(loc.name)} Haraca Bağla`}</h3>
+            <p>${T`Adamlarınla meydanda durdun, kılıç çekmedin. Köy yaşlısı hesabı kendi yaptı:
+            günde <b>${Math.round(this.fiefTax(loc) * this.TRIBUTE_CUT)} dinar</b>, sen sağ oldukça.`}</p>
+            <p style="color:var(--danger);line-height:1.5">${T`Bedeli:`}
+                ${owner ? `${T`${T(owner.name)} ile ilişki`} <b>−20</b>, ` : ''}${T`${this.factionName(loc.faction)} lordları <b>−4</b>,
+                köyün refahı <b>−5</b>. Krallığıyla savaşa girersen haraç durur.
+                <br>Karşılığında <b>+3 idare hakkı</b> — kendi krallığını kurduğunda bu rakam konuşur.`}</p>
+            <button class="btn primary" onclick="Game.closeModal(); Game.imposeTribute('${loc.id}')">${T`👑 Fiyatı Söyle`}</button>
+            <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`);
+    },
+    imposeTribute(locId) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc || loc.tributeTo === 'player') return;
+        loc.tributeTo = 'player';
+        loc.tributeDay = state.time.day;
+        loc.prosperity = Math.max(5, (loc.prosperity || 50) - 5);
+        let owner = this.ownerLord(loc);
+        if(owner) Nobles.addRel(owner.id, -20);
+        LORDS.filter(l => l.faction === loc.faction && (!owner || l.id !== owner.id))
+             .forEach(l => Nobles.addRel(l.id, -4));
+        state.player.rightToRule += 3;
+        this.updateTopBar();
+        alert(T`<b>${T(loc.name)}</b> haraca bağlandı — günde <b>${this.tributeOf(loc)} dinar</b>.
+            ${owner ? T`${T(owner.name)} bunu duyacak.` : ''}`);
+    },
+
     startRaid(locId, count) {
         state.player.currentRaid = { locId };
         let loc = LOCATIONS.find(l => l.id === locId);
@@ -8238,7 +8618,8 @@ const Save = {
             // launch — otherwise, on load, the roads/player position land in a completely different world.
             locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, parentId: l.parentId, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
                 owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock,
-                enterprise: l.enterprise, treasury: l.treasury, intel: l.intel })),   // enterprise, treasury (#53), memory (#74)
+                enterprise: l.enterprise, treasury: l.treasury, intel: l.intel,
+                tributeTo: l.tributeTo, tributeDay: l.tributeDay })),   // enterprise, treasury (#53), memory (#74), tribute (#69)
             playerKingdom: FACTIONS['player_kingdom'] || null
         };
     },

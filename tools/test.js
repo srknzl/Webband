@@ -702,6 +702,201 @@ test('bandit lair: erodes the region, pays out when cleared, and is a band sourc
     assert.strictEqual(g.Game.bandCount(), 0, 'a band spawned with no lair present');
 });
 
+// --- Rumours (#71) ---
+// Information was free and instant before this: the guild ledger handed over every
+// price in the world for nothing. Three claims: the tavern charges coin AND hours,
+// Spotting decides both which stories reach you and how often they're wrong, and a
+// false rumour is a true story pinned to the wrong place (not invented prose).
+test('rumour: the tavern charges coin and hours, and Spotting sets tier and lie rate', () => {
+    const g = H.world({ seed: 3 });
+    const { Game, state, LOCATIONS } = g;
+    H.run(g, 40);                      // a live world: bandits, lord parties, campaigns
+    const town = LOCATIONS.find(l => l.type === 'city');
+    const at = lvl => { state.player.proficiencies.spotting.level = lvl;
+                        return { tier: Game.rumorTier(), lie: Game.rumorLieChance() }; };
+    assert.strictEqual(at(1).tier, 1, 'an untrained ear is hearing above tier 1');
+    assert.strictEqual(at(4).tier, 2);
+    assert.strictEqual(at(7).tier, 3);
+    assert.ok(at(1).lie > at(12).lie, 'the lie rate isn\'t falling with Spotting');
+
+    state.player.proficiencies.spotting.level = 9;
+    state.player.money = 10000;
+    const money = state.player.money, clock = state.time.day * 24 + state.time.hour;
+    Game.listenRumor(town.id);
+    assert.strictEqual(state.player.money, money - Game.RUMOR_COST, 'listening was free');
+    const hours = (state.time.day * 24 + state.time.hour) - clock;
+    between(hours, Game.RUMOR_HOURS[0], Game.RUMOR_HOURS[1], 'hours spent listening');
+
+    // With no coin there is no story and no clock — the check has to come first
+    state.player.money = 0;
+    const clock2 = state.time.day * 24 + state.time.hour;
+    Game.listenRumor(town.id);
+    assert.strictEqual((state.time.day * 24 + state.time.hour), clock2, 'a penniless player still lost hours');
+});
+
+test('rumour: every generator produces a story, and a lie only moves the place', () => {
+    const g = H.world({ seed: 3 });
+    const { Game, state, LOCATIONS } = g;
+    H.run(g, 40);
+    const town = LOCATIONS.find(l => l.type === 'city');
+    const truth = t => t;
+    Game.RUMORS.forEach((r, i) => {
+        const out = r.run(town, truth);
+        assert.ok(out === null || (out && typeof out.html === 'string' && out.html.length > 10),
+            `rumour generator ${i} returned something undisplayable`);
+        if(out && out.mark) assert.ok(isFinite(out.mark.x) && isFinite(out.mark.y), `generator ${i} marked a nowhere`);
+    });
+    assert.ok(Game.RUMORS.every(r => r.run(town, truth)),
+        'a generator found nothing to say in a 40-day-old world');
+
+    // The lie: same generator, same world, a different place named
+    const far = LOCATIONS[LOCATIONS.length - 1];
+    const gen = Game.RUMORS.find(r => r.run(town, truth) && r.run(town, truth).mark);
+    const a = gen.run(town, truth), b = gen.run(town, () => far);
+    assert.notStrictEqual(a.mark.x, b.mark.x, 'a false rumour marked the true place anyway');
+
+    // A tier-1 story is a direction, never a map pin
+    Game.RUMORS.filter(r => r.tier === 1).forEach((r, i) => {
+        const out = r.run(town, truth);
+        assert.ok(!out || !out.mark, `vague rumour ${i} is dropping a map marker`);
+    });
+});
+
+test('rumour: the guild ledger is paid for once per town per day', () => {
+    const g = H.world({ seed: 3 });
+    const { Game, state, LOCATIONS } = g;
+    const town = LOCATIONS.find(l => l.type === 'city');
+    const other = LOCATIONS.filter(l => l.type === 'city' && l.id !== town.id)[0];
+    state.player.money = 1000;
+    Game.guildPrices(town.id);
+    assert.strictEqual(state.player.money, 1000 - Game.GUILD_FEE, 'the ledger was free');
+    Game.guildPrices(town.id);
+    assert.strictEqual(state.player.money, 1000 - Game.GUILD_FEE, 'paging back charged a second fee');
+    Game.guildPrices(other.id);
+    assert.strictEqual(state.player.money, 1000 - Game.GUILD_FEE * 2, 'a second town shares the first one\'s fee');
+});
+
+// --- Renown gates 300/500/800 (#69) ---
+test('gate 300: tribute needs renown, independence and an army, then pays daily', () => {
+    const g = H.world({ seed: 5 });
+    const { Game, state, LOCATIONS, LORDS, Nobles } = g;
+    const vil = LOCATIONS.find(l => l.type === 'village');
+    const owner = Game.ownerLord(vil);
+    const refuses = () => { Game.tributeVillage(vil); return vil.tributeTo !== 'player'; };
+
+    state.player.renown = state.player.maxRenown = 100;
+    assert.ok(refuses(), '100 renown was enough to impose tribute');
+    state.player.renown = state.player.maxRenown = Game.RENOWN_GATES.tribute;
+    state.player.vassalOf = 'swadia';
+    assert.ok(refuses(), 'a vassal collected tribute of his own');
+    state.player.vassalOf = null;
+    assert.ok(refuses(), 'an empty party was enough to name a price');
+
+    const need = Math.ceil(Game.villageMilitia(vil) * Game.TRIBUTE_MILITIA);
+    for(let i = 0; i < need; i++) state.player.party.push(troop(5, { id: 'tr' + i }));
+    const rel = owner ? Nobles.rel(owner.id) : 0;
+    Game.imposeTribute(vil.id);
+    assert.strictEqual(vil.tributeTo, 'player', 'the village didn\'t come under tribute');
+    assert.ok(Game.tributeOf(vil) > 0, 'tribute pays nothing');
+    assert.strictEqual(Game.fiefIncome().levy, Game.tributeOf(vil), 'tribute is outside the daily flow');
+    if(owner) assert.ok(Nobles.rel(owner.id) < rel, 'the village\'s lord didn\'t mind at all');
+
+    // War closes the road: an enterprise's rule, applied to tribute
+    Game.declareWar(Game.playerFaction(), vil.faction);
+    assert.strictEqual(Game.tributeOf(vil), 0, 'tribute kept flowing across a front');
+    Game.makePeace(Game.playerFaction(), vil.faction);
+
+    // A new lord honours no old tribute
+    const parent = LOCATIONS.find(l => l.id === vil.parentId) || LOCATIONS.find(l => l.type === 'castle' && l.faction === vil.faction);
+    const enemy = Object.keys(g.FACTIONS).find(f => f !== parent.faction && f !== 'player_kingdom');
+    Game.captureSettlement(parent, { faction: enemy, size: 100 });
+    assert.ok(!vil.tributeTo, 'the tribute survived the village changing hands');
+});
+
+test('gate 500: the envoy leaves the party, comes back, and only one rides at a time', () => {
+    const g = H.world({ seed: 5 });
+    const { Game, state, LORDS, Nobles } = g;
+    const lord = LORDS.find(l => l.rank !== 'king');
+    const comp = { id: 'comp_x', companionId: 'x', isCompanion: true, name: 'Yoldaş', level: 15, xp: 0, xpNext: 18 };
+    state.player.party = [comp];
+    state.player.renown = state.player.maxRenown = Game.RENOWN_GATES.envoy;
+
+    Game.sendEnvoy(lord.id, 'comp_x', 'rel');
+    assert.ok(state.envoy, 'the envoy never set out');
+    assert.ok(!state.player.party.some(t => t.id === 'comp_x'), 'the envoy is still in the party');
+    const back = state.envoy.backDay;
+    between(back - state.time.day, Game.ENVOY_DAYS[0], Game.ENVOY_DAYS[1], 'days the envoy is away');
+
+    state.player.party.push({ id: 'comp_y', companionId: 'y', isCompanion: true, name: 'Öbürü', level: 10, xp: 0, xpNext: 13 });
+    Game.sendEnvoy(lord.id, 'comp_y', 'rel');
+    assert.strictEqual(state.envoy.compId, 'comp_x', 'a second envoy set out at the same time');
+
+    const rel = Nobles.rel(lord.id);
+    while(state.time.day < back) H.run(g, 1);
+    assert.strictEqual(state.envoy, null, 'the envoy never came home');
+    assert.ok(state.player.party.some(t => t.id === 'comp_x'), 'the companion didn\'t rejoin the party');
+    assert.notStrictEqual(Nobles.rel(lord.id), rel, 'the mission changed nothing either way');
+});
+
+// The point of the post: the army marches where YOU point, not where it would have gone.
+// The target picked here is the enemy holding farthest from the kingdom's own lords.
+test('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords', () => {
+    let lords = 0, reached = 0, seeds = 0;
+    for(const seed of [1, 3, 4, 5]) {
+        const g = H.world({ seed });
+        const { Game, state, LOCATIONS, LORDS } = g;
+        H.run(g, 20);
+        const f = Object.keys(g.FACTIONS).find(x => x !== 'player_kingdom' && Game.warsOf(x).length);
+        if(!f) continue;
+        const king = LORDS.find(l => l.faction === f && l.rank === 'king');
+        state.player.vassalOf = f;
+        state.player.renown = state.player.maxRenown = Game.RENOWN_GATES.marshal;
+        state.relations[king.id] = Game.MARSHAL_REL + 20;
+        let w = 0; while(!state.campaigns[f] && w++ < 60) H.run(g, 1);
+        if(!state.campaigns[f]) continue;
+
+        Game.askMarshal(king.id);
+        assert.strictEqual(state.marshalOf, f, 'the king refused a qualified candidate');
+        assert.strictEqual(state.campaigns[f].marshalId, 'player', 'the banner didn\'t change hands');
+
+        const ours = () => state.npcParties.filter(n => n.lordId && n.faction === f && n.size > 0);
+        const enemies = LOCATIONS.filter(l => l.type !== 'village' && Game.atWar(f, l.faction));
+        if(!enemies.length || !ours().length) continue;
+        const n = ours().length;
+        const cen = ours().reduce((a, p) => ({ x: a.x + p.x / n, y: a.y + p.y / n }), { x: 0, y: 0 });
+        const tgt = enemies.sort((a, b) => Game.dist(b, cen) - Game.dist(a, cen))[0];
+        Game.setCampaignTarget(f, tgt.id);
+        assert.strictEqual(state.campaigns[f].targetLocId, tgt.id, 'the marshal\'s order wasn\'t written down');
+
+        seeds++; lords += n;
+        const seen = new Set();
+        for(let d = 0; d < 20 && state.campaigns[f]; d++) {
+            H.run(g, 1);
+            ours().filter(p => Game.dist(p, tgt) < 500).forEach(p => seen.add(p.lordId));
+        }
+        reached += seen.size;
+    }
+    assert.ok(seeds >= 3, `only ${seeds} seeds produced a campaign to lead`);
+    assert.ok(reached / lords >= 0.5,
+        `the marshal's target pulled only ${reached}/${lords} lords in 20 days — the post is decorative`);
+});
+
+test('gate 800: the post lasts exactly one campaign', () => {
+    const g = H.world({ seed: 3 });
+    const { Game, state, LORDS } = g;
+    H.run(g, 20);
+    const f = Object.keys(g.FACTIONS).find(x => x !== 'player_kingdom' && Game.warsOf(x).length);
+    const king = LORDS.find(l => l.faction === f && l.rank === 'king');
+    state.player.vassalOf = f;
+    state.player.renown = state.player.maxRenown = Game.RENOWN_GATES.marshal;
+    state.relations[king.id] = Game.MARSHAL_REL + 20;
+    let w = 0; while(!state.campaigns[f] && w++ < 60) H.run(g, 1);
+    Game.askMarshal(king.id);
+    assert.strictEqual(state.marshalOf, f);
+    Game.endCampaign(f);
+    assert.strictEqual(state.marshalOf, null, 'the marshalcy outlived its campaign');
+});
+
 // --- Language layer (#81) ---
 // Both classes of bug are caught statically: a key missing from a dictionary
 // (code changed after the dictionary did) and a translation frozen in a

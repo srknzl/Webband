@@ -459,6 +459,15 @@ const Nobles = {
             });
         }
 
+        // Renown gates (#69): a companion speaks for you at 500, the king's banner is asked for at 800
+        if(Game.envoyCompanions().length || state.envoy)
+            html += `<button class="btn" onclick="Game.envoyMenu('${id}')">${state.envoy
+                ? T`🕊️ ${T(state.envoy.name)} yolda (${Math.max(0, state.envoy.backDay - state.time.day)} gün)`
+                : T`🕊️ Yoldaşını elçi gönder (${Game.RENOWN_GATES.envoy} nam)`}</button>`;
+        if(n.rank === 'king' && n.faction === state.player.vassalOf)
+            html += `<button class="btn" style="border-color:#e0b062;color:#e0b062" onclick="Game.askMarshal('${id}')">${state.marshalOf === n.faction
+                ? T`🎖️ Mareşal sensin` : T`🎖️ Mareşallik iste (${Game.RENOWN_GATES.marshal} nam)`}</button>`;
+
         // A player who is king can retain lords — the price is a fief (#40)
         if(Game.isKing() && n.rank !== 'king' && n.faction !== 'player_kingdom')
             html += `<button class="btn" style="border-color:var(--primary);color:var(--primary)" onclick="Game.offerVassalage('${id}')">${T`👑 Krallığıma katıl (tımar teklif et)`}</button>`;
