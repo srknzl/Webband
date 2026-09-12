@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.96', date: '2026-09-12', name: 'Koro ve Flüt' };  // the version name is not translated
+const VERSION = { no: '0.97', date: '2026-09-12', name: 'Gitar ve Keman' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -5947,20 +5947,17 @@ const Game = {
         // tonic is a MIDI note (50 = D3), bpm a range, len the number of phrases before the
         // piece is re-rolled. Phrases end on degree 0/1/3/4 — always landing on the tonic is
         // the cliché the modes are here to avoid.
-        MAP:    { modes: ['dorian', 'aeolian', 'lydian', 'mixolydian'], tonic: [50, 57], bpm: [58, 72] },
-        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [124, 148] },
-        // Who plays the piece. Each mode has two bands and one is drawn at random per piece,
-        // which is the other half of "varied": not only a new tune every time but a different
-        // group playing it. `gain` is measured, not guessed — a lone lute and a choir with a
-        // string section do not arrive at the same loudness on their own. Names stay raw
-        // Turkish here and go through T() at the display site, as every data table does.
+        MAP:    { modes: ['dorian', 'aeolian', 'lydian', 'mixolydian'], tonic: [52, 59], bpm: [66, 80] },
+        BATTLE: { modes: ['dorian', 'phrygian', 'aeolian'],             tonic: [45, 50], bpm: [92, 112] },
+        // One band per mode, and both are the line-up that was asked for: acoustic guitar
+        // with a flute on the map, drums, violins and a choir in battle. The psaltery and the
+        // lone shawm that used to share the draw are deleted (#96) — variety nobody wants to
+        // listen to is not variety. `gain` is measured, not guessed. Names stay raw Turkish
+        // here and go through T() at the display site, as every data table does.
         ENSEMBLES: [
-            { id: 'ozan',  battle: false, name: 'Yalnız Ozan',    emit: 'emitLute',   len: 9,  gain: 1.7,  drone: true },
-            { id: 'cayir', battle: false, name: 'Çayır Yolu',     emit: 'emitGuitar', len: 16, gain: 1.5 },
-            { id: 'davul', battle: true,  name: 'Davul ve Zurna', emit: 'emitShawm',  len: 28, gain: 0.55, drone: true },
-            { id: 'cenk',  battle: true,  name: 'Cenk Korosu',    emit: 'emitChoir',  len: 40, gain: 0.6,  drone: true }
+            { id: 'cayir', battle: false, name: 'Çayır Yolu',  emit: 'emitGuitar', len: 16, gain: 1.5 },
+            { id: 'cenk',  battle: true,  name: 'Cenk Korosu', emit: 'emitChoir',  len: 24, gain: 1, drone: true }
         ],
-        ENDS: [0, 1, 3, 4],
         // One chord per bar, as scale degrees. No progression contains the seventh degree as
         // a chord root, so there is never a leading tone pulling home: the chords lean
         // instead of resolving, which is the modal sound and not the Renaissance-fair one.
@@ -5971,23 +5968,33 @@ const Game = {
 
         // ---- the score: no audio in here, which is the half worth testing ----
 
-        // One phrase as [{ deg, beats }]. `deg` indexes the mode (0 = tonic) and may run past
-        // an octave either way; hz() turns it into a pitch.
-        phrase(rnd, cfg) {
-            let out = [], deg = cfg.start, beats = 0;
-            let span = cfg.span[0] + Math.floor(rnd() * (cfg.span[1] - cfg.span[0] + 1));
-            while(beats < span) {
-                let d = Math.min(cfg.durs[Math.floor(rnd() * cfg.durs.length)], span - beats);
-                out.push({ deg, beats: d });
-                beats += d;
-                // Stepwise by default; the occasional leap of a fourth or fifth is what keeps
-                // a modal line from sounding like a scale exercise.
-                deg += rnd() < 0.76 ? (rnd() < 0.5 ? -1 : 1) : (rnd() < 0.5 ? -3 : 4);
-                if(deg > cfg.hi) deg -= 5;
-                if(deg < cfg.lo) deg += 5;
-            }
-            out[out.length - 1].deg = this.ENDS[Math.floor(rnd() * this.ENDS.length)];
-            return out;
+        // A rhythm and a shape, each exactly one bar. The first version generated every note
+        // from an independent random walk, which is precisely why it noodled: nothing ever
+        // came back, so there was nothing to recognise. A piece now draws ONE rhythm and ONE
+        // contour and plays that motif over every chord of the progression — repetition is
+        // what turns a handful of notes into a tune (#96).
+        RHYTHMS: [
+            [1, 1, 2], [2, 1, 1], [1, 0.5, 0.5, 2], [1.5, 0.5, 2], [1, 1, 1, 1], [2, 2], [0.5, 0.5, 1, 2]
+        ],
+        // Steps of the mode, relative to the bar's chord root. They lean on the chord tones
+        // (0, 2, 4) so the melody sits on the harmony instead of arguing with it.
+        CONTOURS: [
+            [0, 2, 4, 2], [4, 2, 0, 2], [0, -1, 2, 4], [2, 4, 7, 4], [0, 4, 2, 0], [7, 4, 2, 0], [0, 2, 1, 4]
+        ],
+
+        // One bar of melody as [{ deg, beats, at }], `at` in beats from the bar's start.
+        // `lift` raises the whole shape by scale degrees (7 = the octave, where the flute and
+        // the violins live). The progression's last bar plays the contour backwards: a repeat
+        // needs one variation or it turns into wallpaper.
+        bar(p, lift) {
+            let i = p.bar % p.prog.length, m = p.motif;
+            let c = i === p.prog.length - 1 ? m.c.slice().reverse() : m.c;
+            let root = p.prog[i] + (lift || 0), at = 0;
+            return m.r.map((beats, j) => {
+                let n = { deg: root + c[j % c.length], beats, at };
+                at += beats;
+                return n;
+            });
         },
 
         // Degree -> Hz. Degrees outside 0..6 wrap into the octaves above and below.
@@ -6003,8 +6010,9 @@ const Game = {
         // instead of a beep, and it is pure arithmetic — no sample, no library. Built per
         // note rather than cached: the adds are nothing next to holding PCM on a phone, and
         // fresh noise means no two plucks are identical.
-        pluck(t, f, dur, vol, tone) {
+        pluck(t, f, dur, vol) {
             let ac = this.ac, sr = ac.sampleRate;
+            t += (Math.random() - 0.5) * 0.012;   // a picking hand is not a sequencer
             let len = Math.floor(sr * Math.min(3, dur + 1.2)), n = Math.max(2, Math.round(sr / f));
             let buf = ac.createBuffer(1, len, sr), d = buf.getChannelData(0), ring = new Float32Array(n);
             for(let i = 0; i < n; i++) ring[i] = Math.random() * 2 - 1;
@@ -6012,15 +6020,18 @@ const Game = {
                 d[i] = ring[j];
                 ring[j] = (ring[j] + ring[(j + 1) % n]) * 0.498;   // 0.996 per period: highs fade first, as on a real string
             }
-            let src = ac.createBufferSource(), g = ac.createGain(), lp = ac.createBiquadFilter();
+            let src = ac.createBufferSource(), g = ac.createGain();
+            let lp = ac.createBiquadFilter(), bd = ac.createBiquadFilter();
             src.buffer = buf;
-            // Raw Karplus-Strong is a psaltery: bright and wiry. A lowpass at 3.2k is the
-            // wooden body an acoustic guitar has and a bare string does not — so the cutoff
-            // is what tells the two map bands apart, not a second synthesis routine.
-            lp.type = 'lowpass'; lp.frequency.value = tone || 3200; lp.Q.value = 0.7;
+            // Raw Karplus-Strong is a psaltery: bright, wiry, and the reason the old map music
+            // did not sound acoustic. The lowpass is the wooden top; the peak at 190 Hz is the
+            // air inside the box, and that resonance is most of the difference between "a
+            // string" and "a guitar" (#96).
+            lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.7;
+            bd.type = 'peaking'; bd.frequency.value = 190; bd.Q.value = 1.1; bd.gain.value = 7;
             g.gain.setValueAtTime(vol, t);
             g.gain.setTargetAtTime(0.0001, t + dur * 0.85, 0.22);
-            src.connect(lp); lp.connect(g); g.connect(this.bus);
+            src.connect(lp); lp.connect(bd); bd.connect(g); g.connect(this.bus);
             src.start(t); src.stop(t + len / sr);
         },
 
@@ -6084,21 +6095,28 @@ const Game = {
         // of the score whose cost scales with how many notes are playing at once.
         section(t, f, dur, vol) {
             let v = Game.lite() ? [1] : [1, 1.005, 0.995, 0.5];
-            v.forEach(m => this.bow(t, f * m, dur, vol * (m === 0.5 ? 0.8 : 0.62), true));
+            v.forEach(m => this.bow(t, f * m, dur, vol * (m === 0.5 ? 0.8 : 0.62)));
         },
 
-        // Vielle on the map, shawm in battle: a sawtooth under a lowpass, with a bow's slow
-        // attack and a little vibrato. `bright` opens the filter and shortens the attack.
-        bow(t, f, dur, vol, bright) {
+        // One violin: a sawtooth under a resonant lowpass. Two things stop it being a buzzer.
+        // The filter opens for 60 ms at the start of every stroke — that is rosin catching the
+        // string, and it is what the ear hears as a bow. And the vibrato fades IN, because no
+        // player shakes a note they have only just started (#96).
+        bow(t, f, dur, vol) {
             let ac = this.ac, o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
             let vib = ac.createOscillator(), va = ac.createGain();
+            t += (Math.random() - 0.5) * 0.014;          // no section plays perfectly together
             o.type = 'sawtooth'; o.frequency.value = f;
-            vib.type = 'sine'; vib.frequency.value = 4.3 + Math.random(); va.gain.value = f * 0.006;
+            vib.type = 'sine'; vib.frequency.value = 5 + Math.random() * 0.8;
+            va.gain.setValueAtTime(0.0001, t);
+            va.gain.linearRampToValueAtTime(f * 0.008, t + Math.min(0.45, dur * 0.6));
             vib.connect(va); va.connect(o.frequency);
-            lp.type = 'lowpass'; lp.frequency.value = f * (bright ? 5 : 2.6); lp.Q.value = 0.9;
+            lp.type = 'lowpass'; lp.Q.value = 2.2;
+            lp.frequency.setValueAtTime(Math.min(f * 8, 14000), t);
+            lp.frequency.exponentialRampToValueAtTime(Math.min(f * 4, 9000), t + 0.06);
             g.gain.setValueAtTime(0.0001, t);
-            g.gain.linearRampToValueAtTime(vol, t + (bright ? 0.03 : 0.2));
-            g.gain.setValueAtTime(vol, t + dur * 0.7);
+            g.gain.linearRampToValueAtTime(vol, t + 0.045);
+            g.gain.setValueAtTime(vol, t + dur * 0.75);
             g.gain.linearRampToValueAtTime(0.0001, t + dur);
             o.connect(lp); lp.connect(g); g.connect(this.bus);
             o.start(t); vib.start(t);
@@ -6121,7 +6139,7 @@ const Game = {
                 let o = ac.createOscillator(), og = ac.createGain();
                 o.frequency.setValueAtTime(150, t);
                 o.frequency.exponentialRampToValueAtTime(52, t + 0.13);
-                og.gain.setValueAtTime(vol * 1.3, t);
+                og.gain.setValueAtTime(vol, t);
                 og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
                 o.connect(og); og.connect(this.bus); o.start(t); o.stop(t + 0.18);
             }
@@ -6170,18 +6188,20 @@ const Game = {
         // Rolls a fresh piece: mode, key, tempo, chords. Twice the same one is a coincidence.
         newPiece(battle) {
             let c = battle ? this.BATTLE : this.MAP, r = Math.random;
-            let band = this.ENSEMBLES.filter(e => e.battle === battle);
-            let ens = band[Math.floor(r() * band.length)];
+            let any = a => a[Math.floor(r() * a.length)];
+            let ens = any(this.ENSEMBLES.filter(e => e.battle === battle));
             this.piece = {
-                battle, ens, left: ens.len, start: 0, bar: 0,
-                mode: c.modes[Math.floor(r() * c.modes.length)],
+                battle, ens, left: ens.len, bar: 0,
+                mode: any(c.modes),
                 tonic: c.tonic[0] + Math.floor(r() * (c.tonic[1] - c.tonic[0] + 1)),
                 bpm: c.bpm[0] + r() * (c.bpm[1] - c.bpm[0]),
-                prog: this.PROGS[Math.floor(r() * this.PROGS.length)]
+                prog: any(this.PROGS),
+                motif: { r: any(this.RHYTHMS), c: any(this.CONTOURS) },
+                pick: any(this.PICK)
             };
             if(this.bus) this.bus.gain.value = ens.gain;
-            // Çayır Yolu is the one band without a drone: its guitar chords already carry the
-            // harmony, and a fixed tonic under a VI or VII bar is mud.
+            // Çayır Yolu has no drone: its guitar chords already carry the harmony, and a
+            // fixed tonic under a VI or VII bar is mud.
             if(ens.drone) this.setDrone(this.hz(this.piece.tonic, this.piece.mode, 0) / 2, battle);
             else if(this._dr) this._dr.forEach(v => v.g.gain.setTargetAtTime(0, this.ac.currentTime, 0.5));
             let el = document.getElementById('music-now');   // ⚙️ Ayarlar, if it happens to be open
@@ -6197,85 +6217,50 @@ const Game = {
             return T`🎶 Çalan: <b>${T(p.ens.name)}</b> · ${mode}`;
         },
 
-        // Yalnız Ozan — the first arrangement, kept: one plucked line, a vielle under its long
-        // notes, and a real rest between phrases. Sparse on purpose; it is the band for a map
-        // you are staring at, where Çayır Yolu is the one for a map you are travelling.
-        emitLute(spb) {
-            let p = this.piece, t = this._at;
-            let ph = this.phrase(Math.random, { start: p.start, span: [6, 10], durs: [1, 1, 1.5, 2, 3], lo: -2, hi: 9 });
-            ph.forEach(n => {
-                let f = this.hz(p.tonic, p.mode, n.deg);
-                this.pluck(t, f, n.beats * spb, 0.2, 6000);      // bright: a psaltery, not a guitar
-                if(n.beats >= 2 && Math.random() < 0.45) this.bow(t, f / 2, n.beats * spb, 0.045, false);
-                t += n.beats * spb;
-            });
-            p.start = ph[ph.length - 1].deg;
-            p.bar++;
-            this._at = t + (2 + Math.random() * 3.5) * spb;
-        },
-
-        // Davul ve Zurna — the first battle arrangement, kept: frame drum and a single shawm.
-        // Thinner than Cenk Korosu and all the better for a skirmish with eight men a side.
-        emitShawm(spb) {
-            let p = this.piece, t = this._at, e = spb / 2;
-            for(let i = 0; i < 6; i++) {
-                if(i === 0 || i === 3) this.drum(t + i * e, true, 0.45);
-                else if(i % 3 === 2 || Math.random() < 0.22) this.drum(t + i * e, false, 0.2);
-            }
-            let ph = this.phrase(Math.random, { start: p.start, span: [6, 6], durs: [1, 1, 1, 2], lo: 0, hi: 9 });
-            let tt = t;
-            ph.forEach(n => { this.bow(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * e, 0.11, true); tt += n.beats * e; });
-            p.start = ph[ph.length - 1].deg;
-            p.bar++;
-            this._at = t + 6 * e;
-        },
-
-        // Çayır Yolu — one bar, 4 beats: a fingerpicked guitar all the way through, a flute
-        // over every other one. The first version played a single string and then waited — "sparse"
-        // read as "broken" rather than as space, so the guitar never stops now and the
-        // silence lives in the flute's line instead (#95).
-        PICK: [0, 2, 4, 2, 7, 2, 4, 2],
+        // Çayır Yolu — one bar, four beats: alternating-bass fingerpicking that never stops,
+        // with the flute taking the motif for two bars out of every four. The first version
+        // plucked one string and then waited, and "sparse" read as "broken" rather than as
+        // space — so the silence lives in the flute's line instead (#95, #96).
+        PICK: [[0, 2, 4, 2, 0, 2, 4, 2], [0, 4, 2, 4, 0, 2, 4, 2], [0, 2, 4, 7, 4, 2, 4, 2]],
         emitGuitar(spb) {
             let p = this.piece, t = this._at, e = spb / 2, root = p.prog[p.bar % p.prog.length];
-            this.PICK.forEach((d, i) => {
-                let bass = i === 0 || i === 4;            // thumb on the beat, fingers between
-                this.pluck(t + i * e, this.hz(p.tonic, p.mode, root + d - (bass ? 7 : 0)),
-                           e * 2.4, bass ? 0.17 : 0.1);
+            p.pick.forEach((d, i) => {
+                // Thumb on 1 and 3, alternating root and fifth the way a picking hand does;
+                // the fingers take the chord tones in between.
+                let bass = i === 0 || i === 4;
+                this.pluck(t + i * e, this.hz(p.tonic, p.mode, bass ? root - 7 + (i ? 4 : 0) : root + d),
+                           e * 2.6, bass ? 0.2 : 0.1);
             });
-            // The flute breathes: a bar of melody, a bar off. Always playing is exhausting
-            // to listen to, and a chill screen is the one place that shows.
-            if(p.bar % 2 === 1 && Math.random() < 0.85) {
-                let ph = this.phrase(Math.random, { start: p.start, span: [4, 4], durs: [1, 1, 1.5, 2], lo: 2, hi: 10 });
-                let tt = t;
-                ph.forEach(n => { this.flute(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * spb, 0.08); tt += n.beats * spb; });
-                p.start = ph[ph.length - 1].deg;
-            }
+            // The flute breathes: two bars of melody, two off. Always playing is exhausting to
+            // listen to, and a chill screen is the one place that shows.
+            if(p.bar % 4 < 2) this.bar(p, 7).forEach(n =>
+                this.flute(t + n.at * spb, this.hz(p.tonic, p.mode, n.deg), n.beats * spb * 0.92, 0.09));
             p.bar++;
             this._at = t + 4 * spb;
         },
 
-        // Cenk Korosu — 6/8, because an estampie moves in threes and a four-square battle
-        // loop is exactly the film-trailer cliché this is meant to dodge. Drums underneath,
-        // the string section on the tune, the choir holding the chord above both.
+        // Cenk Korosu — 4/4 at a marching tempo, which is what "epic" turned out to mean: the
+        // low drum on 1 and 3 with eighths running between them, the violins on the motif an
+        // octave up, and the choir holding the chord under both. The 6/8 estampie this
+        // replaces was the more authentic answer and nobody wanted to listen to it (#96).
         emitChoir(spb) {
             let p = this.piece, t = this._at, e = spb / 2, root = p.prog[p.bar % p.prog.length];
-            for(let i = 0; i < 6; i++) {
-                if(i === 0 || i === 3) this.drum(t + i * e, true, 0.45);
-                else if(i % 3 === 2 || Math.random() < 0.3) this.drum(t + i * e, false, 0.2);
+            for(let i = 0; i < 8; i++) {
+                if(i === 0 || i === 4) this.drum(t + i * e, true, 0.38);
+                else if(i % 2 === 0) this.drum(t + i * e, false, 0.16);
+                else if(Math.random() < 0.3) this.drum(t + i * e, false, 0.1);
             }
-            // Two voices, a bar at a time: the chord root and its fifth, an octave up where
-            // a choir actually sits. Held across the bar, so they are the long line the
-            // drums and the strings move against.
-            if(p.bar % 2 === 0) {
-                this.voice(t, this.hz(p.tonic, p.mode, root + 7), 6 * e, 0.06);
-                this.voice(t, this.hz(p.tonic, p.mode, root + 11), 6 * e, 0.042);
-            }
-            let ph = this.phrase(Math.random, { start: p.start, span: [6, 6], durs: [1, 1, 1, 2], lo: 0, hi: 9 });
-            let tt = t;
-            ph.forEach(n => { this.section(tt, this.hz(p.tonic, p.mode, n.deg), n.beats * e, 0.08); tt += n.beats * e; });
-            p.start = ph[ph.length - 1].deg;
+            // A fill over the last half-bar of the progression: the one place the drums stop
+            // being a pulse and say something, and it lands where the melody turns around.
+            if(p.bar % p.prog.length === p.prog.length - 1)
+                [0, 1, 2, 3].forEach(i => this.drum(t + 3.5 * spb + i * e / 2, i === 3, 0.22 + i * 0.06));
+            // The chord spread the way a choir stands: root, the third above it, the octave.
+            [0, 2, 7].forEach((d, i) =>
+                this.voice(t, this.hz(p.tonic, p.mode, root + 7 + d), 4 * spb, [0.07, 0.05, 0.038][i]));
+            this.bar(p, 7).forEach(n =>
+                this.section(t + n.at * spb, this.hz(p.tonic, p.mode, n.deg), n.beats * spb * 0.9, 0.105));
             p.bar++;
-            this._at = t + 6 * e;
+            this._at = t + 4 * spb;
         },
 
         tick() {
@@ -6306,6 +6291,49 @@ const Game = {
             setTimeout(() => old.disconnect(), 1500);   // long after the fade: an early disconnect clicks
         },
 
+        // Coming back from another app, iOS leaves the context suspended and throttles the
+        // timer chain to a stop. Resuming off a visibilitychange is not enough on its own —
+        // the music only really came back after toggling 🔇, because a tap is a gesture and a
+        // gesture is what the browser actually wants (#96). So the same wake hangs off both,
+        // and a context that was suspended has its pieces rebuilt rather than merely
+        // re-armed: an interrupted iOS context can come back "running" and silent.
+        wake() {
+            if(document.hidden || !this._mode) return;
+            let was = this.ac && this.ac.state, ac = Game.ac();
+            if(!ac) return;
+            // resume() is a promise, so reading ac.state on the next line is a race — and
+            // losing it is precisely why tapping did nothing while toggling 🔇 worked: that
+            // path rebuilds without asking the state at all.
+            ac.resume().then(() => {
+                if(document.hidden || !this._mode) return;
+                if(was === 'running' && this.bus) { clearTimeout(this._timer); this.tick(); return; }
+                let m = this._mode;
+                this._mode = null;
+                this.set(m);
+                this.revive();
+            }).catch(() => {});   // refused without a gesture: the next tap tries again
+        },
+
+        // A context that reports `running` while its clock stands still is dead — WebKit
+        // leaves one like that after an audio interruption, and nothing in its state says so.
+        // Measured in the browser pane: after a suspend/resume the old context sat at
+        // currentTime 0.02 forever while a brand new one ticked normally. So the clock gets
+        // half a second to move, and if it hasn't, the whole AudioContext is thrown away and
+        // rebuilt — which is the one thing toggling 🔇 could not do either (#96).
+        revive() {
+            let ac = this.ac, t0 = ac.currentTime;
+            setTimeout(() => {
+                if(!this._mode || this.ac !== ac || ac.currentTime > t0) return;
+                let m = this._mode;
+                this.set(null);
+                try { ac.close(); } catch(e) {}
+                Game._audio = null;     // Game.ac() hands out a fresh one
+                this.out = null;        // and the hall is rebuilt with it
+                this._mode = null;
+                this.set(m);
+            }, 500);
+        },
+
         // The only entry point: 'map', 'battle', or null for silence.
         set(mode) {
             if(mode === this._mode) return;
@@ -6317,16 +6345,6 @@ const Game = {
             this._mode = mode;
             if(!mode) return;
             if(!this.out) {                      // the hall outlives the pieces played in it
-                // Switching to another app suspends the AudioContext and iOS does not
-                // resume it on return, while the timer chain is throttled to a stop — the
-                // music simply never came back (#95). Registered here because this block
-                // runs exactly once; Game.ac() is what does the resuming.
-                document.addEventListener('visibilitychange', () => {
-                    if(document.hidden || !this._mode) return;
-                    Game.ac();
-                    clearTimeout(this._timer);
-                    this.tick();
-                });
                 this.out = ac.createGain();
                 this.wet = ac.createGain(); this.wet.gain.value = 0.3;
                 this.cv = this.verb();
@@ -6339,6 +6357,16 @@ const Game = {
                 lim.threshold.value = -6; lim.knee.value = 3; lim.ratio.value = 12;
                 lim.attack.value = 0.003; lim.release.value = 0.25;
                 this.out.connect(lim); lim.connect(ac.destination);
+            }
+            // Two listeners, one wake — see wake() for why a tap is needed as well as a
+            // visibility change. Bound once and never again: `out` is rebuilt when a dead
+            // context is replaced, so the graph block above is not the "runs once" place.
+            if(!this._bound) {
+                this._bound = true;
+                document.addEventListener('visibilitychange', () => this.wake());
+                document.addEventListener('pointerdown', () => {
+                    if(this._mode && this.ac && this.ac.state !== 'running') this.wake();
+                });
             }
             this.bus = ac.createGain();
             // Measured: with every part at its own level Cenk Korosu came out three times the

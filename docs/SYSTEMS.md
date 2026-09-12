@@ -2779,7 +2779,7 @@ Tribute per day (seed 3): Azgad (prosperity 56) **22** · Emirin (90) **36** · 
 a **playerless** world — it has no renown curve to read — so that number would be invented,
 not measured. It needs a player-driving sim first.
 
-## Audio layer (#95)
+## Audio layer (#95, reworked #96)
 
 Nothing is loaded, everything is synthesised — the same rule the transaction SFX already
 followed, now applied to a whole score. Three reasons it is not mp3 files: `sw.js` precaches
@@ -2790,17 +2790,23 @@ and only so many per page).
 
 `Game.Music` splits in two on purpose:
 
-- **The score** — `phrase(rnd, cfg)` and `hz(tonic, mode, deg)` are pure functions with no
-  audio in them, which is why `tools/test.js` can gate them without a sound card.
-  `phrase()` is a random walk over scale degrees: stepwise 76% of the time, otherwise a leap
-  of a fourth or fifth, wrapped back inside `lo..hi`, filling an uneven span of beats and
-  landing on a resting degree (`ENDS` = tonic/second/fourth/fifth — always the tonic is the
-  cliché). `modes` holds five church modes; **Ionian is deliberately absent** — the plain
-  major scale is the single thing that makes "medieval" music sound like a fairground, and
-  a test asserts it stays out.
+- **The score** — `bar(p, lift)` and `hz(tonic, mode, deg)` are pure functions with no audio
+  in them, which is why `tools/test.js` can gate them without a sound card. A piece draws one
+  rhythm (`RHYTHMS`, each summing to exactly four beats) and one contour (`CONTOURS`, scale
+  steps relative to the bar's chord root) and plays that **motif** over every chord of the
+  progression, the progression's last bar taking the contour backwards. The first version
+  generated each note from an independent random walk and it noodled: nothing ever came back,
+  so there was nothing to recognise — repetition is what turns notes into a tune (#96).
+  `modes` holds five church modes; **Ionian is deliberately absent** — the plain major scale
+  is the single thing that makes "medieval" music sound like a fairground, and a test asserts
+  it stays out.
 - **The synthesis** — `pluck()` is Karplus-Strong (a noise burst in a one-period delay line
-  losing 0.4% per pass), rendered into an `AudioBuffer` per note; `bow()` is a sawtooth under
-  a lowpass with a bowed attack and vibrato (vielle on the map, shawm in battle); `drum()` is
+  losing 0.4% per pass), rendered into an `AudioBuffer` per note, then a lowpass for the
+  wooden top and a +7 dB peak at 190 Hz for the air inside the box — that resonance is most of
+  the difference between "a string" and "a guitar"; `bow()` is a sawtooth under
+  a resonant lowpass — a violin, and the two things that stop it being a buzzer are the filter
+  opening for 60 ms at the start of every stroke (rosin catching the string) and the vibrato
+  fading *in*, since no player shakes a note they have only just started; `drum()` is
   a bandpassed noise burst with a 150→52 Hz pitch drop under the low stroke; `setDrone()`
   holds a tonic and a slightly narrow fifth (organum, and the narrowness is what makes it
   beat like two real strings); `verb()` is a generated noise-decay impulse response. `flute()` is nearly a sine plus a soft
@@ -2814,23 +2820,32 @@ and only so many per page).
 (`PROGS`; no progression uses the seventh degree as a root, so there is no leading tone
 pulling home).
 
-- *Map* — 4/4, a continuous fingerpicked guitar (`PICK`, thumb on beats 1 and 3 an octave
-  down, fingers between) with a flute line over every other bar. The first version played one
-  `phrase()` and then rested for 2–5.5 beats; that read as *broken*, not as space, so the
-  guitar now never stops and the silence lives in the flute's line instead. No drone: the
-  chords carry the harmony and a fixed tonic under a VI or VII bar is mud.
-- *Battle* — 6/8, frame drum on 1 and 4, the string `section()` on the tune and two `voice()`
-  parts holding the chord across every other bar.
+- *Çayır Yolu (map)* — 4/4, continuous fingerpicking (`PICK`, thumb alternating root and
+  fifth on beats 1 and 3 an octave down, fingers on the chord tones between), with the flute
+  taking the motif an octave up for two bars out of every four. The first version plucked one
+  note and then rested; that read as *broken*, not as space, so the guitar never stops and the
+  silence lives in the flute's line instead. No drone: the chords carry the harmony and a
+  fixed tonic under a VI or VII bar is mud.
+- *Cenk Korosu (battle)* — 4/4 at a marching tempo, low drum on 1 and 3 with eighths between
+  them and a sixteenth fill over the last half-bar of the progression, `section()` violins on
+  the motif an octave up, and three `voice()` parts holding the chord for the whole bar. The
+  6/8 estampie this replaced was the more authentic answer and nobody wanted to listen to it.
 
-**Measured / decided numbers.** Map: 58–72 bpm, dorian/aeolian/lydian/mixolydian, tonic
-D3–A3, 16 bars per piece. Battle: 124–148 bpm, dorian/phrygian/aeolian, tonic A2–D3, 40 bars
-per piece. Output at the default volume: map peak 0.18 / rms 0.075, battle peak 0.27 /
-rms 0.091 — measured with an `AnalyserNode` on `Music.out`.
+Two bands, one per screen, and both are the line-up that was asked for by name. The psaltery
+(`emitLute`) and the lone shawm (`emitShawm`) that used to share the draw are deleted:
+variety nobody wants to listen to is not variety.
+
+**Measured / decided numbers.** Map: 66–80 bpm, dorian/aeolian/lydian/mixolydian, tonic
+E3–B3, 16 bars per piece. Battle: 92–112 bpm, dorian/phrygian/aeolian, tonic A2–D3, 24 bars
+per piece. Rendered offline through the same `emit*` functions at the default volume: map
+peak 0.39 / rms 0.071, battle peak 0.53 / rms 0.067.
 
 **Levels.** Every part has its own gain, and with those alone the battle came out three times
 the map's loudness (rms 0.147 against 0.051) — an army of strings and a choir against one
-guitar. The correction is a single per-mode gain on the bus (0.6 battle / 1.5 map) rather than
-re-tuning eight numbers, so the balance *inside* each mode stays as written. A
+guitar. The correction is a single per-band gain on the bus (1.0 battle / 1.5 map) rather than
+re-tuning eight numbers, so the balance *inside* each band stays as written. Within the
+battle band the drums were then cut and the sustained parts raised: a 0.5 drum left the
+violins and the choir no room, and "epic" is the sustained parts, not the transients. A
 `DynamicsCompressorNode` sits on the output as a limiter: the parts are independent, so a bass
 note, a flute entry and a reverb tail can land on the same sample.
 
@@ -2848,8 +2863,13 @@ gain node, so `retire()` fades that one node and the entire queued tail goes wit
 
 **Coming back from another app.** Backgrounding suspends the AudioContext and iOS does not
 resume it on return, while the `setTimeout` chain is throttled to a stop — the music simply
-never came back. One `visibilitychange` listener calls `Game.ac()` (which resumes) and
-re-arms `tick()`, whose rebasing handles the gap in the clock.
+never came back. `Music.wake()` calls `Game.ac()` (which resumes) and re-arms `tick()`, whose
+rebasing handles the gap in the clock. It hangs off **two** events: `visibilitychange` and the
+next `pointerdown` while the context is not running. The second is not belt-and-braces — with
+the visibility listener alone the music still only returned after toggling 🔇, because iOS
+grants the resume to a *gesture* and a tap is the gesture (#96). A context that was suspended
+has its piece rebuilt rather than merely re-armed: an interrupted iOS context can come back
+reporting `running` and still be silent.
 
 **One switch point.** `Music.sync()` reads the screen (`#main-ui` active, the `in-battle`
 class) and the settings (`muted`, `volume`, `music`) and picks `'map' | 'battle' | null`.

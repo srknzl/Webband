@@ -3,6 +3,27 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.97 — Gitar ve Keman (2026-09-12)
+
+- **Müzik baştan yazıldı.** Eski hâlinde her nota bağımsız olarak rastgele seçiliyordu, bu
+  yüzden ezgi bir yere varmıyordu: hiçbir şey geri gelmiyordu. Artık her parçanın bir
+  **motifi** var — bir ritim ve bir şekil — ve bu motif akor değiştikçe tekrar tekrar
+  çalınıyor. Tekrar, bir avuç notayı ezgiye çeviren şeydir.
+- **Harita: akustik gitar ve flüt.** Gitara gövde eklendi (190 Hz'de kutu rezonansı), tel
+  sesi değil gerçekten çalgı gibi duyuluyor; parmak düzeni başparmakla dönüşümlü bas
+  basıyor. Flüt dört barın ikisinde motifi bir oktav yukarıdan alıyor, kalan iki barda
+  soluklanıyor.
+- **Savaş: davul, keman, koro.** 6/8 estampi gitti, yerine yürüyüş temposunda 4/4 geldi —
+  1 ve 3'te kalın davul, aralarda sekizlikler, akor dönmeden önce doldurma. Keman gerçek
+  bir yay gibi: her çekişin başında filtre 60 ms açılıyor (telin tutması) ve vibrato
+  sonradan giriyor. Koro akoru bar boyunca tutuyor.
+- **Psaltery ve tek zurnalı düzenleme silindi.** Kimsenin dinlemek istemediği çeşitlilik
+  çeşitlilik değil; her ekrana bir topluluk kaldı.
+- **Uygulamadan dönünce müzik kendi geliyor.** Artık sesi kapatıp açmak gerekmiyor. İki
+  sebebi vardı: iOS askıya alınmış sesi ancak bir dokunuşla geri veriyor (o yüzden ekrana
+  ilk dokunuş da müziği uyandırıyor), ve bazen ses motoru "çalışıyorum" deyip aslında ölmüş
+  oluyor — saati ilerlemiyorsa komple atılıp yenisi kuruluyor.
+
 ## 0.96 — Koro ve Flüt (2026-09-12)
 
 - **Harita müziği artık gerçekten müzik.** Önceki sürümde tek bir tele arada bir basılıyordu;

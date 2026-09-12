@@ -1039,34 +1039,33 @@ test('a quest wave closes in where a plain band of the same size flees', () => {
     assert.ok(walk(false) > 200, 'an ordinary weak band still flees');
 });
 
-test('every generated phrase is singable: length, leaps and a resting final note', () => {
+test('every generated bar is the same motif over a new chord', () => {
     const { Game } = g, M = Game.Music;
-    // Ionian is the plain major scale — the one mode left out on purpose, because it is
-    // what makes "medieval" music sound like a fairground. A mode sneaking in later is a
-    // silent change in the music's whole character, so it is asserted rather than trusted.
     const major = [0, 2, 4, 5, 7, 9, 11].join();
     Object.values(M.modes).forEach(m => assert.notStrictEqual(m.join(), major, 'Ionian is excluded by design'));
-
-    const rnd = H.mulberry32(7);
-    const cfg = { start: 0, span: [6, 10], durs: [1, 1, 1.5, 2, 3], lo: -2, hi: 9 };
-    for(let i = 0; i < 400; i++) {
-        const ph = M.phrase(rnd, cfg);
-        const beats = ph.reduce((a, n) => a + n.beats, 0);
-        assert.ok(beats >= cfg.span[0] && beats <= cfg.span[1], 'a phrase fills its bar exactly: ' + beats);
-        assert.ok(M.ENDS.includes(ph[ph.length - 1].deg), 'a phrase comes to rest');
-        // An unbounded random walk drifts out of the instrument's range and a leap past a
-        // fifth stops sounding like a line. Both are held by the wrap in phrase().
-        ph.forEach((n, j) => {
-            assert.ok(n.beats > 0, 'no zero-length note');
-            if(j && j < ph.length - 1) assert.ok(Math.abs(n.deg - ph[j - 1].deg) <= 5, 'no wild leap: ' + n.deg);
-        });
-        cfg.start = ph[ph.length - 1].deg;
-    }
-    // Degrees wrap by octave, so the scale's length above the tonic is exactly 2x its pitch.
+    M.RHYTHMS.forEach(r => assert.strictEqual(r.reduce((a, b) => a + b, 0), 4, 'a rhythm is exactly one bar'));
+    M.PICK.forEach(p => assert.strictEqual(p.length, 8, 'a picking pattern is eight eighths'));
+    const shapes = new Set();
+    M.RHYTHMS.forEach(r => M.CONTOURS.forEach(c => {
+        const p = { motif: { r, c }, prog: M.PROGS[0], bar: 0 };
+        for(p.bar = 0; p.bar < 8; p.bar++) {
+            const b = M.bar(p, 7);
+            assert.strictEqual(b.length, r.length, 'one note per rhythm slot');
+            assert.strictEqual(b[b.length - 1].at + b[b.length - 1].beats, 4, 'the bar is filled exactly');
+            b.forEach((n, i) => {
+                assert.ok(n.beats > 0, 'no zero-length note');
+                assert.ok(n.deg >= -2 && n.deg <= 20, 'the melody stays in range: ' + n.deg);
+                if(i) assert.ok(Math.abs(n.deg - b[i - 1].deg) <= 7, 'no wild leap: ' + n.deg);
+            });
+            if(r === M.RHYTHMS[0] && c === M.CONTOURS[0]) shapes.add(b.map(n => n.deg - b[0].deg).join());
+        }
+    }));
+    // Four chords, one motif: the shape recurs instead of being re-rolled every bar, which is
+    // the whole difference between a tune and the random walk this replaced (#96).
+    assert.ok(shapes.size <= 2, 'the motif recurs, transposed: ' + shapes.size);
     assert.ok(Math.abs(M.hz(50, 'dorian', 7) - 2 * M.hz(50, 'dorian', 0)) < 1e-9);
     assert.ok(Math.abs(M.hz(50, 'dorian', -7) - M.hz(50, 'dorian', 0) / 2) < 1e-9);
 });
-
 // The static extractor only sees `T('…')` **literals**; raw data translated
 // via a variable like `T(def.title)` is invisible to it. Quest titles are
 // written exactly that way — in 0.77 two new titles came out with no
