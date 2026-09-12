@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.03', date: '2026-09-12', name: 'Üç Deyiş' };  // the version name is not translated
+const VERSION = { no: '1.04', date: '2026-09-13', name: 'Hayalet Parmak' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -83,6 +83,9 @@ const Debug = {
                     : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01)))),
                 measuredRefresh: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
                 mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'),
+                // "The map stopped taking orders" reads as a render freeze and is usually input:
+                // a stuck pointer, a stuck marker drag, or a swallowed click (#100).
+                input: g(() => ({ ptr: Game._ptr.size, drag: !!Game.dragTarget, suppressClick: !!Game.suppressClick })),
                 lastFrames: this.frames.slice()
             },
             browser: {
@@ -4809,6 +4812,18 @@ const Game = {
 
     onMapDown(e) {
         if(e.pointerType === 'mouse') return this.startTargetDrag(e);
+        // A touch that never sends its `pointerup` or `pointercancel` stays in `_ptr` forever,
+        // and one ghost is enough to kill the map for good: `onMapUp` reads `_ptr.size` to tell
+        // a tap from a pinch, so every later tap is discarded as multi-touch and the party never
+        // takes another order (#100). Both shells drop that event — WKWebView when the app is
+        // backgrounded mid-touch, the Android WebView when the system claims the gesture — and
+        // nothing short of a reload cleared it; writing and loading a save does not, because the
+        // ghost lives on `Game`, not in `state`.
+        // A *primary* down is the exact signal that the ghost is dead: the browser only marks a
+        // touch primary when no other touch of its type is active, so a real second finger is
+        // never primary and multi-touch still works. The same dropped event also strands
+        // `dragTarget`, which costs a tap and turns every one-finger pan into a marker drag.
+        if(e.isPrimary) { this._ptr.clear(); this.dragTarget = null; }
         this._ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 });
         try { this.mapCanvas.setPointerCapture(e.pointerId); } catch(_) {}
         // A second finger means zoom: a half-finished target drag gets cancelled

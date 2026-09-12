@@ -2021,6 +2021,26 @@ Measured (375×812, zoom 0.8): a −60/−30 px drag panned the camera **+75 / +
 units (= pixels/zoom); a two-finger spread going 100 → 200 px turned zoom **0.80 → 1.60**.
 A short tap set the target, a 600 ms tap opened the tooltip and **didn't set a target**.
 
+**A lost `pointerup` used to end the session (#100).** The tap/pinch distinction is
+`_ptr.size`, a Map of the touches currently down, so a touch whose `pointerup` *and*
+`pointercancel` both fail to arrive leaves a ghost finger in it — and from then on `onMapUp`
+reads every tap as multi-touch and drops it. The map still draws at 60 fps, the sidebar still
+works, nothing is logged: the party simply never takes another order. Both shells drop that
+event (WKWebView when the app is backgrounded mid-touch, the Android WebView when the system
+claims the gesture), and it was reported from an iOS sideload and an Android install alike.
+
+Writing and loading a save does **not** clear it — the ghost lives on `Game`, not in `state`,
+which is worth remembering when a player says a reload fixed something. Only a reload did.
+
+The fix is one line in `onMapDown`: a **primary** down clears `_ptr` (and `dragTarget`, which
+the same lost event strands, costing a tap and turning one-finger pans into marker drags). The
+browser marks a touch primary only when no other touch of its type is active, so it is an exact
+"nothing else is really down" signal rather than a timeout — a real second finger is never
+primary, and pinch survives untouched. Verified with real `PointerEvent`s in the browser: a
+dropped touch no longer kills the following taps, and two fingers still register as two.
+`Debug.report().render.input` now carries `{ ptr, drag, suppressClick }`, because this class of
+bug reads as a render freeze and the report had nothing to say about input.
+
 **2. Battle controls** (`#touch-ui`, `Game.initTouchUI`). Bottom-left a **movement stick**,
 bottom-right an **aim stick**, a 🛡️ block button between them, a single row of command
 buttons above. Sizes live in three `:root` variables (`--tui-stick` / `--tui-btn` /

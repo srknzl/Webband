@@ -3,6 +3,16 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.04 — Hayalet Parmak (2026-09-13)
+
+- **Harita bazen emir almayı bırakıyordu; düzeldi.** Telefon oyunu arka plana attığında
+  parmağın "kalktım" haberi kayboluyor, oyun da o parmağı hâlâ ekranda sanıyordu. O andan
+  sonra her dokunuş "iki parmak, yakınlaştırma" diye okunuyor ve grup bir daha kıpırdamıyordu.
+  Oyunu kapatıp açmaktan başka çaresi yoktu — kayıt alıp yüklemek bile kurtarmıyordu.
+  Artık ekrana konan ilk parmak hayaleti siliyor; çift parmak yakınlaştırma aynen duruyor.
+- **Hata raporu artık dokunma durumunu da yazıyor** — donma gibi görünen bu tür takılmaların
+  aslında girdi kaynaklı olduğu raporda tek bakışta görünsün diye.
+
 ## 1.03 — Üç Deyiş (2026-09-12)
 
 - **Her parça ezgisini üç ayrı desende çalıyor.** Dört barlık her cümlede aynı çalgı aynı

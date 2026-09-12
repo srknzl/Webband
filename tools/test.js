@@ -1022,6 +1022,35 @@ test('key shortcuts read the physical key, not the layout letter', () => {
 // A manual pan is anchored to the map: the camera target is player + offset, so
 // without cancelling the player's own step out of the offset the view slid away in
 // the direction of travel while you were looking at your destination (#94).
+// A touch whose pointerup never arrives left a ghost in `Game._ptr`, and onMapUp reads
+// `_ptr.size` to tell a tap from a pinch — so one ghost killed map orders for the rest of
+// the session, on the map, with nothing else on screen and no error in the log (#100).
+test('a ghost finger cannot lock the map out of taking orders (#100)', () => {
+    const { Game, state } = g;
+    Game.mapCanvas = g._sandbox.document.getElementById('map-canvas');
+    const at = (id, primary) => ({ pointerId: id, pointerType: 'touch', isPrimary: primary,
+                                   clientX: 400, clientY: 300, button: 0 });
+    const tap = (id, primary) => {
+        state.player.status = 'idle'; state.player.targetLocation = null;
+        Game.onMapDown(at(id, primary));
+        Game.onMapUp(at(id, primary));
+        return state.player.status;
+    };
+    Game._ptr.clear();
+    assert.strictEqual(tap(1, true), 'moving', 'a plain tap sets a target');
+
+    Game.onMapDown(at(2, true));                 // finger down, app backgrounded: no up, no cancel
+    assert.strictEqual(tap(3, true), 'moving', 'the next tap still gives an order');
+    assert.strictEqual(Game._ptr.size, 0, 'and the ghost is gone, not merely outvoted');
+    assert.ok(!Game.dragTarget, 'the marker drag the same lost event stranded is gone too');
+
+    // The clear must not cost pinch-zoom: a real second finger is never the primary one.
+    Game._ptr.clear();
+    Game.onMapDown(at(4, true)); Game.onMapDown(at(5, false));
+    assert.strictEqual(Game._ptr.size, 2, 'two real fingers stay two fingers');
+    Game._ptr.clear();
+});
+
 test('a panned camera holds its world position while the player walks', () => {
     const { Game, state } = g;
     Game.camera.offsetX = 600; Game.camera.offsetY = 400;
