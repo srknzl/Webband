@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.03 — Üç Deyiş (2026-09-12)
+
+- **Her parça ezgisini üç ayrı desende çalıyor.** Dört barlık her cümlede aynı çalgı aynı
+  notaları başka sırayla söylüyor: önce düz, sonra tersten, sonra ikinci yarısından başlayarak.
+  Çalgı değişmiyor — değişen deseni. Aynı melodinin iki dakika boyunca tek şekilde dönmesi
+  bitti. Yirmi parçanın hepsinde var.
+
 ## 1.02 — Yenilgiden Ustalık Çıkmaz (2026-09-12)
 
 - **Arenada yenilince artık yeterlilik kazanılmıyor.** Eskiden kaybetmek de kesenin %40'ını

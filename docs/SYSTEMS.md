@@ -2995,15 +2995,28 @@ synchronous JS on the shared `Music` graph and has to stay serial — but it is 
 ten; `startRendering()` is off-thread and is everything else. Schedule all ten, then
 `Promise.all` the renders.
 
-**Call and answer (#98).** *"Hep aynı melodi, bi o bi bu gibi olsun."* A piece repeats one
-motif over every chord — that is what makes it a piece rather than a random walk, but for two
-minutes it is also all an ear gets. A band may now declare `lead.alt`, a second lead it trades
-four-bar phrases with: `emit` merges it over `lead` on odd phrases and passes a flag down to
-`bar()`, which answers with the motif's contour reversed. Same rhythm, same harmony, other
-instrument and other register — so it reads as a reply rather than a second tune. Kılıç Gölgesi
-is the first to use it, a string section calling and a choir an octave below answering. Its
-`stab` came off in the same pass: a stab is punctuation, and a phrase that is nothing but
-punctuation nags.
+**Three ways to say one thing (#98).** *"Hep aynı melodi, bi o bi bu gibi olsun."* A piece
+repeats one motif over every chord — that is what makes it a piece rather than a random walk,
+but for two minutes it is also all an ear gets. `bar()` now takes a variation index and `emit`
+cycles it one four-bar phrase at a time: the contour forwards, the contour backwards, then the
+contour rotated onto its second half. Same instrument, same rhythm, same harmony, different
+order of notes.
+
+Rotation rather than inversion, because a mirrored `[7, 4, 2, 0]` climbs two octaves and leaves
+the register the band was written for; rotation preserves the set of degrees exactly, so no
+variation can walk out of range or out of the mix's level. All seven contours were checked to
+give three shapes that differ from each other — `tools/test.js` asserts it, so a contour added
+later cannot quietly collapse two phrases into one.
+
+*This replaced a first attempt that answered on a **different instrument**, which was not what
+was asked for and is recorded here because the way it failed is instructive: `vol` is not a
+loudness. The answering voice shipped 16 dB under its call because its level was guessed from
+the call's. Solo'd through the real `emit` path the twenty leads span rms 0.0062–0.0415 — a
+factor of seven between two lines that both read as "the tune" in the mix — and matching by rms
+is not enough either: `voice` matched the 7/8 mill piece at rms while peaking at 4.0, because a
+soprano formant set passes almost nothing of a low fundamental but its resonances still spike.
+Varying the pattern instead of the instrument makes the whole problem disappear: the same voice
+at the same `vol` cannot drift in level.*
 
 **Measured / decided numbers.** Map: 52–88 bpm, dorian/aeolian/lydian/mixolydian (a band may
 narrow that), tonic E3–B3, 12–16 bars per piece. Battle: 152–170 bpm, dorian/phrygian/aeolian,

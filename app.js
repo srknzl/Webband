@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.02', date: '2026-09-12', name: 'Yenilgiden Ustalık Çıkmaz' };  // the version name is not translated
+const VERSION = { no: '1.03', date: '2026-09-12', name: 'Üç Deyiş' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -6089,8 +6089,7 @@ const Game = {
               drums: 'O..W.xO..w.xO.WR',           // the fight itself, written into the grid
               ost: { v: 'sub', n: 4, vol: 0.085 },
               pad: { v: 'voice', deg: [0, 2, 7], lift: 7, vol: 0.06 },
-              lead: { v: 'section', lift: 7, vol: 0.095, bars: 3, hold: 1.15,
-                      alt: { v: 'voice', lift: 0, vol: 0.1, bars: 4, hold: 0.95 } },
+              lead: { v: 'section', lift: 7, vol: 0.095, bars: 3, hold: 1.15 },
               harm: { v: 'flute', deg: 0, vol: 0.055 } }
         ],
 
@@ -6130,12 +6129,19 @@ const Game = {
         // `lift` raises the whole shape by scale degrees (7 = the octave, where the flute and
         // the violins live). The progression's last bar plays the contour backwards: a repeat
         // needs one variation or it turns into wallpaper.
-        bar(p, lift, alt) {
+        //
+        // `v` is the phrase variation, cycled one four-bar phrase at a time (#98): the same
+        // notes on the same instrument in a different order, which is what "hep aynı melodi"
+        // asked for. Retrograde first, then the contour rotated onto its second half —
+        // rotation rather than inversion because a mirrored [7,4,2,0] climbs two octaves and
+        // leaves the register the band was written for. Checked against all seven contours:
+        // every one gives three shapes that differ from each other.
+        VARIATIONS: 3,
+        bar(p, lift, v) {
             let i = p.bar % p.prog.length, m = p.motif;
-            // `alt` answers the motif with its own shape — the same rhythm walking the other
-            // way. It is still the piece's motif, which is why it sounds like a reply and not
-            // like a second tune (#98).
-            let c = alt ? m.c.slice().reverse() : m.c;
+            let c = m.c;
+            if(v === 1) c = c.slice().reverse();
+            else if(v === 2) c = c.slice(2).concat(c.slice(0, 2));
             if(i === p.prog.length - 1) c = c.slice().reverse();
             let root = p.prog[i] + (lift || 0), at = 0;
             return m.r.map((beats, j) => {
@@ -6762,12 +6768,10 @@ const Game = {
                 this[b.pad.v](t, f(root + (b.pad.lift || 0) + d), bar * 0.95, b.pad.vol * [1, 0.72, 0.55][i])));
             // The lead breathes: `bars` of melody in every four, the rest off. Always playing
             // is exhausting to listen to, and a chill screen is where that shows.
-            // `alt` is a second lead the band trades four-bar phrases with: another
-            // instrument, another register, the motif answering itself. Without it a piece is
-            // one melody for two minutes, which is what "hep aynı melodi" means.
-            let ld = b.lead, answer = b.lead && b.lead.alt && Math.floor(p.bar / 4) % 2;
-            if(answer) ld = Object.assign({}, b.lead, b.lead.alt);
-            if(ld && p.bar % 4 < ld.bars) this.bar(p, ld.lift, answer).forEach(n => {
+            // Each four-bar phrase plays the motif a different way round. One melody for two
+            // minutes is what "hep aynı melodi" means; three orderings of it is still one tune.
+            let ld = b.lead;
+            if(ld && p.bar % 4 < ld.bars) this.bar(p, ld.lift, Math.floor(p.bar / 4) % this.VARIATIONS).forEach(n => {
                 let dur = n.beats * spb * (ld.hold || 0.92);
                 let d = ld.stab ? Math.min(dur, spb * 0.45) : dur;
                 this[ld.v](t + n.at * spb, f(n.deg), d, ld.vol);

@@ -1109,6 +1109,15 @@ test('every generated bar is the same motif over a new chord', () => {
     Object.entries(leads).forEach(([v, n]) =>
         assert.ok(n <= 3, 'the battle leans on ' + v + ' for ' + n + ' of ten leads'));
 
+    // "hep aynı melodi": every four-bar phrase reorders the motif, and a variation that
+    // lands on a shape another variation already plays is not one (#98).
+    M.CONTOURS.forEach(c => {
+        const p = { motif: { r: [1, 1, 1, 1], c }, prog: [0, 0, 5, 6], bar: 0 };
+        const shapes = new Set();
+        for(let v = 0; v < M.VARIATIONS; v++) shapes.add(M.bar(p, 0, v).map(n => n.deg).join());
+        assert.strictEqual(shapes.size, M.VARIATIONS, 'three orderings of ' + c + ': ' + [...shapes]);
+    });
+
     assert.strictEqual(M.BANDS.filter(b => b.battle).length, 10, 'ten battle bands');
     assert.strictEqual(M.BANDS.filter(b => !b.battle).length, 10, 'ten map bands');
     const shapes = new Set();
