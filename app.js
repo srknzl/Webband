@@ -1,16 +1,16 @@
 // ============================================
-// WEBBAND - Mount & Blade Tarzı RPG
+// WEBBAND - Mount & Blade Style RPG
 // ============================================
 
-// Sürüm damgası (#55 madde 8): hata raporunda ve başlangıç ekranının köşesinde
-// yazar. Oyuncunun masaüstü kısayolu her açılışta depoyu `main`'e çektiği için
-// "hangi kodu konuşuyoruz" sorusunun tek cevabı budur; her tur elle artırılır.
-const VERSION = { no: '0.84', date: '2026-09-12', name: 'Usta Yerini Biliyor' };  // sürüm adı çevrilmez
+// Version stamp (#55 item 8): shown in the bug report and in the corner of the
+// start screen. The player's desktop shortcut pulls the repo to `main` on every
+// launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
+const VERSION = { no: '0.84', date: '2026-09-12', name: 'Usta Yerini Biliyor' };  // the version name is not translated
 
-// --- HATA TAMPONU VE DEBUG RAPORU (#52) ---
-// Oyuncunun elinde ekran görüntüsünden fazlası olsun: hatalar halkasal tamponda
-// birikir, kenar menüsündeki düğme her şeyi tek JSON'a çevirip panoya kopyalar.
-// Dosyanın en başında durur ki oyun kurulurken atılan hata da yakalansın.
+// --- ERROR BUFFER AND DEBUG REPORT (#52) ---
+// Give the player more than just a screenshot: errors pile up in a ring buffer,
+// and the button in the side menu turns it all into one JSON blob and copies it to the clipboard.
+// It sits at the very top of the file so an error thrown during game setup is caught too.
 const Debug = {
     errors: [], MAX_ERRORS: 25, frames: [],
     log(kind, msg, extra) {
@@ -19,8 +19,8 @@ const Debug = {
         this.seen++;
         this.badge();
     },
-    // Ekranın köşesindeki rozet (#55 madde 2): oyun sessizce ölmesin, hata
-    // olduğunu konsolu açmayan oyuncu da görsün. Tıklayınca rapor açılır.
+    // Badge in the corner of the screen (#55 item 2): the game shouldn't die silently —
+    // a player who never opens the console should still see there was an error. Clicking it opens the report.
     seen: 0,
     badge() {
         let el = document.getElementById('err-badge');
@@ -28,9 +28,9 @@ const Debug = {
         el.textContent = T`⚠️ ${this.seen} hata — tıkla ve kopyala`;
         el.classList.toggle('hidden', !this.seen);
     },
-    // Döngü gövdesini saran tek kapı: içeride atılan istisna rAF zincirini
-    // koparıyordu (ekran donar, kimse bilmez). Artık hata bir kez raporlanır,
-    // aynı imza tekrarlanırsa sayılır ve döngü yaşamaya devam eder.
+    // The single gate wrapping the loop body: an exception thrown inside it used
+    // to break the rAF chain (the screen freezes, nobody notices). Now the error
+    // is reported once, repeats of the same signature are just counted, and the loop keeps going.
     _sig: {},
     guard(where, fn) {
         try { return fn(); }
@@ -39,7 +39,7 @@ const Debug = {
             if(this._sig[sig]) { this._sig[sig]++; return; }
             this._sig[sig] = 1;
             this.log(T('döngü'), where + ': ' + ((e && e.message) || e), {
-                yigin: ((e && e.stack) || '').split('\n').slice(1, 4).map(l => l.trim()).join(' | ')
+                stack: ((e && e.stack) || '').split('\n').slice(1, 4).map(l => l.trim()).join(' | ')
             });
         }
     },
@@ -52,46 +52,46 @@ const Debug = {
         let orig = console.error.bind(console);
         console.error = (...a) => { this.log('console', a.map(x => (x && x.message) || x).join(' ')); orig(...a); };
     },
-    // skipFrame her rAF'ta çağırır: siyah ekran/donma şikâyetinde kare aralıkları belge olur
+    // skipFrame calls this every rAF: for black-screen/freeze complaints, the frame intervals become documented evidence
     frame(ms) { this.frames.push(Math.round(ms * 10) / 10); if(this.frames.length > 30) this.frames.shift(); },
     report() {
         let g = (f, d) => { try { let v = f(); return v === undefined ? d : v; } catch(e) { return T('hata: ') + e.message; } };
-        let cv = id => g(() => { let c = document.getElementById(id); return c ? T`${c.width}x${c.height} (css ${Math.round(c.clientWidth)}x${Math.round(c.clientHeight)})` : 'yok'; });
+        let cv = id => g(() => { let c = document.getElementById(id); return c ? T`${c.width}x${c.height} (css ${Math.round(c.clientWidth)}x${Math.round(c.clientHeight)})` : 'none'; });
         return {
-            surum: { oyun: VERSION.no + ' — ' + VERSION.name, tarih: VERSION.date,
-                     dosya: document.lastModified, adres: location.href.split('?')[0], zaman: new Date().toISOString() },
-            oyun: g(() => {
+            version: { build: VERSION.no + ' — ' + VERSION.name, date: VERSION.date,
+                     file: document.lastModified, url: location.href.split('?')[0], time: new Date().toISOString() },
+            game: g(() => {
                 let p = state.player;
                 return {
-                    gun: state.time.day, saat: Math.floor(state.time.hour) + ':00', zamanOlcegi: state.timeScale,
-                    ekran: (document.querySelector('.view.active') || {}).id,
-                    modalAcik: !document.getElementById('modal-overlay').classList.contains('hidden'),
-                    ad: p.name, seviye: p.stats.level, can: Math.floor(p.stats.hp) + '/' + p.stats.maxHp, dinar: p.money, nam: p.renown,
-                    konum: { x: Math.round(p.x), y: Math.round(p.y) }, durum: p.status,
-                    grup: p.party.length + '/' + Game.getPartyCapacity(), esir: (p.prisoners || []).length,
-                    fraksiyon: Game.playerFaction(), damga: Game.infamy(),
-                    kusatma: p.siege || null, yagma: p.raid || null, esaret: p.prisoner ? p.prisoner.npcName : null,
-                    savaslar: Object.keys(state.wars || {}), gorevler: (p.quests || []).map(q => q.id)
+                    day: state.time.day, hour: Math.floor(state.time.hour) + ':00', timeScale: state.timeScale,
+                    screen: (document.querySelector('.view.active') || {}).id,
+                    modalOpen: !document.getElementById('modal-overlay').classList.contains('hidden'),
+                    name: p.name, level: p.stats.level, hp: Math.floor(p.stats.hp) + '/' + p.stats.maxHp, money: p.money, renown: p.renown,
+                    pos: { x: Math.round(p.x), y: Math.round(p.y) }, status: p.status,
+                    party: p.party.length + '/' + Game.getPartyCapacity(), prisoners: (p.prisoners || []).length,
+                    faction: Game.playerFaction(), infamy: Game.infamy(),
+                    siege: p.siege || null, raid: p.raid || null, captive: p.prisoner ? p.prisoner.npcName : null,
+                    wars: Object.keys(state.wars || {}), quests: (p.quests || []).map(q => q.id)
                 };
             }, T('oyun başlamamış')),
-            cizim: {
-                savasAktif: g(() => Battle.active), turnuvaAktif: g(() => TournamentMinigame.active),
-                haritaDonguId: g(() => Game._loopId), savasDonguId: g(() => Battle.loopId),
-                hedefFps: g(() => Game.lite() ? 30 : 60),
-                kareBoleni: g(() => Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01))),
-                efektifFps: g(() => Game._step === Infinity ? T('ölçülmedi')
+            render: {
+                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active),
+                mapLoopId: g(() => Game._loopId), battleLoopId: g(() => Battle.loopId),
+                targetFps: g(() => Game.lite() ? 30 : 60),
+                frameDivider: g(() => Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01))),
+                effectiveFps: g(() => Game._step === Infinity ? T('ölçülmedi')
                     : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01)))),
-                olculenTazeleme: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
-                haritaTuval: cv('map-canvas'), savasTuvali: cv('battle-canvas'),
-                sonKareler: this.frames.slice()
+                measuredRefresh: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
+                mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'),
+                lastFrames: this.frames.slice()
             },
-            tarayici: {
-                ua: navigator.userAgent, dil: navigator.language, dpr: window.devicePixelRatio,
-                pencere: innerWidth + 'x' + innerHeight, ekran: screen.width + 'x' + screen.height,
-                bellek: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + T(' MB') : 'bilinmiyor')
+            browser: {
+                ua: navigator.userAgent, lang: navigator.language, dpr: window.devicePixelRatio,
+                window: innerWidth + 'x' + innerHeight, screen: screen.width + 'x' + screen.height,
+                memory: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + T(' MB') : 'unknown')
             },
-            hatalar: this.errors.slice(),
-            yutulanTekrar: Object.keys(this._sig).map(k => `${k} x${this._sig[k]}`)
+            errors: this.errors.slice(),
+            swallowedRepeats: Object.keys(this._sig).map(k => `${k} x${this._sig[k]}`)
         };
     },
     text() { return JSON.stringify(this.report(), null, 1); },
@@ -110,7 +110,7 @@ const Debug = {
     copy() {
         let ta = document.getElementById('debug-text');
         let done = () => { let m = document.getElementById('debug-msg'); if(m) m.textContent = T('✅ Panoya kopyalandı.'); };
-        // Pano izni yoksa (file:// veya eski tarayıcı) seçip execCommand'a düş
+        // If clipboard permission is unavailable (file:// or an old browser), select and fall back to execCommand
         if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
         else { ta.select(); document.execCommand('copy'); done(); }
     },
@@ -133,10 +133,10 @@ const FACTIONS = {
     khergit: { id: 'khergit', name: 'Kergit Hanlığı',   people: 'Kergit',   color: '#cc66ff', ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
 };
 
-// --- KARAKTER YARATMA ---
-// Warband'ın geçmiş soruları: cinsiyet + 4 soru. Her cevap nitelik/yetenek/kese
-// üzerinde küçük ama kalıcı bir fark yapar; seçimler state.player.background'da durur.
-// Etki formatı: attr{}, prof{}, money, renown, item (kuşanılır), relAll, relFaction{id,n}
+// --- CHARACTER CREATION ---
+// Warband's background questions: gender + 4 questions. Each answer makes a small
+// but permanent difference to attributes/proficiencies/purse; choices are kept in state.player.background.
+// Effect format: attr{}, prof{}, money, renown, item (equipped), relAll, relFaction{id,n}
 const BACKGROUND = [
 { key:'gender', q:'Kimsin?', hint:'Kalradya ordu toplayan bir kadına alışkın değil.', opts:[
   { id:'male',   label:'👨 Erkek', desc:'Kılıç kuşanmış bir erkek kimsenin dikkatini çekmez.' },
@@ -172,8 +172,8 @@ const BACKGROUND = [
 ]}
 ];
 
-// Sancak: kingdom_crests.jpg 3x3 armaları + kendi rengin. Krallık kurunca
-// krallığının rengi ve haritadaki grup renginin kaynağı budur.
+// Banner: kingdom_crests.jpg's 3x3 crests + your own color. Once you found a
+// kingdom, this is the source of your kingdom's color and your party color on the map.
 const BANNERS = [
   { crest:0, color:'#c0392b', name:'Kızıl Aslan' },
   { crest:1, color:'#2e86c1', name:'Mavi Şahin' },
@@ -238,24 +238,24 @@ const FORESTS = [
 ];
 
 window.alert = function(msg) {
-    // `const Game` window'a takılmaz (sözcüksel global bağ), bu yüzden window.Game
-    // her zaman undefined'dı ve oyundaki BÜTÜN alert'ler sessizce yutuluyordu.
+    // `const Game` doesn't attach to window (it's a lexical global binding), so
+    // window.Game was always undefined and EVERY alert in the game was being swallowed silently.
     if(typeof Game !== 'undefined' && Game.showModal) {
         Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">${T`Bildirim`}</h3><p style="font-size:1.1rem;line-height:1.5">${String(msg).replace(/\n/g, '<br>')}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.closeModal()">${T`Tamam`}</button></div>`);
     }
 };
 
-// Hasar türleri (Warband): zırh her türe farklı direnir.
-// armor = savunmanın kaçta kaçı işler, mult = ham hasar çarpanı.
+// Damage types (Warband): armor resists each type differently.
+// armor = what fraction of defense applies, mult = the raw damage multiplier.
 const DMG_TYPES = {
     cut:    { name: 'kesici', armor: 1.0,  mult: 1.0 },
     pierce: { name: 'delici', armor: 0.5,  mult: 0.9 },
-    blunt:  { name: 'ezici',  armor: 0.65, mult: 0.8, knock: true }   // öldürmez, bayıltır: esir düşürür
+    blunt:  { name: 'ezici',  armor: 0.65, mult: 0.8, knock: true }   // doesn't kill, knocks out: takes prisoners
 };
 
 const ITEMS = {
-    // spoil: kaç günde bir stoğun tamamı bozulur (günlük kayıp = qty/spoil).
-    // Ucuz erzak çabuk bozulur, pahalısı dayanır — depolamak da bir tercih.
+    // spoil: how many days until the whole stock spoils (daily loss = qty/spoil).
+    // Cheap food spoils fast, pricier food keeps — so stockpiling is a real choice.
     wheat:  { id:'wheat',  name:'Tahıl',         type:'food',  quality:'low', basePrice:4,  icon:'🌾', spoil:60 },
     bread:  { id:'bread',  name:'Ekmek',         type:'food',  quality:'low', basePrice:6,  icon:'🍞', spoil:20 },
     meat:   { id:'meat',   name:'Kurutulmuş Et', type:'food',  quality:'high',basePrice:20, icon:'🥩', spoil:30 },
@@ -277,10 +277,10 @@ const ITEMS = {
 };
 
 // --- UPGRADE TREES & STATS ---
-// Her fraksiyonun kendi asker ağacı: köylü -> dal -> elit.
-// Satır formatı: [ad, tür, hp, hız, saldırı, savunma, ikon, terfi bedeli]
+// Each faction has its own troop tree: recruit -> branch -> elite.
+// Row format: [name, type, hp, speed, attack, defense, icon, upgrade cost]
 const TROOP_TREES = {
-    swadia: {   // dengeli; en güçlü ağır süvari
+    swadia: {   // balanced; the strongest heavy cavalry
         recruit: ['Svadya Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Svadya Milisi', 'infantry', 45, 60, 12, 5, '🛡️', 'pierce', 40],
@@ -291,7 +291,7 @@ const TROOP_TREES = {
              ['Svadya Şövalyesi', 'cavalry', 75, 110, 22, 15, '⚔️🐴', 'cut', 150]]
         ]
     },
-    rhodok: {   // süvarisi yok; dev kalkanlar ve tatar yayı
+    rhodok: {   // no cavalry; huge shields and the Tatar bow
         recruit: ['Rodok Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Rodok Mızraklısı', 'infantry', 48, 56, 11, 8, '🛡️', 'pierce', 40],
@@ -300,7 +300,7 @@ const TROOP_TREES = {
              ['Rodok Tatar Yaylısı', 'archer', 48, 56, 16, 6, '🎯', 'pierce', 130]]
         ]
     },
-    vaegir: {   // baltalı piyade, ölümcül okçu, vasat süvari
+    vaegir: {   // axe infantry, deadly archers, mediocre cavalry
         recruit: ['Veagir Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Veagir Piyadesi', 'infantry', 44, 60, 13, 4, '🪓', 'cut', 40],
@@ -311,7 +311,7 @@ const TROOP_TREES = {
              ['Veagir Süvarisi', 'cavalry', 60, 100, 16, 10, '🐴', 'cut', 140]]
         ]
     },
-    nord: {     // at kullanmaz; piyade dövüşünde rakipsiz
+    nord: {     // doesn't use horses; unrivaled in infantry combat
         recruit: ['Nord Serfi', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Nord Savaşçısı', 'infantry', 50, 62, 14, 6, '🛡️', 'cut', 45],
@@ -320,7 +320,7 @@ const TROOP_TREES = {
              ['Nord Nişancısı', 'archer', 50, 60, 12, 6, '🎯', 'pierce', 115]]
         ]
     },
-    khergit: {  // hepsi atlı; hızlı ama ince zırhlı
+    khergit: {  // all mounted; fast but thin armor
         recruit: ['Kergit Çobanı', 'infantry', 20, 70, 6, 0, '🪖', 'blunt'],
         branches: [
             [['Kergit Atlısı', 'cavalry', 44, 105, 11, 4, '🐴', 'cut', 60],
@@ -345,12 +345,12 @@ const TROOP_TYPES = {};
         }));
     }
 })();
-// Eski kayıtlardaki 'Acemi Asker' Svadya ağacına girer
+// The 'Acemi Asker' name from old saves maps into the Swadia tree
 TROOP_TYPES['Acemi Asker'] = TROOP_TYPES['Svadya Köylüsü'];
 TROOP_UPGRADES['Acemi Asker'] = TROOP_UPGRADES['Svadya Köylüsü'];
 
-// Düşman çeteleri: haritadaki parti + savaştaki birim karışımı.
-// battle: [ad, tür, hp, hız, saldırı, savunma, pay] — pay = çıkma ağırlığı
+// Enemy bands: the party on the map + the unit mix in battle.
+// battle: [name, type, hp, speed, attack, defense, weight] — weight = spawn chance
 const BAND_KINDS = {
     bandit:   { name: 'Çapulcular', color: '#d0483a', icon: 'foot', min: 5, max: 14, speedMult: 1, dmg: 'blunt',
                 lore: '"Ya paranı, ya canını!"',
@@ -366,14 +366,14 @@ const BAND_KINDS = {
                 battle: [['Dağ Eşkıyası','infantry',36,56,11,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
                          ['Atlı Eşkıya','cavalry',44,92,13,5,2]],
                 leader: ['Eşkıya Reisi','infantry',75,62,18,7] },
-    // Köy milisi: yağmada karşına çıkan köylüler. Haritada gezmez, yalnızca
-    // Game.startRaid savaşında doğar (bandKey ada göre bulunur).
+    // Village militia: the villagers you face during a raid. Doesn't roam the
+    // map, only spawns in the Game.startRaid battle (bandKey is looked up by name).
     militia:  { name: 'Köy Milisi', color: '#c9a227', icon: 'foot', min: 4, max: 16, speedMult: 1, dmg: 'pierce',
                 lore: '"Tırpanı kap Yusuf, geliyorlar!"',
                 battle: [['Köylü','infantry',22,50,5,0,7], ['Köy Avcısı','archer',20,52,6,0,3],
                          ['Köy Bekçisi','infantry',30,54,8,2,2]],
                 leader: ['Köy Muhtarı','infantry',44,54,10,3] },
-    // Ticaret partileri (#22): haritada gezerler, saldırmazlar; soyulunca yükleri düşer
+    // Trade parties (#22): roam the map, never attack; robbing them drops their cargo
     caravan:  { name: 'Kervan Muhafızları', color: '#e0b062', icon: 'cart', min: 6, max: 14, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Yükümüze dokunma yolcu — bu mallar loncaya yazılı."',
                 battle: [['Kervan Muhafızı','infantry',34,56,10,3,5], ['Kervan Okçusu','archer',26,54,9,1,3],
@@ -391,32 +391,32 @@ const BAND_KINDS = {
 // --- STATE ---
 const state = {
     npcParties: [],
-    settings: {},            // ayarlar ekranı (#55): varsayılandan sapan anahtarlar; okuma Game.opt()
-    meta: {},                // kayıt künyesi: { v, surum, createdAt, playtime }
-    timeScale: 1,            // zaman akışı çarpanı (üst çubuktaki takvim rozetinden 0.5/1/2)
+    settings: {},            // settings screen (#55): keys that deviate from the default; read via Game.opt()
+    meta: {},                // save metadata: { v, surum, createdAt, playtime }
+    timeScale: 1,            // time-flow multiplier (0.5/1/2 from the calendar badge in the top bar)
     activeTournaments: {},   // { cityId: true }
     mercPools: {},           // { locId: { day, list:[{name, level, count}] } }
     encounterCooldown: 0,
     player: {
         name: T('Maceracı'),
-        gender: 'male',        // 'female' -> lordlarla ilişki −5 başlar, evlilik yolu lordlardan geçer
-        banner: 5,             // BANNERS dizini: arma + krallık rengi
-        background: {},        // karakter yaratmada verilen cevaplar { birth, father, youth, job }
+        gender: 'male',        // 'female' -> relations with lords start at −5, the marriage path goes through lords
+        banner: 5,             // BANNERS index: crest + kingdom color
+        background: {},        // answers given during character creation { birth, father, youth, job }
         money: 250,
         renown: 0,
         rightToRule: 0,
-        wageDebt: 0,          // ödenemeyen maaş birikir
-        wageLateHours: 0,     // kaç saattir gecikmiş (saat başı -1 moral)
+        wageDebt: 0,          // unpaid wages pile up
+        wageLateHours: 0,     // how many hours overdue (-1 morale per hour)
         partyCapacity: 50,
         party: [],
-        inventory: [{...ITEMS.bread, qty:1}],   // tek ekmek: ilk gün erzak derdi başlar (#75)
+        inventory: [{...ITEMS.bread, qty:1}],   // a single loaf: the food problem starts on day one (#75)
         equipment: { weapon: null, armor: null, horse: null },
         x: 4500, y: 4500,
         targetLocation: null,
         status: 'idle',
         speed: 50,
-        // str/agi/int/cha/vit HEDEF değerdir; puan dağıtınca hedef büyür.
-        // eff.* efektif (gerçekten işleyen) değerdir, ilgili eylemi yaptıkça hedefe yaklaşır.
+        // str/agi/int/cha/vit are the TARGET values; spending points grows the target.
+        // eff.* is the effective (actually-in-effect) value, which approaches the target as you perform the related action.
         stats: { level:1, xp:0, xpNext:100, hp:50, maxHp:50, str:10, agi:10, int:10, cha:10, vit:10,
                  eff: { str:10, agi:10, int:10, cha:10, vit:10 }, attributePoints: 5 },
         proficiencies: {
@@ -441,53 +441,53 @@ const state = {
         spouse: null,
         vassalOf: null,
         currentSiege: null,
-        siege: null,               // kuşatma kampı: { locId, plan, daysLeft, weaken, foundingKingdom }
-        currentRaid: null,         // yağmalanan köy: { locId }
-        wait: null,                // kamp: { until } — zaman ×4 akar, karşılaşma keser (#53/1.1)
-        honor: 0,                  // şeref −100..100; eksi tarafı eski "yağmacı damgası" (#53/1.5)
-        ambition: null,            // seçili hedef: { id, day }
-        ambitionsDone: [],         // tamamlanan hedeflerin id'leri
+        siege: null,               // siege camp: { locId, plan, daysLeft, weaken, foundingKingdom }
+        currentRaid: null,         // the village being raided: { locId }
+        wait: null,                // camping: { until } — time flows ×4, an encounter cuts it short (#53/1.1)
+        honor: 0,                  // honor −100..100; the negative side is the old "raider mark" (#53/1.5)
+        ambition: null,            // the selected goal: { id, day }
+        ambitionsDone: [],         // ids of completed goals
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
-        morale: 60,      // parti morali 0-100
-        moraleInfo: {},  // son moral hesabının kalemleri (grup ekranında gösterilir)
-        prisoners: [],   // ele geçirilen esirler: { id, name, level, type } | soylu: { id, name, noble, lordId, faction, ransom }
+        morale: 60,      // party morale 0-100
+        moraleInfo: {},  // line items from the last morale calc (shown on the party screen)
+        prisoners: [],   // captured prisoners: { id, name, level, type } | noble: { id, name, noble, lordId, faction, ransom }
         quests: [],
         poems: [],
     },
     time: { day:1, hour:8 },
 
-    // --- Soylu / görev sistemi ---
-    vassals: [],          // krallığına katılan lordların id'leri (#40)
+    // --- Noble / quest system ---
+    vassals: [],          // ids of lords who joined your kingdom (#40)
     relations: {},        // lordId -> -100..100
     affection: {},        // ladyId -> 0..100
     rivals: {},           // ladyId -> { lordId, affection }
     knownLocations: {},   // lordId -> { x, y, radius, day, name, live }
-    questCooldown: {},    // lordId -> gün
+    questCooldown: {},    // lordId -> day
     smallTalkDay: {}, giftDay: {}, visitDay: {}, poemsRead: {}, dedicatedTo: [],
     pendingQuest: null, questOffers: {}, dowryOffer: null, betrothed: null, pendingWedding: null,
     pendingDedication: false, duel: null,
     feast: null, scheduledFeasts: [], nextFeastDay: 8,
-    wars: {},            // 'a|b' (sıralı fraksiyon çifti) -> savaşın başladığı gün
-    warLog: [],          // son olaylar: { day, msg }
-    lordRespawn: {},     // cephede dağılan lord partisi -> hangi gün geri döner
-    grudges: {},         // lordId -> kan davasının başladığı gün (#53/1.3): 30 gün seni avlar
-    warSeeded: false,    // dünya kurulurken ilk savaş atandı mı
-    allies: {},          // 'a|b' -> ittifakın kurulduğu gün
-    campaigns: {},       // fraksiyon -> { marshalId, marshalName, targetLocId, day, pledged, helped }
-    campaignCooldown: {}, // fraksiyon -> son seferin bittiği gün
+    wars: {},            // 'a|b' (ordered faction pair) -> the day the war started
+    warLog: [],          // recent events: { day, msg }
+    lordRespawn: {},     // a lord party routed on the front -> which day it comes back
+    grudges: {},         // lordId -> the day the blood feud started (#53/1.3): hunts you for 30 days
+    warSeeded: false,    // whether the first war was assigned when the world was created
+    allies: {},          // 'a|b' -> the day the alliance was formed
+    campaigns: {},       // faction -> { marshalId, marshalName, targetLocId, day, pledged, helped }
+    campaignCooldown: {}, // faction -> the day the last campaign ended
 };
 
 // --- INPUT ---
 const Input = {
     keys: {},
     mouse: { x: 0, y: 0 },
-    stick: null,          // sol çubuğun son yönü (#65) — hareket
-    aim: null,            // sağ çubuğun son yönü (#88) — nişan; varsa sol çubuğu ezer
+    stick: null,          // last direction of the left stick (#65) — movement
+    aim: null,            // last direction of the right stick (#88) — aim; overrides the left stick when set
 
-    // Parmakla oynarken fare imleci yok: nişan çubuğun yönünden türer. Savaş motoru
-    // hâlâ yalnız Input.mouse'a bakar, yani iki ayrı nişan yolu tutulmaz.
-    // Sağ çubuğa hiç dokunulmazsa nişan eskisi gibi hareket yönüdür.
+    // No mouse cursor when playing by touch: aim derives from the stick's direction.
+    // The battle engine still only looks at Input.mouse, so there's no second, separate aiming path to maintain.
+    // If the right stick is never touched, aim falls back to the movement direction like before.
     aimSync(u) {
         let d = this.aim || this.stick;
         if(!d) return;
@@ -499,9 +499,9 @@ const Input = {
         window.addEventListener('keydown', e => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             this.keys[e.key.toLowerCase()] = true;
-            if(e.key === ' ') e.preventDefault(); // Boşluk ile kaymayı engelle
-            // Modal açıkken klavye modalindir (#55 madde 6): Esc kapatır, Enter ana
-            // düğmeye basar. Karşılaşma modali Esc ile kapanmaz — savaştan kaçış değildir.
+            if(e.key === ' ') e.preventDefault(); // Prevent scrolling with Space
+            // While a modal is open the keyboard belongs to the modal (#55 item 6): Esc
+            // closes it, Enter presses the primary button. The encounter modal doesn't close with Esc — it isn't an escape from battle.
             if(!document.getElementById('modal-overlay').classList.contains('hidden')) {
                 if(e.key === 'Escape') Game.dismissModal();
                 else if(e.key === 'Enter') {
@@ -510,17 +510,17 @@ const Input = {
                 }
                 return;
             }
-            // Menü kısayolları (Warband tarzı) — savaş/turnuva/modal açıkken çalışmaz
+            // Menu shortcuts (Warband-style) — inactive while battle/tournament/a modal is open
             if(!Battle.active && !TournamentMinigame.active && !e.ctrlKey && !e.metaKey &&
                document.getElementById('modal-overlay').classList.contains('hidden') &&
                document.getElementById('main-ui').classList.contains('active')) {
                 let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[e.key.toLowerCase()];
                 if(scr) Game.showScreen(scr);
-                // Esc her ekrandan haritaya döner
+                // Esc returns to the map from any screen
                 else if(e.key === 'Escape') Game.showScreen('map');
-                // Boşluk kamerayı oyuncuya geri getirir (harita kenardan kaydırılmışsa)
+                // Space brings the camera back to the player (if the map was panned away from the edge)
                 else if(e.key === ' ' && document.getElementById('map-view').classList.contains('active')) Game.centerOnPlayer();
-                // K: krallıkların savaş/barış hâli
+                // K: kingdoms' war/peace status
                 else if(e.key.toLowerCase() === 'k') Game.showDiplomacy();
             }
         });
@@ -529,12 +529,12 @@ const Input = {
             if(e.key) Input.keys[e.key.toLowerCase()] = false; 
         });
         window.addEventListener('blur', () => {
-            Input.keys = {}; // Pencere odağı kaybolduğunda tuşların kilitlenmesini engelle
+            Input.keys = {}; // Prevent keys from getting stuck down when window focus is lost
         });
         window.addEventListener('mousemove', e => {
             Input.mouse.clientX = e.clientX;
             Input.mouse.clientY = e.clientY;
-            Input.stick = null; Input.aim = null;   // fare kıpırdadıysa nişanı o alır, sanal çubuk değil
+            Input.stick = null; Input.aim = null;   // if the mouse moved, it takes over aim, not the virtual stick
             
             let canvas = document.getElementById('battle-canvas');
             if(canvas && canvas.offsetParent !== null) { // Only track if visible
@@ -558,26 +558,26 @@ const Game = {
     ctx: null,
     camera: { x: 0, y: 0, zoom: 0.8, targetZoom: 0.8, offsetX: 0, offsetY: 0 },
 
-    // Kıta 9000 birim; en uzak yakınlık tamamını ekrana sığdırır (kenarda %6 pay).
+    // The continent is 9000 units wide; the farthest zoom-out fits all of it on screen (6% margin at the edge).
     minZoom() {
         if(!this.mapCanvas) return 0.12;
         return Math.max(0.07, Math.min(0.8, Math.min(this.mapCanvas.width, this.mapCanvas.height) / 9600));
     },
 
-    // Uzaklaşınca yerleşim/grup ikonları ekranda okunur boyutta kalsın (etiketler zaten
-    // 1/zoom ile ölçekleniyordu, ikonlar dünya biriminde olduğu için erimişti).
+    // Keep settlement/party icons a readable size on screen when zoomed out (labels
+    // already scaled by 1/zoom, but icons were in world units so they shrank away).
     iconScale() { return Math.max(1, 0.55 / this.camera.zoom); },
 
-    // --- ÇİZİM ÖNBELLEKLERİ VE HAFİF MOD (#80) ---
-    // Harita her karede sıfırdan çiziliyordu: ~150 dağ + 25 yerleşim emojisi yeniden
-    // rasterize ediliyor, ~250 gradyan nesnesi üretilip çöpe atılıyor, kıyı gölgesi
-    // shadowBlur ile piksel piksel bulanıklaştırılıyordu. Masaüstünde JS tarafı ucuz
-    // görünür (0.5 ms) çünkü bedelin tamamı rasterleştirmede; telefonda aynı iş
-    // ısınmayla birlikte kare bütçesini yer. Üçü de aynı ilkeyle çözülür:
-    // **pahalı şeyi bir kez pişir, sonra resmi bas** (Battle.buildGround'un haritadaki eşi).
+    // --- DRAW CACHES AND LITE MODE (#80) ---
+    // The map was being redrawn from scratch every frame: ~150 mountains + 25
+    // settlement emoji re-rasterized, ~250 gradient objects created and thrown away,
+    // the coastline shadow blurred pixel by pixel with shadowBlur. On desktop the JS
+    // side looks cheap (0.5 ms) because the whole cost is in rasterizing; on phones
+    // the same work eats the frame budget along with heating up the device. All
+    // three are fixed by the same principle: **bake the expensive thing once, then just stamp the image** (the map's counterpart to Battle.buildGround).
 
-    // Hafif mod: dokunmatik cihazda kendiliğinden açılır, ayarlardan kapatılır.
-    // 'auto' = cihaza sor. Kare başına birkaç kez sorulduğu için cevap önbelleklenir.
+    // Lite mode: turns on by itself on touch devices, can be turned off in settings.
+    // 'auto' = ask the device. The answer is cached since it's asked several times per frame.
     lite() {
         if(this._lite === undefined) {
             let v = this.opt('lite');
@@ -586,9 +586,9 @@ const Game = {
         return this._lite;
     },
 
-    // Emoji glifi: iki-üssü bir kovaya bir kez pişirilir, sonra küçültülerek basılır.
-    // (Kova hep istenen boyuttan büyük seçilir, yani her zaman küçültme — bulanmaz.)
-    // x/y ve boyut `fillText(ch, x, y)` + `textBaseline:'alphabetic'` ile aynı anlamda.
+    // Emoji glyph: baked once into a power-of-two bucket, then stamped at a smaller size.
+    // (The bucket is always chosen bigger than the requested size, so it's always downscaling — never blurs.)
+    // x/y and size mean the same thing as `fillText(ch, x, y)` + `textBaseline:'alphabetic'`.
     _sprites: {},
     emoji(ctx, ch, x, y, size) {
         let px = Math.min(256, Math.max(16, Math.pow(2, Math.ceil(Math.log2(Math.max(16, size))))));
@@ -599,7 +599,7 @@ const Game = {
             let c = s.getContext('2d');
             c.font = px + 'px Arial'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
             c.fillText(ch, s.width / 2, Math.round(px * 1.25));
-            s._base = Math.round(px * 1.25) / px;      // taban çizgisinin glif boyuna oranı
+            s._base = Math.round(px * 1.25) / px;      // baseline-to-glyph-size ratio
             s._k = 1 / px;
             this._sprites[key] = s;
         }
@@ -607,8 +607,8 @@ const Game = {
         ctx.drawImage(s, x - s.width * k / 2, y - s._base * size, s.width * k, s.height * k);
     },
 
-    // Merkezi orijinde duran radyal gradyan; çağıran translate ile yerine taşır.
-    // Gradyan onu üreten bağlama bağlıdır, o yüzden önbellek bağlamın üstünde durur.
+    // A radial gradient centered at the origin; the caller moves it into place with translate.
+    // A gradient is bound to the context that created it, so the cache lives on the context.
     radial(ctx, r, inner, outer) {
         let cache = ctx._grads || (ctx._grads = {});
         let key = r + '|' + inner + '|' + outer, g = cache[key];
@@ -620,8 +620,8 @@ const Game = {
         return g;
     },
 
-    // Etiket genişliği yazı boyutuyla doğru orantılı: 19 px'te bir kez ölçülür,
-    // sonrası çarpma. (Kare başına ~75 measureText çağrısı vardı.)
+    // Label width is directly proportional to font size: measured once at 19px,
+    // then just multiplied. (There used to be ~75 measureText calls per frame.)
     _tw: {},
     textW(ctx, text) {
         let w = this._tw[text];
@@ -659,33 +659,33 @@ const Game = {
         this.applySettings();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         this.mapCanvas = document.getElementById('map-canvas');
-        // Opak tuval: deniz her kareyi baştan sona dolduruyor, alfa kanalına gerek yok.
-        // alpha:false ile tarayıcı harmanlama geçişini atlar (zayıf GPU'da belirgin).
+        // Opaque canvas: the sea fills every frame edge to edge, no alpha channel needed.
+        // alpha:false lets the browser skip the blending pass (noticeable on weak GPUs).
         this.ctx = this.mapCanvas.getContext('2d', { alpha: false });
-        // Fare ve parmak tek kapıdan geçer (#65): pointer olayı ikisini de taşır.
-        // Hedef işareti sürüklenebilir (#35): basılı tut, taşı, bırak — rota anında yeniden kurulur
+        // Mouse and touch go through a single gate (#65): pointer events carry both.
+        // The destination marker is draggable (#35): press, move, release — the route rebuilds instantly
         this.mapCanvas.addEventListener('pointerdown', e => this.onMapDown(e));
         this.mapCanvas.addEventListener('pointermove', e => this.onMapMove(e));
         this.mapCanvas.addEventListener('pointerup', e => this.onMapUp(e));
         this.mapCanvas.addEventListener('pointercancel', e => this.onMapUp(e));
-        // Klavyesi olmayan cihazda tuş rozetleri yalan söyler: CSS tek sınıftan okur (#65)
+        // On a device with no keyboard, key badges would lie: CSS reads from a single class (#65)
         document.body.classList.toggle('touch', this.isTouch());
-        // iOS Safari `user-scalable=no`'yu yok sayar: iki parmakla bütün arayüz
-        // büyüyor, oyun kayıyor ve geri döndürmenin yolu kalmıyordu. Sayfa zoom'u
-        // bu oyunda hiçbir işe yaramıyor — Safari'nin kendi gesture olayları burada,
-        // Chrome/Android tarafı style.css'teki `touch-action` ile kesiliyor.
+        // iOS Safari ignores `user-scalable=no`: a two-finger pinch zoomed the whole
+        // UI, the game shifted, and there was no way back. Page zoom serves no
+        // purpose in this game — Safari's own gesture events are stopped here,
+        // and the Chrome/Android side is cut off by `touch-action` in style.css.
         ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev =>
             document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
         this.initTouchUI();
         document.getElementById('modal-overlay').addEventListener('click', e => {
-            // Karşılaşma (savaş/teslim ol) modali açıkken dışa tıklayarak kapanmasın
+            // Don't let the encounter (fight/surrender) modal close by clicking outside it
             if(e.target.id === 'modal-overlay') this.dismissModal();
         });
         window.addEventListener('resize', () => this.resizeCanvases());
 
-        // Köy gönüllülerini ilklendir
+        // Initialize village volunteers
         LOCATIONS.forEach(loc => {
-            // Refah tek sayıdır: garnizonu, gönüllü havuzunu ve pazar fiyatını besler
+            // Prosperity is a single number: it feeds the garrison, the volunteer pool, and market prices
             loc.prosperity = 35 + Math.floor(Math.random()*40)
                            + (loc.type === 'city' ? 15 : loc.type === 'castle' ? 5 : 0);
             if(loc.type === 'village' || loc.type === 'city') {
@@ -694,7 +694,7 @@ const Game = {
             }
         });
 
-        // Kıtayı ve Sıradağları oluştur
+        // Build the continent and mountain range
         if(!state.mapBorder) {
             state.mapBorder = [];
             for(let a=0; a < Math.PI*2; a += 0.02) {
@@ -709,26 +709,26 @@ const Game = {
         this.spawnNPCs();
     },
 
-    // --- YERLEŞİM DAĞITIMI (#57) ---
-    // Eskiden her yerleşim dilimin içinde tamamen rastgele bir noktaya düşüyordu:
-    // iki şehir üst üste binebiliyor, bir bölge bomboş kalabiliyordu. Artık üç kural var
-    // (asgari aralık / kale sınırda / köy merkeze bağlı) ve üretim doğrulanır.
+    // --- SETTLEMENT PLACEMENT (#57) ---
+    // Each settlement used to land at a fully random point in its wedge: two
+    // cities could overlap, a region could stay empty. Now there are three rules
+    // (minimum gap / castle on the border / village tied to a hub) and the output is validated.
     MIN_GAP: {
         'city|city': 700, 'city|castle': 480, 'city|village': 380,
         'castle|castle': 620, 'castle|village': 340, 'village|village': 420
     },
-    VILLAGE_RANGE: [420, 900],       // köyün bağlı olduğu şehre/kaleye uzaklığı
+    VILLAGE_RANGE: [420, 900],       // the village's distance from the city/castle it's tied to
 
     minGap(a, b) { return this.MIN_GAP[a + '|' + b] || this.MIN_GAP[b + '|' + a] || 400; },
 
-    // Aday nokta yerleşilebilir mi: kıtanın içinde ve komşulardan yeterince uzak
+    // Is the candidate spot settleable: inside the continent and far enough from neighbors
     spotOk(p, type, placed) {
         if(Math.hypot(p.x - 4500, p.y - 4500) > this.getMapRadius(p.x, p.y) - 320) return false;
         return placed.every(o => this.dist(p, o) >= this.minGap(type, o.type));
     },
 
-    // Dünyayı kur: yerleşimleri dağıt, yolları ör, sonucu doğrula. Kurallar
-    // sağlanamazsa baştan dener — kopuk/çakışık bir dünyayla oynanmaz.
+    // Set up the world: place settlements, weave roads, validate the result. If
+    // the rules aren't met it retries from scratch — nobody plays in a disconnected/overlapping world.
     layoutWorld() {
         let bad = [];
         for(let t = 0; t < 12; t++) {
@@ -747,17 +747,17 @@ const Game = {
         ids.forEach((fid, i) => {
             let base = i * wedge;
             let mine = LOCATIONS.filter(l => l.faction === fid);
-            // Şehir → kale → köy sırası: köy bağlanacağı merkezi hazır bulsun
+            // City → castle → village order: so the village finds its hub already placed
             for(let type of ['city', 'castle', 'village']) {
                 for(let loc of mine.filter(l => l.type === type)) {
                     if(type === 'village') { this.placeVillage(loc, mine, placed); continue; }
                     for(let k = 0; k < 400; k++) {
-                        // Kale sınırda durur (dilimin kenar %20'si), şehir içeride
+                        // Castle sits on the border (the wedge's outer 20%), city stays inside
                         let f = type === 'castle'
                             ? (Math.random() < 0.5 ? 0.02 + Math.random() * 0.18 : 0.80 + Math.random() * 0.18)
                             : 0.22 + Math.random() * 0.56;
-                        // Uzaklık kıyıya göre: dar yönde içeride, geniş yönde açılır —
-                        // sabit bant kıtanın şişkin taraflarını boş bırakıyordu
+                        // Distance is relative to the coastline: pulled in on the narrow side,
+                        // opened up on the wide side — a fixed band left the continent's bulging sides empty
                         let a = base + wedge * f;
                         let R = this.getMapRadius(4500 + Math.cos(a), 4500 + Math.sin(a));
                         let d = R * (0.28 + Math.random() * 0.54);
@@ -770,7 +770,7 @@ const Game = {
         });
     },
 
-    // Köy bir şehre/kaleye bağlıdır (`loc.parentId`); en az köyü olan merkez seçilir
+    // A village is tied to a city/castle (`loc.parentId`); the hub with the fewest villages is picked
     placeVillage(loc, mine, placed) {
         let hubs = mine.filter(l => l.type !== 'village');
         if(!hubs.length) hubs = placed.filter(l => l.type !== 'village');
@@ -786,7 +786,7 @@ const Game = {
         placed.push(loc);
     },
 
-    // Üretim sonrası doğrulama: aralık, kıta içi, köy–merkez bağı, yol bağlantısı
+    // Post-generation validation: gap, inside the continent, village–hub link, road connection
     validateLocations() {
         let bad = [];
         LOCATIONS.forEach((a, i) => {
@@ -802,7 +802,7 @@ const Game = {
                 else if(this.dist(a, h) > this.VILLAGE_RANGE[1] + 1) bad.push(a.name + T(' merkezinden kopuk'));
             }
         });
-        // Kopuk yerleşim kalmasın: her yerleşim en az bir yol parçasının ucunda olmalı
+        // No settlement should be left disconnected: every settlement must sit at the end of at least one road segment
         let touched = new Set();
         (state.roads || []).forEach(r => LOCATIONS.forEach(l => {
             if(Math.hypot(l.x - r.x1, l.y - r.y1) < 40 || Math.hypot(l.x - r.x2, l.y - r.y2) < 40) touched.add(l.id);
@@ -811,22 +811,22 @@ const Game = {
         return bad;
     },
 
-    // Bir şehrin/kalenin köyleri. `parentId` yoksa (eski dünya) 900 birimlik eski kurala düşer.
+    // A city's/castle's villages. If there's no `parentId` (an old world), falls back to the old 900-unit rule.
     villagesOf(loc) {
         let kids = LOCATIONS.filter(l => l.type === 'village' && l.parentId === loc.id);
         return kids.length ? kids
             : LOCATIONS.filter(l => l.type === 'village' && !l.parentId && this.dist(l, loc) < 900);
     },
 
-    // --- TERK EDİLMİŞ YAPILAR VE KEŞİF NOKTALARI (#58) ---
-    // Harita yalnızca yerleşimler ve düşmanlardan ibaret olmasın: arazide üstüne
-    // gidilebilen, sonucu önceden bilinmeyen noktalar. LOCATIONS'a girmezler
-    // (`state.sites`), ama `type:'site'` taşıdıkları için hedefleme/varış makinesi
-    // (setTarget → update → enterLocation) tek satırlık bir kapıyla onları da taşır.
+    // --- ABANDONED STRUCTURES AND POINTS OF INTEREST (#58) ---
+    // The map shouldn't be only settlements and enemies: points out in the field
+    // you can travel to, with an outcome unknown in advance. They don't go into
+    // LOCATIONS (`state.sites`), but since they carry `type:'site'` the
+    // targeting/arrival machine (setTarget → update → enterLocation) carries them too, through a single one-line gate.
     SITE_COUNT: 14,
-    SITE_MIN_GAP: 520,          // yerleşimden ve birbirinden en az bu kadar uzak
+    SITE_MIN_GAP: 520,          // at least this far from a settlement and from each other
 
-    // renew: kaç günde bir yeniden dolar; 0 = tek kullanımlık (araştırılınca haritadan silinir)
+    // renew: how many days until it refills; 0 = one-time use (removed from the map once investigated)
     SITE_KINDS: {
         ruin:  { icon: '🏚️', name: 'Harabe', renew: 0,
                  desc: 'Adını kimsenin hatırlamadığı bir kalenin devrilmiş duvarları.',
@@ -843,15 +843,15 @@ const Game = {
         camp:  { icon: '⛺', name: 'Terk Edilmiş Kamp', renew: 15,
                  desc: 'Ateş külü hâlâ ılık. Buradan aceleyle kalkmışlar.',
                  pool: { coin: 2, food: 2, shelter: 2, ambush: 2, empty: 1 } },
-        // İn keşif noktası değil, hedeftir: araştırılmaz, basılır. `state.sites`te
-        // duruyor çünkü çizim, künye, tıklama, hedefleme ve kayıt zaten o dizi üstünden
-        // yürüyor — ayrı bir `state.lairs` beş ayrı yerde ikinci bir döngü demekti.
+        // A lair isn't a point of interest, it's a target: not investigated, assaulted.
+        // It stays in `state.sites` because drawing, tooltips, clicks, targeting, and
+        // saving already run through that array — a separate `state.lairs` would have meant a second loop in five different places.
         lair:  { icon: '☠️', name: 'Haydut İni', renew: 0, lair: true,
                  desc: 'Kayaların arasına sinmiş bir kamp. Etraftaki yollarda kimse geceleyin yürümüyor.' }
     },
 
-    // Sonuçlar günlük olay havuzuyla (DAY_EVENTS) aynı desende: `when` süzgeci +
-    // `run` metni. Ödül mü risk mi olduğu araştırmadan önce belli değildir.
+    // Outcomes follow the same pattern as the daily event pool (DAY_EVENTS): a
+    // `when` filter + `run` text. Whether it's a reward or a risk isn't known before you investigate.
     SITE_OUTCOMES: {
         coin: { run(s) {
             let n = 60 + Math.floor(Math.random() * 160);
@@ -884,8 +884,8 @@ const Game = {
             }
         },
         scout: { run(s) {
-            // Kuleden bakınca uzaktaki bir grup görünür — "nerede?" mekaniğinin işaretini
-            // kullanır, yani 3 gün sonra Nobles.dailyTick kendiliğinden siler.
+            // Looking out from the tower reveals a distant party — it uses the "where is
+            // it?" mechanic's marker, so Nobles.dailyTick removes it by itself after 3 days.
             let far = state.npcParties.filter(n => Game.dist(n, s) > 700)
                                       .sort((a, b) => Game.dist(a, s) - Game.dist(b, s))[0];
             if(!far) return { html: T('Ufukta kıpırdayan bir şey yok. Boşuna tırmandın.') };
@@ -946,15 +946,15 @@ const Game = {
     },
     ensureSites() { if(!(state.sites || []).length) this.spawnSites(); },
 
-    // --- HAYDUT İNLERİ (#68) ---
-    // Çete artık boşluktan doğmuyor: her çetenin çıktığı bir in var. İn çevresindeki
-    // yerleşimleri her gün kemirir ve kesesi şişer; basınca hem kese senin olur hem de
-    // o bölgede çete doğmayı keser. Harita ilk kez gerçekten "temizlenebilir" hâle gelir.
+    // --- BANDIT LAIRS (#68) ---
+    // A band no longer spawns out of thin air: every band has a lair it comes from.
+    // It gnaws at nearby settlements every day and its purse grows; clearing it gives
+    // you the purse and stops bands from spawning in that region. For the first time the map becomes genuinely "clearable".
     LAIR_COUNT: 5,
-    LAIR_RANGE: 1500,        // refahı bu yarıçapta kemirir (2500'de harita komple in menzilindeydi)
-    LAIR_DECAY: 0.5,         // gün başına refah (günlük toparlanma 0.4/0.15 — yani in kazanır)
-    LAIR_PURSE: 15,          // gün başına biriken kese
-    LAIR_RESPAWN: 20,        // eksik in bu kadar günde bir yeniden kurulur
+    LAIR_RANGE: 1500,        // gnaws at prosperity within this radius (at 2500 the whole map was in lair range)
+    LAIR_DECAY: 0.5,         // prosperity per day (daily recovery is 0.4/0.15 — so the lair wins)
+    LAIR_PURSE: 15,          // purse accumulated per day
+    LAIR_RESPAWN: 20,        // a missing lair is rebuilt every this many days
     lairs() { return (state.sites || []).filter(s => s.kind === 'lair'); },
     ensureLairs() {
         this.ensureSites();
@@ -966,10 +966,10 @@ const Game = {
             let R = this.getMapRadius(4500 + Math.cos(a), 4500 + Math.sin(a));
             let p = { x: 4500 + Math.cos(a) * R * (0.2 + Math.random() * 0.7),
                       y: 4500 + Math.sin(a) * R * (0.2 + Math.random() * 0.7) };
-            let uzak = LOCATIONS.every(l => this.dist(l, p) >= this.SITE_MIN_GAP)
+            let farEnough = LOCATIONS.every(l => this.dist(l, p) >= this.SITE_MIN_GAP)
                     && (state.sites || []).every(o => this.dist(o, p) >= this.SITE_MIN_GAP)
                     && this.dist(p, state.player) >= this.SPAWN_SAFE;
-            if(!uzak && k < 199) continue;
+            if(!farEnough && k < 199) continue;
             let l = { id: 'lair_' + Math.random().toString(36).substr(2, 7), kind: 'lair', type: 'site',
                       name: 'Haydut İni', band: this.randomBandKind(),
                       x: p.x, y: p.y, strength: 8 + Math.floor(Math.random() * 5),
@@ -978,13 +978,13 @@ const Game = {
             return l;
         }
     },
-    // Görülmemiş in haritada yok: üstüne gitmek için önce bulman gerekir.
+    // An unseen lair isn't on the map: you have to find it before you can go there.
     lairSeen(s) {
         if(s.kind !== 'lair') return true;
         if(this.dist(s, state.player) < this.getVisibility()) s.seen = true;
         return !!s.seen;
     },
-    // Çete inden çıkar. İnsiz bölgede çete doğmaz — temizlemenin karşılığı budur.
+    // A band comes out of its lair. No band spawns in a lair-free region — that's the payoff of clearing it.
     spawnFromLair() {
         let l = this.lairs();
         if(!l.length) return null;
@@ -994,12 +994,12 @@ const Game = {
     lairTick() {
         let l = this.lairs();
         l.forEach(x => {
-            this.lairSeen(x);                                 // gün içinde yanından geçtiysen bulunmuş sayılır
+            this.lairSeen(x);                                 // counts as found if you passed near it during the day
             x.purse = Math.min(1200, x.purse + this.LAIR_PURSE);
-            x.strength = Math.min(24, x.strength + 0.15);     // eski in büyümüş in
+            x.strength = Math.min(24, x.strength + 0.15);     // an old lair is a grown lair
         });
-        // Çürüme üst üste binmez, en yakın in geçerlidir (arazi cezalarındaki `worst()`
-        // ile aynı sebep): üç inin kesiştiği köy günde 1.8 refah kaybedip ölüyordu.
+        // Decay doesn't stack, only the nearest lair counts (same reason as `worst()`
+        // in terrain penalties): a village at the overlap of three lairs was losing 1.8 prosperity a day and dying.
         LOCATIONS.forEach(loc => {
             if(loc.prosperity === undefined) return;
             if(l.some(x => this.dist(x, loc) < this.LAIR_RANGE))
@@ -1007,12 +1007,12 @@ const Game = {
         });
         if(l.length < this.LAIR_COUNT && state.time.day % this.LAIR_RESPAWN === 0) this.spawnLair();
     },
-    // İni basmak: kese senin, bölge nefes alır, o inden doğan çete kalmaz.
+    // Assaulting the lair: the purse is yours, the region breathes again, no more bands spawn from that lair.
     clearLair(id) {
         let l = this.lairs().find(x => x.id === id);
         if(!l) return '';
         state.sites = state.sites.filter(x => x !== l);
-        state.npcParties.forEach(n => { if(n.lairId === l.id) n.lairId = null; });   // yetim kimlik kalmasın
+        state.npcParties.forEach(n => { if(n.lairId === l.id) n.lairId = null; });   // don't leave a dangling id
         Quests.emit('lair_cleared', { lairId: l.id });
         state.player.money += Math.round(l.purse);
         LOCATIONS.forEach(x => {
@@ -1031,7 +1031,7 @@ const Game = {
         Battle.start(BAND_KINDS[l.band].name, Math.round(l.strength));
     },
 
-    // Araştırılmış nokta yenilenene kadar boştur (renew 0 ise zaten silinmiştir)
+    // An investigated point is empty until it refills (if renew is 0 it's already been removed)
     siteReady(s) {
         let k = this.SITE_KINDS[s.kind];
         return !s.usedDay || (k.renew > 0 && state.time.day - s.usedDay >= k.renew);
@@ -1062,7 +1062,7 @@ const Game = {
         let s = (state.sites || []).find(x => x.id === id);
         if(!s || !this.siteReady(s)) return this.closeModal();
         let k = this.SITE_KINDS[s.kind];
-        if(k.lair) return this.enterSite(s);    // in araştırılmaz, basılır
+        if(k.lair) return this.enterSite(s);    // a lair isn't investigated, it's assaulted
         let pool = {};
         for(let key in k.pool) {
             let o = this.SITE_OUTCOMES[key];
@@ -1078,9 +1078,9 @@ const Game = {
             <button class="btn primary" style="margin-top:1rem" onclick="Game.modalDone()">${T`Tamam`}</button>`);
     },
 
-    // "Kapat, sonra devam et": keşif noktası da yol olayı da sonucu gösterip
-    // ardından bir savaş açabiliyor — modal kapanmadan başlatılan savaş ekranı
-    // altta kalıyordu. Tek kapı, iki kullanıcı.
+    // "Close, then continue": both a point of interest and a road event show a
+    // result and can then open a battle — a battle screen started before the modal
+    // closed was ending up stuck underneath it. One gate, two callers.
     modalDone() {
         let f = this._afterModal;
         this._afterModal = null;
@@ -1101,10 +1101,10 @@ const Game = {
             : T`✔️ ${this.agoText(s.usedDay)} araştırıldı${k.renew ? T` (${k.renew} günde bir yenilenir)` : ''}`}`;
     },
 
-    // --- YOL AĞI (#56) ---
-    // Yol türleri: taş döşeli ana yol (şehirler), toprak yol (kaleler), bakımsız
-    // keçi yolu (köyler). Hepsi aynı `state.roads` dizisinde kısa parçalar hâlinde
-    // durur — getTerrainInfo ve renderMap tek veri şeklini okumaya devam eder.
+    // --- ROAD NETWORK (#56) ---
+    // Road types: paved-stone main road (cities), dirt road (castles), an
+    // unmaintained goat path (villages). They all sit as short segments in the
+    // same `state.roads` array — getTerrainInfo and renderMap keep reading a single data shape.
     ROAD_KINDS: {
         stone: { half: 26, mult: 1.18, name: 'Taş Yol',   icon: '🛣️' },
         dirt:  { half: 22, mult: 1.10, name: 'Toprak Yol', icon: '🛤️' },
@@ -1112,24 +1112,24 @@ const Game = {
     },
     roadKind(loc) { return loc.type === 'city' ? 'stone' : loc.type === 'castle' ? 'dirt' : 'track'; },
 
-    // İki nokta arası doğal güzergâh: yumuşak dönemeç + ormanı dolanma + kıyıda kalma.
-    // Düz çizgi yerine kısa parçalardan oluşan bir polyline döner.
+    // A natural route between two points: gentle curves + skirting forests + staying
+    // near the coast. Returns a polyline made of short segments instead of a straight line.
     roadPath(a, b) {
         let dx = b.x - a.x, dy = b.y - a.y;
         let len = Math.hypot(dx, dy) || 1;
         let n = Math.max(6, Math.min(18, Math.round(len / 220)));
-        let nx = -dy / len, ny = dx / len;              // dik yön
+        let nx = -dy / len, ny = dx / len;              // perpendicular direction
         let amp = len * (0.10 + Math.random() * 0.14) * (Math.random() < 0.5 ? -1 : 1);
         let phase = Math.random() * Math.PI * 2;
         let pts = [];
         for(let i = 0; i <= n; i++) {
             let t = i / n;
-            // Uçlarda sıfırlanan (sin) taban dönemeç + ikinci harmonikten sapma
+            // Base curve that zeroes out at the ends (sin) + a deviation from the second harmonic
             let off = (i === 0 || i === n) ? 0
                     : amp * Math.sin(t * Math.PI) * (0.7 + 0.3 * Math.sin(t * Math.PI * 2 + phase));
             let p = { x: a.x + dx * t + nx * off, y: a.y + dy * t + ny * off };
             if(i > 0 && i < n) {
-                // Ormanın içinden değil kenarından geçilir
+                // Passes along the forest's edge, not through its interior
                 for(let f of FORESTS) {
                     let fd = Math.hypot(p.x - f.x, p.y - f.y), edge = f.radius + 45;
                     if(fd < edge) {
@@ -1144,7 +1144,7 @@ const Game = {
         return pts;
     },
 
-    // İki doğru parçasının kesişimi (nehir geçişi = köprü noktası)
+    // Intersection of two line segments (a river crossing = a bridge point)
     segCross(p, q, r, s) {
         let d = (q.x - p.x) * (s.y - r.y) - (q.y - p.y) * (s.x - r.x);
         if(Math.abs(d) < 1e-6) return null;
@@ -1154,14 +1154,14 @@ const Game = {
         return { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
     },
 
-    // Tüm yerleşkeleri birbirine bağlayan yol ağı. Yeni yerleşim en yakın **yol
-    // noktasına** da bağlanabilir — böylece ağda gerçek kavşaklar oluşur (eskiden
-    // her bağlantı bir yerleşimden çıkıyordu, yıldız şeklinde bir MST'ydi).
-    // Yerleşim koordinatları değiştiğinde (eski kayıt yüklemesi) yeniden çağrılır.
+    // The road network connecting every settlement. A new settlement can also
+    // connect to the nearest **road point** — so real junctions form in the
+    // network (previously every connection came out of a settlement, a star-shaped MST).
+    // Called again whenever settlement coordinates change (loading an old save).
     buildRoads() {
         state.roads = [];
         state.bridges = [];
-        let nodes = [{ x: LOCATIONS[0].x, y: LOCATIONS[0].y }];   // bağlanılabilir noktalar
+        let nodes = [{ x: LOCATIONS[0].x, y: LOCATIONS[0].y }];   // connectable points
         let unconnected = LOCATIONS.slice(1);
 
         while(unconnected.length > 0) {
@@ -1179,8 +1179,8 @@ const Game = {
         }
     },
 
-    // Bir güzergâhı parçalara böler, nehir geçişlerini köprü olarak işaretler ve
-    // ara noktaları kavşak adayı olarak `nodes`'a ekler.
+    // Splits a route into segments, marks river crossings as bridges, and
+    // adds intermediate points to `nodes` as junction candidates.
     layRoad(a, b, kind, nodes) {
         let pts = this.roadPath(a, b);
         for(let i = 0; i < pts.length - 1; i++) {
@@ -1194,20 +1194,20 @@ const Game = {
         }
     },
 
-    // Nehri köprüden geçmek yavaşlatmaz (getTerrainInfo)
+    // Crossing a river via a bridge doesn't slow you down (getTerrainInfo)
     onBridge(x, y) {
         return (state.bridges || []).some(br => Math.hypot(x - br.x, y - br.y) < 70);
     },
 
-    // Haritadaki düşman çeşitleri: her biri savaşta farklı birim karışımı ve davranış
-    // (BAND_KINDS.battle -> Battle.start içindeki birim üretimi)
+    // Enemy varieties on the map: each has a different unit mix and behavior in
+    // battle (BAND_KINDS.battle -> unit generation inside Battle.start)
     spawnBand(kind, lair) {
         let k = BAND_KINDS[kind];
         let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
         let npc = this.createNPC(k.name, 'bandit', size, k.color, null, 1);
         npc.band = kind;
-        // Çete inden çıkar: konumunu inin çevresine al, oyuncuya çok yakınsa
-        // createNPC'in verdiği rastgele yerde bırak (SPAWN_SAFE tek kural).
+        // A band comes out of its lair: place it around the lair, and if that's too
+        // close to the player, leave it at the random spot createNPC gave it (SPAWN_SAFE is the one rule).
         if(lair) {
             for(let i = 0; i < 20; i++) {
                 let a = Math.random() * Math.PI * 2, r = 200 + Math.random() * 300;
@@ -1222,25 +1222,25 @@ const Game = {
         state.npcParties.push(npc);
         return npc;
     },
-    // Gün ilerledikçe daha zorlu çeteler ortaya çıkar
+    // Tougher bands appear as days pass
     randomBandKind() {
         let pool = ['bandit', 'bandit', 'wolf', 'forest'];
         if(state.time.day >= 20) pool.push('mountain');
         return pool[Math.floor(Math.random() * pool.length)];
     },
 
-    // --- TİCARET PARTİLERİ (#22) ---
-    // Harita yalnız haydut ve lordlardan ibaret kalmasın: kervanlar şehirler arasında,
-    // köylüler kendi köyleriyle en yakın şehir arasında mekik dokur. Saldırmazlar;
-    // soymak ganimet verir ama barıştaki bir krallığı soymak eşkıyalıktır.
+    // --- TRADE PARTIES (#22) ---
+    // The map shouldn't only be bandits and lords: caravans shuttle between
+    // cities, villagers shuttle between their own village and the nearest city.
+    // They don't attack; robbing them pays off in loot, but robbing a kingdom at peace is banditry.
     spawnTrader(kind) {
         let pool = LOCATIONS.filter(l => l.type === (kind === 'caravan' ? 'city' : 'village'));
         let home = pool[Math.floor(Math.random() * pool.length)];
         if(!home) return null;
         let k = BAND_KINDS[kind];
         let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
-        // `npc.name` ham kalır (savaş başlığı gibi çevrilmeyen yerlerin yedeği);
-        // gösterim adı her zaman `npcName()`ten gelir.
+        // `npc.name` stays raw (a fallback for places like the battle title that
+        // don't translate); the display name always comes from `npcName()`.
         let name = kind === 'caravan' ? `${this.factionPeople(home.faction)} Kervanı` : `${home.name} Köylüleri`;
         let npc = this.createNPC(name, kind, size, k.color, home.faction, 1);
         npc.band = kind;
@@ -1251,39 +1251,39 @@ const Game = {
                                   .sort((a, b) => this.dist(a, home) - this.dist(b, home))[0];
             npc.trade.marketId = market ? market.id : home.id;
         }
-        // Yük muhafız sayısıyla ölçülür (#55 madde 9): eskiden 6 kişilik kervanla
-        // 14 kişilik aynı keseyi taşıyordu, yani en zayıfını seçmek risksiz kârdı.
-        // w = büyüklük / türün ortası; ortalama yük değişmez, dağılımı riske bağlanır.
+        // Cargo scales with guard count (#55 item 9): a 6-person caravan used to
+        // carry the same purse as a 14-person one, so picking off the weakest was risk-free profit.
+        // w = size / the type's midpoint; average cargo is unchanged, its spread is tied to risk.
         let w = size / ((k.min + k.max) / 2);
         if(kind === 'caravan') {
             let goods = Object.values(ITEMS).filter(i => i.type === 'trade');
             npc.cargo = [];
             for(let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
                 let g = goods[Math.floor(Math.random() * goods.length)];
-                // Yük değerce dengelensin: kadife az, bira çok taşınır
+                // Balance cargo by value: little velvet, lots of ale
                 let qty = Math.max(1, Math.round((3 + Math.random() * 4) * w * 100 / g.basePrice));
                 let ex = npc.cargo.find(c => c.id === g.id);
                 if(ex) ex.qty += qty; else npc.cargo.push({ id: g.id, qty });
             }
             npc.purse = Math.round((120 + Math.random() * 260) * w);
         } else {
-            // Erzak ucuzladığı için (#47) kafile artık araba dolusu taşır — yoksa soyması anlamsızdı
+            // Since food got cheaper (#47) a caravan now carries cartloads — otherwise robbing it was pointless
             npc.cargo = [{ id: 'wheat', qty: Math.max(4, Math.round((15 + Math.random() * 30) * w)) },
                          { id: 'cheese', qty: Math.max(2, Math.round((5 + Math.random() * 15) * w)) }];
             npc.purse = Math.round((20 + Math.random() * 50) * w);
         }
         npc.x = npc.targetX = home.x; npc.y = npc.targetY = home.y;
         state.npcParties.push(npc);
-        this.traderArrive(npc);   // ilk hedefini seçsin
+        this.traderArrive(npc);   // let it pick its first destination
         return npc;
     },
-    // Yollarda hep aynı yoğunluk olsun — yenilen kafilenin yerine ertesi gün yenisi çıkar
+    // Keep the same density on the roads — a robbed caravan is replaced the next day
     ensureTraders() {
         let n = k => state.npcParties.filter(p => p.trade && p.trade.kind === k).length;
         for(let i = n('caravan'); i < 6; i++) this.spawnTrader('caravan');
         for(let i = n('villager'); i < 8; i++) this.spawnTrader('villager');
     },
-    // Hedefe vardı: yerleşime biraz refah bırakır, sonraki durağına yönelir
+    // Arrived at destination: leaves a bit of prosperity at the settlement, heads to its next stop
     traderArrive(npc) {
         let t = npc.trade;
         let dest = LOCATIONS.find(l => l.id === t.toId);
@@ -1297,11 +1297,11 @@ const Game = {
     traderNext(npc) {
         let t = npc.trade;
         if(t.kind === 'villager') return LOCATIONS.find(l => l.id === (t.toId === t.homeId ? t.marketId : t.homeId));
-        // Kervan savaş bölgesine girmez: kendi krallığıyla barışık bir şehre yönelir
+        // A caravan doesn't enter a war zone: it heads to a city at peace with its own kingdom
         let cities = LOCATIONS.filter(l => l.type === 'city' && l.id !== t.toId && !this.atWar(npc.faction, l.faction));
         return cities.length ? cities[Math.floor(Math.random() * cities.length)] : LOCATIONS.find(l => l.id === t.fromId);
     },
-    // Kafileye rastlamak savaş değil, bir seçimdir
+    // Meeting a caravan isn't a battle, it's a choice
     meetTrader(npc) {
         let bk = BAND_KINDS[npc.band] || {};
         let war = this.atWar(this.playerFaction(), npc.faction) ;
@@ -1323,24 +1323,24 @@ const Game = {
         let npc = state.npcParties.find(n => n.id === npcId);
         this.closeModal();
         if(!npc) return;
-        // Savaştaki krallığın kervanını vurmak seferdir; barıştakini vurmak yol kesmektir
+        // Hitting a caravan of a kingdom you're at war with is a campaign; hitting one at peace is banditry
         if(!this.atWar(this.playerFaction(), npc.faction) && npc.faction !== this.playerFaction()) {
             state.player.renown = Math.max(0, (state.player.renown || 0) - 5);
             if(typeof Nobles !== 'undefined')
                 LORDS.filter(l => l.faction === npc.faction).forEach(l => Nobles.addRel(l.id, -4));
-            // Yol kesmek şerefi yer ve bölgenin lordunu peşine takar (#53)
+            // Banditry costs honor and sets the region's lord on your trail (#53)
             this.addHonor(npc.trade && npc.trade.kind === 'villager' ? 'robPeasant' : 'robPeace');
             this.addGrudgeNearest(npc.faction);
         }
         Battle.start(npc.name, npc.size, null, npc.faction);
     },
 
-    // --- YOL KESME (#24) ---
-    // Kervanları yalnız oyuncu soymaz. Haydut çeteleri de yolda kesiştikleri kafileyi
-    // vurur; yük ve kese çetenin üstünde kalır, yani o çeteyi yakalayan yükü de alır
-    // (zafer dalı beaten.cargo/purse'ü zaten envantere yazıyor).
+    // --- BANDITRY (#24) ---
+    // The player isn't the only one who robs caravans. Bandit bands also hit a
+    // caravan they cross paths with; the cargo and purse stay on the band, so
+    // whoever defeats that band gets the cargo too (the victory branch already writes beaten.cargo/purse to inventory).
     banditTick() {
-        // Av davranışı updateNPCs'te: çete kafilenin üstüne yürür, baskını burası çözer
+        // Hunting behavior is in updateNPCs: the band walks onto the caravan, this is where the raid resolves
         let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0
                                                    && !(BAND_KINDS[n.band] || {}).beast);
         if(!raiders.length) return;
@@ -1348,7 +1348,7 @@ const Game = {
             let b = raiders.find(r => r.size > 0 && this.dist(r, t) < 400);
             if(!b) return;
             let pw = p => p.size * (0.7 + Math.random() * 0.6);
-            // Kervan muhafızı parasını hak eder, köylü kafilesi kaçamaz
+            // A caravan guard earns their pay, a villager party can't run
             if(pw(t) * (t.trade.kind === 'caravan' ? 1.15 : 0.5) > pw(b)) {
                 b.size = Math.round(b.size * (0.5 + Math.random() * 0.3));
                 t.size = Math.max(2, Math.round(t.size * (0.75 + Math.random() * 0.2)));
@@ -1363,7 +1363,7 @@ const Game = {
             b.purse = (b.purse || 0) + (t.purse || 0);
             b.size = Math.max(3, b.size - Math.floor(Math.random() * 3));
             t.size = 0;
-            // Ulaşamayan yük varılacak yerin refahını düşürür
+            // Cargo that never arrives lowers the destination's prosperity
             let dest = LOCATIONS.find(l => l.id === t.trade.toId);
             if(dest) dest.prosperity = Math.max(10, (dest.prosperity || 50) - (t.trade.kind === 'caravan' ? 1.5 : 0.5));
             this.news(T`🗡️ ${T(b.name)}, ${this.npcName(t)} kafilesini bastı — yük çetenin elinde.`);
@@ -1371,25 +1371,25 @@ const Game = {
         state.npcParties = state.npcParties.filter(n => n.size > 0 || n.lordId);
     },
 
-    // Kıta 9000 birim, görüşün ~500: her an haritanın %1'ini görüyorsun. 13 çeteyle
-    // gezinen oyuncu günde 0.3 çete görüyordu — yani üç günde bir, ve *belirli* bir
-    // çeteyi aramak umutsuzdu. Nüfus hedefi görünürlükten türetilir, elde tutulmaz:
-    // `bandTarget()` süpürülen alana göre günde ~1 karşılaşma verecek sayıyı söyler.
-    BAND_REFILL: 3,          // günde en çok bu kadar yeni çete yola çıkar
+    // The continent is 9000 units, your view is ~500: you see ~1% of the map at
+    // any moment. With 13 bands roaming, a player was seeing 0.3 bands a day —
+    // once every three days, and hunting for a *specific* band was hopeless. The
+    // population target is derived from visibility, not held fixed: `bandTarget()` gives the count that yields ~1 encounter a day based on the area swept.
+    BAND_REFILL: 3,          // at most this many new bands set out per day
     bandCount() { return state.npcParties.filter(n => n.type === 'bandit' && n.size > 0).length; },
     bandTarget() {
-        // Günde süpürülen alan ≈ 2·görüş · günlük yol; bunun kıtaya oranı, çete başına
-        // günlük karşılaşma olasılığıdır. Hedef: günde ~1 karşılaşma.
+        // Area swept per day ≈ 2·sight · daily travel; its ratio to the continent is
+        // the daily encounter probability per band. Target: ~1 encounter a day.
         let swept = 2 * this.getVisibility() * 2600;
         return Math.round(Math.max(14, Math.min(30, 9000 * 9000 / swept)));
     },
     spawnNPCs() {
         this.ensureTraders();
         this.ensureLairs();
-        // Dünya hedef nüfusla başlar; eskiden 13'ten başlayıp günde bir doğuyordu,
-        // yani ilk hafta harita gerçekten boştu.
+        // The world starts at the target population; it used to start at 13 and
+        // spawn one a day, so the map was genuinely empty the first week.
         for(let i = 0; i < this.bandTarget(); i++) this.spawnFromLair();
-        // Her soylunun haritada gezen kendi partisi var
+        // Every noble has their own party roaming the map
         LORDS.forEach(l => {
             let size = l.rank === 'king' ? 100 : l.rank === 'vizier' ? 50 : 35;
             let npc = this.createNPC(l.name, l.rank, size, FACTIONS[l.faction].color, l.faction, 1);
@@ -1400,9 +1400,9 @@ const Game = {
         });
     },
 
-    // Parti adının tek gösterim kapısı. Çete/soylu adı veri tablosundan gelir
-    // (sözlükte anahtarı var); kervan ve köylü kafilesinin adı ise bileşiktir,
-    // o yüzden anahtar değil şablon olarak çevrilir.
+    // Single display point for the party's name. Band/noble names come from a data table
+    // (they have a dictionary key); caravan and village-convoy names are composite,
+    // so they're translated as a template rather than a key.
     npcName(npc) {
         if(!npc) return '';
         if(npc.trade) return npc.trade.kind === 'caravan'
@@ -1411,17 +1411,17 @@ const Game = {
         return T(npc.name);
     },
 
-    // Yeni çete/parti oyuncunun kucağında doğmaz. Oyuncu 4500,4500'de başlar ve
-    // r rastgele 0'dan başladığı için ilk karede dibinde bir çapulcu çetesi
-    // olabiliyordu: fark etmeden yakalanıp esir düşülüyordu. Tek kapı burası —
-    // hem dünya kurulurken (spawnNPCs) hem günlük yenilenmede (spawnBand) geçer.
+    // A new band/party doesn't spawn in the player's lap. The player starts at
+    // 4500,4500 and since r started randomly from 0, a bandit band could spawn
+    // right on top of them on the first frame: they'd get caught and taken captive
+    // without noticing. This is the single gate — it applies both at world setup (spawnNPCs) and daily respawn (spawnBand).
     SPAWN_SAFE: 1500,
 
     createNPC(name, type, size, color, faction = null, level = 1) {
         let x, y;
         for(let i = 0; i < 40; i++) {
             let a = Math.random() * Math.PI * 2;
-            let r = Math.random() * 3800; // Harita içinde rastgele
+            let r = Math.random() * 3800; // Random within the map
             x = 4500 + Math.cos(a)*r; y = 4500 + Math.sin(a)*r;
             if(this.dist({ x, y }, state.player) >= this.SPAWN_SAFE) break;
         }
@@ -1434,9 +1434,9 @@ const Game = {
         };
     },
 
-    // --- KARAKTER YARATMA ---
-    // Sihirbaz modal üstünde döner: BACKGROUND'daki her soru bir adım, sonra
-    // sancak, sonra özet. Seçimler applyCreation()'da tek yerden uygulanır.
+    // --- CHARACTER CREATION ---
+    // The wizard runs on top of a modal: each question in BACKGROUND is a step, then
+    // the banner, then the summary. Choices are applied from one place, in applyCreation().
     creation: { step: 0, sel: {} },
 
     startGame() {
@@ -1446,7 +1446,7 @@ const Game = {
         this.renderCreation();
     },
 
-    // Bir seçeneğin etkisini insan diline çevirir (hem sihirbazda hem özette).
+    // Translates an option's effect into human language (used in both the wizard and the summary).
     bonusText(o) {
         let out = [];
         for(let k in (o.attr || {}))  out.push(`${this.ATTRS[k].icon} ${T(this.ATTRS[k].name)} +${o.attr[k]}`);
@@ -1493,7 +1493,7 @@ const Game = {
         this.renderCreation();
     },
 
-    // Sancak seçimi: krallık kurunca bu arma ve renk senin olur.
+    // Banner selection: if you found a kingdom, this crest and color become yours.
     bannerColor() { return (BANNERS[state.player.banner] || BANNERS[0]).color; },
 
     bannerCss(i, size = 72) {
@@ -1526,9 +1526,9 @@ const Game = {
         this.renderCreation();
     },
 
-    // Oyuna girmeden sorulan ayarlar (#88): zorluk ve hafif mod. Dil ilk açılışta
-    // zaten soruluyor (#lang-ask). Ayrı bir tablo yok — ⚙️ Ayarlar'daki satırlarla
-    // aynı Game.DIFFS / Game.OPTS'tan okur, aynı Game.setOpt kapısından yazar.
+    // Settings asked before entering the game (#88): difficulty and lite mode. Language is
+    // already asked on first launch (#lang-ask). No separate table — reads from the same
+    // Game.DIFFS / Game.OPTS as the rows in ⚙️ Settings, writes through the same Game.setOpt gate.
     renderDiffStep() {
         let cur = this.opt('difficulty'), lt = this.opt('lite');
         let html = `<h3>${T`⚙️ Ayarlar`}</h3>
@@ -1558,7 +1558,7 @@ const Game = {
 
     pickDiff(k) {
         this.setOpt('difficulty', k);
-        this.renderDiffStep();     // seçim kalsın, hafif mod da sorulacak
+        this.renderDiffStep();     // keep the choice, lite mode gets asked too
     },
 
     diffStepDone() {
@@ -1590,8 +1590,8 @@ const Game = {
         this.showModal(html, '660px');
     },
 
-    // Seçilen geçmişi karaktere işler. Tek uygulama noktası — özet ekranı da
-    // buradaki bonusText ile aynı kaynaktan okur.
+    // Applies the chosen background to the character. Single application point — the summary
+    // screen also reads from the same source via bonusText here.
     applyCreation() {
         let p = state.player, sel = this.creation.sel;
         p.gender = sel.gender || 'male';
@@ -1631,14 +1631,14 @@ const Game = {
     },
 
     enterWorld() {
-        // Rakip talipler cinsiyete göre kurulur (kadın oyuncuda hedef lordlardır)
+        // Rival suitors are set up based on gender (for a female player, targets are lords)
         Nobles.initRivals();
-        this.initDiplomacy();   // Kalradya'da her zaman açık bir cephe vardır
+        this.initDiplomacy();   // There's always an open front in Calradia
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
         this.resizeCanvases();
         
-        // Başlangıçta kamerayı anında oyuncuya odakla
+        // Instantly focus the camera on the player at start
         this.camera.x = state.player.x;
         this.camera.y = state.player.y;
         this.camera.offsetX = 0;
@@ -1647,14 +1647,14 @@ const Game = {
         this.updateTopBar();
         this.applySettings();
         this.startGameLoop();
-        // Yeni karakter haritaya düşünce arayüzü bir kez gösteren öğretici (#87).
-        // Kayıttan yüklemede `Save.load` buraya uğramaz, yani eski oyuncuya çıkmaz.
+        // Tutorial shown once when a new character drops onto the map (#87).
+        // Save.load doesn't pass through here on load, so it never shows for a returning player.
         setTimeout(() => this.startTutorial(), 400);
     },
 
     resizeCanvases() {
-        // Gizli bir tuvalin ebeveyni 0 ölçü verir; o değeri yazmak tuvali
-        // kalıcı olarak 0x0 bırakır. Sadece gerçek bir ölçü varken yaz.
+        // A hidden canvas's parent reports size 0; writing that value leaves the canvas
+        // permanently 0x0. Only write when there's a real size.
         let fit = (canvas) => {
             let w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight;
             if(w > 0 && h > 0) { canvas.width = w; canvas.height = h; }
@@ -1663,93 +1663,93 @@ const Game = {
         fit(document.getElementById('battle-canvas'));
     },
 
-    // 144/180 Hz ekranda rAF kare başına 5-7 ms bütçe verir; oyun 60 fps'te de
-    // aynı görünür ama GPU'ya 2-3 kat iş çıkar ve kaçan kareler takılma olarak
-    // hissedilir. Fazla kareler atlanır.
+    // At 144/180 Hz, rAF gives 5-7 ms budget per frame; the game looks the same at 60 fps
+    // too, but it costs the GPU 2-3x the work, and dropped frames feel like stutter.
+    // Extra frames are skipped.
     //
-    // Sabit ms eşiği olmaz: 90 Hz'te her ikinci kareyi atlamak 45 fps eder.
-    // Onun yerine tazeleme hızı ölçülüp 60'ın altına düşürmeyen en büyük tam
-    // bölen seçilir -> 60:60, 75:75, 90:90, 120:60, 144:72, 165:82, 180:60, 240:60.
+    // A fixed ms threshold doesn't work: at 90 Hz, skipping every second frame gives 45 fps.
+    // Instead, the refresh rate is measured and the largest whole divisor that doesn't drop
+    // below 60 is chosen -> 60:60, 75:75, 90:90, 120:60, 144:72, 165:82, 180:60, 240:60.
     _prevT: 0, _step: Infinity, _steps: [], _frameNo: 0, _lastSkip: false,
     skipFrame(t) {
-        // Karar KARE başına verilir, çağrı başına değil (#42). İki döngü aynı karede
-        // sorduğunda ikisi de aynı cevabı almalı: eskiden her çağrı _frameNo'yu
-        // artırdığı için sayaç kare başına 2 artıyor, n≥2 olan her ekranda (120 Hz
-        // ve üstü) döngülerden birinin parmak izi hep tek sayıya düşüyordu — o döngü
-        // BİR KEZ BİLE çalışmıyordu. Ölçüldü: n=2'de 2 saniyede harita döngüsü 60,
-        // savaş döngüsü 0 kez işledi; savaş donuyor, tuval hiç çizilmediği için
-        // ekran simsiyah kalıyordu.
+        // The decision is made per FRAME, not per call (#42). When two loops ask in the same
+        // frame, both must get the same answer: previously each call incremented _frameNo,
+        // so the counter advanced by 2 per frame, and on any screen with n≥2 (120 Hz
+        // and up) one of the loops' parity always landed on odd — that loop never ran,
+        // NOT EVEN ONCE. Measured: at n=2, over 2 seconds the map loop ran 60 times,
+        // the battle loop 0 times; the battle froze and the screen stayed pitch black
+        // since the canvas was never drawn.
         if(t === this._prevT) return this._lastSkip;
         let d = t - this._prevT;
         this._prevT = t;
-        Debug.frame(d);                                     // kare aralıkları debug raporuna girer (#52)
-        // Tazeleme periyodu son karelerin MEDYANIDIR, en küçüğü değil.
+        Debug.frame(d);                                     // frame intervals go into the debug report (#52)
+        // The refresh period is the MEDIAN of the last frames, not the minimum.
         //
-        // En küçük ölümcül bir tahmin ediciydi: tek bir bozuk örnek onu kalıcı
-        // olarak çiviliyordu, çünkü değer bir daha asla yukarı çıkamıyordu.
-        // iPhone'dan gelen debug raporunda ölçülen tam olarak buydu — iOS sayfayı
-        // kaydırırken iki rAF'ı ~2 ms arayla teslim ediyor, `_minStep` 2 ms'e
-        // kilitleniyor ve bölen `1000/30/2` = **16** oluyordu: 16 karenin 15'i
-        // atlanıyor, 60 Hz ekranda oyun **3.8 fps**'te dönüyordu. Rapordaki
-        // "500 Hz" satırı da aynı bozuk örneğin yankısıydı.
+        // The minimum was a fatally bad estimator: a single bad sample pinned it permanently,
+        // because the value could never climb back up.
+        // That's exactly what the debug report from an iPhone measured — while scrolling
+        // the page, iOS delivers two rAFs ~2 ms apart, `_minStep` locks to 2 ms,
+        // and the divisor `1000/30/2` = **16**: 15 of every 16 frames get dropped,
+        // and the game ran at **3.8 fps** on a 60 Hz screen. The "500 Hz" line in
+        // the report was an echo of that same bad sample.
         //
-        // Medyan iki yöne de dayanıklıdır (uzun jank de, çift teslimat da azınlıkta
-        // kalır) ve pencere kaydıkça **kendini toparlar**. Örnek süzgeci ikinci
-        // emniyettir: tüketici ekranlarının tavanı 240 Hz, yani 4 ms'in altındaki
-        // aralık ekranın periyodu olamaz. Süzgeç her şeyi elerse `_step` Infinity
-        // kalır ve bölen 1 olur — yani hata hep "fazla kare çiz" yönünde düşer.
+        // The median is resilient in both directions (a long jank or a double delivery both
+        // stay in the minority) and **self-corrects** as the window slides. The sample
+        // filter is the second safeguard: consumer screens top out at 240 Hz, so an
+        // interval under 4 ms can't be the screen's period. If the filter rejects
+        // everything, `_step` stays Infinity and the divisor becomes 1 — so the error always falls on the side of "draw too many frames".
         if(d > 4 && d < 200) {
             this._steps.push(d);
             if(this._steps.length > 31) this._steps.shift();
             let srt = this._steps.slice().sort((a, b) => a - b);
-            this._step = srt[srt.length >> 1];      // tek örnekte medyan örneğin kendisidir: ısınma yok
+            this._step = srt[srt.length >> 1];      // with a single sample the median is the sample itself: no warm-up
         }
-        // Kapı ayarlardan kapatılabilir (#55 madde 7): kapıya güvenmeyen oyuncunun
-        // elinde bir kaçış yolu olsun. Ölçüm (Debug.frame) kapalıyken de sürer.
+        // The gate can be turned off from settings (#55 item 7): a player who doesn't trust
+        // the gate should have an escape hatch. Measurement (Debug.frame) keeps running even while it's off.
         if(!this.opt('frameGate')) return this._lastSkip = false;
-        // Hafif modda hedef 30 fps: telefonda kare bütçesini yarıya indirmek,
-        // çizimi kısmaktan daha çok işe yarar (ve ısınmayı da yavaşlatır).
+        // Target 30 fps in lite mode: halving the frame budget on phones helps more
+        // than trimming the drawing (and it also slows down thermal warm-up).
         let fps = this.lite() ? 30 : 60;
         let n = Math.max(1, Math.floor(1000 / fps / this._step + 0.01));
         return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
 
-    // battle-canvas'ı Battle ve TournamentMinigame paylaşıyor. İlk getContext bağlayıcıdır:
-    // biri { alpha:false } bayrağını unutursa ikinci çağrı null döner ve ekran yine
-    // simsiyah kalır — kök neden bambaşka yerde aranır. Tek kapı sözleşmeyi taşır (#54).
+    // battle-canvas is shared by Battle and TournamentMinigame. The first getContext call is
+    // binding: if one of them forgets the { alpha:false } flag, the second call returns null
+    // and the screen stays pitch black again — the root cause gets looked for somewhere else entirely. One gate carries the contract (#54).
     battleCtx() {
         let c = document.getElementById('battle-canvas');
         let ctx = c.getContext('2d', { alpha: false });
-        if(!ctx) Debug.log('tuval', T('battle-canvas 2d bağlamı alınamadı — ekran siyah kalır'));
+        if(!ctx) Debug.log('canvas', T('battle-canvas 2d bağlamı alınamadı — ekran siyah kalır'));
         return ctx;
     },
 
     startGameLoop() {
-        // Çift döngü koruması: yükleme/yeniden başlatma her seferinde bir rAF
-        // döngüsü daha eklerse zaman ve hareket kat kat hızlanır.
+        // Double-loop guard: if load/restart adds one more rAF loop each time, time and
+        // movement speed up multiplicatively.
         if(this._loopId) cancelAnimationFrame(this._loopId);
         let lastTime = performance.now();
         const loop = (t) => {
-            // Savaş/turnuva kendi döngüsünü işletir; harita döngüsü yerini bırakır.
-            // showScreen() savaş dışı bir ekrana dönüldüğünde geri kurar.
+            // Battle/tournament runs its own loop; the map loop steps aside.
+            // showScreen() restarts it when returning to a non-battle screen.
             if(Battle.active || TournamentMinigame.active) { this._loopId = null; return; }
             if(this.skipFrame(t)) { this._loopId = requestAnimationFrame(loop); return; }
             let dt = (t - lastTime) / 1000;
             if(dt > 0.1) dt = 0.1;
             lastTime = t;
-            // İstisna rAF zincirini koparmasın: hata bir kez raporlanır, döngü yaşar (#55)
-            Debug.guard('harita döngüsü', () => { this.update(dt); this.renderMap(); });
+            // Don't let an exception break the rAF chain: the error is reported once, the loop lives on (#55)
+            Debug.guard('map loop', () => { this.update(dt); this.renderMap(); });
             this._loopId = requestAnimationFrame(loop);
         };
         this._loopId = requestAnimationFrame(loop);
     },
 
     // --- UPDATE ---
-    // --- NİTELİKLER: hedef / efektif ---
-    // Puan vermek niteliği anında açmaz; bir HEDEF koyar. Efektif değer o
-    // niteliğe uygun oynadıkça hedefe yaklaşır: çeviklik yol katederek, güç
-    // kılıç sallayarak, zekâ konuşarak, liderlik kalabalık yöneterek,
-    // dirayet dayak yiyerek. Fark büyükken hızlı, hedefe yaklaşırken yavaş.
+    // --- ATTRIBUTES: target / effective ---
+    // Awarding a point doesn't unlock the attribute instantly; it sets a TARGET. The effective
+    // value approaches the target as you play in ways that suit it: agility by covering ground,
+    // strength by swinging a sword, intelligence by talking, leadership by commanding a crowd,
+    // vitality by taking a beating. Fast while the gap is big, slow as it nears the target.
     ATTRS: {
         str: { name: 'Güç',      icon: '💪', how: 'Yakın dövüşte isabetli vuruş' },
         agi: { name: 'Çeviklik', icon: '🏃', how: 'Haritada yol katetmek' },
@@ -1757,11 +1757,11 @@ const Game = {
         cha: { name: 'Liderlik', icon: '👑', how: 'Kalabalık bir grubu yönetmek' },
         vit: { name: 'Dirayet',  icon: '🫀', how: 'Savaşta hasar yemek ve ayakta kalmak' }
     },
-    // Ölçüldü: 5 puanlık farkı kapatmak ~38 "kayda değer eylem" alıyor —
-    // çeviklikte ~11 harita geçişi, güçte ~8 savaş, liderlikte ~38 gün.
+    // Measured: closing a 5-point gap takes ~38 "notable actions" —
+    // ~11 map crossings for agility, ~8 battles for strength, ~38 days for leadership.
     ATTR_RATE: 0.08,
 
-    // Efektif değer. Eski kayıtta eff yoksa hedefe eşitlenir (geriye dönük).
+    // Effective value. If an old save has no eff, it's set equal to the target (backward compat).
     attr(k) {
         let s = state.player.stats;
         if(!s.eff) s.eff = {};
@@ -1770,36 +1770,36 @@ const Game = {
     },
     attrInt(k) { return Math.floor(this.attr(k)); },
 
-    // w: eylemin ağırlığı (1 ≈ "kayda değer bir eylem").
+    // w: the weight of the action (1 ≈ "one notable action").
     trainAttr(k, w) {
         let s = state.player.stats;
         let cur = this.attr(k), gap = (s[k] || 10) - cur;
         if(gap <= 0) { s.eff[k] = s[k] || 10; return; }
-        // 0.25 tabanı olmasa hedefe asla ulaşılmazdı (fark küçüldükçe kazanç 0'a giderdi).
+        // Without the 0.25 base, the target would never be reached (the gain would go to 0 as the gap shrank).
         s.eff[k] = Math.min(s[k], cur + w * this.ATTR_RATE * (0.25 + gap));
     },
 
-    // Dirayet: can yenilenmesi 5'lik sıçramalarla değil, saatte 1 can adımlarıyla.
+    // Vitality: HP regen isn't in jumps of 5, it's steps of 1 HP per hour.
     hpRegenHours() { return Math.max(1, 8 - Math.floor((this.attr('vit') - 10) / 2)); },
 
-    // Yeni karakter 12 kişiyle sınırlı; ordu nitelik, yetenek VE namla büyür.
-    // Nam da sayılır çünkü kalabalık asker tanınmış bir komutanın peşinden gider.
+    // A new character is limited to 12 people; the army grows with attributes, skill, AND renown.
+    // Renown counts too, because troops in numbers follow a commander with a name.
     getPartyCapacity() {
         let cha = this.attr('cha');
         let leadership = state.player.proficiencies.leadership ? state.player.proficiencies.leadership.level : 1;
-        // Nitelikler efektif (kesirli) olduğu için kapasite de kesirli çıkıyordu
-        // ("15/15.785700000000002"). Kesir kaynağında kırpılır ki karşılaştırma,
-        // künye dökümü ve rozet aynı tam sayıyı görsün (#43).
+        // Since attributes are effective (fractional), capacity came out fractional too
+        // ("15/15.785700000000002"). The fraction is truncated at the source so the
+        // comparison, the info-card readout, and the badge all see the same whole number (#43).
         return 12 + Math.floor((cha - 10) * 3) + (leadership - 1) * 4 + Math.floor((state.player.renown || 0) / 40);
     },
 
-    // Ödenmemiş maaş her saat 1 moral götürür ve borç birikir. Para geldiği anda
-    // otomatik ödenir; sayaç ancak borç tamamen kapanınca sıfırlanır.
-    // Can 5'lik sıçramalarla değil, Dirayet'in belirlediği aralıkta 1'er dolar.
-    // Üst sınır açık: maxHp. Esaretteyken de işler, hücrede de iyileşirsin.
-    HUNGER_HP: 3,          // aç geçen günün can bedeli (#75)
+    // Unpaid wages cost 1 morale every hour and the debt accumulates. It's paid off
+    // automatically the moment money comes in; the counter only resets once the debt is fully cleared.
+    // HP fills 1 at a time at the interval Vitality sets, not in jumps of 5.
+    // The cap is explicit: maxHp. It works while captive too — you heal in the cell.
+    HUNGER_HP: 3,          // HP cost of a day spent hungry (#75)
     regenTick() {
-        if(state.player.wasHungry) return;     // aç adam iyileşmez (#75)
+        if(state.player.wasHungry) return;     // a hungry man doesn't heal (#75)
         let s2 = state.player.stats;
         s2.regenAcc = (s2.regenAcc || 0) + 1;
         if(s2.regenAcc < this.hpRegenHours()) return;
@@ -1820,8 +1820,8 @@ const Game = {
         p.morale = Math.max(0, this.morale() - 1);
     },
 
-    // Ormandaki av gözden kaçar: ağaçların arasındaki çete normal görüşle değil,
-    // ancak yakınına sokulunca ya da iz sürerek (Gözcülük / Yol Bulma) fark edilir.
+    // Prey in the forest goes unnoticed: a band among the trees isn't spotted by normal
+    // sight, only by getting close or tracking (Spotting / Pathfinding).
     spotRange(npc) {
         let vis = this.getVisibility();
         if(this.getTerrainInfo(npc.x, npc.y).name !== 'Orman') return vis;
@@ -1830,15 +1830,15 @@ const Game = {
     },
     canSee(npc) { return this.dist(npc, state.player) <= this.spotRange(npc); },
 
-    // Yerleşimin *yeri* haritada durur, *durumu* durmaz (#74). Surun dumanı çeteden
-    // uzaktan görünür, o yüzden görüş menzili ×1.5; garnizonu saymak için o kadar
-    // yaklaşmak (ya da daha önce uğramış olmak) gerekir.
+    // A settlement's *location* stays fixed on the map, its *status* doesn't (#74). Smoke over
+    // the walls is visible to a band from a distance, hence the ×1.5 sight range; counting the
+    // garrison needs getting that close (or having visited before).
     LOC_SPOT: 1.5,
     locSpotRange() { return this.getVisibility() * this.LOC_SPOT; },
     locLive(loc) { return this.dist(loc, state.player) <= this.locSpotRange(); },
 
-    // Menzildeki her yerleşimin durumu hafızaya yazılır; künye görüş dışındayken
-    // bunu "N gün önce" diye okur. Saatte bir çalışır (25 yerleşim, ihmal edilebilir).
+    // Every in-range settlement's status gets written to memory; the info card reads it as
+    // "N days ago" once out of sight. Runs once an hour (25 settlements, negligible cost).
     scoutTick() { LOCATIONS.forEach(loc => { if(this.locLive(loc)) this.noteLoc(loc); }); },
     noteLoc(loc) {
         let lord = this.ownerLord(loc);
@@ -1848,13 +1848,13 @@ const Game = {
 
     getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
 
-    // Arazi hem hız çarpanını hem de künyede yazacak adı verir — tek kaynak
+    // Terrain gives both the speed multiplier and the name shown in the info card — single source
     getTerrainInfo(x, y) {
         let mult = 1.0, name = 'Düzlük', icon = '🌾';
         for(let f of FORESTS) {
             let dx = x - f.x, dy = y - f.y;
             if(Math.sqrt(dx*dx + dy*dy) <= f.radius) {
-                mult *= 0.8; // Ormanda %20 yavaşla
+                mult *= 0.8; // 20% slower in the forest
                 name = 'Orman'; icon = '🌲';
                 break;
             }
@@ -1872,7 +1872,7 @@ const Game = {
             else { xx = r.x1 + param * C; yy = r.y1 + param * D; }
             let dx = x - xx, dy = y - yy;
             if(Math.sqrt(dx * dx + dy * dy) <= r.width / 2) {
-                // Köprüden geçen yavaşlamaz — nehir yolun altından akar
+                // Crossing via a bridge doesn't slow you down — the river flows under the road
                 if(this.onBridge(x, y)) { name = 'Köprü'; icon = '🌉'; }
                 else { mult = 0.5; name = 'Nehir Geçidi'; icon = '🌊'; }
                 break;
@@ -1880,7 +1880,7 @@ const Game = {
         }
         if(state.roads) {
             for(let r of state.roads) {
-                // Yol ~150 kısa parça: önce ucuz kutu elemesi, sonra izdüşüm
+                // The road is ~150 short segments: cheap bounding-box rejection first, then projection
                 let kk = this.ROAD_KINDS[r.kind] || this.ROAD_KINDS.dirt, h = kk.half;
                 if(x < (r.x1 < r.x2 ? r.x1 : r.x2) - h || x > (r.x1 > r.x2 ? r.x1 : r.x2) + h) continue;
                 if(y < (r.y1 < r.y2 ? r.y1 : r.y2) - h || y > (r.y1 > r.y2 ? r.y1 : r.y2) + h) continue;
@@ -1896,8 +1896,8 @@ const Game = {
                 else { xx = r.x1 + param * C; yy = r.y1 + param * D; }
                 let dx = x - xx, dy = y - yy;
                 if(dx * dx + dy * dy <= h * h) {
-                    mult *= kk.mult;  // taş yol ×1.18, toprak ×1.10, keçi yolu ×1.04
-                    if(name === 'Düzlük') { name = kk.name; icon = kk.icon; }  // Köprü/Orman adı korunur
+                    mult *= kk.mult;  // stone road ×1.18, dirt ×1.10, goat path ×1.04
+                    if(name === 'Düzlük') { name = kk.name; icon = kk.icon; }  // Bridge/Forest name is preserved
                     break;
                 }
             }
@@ -1905,9 +1905,9 @@ const Game = {
         return { mult, name, icon };
     },
 
-    // Grubun sınıf dağılımı — hem harita künyesi hem atlı oranı için
-    // Bir grup üyesinin savaş/ekran verisi tek yerden gelir: yoldaşlar ve eş
-    // TROOP_TYPES'ta yok, her çağıran kendi varsayılanını uyduruyordu.
+    // The party's troop-type breakdown — used for both the map info card and the mounted ratio
+    // A party member's battle/display stats come from one place: companions and spouse
+    // aren't in TROOP_TYPES, so every caller used to make up its own defaults.
     troopStats(t) {
         if(t.isCompanion) {
             let c = COMPANIONS.find(x => x.id === t.companionId) || {};
@@ -1919,9 +1919,9 @@ const Game = {
     },
 
     // --- HEDEFLER (#53 madde 1.4) ---
-    // Battle Brothers'ın "ambition"ı: aynı anda TEK aktif hedef, tamamlanınca ödül
-    // ve yeni hedefler açılır. Tamamı veri; koşullar state'i okur, olay dinlemez —
-    // günlük tik ve Görevler sekmesi aynı `check`'i çağırır.
+    // Battle Brothers' "ambition": a SINGLE active goal at a time, a reward on completion
+    // and new goals unlock. It's all data; conditions read the state, they don't listen for events —
+    // the daily tick and the Quests tab call the same `check`.
     AMBITIONS: [
         { id: 'band',      title: 'Küçük bir bölük', desc: 'Grubunu 10 kişiye çıkar.',
           check: p => p.party.length >= 10, renown: 5, opens: ['champion', 'friend'] },
@@ -1939,7 +1939,7 @@ const Game = {
           check: () => LOCATIONS.some(l => l.owner === 'player'), renown: 20, opens: [] }
     ],
     ambition() { return this.AMBITIONS.find(a => a.id === (state.player.ambition || {}).id); },
-    // Açık hedefler: hiç hedef bitirmemişken zincirin başı, sonra tamamlananların açtıkları
+    // Open goals: the head of the chain before any goal is finished, then whatever completed ones unlock
     openAmbitions() {
         let done = state.player.ambitionsDone || [];
         let opened = done.reduce((a, id) => {
@@ -1954,7 +1954,7 @@ const Game = {
         else state.player.ambition = { id, day: state.time.day };
         if(typeof Quests !== 'undefined') Quests.render();
     },
-    // Günlük tik: seçili hedefin koşulu sağlandıysa ödülü ver, zinciri aç
+    // Daily tick: if the selected goal's condition is met, give the reward and open the chain
     ambitionTick() {
         if(this.grudgeList().length) state.player.hadGrudge = true;   // "kan bedeli" kapanabilsin (kayda girer)
         let a = this.ambition();
@@ -1986,9 +1986,9 @@ const Game = {
         </div>`;
     },
 
-    // Servet ölçekli baskı (#53 madde 1.3): tehdit yalnız takvime değil, senin gücüne de bakar.
-    // Rimworld'ün "baskın puanı = koloni serveti" kuralının ucuz hâli — ordunun seviye
-    // toplamının karekökü. Tek başına gezen oyuncuyu ezmez, 20 elitli orduyu rahat bırakmaz.
+    // Wealth-scaled pressure (#53 item 1.3): the threat looks at your strength, not just the calendar.
+    // The cheap version of Rimworld's "raid points = colony wealth" rule — the square root of
+    // the army's total level. It doesn't crush a lone player, and it doesn't go easy on a 20-elite army.
     threatLevel() {
         let sum = (state.player.party || []).reduce((a, t) => a + (t.level || 1), 0)
                 + (state.player.stats.level || 1);
@@ -2001,22 +2001,22 @@ const Game = {
         return c;
     },
 
-    // Warband'da harita hızını en çok grubun atlı oranı belirler
+    // In Warband, the party's mounted ratio is what mainly determines map speed
     getMountedRatio() {
         let total = state.player.party.length + 1;
         return (this.getPartyComposition().cavalry + (state.player.equipment.horse ? 1 : 0)) / total;
     },
 
-    // Çantanın dibi yoktu: tek kişiyle 500 buğday taşınabiliyordu (#78). Kapasite
-    // adam başıdır — atlı hem kendini hem yükü taşır, o yüzden fazladan pay alır.
+    // The bag had no bottom: a single person could carry 500 wheat (#78). Capacity is
+    // per-head — a mounted troop carries both itself and cargo, so it gets an extra share.
     CARGO_BASE: 20, CARGO_PER_MAN: 5, CARGO_PER_MOUNT: 4,
     cargoCap() {
         let mounted = this.getPartyComposition().cavalry + (state.player.equipment.horse ? 1 : 0);
         return this.CARGO_BASE + this.CARGO_PER_MAN * (state.player.party.length + 1) + this.CARGO_PER_MOUNT * mounted;
     },
     cargoLoad() { return state.player.inventory.reduce((n, i) => n + (i.qty || 0), 0); },
-    // Ganimet ve görev ödülü sınırı aşabilir; bedeli hızdır. Kapasitenin iki
-    // katında ×0.5'e iner — yürüyemez hâle getirmek yerine yavaşlatır.
+    // Loot and quest rewards can exceed the cap; the cost is speed. It drops to ×0.5 at
+    // twice capacity — slowing you down instead of making you unable to walk.
     cargoMult() {
         let cap = this.cargoCap(), load = this.cargoLoad();
         return load <= cap ? 1 : Math.max(0.5, 1 - (load - cap) / cap * 0.5);
@@ -2024,8 +2024,8 @@ const Game = {
 
     isNight() { let h = state.time.hour; return h < 6 || h >= 20; },
 
-    // Günün vakti: yalnızca ad/ikon (saat rozeti). Harita tonu ayrı ve kademeli
-    // hesaplanır — bkz. dayTint()/nightGlow().
+    // Time of day: name/icon only (the clock badge). The map tint is computed separately
+    // and gradually — see dayTint()/nightGlow().
     getDayPart() {
         let h = state.time.hour;
         if(h < 5)  return { key: 'night',   name: T('Gece'),       icon: '🌙' };
@@ -2037,16 +2037,16 @@ const Game = {
         return { key: 'night', name: T('Gece'), icon: '🌙' };
     },
 
-    // Harita tonu saat başında sıçramaz: anahtar saatler arasında lineer geçer.
-    // [saat, r, g, b, alfa]
+    // The map tint doesn't jump on the hour: it transitions linearly between key hours.
+    // [hour, r, g, b, alpha]
     DAY_TINTS: [
         [0,   12, 20, 52, 0.46],
         [4,   12, 20, 52, 0.42],
-        [6,   74, 44, 34, 0.30],   // şafak sökerken sıcak ton
-        [9,    0,  0,  0, 0.00],   // sabah aydınlığı
-        [16,   0,  0,  0, 0.00],   // ikindiye kadar tonsuz
-        [19, 112, 54, 22, 0.30],   // gün batımı
-        [21,  30, 34, 70, 0.38],   // akşam karanlığı
+        [6,   74, 44, 34, 0.30],   // warm tone as dawn breaks
+        [9,    0,  0,  0, 0.00],   // morning brightness
+        [16,   0,  0,  0, 0.00],   // no tint until afternoon
+        [19, 112, 54, 22, 0.30],   // sunset
+        [21,  30, 34, 70, 0.38],   // evening darkness
         [24,  12, 20, 52, 0.46]
     ],
     dayTint() {
@@ -2060,7 +2060,7 @@ const Game = {
         if(alpha < 0.015) return null;
         return `rgba(${Math.round(v(1))},${Math.round(v(2))},${Math.round(v(3))},${alpha.toFixed(3)})`;
     },
-    // Yerleşimlerdeki ocak ışığı da anahtarla yanıp sönmez, akşam yavaşça güçlenir
+    // Hearth light in settlements doesn't switch on/off at a threshold either, it strengthens gradually in the evening
     nightGlow() {
         let h = ((state.time.hour % 24) + 24) % 24;
         if(h >= 21 || h < 5) return 1;
@@ -2070,7 +2070,7 @@ const Game = {
     },
 
     getPlayerSpeed() {
-        // Küçük grup çevik, kalabalık ordu ağır ilerler (atlı oranı cezayı hafifletir)
+        // A small party moves nimbly, a large army moves heavily (mounted ratio softens the penalty)
         let size = state.player.party.length + 1;
         let speedBonus = 0;
         if(size <= 1) speedBonus = 0.5;
@@ -2078,19 +2078,19 @@ const Game = {
         else if(size <= 20) speedBonus = 0.2 - ((size - 10) / 10) * 0.2;
         else speedBonus = -Math.min(0.45, (size - 20) * 0.01);
 
-        // Atlı/yaya farkı tek yerden gelir (#72). Eskiden iki çarpan üst üste biniyordu:
-        // taban 105/66 (=1.59×) ve ayrıca atlı oranından gelen toplama +0.35 — tam atlı
-        // grupta fark 2.1×'e, kalabalık orduda (grup cezası paydayı küçültünce) 2.6×'e
-        // çıkıyordu. Şimdi taban ortak, atlılık *çarpan*: toplam fark her grup
-        // büyüklüğünde tam olarak 1.5× ile sınırlı. Toplamaya geri dönülürse sınır
-        // yine kaçar — grup bonusu paydada durduğu için oran sabit kalmaz.
+        // The mounted/foot difference comes from a single place (#72). Two multipliers used to
+        // stack: a 105/66 base (=1.59×) plus an additional +0.35 from the mounted ratio — in a
+        // fully mounted party the difference reached 2.1×, and in a large army (once the party
+        // penalty shrank the denominator) it reached 2.6×. Now the base is shared and mounted
+        // status is a *multiplier*: the total difference is capped at exactly 1.5× at every
+        // party size. Going back to addition would let the cap slip again — since the party bonus sits in the denominator, the ratio wouldn't stay constant.
         let base = 66;
         let agiBonus = this.attr('agi') * 1.5;
-        let mountBonus = this.getMountedRatio() * 0.5; // atlı oranı: yaya 1.0×, tam atlı 1.5×
-        let nightMult = this.isNight() ? 0.85 : 1;      // gece yavaş yol alınır
+        let mountBonus = this.getMountedRatio() * 0.5; // mounted ratio: on foot 1.0×, fully mounted 1.5×
+        let nightMult = this.isNight() ? 0.85 : 1;      // travel is slower at night
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
-        let pathMult = 1 + (this.profLvl('pathfinding') - 1) * 0.02;  // Yol Bulma yeteneği
-        let cargoMult = this.cargoMult();                             // aşırı yük (#78)
+        let pathMult = 1 + (this.profLvl('pathfinding') - 1) * 0.02;  // Pathfinding skill
+        let cargoMult = this.cargoMult();                             // overload (#78)
 
         return {
             value: (base + agiBonus) * (1 + speedBonus) * (1 + mountBonus) * terrain.mult * nightMult * pathMult * cargoMult,
@@ -2144,7 +2144,7 @@ const Game = {
         let lastDefeatDaysAgo = p.lastDefeatDay ? (day - p.lastDefeatDay) : 999;
         
         if(type === 'elder') {
-            // Köylü kimin karşısında durduğunu bilir: yağmacı / düşman / misafir (#50)
+            // The villager knows who they're facing: raider / enemy / guest (#50)
             let loc = npc, pick = a => a[Math.floor(Math.random() * a.length)];
             if(this.raidedRecently(loc)) return pick([
                 T`"Yine mi sen?! Ambarımızı boşalttın, damları yaktın... Defol! (Arkadan bir taş vızıldayıp geçer.)"`,
@@ -2178,9 +2178,9 @@ const Game = {
 
     update(dt) {
         if (Battle.active || TournamentMinigame.active) return;
-        state.meta.playtime = (state.meta.playtime || 0) + dt;   // kayıt künyesinde oynama süresi
+        state.meta.playtime = (state.meta.playtime || 0) + dt;   // playtime shown in the save info card
         
-        // Fare ile Ekran Kaydırma (Edge Panning) — kapısı Game.edgePan(), ⚙️ Ayarlar'dan kapanır.
+        // Mouse Edge Panning — gated by Game.edgePan(), can be turned off from ⚙️ Settings.
         let edgeMargin = 40;
         let panSpeed = 600 * dt / this.camera.zoom;
         let mx = Input.mouse.clientX;
@@ -2200,19 +2200,20 @@ const Game = {
             }
         }
 
-        // Smooth Zoom ve Camera Follow
+        // Smooth Zoom and Camera Follow
         let targetCamX = state.player.x + this.camera.offsetX;
         let targetCamY = state.player.y + this.camera.offsetY;
-        // Hareket azaltma açıkken kamera ve zoom yumuşatması yok, anında oturur (#55 madde 6)
+        // With reduced motion on, there's no camera/zoom smoothing, it snaps instantly (#55 item 6)
         let snap = this.reduceMotion() ? 1 : 0;
         this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * (snap || 8 * dt);
         this.camera.x += (targetCamX - this.camera.x) * (snap || 5 * dt);
         this.camera.y += (targetCamY - this.camera.y) * (snap || 5 * dt);
 
-        // WASD/oklar kamerayı SERBEST kaydırır — kenardan fare pan'ının klavye karşılığı (#44).
-        // Eskiden tam tersini yapıyor, offset'i sıfırlayıp kamerayı oyuncuya kilitliyordu;
-        // haritayı elle gezmenin tek yolu fareyi ekran kenarına dayamaktı.
-        // Oyuncuya dönmek zaten Boşluk ve 🎯 Beni Bul ile mümkün.
+        // WASD/arrows pan the camera FREELY — the keyboard counterpart to edge-of-screen mouse
+        // panning (#44). It used to do the opposite, resetting the offset and locking the
+        // camera to the player; the only way to look around the map by hand was to push
+        // the mouse to the screen edge.
+        // Returning to the player is already possible with Space and 🎯 Find Me.
         if(document.getElementById('map-view').classList.contains('active')) {
             let k = Input.keys;
             if(k['a']||k['arrowleft'])  this.camera.offsetX -= panSpeed;
@@ -2220,7 +2221,7 @@ const Game = {
             if(k['w']||k['arrowup'])    this.camera.offsetY -= panSpeed;
             if(k['s']||k['arrowdown'])  this.camera.offsetY += panSpeed;
         }
-        // Kıtayı büsbütün kaybetmeyelim: harita 9000 birim, offset onun kadarıyla sınırlı
+        // Don't lose the continent entirely: the map is 9000 units, the offset is capped to match
         this.camera.offsetX = Math.max(-9000, Math.min(9000, this.camera.offsetX));
         this.camera.offsetY = Math.max(-9000, Math.min(9000, this.camera.offsetY));
 
@@ -2233,7 +2234,7 @@ const Game = {
         let timeFlows = false;
         
         if (isMapActive && !isModalOpen) {
-            // Kuşatma kampında da zaman akar: hazırlık günleri geçsin, dünya işlesin (#25)
+            // Time flows during a siege camp too: let prep days pass, let the world tick (#25)
             if (state.player.status === 'moving' || state.player.status === 'prisoner'
                 || state.player.status === 'besieging' || state.player.status === 'raiding'
                 || state.player.status === 'waiting') {
@@ -2242,14 +2243,14 @@ const Game = {
         }
 
         if (timeFlows) {
-            // Kampta zaman ×WAIT_SCALE akar (#53/1.1)
+            // Time flows at ×WAIT_SCALE while camped (#53/1.1)
             this.advanceTime(dt * this.timeScale() * (state.player.wait ? this.WAIT_SCALE : 1));
             this.waitTick();
             this.updateNPCs(dt);
             if(state.encounterCooldown > 0) state.encounterCooldown -= dt;
         }
 
-        // Yağma süren bir eylemdir: ilerleme, müdahale eden lord, bitiş (#49)
+        // Raiding is an ongoing action: progress, an intervening lord, completion (#49)
         if(state.player.status === 'raiding') { this.raidTick(timeFlows ? dt : 0); return; }
 
         if(state.player.status === 'prisoner') {
@@ -2258,13 +2259,13 @@ const Game = {
                 state.player.x = captor.x; state.player.y = captor.y;
             }
             
-            // Dinamik kaçış planı ilerlemesi
+            // Dynamic escape-plan progress
             if(state.player.prisoner.isPlanning) {
                 let currentChance = state.player.prisoner.escapeChance || 0;
                 
                 if (currentChance < 80) {
-                    // Başlangıçta (0'da) ivme = 5.0
-                    // 80'e yaklaştıkça ivme = 0.1
+                    // At the start (0), acceleration = 5.0
+                    // As it approaches 80, acceleration = 0.1
                     let planSpeed = 0.1 + ((80 - currentChance) / 80) * 4.9;
                     
                     state.player.prisoner.escapeChance = Math.min(80, currentChance + planSpeed * dt);
@@ -2274,7 +2275,7 @@ const Game = {
                 if(el) el.innerText = this.pct(state.player.prisoner.escapeChance);
             }
             
-            return; // Esir iken başka hiçbir şey yapma
+            return; // Do nothing else while a prisoner
         }
 
         if(state.player.status === 'moving' && state.player.targetLocation && timeFlows) {
@@ -2296,12 +2297,12 @@ const Game = {
                 let spd = spdData.value;
                 let r = Math.min(spd * dt / dist, 1);
                 state.player.x += dx * r; state.player.y += dy * r;
-                this.clampToMap(state.player); // Doğal sınırlardan taşmayı engelle
-                this.trainAttr('agi', (dist * r) / 1500);   // çeviklik yolda gelişir
-                this.roadTick(dist * r);                    // yol olayı zarı (#67)
+                this.clampToMap(state.player); // prevent going past the natural borders
+                this.trainAttr('agi', (dist * r) / 1500);   // agility improves on the road
+                this.roadTick(dist * r);                    // road-event roll (#67)
 
-                // Araziye göre hızın anlık değişebilmesi için UI'ı güncelle
-                if(Math.random() < 0.1) { // 60 FPS'te sürekli DOM güncellememek için
+                // Update the UI so speed can change instantly based on terrain
+                if(Math.random() < 0.1) { // to avoid updating the DOM constantly at 60 FPS
                     this.updateSpeedUI(spdData);
                 }
             }
@@ -2312,7 +2313,7 @@ const Game = {
         // NPC -> player collision
         if(timeFlows && state.encounterCooldown <= 0) {
             for(let npc of state.npcParties) {
-                // Dost soylulara çarpmak da bir karşılaşmadır — savaş değil, sohbet
+                // Bumping into a friendly noble is an encounter too — not a battle, a chat
                 if(!npc.lordId && !npc.trade && !this.isHostile(npc)) continue;
                 let d = this.dist(npc, state.player);
                 if(d < 24) {
@@ -2325,15 +2326,15 @@ const Game = {
         }
     },
 
-    // Ormanda pusu: ağaçların arasında gizlenmiş çete/sürü sen yaklaşınca üstüne atlar.
-    // Fark etme şansı Gözcülük + Yol Bulma'ya bağlı; fark edersen normal karşılaşma olur,
-    // fark edemezsen savaşa etrafın sarılmış hâlde başlarsın.
+    // Ambush in the forest: a band/pack hidden among the trees jumps you as you approach.
+    // The chance to notice depends on Spotting + Pathfinding; if you notice, it's a normal
+    // encounter, if you don't, the battle starts with you surrounded.
     //
-    // Pusu menzili GÖRÜŞE bağlıdır: sabit 240 birim, başlangıç karakterinin ormandaki
-    // görüşünden (125) genişti — yani seni basan çete tanım gereği hiç ekrana çizilmemiş
-    // oluyordu. `spotRange` ile kırpılınca "hiç görmediğim şey beni bastı" sınıfı kapanır;
-    // zar hâlâ atılır, pusu hâlâ acıtır, ama ortada bir an vardır: onu gördün.
-    // 240 tavan olarak kalır ki yetenek büyüdükçe pusu sıklaşmasın.
+    // Ambush range depends on SIGHT: a fixed 240 units was wider than a starting character's
+    // sight in the forest (125) — meaning the band that jumped you was, by definition,
+    // never drawn on screen. Clamping it with `spotRange` closes the "something I never
+    // saw jumped me" class of bug; the roll still happens, the ambush still hurts, but there's a moment in between: you saw it.
+    // 240 stays as a ceiling so ambushes don't get more frequent as skill grows.
     AMBUSH_RANGE: 240,
     checkAmbush(dt) {
         if(state.player.prisoner || state.encounterCooldown > 0) return;
@@ -2342,8 +2343,8 @@ const Game = {
         if(this._ambushCd > 0) return;
         this._ambushCd = 1;   // saniyede bir zar atmak yeter
 
-        // Kalabalık ordunun üstüne altı kurt atlamaz: pusu kuran çete de kâr hesabı yapar.
-        // (Karşılaşma dalındaki `backOff` yalnız `!ambush` iken çalışıyor, burada elenmeli.)
+        // Six wolves don't jump a large army: a band setting an ambush also does the math.
+        // (The `backOff` branch in the encounter only runs when `!ambush`, so it must be excluded here.)
         let mine = state.player.party.filter(t => !t.wounded).length + 1;
         let lurker = state.npcParties.find(n => n.type === 'bandit'
             && this.dist(n, state.player) < Math.min(this.AMBUSH_RANGE, this.spotRange(n))
@@ -2360,13 +2361,13 @@ const Game = {
         this.triggerEncounter(lurker, spotted ? 'spotted' : 'ambush');
     },
 
-    // ---- KAMP: BEKLE (#53 madde 1.1) ----
-    // Tek primitif: oyuncu durur, zaman ×4 akar, dünya işlemeye devam eder ve
-    // herhangi bir karşılaşma (triggerEncounter) beklemeyi keser. Dinlenme, gönüllü
-    // tazelenmesi, turnuva/şölen beklemek, kervan beklemek hep bunun müşterisi.
+    // ---- CAMP: WAIT (#53 item 1.1) ----
+    // A single primitive: the player stops, time flows at ×4, the world keeps ticking, and
+    // any encounter (triggerEncounter) cuts the wait short. Resting, volunteer refresh,
+    // waiting for a tournament/feast, waiting for a caravan — all of it is a customer of this.
     WAIT_SCALE: 4,
-    // Beklemenin bir bedeli var: maaş, erzak, bozulma zaten saatle işliyor
-    WAIT_CHOICES: [[1, '1 saat'], [8, '8 saat'], [24, '1 gün'], [72, '3 gün']],   // ham; gösterimde çevrilir
+    // Waiting has a cost: wages, food, spoilage already tick hourly
+    WAIT_CHOICES: [[1, '1 saat'], [8, '8 saat'], [24, '1 gün'], [72, '3 gün']],   // raw; translated at display
     askWait() {
         if(state.player.prisoner || state.player.raid) return;
         let terr = this.getTerrainInfo(state.player.x, state.player.y);
@@ -2392,7 +2393,7 @@ const Game = {
         this.showScreen('map');
         this.renderWaitUI();
     },
-    // Beklemeyi bitiren tek kapı — süre dolması da, karşılaşma da buradan geçer
+    // The single gate that ends waiting — both time running out and an encounter go through here
     stopWait(msg) {
         if(!state.player.wait) return;
         state.player.wait = null;
@@ -2421,16 +2422,16 @@ const Game = {
                 ${T`❤️ ${Math.round(p.stats.hp)}/${Math.round(p.stats.maxHp)} · 🎺 ${Math.round(this.morale())} · zaman ×${this.WAIT_SCALE}`}</div>`);
     },
 
-    // Hayvan sürüsüne teslim olunmaz — hızın yeterse sıyrılırsın
-    // Kaçış şansı hız farkına bağlıdır: atlı bir grup çapulcuyu ekebilir,
-    // ağır ordu Kergit atlılarından kaçamaz (#30). Harita hızı zaten atlı oranı,
-    // arazi ve geceyi hesaplıyor — doğrudan onu kullanıyoruz.
-    // Pusuda kaçış kapalı değil, pahalı: sarılmışken sıyrılma şansı yarıya iner.
-    // Çarpan burada durur ki ekranda yazan yüzde ile zarın attığı yüzde aynı olsun.
+    // You can't surrender to an animal pack — if you're fast enough you slip away
+    // The escape chance depends on the speed difference: a mounted party can outrun bandits,
+    // a heavy army can't outrun Kergit horsemen (#30). Map speed already accounts for mounted
+    // ratio, terrain, and night — we use it directly.
+    // Escape in an ambush isn't disabled, it's expensive: the chance to slip away while surrounded is halved.
+    // The multiplier lives here so the percentage shown on screen matches the percentage the roll uses.
     AMBUSH_FLEE: 0.5,
     fleeChance(npc) {
-        // Fark değil oran: hız farkını doğrusal alınca (0.45 + fark/90) kalabalık ordu bile
-        // Kergit atlılarından %89 ile kaçıyordu. Oranda denk hız %24, 1.5 kat hız %84 eder.
+        // Ratio, not difference: taking the speed difference linearly (0.45 + diff/90), even
+        // a large army escaped Kergit horsemen at 89%. As a ratio, equal speed gives 24%, 1.5x speed gives 84%.
         let his = (npc && npc.speed) || 60;
         let base = Math.max(0.1, Math.min(0.9, (this.getPlayerSpeed().value / his - 0.8) * 1.2));
         return state.ambush ? base * this.AMBUSH_FLEE : base;
@@ -2441,7 +2442,7 @@ const Game = {
         let chance = this.fleeChance(npc);
         if(Math.random() < chance) {
             state.encounterCooldown = 6;
-            state.ambush = false;   // sıyrıldın: sarılmışlık bir sonraki savaşa taşınmaz
+            state.ambush = false;   // you slipped away: being surrounded doesn't carry over to the next battle
             state.player.status = 'idle'; state.player.targetLocation = null;
             alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
         } else {
@@ -2449,7 +2450,7 @@ const Game = {
             Battle.start(npc ? npc.name : 'Kurt Sürüsü', npc ? npc.size : 6, null, (npc && npc.faction) || '');
         }
     },
-    // "Askerlerini gönder": savaşı motorun kendisi kursun ama arena açılmasın (#30)
+    // "Send your troops": let the engine itself resolve the battle without opening the arena (#30)
     autoBattle(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
         if(!npc) return this.closeModal();
@@ -2463,8 +2464,8 @@ const Game = {
         let dist = Math.sqrt(dx*dx + dy*dy);
 
         if(npc.type === 'bandit') {
-            if(dist < 120) return true; // Dibine girersen affetmez!
-            if(ps > npc.size * 1.5) return false; // Biz çok güçlüysek bizden kaçsınlar (agresif olmazlar)
+            if(dist < 120) return true; // Get right up on them and they won't forgive it!
+            if(ps > npc.size * 1.5) return false; // If we're much stronger, let them flee from us (they won't be aggressive)
             if(state.time.day <= 14) {
                 let hash = parseInt(npc.id.replace('npc_',''), 36) % 100 || 50;
                 let aggroThreshold = (state.time.day / 14) * 100;
@@ -2472,15 +2473,15 @@ const Game = {
             }
             return true;
         }
-        // Soylular artık konuşulacak kişiler; kavga sadece düşman krallıktaysak.
+        // Nobles are now people you talk to; a fight only happens if we're at war.
         if(npc.lordId) {
-            if(this.hasGrudge(npc.lordId)) return true;     // kan davası: sohbet değil savaş (#53)
+            if(this.hasGrudge(npc.lordId)) return true;     // blood feud: a battle, not a chat (#53)
             if(Nobles.rel(npc.lordId) <= -50) return true;
-            // Artık "başka bayrak" değil, krallığının o krallıkla savaşta olması saldırtır
+            // It's no longer "a different banner" — your kingdom being at war with theirs is what triggers aggression
             return this.atWar(this.playerFaction(), npc.faction);
         }
         if(npc.type === 'king' || npc.type === 'vizier' || npc.type === 'lord') {
-            if(state.player.stats.level < npc.level - 5 && ps < npc.size / 2) return false; // Güçsüzlere agresif değil
+            if(state.player.stats.level < npc.level - 5 && ps < npc.size / 2) return false; // not aggressive toward the weak
         }
         if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier')
             return this.atWar(this.playerFaction(), npc.faction);
@@ -2492,18 +2493,18 @@ const Game = {
         state.npcParties.forEach(npc => {
             let dxP = state.player.x - npc.x, dyP = state.player.y - npc.y;
             let dp = Math.sqrt(dxP*dxP + dyP*dyP);
-            // Esirken NPC'ler oyuncuyu hedef alıp kilitlenmez (böylece esir alan serbestçe dolaşır)
+            // While captive, NPCs don't lock onto the player as a target (so the captor roams freely)
             let hostile = this.isHostile(npc) && state.player.status !== 'prisoner';
 
-            // Zayıf çete, güçlü orduyu uzaktan görüp kaçar; kovalayan yakından fark eder
+            // A weak band spots a strong army from afar and flees; a pursuer notices up close
             let sense = npc.size > ps ? 360 : 360 + Math.min(640, (ps / Math.max(1, npc.size)) * 240);
-            // Kaçış artık düşmanlıktan bağımsız: çete zaten sana saldırmayacak kadar
-            // zayıfsa (isHostile false) eskiden hiç kaçmıyor, dolaşmaya devam ediyordu.
-            // Kervan/kafile savaştaki krallığın ordusundan kaçar (yoksa yoluna devam)
+            // Fleeing is now independent of hostility: if a band is too weak to attack you
+            // anyway (isHostile false) it used to never flee, and kept wandering instead.
+            // A caravan/convoy flees an army from a kingdom it's at war with (otherwise carries on)
             let notices = dp < sense && (hostile || npc.type === 'bandit'
                           || (npc.trade && this.atWar(this.playerFaction(), npc.faction)));
-            // Soylu kaçmaz: düşman lord kendinden biraz kalabalık orduya da yürür, ancak
-            // belirgin şekilde güçlüysen (×1.5) geri çekilir (#48).
+            // A noble doesn't flee: an enemy lord will still walk toward an army a little bigger
+            // than theirs, but pulls back if you're clearly stronger (×1.5) (#48).
             let might = npc.size * (npc.lordId ? 1.5 : 1);
             if(notices && (might > ps ? hostile : true)) {
                 if(might > ps) {
@@ -2514,26 +2515,26 @@ const Game = {
             } else {
                 let dtx = npc.targetX - npc.x, dty = npc.targetY - npc.y;
                 if(Math.sqrt(dtx*dtx + dty*dty) < 15) {
-                    if(npc.trade) return this.traderArrive(npc);   // kafile durağına vardı
+                    if(npc.trade) return this.traderArrive(npc);   // the convoy arrived at its stop
                     let a = Math.random() * Math.PI * 2;
-                    // Soylular kendi yerleşimlerinin etrafında döner; başkalarını
-                    // salonlarında bulabilmek için bu şart.
+                    // Nobles wander around their own settlements; this is required so you can
+                    // find others in their halls.
                     let lord = npc.lordId ? Nobles.lord(npc.lordId) : null;
                     let home = lord ? LOCATIONS.find(x => x.id === lord.homeLocId) : null;
                     if(state.feast && lord && lord.faction === state.feast.faction) {
                         home = LOCATIONS.find(x => x.id === state.feast.locId) || home;
                     }
-                    // Kan davalı lord evine değil senin üstüne yürür (#53/1.3)
-                    if(lord && !this.hasGrudge(lord.id)) delete npc.hunting;   // dava bitince peşini bırakır
+                    // A lord with a blood feud walks toward you, not home (#53/1.3)
+                    if(lord && !this.hasGrudge(lord.id)) delete npc.hunting;   // gives up the chase once the feud ends
                     if(lord && this.hasGrudge(lord.id) && state.player.status !== 'prisoner' && Math.random() < 0.5) {
                         npc.targetX = state.player.x; npc.targetY = state.player.y;
                         npc.hunting = 'player';
                         return;
                     }
-                    // Savaştaki lord evinde oturmaz: yakın düşman yerleşimlerinden
-                    // birine yürür (warTick orada çarpışmayı/kuşatmayı çözer).
+                    // A lord at war doesn't sit at home: he walks toward one of the nearby
+                    // enemy settlements (warTick resolves the clash/siege there).
                     if(lord && this.warsOf(npc.faction).length) {
-                        // Sefer varsa ordu dağılmaz, mareşalin hedefine yürür
+                        // If there's a campaign, the army doesn't disperse, it marches to the marshal's target
                         let camp = state.campaigns[npc.faction];
                         let ct = camp && LOCATIONS.find(l => l.id === camp.targetLocId);
                         if(ct && Math.random() < 0.7) home = ct;
@@ -2555,8 +2556,8 @@ const Game = {
                 }
             }
 
-            // Haydut kervan avlar (#38): menzilindeki en yakın kafileye yönelir; baskının
-            // kendisini banditTick çözer. Gücü yetmeyen çete peşine düşmez.
+            // A bandit hunts caravans (#38): heads for the nearest convoy in range; banditTick
+            // resolves the raid itself. A band that isn't strong enough doesn't give chase.
             if(npc.type === 'bandit' && !notices && !(BAND_KINDS[npc.band] || {}).beast) {
                 let prey = null, bd = 1200;
                 state.npcParties.forEach(t => {
@@ -2567,15 +2568,15 @@ const Game = {
                 npc.hunting = null;
                 if(prey && prey.size * (prey.trade.kind === 'caravan' ? 1.15 : 0.5) < npc.size * 1.2) {
                     npc.targetX = prey.x; npc.targetY = prey.y;
-                    npc.hunting = prey.id;   // kimlik saklanır, ad gösterim anında çevrilir
+                    npc.hunting = prey.id;   // the id is stored, the name is translated at display time
                 }
             }
 
-            // Kurtlar ağaçların arasından fırlar: ormandaki sürü seni sezer ve üstüne atılır.
-            // Atılma menzili görüşe bağlı — eskiden sabit 700'dü, yani sürü ×2 hızla
-            // gelirken sen onu ancak 125 birimden görüyordun ve yaklaşmanın tamamı
-            // görünmezdi. Artık sürü ancak *görülebildiği* mesafeden atılır; kararı sen
-            // verirsin. Atılan sürü haritada kırmızı halkayla işaretlenir (npc.charging).
+            // Wolves burst out from among the trees: a pack in the forest senses you and
+            // charges. The charge range depends on sight — it used to be a fixed 700, meaning
+            // the pack closed in at ×2 speed while you could only see it from 125 units away,
+            // so the whole approach was invisible. Now a pack only charges from a distance you
+            // can actually *see*; you get to make the call. A charging pack is marked on the map with a red ring (npc.charging).
             let burst = 1;
             npc.charging = false;
             if((BAND_KINDS[npc.band] || {}).beast && dp < this.spotRange(npc) && state.player.status !== 'prisoner'
@@ -2592,15 +2593,15 @@ const Game = {
                 let r = Math.min(spd * dt / d, 1);
                 npc.x += dx*r; npc.y += dy*r;
             }
-            this.clampToMap(npc); // NPC'lerin dağları aşmasını engelle
+            this.clampToMap(npc); // prevent NPCs from crossing mountains
         });
     },
 
-    // `ambush`: 'ambush' | 'spotted' | 'raid' — 'raid' yağmayı basan lorddur, sohbet yok
-    // --- SAVAŞ ÖNCESİ ASKER MIRILTISI (#35) ---
-    // Karşılaşma modalinde grubundan biri iki çift laf eder. Hangi havuzdan konuştuğu
-    // güç oranına, morale, açlığa ve maaş borcuna bakar; İdare yeteneği korku eşiğini
-    // yükseltir (iyi komutanın adamı geç panikler).
+    // `ambush`: 'ambush' | 'spotted' | 'raid' — 'raid' is the lord raiding you, no chat
+    // --- PRE-BATTLE TROOP CHATTER (#35) ---
+    // In the encounter modal, someone from your party says a line or two. Which pool they
+    // speak from looks at the strength ratio, morale, hunger, and wage debt; the Leadership
+    // skill raises the fear threshold (a good commander's men panic later).
     CHATTER: {
         scared: [
             'Nereden geldim buraya, anamın evi sıcacıktı...',
@@ -2647,8 +2648,8 @@ const Game = {
         return `<span style="color:var(--text-muted)">${this.troopLabel(t)}:</span> <i>"${line}"</i>`;
     },
 
-    // Ödül kısma savaştan sonra tek satırda görülüyordu; kararı vermeden önce bilinsin.
-    // Hesap Battle.rewardScale'in kendisidir — düşman gücü npc'den tahmin edilir (#55 madde 9).
+    // The reward cut used to be visible only in a single line after the battle; know it before deciding.
+    // The calculation is Battle.rewardScale itself — enemy strength is estimated from the npc (#55 item 9).
     preyWarning(npc) {
         if(!npc || npc.trade) return '';
         let sc = Battle.rewardScale(npc.size * ((npc.level || 1) + 1));
@@ -2656,20 +2657,20 @@ const Game = {
     },
 
     triggerEncounter(npc, ambush) {
-        // Kamp bozulur: kimse üstüne gelirken uyumaya devam edemezsin (#53/1.1)
+        // The camp breaks: you can't keep sleeping while someone's closing in on you (#53/1.1)
         if(state.player.wait) this.stopWait();
         state.encounterCooldown = 2;
-        state.ambush = false;   // her karşılaşma bayrağı sıfırlar; pusu dalı geri açar
+        state.ambush = false;   // every encounter resets the flag; reopens the ambush branch
         state.player.currentEncounterNpcId = npc.id;
 
-        // Kervan/köylü kafilesi: savaş dayatılmaz, soymak senin seçimin
+        // Caravan/village convoy: no battle is forced, robbing them is your choice
         if(npc.trade) {
             let live = state.npcParties.find(n => n.id === npc.id);
             if(live) return this.meetTrader(live);
         }
 
-        // Düşman olmayan bir soyluya rastladıysak bu bir sohbet fırsatı, savaş değil.
-        // Ama köyünü yakarken bastıysa sohbet olmaz (#49).
+        // Running into a noble who isn't an enemy is a chance to talk, not a battle.
+        // But there's no chat if you caught them burning their village (#49).
         if(npc.lordId && !this.isHostile(npc) && ambush !== 'raid') {
             state.player.currentEncounterNpcId = null;
             state.encounterCooldown = 8;
@@ -2683,7 +2684,7 @@ const Game = {
         <p>Senin grubun: <b>${state.player.party.length + 1}</b> kişi`}</p>`;
 
         if(ambush === 'ambush') {
-            // Fark edemedin: savaş etrafın sarılmış hâlde başlar (Battle.start okur)
+            // You didn't notice: the battle starts with you surrounded (Battle.start reads this)
             state.ambush = true;
             html += `<p style="color:#e0463a;margin-top:0.5rem">${T`Ağaçların arasından üstünüze
                      atladılar — çember daraldı, adamların dağılmış durumda!`}</p>`;
@@ -2692,8 +2693,8 @@ const Game = {
                      zamanında fark ettin, seni saramadılar.`}</p>`;
         }
 
-        // Çete "değmez" deyip çekilebilir. Hayvan sürüsü nam da laf da bilmez, sayı bilir:
-        // küçük gruba atlar, kalabalık orduyu uzaktan tartıp geri çekilir (#79).
+        // A band can decide it's "not worth it" and back off. An animal pack doesn't know renown
+        // or reputation, it knows numbers: it jumps a small party, but weighs a large army from a distance and backs off (#79).
         let bk = BAND_KINDS[npc.band] || {};
         let strong = state.player.party.filter(t => !t.wounded).length + 1 >= npc.size * 1.5;
         let backOff = !ambush && npc.type === 'bandit' && (bk.beast
@@ -2712,16 +2713,16 @@ const Game = {
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}')">${T`⚔️ Yine De Savaş!`}</button>
             </div>`;
         } else {
-            // Yağma baskınında kaçış yok — suçüstü yakalandın. Pusuda ise kaçış kapalı
-            // değil, yarı şansla açık (fleeChance state.ambush'ı okuyor): sarılmak bir
-            // bedeldir, çıkışsız bir oda değil.
+            // No fleeing during a raid ambush — you got caught red-handed. In an ambush,
+            // fleeing isn't disabled, it's open at half the chance (fleeChance reads
+            // state.ambush): being surrounded is a cost, not a locked room.
             let canFlee = ambush !== 'raid';
             let flee = Math.round(this.fleeChance(npc) * 100);
-            // Ordun rakibin 1.5 katıysa her çapulcu için arenaya inmek zorunda değilsin
+            // If your army is 1.5x the enemy's, you don't have to step into the arena for every bandit
             let mine = state.player.party.filter(t => !t.wounded).length + 1;
             let canAuto = !ambush && mine >= npc.size * 1.5;
-            let chat = this.troopChatter(npc);   // adamlarının da söyleyecek bir şeyi var (#35)
-            let prey = this.preyWarning(npc);    // ödül kısılacaksa savaştan önce söyle (#55)
+            let chat = this.troopChatter(npc);   // your men have something to say too (#35)
+            let prey = this.preyWarning(npc);    // warn before the battle if the reward will be cut (#55)
             html += `<p><i>${dialog}</i></p>
             ${chat ? `<p style="margin-top:0.4rem;font-size:var(--fs-md)">${chat}</p>` : ''}
             ${prey ? `<p style="margin-top:0.4rem;font-size:var(--fs-sm);color:#cc8800">${prey}</p>` : ''}
@@ -2743,16 +2744,16 @@ const Game = {
 
     surrender(npcId, npcName) {
         state.player.lastDefeatDay = state.time.day;
-        // Teslim olmak da yenilgidir: karşındaki ne kadar zayıfsa o kadar nam yakar
+        // Surrendering is a defeat too: the weaker your opponent, the more renown you burn
         let foe = state.npcParties.find(n => n.id === npcId);
         let renownLost = this.defeatRenown(foe ? foe.size * ((foe.level || 1) + 1) : 0);
         state.player.renown = Math.max(0, state.player.renown - renownLost);
-        let daysLost = 3 + Math.floor(Math.random() * 5); // 3-7 gün esir
-        let ratio = this.defeatLootRatio();   // kasadaki pay kaybı düşürür (#53/1.2)
+        let daysLost = 3 + Math.floor(Math.random() * 5); // 3-7 days captive
+        let ratio = this.defeatLootRatio();   // cuts a share from the coffers (#53/1.2)
         let moneyLost = Math.floor(state.player.money * ratio);
         state.player.money = Math.max(0, state.player.money - moneyLost);
 
-        // Tüm askerler kaybedilir, esirler serbest kalır
+        // All troops are lost, prisoners go free
         state.player.party = [];
         state.player.prisoners.filter(p => p.noble).forEach(p => this.respawnLordParty(p));
         state.player.prisoners = [];
@@ -2769,26 +2770,26 @@ const Game = {
         this.updateTopBar();
     },
 
-    // --- ESARET (tek veri modeli) ---
-    // Nerede esir düşersen düş buradan geçer: esir alan parti (haritada hareket eden
-    // tek taraf), yanındaki diğer esirler ve kaçış durumu hep burada durur.
-    // Kurtuluşa kadar başka hiçbir yerde esaret alanı tutulmaz.
+    // --- CAPTIVITY (single data model) ---
+    // However you end up captured, it goes through here: the captor party (the one side that
+    // moves on the map), the other prisoners alongside you, and the escape state all live here.
+    // No other place holds captivity state until release.
     beginCaptivity(npc, days) {
         let band = npc ? BAND_KINDS[npc.band] : null;
         state.player.prisoner = {
             npcId: npc ? npc.id : null,
             npcName: npc ? npc.name : 'Bilinmeyen',
-            troops: npc ? npc.size : 0,          // esir alanın kendi askerleri
-            fellows: this.rollFellows(band),     // seninle beraber sürüklenenler
+            troops: npc ? npc.size : 0,          // the captor's own troops
+            fellows: this.rollFellows(band),     // those dragged along with you
             daysLeft: days,
             ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0,
             escapeChance: 0, isPlanning: false, lastAttemptDay: 0
         };
         state.player.status = 'prisoner';
-        state.player.targetLocation = null;   // esirin gideceği yer yok
+        state.player.targetLocation = null;   // a captive has nowhere to go
         this.renderPrisonerUI();
     },
-    // Hayvan sürüsü esir tutmaz; çete birkaç talihsizi daha sürüklüyor olabilir
+    // An animal pack doesn't take prisoners; a band might be dragging along a few other unlucky souls
     rollFellows(band) {
         if(band && band.beast) return [];
         let pool = [T('Köylü'), T('Kervancı'), T('Gezgin Tüccar'), T('Yaralı Asker'), T('Değirmenci'), T('Ozan'), T('Çırak')];
@@ -2802,7 +2803,7 @@ const Game = {
     payRansom(amount) {
         if(!state.player.prisoner) return this.closeModal();
         if(state.player.money < amount) {
-            // Parası yetmiyorsa elindeki her şeyi alıp salıverirler
+            // If they don't have enough money, everything they have is taken and they're released
             state.player.money = 0;
             this.releaseFromCaptivity(T('Kesenin dibi göründü. Ellerindeki son dinarı da alıp seni yol kenarına attılar.'));
             return;
@@ -2818,13 +2819,13 @@ const Game = {
         this.closeModal();
 
         if(p.ransomRefusals >= 3) {
-            // Üçüncü retten sonra ellerinde tutmanın anlamı kalmaz
+            // After the third refusal, there's no point keeping you
             state.player.money = Math.floor(state.player.money * 0.5);
             this.releaseFromCaptivity(T('"Bu adamı beslemek fidyesinden pahalıya geliyor." Yarı paranı alıp seni kovdular.'));
             return;
         }
 
-        // Ceza: birkaç gün daha + kaçış planı sıfırlanır
+        // Penalty: a few more days + the escape plan resets
         p.daysLeft = 2 + Math.floor(Math.random() * 4);
         p.ransomRequired = Math.min(0.95, (p.ransomRequired || 0.75) + 0.05);
         p.escapeChance = Math.max(0, (p.escapeChance || 0) - 25);
@@ -2845,7 +2846,7 @@ const Game = {
 
     dist(a, b) { return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); },
 
-    // Bir gün eskiden ~12 sn'de geçiyordu; varsayılan yarıya indi, oyuncu rozetten değiştirebilir
+    // A day used to pass in ~12s; the default was halved, the player can change it from the badge
     timeScale() { return state.timeScale || 1; },
     cycleTimeScale() {
         let steps = [0.5, 1, 2];
@@ -2857,37 +2858,37 @@ const Game = {
     advanceTime(hours) {
         let before = state.time.day * 24 + state.time.hour;
         state.time.hour += hours;
-        // Maaş borcu saat saat işler: tek seferlik sabit ceza yerine büyüyen bir
-        // baskı. Tam saat sınırlarını sayıyoruz, dt kesirli geldiği için.
+        // Wage debt ticks hour by hour: a growing pressure instead of a one-time fixed
+        // penalty. We count whole-hour boundaries since dt arrives fractional.
         let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
         for(let i = 0; i < passed; i++) { this.wageDebtTick(); this.regenTick(); this.scoutTick(); }
         while(state.time.hour >= 24) {
             state.time.day++;
 
-        this.ambitionTick();   // hedef koşulu sağlandı mı (#53/1.4)
-        // Şeref zamanla sıfıra döner ama çabuk değil (#49/#53): bir yağma ~24 gün
+        this.ambitionTick();   // did the ambition condition get met (#53/1.4)
+        // Honor decays to zero over time but not quickly (#49/#53): one raid takes ~24 days
         if(state.player.honor) state.player.honor += state.player.honor > 0 ? -0.5 : 0.5;
-        // Süresi dolan kan davaları silinir
+        // Expired blood feuds are removed
         Object.keys(state.grudges).forEach(id => { if(!this.hasGrudge(id)) delete state.grudges[id]; });
 
-        // Refah zamanla toparlanır (yağmalanan köy sonsuza dek yoksul kalmasın)
+        // Prosperity recovers over time (a raided village shouldn't stay poor forever)
         LOCATIONS.forEach(loc => {
-            // Yakılan köy daha hızlı toparlanır; zaten zengin yerleşim yavaş büyür
+            // A burned village recovers faster; an already-wealthy settlement grows slowly
             if(loc.prosperity !== undefined && loc.prosperity < 90) loc.prosperity += loc.prosperity < 50 ? 0.4 : 0.15;
         });
-        this.stockTick();   // stok tabanına döner, fiyat da onunla (#24/#46)
+        this.stockTick();   // stock returns to baseline, and price with it (#24/#46)
 
-        // Gönüllü yenilenmesi (şehirler ve köyler için 2 günde bir)
+        // Volunteer refresh (every 2 days for cities and villages)
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village' || loc.type === 'city') {
-                // Kısmi alım sonrası (ör. 5'ten 2 kalmış) köy de yenilenebilmeli;
-                // eskiden yalnızca tam boşalınca yenileniyordu.
+                // After a partial recruitment (e.g. 2 left out of 5), a village should still be
+                // able to refresh; it used to only refresh once fully emptied.
                 let full = loc.type === 'city' ? 7 : 5;
-                // Yağmalanan köyde bir hafta toplanacak gönüllü kalmaz
+                // A raided village has no volunteers to gather for a week
                 if(state.time.day - (loc.raidedDay || -99) < 7) return;
                 if(loc.volunteersAvailable < full && (state.time.day - (loc.lastRecruitDay || 0) >= 2)) {
                     let fresh = 1 + Math.floor(Math.random()*4) + (loc.type === 'city' ? 3 : 0)
-                             + Math.floor((loc.prosperity || 50) / 40);   // zengin yerleşim daha çok gönüllü besler
+                             + Math.floor((loc.prosperity || 50) / 40);   // a wealthy settlement feeds more volunteers
                     loc.volunteersAvailable = Math.max(loc.volunteersAvailable, fresh);
                 }
             }
@@ -2899,14 +2900,14 @@ const Game = {
         this.updateTopBar();
     },
 
-    // --- GÜNLÜK OLAY HAVUZU (#35) ---
-    // Her gün bir olay olmaz: EVENT_CHANCE zar atar (ölçüldü ~3 günde bir). Havuzun
-    // yaklaşık %60'ı olumsuz, %40'ı olumludur ama hiçbirinin bedeli seferi bitirmez.
-    // Her olayın `when` süzgeci vardır (grup, erzak, yakındaki yerleşim, moral) ve
-    // son 5 olay tekrar seçilmez — aynı espri iki gün üst üste komik değil.
+    // --- DAILY EVENT POOL (#35) ---
+    // Not every day has an event: EVENT_CHANCE rolls the dice (measured ~once every 3 days).
+    // About 60% of the pool is bad, 40% good, but none of them cost enough to end a campaign.
+    // Every event has a `when` filter (party, food, nearby settlement, morale) and the last
+    // 5 events aren't reselected — the same joke isn't funny two days running.
     EVENT_CHANCE: 0.35,
     DAY_EVENTS: [
-        // --- olumsuz ---
+        // --- bad ---
         { id: 'latrine', bad: 1, when: c => c.party >= 3, run(c) {
             Game.addMorale(-3);
             return `${T`Askerlerden biri gece yolunu şaşırıp <b>hela çukuruna</b> düştü. Kokusu sabaha kadar kampta kaldı.<br>Moral`} <b>−3</b>.`;
@@ -2922,7 +2923,7 @@ const Game = {
             return `${T`${T(c.near.name)} yakınında sarhoş bir askerin <b>yanlış adama</b> meydan okuduğu haberi geldi. Tazminatı sen ödedin.<br><b>−${fine} dinar`}</b>.`;
         }},
         { id: 'thief', bad: 1, when: c => state.player.money > 100, run(c) {
-            let lost = Math.min(250, Math.round(state.player.money * (0.02 + Math.random() * 0.03)));   // tavan: zengin oyuncuyu da sadece kızdırsın
+            let lost = Math.min(250, Math.round(state.player.money * (0.02 + Math.random() * 0.03)));   // cap: even a rich player should just get annoyed
             state.player.money -= lost;
             return `${T`Sabah kese hafiflemişti. Kimse bir şey görmemiş, herkes birbirine bakıyor.<br><b>−${lost} dinar`}</b>.`;
         }},
@@ -2942,7 +2943,7 @@ const Game = {
             state.player.money = Math.max(0, state.player.money - fee);
             return `${T`Atının nalı düştü. Yol kenarındaki nalbant fırsatı kaçırmadı.<br><b>−${fee} dinar`}</b>.`;
         }},
-        // --- olumlu ---
+        // --- good ---
         { id: 'bard', bad: 0, when: c => c.party >= 2, run(c) {
             Game.addMorale(4);
             return `${T`Askerlerden biri akşam ateşinde öyle kötü şarkı söyledi ki kamp gülmekten kırıldı.<br>Moral`} <b>+4</b>.`;
@@ -2968,7 +2969,7 @@ const Game = {
         }}
     ],
 
-    // Olay yardımcıları: hepsi tek satır, ayrı ayrı yazılmasınlar diye burada
+    // Event helpers: all one-liners, kept here so they don't need to be written out separately
     addMorale(n) { state.player.morale = Math.max(0, Math.min(100, this.morale() + n)); },
     spend(n) { state.player.money = Math.max(0, state.player.money - n); },
     woundRandom(days) {
@@ -2978,7 +2979,7 @@ const Game = {
         t.wounded = days;
         return t;
     },
-    // Kapasite dolu ise `null` döner — çağıran "katılmak istedi ama yer yoktu" der
+    // Returns `null` if capacity is full — the caller says "wanted to join but there was no room"
     addRecruit(loc) {
         if(state.player.party.length + 1 >= this.getPartyCapacity()) return null;
         let t = { id: 'troop_' + Math.random().toString(36).substr(2, 9),
@@ -3002,10 +3003,10 @@ const Game = {
         return got;
     },
 
-    // Dünyanın o anki hâli tek yerden okunur; hem gün hem yol olayının `when`
-    // süzgeci bunu görür. `near` yalnız 900 birim içindeki yerleşimdir (uzaktaki
-    // köyün adını anmak tuhaf kaçar), `land` ise kimin toprağındasın — en yakın
-    // yerleşimin fraksiyonu, mesafe gözetmeden.
+    // The world's current state is read from a single place; both the day and road event's
+    // `when` filter see this. `near` is only a settlement within 900 units (naming a distant
+    // village would feel odd), `land` is whose territory you're on — the nearest settlement's
+    // faction, regardless of distance.
     eventCtx() {
         let p = state.player;
         let byDist = LOCATIONS.slice().sort((a, b) => this.dist(a, p) - this.dist(b, p));
@@ -3021,8 +3022,8 @@ const Game = {
         };
     },
 
-    // Tek seçici, iki havuz: `when` süzgeci + son olaylar penceresi. Pencere iki
-    // havuz için **ortaktır** (`state.recentEvents`) — kimliği id belirler, havuz değil.
+    // One selector, two pools: the `when` filter + the recent-events window. The window is
+    // **shared** across both pools (`state.recentEvents`) — identity is determined by id, not pool.
     pickEvent(pool, ctx, extra) {
         let recent = state.recentEvents || (state.recentEvents = []);
         let avail = pool.filter(e => e.when(ctx) && (!extra || extra(e)));
@@ -3039,9 +3040,9 @@ const Game = {
         if(state.player.prisoner || state.player.status === 'besieging') return null;
         if(Math.random() > this.EVENT_CHANCE) return null;
         let ctx = this.eventCtx();
-        // Zar iki kez atılır: önce ton (%60 olumsuz), sonra o tondan olay. Tekrar
-        // süzgeci **tonun içinde** çalışır — önce uygulanınca olumlu havuz "son
-        // olaylar"a takılıp boşalıyor ve olumsuz oran %71'e çıkıyordu.
+        // The dice roll twice: first the tone (60% bad), then an event from that tone. The
+        // repeat filter runs **inside the tone** — applying it first meant the good pool kept
+        // getting stuck on "recent events" and emptying out, pushing the bad ratio up to 71%.
         let bad = Math.random() < 0.6 ? 1 : 0;
         let ev = this.pickEvent(this.DAY_EVENTS, ctx, e => e.bad === bad)
               || this.pickEvent(this.DAY_EVENTS, ctx);
@@ -3052,22 +3053,22 @@ const Game = {
         return ev.id;
     },
 
-    // --- YOL OLAYLARI (#67) ---
-    // Gün olayı kampta olur ve kendiliğinden çözülür; **yol olayı yürürken olur ve
-    // senden bir karar ister**. Her seçeneğin gerçek bir bedeli vardır — dinar,
-    // moral, şeref, asker ya da zaman; bedelsiz seçenek "Tamam" düğmesidir, o da
-    // gün olayının işi.
+    // --- ROAD EVENTS (#67) ---
+    // A day event happens in camp and resolves on its own; **a road event happens while
+    // walking and asks you for a decision**. Every choice has a real cost — money,
+    // honor, troops, or time; the cost-free choice is the "OK" button, and that's
+    // the day event's job.
     //
-    // `text` ve `label` **fonksiyondur**, ham dize değil: tablo `I18N.load()`'dan
-    // önce kurulur, üst düzeyde `T('…')` yazılsa çeviri orada donardı (CLAUDE.md,
-    // "Ham dur, gösterimde çevir"). Fonksiyon gövdesindeki her dize aynı zamanda
-    // statik çıkarıcının gördüğü bir literaldir — yani "her T anahtarı iki sözlükte
-    // de var" testi bu havuzu da kapsıyor, ayrı bir kapı gerekmiyor.
+    // `text` and `label` are **functions**, not raw strings: the table is set up before
+    // `I18N.load()` runs, and writing `T('…')` at the top level would freeze the translation
+    // there (CLAUDE.md, "Raw stays, translate at display"). Every string in a function body is
+    // still a literal the static extractor sees — so the "every T key exists in both
+    // dictionaries" test covers this pool too, no separate gate needed.
     //
-    // Zar mesafeye bağlıdır, güne değil: ROAD_EVERY birimde bir ROAD_CHANCE,
-    // yani beklenen aralık 4800 birim. Altı kişilik grup ~111 birim/saat gider.
-    // Ölçüldü (tohum 1-5, 30 gün *kesintisiz* yol): 13-20 olay, ortalama 16.
-    // Gerçek oyunda günün tamamı yolda geçmediği için bunun yarısı kadar görürsün.
+    // The roll depends on distance, not the day: one ROAD_CHANCE roll per ROAD_EVERY units,
+    // so the expected interval is 4800 units. A party of six covers ~111 units/hour.
+    // Measured (seeds 1-5, 30 days *uninterrupted* on the road): 13-20 events, average 16.
+    // In a real game you don't spend the whole day on the road, so you'll see about half that.
     ROAD_EVERY: 1200,
     ROAD_CHANCE: 0.25,
     ROAD_EVENTS: [
@@ -3401,10 +3402,10 @@ const Game = {
           ]}
     ],
 
-    // Yol olayı **mesafeye** bağlıdır: bir günü kampta geçiren olay görmez, yolda
-    // geçiren görür. Modal/savaş/esaret sırasında zaten `timeFlows` kapalı olduğu
-    // için buraya hiç gelinmez; karşılaşma bekleme süresi de sayacı durdurur ki
-    // savaştan yeni çıkmış oyuncunun önüne hemen bir karar daha konmasın.
+    // A road event depends on **distance**: a day spent in camp sees none, a day spent on the
+    // road does. `timeFlows` is already off during a modal/battle/captivity so this is never
+    // reached then; the encounter cooldown also pauses the counter so a player fresh out of a
+    // battle isn't immediately handed another decision.
     roadTick(step) {
         if(state.player.prisoner || state.encounterCooldown > 0) return null;
         state.roadWalked = (state.roadWalked || 0) + step;
@@ -3419,7 +3420,7 @@ const Game = {
         let ev = this.pickEvent(this.ROAD_EVENTS, ctx);
         if(!ev) return null;
         this._roadEv = { ev, ctx };
-        state.player.status = 'idle';   // yürüyüş kararın önünde durur
+        state.player.status = 'idle';   // the walk pauses in front of the decision
         this.showModal(`<h3>${ev.icon} ${T`Yolda`}</h3>
             <p style="font-style:italic;color:var(--text-muted)">${ev.text(ctx)}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
@@ -3442,7 +3443,7 @@ const Game = {
     },
 
     dailyUpdate() {
-        Save.auto();   // günün başında halkasal otomatik kayıt (#55 madde 1)
+        Save.auto();   // ring-buffer autosave at the start of the day (#55 item 1)
         if(state.player.prisoner) {
             state.player.prisoner.daysLeft--;
             if(state.player.prisoner.daysLeft <= 0) {
@@ -3468,12 +3469,12 @@ const Game = {
             }
         }
 
-        // Maaş, yemek ve can yenilenmesi yalnızca hür oyuncuya işler; dünyanın
-        // geri kalanı (görev süreleri, şölen/düğün günü, rakip talipler, turnuva)
-        // esaret sırasında da dönmeli. Eskiden esaret bloğu return ediyordu ve
-        // nişanlıyken esir düşenin düğünü hiç kurulmuyordu.
+        // Wages, food, and HP regen only apply to a free player; the rest of the world (quest
+        // timers, feast/wedding day, rival suitors, tournament) needs to keep turning during
+        // captivity too. The captivity block used to return early, and an engaged player who
+        // got captured never had their wedding happen.
         if(!state.player.prisoner) {
-            let fief = this.fiefIncome();                 // tımar vergisi (garnizon maaşı upkeep'te)
+            let fief = this.fiefIncome();                 // fief tax (garrison wages are in upkeep)
             state.player.money += fief.tax + fief.tribute + fief.trade;
             let up = this.upkeep();
             let totalWage = up.wage;
@@ -3482,11 +3483,11 @@ const Game = {
 
             let paid = state.player.money >= totalWage;
             if(paid) state.player.money -= totalWage;
-            else state.player.wageDebt = (state.player.wageDebt || 0) + totalWage;   // borç birikir, saat saat morali yer
+            else state.player.wageDebt = (state.player.wageDebt || 0) + totalWage;   // debt accumulates, eating morale hour by hour
 
             this.spoilFood();
 
-            // Yemek Tüketimi
+            // Food consumption
             let lowQualityFoods = ['wheat', 'bread'];
             let highQualityFoods = ['meat', 'cheese'];
         
@@ -3500,10 +3501,10 @@ const Game = {
                         if(it.qty <= 0) { state.player.inventory.splice(i,1); i--; }
                     }
                 }
-                return req; // Kalan (karşılanamayan) miktar
+                return req; // Remaining (unmet) amount
             };
 
-            // Yüksek kalite yemekler 30+ level askerler için
+            // High-quality food is for level 30+ troops
             let missingHighQuality = consumeFood(highQualityFoods, Math.ceil(foodRequiredHigh));
             if(missingHighQuality > 0) {
                 state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = true; });
@@ -3511,14 +3512,14 @@ const Game = {
                 state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = false; });
             }
 
-            // Kalan yemek ihtiyacı düşük kalite ile de karşılanabilir
+            // The remaining food need can also be met with low-quality food
             let missingLow = consumeFood([...lowQualityFoods, ...highQualityFoods], Math.ceil(foodRequiredLow - foodRequiredHigh + missingHighQuality));
 
-            // Maaş ve açlığın karşılığı artık moralde
+            // Wages and hunger now both settle their account in morale
             this.updateMorale(paid, missingLow > 0);
 
-            // Oyuncu neden aç kaldığını görmeli. Warband'da da erzak biterken uyarı gelir;
-            // burada hiç gelmiyordu, oyuncu moral çöküşünün sebebini anlamıyordu.
+            // The player should see why they went hungry. Warband also warns when food
+            // runs out; this had no warning before, so the player didn't understand why morale collapsed.
             let hungry = missingLow > 0;
             let alone = state.player.party.length === 0;
             if(hungry && !state.player.wasHungry) {
@@ -3531,14 +3532,14 @@ const Game = {
                 alert(alone ? T('🍞 Karnını doyurdun, açlık cezası kalktı.') : T('🍞 Ordu doydu, açlık cezası kalktı.'));
             }
             state.player.wasHungry = hungry;
-            // Açlığın tek karşılığı moraldi; moral ise yalnız askerlere işliyor
-            // (Battle'daki moraleMult). Tek başına gezen oyuncu bu yüzden aç kalmaktan
-            // hiç etkilenmiyordu. Artık aç adam kilo verir: günde HUNGER_HP can gider
-            // ve regenTick iyileştirmez (bkz. regenTick) — ölmez, taban 1 candır.
+            // Hunger's only effect used to be morale, and morale only applies to troops
+            // (moraleMult in Battle). So a player traveling alone felt no effect from
+            // going hungry. Now a hungry man loses weight: HUNGER_HP HP goes away per day
+            // and regenTick doesn't heal it (see regenTick) — they don't die, the floor is 1 HP.
             if(hungry) state.player.stats.hp = Math.max(1, state.player.stats.hp - this.HUNGER_HP);
 
-            // Kalite eksiği açlıktan ayrı bir şey: karnı tok ama seçkin asker homurdanıyor.
-            // Oyuncu "envanterde ekmek var, neden debuff yiyorum" diye haklı olarak şaşırıyordu.
+            // A quality shortfall is separate from hunger: full stomach, but an elite troop grumbles.
+            // The player was rightly confused: "I have bread in inventory, why am I debuffed?"
             let elite = state.player.party.filter(t => t.level >= 30 && t.level < 51).length;
             if(missingHighQuality > 0 && elite && !state.player.wasLowQuality) {
                 alert(`🥩 <b>${T`${elite} seçkin askerin</b> et/peynir bulamadı.`}<br>` +
@@ -3547,7 +3548,7 @@ const Game = {
             }
             state.player.wasLowQuality = missingHighQuality > 0 && elite > 0;
 
-            // Eğitim yeteneği: her gün en tecrübesiz birkaç askeri çalıştırır
+            // Training skill: drills a few of the least experienced troops each day
             let trained = state.player.party.filter(t => !t.wounded)
                 .sort((a, b) => a.level - b.level)
                 .slice(0, this.profLvl('trainer') - 1);
@@ -3557,57 +3558,57 @@ const Game = {
             this.addProficiencyXp('pathfinding', 12);
             this.addProficiencyXp('spotting', 8);
 
-            // Can artık günde +5 sıçramıyor; saat saat 1'er doluyor (Game.regenTick).
-            this.trainAttr('cha', state.player.party.length / 20);   // kalabalık yönetmek liderliği geliştirir
+            // HP no longer jumps +5 per day; it fills 1 at a time, hour by hour (Game.regenTick).
+            this.trainAttr('cha', state.player.party.length / 20);   // managing a crowd builds leadership
             this.trainAttr('vit', 0.1);
 
-            // Yaralılar gün gün iyileşir
+            // The wounded heal day by day
             state.player.party.forEach(t => {
                 if(!t.wounded) return;
                 t.wounded--;
                 if(t.wounded <= 0) delete t.wounded;
             });
 
-            // Esirler fırsat kollar: her gün küçük bir kaçış şansı.
-            // ponytail: soylular kaçmaz — fidye kararını oyuncuya bırakıyoruz.
+            // Prisoners look for a chance: a small escape chance each day.
+            // ponytail: nobles don't flee — we leave the ransom decision to the player.
             let pmLvl = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
             let escChance = Math.max(0.01, 0.06 - pmLvl * 0.005);
             state.player.prisoners = state.player.prisoners.filter(pr => pr.noble || Math.random() > escChance);
         }
 
-        // Gönüllü yenileme (her gün köylerde +1-2 gönüllü artar, max 5)
+        // Volunteer refresh (villages gain +1-2 volunteers per day, max 5)
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village' && loc.volunteersAvailable !== undefined) {
                 loc.volunteersAvailable = Math.min(5, loc.volunteersAvailable + Math.floor(Math.random() * 2));
             }
         });
 
-        // NPC Zamanla Güçlenme (İlk 3 ay)
+        // NPCs grow stronger over time (first 3 months)
         let day = state.time.day;
         state.npcParties.forEach(npc => {
             if(npc.type === 'king') {
-                npc.level = Math.min(20, 1 + Math.floor(day / 4.5)); // 90 günde max 20
+                npc.level = Math.min(20, 1 + Math.floor(day / 4.5)); // max 20 over 90 days
                 npc.size = 50 + npc.level * 3;
             } else if(npc.type === 'vizier') {
-                npc.level = Math.min(10, 1 + Math.floor(day / 9)); // 90 günde max 10
+                npc.level = Math.min(10, 1 + Math.floor(day / 9)); // max 10 over 90 days
                 npc.size = 30 + npc.level * 2;
             }
         });
 
-        // Turnuva oluşturma
+        // Tournament creation
         if(Math.random() < 0.25) {
             let cities = LOCATIONS.filter(l => l.type === 'city');
             let c = cities[Math.floor(Math.random() * cities.length)];
             state.activeTournaments[c.id] = true;
         }
-        // Bazı turnuvaları bitir
+        // End some tournaments
         for(let cid in state.activeTournaments) {
             if(Math.random() < 0.3) delete state.activeTournaments[cid];
         }
 
-        this.diplomacyTick();   // savaş ilanı / barış zarı
-        this.warTick();         // cephede çarpışma + yerleşim el değiştirme
-        // Cephede dağılan lordlar birkaç gün sonra evinde toparlanır
+        this.diplomacyTick();   // war declaration / peace roll
+        this.warTick();         // front-line clashes + settlements changing hands
+        // Lords scattered in battle recover at home a few days later
         for(let lid in state.lordRespawn) {
             if(state.time.day >= state.lordRespawn[lid]) {
                 this.respawnLordParty({ lordId: lid });
@@ -3615,22 +3616,22 @@ const Game = {
             }
         }
 
-        this.campaignTick();    // mareşal seçimi, sefer hedefi, oyuncuya çağrı
-        this.banditTick();      // haydutlar yoldaki kafileleri vurur
-        this.siegeTick();       // kuşatma kampı: hazırlık, açlık, yardım ordusu (#25)
+        this.campaignTick();    // marshal selection, campaign target, calling the player
+        this.banditTick();      // bandits hit caravans on the road
+        this.siegeTick();       // siege camp: preparation, starvation, relief army (#25)
 
         Nobles.dailyTick();
         Feast.dailyTick();
         Quests.dailyTick();
 
-        // Çapulcu yeniden doğma: tek tek değil, hedefe kadar. Günde bir çete doğarken
-        // temizlenen bir bölge haftalarca boş kalıyordu.
+        // Bandit respawn: not one at a time, but up to a target. When only one band spawned
+        // per day, a cleared region stayed empty for weeks.
         this.lairTick();
         for(let i = 0, eksik = this.bandTarget() - this.bandCount(); i < Math.min(this.BAND_REFILL, eksik); i++) {
-            this.spawnFromLair();   // in yoksa çete de yok (#68)
+            this.spawnFromLair();   // no lair, no band (#68)
         }
-        this.ensureTraders();   // soyulan kafilelerin yerine yenileri yola çıkar
-        this.dailyEvent();      // günlük olay havuzu (#35) — en sonda, günün hesabı kapandıktan sonra
+        this.ensureTraders();   // new caravans set out to replace robbed ones
+        this.dailyEvent();      // daily event pool (#35) — last, after the day's accounting closes
     },
 
     updateTopBar() {
@@ -3646,7 +3647,7 @@ const Game = {
         set('ui-daypart', dp.icon);
         set('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
-        // Tüketim artık hiç sıfır olmuyor (oyuncu da yer, #75) — "ordu yok" dalı düştü.
+        // Consumption is never zero anymore (the player eats too, #75) — the "no army" branch is gone.
         set('ui-food', fs.days);
         set('ui-food-sub', fs.total ? T('gün erzak') : T('erzak yok'));
         let fe = document.getElementById('chip-food');
@@ -3673,8 +3674,8 @@ const Game = {
 
     },
 
-    // Üst çubuk künyeleri: her rozet neyi, ne kadar etkiliyor (setHtml sayesinde
-    // yalnızca metin değişince DOM'a yazılır)
+    // Top-bar tooltips: what each badge affects and by how much (thanks to setHtml,
+    // the DOM is only written when the text actually changes)
     tipRow(label, val, good) {
         return `<div style="display:flex;justify-content:space-between;gap:1.2rem">
             <span>${label}</span><span style="color:${good === null ? '#ddd' : good ? 'var(--success)' : 'var(--danger)'}">${val}</span></div>`;
@@ -3733,8 +3734,8 @@ const Game = {
         this.setHtml('mute-lbl', this.opt('muted') ? T('Ses Kapalı') : T('Ses Açık'));
 
         let comp = this.getPartyComposition();
-        // Kapasite oyuncunun KENDİ İdare seviyesinden gelir; künye profLvl (gruptaki en
-        // yüksek) okuduğu için yoldaş varken döküm toplama uymuyordu (#43).
+        // Capacity comes from the player's OWN Leadership level; the tooltip used to read
+        // profLvl (the highest in the party), so the breakdown didn't add up with a companion around (#43).
         let lead = (state.player.proficiencies.leadership || { level: 1 }).level;
         this.setHtml('tip-party', this.tipBox(T('Grup'),
             R(T('Mevcut'), `${p.party.length}/${cap}`, p.party.length <= cap) +
@@ -3765,7 +3766,7 @@ const Game = {
             R(T('Bekleyen odak puanı'), p.stats.focusPoints || 0, (p.stats.focusPoints || 0) > 0),
             T('Her seviye: +10 can, tam iyileşme, 2 nitelik + 3 odak puanı. Seninle boy ölçüşemeyecek düşmandan alınan tecrübe ve ganimet azalır.')));
     },
-    // Moral künyesi: moraleHtml ile aynı kalemler, rozete sığan biçimde
+    // Morale tooltip: the same line items as moraleHtml, shaped to fit a badge
     moraleTip() {
         let m = Math.round(this.morale());
         let info = state.player.moraleInfo || {};
@@ -3779,7 +3780,7 @@ const Game = {
             T('Moral tüm askerlerinin canını ve saldırısını ölçekler. 25\'in altında her gece asker firar eder. Hızlı düşer, yavaş toparlanır.'));
     },
 
-    // innerHTML her karede yeniden yazılmasın — sadece metin değiştiyse
+    // Don't rewrite innerHTML every frame — only when the text actually changes
     _htmlCache: {},
     setHtml(id, html) {
         if(this._htmlCache[id] === html) return;
@@ -3788,7 +3789,7 @@ const Game = {
         if(e) e.innerHTML = html;
     },
 
-    // Harita künyesi: bulunduğun arazi + birlik dağılımı
+    // Map tooltip: the terrain you're on + troop composition
     updateMapHud() {
         let t = document.getElementById('map-terrain-txt');
         if(!t) return;
@@ -3797,19 +3798,19 @@ const Game = {
         document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
 
         let c = this.getPartyComposition();
-        // Harcanmamış puan haritadan görünsün, karakter ekranına açılsın (#35)
+        // Unspent points should show from the map and open the character screen (#35)
         let st = state.player.stats, ap = st.attributePoints || 0, fp = st.focusPoints || 0;
-        const dokun = this.isTouch();   // parmakla oynayana "(K)" demek anlamsız (#65)
+        const touch = this.isTouch();   // saying "(K)" to someone playing with a finger makes no sense (#65)
         let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
-                + ` title="${dokun ? T('Harcanmamış puanların var — karakter ekranına git')
+                + ` title="${touch ? T('Harcanmamış puanların var — karakter ekranına git')
                                     : T('Harcanmamış puanların var — karakter ekranına git (C)')}">`
                 + `✨ ${ap ? T`${ap} nitelik` : ''}${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
         this.setHtml('map-comp',
             `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
             + pts
             + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${T`⏳ Bekle`}</button>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${dokun ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul`}${dokun ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
-            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${dokun ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`}${dokun ? '' : ' <kbd>K</kbd>'}</button>`);
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul`}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
+            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
     },
 
     renderPrisonerUI() {
@@ -3868,7 +3869,7 @@ const Game = {
     },
 
     // --- SCREENS ---
-    // Kamerayı oyuncuya geri kilitle (kenardan kaydırma offset'ini sıfırlar)
+    // Lock the camera back onto the player (resets the edge-pan offset)
     centerOnPlayer() {
         this.camera.offsetX = 0;
         this.camera.offsetY = 0;
@@ -3880,29 +3881,29 @@ const Game = {
         let view = document.getElementById(screenId + '-view');
         if(view) view.classList.add('active');
 
-        // Savaşta ekranın tamamı arenanındır (#86). Telefonda sefer çubuğu (123 px)
-        // ve menü şeridi (105 px) 664 px'lik pencerenin üçte birini yiyor, geriye
-        // 345 px'lik bir tuval kalıyordu: `drawHud`'ın üst şeridi, savaş kütüğü ve
-        // kumanda üst üste biniyordu. Savaşta ikisi de gizlenir; oynanmayan bir
-        // ekranda zaten kimse onlara basmıyor.
+        // In battle the whole screen belongs to the arena (#86). On a phone the campaign bar
+        // (123px) and menu strip (105px) eat a third of a 664px window, leaving a
+        // 345px canvas: `drawHud`'s top strip, the battle log, and the controls
+        // overlapped each other. Both are hidden during battle; nobody taps them on a screen
+        // that isn't being played anyway.
         document.body.classList.toggle('in-battle', screenId === 'battle');
-        // Görevler dar ekranda "⋯ Daha"nın arkasında: seçili görünsün diye o düğme işaretlenir
+        // On a narrow screen, quests sit behind "⋯ More": that button gets marked so it shows as selected
         let more = document.querySelector('.sb-more');
         if(more) more.classList.toggle('active', screenId === 'quests');
 
-        // Görünür hale gelen tuvali ölçüsüne kavuştur: gizliyken yapılan bir
-        // resize onu 0x0 bırakmış olabilir (harita bomboş kalıyordu).
+        // Give the newly-visible canvas its size: a resize done while hidden
+        // may have left it 0x0 (the map stayed blank).
         this.resizeCanvases();
 
-        // Savaştan/turnuvadan çıkılan her yol buradan geçer: harita döngüsünü geri kur
+        // Every path out of a battle/tournament goes through here: restart the map loop
         if(screenId !== 'battle' && !this._loopId && !Battle.active && !TournamentMinigame.active) {
             this.startGameLoop();
         }
 
-        this.renderSiegeUI();   // kuşatma paneli yalnız haritada durur
-        this.renderRaidUI();    // yağma paneli de (#49)
-        this.renderWaitUI();    // kamp paneli de (#53)
-        this.applyViewBg(screenId);   // tematik zemin, ekran başına bir kez (#61)
+        this.renderSiegeUI();   // the siege panel only shows on the map
+        this.renderRaidUI();    // the raid panel too (#49)
+        this.renderWaitUI();    // the camp panel too (#53)
+        this.applyViewBg(screenId);   // themed background, once per screen (#61)
         if(screenId === 'quests') Quests.render();
         else if(screenId === 'character') this.renderCharacterScreen();
         else if(screenId === 'party') this.renderPartyScreen();
@@ -3910,13 +3911,13 @@ const Game = {
     },
 
     // --- MAP RENDER ---
-    // Toprak dokusu: 256px'lik tekrarlı desen, bir kez üretilir
+    // Ground texture: a 256px repeating pattern, generated once
     buildGroundTexture() {
         let sz = 256;
         let c = document.createElement('canvas'); c.width = c.height = sz;
         let x = c.getContext('2d');
         x.fillStyle = '#32472d'; x.fillRect(0, 0, sz, sz);
-        // Kenarları sarmalayarak çiz — yoksa desen döşenince ızgara izi çıkıyor
+        // Draw wrapping across the edges — otherwise tiling the pattern leaves a grid seam
         let wrap = (px, py, draw) => {
             for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) draw(px + ox*sz, py + oy*sz);
         };
@@ -3937,11 +3938,11 @@ const Game = {
         this.groundPattern = this.ctx.createPattern(c, 'repeat');
     },
 
-    // Haritadaki isim etiketleri — çıplak gölgeli yazı yerine okunur bir plaka.
-    // Üst üste binenler yukarı kaydırılır (kalabalık bölgede isimler birbirini yemesin).
-    // Etiket ölçüsü ekrana göre: 19 px sabit punto 1440 px'lik tuvalde doğru,
-    // 370 px'lik telefonda etiketler birbirine giriyordu (#86). Kısa kenarın
-    // 620 px'i referans; altına düşen ekranda %68'e kadar küçülür.
+    // Map name labels — a legible plate instead of bare shadowed text.
+    // Overlapping ones shift upward (so names in a crowded area don't eat each other).
+    // Label size scales with the screen: a fixed 19px is correct on a 1440px canvas,
+    // but labels ran into each other on a 370px phone (#86). The short side's
+    // 620px is the reference; a screen below that shrinks down to 68%.
     uiScale() {
         let cv = this.mapCanvas;
         if(!cv || !cv.width) return 1;
@@ -3949,7 +3950,7 @@ const Game = {
     },
 
     mapLabel(ctx, text, x, y, color, accent) {
-        // Yazı boyutu zoom'dan bağımsız: her yakınlıkta aynı ekran boyunda okunur
+        // Text size is independent of zoom: it reads at the same on-screen size at every zoom level
         let s = this.uiScale(), k = s / this.camera.zoom;
         let w = this.textW(ctx, text) * k + 18*k, h = 25*k;
         ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
@@ -3963,9 +3964,9 @@ const Game = {
             if(!hit) { free = true; break; }
             y -= h + 5;
         }
-        // Yer açılmadıysa etiket hiç çizilmez: 8 denemeden sonra yine de basmak,
-        // dar ekranda üst üste binmiş bir yazı duvarı üretiyordu (#86). Kimin
-        // adı düştüğü künyeden okunur — üst üste binen iki ad ikisini de siler.
+        // If no room opened up, the label just isn't drawn: printing it anyway after
+        // 8 tries produced a wall of overlapping text on a narrow screen (#86). Whose
+        // name got dropped can be read from the tooltip — two overlapping names, both are hidden.
         if(!free) return;
         this._labelRects.push({ x, y, w, h });
 
@@ -3982,140 +3983,140 @@ const Game = {
         ctx.fillText(text, x, y);
     },
 
-    // --- HARİTA GRUP İKONLARI ---
-    // Warband'da grup ikonu grubun neye benzediğini gösterir: atlıysan atlı,
-    // yayaysan mızraklı piyade, kalabalıksan arkanda kolon görünür.
+    // --- MAP PARTY ICONS ---
+    // In Warband, the party icon shows what the party looks like: mounted if you're
+    // mounted, spear infantry if on foot, a column behind you if you're a crowd.
 
-    // Yaya asker silüeti (0,0 = ayak basma noktası)
+    // Foot soldier silhouette (0,0 = footing point)
     drawFootman(ctx, col, cloak, bow) {
-        if(bow) {                                                      // yay (haydut okçusu)
+        if(bow) {                                                      // bow (bandit archer)
             ctx.strokeStyle = '#6b5535'; ctx.lineWidth = 2.4;
             ctx.beginPath(); ctx.arc(9, -16, 14, -Math.PI*0.45, Math.PI*0.45); ctx.stroke();
             ctx.strokeStyle = 'rgba(240,240,230,0.75)'; ctx.lineWidth = 1.1;
             ctx.beginPath(); ctx.moveTo(11, -28.6); ctx.lineTo(11, -3.4); ctx.stroke();
         } else {
-        ctx.strokeStyle = '#6b5535'; ctx.lineWidth = 2.2;             // mızrak sapı
+        ctx.strokeStyle = '#6b5535'; ctx.lineWidth = 2.2;             // spear shaft
         ctx.beginPath(); ctx.moveTo(7, -36); ctx.lineTo(10, 8); ctx.stroke();
-        ctx.fillStyle = '#cfd6dc';                                     // mızrak ucu
+        ctx.fillStyle = '#cfd6dc';                                     // spear tip
         ctx.beginPath(); ctx.moveTo(7, -36); ctx.lineTo(4, -44); ctx.lineTo(11, -40); ctx.closePath(); ctx.fill();
         }
 
         ctx.strokeStyle = cloak; ctx.lineWidth = 3.6; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(-3, 2); ctx.lineTo(-5, 12); ctx.moveTo(3, 2); ctx.lineTo(5, 12); ctx.stroke();
 
-        ctx.fillStyle = cloak;                                         // gövde
+        ctx.fillStyle = cloak;                                         // body
         ctx.beginPath();
         ctx.moveTo(-7, 4); ctx.lineTo(-5, -15);
         ctx.quadraticCurveTo(0, -21, 5, -15); ctx.lineTo(7, 4);
         ctx.closePath(); ctx.fill();
 
-        ctx.fillStyle = col;                                           // kalkan
+        ctx.fillStyle = col;                                           // shield
         ctx.beginPath(); ctx.arc(-8, -6, 6.4, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
 
-        ctx.fillStyle = '#d9c6a2';                                     // yüz
+        ctx.fillStyle = '#d9c6a2';                                     // face
         ctx.beginPath(); ctx.arc(0, -20, 4.8, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = cloak;                                         // miğfer
+        ctx.fillStyle = cloak;                                         // helmet
         ctx.beginPath(); ctx.arc(0, -20, 5.2, Math.PI, 0); ctx.fill();
         ctx.lineCap = 'butt';
     },
 
-    // Atlı silüeti (0,0 = atın toynak hizası, at sağa bakar)
+    // Rider silhouette (0,0 = the horse's hoof line, horse faces right)
     drawRider(ctx, col, cloak) {
         let hide = '#4a3524', dark = '#33241a';
 
         ctx.strokeStyle = dark; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
-        ctx.beginPath();                                                // bacaklar
+        ctx.beginPath();                                                // legs
         ctx.moveTo(-9, -5); ctx.lineTo(-11, 9);
         ctx.moveTo(-4, -4); ctx.lineTo(-2, 9);
         ctx.moveTo(8, -5);  ctx.lineTo(10, 9);
         ctx.moveTo(12, -6); ctx.lineTo(15, 8);
         ctx.stroke();
-        ctx.beginPath();                                                // kuyruk
+        ctx.beginPath();                                                // tail
         ctx.moveTo(-13, -12); ctx.quadraticCurveTo(-22, -10, -21, -1);
         ctx.lineWidth = 3.8; ctx.stroke();
 
         ctx.fillStyle = hide;
-        ctx.beginPath(); ctx.ellipse(1, -10, 14, 7.5, 0, 0, Math.PI*2); ctx.fill();   // gövde
-        ctx.beginPath();                                                // boyun
+        ctx.beginPath(); ctx.ellipse(1, -10, 14, 7.5, 0, 0, Math.PI*2); ctx.fill();   // body
+        ctx.beginPath();                                                // neck
         ctx.moveTo(7, -15); ctx.lineTo(13, -31); ctx.lineTo(19, -29); ctx.lineTo(15, -11);
         ctx.closePath(); ctx.fill();
-        ctx.beginPath();                                                // kafa + burun
+        ctx.beginPath();                                                // head + muzzle
         ctx.moveTo(13, -32); ctx.lineTo(26, -28); ctx.lineTo(26, -24); ctx.lineTo(15, -25);
         ctx.closePath(); ctx.fill();
-        ctx.beginPath();                                                // kulak
+        ctx.beginPath();                                                // ear
         ctx.moveTo(14, -32); ctx.lineTo(15, -37); ctx.lineTo(18, -31); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = dark; ctx.lineWidth = 2.6;                    // yele
+        ctx.strokeStyle = dark; ctx.lineWidth = 2.6;                    // mane
         ctx.beginPath(); ctx.moveTo(5, -17); ctx.lineTo(13, -32); ctx.stroke();
 
-        ctx.fillStyle = col;                                            // eyer örtüsü (fraksiyon rengi)
+        ctx.fillStyle = col;                                            // saddle cloth (faction color)
         ctx.beginPath(); ctx.moveTo(-8, -11); ctx.lineTo(6, -11); ctx.lineTo(3, -2); ctx.lineTo(-7, -2);
         ctx.closePath(); ctx.fill();
 
-        ctx.fillStyle = cloak;                                          // binicinin gövdesi
+        ctx.fillStyle = cloak;                                          // rider's body
         ctx.beginPath();
         ctx.moveTo(-7, -12); ctx.lineTo(-5, -29);
         ctx.quadraticCurveTo(0, -34, 5, -29); ctx.lineTo(6, -12);
         ctx.closePath(); ctx.fill();
 
-        ctx.strokeStyle = '#c8d0d8'; ctx.lineWidth = 2.6;               // havaya kalkmış kılıç
+        ctx.strokeStyle = '#c8d0d8'; ctx.lineWidth = 2.6;               // sword raised in the air
         ctx.beginPath(); ctx.moveTo(5, -28); ctx.lineTo(14, -44); ctx.stroke();
         ctx.strokeStyle = cloak; ctx.lineWidth = 2.6;
         ctx.beginPath(); ctx.moveTo(3, -25); ctx.lineTo(6, -29); ctx.stroke();
 
-        ctx.fillStyle = '#d9c6a2';                                      // yüz
+        ctx.fillStyle = '#d9c6a2';                                      // face
         ctx.beginPath(); ctx.arc(0, -35, 4.8, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = cloak;                                          // miğfer
+        ctx.fillStyle = cloak;                                          // helmet
         ctx.beginPath(); ctx.arc(0, -35, 5.2, Math.PI, 0); ctx.fill();
         ctx.lineCap = 'butt';
     },
 
-    // Kurt silüeti (0,0 = pençe hizası, sağa bakar) — sürü insan ikonu taşımaz
+    // Wolf silhouette (0,0 = paw line, faces right) — a pack carries no human icon
     drawWolf(ctx, col) {
         let fur = '#5b6068', dark = '#33373d';
 
         ctx.strokeStyle = dark; ctx.lineWidth = 3; ctx.lineCap = 'round';
-        ctx.beginPath();                                               // bacaklar
+        ctx.beginPath();                                               // legs
         ctx.moveTo(-8, -8); ctx.lineTo(-10, 6);
         ctx.moveTo(-3, -8); ctx.lineTo(-1, 6);
         ctx.moveTo(7, -8);  ctx.lineTo(6, 6);
         ctx.moveTo(11, -9); ctx.lineTo(13, 5);
         ctx.stroke();
-        ctx.beginPath(); ctx.lineWidth = 4.2;                          // kuyruk
+        ctx.beginPath(); ctx.lineWidth = 4.2;                          // tail
         ctx.moveTo(-11, -13); ctx.quadraticCurveTo(-23, -15, -21, -26); ctx.stroke();
 
         ctx.fillStyle = fur;
-        ctx.beginPath(); ctx.ellipse(0, -13, 13, 6.5, 0, 0, Math.PI*2); ctx.fill();   // gövde
-        ctx.beginPath();                                               // boyun + kafa
+        ctx.beginPath(); ctx.ellipse(0, -13, 13, 6.5, 0, 0, Math.PI*2); ctx.fill();   // body
+        ctx.beginPath();                                               // neck + head
         ctx.moveTo(6, -18); ctx.lineTo(15, -25); ctx.lineTo(25, -23);
         ctx.lineTo(25, -18); ctx.lineTo(13, -12); ctx.closePath(); ctx.fill();
-        ctx.beginPath();                                               // kulaklar
+        ctx.beginPath();                                               // ears
         ctx.moveTo(14, -25); ctx.lineTo(14, -32); ctx.lineTo(18, -25); ctx.closePath();
         ctx.moveTo(19, -24); ctx.lineTo(21, -30); ctx.lineTo(24, -23); ctx.closePath(); ctx.fill();
 
-        ctx.fillStyle = col;                                           // sürü rengi: ense tüyü
+        ctx.fillStyle = col;                                           // pack color: neck fur
         ctx.beginPath(); ctx.moveTo(-3, -19); ctx.lineTo(3, -26); ctx.lineTo(9, -18); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#ffd479';                                     // göz
+        ctx.fillStyle = '#ffd479';                                     // eye
         ctx.beginPath(); ctx.arc(21, -21, 1.6, 0, Math.PI*2); ctx.fill();
         ctx.lineCap = 'butt';
     },
 
-    // Grup neye benziyorsa o çizilir: atlı / mızraklı yaya / okçu / kurt
-    // Kervan: çeki atı + yük arabası. Fraksiyon rengi tentede.
+    // Whatever the party looks like gets drawn: mounted / spear infantry / archer / wolf
+    // Caravan: draft horse + cargo wagon. Faction color is on the tent canopy.
     drawCart(ctx, col, cloak) {
         ctx.save();
-        ctx.fillStyle = '#6b5442';                                      // çeki atı
+        ctx.fillStyle = '#6b5442';                                      // draft horse
         ctx.beginPath(); ctx.ellipse(22, -22, 11, 6, 0, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.moveTo(29,-26); ctx.lineTo(38,-32); ctx.lineTo(40,-24); ctx.lineTo(31,-19); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = '#4a3a2e'; ctx.lineWidth = 3; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(16,-17); ctx.lineTo(15,-3); ctx.moveTo(27,-17); ctx.lineTo(28,-3); ctx.stroke();
-        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;               // ok (dişingi)
+        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;               // shaft (wagon pole)
         ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(18,-20); ctx.stroke();
-        ctx.fillStyle = cloak; ctx.fillRect(-24, -30, 26, 17);          // yük kasası
-        ctx.fillStyle = col;                                            // tente
+        ctx.fillStyle = cloak; ctx.fillRect(-24, -30, 26, 17);          // cargo bed
+        ctx.fillStyle = col;                                            // canopy
         ctx.beginPath(); ctx.moveTo(-26,-30); ctx.quadraticCurveTo(-11,-46, 4,-30); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
-        ctx.strokeStyle = '#4a3a2e'; ctx.lineWidth = 2.6;               // tekerlekler
+        ctx.strokeStyle = '#4a3a2e'; ctx.lineWidth = 2.6;               // wheels
         ctx.beginPath(); ctx.arc(-18, -10, 7, 0, Math.PI*2); ctx.stroke();
         ctx.beginPath(); ctx.arc(-3, -10, 6, 0, Math.PI*2); ctx.stroke();
         ctx.lineCap = 'butt';
@@ -4130,10 +4131,10 @@ const Game = {
     },
 
     /**
-     * Tam grup ikonu: gölge + arkadaki kolon + ön figür + sancak.
+     * Full party icon: shadow + column behind + front figure + banner.
      * o = { mounted, size, color, scale, bob, dim }
      */
-    // Kalabalık ordu haritada da iri görünür (30 kişide ~+%20, 100'de tavan +%35)
+    // A large army looks bigger on the map too (~+20% at 30 people, capped at +35% at 100)
     partyIconScale(size) { return 1 + Math.min(0.35, Math.max(0, size - 5) * 0.007); },
 
     drawPartyIcon(ctx, x, y, o) {
@@ -4144,14 +4145,14 @@ const Game = {
         ctx.save();
         ctx.translate(x, y);
 
-        ctx.beginPath();                                               // yer gölgesi
+        ctx.beginPath();                                               // ground shadow
         ctx.ellipse(0, 0, 26*sc, 9*sc, 0, 0, Math.PI*2);
         ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
 
         ctx.scale(sc, sc);
         ctx.translate(0, o.bob || 0);
 
-        // Kalabalık kolonu: 10+ kişi 1, 30+ kişi 2 arkadaş figürü
+        // Crowd column: 1 companion figure at 10+ people, 2 at 30+
         let extra = o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0);
         let offsets = [[-17, -4], [16, -7]];
         ctx.globalAlpha = 0.75;
@@ -4166,7 +4167,7 @@ const Game = {
 
         this.drawFigure(ctx, kind, o.color, cloak);
 
-        // Sancak direği (kurt sürüsü sancak taşımaz)
+        // Banner pole (a wolf pack carries no banner)
         if(kind === 'wolf') { ctx.restore(); return; }
         let top = kind === 'rider' ? -62 : -48;
         ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
@@ -4182,13 +4183,13 @@ const Game = {
 
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
-        // Modal açıkken zaman durur; çizmeye devam etmek modalin cam panelindeki
-        // backdrop blur'unu her kare yeniden hesaplatıyordu.
+        // Time stops while a modal is open; continuing to draw made the modal's glass panel
+        // recompute its backdrop blur every frame.
         if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
         let c = this.mapCanvas, ctx = this.ctx;
         let W = c.width, H = c.height;
-        // Telefonda darboğaz JS değil doldurma hızı (#84): aşağıdaki `lite` dalları
-        // ekranı boydan boya kaplayan pahalı katmanları düz karşılıklarıyla değiştirir.
+        // On a phone the bottleneck isn't JS but fill rate (#84): the `lite` branches below
+        // replace full-screen expensive layers with flat equivalents.
         let lite = this.lite();
         this._labelRects = [];
         ctx.clearRect(0,0,W,H);
@@ -4196,7 +4197,7 @@ const Game = {
         ctx.scale(this.camera.zoom, this.camera.zoom);
         ctx.translate(-this.camera.x + W/(2*this.camera.zoom), -this.camera.y + H/(2*this.camera.zoom));
 
-        // --- Deniz
+        // --- Sea
         if(!this._seaGrad) {
             let g = ctx.createLinearGradient(0, -2000, 0, 11000);
             g.addColorStop(0, '#0a1c2e');
@@ -4204,11 +4205,11 @@ const Game = {
             g.addColorStop(1, '#0a1c2e');
             this._seaGrad = g;
         }
-        // Gradyan önbellekli ama her piksel yine örnekleniyor: ölçüldü 0.99 ms -> 0.06 ms
+        // The gradient is cached but every pixel is still sampled: measured 0.99ms -> 0.06ms
         ctx.fillStyle = lite ? '#123c58' : this._seaGrad;
         ctx.fillRect(-5000, -5000, 20000, 20000);
 
-        // Deniz dalgaları — 26 polyline × 45 nokta; hafif modda deniz düz durur
+        // Sea waves — 26 polylines × 45 points; the sea stays flat in lite mode
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 6;
         let wt = performance.now() / 4000;
@@ -4219,7 +4220,7 @@ const Game = {
             ctx.stroke();
         }
 
-        // --- Kıta
+        // --- Continent
         ctx.save();
         ctx.beginPath();
         for(let i=0; i<state.mapBorder.length; i++) {
@@ -4229,13 +4230,13 @@ const Game = {
         }
         ctx.closePath();
 
-        // Kumsal + kıyı gölgesi
+        // Beach + coastal shadow
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         if(!lite) { ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke(); }
         ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
-        // Kıyı gölgesi: `shadowBlur = 70` kıtanın tamamını her karede piksel piksel
-        // bulanıklaştırıyordu. Üç saydam geniş kontur aynı hâleyi verir, bedeli yol çizimi.
-        // Hafif modda kumsal şeridi kalır, hale düşer: 6 geniş kontur 0.48 ms, 1'i 0.12 ms.
+        // Coastal shadow: `shadowBlur = 70` blurred the whole continent pixel by pixel
+        // every frame. Three wide transparent outlines give the same halo, the cost is a path stroke.
+        // In lite mode the beach strip stays, the halo drops: 6 wide outlines is 0.48ms, 1 is 0.12ms.
         if(!lite) {
             ctx.strokeStyle = 'rgba(0,0,0,0.22)';
             for(let bw of [130, 86, 48]) { ctx.lineWidth = bw; ctx.stroke(); }
@@ -4243,18 +4244,18 @@ const Game = {
         ctx.fillStyle = '#2f452c'; ctx.fill();
         ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
 
-        ctx.clip(); // Bundan sonrası kıtanın dışına taşmaz
+        ctx.clip(); // Nothing after this spills outside the continent
 
-        // Toprak dokusu (bir kez üretilip pattern olarak döşenir). Kıtanın tamamını
-        // ikinci kez, üstelik doku örnekleyerek doldurmak tek başına 2.06 ms —
-        // haritanın en pahalı tek işi. Hafif modda altındaki düz yeşil kalır.
+        // Ground texture (generated once and tiled as a pattern). Filling the whole
+        // continent a second time, sampling a texture on top, costs 2.06ms on its own —
+        // the single most expensive thing on the map. In lite mode the flat green underneath stays.
         if(!lite) {
             if(!this.groundPattern) this.buildGroundTexture();
             ctx.fillStyle = this.groundPattern;
             ctx.fill();
         }
 
-        // Toprak lekeleri — yumuşak geçişli
+        // Dirt patches — soft-edged
         if(!state.dirtPatches) {
             state.dirtPatches = [];
             for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
@@ -4266,7 +4267,7 @@ const Game = {
             ctx.restore();
         });
 
-        // Nehirler — yatak, su, akıntı
+        // Rivers — bed, water, current
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         RIVERS.forEach(riv => {
             ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2);
@@ -4275,7 +4276,7 @@ const Game = {
             ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.85)'; ctx.stroke();
             ctx.lineWidth = riv.width * 0.45; ctx.strokeStyle = 'rgba(120,200,235,0.5)'; ctx.stroke();
         });
-        if(!lite) {   // akan parıltı: her karede lineDashOffset değişiyor, yani her kare yeni stroke
+        if(!lite) {   // flowing shimmer: lineDashOffset changes every frame, so it's a new stroke each frame
             ctx.setLineDash([50, 90]);
             ctx.lineDashOffset = -(performance.now() / 25);
             ctx.strokeStyle = 'rgba(255,255,255,0.30)';
@@ -4286,8 +4287,8 @@ const Game = {
             ctx.setLineDash([]);
         }
 
-        // Yollar — türüne göre ayrı doku (#56): taş döşeli ana yol, toprak yol,
-        // bakımsız keçi yolu. Aynı türdekiler tek path'te toplanır (kare başına 3 stroke seti).
+        // Roads — a separate texture per kind (#56): paved main road, dirt road,
+        // an unmaintained goat path. Same-kind roads collect into one path (3 stroke sets per frame).
         if(state.roads) {
             const STYLE = {
                 stone: { w: 52, shoulder: 'rgba(78,72,60,0.45)', top: 36, surf: 'rgba(150,146,134,0.48)',
@@ -4309,32 +4310,32 @@ const Game = {
                 if(!any) continue;
                 ctx.lineWidth = st.w;   ctx.strokeStyle = st.shoulder; ctx.stroke();
                 ctx.lineWidth = st.top; ctx.strokeStyle = st.surf;     ctx.stroke();
-                if(lite) continue;               // orta çizgi süs: yolun türü zaten genişlikten okunuyor
+                if(lite) continue;               // the center-line marking is decorative: the road's kind already reads from its width
                 ctx.setLineDash(st.dash);
                 ctx.lineWidth = st.mw;  ctx.strokeStyle = st.mark;     ctx.stroke();
                 ctx.setLineDash([]);
             }
-            // Yerleşim ağzında yol meydana açılır
+            // The road opens into a square at a settlement's mouth
             ctx.fillStyle = 'rgba(120,98,62,0.35)';
             LOCATIONS.forEach(l => {
                 let r = l.type === 'city' ? 70 : l.type === 'castle' ? 52 : 40;
                 ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI*2); ctx.fill();
             });
-            // Köprüler — nehrin üstünden geçen kalaslar
+            // Bridges — planks crossing over the river
             (state.bridges || []).forEach(b => {
-                let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // yolun kendi genişliği
+                let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // the road's own width
                 ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a || 0);
                 ctx.fillStyle = 'rgba(70,52,30,0.92)';
                 ctx.fillRect(-w * 1.3, -w, w * 2.6, w * 2);
                 ctx.strokeStyle = 'rgba(186,152,96,0.95)'; ctx.lineWidth = 4;
-                for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // kalaslar yola dik
+                for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // planks perpendicular to the road
                     ctx.beginPath(); ctx.moveTo(i, -w + 2); ctx.lineTo(i, w - 2); ctx.stroke();
                 }
                 ctx.restore();
             });
         }
 
-        // Ormanlar — gerçek ağaçlar (konumlar bir kez üretilip saklanır)
+        // Forests — actual trees (positions generated once and stored)
         if(!this._forestTrees) {
             this._forestTrees = FORESTS.map(f => {
                 let arr = [];
@@ -4347,17 +4348,17 @@ const Game = {
                 return arr;
             });
         }
-        // Orman lekesi sabit konumda: gradyanı bir kez üretilir. Ağaçlar (4 orman ×
-        // ~15 ağaç, her biri 6 yol + 1 gradyan) hafif modda düşer, leke kalır.
+        // The forest patch stays fixed: its gradient is generated once. The trees (4 forests ×
+        // ~15 trees, each 6 path segments + 1 gradient) drop in lite mode, the patch stays.
         if(!this._forestGrad) this._forestGrad = FORESTS.map(f => {
             let g = ctx.createRadialGradient(f.x, f.y, f.radius*0.2, f.x, f.y, f.radius);
             g.addColorStop(0, 'rgba(16,38,18,0.85)');
             g.addColorStop(1, 'rgba(16,38,18,0)');
             return g;
         });
-        // Hafif modda ağaçlar seyreltilir ama söndürülmez: karartma diski tek başına
-        // zeminden ayırt edilmiyor, orman görünmez oluyordu — oysa orman bir oynanış
-        // bilgisi (pusu, görüş, hız). Üçte biri kalınca lekesi hâlâ okunuyor.
+        // In lite mode the trees are thinned but not switched off: a darkening disc alone
+        // doesn't stand out from the ground, the forest became invisible — but a forest is
+        // gameplay information (ambush, spotting, speed). With a third left the patch still reads.
         let step = this.lite() ? 3 : 1;
         FORESTS.forEach((f, i) => {
             ctx.fillStyle = this._forestGrad[i];
@@ -4365,11 +4366,11 @@ const Game = {
             this._forestTrees[i].forEach((t, j) => { if(j % step === 0) Battle.drawTree(ctx, t.x, t.y, t.r); });
         });
 
-        ctx.restore(); // kıta clip'i biter
+        ctx.restore(); // continent clip ends
 
-        // Keşif noktaları (#58): yerleşimden küçük, soluk — dikkat çeker ama kalabalık etmez
+        // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
         (state.sites || []).forEach(site => {
-            if(!this.lairSeen(site)) return;    // bulunmamış in haritada yok (#68)
+            if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
             let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = 30 * ik;
             let fresh = this.siteReady(site);
             ctx.beginPath();
@@ -4378,13 +4379,13 @@ const Game = {
             ctx.globalAlpha = fresh ? 0.95 : 0.45;
             this.emoji(ctx, k.icon, site.x, site.y + 10, big);
             ctx.globalAlpha = 1;
-            // Etiket yalnız yakınlaşınca: 14 uzun ad kıta görünümünde yerleşim adlarını eziyordu
+            // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
             if(fresh && this.camera.zoom > 0.18) this.mapLabel(ctx, T(k.name), site.x, site.y - big*0.75 - 10, '#cbbf9a', '#8a7b52');
         });
 
         // Draw locations
-        // Görevin "nerede"si haritada da durur: görev ekranındaki 📍 ile aynı
-        // kaynaktan (QUESTS[].where) gelir, iki liste ayrışamaz.
+        // A quest's "where" also shows on the map: it comes from the same source
+        // as the 📍 in the quest screen (QUESTS[].where), so the two lists can't drift apart.
         let questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
         LOCATIONS.forEach(loc => {
             let fc = FACTIONS[loc.faction] || {color:'#888'};
@@ -4392,14 +4393,14 @@ const Game = {
             let big = (loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32) * ik;
             let icon = loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️';
 
-            // Yer gölgesi
+            // Ground shadow
             ctx.beginPath();
             ctx.ellipse(loc.x, loc.y + 18, big*0.55, big*0.22, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
 
             this.emoji(ctx, icon, loc.x, loc.y + 15, big);
 
-            // Fraksiyon flaması
+            // Faction pennant
             let px = loc.x + big*0.42, py = loc.y - big*0.45;
             ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3 * ik;
             ctx.beginPath(); ctx.moveTo(px, py + 34*ik); ctx.lineTo(px, py - 26*ik); ctx.stroke();
@@ -4419,14 +4420,14 @@ const Game = {
                 this.mapLabel(ctx, questMarks[loc.id].join(' · '), loc.x, loc.y - big*0.82 - 34, '#e0b062', '#8a6a2a');
         });
 
-        // --- GÜNÜN VAKTİ ---
-        // Gece mavi, şafak/gün batımı sıcak ton. Gece yerleşimlerde ocak ışığı yanar.
+        // --- TIME OF DAY ---
+        // Night is blue, dawn/dusk warm-toned. At night, settlements have hearth light.
         let tint = this.dayTint();
         if(tint) {
             ctx.fillStyle = tint;
             ctx.fillRect(-1000, -1000, 11000, 11000);
         }
-        // Ocak ışığı: gradyan tek, şiddeti globalAlpha ile (25 gradyan/kare yerine 0)
+        // Hearth light: one gradient, intensity via globalAlpha (0 gradients/frame instead of 25)
         let glow = this.nightGlow();
         if(glow > 0.02 && !this.lite()) {
             ctx.globalCompositeOperation = 'lighter';
@@ -4441,39 +4442,39 @@ const Game = {
             ctx.globalCompositeOperation = 'source-over';
         }
 
-        // Savaş sisi yok: arazi, yol ve yerleşimler her zaman görünür (Warband gibi).
-        // Gizli olan tek şey gruplardır — onlar Game.canSee() ile eleniyor.
+        // No fog of war: terrain, roads, and settlements are always visible (like Warband).
+        // The only thing hidden is parties — those are filtered by Game.canSee().
 
-        // Sınırlar boyunca sıra dağları çiz
-        // 315 sınır noktasının yarısı dağdı: kare başına ~157 emoji rasterleştirmesi.
-        // Artık pişmiş sprite basılıyor, hafif modda ayrıca dört noktada bire seyreliyor.
+        // Draw a mountain range along the borders
+        // Half of the 315 border points were mountains: ~157 emoji rasterizations per frame.
+        // Now a baked sprite is stamped, and in lite mode it's also thinned to one in four.
         let mStep = this.lite() ? 4 : 2;
         state.mapBorder.forEach((pt, index) => {
             if(index % mStep === 0) {
-                let sz = 42 + ((index * 37) % 24); // düzenli tekrar yerine kırık silüet
+                let sz = 42 + ((index * 37) % 24); // a broken silhouette instead of a regular repeat
                 this.emoji(ctx, '🏔️', pt.x, pt.y + 20 + (index % 3) * 6, sz);
             }
         });
 
-        // NPC'ler (sadece görüş alanındakiler)
+        // NPCs (only those in sight range)
         state.npcParties.forEach(npc => {
             let dx = npc.x - state.player.x;
             let dy = npc.y - state.player.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > this.spotRange(npc) + 45) return; // Görüş dışıysa (ya da ormanda gizliyse) çizme
+            if(dist > this.spotRange(npc) + 45) return; // Don't draw if out of sight (or hidden in a forest)
 
             let nf = FACTIONS[npc.faction] || {};
             let band = BAND_KINDS[npc.band] || null;
-            // Çete kendi rengiyle ve kendi silüetiyle gezer: kurt sürüsü çapulcuya benzemez
+            // A band travels in its own color and its own silhouette: a wolf pack doesn't look like bandits
             let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
 
-            // Fraksiyon halkası
+            // Faction ring
             ctx.beginPath();
             ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
             ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
 
-            // Üstüne atılan sürü: dıştan kırmızı bir halka daha. Sürü artık ancak
-            // görülebildiği yerden atıldığı için bu işaret her zaman zamanında gelir.
+            // A charge on top: one more red ring around the outside. A charge is now only
+            // launched from within visible range, so this marker always arrives on time.
             if(npc.charging) {
                 ctx.beginPath();
                 ctx.ellipse(npc.x, npc.y + 22, 32, 13, 0, 0, Math.PI*2);
@@ -4482,7 +4483,7 @@ const Game = {
                 ctx.stroke(); ctx.globalAlpha = 1;
             }
 
-            // Çapulcular yayadır, soylular atlı — ikondan hemen anlaşılsın
+            // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
             this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
                 kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' ? 'foot' : 'rider'),
@@ -4494,15 +4495,15 @@ const Game = {
                 dim: npc.type === 'bandit'
             });
 
-            // Taç: kral/vezir
+            // Crown: king/vizier
             if(npc.type === 'king' || npc.type === 'vizier') {
                 let cs = npc.type === 'king' ? 30 : 24;
                 this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
             }
             
-            // Etiket ilk kelimeye kırpılır ki harita adlarla dolmasın. Ama kervan ve
-            // köylü kafilesinin adı zaten bileşik: "Praven Köylüleri"nin ilk kelimesi
-            // yalnız "Praven" kalıyor, haritada yerleşimin kendisiyle karışıyordu.
+            // The label is trimmed to the first word so the map isn't buried in names. But a
+            // caravan or villager party's name is already a compound: "Praven Köylüleri"'s first
+            // word leaves just "Praven", which got confused with the settlement itself on the map.
             let shortName = this.npcName(npc).split(' ')[0];
             if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
                 shortName = this.npcName(npc).replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
@@ -4513,21 +4514,21 @@ const Game = {
         });
 
         // Player
-        // Esirken haritada hareket eden tek taraf seni tutan partidir; senin ayrı bir
-        // grubun yoktur. Eskiden oyuncu ikonu + adı + "Esir" yazısı esir alanın ikonu
-        // ve etiketiyle aynı noktaya çiziliyordu (üst üste binen metinler).
+        // While captive, the only party moving on the map is the one holding you; you have
+        // no separate group. The player icon + name + "Captive" text used to be drawn at the
+        // same point as the captor's icon and label (overlapping text).
         let isPrisoner = !!state.player.prisoner;
         if(isPrisoner) {
             this.emoji(ctx, '⛓️', state.player.x - 30, state.player.y - 30, 30);
         } else {
-            // Oyuncu tabanı — nabız atan altın halka
+            // Player base — a pulsing gold ring
             let pp = 1 + Math.sin(performance.now()/450) * 0.1;
             ctx.beginPath();
             ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
             ctx.strokeStyle = 'rgba(255,204,0,0.9)';
             ctx.lineWidth = 4; ctx.stroke();
 
-            // Atımız varsa haritada atlı görünürüz (Warband'daki gibi)
+            // If we have a horse, we appear mounted on the map (like in Warband)
             this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
                 mounted: !!state.player.equipment.horse,
                 size: state.player.party.length + 1,
@@ -4540,9 +4541,9 @@ const Game = {
                           state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
         }
 
-        // Rota (#35): ince akan kesik + küçük dolu hedef işareti. Ok başı kaldırıldı —
-        // çizginin kendisi zaten yönü söylüyordu. Sürükleme rotası soluk ve beyazdır,
-        // onaylanmış rota altın: hangisinin geçerli olduğu tek bakışta ayrılır.
+        // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
+        // removed — the line itself already told the direction. A drag route is pale and white,
+        // a confirmed route is gold: which one is active is clear at a glance.
         let route = (t, live) => {
             let z = this.camera.zoom;
             ctx.save();
@@ -4555,7 +4556,7 @@ const Game = {
             ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
             ctx.setLineDash([]);
 
-            // Hedef işareti: ekran boyutunda (uzaklaşınca erimez) küçük dolu nokta + halka
+            // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
             let r = 6 / z, pulse = live ? 1 + Math.sin(performance.now()/380) * 0.12 : 1.15;
             ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
             ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
@@ -4569,7 +4570,7 @@ const Game = {
         if(state.player.targetLocation && state.player.status === 'moving') route(state.player.targetLocation, true);
         if(this.dragTarget) route(this.dragTarget, false);
 
-        // Lordlardan öğrenilen konum işaretleri
+        // Location markers learned from lords
         Nobles.drawMarkers(ctx);
 
         ctx.restore();
@@ -4577,9 +4578,9 @@ const Game = {
 
     handleMapHover(e) {
         if(Battle.active || TournamentMinigame.active) return;
-        // Ekran -> dünya dönüşümü mapPos'ta; künye imlecin yarım ekran uzağını arıyordu.
+        // The screen -> world transform is in mapPos; the tooltip used to look half a screen away from the cursor.
         let m = this.mapPos(e), mx = m.x, my = m.y;
-        if(this.dragTarget) {                       // sürüklerken geçici hedef (#35)
+        if(this.dragTarget) {                       // a temporary target while dragging (#35)
             this.dragTarget.x = mx; this.dragTarget.y = my;
             this.dragTarget.moved = true;
         } else if(state.player.status === 'moving' && state.player.targetLocation
@@ -4613,13 +4614,13 @@ const Game = {
         }
 
         if(found) {
-            // `rect` bu gövdede tanımlı değildi: yerleşimin üstüne her gelişte
-            // ReferenceError atıyor, künye hiç açılmıyordu. Ölçüm mapPos ile aynı kapıdan.
+            // `rect` wasn't defined in this body: every time the cursor reached a settlement it
+            // threw a ReferenceError and the tooltip never opened. The measurement goes through the same gate as mapPos.
             let rect = this.mapCanvas.getBoundingClientRect();
             tooltip.innerHTML = `<strong>${T(found.name)}</strong><br>${found.sub}`;
             tooltip.style.left = '0px'; tooltip.style.top = '0px';
             tooltip.classList.remove('hidden');
-            // Ölçüp içeri al: dar ekranda parmağın sağında künye kadar yer yok (#65)
+            // Measure and pull it inward: a narrow screen doesn't have room for a tooltip to the right of a finger (#65)
             let tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
             tooltip.style.left = Math.max(4, Math.min(e.clientX - rect.left + 15, rect.width - tw - 4)) + 'px';
             tooltip.style.top  = Math.max(4, Math.min(e.clientY - rect.top + 15, rect.height - th - 4)) + 'px';
@@ -4630,7 +4631,7 @@ const Game = {
         }
     },
 
-    // Ekran -> dünya. Üç yerde (tıklama, künye, sürükleme) aynı dönüşüm vardı.
+    // Screen -> world. The same transform used to live in three places (click, tooltip, drag).
     mapPos(e) {
         let rect = this.mapCanvas.getBoundingClientRect();
         return {
@@ -4639,19 +4640,19 @@ const Game = {
         };
     },
 
-    // Yüzde işareti Türkçede sayının önünde (%50), İngilizce ve Endonezcede
-    // arkasında (50%) durur. `T` şablonuna giren yüzdeleri sözlük hallediyor;
-    // bu kapı şablona girmeyen, koda gömülü sayılar içindir.
+    // The percent sign sits before the number in Turkish (%50), and after it
+    // in English and Indonesian (50%). The dictionary handles percentages that
+    // go through a `T` template; this gate is for numbers embedded in code that don't.
     pct(n, signed = false) {
         let v = Math.round(n * 10) / 10, sign = signed && v > 0 ? '+' : v < 0 ? '−' : '';
         v = Math.abs(v);
         return I18N.lang === 'tr' ? `${sign}%${v}` : `${sign}${v}%`;
     },
 
-    // --- DİL ---
-    // İlk açılışta perde sorar (tarayıcı dili önerilir); seçim localStorage'da
-    // durur, bir daha sorulmaz. Sonrasında başlangıç ekranındaki bayrak sırası
-    // ve ⚙️ Ayarlar aynı `setLang` kapısından geçer.
+    // --- LANGUAGE ---
+    // On first launch a screen asks (the browser language is suggested); the choice
+    // is stored in localStorage and never asked again. Afterward, the flag row on the
+    // start screen and ⚙️ Settings both go through the same `setLang` gate.
     initLang() {
         const saved = I18N.load();
         this.renderLangRow('lang-row');
@@ -4665,8 +4666,8 @@ const Game = {
         if(saved) this.liteNotice();
     },
 
-    // Hafif mod kendiliğinden açıldıysa oyuncuya bir kez söylenir: sessizce kısılan
-    // grafik "oyun neden böyle görünüyor" sorusu doğurur. Cevap ⚙️ Ayarlar'da.
+    // If lite mode turned on by itself, the player is told once: graphics quietly
+    // scaled down raises the question "why does the game look like this". The answer is in ⚙️ Settings.
     liteNotice() {
         if(!this.lite() || this.opt('lite') !== 'auto') return;
         try { if(localStorage.getItem('webband_lite_told')) return;
@@ -4682,9 +4683,9 @@ const Game = {
                 <span class="lang-flag">${l.flag}</span>${T(l.name)}</button>`).join('');
     },
 
-    // #ver-tag boş doğar (index.html), yani I18N.prime() hiç yakalamaz — dil
-    // değişince applyDom'un dokunacağı bir _trKey'i olmaz. Bu yüzden boot'ta
-    // ve her dil değişiminde elle yeniden çizilir.
+    // #ver-tag is born empty (index.html), so I18N.prime() never catches it — it has no
+    // _trKey for applyDom to touch on a language change. So it's manually redrawn on
+    // boot and on every language switch.
     renderVerTag() {
         let vt = document.getElementById('ver-tag');
         if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${T(VERSION.name)} · ${VERSION.date}`;
@@ -4699,7 +4700,7 @@ const Game = {
         this.renderVerTag();
         I18N.applyDom(document.body);
         if(document.getElementById('settings-panel')) return this.showSettings();
-        // Oyun içindeyken açık ekran kendi metnini yeniden kurar
+        // While in-game, the open screen rebuilds its own text
         const open = document.querySelector('.view.active');
         if(open && document.getElementById('main-ui').classList.contains('active')) {
             this.showScreen(open.id.replace('-view', ''));
@@ -4707,11 +4708,11 @@ const Game = {
         }
     },
 
-    // --- DOKUNMATİK (#65) ---
-    // Fare ve parmak ayrı kod yolu tutmaz; ikisi de buradan geçer.
-    //   fare  : hareket = künye, basılı sürükle = hedef işareti, tık = hedef
-    //   parmak: tek parmak = haritayı kaydır, iki parmak = yakınlaştır,
-    //           kısa dokunuş = hedef, uzun dokunuş (450 ms) = künye
+    // --- TOUCH (#65) ---
+    // Mouse and finger don't keep separate code paths; both go through here.
+    //   mouse  : move = tooltip, drag while pressed = target marker, click = target
+    //   finger : one finger = pan the map, two fingers = zoom,
+    //            short tap = target, long tap (450ms) = tooltip
     _ptr: new Map(),          // pointerId -> { x, y, t, moved }
     _pinch: 0,
 
@@ -4728,7 +4729,7 @@ const Game = {
         if(e.pointerType === 'mouse') return this.startTargetDrag(e);
         this._ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 });
         try { this.mapCanvas.setPointerCapture(e.pointerId); } catch(_) {}
-        // İkinci parmak yakınlaştırmadır: yarım kalan hedef sürüklemesi iptal olur
+        // A second finger means zoom: a half-finished target drag gets cancelled
         if(this._ptr.size > 1) { this.dragTarget = null; this._pinch = this.ptrGap(); }
         else this.startTargetDrag(e);
     },
@@ -4746,9 +4747,9 @@ const Game = {
             }
             this._pinch = gap;
         } else if(this.dragTarget) {
-            this.handleMapHover(e);                       // işaret parmağın altında taşınır
+            this.handleMapHover(e);                       // the marker moves under the finger
         } else {
-            // Kaydırma yalnız offset'i oynatır (WASD ile aynı kapı), ±9000 sınırı update'te
+            // Panning only moves the offset (same gate as WASD), the ±9000 limit is in update
             this.camera.offsetX -= dx / this.camera.zoom;
             this.camera.offsetY -= dy / this.camera.zoom;
         }
@@ -4761,21 +4762,21 @@ const Game = {
         if(this._ptr.size < 2) this._pinch = 0;
         if(!p) return;
         if(this.dragTarget) return this.endTargetDrag(e);
-        if(p.moved > 10 || this._ptr.size) return;        // kaydırma/yakınlaştırma hedef atamaz
-        if(performance.now() - p.t > 450) return this.handleMapHover(e);   // uzun dokunuş: künye
+        if(p.moved > 10 || this._ptr.size) return;        // panning/zooming doesn't set a target
+        if(performance.now() - p.t > 450) return this.handleMapHover(e);   // long tap: tooltip
         document.getElementById('map-tooltip').classList.add('hidden');
         this.handleMapClick(e);
     },
 
-    // Savaşta iki sanal çubuk (#88): sol çubuk parmağın yönünü WASD'ye çevirir (savaş
-    // motoru hâlâ tek giriş yolu görür), sağ çubuk kılıca yön verir — çektiğin yere
-    // vurursun, parmağı kaldırınca savurur. Sağ çubuğa dokunulmazsa nişan eskisi gibi
-    // hareket yönünden gelir.
+    // Two virtual sticks in battle (#88): the left stick turns the finger's direction into
+    // WASD (the battle engine still sees a single input path), the right stick aims the
+    // sword — you hit where you drag it, and it swings when you lift your finger. If the
+    // right stick isn't touched, aim still comes from the movement direction like before.
     initTouchUI() {
         let st = document.getElementById('tstick');
         if(!st) return;
-        // Çubuk makinesi tek yerde: `onDir(d)` yön verir (bırakıldığında null), `onEnd`
-        // parmak kalkınca çalışır.
+        // The stick machinery lives in one place: `onDir(d)` gives a direction (null when
+        // released), `onEnd` runs when the finger lifts.
         const mount = (el, knob, onDir, onEnd) => {
             const R = 42;
             let id = null, cx = 0, cy = 0;
@@ -4784,7 +4785,7 @@ const Game = {
                 if(len < 12) {
                     onDir(null);
                     knob.style.transform = '';
-                    return;                               // yön korunur: bırakınca nişan dönmesin
+                    return;                               // the direction is kept: aim shouldn't spin back on release
                 }
                 let nx = dx / len, ny = dy / len;
                 onDir({ x: nx, y: ny });
@@ -4810,8 +4811,8 @@ const Game = {
             Input.keys['w'] = d.y < -0.38; Input.keys['s'] = d.y > 0.38;
         });
 
-        // Sağ çubuk: sürüklerken nişan, bırakınca savurma. Dokunup bırakmak (sürüklemeden)
-        // son nişan yönüne vurur — yani eski ⚔️ düğmesinin işi de duruyor.
+        // Right stick: aim while dragging, swing on release. A tap-and-release (no drag)
+        // strikes toward the last aim direction — so the old ⚔️ button's job still stands.
         let ast = document.getElementById('tastick');
         if(ast) mount(ast, document.getElementById('tastick-knob'),
             d => { if(d) Input.aim = d; },
@@ -4823,7 +4824,7 @@ const Game = {
         bl.addEventListener('pointerup', blOff);
         bl.addEventListener('pointercancel', blOff);
 
-        // Künye dokunmayla açılır: `:hover` parmakta yoktur (#65)
+        // A tooltip opens on tap: there's no `:hover` for a finger (#65)
         document.addEventListener('pointerdown', e => {
             if(e.pointerType === 'mouse') return;
             let c = e.target.closest && e.target.closest('.tooltip-container');
@@ -4834,13 +4835,13 @@ const Game = {
         });
     },
 
-    // Savaş emirleri (1/2/3) parmakla: dinleyici zaten klavyede, olayı ona veriyoruz
+    // Battle orders (1/2/3) by finger: the listener is already on the keyboard, we hand the event to it
     touchCommand(key) {
         window.dispatchEvent(new KeyboardEvent('keydown', { key }));
     },
 
-    // --- HEDEF İŞARETİNİ SÜRÜKLEME (#35) ---
-    // İşaretin yarıçapı ekran boyutundadır (16 px), yani uzaklaşınca da tutulabilir.
+    // --- DRAGGING THE TARGET MARKER (#35) ---
+    // The marker's radius is screen-sized (16px), so it can still be grabbed when zoomed out.
     targetGrabRadius() { return 16 / this.camera.zoom + 6; },
 
     startTargetDrag(e) {
@@ -4857,12 +4858,12 @@ const Game = {
         let moved = this.dragTarget.moved;
         this.dragTarget = null;
         this.mapCanvas.style.cursor = '';
-        if(!moved) return;                        // yerinde bırakıldı: rota aynı kalsın
+        if(!moved) return;                        // dropped in place: the route stays the same
         this.setTarget(this.mapPos(e));
-        this.suppressClick = true;                // mouseup'ın ardından gelen click yeni hedef atamasın
+        this.suppressClick = true;                // the click that follows mouseup shouldn't set a new target
     },
 
-    // Tıklama ve sürükleme aynı hedef seçimini kullanır: yerleşim/NPC yakınsa ona kilitlenir.
+    // Click and drag use the same target selection: locks onto a settlement/NPC if one is nearby.
     setTarget(m) {
         for(let loc of LOCATIONS) {
             if(this.dist(loc, m) < 36) { state.player.targetLocation = loc; state.player.status = 'moving'; return; }
@@ -4881,32 +4882,32 @@ const Game = {
     },
 
     handleMapClick(e) {
-        if(Battle.active || TournamentMinigame.active) return;   // savaş açıkken harita girdisi yok sayılır (#42)
-        // Esaret gibi yağma da yerinde tutar: ambarı boşaltırken yürüyemezsin (#49)
+        if(Battle.active || TournamentMinigame.active) return;   // map input is ignored while a battle is open (#42)
+        // Raiding, like captivity, holds you in place: you can't walk while emptying the storehouse (#49)
         if(state.player.status === 'raiding' || state.player.status === 'prisoner') return;
         if(this.suppressClick) { this.suppressClick = false; return; }
-        this.setTarget(this.mapPos(e));   // yerleşim / NPC / boş alan ayrımı setTarget'ta
+        this.setTarget(this.mapPos(e));   // the settlement / NPC / empty-area distinction is in setTarget
     },
 
     // --- SETTLEMENT ---
     enterLocation(loc) {
-        if(loc.type === 'site') return this.enterSite(loc);   // keşif noktası (#58): ekran değil modal
+        if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById('settlement-view').classList.add('active');
         document.getElementById('settlement-name').innerText = T(loc.name) + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
-        // Kapılar yalnızca savaşta olduğun krallığa kapalıdır (Warband'daki gibi);
-        // barıştaki komşunun şehrinde pazar ve han sana açık.
+        // Gates are only closed to a kingdom you're at war with (like in Warband);
+        // the market and tavern are open to you in a neighbor's city at peace.
         let isEnemy = this.atWar(this.playerFaction(), loc.faction);
 
-        this.noteLoc(loc);   // kapıdan giren her şeyi görür (#74)
+        this.noteLoc(loc);   // sees everything that comes through the gate (#74)
         Quests.emit('entered_location', { locId: loc.id, loc });
 
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
-            // Düşman kapısında hiçbir sivil hizmet yok: pazar, han, salon, gönüllü — hepsi kapalı.
-            // Bağımsızsan aynı kuşatma kendi krallığını kurar, iki ayrı düğme çıkmaz.
+            // No civilian services at an enemy's gate: market, tavern, hall, volunteers — all closed.
+            // If you're independent, the same siege founds your own kingdom, so there's no separate button.
             this.addBtn(ac, state.player.vassalOf ? T('⚔️ Kuşatma Kampı Kur') : T('⚔️ Kuşat! (Kendi Krallığını Kur)'),
                         () => this.besiegeLocation(loc, !state.player.vassalOf));
         } else {
@@ -4918,7 +4919,7 @@ const Game = {
             }
             if(loc.type === 'city') {
                 this.addBtn(ac, T('🛒 Pazara Git'), () => this.openMarket(loc));
-                // İşletme: 20. günün "bu parayla ne yapayım" cevabı (#53 madde 1.6)
+                // Enterprise: the answer to day 20's "what do I do with this money" (#53 item 1.6)
                 this.addBtn(ac, loc.enterprise
                     ? T`🏭 İşletmen (+${this.enterpriseIncome(loc)} dinar/gün)`
                     : T`🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`, () => this.buyEnterprise(loc));
@@ -4943,9 +4944,9 @@ const Game = {
                     this.addBtn(ac, T('🍷 Şölene Katıl'), () => Feast.open(loc));
                 }
             } else if(loc.type === 'village') {
-                // Düşman köyü sana ne asker ne erzak verir — ama söyleyecek iki çift lafı vardır (#50)
+                // An enemy village gives you neither troops nor supplies — but it has a word or two to say (#50)
                 this.addBtn(ac, T('🧓 Köy Yaşlısıyla Konuş'), () => this.talkToElder(loc));
-                // Küfrettiği adama peynir de satmaz: yağmaladığın köy hizmet vermez (#50)
+                // It won't even sell cheese to the man it curses: a village you raided offers no service (#50)
                 if(!isEnemy && !this.raidedRecently(loc)) {
                     if(loc.volunteersAvailable > 0) {
                         this.addBtn(ac, T('🪖 Gönüllü Topla'), () => this.recruitVolunteers(loc));
@@ -4959,14 +4960,14 @@ const Game = {
             this.addBtn(ac, T('⚔️ Kuşat! (Kendi Krallığını Kur)'), () => this.besiegeLocation(loc, true));
         }
         this.addBtn(ac, T('🚪 Ayrıl'), () => this.showScreen('map'));
-        this.renderScene(loc);   // düğmeler hazır: sahne onların üstüne kurulur (#60)
+        this.renderScene(loc);   // buttons are ready: the scene is built on top of them (#60)
     },
 
-    // ---------- YERLEŞİM SAHNESİ (#60) ----------
-    // Sahnenin ayrı bir nokta tablosu yok: yerleşim ekranındaki düğmelerin kendisi
-    // bina olarak çizilir. addBtn tek kapı olduğu için yarın eklenen bir düğme
-    // sahnede kendiliğinden bir yapı olur — iki listeyi senkron tutmak gerekmez.
-    // Düğmenin ikonundan yapı türü seçilir; tanımadığı ikon eve düşer.
+    // ---------- SETTLEMENT SCENE (#60) ----------
+    // The scene has no separate coordinate table: the settlement screen's own buttons
+    // are drawn as buildings. Since addBtn is the single gate, a button added tomorrow
+    // becomes a structure in the scene by itself — no need to keep two lists in sync.
+    // The building type is picked from the button's icon; an unrecognized icon falls back to a house.
     SCENE_W: 900, SCENE_H: 280,
     SCENE_KIND: {
         '👑': 'tower', '🛡️': 'tower', '🏆': 'tower',
@@ -4981,7 +4982,7 @@ const Game = {
     sceneKind(icon) {
         return this.SCENE_KIND[icon] || this.SCENE_KIND[icon.replace('️', '')] || 'house';
     },
-    // Yerleşimin kimliğinden türeyen sabit rastgelelik: aynı şehir her zaman aynı silueti alır
+    // Deterministic randomness derived from the settlement's id: the same city always gets the same silhouette
     sceneRnd(loc, i) {
         let str = String(loc.id) + '|' + i, h = 0;
         for(let k = 0; k < str.length; k++) h = (h * 131 + str.charCodeAt(k)) % 1000003;
@@ -5000,7 +5001,7 @@ const Game = {
             let r = cv.getBoundingClientRect();
             let x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
             let i = this.sceneHot.findIndex(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
-            if(i === this._sceneHover) return;                 // yalnız değişimde yeniden çiz
+            if(i === this._sceneHover) return;                 // only redraw on a change
             this._sceneHover = i;
             cv.style.cursor = i >= 0 ? 'pointer' : 'default';
             this.drawScene(cv.getContext('2d'), loc, btns, i);
@@ -5008,7 +5009,7 @@ const Game = {
         cv.onmouseleave = () => { this._sceneHover = -1; this.drawScene(cv.getContext('2d'), loc, btns, -1); };
         cv.onclick = () => {
             let h = this.sceneHot[this._sceneHover];
-            if(h) h.btn.onclick();                             // düğmenin kendi eylemi — ikinci bir tablo yok
+            if(h) h.btn.onclick();                             // the button's own action — no second table
         };
     },
 
@@ -5019,20 +5020,20 @@ const Game = {
         let ground = H * 0.66;
         ctx.clearRect(0, 0, W, H);
 
-        // Gökyüzü — günün vaktine göre
+        // Sky — by time of day
         let sky = ctx.createLinearGradient(0, 0, 0, ground);
         if(night) { sky.addColorStop(0, '#0b1027'); sky.addColorStop(1, '#2b3355'); }
         else if(dusk) { sky.addColorStop(0, '#38406e'); sky.addColorStop(0.6, '#c9743c'); sky.addColorStop(1, '#e8b473'); }
         else { sky.addColorStop(0, '#6ea6dd'); sky.addColorStop(1, '#cfe0ea'); }
         ctx.fillStyle = sky; ctx.fillRect(0, 0, W, ground + 2);
-        if(night) {                                            // yıldızlar
+        if(night) {                                            // stars
             ctx.fillStyle = 'rgba(255,255,255,0.7)';
             for(let i = 0; i < 40; i++) ctx.fillRect(R(i) * W, R(i + 100) * ground * 0.7, 1.6, 1.6);
         }
         ctx.fillStyle = night ? 'rgba(226,232,255,0.9)' : dusk ? 'rgba(255,196,120,0.95)' : 'rgba(255,246,214,0.95)';
         ctx.beginPath(); ctx.arc(90 + R(5) * (W - 180), 46 + R(6) * 24, night ? 16 : 22, 0, 7); ctx.fill();
 
-        // Uzak tepeler (iki kat)
+        // Distant hills (two layers)
         for(let layer = 0; layer < 2; layer++) {
             ctx.fillStyle = night ? (layer ? '#1b2138' : '#141a2e') : (layer ? '#8fa07d' : '#6f8064');
             ctx.beginPath(); ctx.moveTo(0, ground);
@@ -5043,17 +5044,17 @@ const Game = {
             ctx.lineTo(W, ground); ctx.closePath(); ctx.fill();
         }
 
-        // Arka plan: şehirde sur, kalede burçlu duvar, köyde çit ve tarla
+        // Backdrop: city walls, a crenellated castle wall, a village fence and fields
         this.drawBackdrop(ctx, loc, ground, night, col, R);
 
-        // Zemin
+        // Ground
         let gr = ctx.createLinearGradient(0, ground, 0, H);
         gr.addColorStop(0, night ? '#2a2a22' : '#6b6a4a'); gr.addColorStop(1, night ? '#171712' : '#4a4a33');
         ctx.fillStyle = gr; ctx.fillRect(0, ground, W, H - ground);
-        ctx.fillStyle = night ? 'rgba(120,110,80,0.25)' : 'rgba(190,175,130,0.45)';   // toprak yol
+        ctx.fillStyle = night ? 'rgba(120,110,80,0.25)' : 'rgba(190,175,130,0.45)';   // dirt road
         ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(W, H); ctx.lineTo(W, H - 34); ctx.lineTo(0, H - 22); ctx.fill();
 
-        // Yapılar: çift sıra (tek indisler arkada, çiftler önde)
+        // Buildings: two rows (odd indices in back, even in front)
         this.sceneHot = [];
         let back = btns.filter((_, i) => i % 2 === 1), front = btns.filter((_, i) => i % 2 === 0);
         let rows = [
@@ -5072,7 +5073,7 @@ const Game = {
             });
         });
 
-        // Künye: imlecin altındaki yapının adı
+        // Tooltip: the name of the building under the cursor
         if(hover >= 0 && this.sceneHot[hover]) {
             let h = this.sceneHot[hover], txt = h.label.trim();
             ctx.font = 'bold 17px Inter, sans-serif';
@@ -5090,7 +5091,7 @@ const Game = {
         let W = this.SCENE_W;
         let wallTop = ground - 92, stone = night ? '#3a3a44' : '#8b8578';
         if(loc.type === 'village') {
-            // Tarla şeritleri + çit
+            // Field strips + fence
             ctx.fillStyle = night ? '#3a3a26' : '#9a8f4e';
             for(let i = 0; i < 5; i++) ctx.fillRect(i * 190 + R(i) * 20, ground - 26, 150, 22);
             ctx.strokeStyle = night ? '#3d3327' : '#7a6042'; ctx.lineWidth = 3;
@@ -5100,55 +5101,55 @@ const Game = {
             ctx.beginPath(); ctx.moveTo(0, ground - 18); ctx.lineTo(W, ground - 18); ctx.stroke();
             return;
         }
-        // Sur duvarı: şehirde uzun ve mazgallı, kalede daha kalın + arkada donjon
+        // Wall: long and crenellated in a city, thicker + a keep behind it in a castle
         if(loc.type === 'castle') {
             let kx = 60 + R(9) * (W - 320), kw = 190, kh = 165;
             ctx.fillStyle = night ? '#2e2e38' : '#7d7768';
             ctx.fillRect(kx, wallTop - kh + 40, kw, kh);
             ctx.fillStyle = night ? '#232630' : '#6b6558';
-            for(let i = 0; i < 5; i++) ctx.fillRect(kx + i * 40, wallTop - kh + 26, 26, 16);   // mazgal
-            ctx.fillStyle = col;                                                              // sancak
+            for(let i = 0; i < 5; i++) ctx.fillRect(kx + i * 40, wallTop - kh + 26, 26, 16);   // battlement
+            ctx.fillStyle = col;                                                              // banner
             ctx.fillRect(kx + kw / 2 - 1, wallTop - kh - 26, 2, 30);
             ctx.beginPath(); ctx.moveTo(kx + kw / 2 + 1, wallTop - kh - 24);
             ctx.lineTo(kx + kw / 2 + 36, wallTop - kh - 16); ctx.lineTo(kx + kw / 2 + 1, wallTop - kh - 8); ctx.fill();
         } else {
-            // Şehir silueti: arka planda çatılar, kuleler (sayısı ve yeri yerleşime göre sabit)
+            // City silhouette: rooftops in the background, towers (count and position fixed per settlement)
             let houses = 7 + Math.floor(R(3) * 6);
             for(let i = 0; i < houses; i++) {
                 let x = R(i + 30) * (W - 80), w = 54 + R(i + 60) * 46, h = 52 + R(i + 90) * 60;
-                let top = wallTop + 14 - h;                      // çatılar surun üstünden görünür
+                let top = wallTop + 14 - h;                      // rooftops show above the wall
                 ctx.fillStyle = night ? '#22262f' : '#5f5c50';
                 ctx.fillRect(x, top, w, h);
                 ctx.fillStyle = night ? '#15181f' : '#47372c';
                 ctx.beginPath(); ctx.moveTo(x - 6, top); ctx.lineTo(x + w / 2, top - 26); ctx.lineTo(x + w + 6, top); ctx.fill();
-                if(night) {                                     // pencerelerde ocak ışığı
+                if(night) {                                     // hearth light in the windows
                     ctx.fillStyle = 'rgba(255,196,90,0.75)';
                     ctx.fillRect(x + w * 0.3, top + 16, 7, 9);
                     if(R(i + 120) > 0.5) ctx.fillRect(x + w * 0.62, top + 16, 7, 9);
                 }
             }
         }
-        // Sur + kapı
+        // Wall + gate
         ctx.fillStyle = stone; ctx.fillRect(0, wallTop, W, 92);
         ctx.fillStyle = night ? '#2c2c34' : '#6f6a5e';
-        for(let x = 4; x < W; x += 34) ctx.fillRect(x, wallTop - 12, 20, 14);      // mazgallar
-        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, wallTop + 72, W, 20);  // gölge bandı
+        for(let x = 4; x < W; x += 34) ctx.fillRect(x, wallTop - 12, 20, 14);      // battlements
+        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, wallTop + 72, W, 20);  // shadow band
         let gx = 120 + R(7) * (W - 320);
         ctx.fillStyle = night ? '#16161c' : '#3b2f22';
         ctx.beginPath(); ctx.moveTo(gx, ground); ctx.lineTo(gx, wallTop + 44);
         ctx.arc(gx + 28, wallTop + 44, 28, Math.PI, 0); ctx.lineTo(gx + 56, ground); ctx.fill();
-        ctx.fillStyle = col; ctx.fillRect(gx - 26, wallTop - 10, 3, 40);           // kapının yanında sancak
+        ctx.fillStyle = col; ctx.fillRect(gx - 26, wallTop - 10, 3, 40);           // a banner beside the gate
         ctx.beginPath(); ctx.moveTo(gx - 23, wallTop - 8); ctx.lineTo(gx - 2, wallTop - 1); ctx.lineTo(gx - 23, wallTop + 6); ctx.fill();
     },
 
-    // Tek çizim primitifi: tür siluetin şeklini, ikon tabelayı verir.
+    // A single drawing primitive: the kind gives the silhouette's shape, the icon gives the sign.
     drawStructure(ctx, kind, x, y, w, h, col, icon, night, dim, hot) {
         ctx.save();
         if(hot) { ctx.shadowColor = 'rgba(255,204,0,0.9)'; ctx.shadowBlur = 22; }
         let wood = night ? '#2f2418' : '#6b4f31', wall = night ? '#39332a' : `rgb(${Math.round(168*dim)},${Math.round(150*dim)},${Math.round(120*dim)})`;
         let roof = night ? '#241d16' : `rgb(${Math.round(122*dim)},${Math.round(70*dim)},${Math.round(48*dim)})`;
         let lit = 'rgba(255,196,90,0.85)';
-        ctx.fillStyle = 'rgba(0,0,0,0.28)';                       // zemin gölgesi
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';                       // ground shadow
         ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 3, w * 0.52, 7, 0, 0, 7); ctx.fill();
 
         if(kind === 'tower') {
@@ -5161,7 +5162,7 @@ const Game = {
             ctx.beginPath(); ctx.moveTo(x + w * 0.52, y - 32); ctx.lineTo(x + w * 0.82, y - 25); ctx.lineTo(x + w * 0.52, y - 18); ctx.fill();
         } else if(kind === 'stall') {
             ctx.fillStyle = wood; ctx.fillRect(x + 6, y + h * 0.35, 5, h * 0.65); ctx.fillRect(x + w - 11, y + h * 0.35, 5, h * 0.65);
-            for(let i = 0; i < 5; i++) {                          // çizgili tente
+            for(let i = 0; i < 5; i++) {                          // striped awning
                 ctx.fillStyle = i % 2 ? '#c94f3d' : '#e8ded0';
                 ctx.fillRect(x + i * w / 5, y + h * 0.28, w / 5, h * 0.16);
             }
@@ -5180,7 +5181,7 @@ const Game = {
             ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.72, w * 0.48, h * 0.3, 0, 0, 7); ctx.fill();
             ctx.fillStyle = night ? '#3a2f22' : '#b08a58';
             ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.66, w * 0.42, h * 0.24, 0, 0, 7); ctx.fill();
-            ctx.strokeStyle = wood; ctx.lineWidth = 4;            // palisad kazıkları
+            ctx.strokeStyle = wood; ctx.lineWidth = 4;            // palisade stakes
             for(let i = 0; i < 10; i++) {
                 let a = i / 10 * Math.PI * 2, px = x + w / 2 + Math.cos(a) * w * 0.45, py = y + h * 0.72 + Math.sin(a) * h * 0.3;
                 ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py - 16); ctx.stroke();
@@ -5197,18 +5198,18 @@ const Game = {
             ctx.beginPath(); ctx.moveTo(x + w * 0.28, y + h); ctx.lineTo(x + w * 0.28, y + h * 0.42);
             ctx.arc(x + w / 2, y + h * 0.42, w * 0.22, Math.PI, 0); ctx.lineTo(x + w * 0.72, y + h); ctx.fill();
         } else {
-            // house / shop / barn / coop — gövde + çatı, farkı bacada ve kapıda
+            // house / shop / barn / coop — body + roof, the difference is in the chimney and door
             let bh = kind === 'barn' ? h * 0.68 : h * 0.62, by = y + h - bh;
             ctx.fillStyle = wall; ctx.fillRect(x + 6, by, w - 12, bh);
             ctx.fillStyle = roof;
             ctx.beginPath(); ctx.moveTo(x - 2, by); ctx.lineTo(x + w / 2, by - h * 0.34); ctx.lineTo(x + w + 2, by); ctx.fill();
-            ctx.fillStyle = night ? '#241d16' : '#4a3524';        // kapı
+            ctx.fillStyle = night ? '#241d16' : '#4a3524';        // door
             let dw = kind === 'barn' ? w * 0.36 : w * 0.2;
             ctx.fillRect(x + w / 2 - dw / 2, y + h - bh * 0.62, dw, bh * 0.62);
-            ctx.fillStyle = night ? lit : 'rgba(70,90,110,0.7)';  // pencere
+            ctx.fillStyle = night ? lit : 'rgba(70,90,110,0.7)';  // window
             ctx.fillRect(x + 14, by + bh * 0.22, 13, 12);
             ctx.fillRect(x + w - 27, by + bh * 0.22, 13, 12);
-            if(kind === 'shop') {                                  // atölye bacası + duman
+            if(kind === 'shop') {                                  // workshop chimney + smoke
                 ctx.fillStyle = roof; ctx.fillRect(x + w * 0.72, by - h * 0.28, 12, h * 0.3);
                 ctx.fillStyle = 'rgba(200,200,200,0.35)';
                 for(let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + w * 0.78, by - h * 0.34 - i * 11, 5 + i * 2, 0, 7); ctx.fill(); }
@@ -5216,7 +5217,7 @@ const Game = {
             if(kind === 'coop') { ctx.fillStyle = wood; for(let i = 0; i < 5; i++) ctx.fillRect(x + 4 + i * (w - 8) / 5, y + h - 14, 3, 14); }
         }
 
-        // Tabela: düğmenin ikonu binanın üstünde durur, hangi kapı olduğu bir bakışta belli
+        // Sign: the button's icon sits above the building, which door it is is obvious at a glance
         ctx.shadowBlur = 0;
         if(icon) {
             ctx.fillStyle = hot ? 'rgba(255,204,0,0.95)' : 'rgba(12,12,16,0.8)';
@@ -5228,21 +5229,21 @@ const Game = {
         ctx.restore();
     },
 
-    // --- İÇ MEKÂN ARKA PLANI (#60) ---
-    // Kaleye/hana girince modalin arkasında o mekân durur. Tek seferlik çizim, data URL
-    // olarak önbelleklenir; `showModal`'ın üçüncü argümanı (bgImage) zaten hazırdı.
+    // --- INTERIOR BACKDROP (#60) ---
+    // Stepping into a castle/tavern puts that space behind the modal. Drawn once, cached
+    // as a data URL; `showModal`'s third argument (bgImage) was already ready for it.
     BG_DRAW: {
         hall:      ['drawHallBg', 640, 380],
         tavern:    ['drawTavernBg', 640, 380],
-        armory:    ['drawArmoryBg', 900, 560],     // karakter ekranı (#61)
-        camp:      ['drawCampBg', 900, 560],       // grup ekranı
-        storage:   ['drawStorageBg', 900, 560],    // envanter
-        parchment: ['drawParchmentBg', 900, 560]   // görevler
+        armory:    ['drawArmoryBg', 900, 560],     // character screen (#61)
+        camp:      ['drawCampBg', 900, 560],       // party screen
+        storage:   ['drawStorageBg', 900, 560],    // inventory
+        parchment: ['drawParchmentBg', 900, 560]   // quests
     },
     sceneBg(kind) {
-        // Hafif mod: her ekranın zemini bir kez çizilip JPEG'e kodlanıyor (ölçüldü:
-        // ekran başına 8-12 ms + 27-37 KB). Telefonda bu, ekran her açılışında
-        // hissedilen bir takılma. null dönünce çağıranlar perdeyi tek başına kullanır.
+        // Lite mode: each screen's background is drawn once and encoded to JPEG (measured:
+        // 8-12ms + 27-37KB per screen). On a phone this is a noticeable stutter every time
+        // the screen opens. Returning null makes callers use the overlay on its own.
         if(this.lite()) return null;
         this._sceneBg = this._sceneBg || {};
         if(this._sceneBg[kind]) return this._sceneBg[kind];
@@ -5252,10 +5253,10 @@ const Game = {
         this[fn](cv.getContext('2d'), W, H);
         return (this._sceneBg[kind] = cv.toDataURL('image/jpeg', 0.82));
     },
-    // Menü ekranlarına tematik zemin (#61). Tek kapı `showScreen`; her ekrana bir kez konur,
-    // sonrası CSS. Perde koyu tutulur — zemin metinle yarışmaz.
-    // Perde koyuluğu ekrana göre: parşömen açık renk olduğu için daha ince perde yeter,
-    // koyu çizimler (cephanelik, kamp, ambar) altında yazı için daha kalın perde gerekir.
+    // Themed background for menu screens (#61). Single gate `showScreen`; set once per
+    // screen, CSS after that. The overlay stays dark — the background doesn't compete with the text.
+    // Overlay darkness depends on the screen: parchment is light-colored so a thinner overlay
+    // suffices, dark drawings (armory, camp, storage) need a thicker overlay for the text underneath.
     VIEW_BG: {
         character: ['armory', 0.74, 0.88],
         party:     ['camp', 0.72, 0.88],
@@ -5273,7 +5274,7 @@ const Game = {
         el.style.backgroundSize = 'cover';
         el.style.backgroundPosition = 'center top';
     },
-    // Karakter: cephanelik duvarı — taş, asılı kalkan, çapraz kılıç, miğfer, sancak
+    // Character: armory wall — stone, a hanging shield, crossed swords, a helmet, a banner
     drawArmoryBg(ctx, W, H) {
         let g = ctx.createLinearGradient(0, 0, 0, H);
         g.addColorStop(0, '#33343a'); g.addColorStop(1, '#1e1f24');
@@ -5282,7 +5283,7 @@ const Game = {
             for(let x = (r % 2 ? -34 : 0); x < W; x += 68) {
                 ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 68, 34);
             }
-        // Çapraz kılıçlar
+        // Crossed swords
         ctx.save(); ctx.translate(W * 0.5, H * 0.42);
         [-0.5, 0.5].forEach(a => {
             ctx.save(); ctx.rotate(a);
@@ -5292,20 +5293,20 @@ const Game = {
             ctx.restore();
         });
         ctx.restore();
-        // Kalkan
+        // Shield
         let sx = W * 0.5, sy = H * 0.5;
         ctx.fillStyle = '#5c2630';
         ctx.beginPath(); ctx.moveTo(sx - 78, sy - 90); ctx.lineTo(sx + 78, sy - 90);
         ctx.lineTo(sx + 78, sy + 20); ctx.quadraticCurveTo(sx, sy + 130, sx - 78, sy + 20); ctx.fill();
         ctx.strokeStyle = '#8a7130'; ctx.lineWidth = 7; ctx.stroke();
         ctx.fillStyle = 'rgba(212,175,55,0.55)'; ctx.beginPath(); ctx.arc(sx, sy - 10, 26, 0, 7); ctx.fill();
-        // Yan sancaklar
+        // Side banners
         [W * 0.14, W * 0.86].forEach((bx, i) => {
             ctx.fillStyle = i ? '#25406f' : '#4a2a5e';
             ctx.beginPath(); ctx.moveTo(bx - 44, 0); ctx.lineTo(bx + 44, 0);
             ctx.lineTo(bx + 44, H * 0.6); ctx.lineTo(bx, H * 0.55); ctx.lineTo(bx - 44, H * 0.6); ctx.fill();
         });
-        // Miğfer rafı
+        // Helmet shelf
         ctx.fillStyle = '#3a2b1a'; ctx.fillRect(0, H - 96, W, 16);
         [W * 0.22, W * 0.78].forEach(hx => {
             ctx.fillStyle = '#9aa1aa';
@@ -5315,7 +5316,7 @@ const Game = {
         });
         this.bgVignette(ctx, W, H);
     },
-    // Grup: gece kampı — çadırlar, ateş, mızrak demeti
+    // Party: night camp — tents, a fire, a bundle of spears
     drawCampBg(ctx, W, H) {
         let hz = H * 0.55;
         let g = ctx.createLinearGradient(0, 0, 0, hz);
@@ -5328,21 +5329,21 @@ const Game = {
             ctx.fillRect(r * W, r2 * hz * 0.8, 2, 2);
         }
         ctx.globalAlpha = 1;
-        ctx.fillStyle = '#1b202c';                          // tepe hattı
+        ctx.fillStyle = '#1b202c';                          // hilltop line
         ctx.beginPath(); ctx.moveTo(0, hz);
         for(let x = 0; x <= W; x += 60) ctx.lineTo(x, hz - 30 - 26 * Math.sin(x / 130));
         ctx.lineTo(W, hz); ctx.fill();
         let fg = ctx.createLinearGradient(0, hz, 0, H);
         fg.addColorStop(0, '#33301f'); fg.addColorStop(1, '#16150f');
         ctx.fillStyle = fg; ctx.fillRect(0, hz, W, H - hz);
-        // Çadırlar
+        // Tents
         [[W * 0.18, H * 0.82, 130], [W * 0.82, H * 0.78, 110], [W * 0.5, H * 0.7, 90]].forEach(([tx, ty, tw]) => {
             ctx.fillStyle = '#d9cdb4';
             ctx.beginPath(); ctx.moveTo(tx, ty - tw); ctx.lineTo(tx + tw * 0.72, ty); ctx.lineTo(tx - tw * 0.72, ty); ctx.fill();
             ctx.fillStyle = '#3a2a20';
             ctx.beginPath(); ctx.moveTo(tx, ty - tw * 0.55); ctx.lineTo(tx + tw * 0.2, ty); ctx.lineTo(tx - tw * 0.2, ty); ctx.fill();
         });
-        // Ateş
+        // Fire
         let fx = W * 0.5, fy = H * 0.88;
         let fl = ctx.createRadialGradient(fx, fy, 5, fx, fy, 190);
         fl.addColorStop(0, 'rgba(255,205,110,0.95)'); fl.addColorStop(0.35, 'rgba(235,130,40,0.5)');
@@ -5353,7 +5354,7 @@ const Game = {
             ctx.save(); ctx.translate(fx, fy); ctx.rotate(a);
             ctx.beginPath(); ctx.moveTo(-46, 0); ctx.lineTo(46, 0); ctx.stroke(); ctx.restore();
         });
-        // Mızrak demeti
+        // Bundle of spears
         ctx.strokeStyle = '#5b4429'; ctx.lineWidth = 5;
         [-0.18, 0, 0.18].forEach(a => {
             ctx.save(); ctx.translate(W * 0.66, H); ctx.rotate(a);
@@ -5361,17 +5362,17 @@ const Game = {
         });
         this.bgVignette(ctx, W, H);
     },
-    // Envanter: ambar — raflar, sandık, çuvallar, asılı ip
+    // Inventory: storehouse — shelves, a chest, sacks, a hanging rope
     drawStorageBg(ctx, W, H) {
         let g = ctx.createLinearGradient(0, 0, 0, H);
         g.addColorStop(0, '#42301d'); g.addColorStop(1, '#241a10');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
         for(let x = 0; x < W; x += 46) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(x, 0, 3, H); }
-        for(let y = H * 0.28; y < H; y += H * 0.34) {        // raflar
+        for(let y = H * 0.28; y < H; y += H * 0.34) {        // shelves
             ctx.fillStyle = '#6b4a28'; ctx.fillRect(0, y, W, 18);
             ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, y + 18, W, 12);
         }
-        // Sandıklar ve çuvallar
+        // Chests and sacks
         [[W * 0.16, H * 0.28, 150], [W * 0.72, H * 0.62, 175]].forEach(([bx, by, bw]) => {
             ctx.fillStyle = '#7a5630'; ctx.fillRect(bx, by - bw * 0.62, bw, bw * 0.62);
             ctx.fillStyle = '#4c3320'; ctx.fillRect(bx, by - bw * 0.62, bw, 14);
@@ -5382,7 +5383,7 @@ const Game = {
             ctx.beginPath(); ctx.ellipse(sx, sy - 34, 34, 44, 0, 0, 7); ctx.fill();
             ctx.fillStyle = '#57482d'; ctx.fillRect(sx - 13, sy - 82, 26, 14);
         });
-        // Asılı ip ve fener
+        // Hanging rope and lantern
         ctx.strokeStyle = '#3a2b1a'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(W * 0.88, 0); ctx.lineTo(W * 0.88, 90); ctx.stroke();
         let lg = ctx.createRadialGradient(W * 0.88, 106, 4, W * 0.88, 106, 90);
@@ -5390,22 +5391,22 @@ const Game = {
         ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(W * 0.88, 106, 90, 0, 7); ctx.fill();
         this.bgVignette(ctx, W, H);
     },
-    // Görevler: parşömen — lifler, yanık kenar, mühür
+    // Quests: parchment — fibers, a burnt edge, a seal
     drawParchmentBg(ctx, W, H) {
         let g = ctx.createLinearGradient(0, 0, W, H);
         g.addColorStop(0, '#d9c391'); g.addColorStop(0.5, '#c9b07b'); g.addColorStop(1, '#a98f5d');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-        for(let i = 0; i < 220; i++) {                       // lif dokusu
+        for(let i = 0; i < 220; i++) {                       // fiber texture
             let r = ((i * 131) % 9973) / 9973, r2 = ((i * 613) % 9967) / 9967;
             ctx.globalAlpha = 0.05 + r2 * 0.08;
             ctx.fillStyle = i % 3 ? '#8a6f42' : '#f0e0b8';
             ctx.fillRect(r * W, r2 * H, 30 + r2 * 90, 2);
         }
         ctx.globalAlpha = 1;
-        for(let y = H * 0.16; y < H * 0.9; y += 46) {        // silik satırlar
+        for(let y = H * 0.16; y < H * 0.9; y += 46) {        // faded lines
             ctx.fillStyle = 'rgba(90,70,40,0.13)'; ctx.fillRect(W * 0.1, y, W * 0.8, 3);
         }
-        // Yanık kenar
+        // Burnt edge
         let e = ctx.createLinearGradient(0, 0, 0, H);
         e.addColorStop(0, 'rgba(70,45,15,0.55)'); e.addColorStop(0.12, 'rgba(70,45,15,0)');
         e.addColorStop(0.88, 'rgba(70,45,15,0)'); e.addColorStop(1, 'rgba(70,45,15,0.55)');
@@ -5414,27 +5415,27 @@ const Game = {
         e2.addColorStop(0, 'rgba(70,45,15,0.5)'); e2.addColorStop(0.1, 'rgba(70,45,15,0)');
         e2.addColorStop(0.9, 'rgba(70,45,15,0)'); e2.addColorStop(1, 'rgba(70,45,15,0.5)');
         ctx.fillStyle = e2; ctx.fillRect(0, 0, W, H);
-        // Mum mührü
+        // Wax seal
         ctx.fillStyle = '#8c2230';
         ctx.beginPath(); ctx.arc(W * 0.8, H * 0.82, 52, 0, 7); ctx.fill();
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath(); ctx.arc(W * 0.8, H * 0.82, 32, 0, 7); ctx.fill();
         this.bgVignette(ctx, W, H);
     },
-    // Han: ahşap duvar, kirişler, ocak, fıçılar, uzun masa, asma kandiller
+    // Tavern: wooden wall, beams, hearth, barrels, a long table, hanging lanterns
     drawTavernBg(ctx, W, H) {
         let floor = H * 0.66;
         let g = ctx.createLinearGradient(0, 0, 0, floor);
         g.addColorStop(0, '#3a2a1c'); g.addColorStop(1, '#5a4028');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, floor);
-        for(let y = 8; y < floor; y += 22) {          // duvar tahtaları
+        for(let y = 8; y < floor; y += 22) {          // wall planks
             ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, y, W, 2);
         }
-        for(let x = 60; x < W; x += 150) {            // dikey kirişler
+        for(let x = 60; x < W; x += 150) {            // vertical beams
             ctx.fillStyle = '#2e2013'; ctx.fillRect(x, 0, 18, floor);
             ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(x, 0, 4, floor);
         }
-        // Ocak — sahnenin ışık kaynağı
+        // Hearth — the scene's light source
         let fx = W * 0.5, fy = floor;
         ctx.fillStyle = '#3b3630'; ctx.fillRect(fx - 70, floor - 130, 140, 130);
         ctx.fillStyle = '#171310';
@@ -5444,24 +5445,24 @@ const Game = {
         fl.addColorStop(0, 'rgba(255,190,80,0.95)'); fl.addColorStop(0.4, 'rgba(230,120,30,0.55)');
         fl.addColorStop(1, 'rgba(230,120,30,0)');
         ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(fx, fy - 26, 90, 0, 7); ctx.fill();
-        // Zemin
+        // Ground
         let fg = ctx.createLinearGradient(0, floor, 0, H);
         fg.addColorStop(0, '#4a3826'); fg.addColorStop(1, '#2a1f15');
         ctx.fillStyle = fg; ctx.fillRect(0, floor, W, H - floor);
         for(let y = floor + 10; y < H; y += 18) { ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0, y, W, 2); }
-        // Fıçılar
+        // Barrels
         [[70, floor + 26], [W - 78, floor + 20]].forEach(([bx, by]) => {
             ctx.fillStyle = '#6b4a28';
             ctx.beginPath(); ctx.ellipse(bx, by, 30, 40, 0, 0, 7); ctx.fill();
             ctx.strokeStyle = '#39281a'; ctx.lineWidth = 4;
             [-16, 0, 16].forEach(o => { ctx.beginPath(); ctx.moveTo(bx - 28, by + o); ctx.lineTo(bx + 28, by + o); ctx.stroke(); });
         });
-        // Uzun masa + tabure
+        // Long table + stools
         ctx.fillStyle = '#7a5630'; ctx.fillRect(W * 0.28, H - 74, W * 0.44, 16);
         ctx.fillStyle = '#4c3320';
         ctx.fillRect(W * 0.31, H - 58, 12, 44); ctx.fillRect(W * 0.66, H - 58, 12, 44);
         [-70, 70].forEach(o => { ctx.fillStyle = '#5c3f26'; ctx.fillRect(W / 2 + o - 16, H - 44, 32, 10); });
-        // Asma kandiller
+        // Hanging lanterns
         [W * 0.22, W * 0.78].forEach(lx => {
             ctx.strokeStyle = '#241a10'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, 60); ctx.stroke();
@@ -5471,25 +5472,25 @@ const Game = {
         });
         this.bgVignette(ctx, W, H);
     },
-    // Lordlar salonu: taş duvar, sütunlar, sancaklar, meşaleler, taht
+    // Lords' hall: stone wall, columns, banners, torches, a throne
     drawHallBg(ctx, W, H) {
         let floor = H * 0.7;
         let g = ctx.createLinearGradient(0, 0, 0, floor);
         g.addColorStop(0, '#2b2c31'); g.addColorStop(1, '#4a4b52');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, floor);
-        for(let y = 0, r = 0; y < floor; y += 26, r++) {   // taş sıraları
+        for(let y = 0, r = 0; y < floor; y += 26, r++) {   // stone courses
             for(let x = (r % 2 ? -26 : 0); x < W; x += 52) {
                 ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.5;
                 ctx.strokeRect(x, y, 52, 26);
             }
         }
-        // Sütunlar
+        // Columns
         [W * 0.12, W * 0.88].forEach(px => {
             ctx.fillStyle = '#5b5c64'; ctx.fillRect(px - 26, 0, 52, floor);
             ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(px - 26, 0, 12, floor);
             ctx.fillStyle = '#6a6b74'; ctx.fillRect(px - 34, floor - 22, 68, 22);
         });
-        // Sancaklar
+        // Banners
         [W * 0.3, W * 0.7].forEach((bx, i) => {
             ctx.fillStyle = i ? '#7a2230' : '#243f7a';
             ctx.beginPath(); ctx.moveTo(bx - 30, 20); ctx.lineTo(bx + 30, 20);
@@ -5497,18 +5498,18 @@ const Game = {
             ctx.fillStyle = 'rgba(255,204,0,0.5)';
             ctx.beginPath(); ctx.arc(bx, 74, 15, 0, 7); ctx.fill();
         });
-        // Taht + kırmızı halı
+        // Throne + red carpet
         ctx.fillStyle = '#3a2b1a'; ctx.fillRect(W / 2 - 34, floor - 96, 68, 96);
         ctx.fillRect(W / 2 - 42, floor - 100, 84, 12);
         ctx.fillStyle = '#8a2b34'; ctx.fillRect(W / 2 - 26, floor - 84, 52, 60);
-        // Zemin
+        // Ground
         let fg = ctx.createLinearGradient(0, floor, 0, H);
         fg.addColorStop(0, '#43444b'); fg.addColorStop(1, '#25262b');
         ctx.fillStyle = fg; ctx.fillRect(0, floor, W, H - floor);
         ctx.fillStyle = '#7a2230';
         ctx.beginPath(); ctx.moveTo(W / 2 - 46, floor); ctx.lineTo(W / 2 + 46, floor);
         ctx.lineTo(W / 2 + 130, H); ctx.lineTo(W / 2 - 130, H); ctx.fill();
-        // Meşaleler
+        // Torches
         [W * 0.12, W * 0.88].forEach(tx => {
             ctx.fillStyle = '#241a10'; ctx.fillRect(tx - 4, 120, 8, 34);
             let lg = ctx.createRadialGradient(tx, 118, 3, tx, 118, 70);
@@ -5525,20 +5526,20 @@ const Game = {
     },
 
     addBtn(container, text, cb) {
-        if(!this.btnLabelOk(text, 'addBtn')) return;   // etiketsiz düğme hiç çizilmez (#35)
+        if(!this.btnLabelOk(text, 'addBtn')) return;   // an unlabeled button is never drawn (#35)
         let b = document.createElement('button');
         b.className = 'btn'; b.innerHTML = text; b.onclick = cb;
         container.appendChild(b);
     },
 
-    // Yazısız sarı düğme şikâyetinin tek kapısı (#35): boş/undefined etiket çizilmez,
-    // hangi akıştan geldiği yığınla birlikte Debug raporuna düşer.
+    // The single gate for the "blank yellow button" complaint (#35): an empty/undefined
+    // label is never drawn, and which flow it came from lands in the Debug report along with the stack.
     btnLabelOk(text, where) {
         let t = (text === null || text === undefined) ? '' : String(text);
         if(t.replace(/<[^>]*>/g, '').trim()) return true;
-        Debug.log('bosbuton', T`Etiketsiz buton (${where})`, {
-            deger: JSON.stringify(text),
-            yigin: ((new Error()).stack || '').split('\n').slice(2, 5).map(l => l.trim()).join(' | ')
+        Debug.log('empty-button', T`Etiketsiz buton (${where})`, {
+            value: JSON.stringify(text),
+            stack: ((new Error()).stack || '').split('\n').slice(2, 5).map(l => l.trim()).join(' | ')
         });
         return false;
     },
@@ -5548,7 +5549,7 @@ const Game = {
         mc.style.width = width;
         mc.style.maxWidth = '90vw';
         if(bgImage) {
-            // 0.8/0.9'luk perde iç mekân çizimini tamamen yutuyordu (#60) — yazı hâlâ okunur, sahne görünür
+            // A 0.8/0.9 overlay was swallowing the interior drawing entirely (#60) — the text still reads, the scene still shows
             mc.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.62), rgba(0,0,0,0.82)), url('${bgImage}')`;
             mc.style.backgroundSize = 'cover';
             mc.style.backgroundPosition = 'center';
@@ -5558,26 +5559,26 @@ const Game = {
         }
         let mb = document.getElementById('modal-body');
         mb.innerHTML = html;
-        // Modal HTML'i şablon dizesiyle üretiliyor; etiketi boş kalan düğme burada yakalanır (#35)
+        // The modal HTML is generated via a template string; a button left with an empty label is caught here (#35)
         mb.querySelectorAll('button').forEach(b => {
             if(!this.btnLabelOk(b.textContent, 'showModal')) b.style.display = 'none';
         });
-        // × yalnız kapatılabilen pencerede görünür; Esc ve dışa tıklama ile aynı kapıdan sorar
+        // × only shows on a dismissible window; it asks through the same gate as Esc and clicking outside
         let cb = document.getElementById('modal-close');
         if(cb) { cb.classList.toggle('hidden', !this.canDismiss()); cb.title = T('Kapat'); }
         document.getElementById('modal-overlay').classList.remove('hidden');
     },
-    // Kullanıcının pencereyi *kendiliğinden* kapatabildiği üç yol — Esc, dışa tıklama, ×
-    // — tek yerden sorar; ayrı ayrı sorsalardı biri karşılaşmadan kaçış kapısı bırakırdı (#70).
-    // closeModal'ın kendisi sormaz: karşılaşma düğmeleri ("Savaş", "Teslim Ol") pencereyi
-    // currentEncounterNpcId hâlâ doluyken kapatır, orada da sorulsa pencere açık kalırdı.
+    // The three ways the user can close a window *on their own* — Esc, clicking outside, ×
+    // — ask from one place; asking separately would leave one of them an escape hatch from an encounter (#70).
+    // closeModal itself doesn't ask: encounter buttons ("Fight", "Surrender") close the window
+    // while currentEncounterNpcId is still set, and asking there too would leave the window stuck open.
     canDismiss() { return !state.player.currentEncounterNpcId; },
     dismissModal() { if(this.canDismiss()) this.closeModal(); },
     closeModal() { this.skipType(); document.getElementById('modal-overlay').classList.add('hidden'); },
 
-    // --- YAZI MAKİNESİ (#59) ---
-    // Metin kademeli yazılır; herhangi bir tıklama ya da yeni bir çağrı onu tamamlar.
-    // Hareket azaltma açıksa (ya da sistem öyle diyorsa) hiç beklemez, tek karede basar.
+    // --- TYPEWRITER (#59) ---
+    // Text is typed out gradually; any click or a new call completes it.
+    // If reduced motion is on (or the system says so), it doesn't wait at all, prints in one frame.
     typeIn(elId, text, then = null, cps = 60) {
         this.skipType();
         let el = document.getElementById(elId);
@@ -5590,7 +5591,7 @@ const Game = {
             el.textContent = text.slice(0, i);
             if(i >= text.length) Game.skipType();
         }, 1000 / (cps / step)) };
-        // Modalı açan tıklama hâlâ yayılıyor olabilir — dinleyici bir sonraki tur konur
+        // The click that opened the modal may still be propagating — the listener is set on the next tick
         setTimeout(() => {
             if(!Game._type) return;
             document.addEventListener('click', Game._typeSkip = () => Game.skipType());
@@ -5620,30 +5621,30 @@ const Game = {
         this.refreshMarket();
     },
 
-    // --- MAL BAŞINA ARZ/TALEP (#24) ---
-    // Fiyat artık şehre girerken atılan tek zar değil: her yerleşimin her mal için
-    // kendi çarpanı var. Üretim bölgesinde ucuz, uzağında pahalı; sen aldıkça
-    // yükselir, sattıkça düşer, dokunulmazsa kendi tabanına geri döner.
+    // --- PER-GOOD SUPPLY/DEMAND (#24) ---
+    // Price is no longer a single roll made on entering a city: every settlement has
+    // its own multiplier per good. Cheap in its production region, expensive far from it;
+    // it rises as you buy, falls as you sell, and drifts back to its own baseline untouched.
     GOOD_ORIGIN: {
-        swadia:  { wheat:0.70, bread:0.75, velvet:1.30, salt:1.15 },   // ova, tahıl ambarı
-        rhodok:  { ale:0.65,   iron:0.80,  meat:1.25,   cheese:1.15 }, // dağ, bağ ve maden
-        vaegir:  { meat:0.70,  cheese:0.80, velvet:1.25, ale:1.20 },   // kuzey ormanı
-        nord:    { salt:0.70,  meat:0.85,  wheat:1.30,  iron:1.20 },   // kıyı, tuzla
-        khergit: { cheese:0.70, meat:0.75, velvet:1.35, bread:1.25 }   // bozkır, sürü
+        swadia:  { wheat:0.70, bread:0.75, velvet:1.30, salt:1.15 },   // plains, grain basket
+        rhodok:  { ale:0.65,   iron:0.80,  meat:1.25,   cheese:1.15 }, // mountains, vineyards and mines
+        vaegir:  { meat:0.70,  cheese:0.80, velvet:1.25, ale:1.20 },   // northern forest
+        nord:    { salt:0.70,  meat:0.85,  wheat:1.30,  iron:1.20 },   // coast, salt flats
+        khergit: { cheese:0.70, meat:0.75, velvet:1.35, bread:1.25 }   // steppe, herds
     },
-    // Sapma hash değil coğrafyadır (#77). Eskiden `loc.id + id` hash'i ±%12 sapma
-    // veriyordu: yan yana iki şehirden biri 0.88, öbürü 1.12 çekebiliyordu ve rota
-    // kurmanın tek yolu her şehre tek tek girip ezberlemekti. Şimdi sapma konumdan
-    // gelen iki düşük frekanslı dalganın toplamı — komşu yerleşimler benzer sapma
-    // alır, uzak bölgeler ayrışır, yani harita okunabilir. Mal başına dalga yönü ve
-    // fazı ayrı olduğu için tahılın ucuz olduğu bölge demirin ucuz olduğu bölge değil.
-    PRICE_NOISE: 0.06,              // ±%6 (eski hash ±%12 idi)
-    PRICE_WAVE: [1800, 1100],       // dalga boyu ölçeği (birim) — kıta 9000 birim geniş
+    // The deviation is geography, not a hash (#77). It used to be a `loc.id + id` hash
+    // giving a ±12% deviation: two neighboring cities could roll 0.88 and 1.12, and building
+    // a trade route meant entering every city one by one and memorizing it. Now the deviation
+    // is the sum of two low-frequency waves from position — neighboring settlements get similar
+    // deviation, distant regions diverge, so the map is readable. Since each good has its own
+    // wave direction and phase, the region where grain is cheap isn't the region where iron is.
+    PRICE_NOISE: 0.06,              // ±6% (the old hash was ±12%)
+    PRICE_WAVE: [1800, 1100],       // wavelength scale (units) — the continent is 9000 units wide
     priceNoise(x, y, id) {
         let h = 0;
         for(let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-        let a1 = (h % 628) / 100, a2 = ((h >>> 7) % 628) / 100;          // dalga yönleri
-        let p1 = ((h >>> 3) % 628) / 100, p2 = ((h >>> 11) % 628) / 100; // fazlar
+        let a1 = (h % 628) / 100, a2 = ((h >>> 7) % 628) / 100;          // wave directions
+        let p1 = ((h >>> 3) % 628) / 100, p2 = ((h >>> 11) % 628) / 100; // phases
         let [w1, w2] = this.PRICE_WAVE;
         return 0.6 * Math.sin((x * Math.cos(a1) + y * Math.sin(a1)) / w1 + p1)
              + 0.4 * Math.sin((x * Math.cos(a2) + y * Math.sin(a2)) / w2 + p2);
@@ -5652,24 +5653,24 @@ const Game = {
         let it = ITEMS[id];
         let m = (this.GOOD_ORIGIN[loc.faction] || {})[id] || 1;
         m *= 1 + this.PRICE_NOISE * this.priceNoise(loc.x || 0, loc.y || 0, id);
-        if(loc.type === 'village' && it) m *= it.type === 'food' ? 0.8 : 1.15;   // köy erzağı ucuz, ticaret malı pahalı
-        return m * (1.15 - (loc.prosperity || 50) / 400);                        // bolluk fiyatı düşürür
+        if(loc.type === 'village' && it) m *= it.type === 'food' ? 0.8 : 1.15;   // a village's food is cheap, its trade goods pricey
+        return m * (1.15 - (loc.prosperity || 50) / 400);                        // prosperity lowers price
     },
-    // Fiyat = bölge tabanı × arz eğrisi. Ayrı bir "fiyat durumu" yok: oynayan tek şey stok.
+    // Price = regional baseline × supply curve. There's no separate "price state": the only thing that moves is stock.
     priceMult(loc, id) { return this.basePriceMult(loc, id) * this.supplyMul(loc, id); },
 
-    // --- SINIRLI STOK VE ARZ EĞRİSİ (#46) ---
-    // Yerleşimin elindeki mal sınırlıdır: aldıkça biter ve pahalanır, sattıkça bollaşır ve
-    // ucuzlar, her gün refahla orantılı yenilenir. Bir köyü boşaltmak sonraki alımı pahalı
-    // yapar — "ucuz köyü bul, hepsini al" artık gerçek bir karar.
-    STOCK_SCALE: { city: 500, village: 190, castle: 150 },   // stok ölçeği — √fiyat ile bölünür
+    // --- LIMITED STOCK AND SUPPLY CURVE (#46) ---
+    // A settlement's stock of a good is limited: it depletes and gets pricier as you buy,
+    // and refills and cheapens as you sell, replenishing daily in proportion to prosperity.
+    // Emptying a village makes the next purchase expensive — "find the cheap village, buy it all" is now a real decision.
+    STOCK_SCALE: { city: 500, village: 190, castle: 150 },   // stock scale — divided by √price
     stocked(id) { let it = ITEMS[id]; return !!it && (it.type === 'food' || it.type === 'trade'); },
     stockBase(loc, id) {
-        // Üretim bölgesinde bol, uzağında kıt (aynı `GOOD_ORIGIN` tablosu); refah depoyu büyütür.
-        // Değere göre normalize: şehir her maldan aynı sayıda değil, aynı değerde tutar.
+        // Plentiful in the production region, scarce far from it (same `GOOD_ORIGIN` table); prosperity grows the stockpile.
+        // Normalized by value: a city holds the same value of each good, not the same count.
         let orig = (this.GOOD_ORIGIN[loc.faction] || {})[id] || 1;
-        // Pahalı mal az bulunur ama fiyatla ters orantılı değil (√fiyat): tam orantıda bir şehirde
-        // 6 top kadife kalıyordu, tek yük bile pazarı boşaltıp ticareti zarara sokuyordu.
+        // An expensive good is scarcer, but not inversely proportional to price (√price): at full
+        // proportion a city was left with 6 bolts of velvet, so a single cartload emptied the market and killed the trade.
         return Math.max(3, Math.round((this.STOCK_SCALE[loc.type] || 150) * (0.55 + (loc.prosperity || 50) / 110)
             / (orig * Math.sqrt(ITEMS[id].basePrice))));
     },
@@ -5680,13 +5681,13 @@ const Game = {
         return loc.stock[id];
     },
     addStock(loc, id, n) { if(this.stocked(id)) loc.stock[id] = Math.max(0, this.stock(loc, id) + n); },
-    // Arz eğrisi 1/√oran: stok yarıya inince fiyat ×1.41, ikiye katlanınca ×0.71 (0.55–2.0 sınırlı)
+    // Supply curve is 1/√ratio: price is ×1.41 when stock halves, ×0.71 when it doubles (clamped 0.55–2.0)
     supplyMul(loc, id) {
         if(!this.stocked(id)) return 1;
         let r = Math.max(0.05, this.stock(loc, id) / this.stockBase(loc, id));
         return Math.max(0.55, Math.min(2, Math.pow(r, -0.5)));
     },
-    // Her gün stok tabanına yaklaşır (üretim/tüketim); tabana oturunca kayıt şişmesin diye silinir
+    // Stock drifts toward its baseline every day (production/consumption); once it settles at the baseline the entry is deleted so the save doesn't bloat
     stockTick() {
         LOCATIONS.forEach(l => {
             if(!l.stock) return;
@@ -5697,16 +5698,16 @@ const Game = {
             }
         });
     },
-    // Fiyatın taban fiyata göre nerede durduğu — pazar listesinde ve lonca defterinde.
-    // Kelime yok (#76): işaret yönü, renk ucuz/pahalı, sayı da ne kadar olduğunu söylüyor —
-    // "ucuz -%22" üçüncü kez aynı şeyi tekrarlıyordu ve satırı kalabalıklaştırıyordu.
+    // Where the price sits relative to the base price — used in the market list and the guild ledger.
+    // No words (#76): the arrow's direction, the color for cheap/expensive, and the number all say how much —
+    // "cheap -22%" was saying the same thing a third time and cluttering the row.
     priceTag(loc, id) {
         let rel = Math.round((this.priceMult(loc, id) - 1) * 100);
         let c = rel <= -12 ? '#2ecc71' : rel >= 12 ? '#e0463a' : 'var(--text-muted)';
         return `<span style="color:${c}">${this.pct(rel, true)}</span>`;
     },
-    // Lonca ustasının defteri: hangi mal nerede ucuz, nerede pahalı (Warband'daki
-    // "ticaret malları fiyatları" ekranı). Rota kurmanın tek bilgi kaynağı.
+    // The guildmaster's ledger: which good is cheap where, expensive where (like Warband's
+    // "trade goods prices" screen). The only source of information for planning a route.
     guildPrices(locId) {
         let here = LOCATIONS.find(l => l.id === locId);
         let towns = LOCATIONS.filter(l => l.type === 'city')
@@ -5724,12 +5725,12 @@ const Game = {
             <tr><th style="text-align:left;padding:0.2rem 0.4rem">${T`Mal`}</th>${head}</tr>${rows}</table></div>
             <button class="btn" style="margin-top:1rem" onclick="Game.openTavern(LOCATIONS.find(l=>l.id==='${locId}'))">${T('Geri')}</button>`, '760px');
     },
-    // Fiyat butonun HTML'inden parametre olarak gelmemeli: DOM'dan değiştirilerek
-    // bedavaya alışveriş yapılabiliyor, eksik parametrede para NaN oluyordu.
+    // The price shouldn't come in as a parameter from the button's HTML: it could be
+    // edited via the DOM to trade for free, and a missing parameter turned money into NaN.
     marketPrice(id, selling = false) {
         let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
         if(!it) return null;
-        // Ticaret yeteneği: alışta indirim, satışta prim (en fazla %25)
+        // Trade skill: a discount when buying, a premium when selling (25% cap)
         let edge = Math.min(0.25, (this.profLvl('trade') - 1) * 0.02);
         let loc = this._marketLoc;
         let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 * (1 + edge) : 1 - edge);
@@ -5740,9 +5741,9 @@ const Game = {
         Object.values(ITEMS).forEach(item => {
             let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-            li.id = 'mrow-buy-' + item.id;   // satır her yenilemede yeniden kurulur; parlatma id'den bulur
+            li.id = 'mrow-buy-' + item.id;   // the row is rebuilt on every refresh; the flash effect finds it by id
             let note = this.itemNote(item);
-            // Stok (#46): sınırlı mal kaç tane kalmış, tükendiyse buton yok
+            // Stock (#46): how much of a limited good is left, no button once it's out
             let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
             let empty = st <= 0;
             li.innerHTML = `${item.icon} ${T(item.name)} - <b>${price}₺</b> `
@@ -5768,9 +5769,9 @@ const Game = {
             }
         });
     },
-    // ============ İŞLEM GERİ BİLDİRİMİ (#45) ============
-    // Tek kapı: ses + ilgili satırın parlaması + dinar rozetinde uçan delta.
-    // Ses dosyası yok (bağımlılık/varlık eklemeden) — kısa zarflı osilatörlerle üretilir.
+    // ============ TRANSACTION FEEDBACK (#45) ============
+    // Single gate: sound + the relevant row flashing + a flying delta on the coin badge.
+    // No sound file (no dependency/asset added) — generated with short-envelope oscillators.
     SFX: {
         buy:     { f: [523, 784],       t: 'triangle', d: 0.10 },
         sell:    { f: [659, 988],       t: 'triangle', d: 0.10 },
@@ -5790,69 +5791,69 @@ const Game = {
                 let t0 = ac.currentTime + i * s.d * 0.6;
                 o.type = s.t;
                 o.frequency.setValueAtTime(freq, t0);
-                // Zarf: exponentialRamp 0'a inemez, 0.0001 taban kullanılır
+                // Envelope: exponentialRamp can't reach 0, so a 0.0001 floor is used
                 g.gain.setValueAtTime(0.0001, t0);
                 g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.12 * this.opt('volume')), t0 + 0.012);
                 g.gain.exponentialRampToValueAtTime(0.0001, t0 + s.d);
                 o.connect(g); g.connect(ac.destination);
                 o.start(t0); o.stop(t0 + s.d + 0.02);
             });
-        } catch(e) { /* ses yoksa oyun durmaz */ }
+        } catch(e) { /* the game doesn't stop if there's no sound */ }
     },
     toggleMute() { this.setOpt('muted', !this.opt('muted')); this.updateTopBar(); if(!this.opt('muted')) this.sfx('buy'); },
 
-    // ============ AYARLAR (#55 madde 7) ============
-    // Tek ekran, tek okuma kapısı: her ayarın varsayılanı OPTS'ta durur, sapan
-    // anahtar state.settings'e yazılır (yani kayda girer ve eski kayıtta boş kalır).
+    // ============ SETTINGS (#55 item 7) ============
+    // One screen, one read gate: every setting's default lives in OPTS, and a deviating
+    // key is written to state.settings (so it enters the save and stays blank in an old save).
     OPTS: { muted: false, volume: 0.6, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal', edgePan: 'auto' },
 
-    // Zorluk tek bir çarpan çiftidir: **aldığın** ve **verdiğin** hasar. Başka
-    // hiçbir sayı oynamaz — kurt sürüsü de lord ordusu da aynı kapıdan geçer, yani
-    // denge tablosu (ok menzili, hücum çarpanı, zırh matematiği) tek parça kalır.
-    // Ham durur, gösterimde `T` ile çevrilir.
+    // Difficulty is a single pair of multipliers: damage **taken** and **dealt**. No other
+    // number moves — a wolf pack and a lord's army pass through the same gate, so the
+    // balance table (arrow range, charge multiplier, armor math) stays a single piece.
+    // Stays raw, translated at display with `T`.
     DIFFS: {
         easy:   { taken: 0.6, dealt: 1.25, name: 'Kolay', note: 'Aldığın hasar %40 az, verdiğin %25 fazla' },
         normal: { taken: 1,   dealt: 1,    name: 'Orta',  note: 'Tasarlandığı denge' },
         hard:   { taken: 1.5, dealt: 0.85, name: 'Zor',   note: 'Aldığın hasar %50 fazla, verdiğin %15 az' }
     },
     diff() { return this.DIFFS[this.opt('difficulty')] || this.DIFFS.normal; },
-    // Hedef senin tarafındansa bu "aldığın" hasardır, değilse "verdiğin".
-    // Tek çağrı yeri `Battle.afterArmor` — yakın dövüş de ok da oradan geçer.
+    // If the target is on your side this is the damage "taken", otherwise "dealt".
+    // The single call site is `Battle.afterArmor` — melee and arrows both pass through it.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
-    // Fareyi ekran kenarına dayayınca haritanın kayması masaüstüne özgüdür: dokunmatikte
-    // imleç yoktur, son dokunuşun koordinatı Input.mouse'ta kalır ve kenara denk gelirse
-    // harita kendi kendine kayardı. 'auto' cihazı sorar, iki uç değer oyuncunun kararıdır.
+    // The map panning when the mouse rests at the screen edge is desktop-only: on touch
+    // there's no cursor, the last touch's coordinate stays in Input.mouse, and if it lands
+    // on the edge the map would pan on its own. 'auto' asks the device, the two extremes are the player's call.
     edgePan() { let v = this.opt('edgePan'); return v === 'auto' ? !this.isTouch() : !!v; },
     setOpt(k, v) {
         (state.settings || (state.settings = {}))[k] = v;
         this.applySettings();
         if(document.getElementById('settings-panel')) this.showSettings();
     },
-    // 'auto' sistemin tercihini okur — erişilebilirlik ayarı oyunda ikinci kez sorulmasın
+    // 'auto' reads the system's preference — an accessibility setting shouldn't be asked twice
     reduceMotion() {
         let v = this.opt('reducedMotion');
         if(v !== 'auto') return !!v;
         try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e) { return false; }
     },
     applySettings() {
-        this._lite = undefined;   // hafif mod cevabı önbellekli; ayar değişince tazelenir
-        // Arayüzün tamamı rem tabanlı; kök boyutu tek noktadan ölçeklenir
+        this._lite = undefined;   // the lite-mode answer is cached; it refreshes when the setting changes
+        // The whole UI is rem-based; the root size scales from a single point
         document.documentElement.style.fontSize = (this.opt('fontScale') * 16) + 'px';
         document.body.classList.toggle('reduced-motion', this.reduceMotion());
-        // Cam panellerin backdrop-filter'ı hafif modda düşer (bkz. style.css .lite)
+        // Glass panels' backdrop-filter drops in lite mode (see style.css .lite)
         document.body.classList.toggle('lite', this.lite());
-        // Ekran zeminleri `dataset.bg` ile bir kez konuyor; mod değişince damga
-        // silinmezse hafif modda girilen ekran vanilla'ya dönünce zeminsiz kalır.
+        // Screen backgrounds are set once via `dataset.bg`; if the stamp isn't cleared
+        // when the mode changes, a screen entered in lite mode is left without a background once it returns to vanilla.
         document.querySelectorAll('.view[data-bg]').forEach(el => {
             delete el.dataset.bg; el.style.backgroundImage = '';
         });
         let cur = document.querySelector('.view.active');
         if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
     },
-    // Dar ekranın alt şeridinde yalnız dört sekme durur; Görevler, Kayıtlar, Ses ve
-    // Ayarlar buradan açılır (#86). Şeridin kendisi hâlâ tek gerçek menü — bu sayfa
-    // aynı `onclick`'leri çağırır, ikinci bir yol açmaz.
+    // Only four tabs fit in a narrow screen's bottom strip; Quests, Saves, Sound and
+    // Settings open from here (#86). The strip itself is still the one real menu — this page
+    // calls the same `onclick`s, it doesn't open a second path.
     showMoreMenu() {
         let sesli = !this.opt('muted');
         let it = (ico, label, call) => `<button class="btn" style="display:flex;align-items:center;gap:0.6rem;width:100%;justify-content:flex-start;min-height:52px"
@@ -5914,14 +5915,14 @@ const Game = {
         <p style="margin-top:0.8rem;font-size:var(--fs-xs);color:var(--text-muted)">${T`WebBand ${VERSION.no} — ${VERSION.name} (${VERSION.date})`}</p>
         </div>`, '620px');
     },
-    // Ham durur; gösterimde `T` ile çevrilir (tablo yükleme anında kurulur,
-    // o sırada dil hâlâ 'tr' olduğu için burada çevirmek çeviriyi dondururdu)
+    // Stays raw; translated at display with `T` (the table is built at load time,
+    // when the language is still 'tr', so translating here would freeze the translation)
     KEYS: [['M', 'Harita'], ['C', 'Karakter'], ['P', 'Grup'], ['I', 'Envanter'], ['Q', 'Görevler'],
            ['K', 'Diplomasi'], ['Esc', 'Haritaya dön / modalı kapat'], ['Enter', 'Modaldeki ana düğme'],
            ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['Boşluk', 'Kamerayı oyuncuya getir'],
            ['Savaşta W A S D', 'Hareket'], ['Sol tık / Boşluk', 'Vur veya ok at'],
            ['Sağ tık / Shift', 'Blok'], ['1 2 3', 'Taktik emirleri']],
-    // Dokunmatik karşılığı: aynı işleri klavyesiz nasıl yaparsın (#65)
+    // The touch equivalent: how to do the same things without a keyboard (#65)
     TOUCH_HELP: [['👆 Dokun', 'Hedef koy / yerleşime gir'], ['👆 Basılı tut', 'Künyeyi aç'],
                  ['✋ Sürükle', 'Haritayı kaydır'], ['🤏 İki parmak', 'Yakınlaştır / uzaklaştır'],
                  ['🎯 Beni Bul', 'Kamerayı sana getirir'], ['📋 Menü', 'Ekranlar arasında geçiş'],
@@ -5931,15 +5932,15 @@ const Game = {
                  ['🛡️ Düğme', 'Blok — basılı tut'],
                  ['1 2 3 düğmeleri', 'Taktik emirleri'], ['✖ / Kapat', 'Modali kapatır']],
     showKeys() {
-        let dokun = this.isTouch(), rows = dokun ? this.TOUCH_HELP : this.KEYS;
-        this.showModal(`<h3>${dokun ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:var(--fs-md)">
+        let touch = this.isTouch(), rows = touch ? this.TOUCH_HELP : this.KEYS;
+        this.showModal(`<h3>${touch ? T`🎮 Kumanda` : T`⌨️ Tuşlar`}</h3><table style="width:100%;font-size:var(--fs-md)">
         ${rows.map(([k, v]) => `<tr><td style="padding:0.25rem 0"><kbd>${T(k)}</kbd></td><td style="color:var(--text-muted)">${T(v)}</td></tr>`).join('')}
         </table><button class="btn" style="margin-top:0.8rem" onclick="Game.showSettings()">${T`← Ayarlar`}</button>`, '460px');
     },
-    // --- Öğretici (#87) ---
-    // İlk oyunda bir kez çalışır: arayüzün üstüne ışık düşürür, yanına ne olduğunu
-    // yazar. Adımlar veridir; ham Türkçe durur, `T` gösterimde çağrılır.
-    // `el` null ise kutu ortada çıkar, halka çizilmez.
+    // --- Tutorial (#87) ---
+    // Runs once on the first playthrough: shines a light over the UI and writes what it
+    // is next to it. The steps are data; they stay raw Turkish, `T` is called at display.
+    // If `el` is null the box appears centered and no ring is drawn.
     TUTOR: [
         { el: '#map-canvas', t: '🗺️ Kalradya',
           m: 'Gitmek istediğin yere tıkla. WASD ile haritayı gez, tekerlekle yakınlaş. Bir yerleşimin üstüne gelirsen künyesi açılır.',
@@ -5961,9 +5962,9 @@ const Game = {
           d: 'Kesende 250 dinar var ve yalnızsın. En yakın köye git: gönüllü topla, pazardan erzak al, sonra bir çapulcu çetesi avla. Şehirdeki handa görev ve paralı asker bulursun.' }
     ],
     TUTOR_KEY: 'webband_tutor_done',
-    // Savaş öğreticisi (#88) — ilk savaşta bir kez. Aynı makine, ayrı liste ve ayrı
-    // işaret. Dokunmatik adımların hedefi masaüstünde gizli olduğu için (`#touch-ui`)
-    // `tutorStep`'in "görünmeyen adımı atla" kuralı cihaz ayrımını kendiliğinden yapar.
+    // Battle tutorial (#88) — once on the first battle. Same machine, a separate list and a
+    // separate flag. Since a touch step's target is hidden on desktop (`#touch-ui`),
+    // `tutorStep`'s "skip the invisible step" rule handles the device split on its own.
     BATTLE_TUTOR: [
         { el: '#battle-canvas', t: '🗡️ Meydan',
           m: 'WASD ile yürürsün ve kılıcın imlecin baktığı yere gider — yürüdüğün yere değil. Sol tık savurur, sağ tık (ya da Shift) kalkanı kaldırır: blok yalnız önden geleni keser.',
@@ -5995,12 +5996,12 @@ const Game = {
     },
     tutorStep(i) {
         let list = this.tutorList || this.TUTOR;
-        this.endTutorial(true);   // varsa eskisini kaldır, işareti koyma
+        this.endTutorial(true);   // clear any previous one, don't leave the marker
         if(i < 0 || i >= list.length) return this.endTutorial();
         this.tutor = i;
         let s = list[i], el = s.el && document.querySelector(s.el);
-        // Hedef yoksa (ör. dar ekranda gizlenmiş bir rozet) adım atlanır —
-        // boş bir halkayı ekranın köşesine çizmek öğretici değil, hata gibi görünür
+        // If there's no target (e.g. a badge hidden on a narrow screen) the step is skipped —
+        // drawing an empty ring in the corner of the screen doesn't read as a tutorial, it looks like a bug
         if(s.el && (!el || !el.offsetParent)) return this.tutorStep(i + 1);
 
         let box = document.createElement('div');
@@ -6022,8 +6023,8 @@ const Game = {
         this.placeCoach(box, el);
         if(!ring) box.classList.add('mid');
     },
-    // Kutu halkanın altına, sığmazsa üstüne konur ve iki eksende de ekran içine
-    // kırpılır — `clampTip` ile aynı dert, ama hedef ekranın ortasında da olabilir.
+    // The box goes below the ring, above it if it doesn't fit, and is clamped into the
+    // screen on both axes — same trouble as `clampTip`, but the target can also be at the center of the screen.
     placeCoach(box, el) {
         if(!el) return;
         let r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
@@ -6038,7 +6039,7 @@ const Game = {
     },
     endTutorial(gecici) {
         ['coach-box', 'coach-ring'].forEach(id => { let e = document.getElementById(id); if(e) e.remove(); });
-        if(gecici) return;                       // adımlar arası: savaş duruyor kalsın
+        if(gecici) return;                       // between steps: the battle stays paused
         this.tutor = null;
         if(typeof Battle !== 'undefined') Battle.paused = false;
         try { localStorage.setItem(this.tutorKey || this.TUTOR_KEY, '1'); } catch(e) {}
@@ -6046,7 +6047,7 @@ const Game = {
     flash(el, ok = true) {
         if(!el) return;
         el.classList.remove('fx-flash', 'fx-flash-bad');
-        void el.offsetWidth;   // reflow: aynı sınıfı arka arkaya tetiklemenin tek yolu
+        void el.offsetWidth;   // reflow: the only way to retrigger the same class back to back
         el.classList.add(ok ? 'fx-flash' : 'fx-flash-bad');
     },
     floatText(el, txt, ok = true) {
@@ -6060,7 +6061,7 @@ const Game = {
         document.body.appendChild(d);
         setTimeout(() => d.remove(), 950);
     },
-    // kind: buy | sell | error | recruit | upgrade. el varsa parlar, moneyDelta varsa uçar.
+    // kind: buy | sell | error | recruit | upgrade. Flashes if el is given, flies if moneyDelta is given.
     feedback(kind, el, moneyDelta) {
         this.sfx(kind);
         this.flash(el, kind !== 'error');
@@ -6068,16 +6069,16 @@ const Game = {
             (moneyDelta > 0 ? '+' : '−') + Math.abs(Math.round(moneyDelta)) + '₺', moneyDelta > 0);
     },
 
-    // Alışverişin sonucu modalin içinde görünsün: alert() pazarı kapatırdı.
+    // The result of a trade should show inside the modal: alert() would close the market.
     marketMsg(html, ok = true) {
         this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
     },
     buyItem(id, n = 1) {
         if(this.marketPrice(id) === null) return alert(T('Bu eşya pazarda yok.'));
         let loc = this._marketLoc, out = false, full = false, cost = 0, can = 0;
-        let free = this.cargoCap() - this.cargoLoad();   // çantada kalan yer (#78)
-        // Fiyat birim birim hesaplanır: her alınan mal stoku düşürür, düşen stok bir sonrakini
-        // pahalılaştırır. (Tek fiyatla toplu almak ucuza gelirdi — teker teker al/toplu al farkı.)
+        let free = this.cargoCap() - this.cargoLoad();   // room left in the bag (#78)
+        // Price is computed unit by unit: each good bought lowers the stock, and the lowered stock
+        // makes the next one pricier. (Buying in bulk at one price would be too cheap — hence the one-by-one vs. bulk difference.)
         for(; can < n; can++) {
             if(can >= free) { full = true; break; }
             if(loc && this.stock(loc, id) < 1) { out = true; break; }
@@ -6088,7 +6089,7 @@ const Game = {
         }
         if(can <= 0) {
             this.feedback('error', document.getElementById('mrow-buy-' + id));
-            // Sessizce yok saymak yerine sebebini söyler: yer yok / stok yok / para yok.
+            // Instead of silently ignoring it, it says why: no room / no stock / no money.
             return this.marketMsg(full ? T`Çantanda yer yok — taşıma sınırın ${this.cargoCap()} birim, elinde ${this.cargoLoad()} birim var. Sat, depoya koy ya da grubunu büyüt.`
                 : out ? T`${T(ITEMS[id].name)} kalmadı — pazarın stoku tükendi, birkaç gün sonra gel.`
                 : T`Yeterli dinarın yok — ${T(ITEMS[id].name)} ${this.marketPrice(id)}₺, kasanda ${Math.floor(state.player.money)}₺.`, false);
@@ -6102,9 +6103,9 @@ const Game = {
         this.marketMsg(`${ITEMS[id].icon} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
             + (can < n ? ` <i>(${full ? T('çantan doldu') : out ? T('stok bitti') : T`paran ${n} taneye yetmedi`})</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
-        // Parlatma yenilemeden SONRA: satır elemanı yeniden kuruluyor
+        // The flash happens AFTER the refresh: the row element is rebuilt
         this.feedback('buy', document.getElementById('mrow-buy-' + id), -cost);
-        this.flash(document.getElementById('mrow-sell-' + id));   // elindeki adet de değişti
+        this.flash(document.getElementById('mrow-sell-' + id));   // the amount you're holding changed too
     },
     sellItem(id, n = 1) {
         let idx = state.player.inventory.findIndex(i => i.id === id);
@@ -6112,7 +6113,7 @@ const Game = {
         let item = state.player.inventory[idx];
         if(item.type !== 'trade') { this.sfx('error'); return alert(T('Bu eşya pazarda satılmıyor.')); }
         let can = Math.min(n, item.qty), gain = 0;
-        // Sattığın mal pazarın stokuna girer: her satılan birim bir sonrakinin fiyatını düşürür.
+        // What you sell enters the market's stock: each unit sold lowers the next one's price.
         for(let i = 0; i < can; i++) {
             gain += this.marketPrice(id, true);
             if(this._marketLoc) this.addStock(this._marketLoc, id, 1);
@@ -6143,7 +6144,7 @@ const Game = {
         });
         html += `</div>`;
 
-        // Paralı askerler — parayı doğrudan hazır seviyeli askere çevirmenin tek yolu
+        // Mercenaries — the only way to turn money directly into a ready-leveled troop
         let pool = this.mercPool(loc);
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
             <h4 style="color:var(--primary)">${T`🗡️ Paralı Askerler`}</h4>
@@ -6165,14 +6166,14 @@ const Game = {
             html += `</div>`;
         });
 
-        // Lonca ustası
+        // Guildmaster
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
             <h4 style="color:var(--primary)">${T`⚖️ Lonca Ustası`}</h4>
             <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`Köşedeki masada, defterine bir şeyler yazıyor.`}</p>
             <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">${T`İşi Sor`}</button>
             <button class="btn" onclick="Game.guildPrices('${loc.id}')">${T`📈 Fiyat Defterine Bak`}</button>`;
 
-        // Handaki yoldaşlar
+        // Companions at the tavern
         let here = COMPANIONS.filter(c => c.city === loc.id && !state.player.party.some(t => t.companionId === c.id));
         if(here.length) {
             html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
@@ -6189,10 +6190,10 @@ const Game = {
             });
         }
 
-        this.showModal(html, '600px', this.sceneBg('tavern'));   // han iç mekânı (#60)
+        this.showModal(html, '600px', this.sceneBg('tavern'));   // tavern interior (#60)
         this._tavernLoc = loc;
     },
-    // Paralı asker havuzu şehir başına 3 günde bir tazelenir
+    // The mercenary pool refreshes every 3 days per city
     mercPool(loc) {
         state.mercPools = state.mercPools || {};
         let p = state.mercPools[loc.id];
@@ -6208,13 +6209,13 @@ const Game = {
         }
         return p;
     },
-    // Yağmacıyla çalışmak risklidir; paralı asker fazladan ister (#49)
+    // Working with a raider is risky; a mercenary asks for extra (#49)
     mercPrice(m) { return Math.round((60 + m.level * 12) * (1 + this.infamyPenalty())); },
 
-    // Yerleşimin fraksiyonu hangi köylüyü verir; bilinmeyen fraksiyon Svadya ağacına düşer
+    // The settlement's faction gives which villager; an unknown faction falls back to the Swadian tree
     tree(faction) { return TROOP_TREES[faction] || TROOP_TREES.swadia; },
     recruitName(loc) { return this.tree(loc && loc.faction).recruit[0]; },
-    // Fraksiyon ordusu havuzu: her daldan 2 pay orta, 1 pay elit
+    // Faction army pool: 2 shares of mid-tier per branch, 1 share of elite
     factionTroopPool(faction) {
         let pool = [];
         this.tree(faction).branches.forEach(b => pool.push(b[0][0], b[0][0], b[1][0]));
@@ -6261,8 +6262,8 @@ const Game = {
         if(!c || state.player.party.some(t => t.companionId === cid)) return;
         if(state.player.party.length >= this.getPartyCapacity()) return alert(T('Grubun dolu. "Kalabalığa karışmam ben."'));
         let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
-        // ponytail: husumet katılmayı engeller; Warband'daki "sonradan çekip gitme"
-        // için grup içi olay sistemi gerekirdi, bu kadarı hikâyeyi veriyor.
+        // ponytail: a rivalry blocks joining; Warband's "walks out later"
+        // would need an in-party event system, this much already gives the story.
         if(rival) return alert(T`"${T(rival.name)} mi? O adamla aynı çadırda uyumam." (Katılmadı)`);
         if(state.player.money < c.cost) return alert(T('Kesen yetmiyor. "Bedavaya kimse kılıç sallamaz."'));
         state.player.money -= c.cost;
@@ -6289,15 +6290,15 @@ const Game = {
         if(state.player.money >= 10) {
             state.player.money -= 10;
             state.player.stats.hp = state.player.stats.maxHp;
-            this.advanceTime(8);   // dinlenmek de zaman yer (#53/1.1)
+            this.advanceTime(8);   // resting takes time too (#53/1.1)
             this.updateTopBar(); this.closeModal();
             alert(T('Bir gece handa kaldın (8 saat). Canın tamamen yenilendi.'));
         } else alert(T('Yeterli dinarın yok!'));
     },
 
     // --- ARENA (#26) ---
-    // Warband'daki gibi turnuvadan bağımsız, her zaman açık pratik dövüşü.
-    // Ganimet ve nam vermez; parası da yoktur — karşılığı yeterlilik XP'si ve zamandır.
+    // A practice fight always open, independent of the tournament, like in Warband.
+    // Gives no loot or renown; there's no money either — the payoff is proficiency XP and time.
     ARENA_BET_MAX: 1000,
     openArena(loc) {
         let lv = state.player.stats.level;
@@ -6318,7 +6319,7 @@ const Game = {
         let moveProf = state.player.equipment.horse ? 'riding' : 'athletics';
         this.addProficiencyXp(wp, xp);
         this.addProficiencyXp(moveProf, Math.round(xp * 0.6));
-        // Bedeli zamandır: kazanınca birkaç saat, kaybedince bir gün hasta yatağı.
+        // The cost is time: a few hours if you win, a day in a sickbed if you lose.
         this.advanceTime(won ? 3 : 24);
         this.updateTopBar();
         alert((won ? T`${T(foe.name)} kumun üstünde kaldı, kalabalık ıslık çalıyor.`
@@ -6359,10 +6360,10 @@ const Game = {
         TournamentMinigame.start({ bet });
     },
 
-    // Garnizon refahla büyür — kuşatma ekranı da harita künyesi de aynı sayıyı kullanır
-    // ============ DİPLOMASİ ============
-    // Krallıklar birbirine savaş açar, barışır; lord partileri cephede çarpışır,
-    // yerleşimler el değiştirir. Tek veri: state.wars = { 'a|b': başlangıç günü }.
+    // Garrison grows with prosperity — the siege screen and the map tooltip both use the same number
+    // ============ DIPLOMACY ============
+    // Kingdoms declare war on each other and make peace; lord parties clash on the front,
+    // settlements change hands. Single piece of data: state.wars = { 'a|b': start day }.
     warKey(a, b) { return [a, b].sort().join('|'); },
     atWar(a, b) { return !!(a && b && a !== b && state.wars[this.warKey(a, b)]); },
     warsOf(f) {
@@ -6370,20 +6371,20 @@ const Game = {
         return Object.keys(state.wars).filter(k => k.split('|').indexOf(f) !== -1)
                      .map(k => k.split('|').find(x => x !== f));
     },
-    // Bağımsız oyuncunun da bir bayrağı vardır ('player'): yoksa `atWar` hep false dönüyor,
-    // düşman şehrin pazarı açık kalıyor ve düşman lord yanından geçip gidiyordu (#48).
+    // The independent player has a flag too ('player'): otherwise `atWar` always returned false,
+    // an enemy city's market stayed open, and an enemy lord walked right past you (#48).
     playerFaction() { return state.player.vassalOf || 'player'; },
     factionName(f) {
         if(f === 'player') return (state.player.name || T('Bağımsız')) + T(' Bölüğü');
         return T((FACTIONS[f] || { name: f || T('Bağımsız') }).name);
     },
-    // Halk adı, devlet adı değil: harita etiketinde "Kergit Hanlığı Kervanı" satıra
-    // sığmıyor. Asker adlarıyla da aynı sözcük ("Kergit Atlısı") — tek bir dil.
+    // The people's name, not the state's: "Khergit Khanate Caravan" doesn't fit on a
+    // map label line. Same word as the troop names ("Khergit Rider") — one consistent term.
     factionPeople(f) {
         let k = FACTIONS[f];
         return k && k.people ? T(k.people) : this.factionName(f);
     },
-    // Haber akışı; oyuncunun krallığını ilgilendiren olay ayrıca bildirim olur
+    // The news feed; an event that concerns the player's kingdom also becomes a notification
     news(msg, mine) {
         state.warLog.unshift({ day: state.time.day, msg });
         if(state.warLog.length > 20) state.warLog.pop();
@@ -6401,8 +6402,8 @@ const Game = {
         let mine = this.playerFaction() === a || this.playerFaction() === b;
         this.news(T`🕊️ ${this.factionName(a)} ile ${this.factionName(b)} barış imzaladı.`, mine);
     },
-    // ---- İTTİFAK ----
-    // Müttefikler birbirine savaş açmaz; birinin düşmanı diğerinin de düşmanı olur.
+    // ---- ALLIANCE ----
+    // Allies don't declare war on each other; one's enemy becomes the other's enemy too.
     allied(a, b) { return !!(a && b && a !== b && state.allies[this.warKey(a, b)]); },
     alliesOf(f) {
         if(!f) return [];
@@ -6414,7 +6415,7 @@ const Game = {
         state.allies[this.warKey(a, b)] = state.time.day;
         let mine = this.playerFaction() === a || this.playerFaction() === b;
         this.news(T`🤝 ${this.factionName(a)} ile ${this.factionName(b)} ittifak kurdu.`, mine);
-        // İttifakın bedeli: müttefikin cephesi senin cephen olur
+        // The cost of an alliance: your ally's front becomes your front too
         this.warsOf(a).concat(this.warsOf(b)).forEach(f => {
             if(f === a || f === b) return;
             this.declareWar(a, f); this.declareWar(b, f);
@@ -6427,13 +6428,13 @@ const Game = {
                   this.playerFaction() === a || this.playerFaction() === b);
     },
 
-    // ---- MAREŞAL VE SEFER ----
-    // Savaştaki krallık bir mareşal seçer ve tek bir hedefe yürür: lord partileri
-    // artık rastgele düşman yerleşimine dağılmaz, ordu toplanır (updateNPCs).
-    // Vassal olan oyuncu sefere çağrılır — söz verip gitmemek en pahalı seçenektir.
+    // ---- MARSHAL AND CAMPAIGN ----
+    // A kingdom at war picks a marshal and marches on a single target: lord parties
+    // no longer scatter to random enemy settlements, the army musters (updateNPCs).
+    // A vassal player is summoned to the campaign — pledging and not showing up is the costliest option.
     pickMarshal(f) {
         let ps = state.npcParties.filter(n => n.lordId && n.faction === f && n.size > 0);
-        // Kral sancağı taşır, mareşallik başka bir lorda verilir
+        // The king carries the banner, the marshal's post goes to another lord
         let lords = ps.filter(n => (Nobles.lord(n.lordId) || {}).rank !== 'king');
         return (lords.length ? lords : ps).sort((a, b) => b.size - a.size)[0] || null;
     },
@@ -6441,15 +6442,15 @@ const Game = {
         for(let f in state.campaigns) {
             let c = state.campaigns[f];
             let loc = LOCATIONS.find(l => l.id === c.targetLocId);
-            // Orduyla birlikte yürüdüysen sayılır — günde bir kez örneklenir
+            // Counts if you marched with the army — sampled once a day
             if(c.pledged && loc && this.dist(state.player, loc) < 1200) c.helped = true;
             if(!loc || !this.atWar(f, loc.faction) || state.time.day - c.day > 25) { this.endCampaign(f); continue; }
-            // Sefer işareti haritada durur (Nobles.drawMarkers 3 günde siler, her gün tazeleniyor)
+            // The campaign marker stays on the map (Nobles.drawMarkers clears it after 3 days, refreshed daily)
             if(c.pledged) state.knownLocations['campaign'] =
                 { x: loc.x, y: loc.y, radius: 200, day: state.time.day, name: T`Sefer: ${T(loc.name)}` };
         }
         Object.keys(FACTIONS).forEach(f => {
-            // Biten seferin ödül modalini yeni sefer çağrısı ezmesin
+            // A new campaign summons shouldn't stomp the finished one's reward modal
             if(state.time.day - (state.campaignCooldown[f] || -99) < 3) return;
             if(state.campaigns[f] || !this.warsOf(f).length || Math.random() > 0.25) return;
             let marshal = this.pickMarshal(f);
@@ -6474,7 +6475,7 @@ const Game = {
                       : T`🏳️ ${this.factionName(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
         if(c.pledged === undefined || f !== this.playerFaction()) return;
         delete state.knownLocations['campaign'];
-        if(!c.pledged) return;                       // reddedenin bedeli çağrı anında ödendi
+        if(!c.pledged) return;                       // the cost of refusing was already paid at the summons
         let king = LORDS.find(l => l.faction === f && l.rank === 'king');
         let lords = LORDS.filter(l => l.faction === f);
         if(c.helped && won) {
@@ -6488,7 +6489,7 @@ const Game = {
         } else {
             if(king) Nobles.addRel(king.id, -8);
             lords.forEach(l => Nobles.addRel(l.id, -3));
-            this.addHonor('oathBroken');   // tutulmayan söz şerefi yer (#53/1.5)
+            this.addHonor('oathBroken');   // a broken promise costs honor (#53/1.5)
             alert(T`Sefere katılacağını söyleyip ordunun yanına hiç gitmedin.\n${king ? T(king.name) : T('Kralın')} −8, diğer lordlar −3 ilişki, −5 şeref.`);
         }
     },
@@ -6515,7 +6516,7 @@ const Game = {
         alert(T('Çağrıyı geri çevirdin. Krallığın bütün lordlarıyla ilişkin −5.'));
     },
 
-    // Dünya kurulurken bir cephe açık başlar (Kalradya hiç sakin değildir)
+    // One front starts open when the world is built (Calradia is never at peace)
     initDiplomacy() {
         if(state.warSeeded) return;
         state.warSeeded = true;
@@ -6525,16 +6526,16 @@ const Game = {
         state.wars[this.warKey(a, b)] = 1;
         state.warLog.unshift({ day: 1, msg: T`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaş hâlinde.` });
     },
-    // Günlük zar: uzayan savaşlar barışla biter, iki cepheden fazlası açılmaz
+    // Daily roll: a war that drags on ends in peace, no faction opens more than two fronts
     diplomacyTick() {
         for(let k in state.wars) {
             let len = state.time.day - state.wars[k], p = k.split('|');
-            // İki toprağa düşen krallık barış için yalvarır — yoksa eziliyor
-            // 'player' toprağı olmayan bir bayraktır; "iki toprağa düşen barış ister" kuralına girmez
+            // A kingdom down to two holdings begs for peace — otherwise it gets crushed
+            // 'player' is a flag with no territory; it's exempt from the "begs for peace at two holdings" rule
             let weak = p.some(f => f !== 'player' && LOCATIONS.filter(l => l.type !== 'village' && l.faction === f).length <= 2);
             if(len >= (weak ? 5 : 15) && Math.random() < (weak ? 0.25 : 0.06 + len * 0.004)) this.makePeace(p[0], p[1]);
         }
-        // Ortak düşmanı olan iki barışık krallık el sıkışır
+        // Two kingdoms at peace with a common enemy shake hands
         if(Math.random() < 0.05) {
             let fs = Object.keys(FACTIONS).filter(f => f !== 'player_kingdom');
             let pairs = [];
@@ -6545,7 +6546,7 @@ const Game = {
             let p = pairs[Math.floor(Math.random() * pairs.length)];
             if(p) this.makeAlliance(p[0], p[1]);
         }
-        // Eskiyen ittifak dağılır
+        // An aging alliance falls apart
         for(let k in state.allies) {
             if(state.time.day - state.allies[k] > 25 && Math.random() < 0.05) {
                 let p = k.split('|'); this.breakAlliance(p[0], p[1]);
@@ -6559,8 +6560,8 @@ const Game = {
             if(a && b) this.declareWar(a, b);
         }
     },
-    // Cephe: karşılaşan düşman lord partileri çarpışır, güçlü olan düşman
-    // yerleşimini alır. Günde bir kez, oyuncudan bağımsız işler.
+    // Front: enemy lord parties that meet clash, the stronger one takes the
+    // enemy's settlement. Runs once a day, independent of the player.
     warTick() {
         if(!Object.keys(state.wars).length) return;
         let parties = state.npcParties.filter(n => n.lordId && n.faction);
@@ -6575,26 +6576,26 @@ const Game = {
         }
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village') return;
-            // Sefer sistemi orduları tek hedefte topladığı için fetih hızlandı; son
-            // şehrini/kalesini de kaptıran krallık haritadan siliniyordu. Son toprak
-            // alınamaz — o krallık artık barışa zorlanır (diplomacyTick).
+            // Since the campaign system musters armies onto a single target, conquest sped up; a
+            // kingdom that lost its last city/castle was wiped off the map. The last holding
+            // can't be taken — that kingdom is now forced into peace instead (diplomacyTick).
             if(LOCATIONS.filter(l => l.type !== 'village' && l.faction === loc.faction).length <= 1) return;
             let g = this.garrisonOf(loc);
             let atk = parties.find(p => p.size > 0 && this.atWar(p.faction, loc.faction)
                                         && this.dist(p, loc) < 500 && p.size > g * 1.3);
             if(!atk) return;
-            // Kuşatma bir günde bitmez: ordunun 3 gün kapıda beklemesi gerekir.
-            // Yoksa yoldan geçen her lord kaleyi kapıyordu (ölçüldü: 200 günde 38
-            // el değiştirme, iki krallık silinmişti).
+            // A siege doesn't end in a day: the army has to wait at the gate for 3 days.
+            // Otherwise every lord passing by grabbed the castle (measured: 38 changes
+            // of hands in 200 days, two kingdoms were wiped out).
             if(atk.siegeLocId !== loc.id) { atk.siegeLocId = loc.id; atk.siegeDays = 1; return; }
             atk.siegeDays = (atk.siegeDays || 1) + 1;
-            // Yeni düşen kale hemen geri alınamaz
+            // A newly fallen castle can't be retaken right away
             if(state.time.day - (loc.capturedDay || -99) < 10) return;
             if(atk.siegeDays < 3) return;
             atk.siegeLocId = null; atk.siegeDays = 0;
             this.captureSettlement(loc, atk);
         });
-        // Dağılan partiler haritadan silinir, birkaç gün sonra evinde toparlanır
+        // A scattered party is removed from the map, it regroups at home a few days later
         state.npcParties.filter(n => n.size <= 0 && n.lordId).forEach(n => {
             state.lordRespawn[n.lordId] = state.time.day + 4 + Math.floor(Math.random() * 6);
         });
@@ -6605,8 +6606,8 @@ const Game = {
         let win = pw(A) >= pw(B) ? A : B, lose = win === A ? B : A;
         win.size = Math.max(5, Math.round(win.size * (0.80 + Math.random() * 0.12)));
         lose.size = Math.round(lose.size * (0.25 + Math.random() * 0.25));
-        // Cephe çarpışması günde birkaç kez olur: yalnızca bir parti dağılırsa
-        // habere girer, bildirim hiç çıkmaz (yoksa savaşta her gün modal yerdin).
+        // A front clash can happen several times a day: it only makes the news if a
+        // party is actually routed, and never pops a notification (otherwise you'd eat a modal every day of a war).
         if(lose.size < 8) {
             lose.size = 0;
             this.news(T`🩸 ${T(win.name)} (${this.factionName(win.faction)}), ${T(lose.name)} kuvvetlerini dağıttı.`);
@@ -6617,12 +6618,12 @@ const Game = {
         let wasMine = loc.owner === 'player';
         loc.faction = atk.faction;
         loc.capturedDay = state.time.day;
-        atk.size = Math.max(10, Math.round(atk.size * 0.6));   // kuşatma orduyu yer
-        // Kalenin/şehrin çevresindeki köyler de el değiştirir
+        atk.size = Math.max(10, Math.round(atk.size * 0.6));   // the siege eats into the army
+        // The villages around the castle/city change hands too
         this.villagesOf(loc).filter(l => l.faction === old)
             .forEach(l => { l.faction = atk.faction; l.owner = null; });
-        // Savunmasız bıraktığın tımar elden çıkar; garnizonun kılıçtan geçer
-        // ponytail: depo el değiştirmez — yeni sahibi mahzeni bulamamış sayılır
+        // A fief you left undefended is lost; its garrison is put to the sword
+        // ponytail: the storage doesn't change hands — the new owner is assumed not to find the cellar
         let lostFief = '';
         if(wasMine) {
             let lost = (loc.garrison || []).length;
@@ -6633,7 +6634,7 @@ const Game = {
         let mine = wasMine || [old, atk.faction].indexOf(this.playerFaction()) !== -1;
         this.news(T`🏰 ${T(loc.name)}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.${lostFief}`, mine);
     },
-    // Diplomasi ekranı: kim kiminle savaşta, kimin kaç toprağı var, son haberler
+    // Diplomacy screen: who's at war with whom, who holds how much land, the latest news
     showDiplomacy() {
         let rows = Object.keys(FACTIONS).map(f => {
             let foes = this.warsOf(f);
@@ -6646,7 +6647,7 @@ const Game = {
                     this.alliesOf(f).length ? ` <span style="color:#6fc3ff">🤝 ${this.alliesOf(f).map(x => this.factionName(x)).join(', ')}</span>` : ''
                 }</span></div>`;
         }).join('');
-        // Yürüyen seferler: kim mareşal, ordu nereye gidiyor
+        // Ongoing campaigns: who's marshal, where the army is headed
         let camps = Object.keys(state.campaigns).map(f => {
             let c = state.campaigns[f], t = LOCATIONS.find(l => l.id === c.targetLocId);
             return `<div style="padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
@@ -6694,24 +6695,24 @@ const Game = {
     },
 
     garrisonOf(loc) {
-        // Senin tımarında garnizon bir formül değil, oradaki gerçek askerlerdir (#23)
+        // In your own fief the garrison isn't a formula, it's the actual troops stationed there (#23)
         if(loc.owner === 'player') return (loc.garrison || []).length;
         let base = loc.type === 'city' ? 30 : loc.type === 'castle' ? 15 : 0;
         return Math.round(base * (0.6 + (loc.prosperity || 50) / 125));
     },
 
-    // --- TIMAR YÖNETİMİ (#23) ---
-    // Fethettiğin yerleşim artık bayrak değişikliğinden ibaret değil: garnizon
-    // bırakırsın (maaşını sen ödersin), günlük vergi getirir, depoya erzak koyarsın.
-    // Savunmasız bıraktığın tımarı düşman lordlar geri alır (warTick → captureSettlement).
+    // --- FIEF MANAGEMENT (#23) ---
+    // A settlement you conquer is no longer just a flag change: you leave a garrison
+    // (you pay its wage), it brings in daily tax, and you can stock its storage.
+    // Enemy lords take back a fief you leave undefended (warTick → captureSettlement).
     myFiefs() { return LOCATIONS.filter(l => l.owner === 'player'); },
-    // --- İŞLETME (#53 madde 1.6) ---
-    // Warband'ın işletmesi: tek seferlik büyük bedel, günlük küçük gelir. Tımar gibi
-    // fiefIncome'dan geçer; şehir el değiştirirse gelir kesilir (mülk kalır, kâr durur).
+    // --- ENTERPRISE (#53 item 1.6) ---
+    // Warband's enterprise: one big upfront cost, a small daily income. Like a fief,
+    // it goes through fiefIncome; income stops if the city changes hands (the property stays, the profit doesn't).
     ENTERPRISE_COST: 3000,
     enterpriseIncome(loc) { return Math.round((loc.prosperity || 50) * 0.55); },
     myEnterprises() { return LOCATIONS.filter(l => l.enterprise); },
-    // Düşman eline geçen şehirdeki işletme çalışmaz
+    // An enterprise in a city that falls to the enemy doesn't work
     enterpriseWorks(loc) { return !!loc.enterprise && !this.atWar(this.playerFaction(), loc.faction); },
     buyEnterprise(loc) {
         if(loc.enterprise) {
@@ -6734,14 +6735,14 @@ const Game = {
             tax += this.fiefTax(l);
             (l.garrison || []).forEach(t => { wage += this.troopWage(t); troops++; });
         });
-        // Vassalın tımarı kasana doğrudan girmez, haraç olarak bir payı gelir (#40)
+        // A vassal's fief doesn't go straight into your coffers, a share comes in as tribute (#40)
         let tribute = this.vassals().reduce((a, v) =>
             a + this.fiefsOf(v.id).reduce((b, l) => b + Math.round(this.fiefTax(l) * this.VASSAL_TRIBUTE), 0), 0);
-        // İşletme geliri de günlük akışın parçası (#53/1.6)
+        // Enterprise income is part of the daily flow too (#53/1.6)
         let trade = this.myEnterprises().reduce((a, l) => a + (this.enterpriseWorks(l) ? this.enterpriseIncome(l) : 0), 0);
         return { tax, tribute, trade, wage, troops, net: tax + tribute + trade - wage };
     },
-    // Fetihten sonra: yerleşim senin tımarın olur, çevresindeki köyler de bayrak değiştirir
+    // After a conquest: the settlement becomes your fief, the villages around it change flag too
     grantFief(loc, oldFaction) {
         loc.owner = 'player';
         loc.capturedDay = state.time.day;
@@ -6750,16 +6751,16 @@ const Game = {
             .forEach(l => { l.faction = loc.faction; l.owner = 'player'; });
     },
 
-    // --- VASSALLAR (#40) ---
-    // Kral olunca tımar tek başına taşınacak bir yük olmaktan çıkar: toprak vererek
-    // lord tutarsın. Vassal senin bayrağınla savaşır (partisinin fraksiyonu değişir),
-    // tımarını kendi garnizonuyla savunur ve vergisinin bir payını haraç olarak öder.
+    // --- VASSALS (#40) ---
+    // Once you're king, a fief stops being a burden you carry alone: you grant land
+    // to keep a lord. A vassal fights under your banner (their party's faction changes),
+    // defends their fief with their own garrison, and pays a share of its tax as tribute.
     VASSAL_TRIBUTE: 0.3,
     VASSAL_REL: 25,
     isKing() { return state.player.vassalOf === 'player_kingdom'; },
     vassals() { return typeof LORDS === 'undefined' ? [] : LORDS.filter(l => (state.vassals || []).indexOf(l.id) !== -1); },
     fiefsOf(lordId) { return LOCATIONS.filter(l => l.owner === lordId); },
-    // LORDS kayda yazılmaz; lordun bayrağı her yüklemede state.vassals'tan geri kurulur
+    // LORDS isn't written to the save; a lord's banner is rebuilt from state.vassals on every load
     applyVassals() {
         (state.vassals || []).forEach(id => {
             let l = Nobles.lord(id);
@@ -6769,7 +6770,7 @@ const Game = {
             if(npc) { npc.faction = 'player_kingdom'; npc.color = this.bannerColor(); }
         });
     },
-    // Lord diyaloğundaki "krallığıma katıl" kapısı: toprak vermeden kimse yemin etmez
+    // The "join my kingdom" gate in a lord's dialogue: nobody swears fealty without land
     offerVassalage(lordId) {
         let lord = Nobles.lord(lordId), rel = Nobles.rel(lordId);
         let free = this.myFiefs().filter(l => l.type !== 'village');
@@ -6811,7 +6812,7 @@ const Game = {
         loc.garrison = [];
         this.villagesOf(loc).filter(l => l.owner === 'player').forEach(l => l.owner = lordId);
         Nobles.addRel(lordId, 20);
-        // Warband'daki kıskançlık: toprak dağıtılırken eli boş kalan vassal küser
+        // The jealousy from Warband: a vassal left empty-handed while land is handed out sulks
         this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
                       .forEach(v => Nobles.addRel(v.id, -5));
         this.news(T`🏰 ${T(loc.name)} tımarı ${T(lord.name)}'e verildi.`, true);
@@ -6844,8 +6845,8 @@ const Game = {
             return `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${rows || `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         };
         let inc = this.fiefIncome();
-        // Günlük net tek satırda yazsın (#55 madde 9): "elit garnizon zarardır" kuralı
-        // belgede duruyordu ama oyuncu ekranda hiçbir yerde görmüyordu.
+        // The daily net should read in one line (#55 item 9): the "an elite garrison is a loss" rule
+        // was sitting in the docs, but the player never saw it anywhere on screen.
         let wage = loc.garrison.reduce((a, t) => a + this.troopWage(t), 0), net = this.fiefTax(loc) - wage;
         this.showModal(`<h3>${T`🛡️ ${T(loc.name)} Garnizonu`}</h3>
         <p style="color:var(--text-muted)">${T`Vergi`} <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> ${T`− garnizon maaşı`} <b>${wage}</b> =
@@ -6882,8 +6883,8 @@ const Game = {
             list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
                 <span>${i.icon} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
             : `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
-        // Kasa: yenilgide yağmalanmayan tek para (#53 madde 1.2). Depoya para taşımak
-        // bir sigortadır — yanında taşıdığın kese ne kadar küçükse yenilgi o kadar ucuz.
+        // Treasury: the only money not looted on defeat (#53 item 1.2). Moving money into storage
+        // is insurance — the smaller the purse you're carrying, the cheaper a defeat is.
         let tre = loc.treasury || 0;
         let money = [100, 500, Math.floor(state.player.money)].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
         let back = [100, 500, tre].filter((v, i, a) => v > 0 && a.indexOf(v) === i);
@@ -6912,7 +6913,7 @@ const Game = {
         this.updateTopBar();
     },
     myTreasury() { return LOCATIONS.reduce((a, l) => a + (l.owner === 'player' ? (l.treasury || 0) : 0), 0); },
-    // Yenilgide kaybedilen kese oranı: kasadaki payın büyükse yağma da küçülür (#53/1.2)
+    // The share of your purse lost on defeat: the bigger your treasury's share, the smaller the loot (#53/1.2)
     defeatLootRatio() {
         let safe = this.myTreasury(), carried = Math.max(0, state.player.money);
         let share = safe + carried > 0 ? safe / (safe + carried) : 0;
@@ -6935,7 +6936,7 @@ const Game = {
         this.openStorage(loc);
         this.updateTopBar();
     },
-    // Yerleşimin sahibi lord; köylerin kendi lordu yok, en yakın kale/şehre bağlıdırlar
+    // The lord who owns the settlement; villages have no lord of their own, they're tied to the nearest castle/city
     ownerLord(loc) {
         if(typeof LORDS === 'undefined') return null;
         let own = LORDS.find(x => x.homeLocId === loc.id);
@@ -6944,8 +6945,8 @@ const Game = {
         let near = seats.sort((a, b) => this.dist(a, loc) - this.dist(b, loc))[0];
         return near ? LORDS.find(y => y.homeLocId === near.id) : null;
     },
-    // Parti künyesi. Seni tutan partide kendi askerlerinin yanında sen ve
-    // yanındaki diğer esirler de görünür (esaret modeli: state.player.prisoner).
+    // Party tooltip. In the party holding you captive, you and any other prisoners
+    // beside their own troops also show up (captivity model: state.player.prisoner).
     npcTipHtml(npc) {
         let bk = BAND_KINDS[npc.band];
         let fname = T((FACTIONS[npc.faction] || { name: 'Bağımsız' }).name);
@@ -6963,10 +6964,10 @@ const Game = {
                   : this.npcName(state.npcParties.find(x => x.id === npc.hunting));
             if(h) html += `<br><span style="color:#ffb347">${T`🎯 Peşinde:`}</span> ${h}`;
         }
-        // Üstüne gitmeden önce gör: bu çete senin için doyurucu mu (#55 madde 9)
+        // See it before you go up against it: is this band worth it for you (#55 item 9)
         let prey = this.preyWarning(npc);
         if(prey) html += `<br><span style="color:#cc8800;font-size:0.85em">${prey.replace(/<\/?b>/g, '')}</span>`;
-        // Yük yalnız kafilelerde değil, onları soymuş çetede de görünür
+        // Cargo shows up not just on caravans, but on a band that robbed one too
         if((npc.cargo || []).filter(c => ITEMS[c.id]).length)
             html += `<br>${T`Yük: ${npc.cargo.filter(c => ITEMS[c.id]).map(c => ITEMS[c.id].icon + ' ×' + c.qty).join(' ')}`}`;
         let pr = state.player.prisoner;
@@ -6976,42 +6977,42 @@ const Game = {
         }
         return html;
     },
-    // Harita künyesi: kimin toprağı, kim yönetiyor, ne kadar zengin, kaç asker bekliyor
+    // Map tooltip: whose land it is, who governs it, how rich it is, how many troops are waiting
     locTipHtml(loc) {
         let f = FACTIONS[loc.faction] || { name: '?' };
         let type = loc.type === 'city' ? T('Şehir') : loc.type === 'castle' ? T('Kale') : T('Köy');
         let pr = Math.round(loc.prosperity || 50);
         let prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul');
         let hostile = this.atWar(this.playerFaction(), loc.faction);
-        let kapi = hostile ? `<span style="color:#e0463a">${T`⚔️ Düşman toprağı — sadece kuşatma`}</span>`
+        let gate = hostile ? `<span style="color:#e0463a">${T`⚔️ Düşman toprağı — sadece kuşatma`}</span>`
                            : `<span style="color:#2ecc71">${T`Kapılar sana açık`}</span>`;
-        // Durum ya gözünle görülür ya hatırlanır (#74). Hiç uğramadığın uzak kalenin
-        // garnizonunu bilmenin yolu yok — yeri bilinir, içi bilinmez.
-        let canli = this.locLive(loc), i = loc.intel;
-        if(!canli && !i) return `${T(f.name)} · ${type}<br>`
-            + `<span style="color:var(--text-muted)">${T`Durumunu bilmiyorsun — yaklaş ya da içeri gir.`}</span><br>` + kapi;
+        // A settlement's state is either seen with your own eyes or remembered (#74). There's no way to know
+        // a distant castle's garrison if you've never been there — its location is known, its inside isn't.
+        let live = this.locLive(loc), i = loc.intel;
+        if(!live && !i) return `${T(f.name)} · ${type}<br>`
+            + `<span style="color:var(--text-muted)">${T`Durumunu bilmiyorsun — yaklaş ya da içeri gir.`}</span><br>` + gate;
 
-        let g = canli ? this.garrisonOf(loc) : i.g;
-        let vol = canli ? loc.volunteersAvailable : i.v;
-        let lord = canli ? this.ownerLord(loc) : (typeof Nobles !== 'undefined' && i.lord ? Nobles.lord(i.lord) : null);
+        let g = live ? this.garrisonOf(loc) : i.g;
+        let vol = live ? loc.volunteersAvailable : i.v;
+        let lord = live ? this.ownerLord(loc) : (typeof Nobles !== 'undefined' && i.lord ? Nobles.lord(i.lord) : null);
         let rel = lord && typeof Nobles !== 'undefined' ? Nobles.rel(lord.id) : 0;
-        if(!canli) { pr = i.pr; prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul'); }
-        let gun = canli ? 0 : state.time.day - i.d;
-        let yas = canli ? '' : `<span style="color:var(--text-muted)">${gun <= 0 ? T`Bugünkü haber:` : T`${gun} gün önce:`}</span><br>`;
+        if(!live) { pr = i.pr; prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul'); }
+        let days = live ? 0 : state.time.day - i.d;
+        let ageLine = live ? '' : `<span style="color:var(--text-muted)">${days <= 0 ? T`Bugünkü haber:` : T`${days} gün önce:`}</span><br>`;
 
-        return `${T(f.name)} · ${type}<br>` + yas
+        return `${T(f.name)} · ${type}<br>` + ageLine
             + (lord ? `${T`Sahibi: ${T(lord.name)} (${Nobles.relLabel(rel)})`}<br>` : '')
             + `${T`Refah: ${prLbl}`} <span style="color:var(--text-muted)">(${pr})</span><br>`
             + (g ? `${T`Garnizon: ~${g} asker`}<br>` : '')
             + (vol !== undefined ? `${T`Gönüllü: ${vol} kişi`}<br>` : '')
-            + kapi;
+            + gate;
     },
-    // Yenilgide nam kaybı: düşman senden ne kadar zayıfsa rezillik o kadar büyük.
-    // pow = düşmanın güç puanı (asker başına seviye+1)
-    // Kapılar ulaşılmış nama bakar (#55 madde 9). Tek yenilgi 22 nam yakabiliyor,
-    // bu da salon (80) / kız isteme (120) / şölen (150) kapılarının hepsini birden
-    // kapatıyordu: şeref kaybı keseyi ve ilişkiyi vurmalı, kapıyı değil.
-    // Okuyan herkes aynı anda tepe değeri de günceller — ayrı bir kanca gerekmez.
+    // Renown loss on defeat: the weaker the enemy relative to you, the greater the disgrace.
+    // pow = the enemy's power score (level+1 per troop)
+    // Gates check peak renown reached (#55 item 9). A single defeat could burn 22 renown,
+    // which closed the hall (80) / marriage proposal (120) / feast (150) gates all at
+    // once — losing honor should hit your purse and relationships, not the gate.
+    // Every reader also updates the peak value at the same time — no separate hook needed.
     peakRenown() {
         let p = state.player;
         return (p.maxRenown = Math.max(p.maxRenown || 0, p.renown || 0));
@@ -7026,9 +7027,9 @@ const Game = {
     },
 
     // --- SIEGE (#25) ---
-    // Kuşatma tek tuşla açılan bir meydan savaşı değil: önce kamp kurulur, hazırlık
-    // günleri geçer (dünya işler, düşman lordu yardıma gelebilir), sonra surun
-    // dibinde saldırılır. Yöntem seçimi hem süreyi hem savunanın avantajını belirler.
+    // A siege isn't a pitched battle opened with one button: camp is set first, preparation
+    // days pass (the world keeps running, an enemy lord can come to relieve it), then the
+    // assault happens at the wall. The method chosen sets both the duration and the defender's edge.
     SIEGE_PLANS: {
         ladder: { icon: '🪜', name: 'Merdiven', days: 1, defBonus: 0.40, gaps: 1,
                   desc: 'Bir günde hazırlanır ama tek gedikten girersin — savunan surun ardında güçlüdür (+%40).' },
@@ -7060,10 +7061,10 @@ const Game = {
         state.player.targetLocation = null;
         state.player.status = 'besieging';
         this.showScreen('map');
-        this.news(T`${T(loc.name)} kuşatma altında.`);   // panel zaten görünür, modal bildirim gereksiz
+        this.news(T`${T(loc.name)} kuşatma altında.`);   // the panel is already visible, no modal notification needed
         this.renderSiegeUI();
     },
-    // Günlük kuşatma işleyişi (dailyUpdate)
+    // Daily siege processing (dailyUpdate)
     siegeTick() {
         let s = state.player.siege;
         if(!s) return;
@@ -7073,14 +7074,14 @@ const Game = {
             s.daysLeft--;
             if(s.daysLeft === 0) alert(T`${T(this.SIEGE_PLANS[s.plan].name)} hazır — ${T(loc.name)} surlarına saldırabilirsin.`);
         } else {
-            // Açlığa mahkûm etme: bekledikçe garnizon erir, şehrin refahı düşer
+            // Starving them out: the longer you wait, the garrison erodes, the city's prosperity drops
             s.weaken = Math.min(0.55, (s.weaken || 0) + 0.07);
             loc.prosperity = Math.max(10, (loc.prosperity || 50) - 1.5);
         }
         this.renderSiegeUI();
         this.siegeRelief(loc);
     },
-    // Kuşatmayı yarmaya gelen ordu: 2500 birim içindeki en yakın düşman lord partisi
+    // An army coming to break the siege: the nearest enemy lord party within 2500 units
     siegeRelief(loc) {
         let foes = state.npcParties.filter(n => n.lordId && n.faction === loc.faction && this.dist(n, loc) < 2500);
         if(!foes.length || Math.random() > 0.25) return;
@@ -7114,7 +7115,7 @@ const Game = {
         this.renderSiegeUI();
         this.startSiege(s.locId, count, s.foundingKingdom, s.plan);
     },
-    // Açlık garnizonu eritir; kuşatma paneli de saldırı da aynı sayıyı okur
+    // Starvation erodes the garrison; the siege panel and the assault both read the same number
     siegeGarrison(loc, s) {
         return Math.max(3, Math.round(this.garrisonOf(loc) * (1 - (s.weaken || 0))));
     },
@@ -7144,13 +7145,13 @@ const Game = {
     },
 
     // --- VILLAGE ---
-    // Yağma: köy milisini dağıt, ganimeti al. Bedeli ağır — sahibi lordla ilişki,
-    // köyün refahı, namın ve (barıştaki bir krallıksa) diplomatik durum.
+    // Raid: rout the village militia, take the loot. The cost is steep — relationship with its lord,
+    // the village's prosperity, your renown, and (if it's an at-peace kingdom) diplomatic standing.
     raidVillage(loc) {
         let owner = this.ownerLord(loc);
         let militia = Math.max(4, Math.round((loc.prosperity || 50) / 5));
         let peace = !this.atWar(this.playerFaction(), loc.faction) && loc.faction !== this.playerFaction();
-        // Yakılan köyün ambarı hemen dolmaz (#49)
+        // A burned village's storehouse doesn't refill right away (#49)
         let wait = loc.raidedDay !== undefined ? this.RAID_COOLDOWN - (state.time.day - loc.raidedDay) : 0;
         if(wait > 0) return this.showModal(`<h3>🔥 ${T(loc.name)}</h3>
         <p>${T`Burası daha yeni yağmalandı — ambar boş, ahır boş, sağ kalanlar ormanda.
@@ -7173,26 +7174,26 @@ const Game = {
         let loc = LOCATIONS.find(l => l.id === locId);
         Battle.start('Köy Milisi', count, null, loc ? loc.faction : null);
     },
-    // --- YAĞMA: SÜREN EYLEM (#49) ---
-    // Milisi dağıtmak yağmanın yarısı. Ambarı boşaltmak zaman ister: 15 saniye boyunca
-    // kıpırdayamazsın, zaman akar ve köyün krallığının lordları dumana doğru yürür.
-    // --- ŞEREF (#53 madde 1.5) ---
-    // Eski "yağmacı damgası" tek yönlü bir sayaçtı: yalnız kötü eylem yazılıyordu. Şeref
-    // aynı sayının iki yönlüsüdür (−100..100) ve damga onun eksi tarafının etiketidir —
-    // ikinci bir itibar alanı tutulmaz. Günde 0.5 sıfıra doğru söner (bir yağma ~24 gün).
+    // --- RAID: AN ONGOING ACTION (#49) ---
+    // Routing the militia is half the raid. Emptying the storehouse takes time: you can't move
+    // for 15 seconds, time passes, and the village's kingdom's lords march toward the smoke.
+    // --- HONOR (#53 item 1.5) ---
+    // The old "raider stigma" was a one-way counter: it only ever recorded bad deeds. Honor
+    // is the same number made two-sided (−100..100), and the stigma is just the label for its
+    // negative side — no second reputation field is kept. It decays 0.5/day toward zero (~24 days per raid).
     HONOR: {
-        raid:       [-12, 'köy yağması'],
-        robPeace:   [-5,  'barıştaki kervanı soymak'],
-        robPeasant: [-8,  'köylü kafilesini soymak'],
-        ransom:     [-2,  'soylu esirden fidye'],
-        release:    [ 5,  'soyluyu onurla salıvermek'],
-        abduct:     [-20, 'kız kaçırma'],
-        oathBroken: [-5,  'sefer sözünü tutmamak'],
-        questDone:  [ 2,  'verilen sözü tutmak'],
-        // Yol olayları (#67): tek tek küçük, ama yirmi olayda huy olur
-        roadKind:   [ 2,  'yolda yardım eli uzatmak'],
-        roadCruel:  [-2,  'yolda zayıfı ezip geçmek'],
-        spare:      [ 3,  'bozguna uğrayanı kovalamamak']
+        raid:       [-12, 'raiding a village'],
+        robPeace:   [-5,  'robbing a caravan at peace'],
+        robPeasant: [-8,  'robbing a peasant caravan'],
+        ransom:     [-2,  'ransoming a noble prisoner'],
+        release:    [ 5,  'releasing a noble with honor'],
+        abduct:     [-20, 'abducting a lady'],
+        oathBroken: [-5,  'breaking a campaign pledge'],
+        questDone:  [ 2,  'keeping a promise'],
+        // Road events (#67): small one by one, but a habit over twenty events
+        roadKind:   [ 2,  'lending a hand on the road'],
+        roadCruel:  [-2,  'trampling the weak on the road'],
+        spare:      [ 3,  'not chasing down the routed']
     },
     honor() { return Math.max(-100, Math.min(100, Math.round(state.player.honor || 0))); },
     addHonor(kind) {
@@ -7200,31 +7201,31 @@ const Game = {
         state.player.honor = Math.max(-100, Math.min(100, (state.player.honor || 0) + h[0]));
         return h[0];
     },
-    // Aynı şeref herkeste aynı okunmaz: iyi huylu lord şerefi sever, kurnaz olan
-    // şerefsizden çekinmez — Warband'ın mizaç tepkisi (#53/1.5).
+    // The same honor doesn't read the same to everyone: a good-natured lord loves honor, a cunning
+    // one doesn't shy from the dishonorable — Warband's personality reaction (#53/1.5).
     honorWeight(personality) {
         let h = this.honor();
         let w = personality === 'goodnatured' ? h / 40
               : personality === 'cunning' ? -h / 60
               : personality === 'debauched' ? -h / 90
-              : h / 55;                                   // martial/quarrelsome: şerefi sayar ama az
+              : h / 55;                                   // martial/quarrelsome: honor counts, but only a little
         return Math.max(-2, Math.min(2, Math.round(w)));
     },
     honorTier() { let h = this.honor(); return h >= 40 ? 2 : h >= 15 ? 1 : h <= -36 ? -2 : h <= -10 ? -1 : 0; },
     honorLabel() { return { '-2': T('💀 Köy Yakan'), '-1': T('🔥 Yağmacı'), '0': '—', '1': T('🕊️ Sözünün Eri'), '2': T('⚜️ Şerefli') }[this.honorTier()]; },
-    // Eski infamy kapıları şerefin eksi tarafından okur — çağıranların hiçbiri değişmedi
+    // The old infamy gates read off honor's negative side — none of the callers had to change
     RAID_INFAMY: 12,
     infamy() { return Math.max(0, -this.honor()); },
     infamyTier() { return Math.max(0, -this.honorTier()); },
     infamyLabel() { return ['—', T('🔥 Yağmacı'), T('💀 Köy Yakan')][this.infamyTier()]; },
-    // Fiyat/gönüllü çarpanı: 60 onursuzlukta gönüllü yarıya iner, paralı asker %60 pahalanır
-    // Artık iki yönlü: eksi şeref köylüyü kaçırır, artı şeref kapıyı açar (#53/1.5).
-    // Eksi tarafı eski yağmacı cezasının aynısı, yani #49'un ölçümleri geçerli.
+    // Price/volunteer multiplier: at 60 dishonor volunteers halve, mercenaries cost 60% more
+    // Now two-sided: negative honor scares villagers off, positive honor opens the gate (#53/1.5).
+    // The negative side is the same as the old raider penalty, so #49's measurements still hold.
     infamyPenalty() { return Math.max(-0.3, Math.min(0.6, -this.honor() / 100)); },
 
-    // --- KAN DAVASI (#53 madde 1.3) ---
-    // Köyünü yaktığın, kervanını soyduğun, esirini fidyeye bağladığın lord seni unutmaz:
-    // 30 gün boyunca partisi seni avlar ve karşılaşma sohbet değil savaş olur.
+    // --- BLOOD FEUD (#53 item 1.3) ---
+    // A lord whose village you burned, whose caravan you robbed, whose prisoner you ransomed never forgets:
+    // for 30 days their party hunts you, and an encounter is a fight, not a conversation.
     GRUDGE_DAYS: 30,
     addGrudge(lordId) { if(lordId) state.grudges[lordId] = state.time.day; },
     hasGrudge(lordId) {
@@ -7232,7 +7233,7 @@ const Game = {
         return d !== undefined && state.time.day - d < this.GRUDGE_DAYS;
     },
     grudgeList() { return Object.keys(state.grudges).filter(id => this.hasGrudge(id)); },
-    // Bir fraksiyonun kervanını soymak: davayı en yakın lordu açar (kimin malıysa o)
+    // Robbing a faction's caravan: the nearest lord (whichever it belongs to) opens the feud
     addGrudgeNearest(faction) {
         if(typeof LORDS === 'undefined') return;
         let near = LORDS.filter(l => l.faction === faction)
@@ -7241,10 +7242,10 @@ const Game = {
         if(near) this.addGrudge(near.l.id);
     },
     RAID_SECONDS: 15,
-    RAID_ALERT: 1600,     // bu menzildeki lord dumanı görür; 15 sn'de ~1200–1600 birim yol alır
-    RAID_COOLDOWN: 30,    // gün — aynı köy bir daha yağmalanamaz (~12 dk gerçek zaman, hız ×1)
+    RAID_ALERT: 1600,     // a lord within this range sees the smoke; covers ~1200-1600 units in 15s
+    RAID_COOLDOWN: 30,    // days — the same village can't be raided again (~12 real minutes at ×1 speed)
     raidedRecently(loc) { return !!loc && loc.raidedDay !== undefined && state.time.day - loc.raidedDay < this.RAID_COOLDOWN; },
-    // Battle zafer dalı burayı çağırır: ganimet değil, yağma safhası başlar
+    // Battle's victory branch calls this: not loot, the raid phase begins
     completeRaid(locId) {
         let loc = LOCATIONS.find(l => l.id === locId);
         if(!loc) return;
@@ -7254,7 +7255,7 @@ const Game = {
         state.player.targetLocation = null;
         state.player.status = 'raiding';
         this.showScreen('map');
-        // Dumanı gören lordlar köye yönelir; hedefleri raidTick her karede tazeler
+        // Lords who see the smoke head for the village; raidTick refreshes their target every frame
         state.npcParties.forEach(n => {
             if(n.lordId && n.faction === loc.faction && this.dist(n, loc) < this.RAID_ALERT) n.raidResponder = true;
         });
@@ -7273,9 +7274,9 @@ const Game = {
             if(this.dist(n, loc) < 60 && !responder) responder = n;
         });
         if(responder) {
-            // Yetişti: ambar yarım kaldı, ganimet yok — kılıcını çekmek zorundasın
+            // They made it: the storehouse is only half emptied, no loot — you have to draw your sword
             this.abortRaid(true);
-            // Ambarı basılmış lordun sana diyeceği yok: ganimet gitti, kılıç kaldı
+            // A lord whose storehouse got raided has nothing to say to you: the loot's gone, only the sword's left
             if(typeof Nobles !== 'undefined') Nobles.addRel(responder.lordId, -15);
             alert(T`${T(responder.name)} dumanı görüp yetişti — yağma yarıda kaldı, ganimet yok.`);
             return this.triggerEncounter(responder, 'raid');
@@ -7299,7 +7300,7 @@ const Game = {
         ui.classList.remove('hidden');
         let loc = LOCATIONS.find(l => l.id === r.locId) || { name: '?' };
         let pct = Math.min(100, r.t / this.RAID_SECONDS * 100);
-        // En yakın müdahaleci ne kadar uzakta? Kumarın gerilimi bu satırda.
+        // How far is the nearest responder? The gamble's tension is in this line.
         let near = state.npcParties.filter(n => n.raidResponder)
                     .sort((a, b) => this.dist(a, loc) - this.dist(b, loc))[0];
         this.setHtml('raid-info',
@@ -7328,16 +7329,16 @@ const Game = {
         loc.prosperity = Math.max(10, pr - 20);
         loc.volunteersAvailable = 0;
         loc.raidedDay = state.time.day;
-        state.player.renown = Math.max(0, (state.player.renown || 0) - 6);   // zaferin +3'ünü de yer
-        this.addHonor('raid');            // şeref düşer, damga onun etiketidir (#49/#53)
+        state.player.renown = Math.max(0, (state.player.renown || 0) - 6);   // eats the victory's +3 as well
+        this.addHonor('raid');            // honor drops, the stigma is just its label (#49/#53)
         let owner = this.ownerLord(loc);
-        if(owner) this.addGrudge(owner.id);   // sahibi lord 30 gün seni avlar (#53/1.3)
+        if(owner) this.addGrudge(owner.id);   // the owning lord hunts you for 30 days (#53/1.3)
         if(typeof Nobles !== 'undefined') {
             if(owner) Nobles.addRel(owner.id, -30);
             LORDS.filter(l => l.faction === loc.faction && (!owner || l.id !== owner.id))
                  .forEach(l => Nobles.addRel(l.id, -6));
         }
-        // Barıştaki krallığın köyünü yakmak savaş sebebidir
+        // Burning an at-peace kingdom's village is a casus belli
         if(this.playerFaction() && loc.faction !== this.playerFaction()) this.declareWar(this.playerFaction(), loc.faction);
         this.addProficiencyXp('looting', 60);
         Quests.emit('raided', { locId: loc.id, faction: loc.faction });
@@ -7349,10 +7350,10 @@ const Game = {
         let dialog = this.getHumorousDialog('elder', loc);
         this.showModal(`<h3>${T`🧓 Köy Yaşlısı`}</h3><p><i>${dialog}</i></p>`);
     },
-    // Kaç gönüllü alınacağı seçilebilir. Eskiden hepsini almak zorunluydu:
-    // kapasitede 3 yer varken 5 gönüllülük köyden tek asker bile alınamıyordu.
+    // How many volunteers to take is a choice. It used to be all-or-nothing:
+    // with 3 slots of capacity, a village with 5 volunteers couldn't give you even one recruit.
     recruitVolunteers(loc) {
-        // Yağmacıya köylü zor katılır ve pahalıya katılır (#49)
+        // A villager joins a raider reluctantly, and for a higher price (#49)
         let pen = this.infamyPenalty();
         let cost = Math.max(5, Math.round(10 * (1 + pen)));
         let avail = Math.floor(loc.volunteersAvailable * (1 - pen));
@@ -7404,7 +7405,7 @@ const Game = {
             });
         }
         this.closeModal(); this.updateTopBar();
-        if(loc) this.enterLocation(loc); // Arayüzü yenile
+        if(loc) this.enterLocation(loc); // refresh the UI
         this.feedback('recruit', null, -total);
         alert(T`${amount} gönüllü gruba katıldı!`);
     },
@@ -7460,8 +7461,8 @@ const Game = {
     },
 
     // --- CHARACTER ---
-    // Niteliğin şu an ne yaptığını efektif değere göre yazar (hedefe göre değil —
-    // oyuncu neyi kazandığını değil, neyin işlediğini görmeli).
+    // Writes what an attribute is doing right now based on its effective value (not the target —
+    // the player should see what's actually working, not what they're going to earn).
     attrEffect(k) {
         let v = this.attr(k);
         switch(k) {
@@ -7528,7 +7529,7 @@ const Game = {
         </div>`;
 
         let fp = s.focusPoints || 0;
-        // Her yetenek ne yapıyor + şu anki değeri (geri bildirim: etkiler görünmüyordu)
+        // What each skill does + its current value (feedback: the effects weren't visible before)
         const L = id => this.profLvl(id);
         let profs = [
             { id: 'oneHanded', name: T('Tek Elli Silahlar'), d: l => T`Kılıç hasarı ×${(0.35 + Math.min(0.4, l*0.004)).toFixed(2)}` },
@@ -7587,10 +7588,10 @@ const Game = {
             }
         }
     },
-    // Asker tecrübesi tek yerden geçer: savaşta öldürme de, Eğitim yeteneği de.
+    // Troop experience passes through a single place: a kill in battle, and the Training skill too.
     giveTroopXp(t, n = 1) {
-        if(!t || t.level >= 50) return null;                             // 50 üstü sadece Boss Nişanı ile
-        if(TROOP_UPGRADES[t.name] && t.xp >= t.xpNext) return null;      // Terfiye hazır, XP almaz
+        if(!t || t.level >= 50) return null;                             // above 50 only via the Boss Token
+        if(TROOP_UPGRADES[t.name] && t.xp >= t.xpNext) return null;      // ready to promote, doesn't take XP
         t.xp += n;
         if(t.xp < t.xpNext) return null;
         if(TROOP_UPGRADES[t.name]) return 'ready';
@@ -7600,8 +7601,8 @@ const Game = {
         return 'levelup';
     },
 
-    // Parti yetenekleri "gruptaki en yüksek" kuralıyla çalışır: uzman bir
-    // yoldaş kendi alanında oyuncunun seviyesinin yerine geçebilir.
+    // Party skills work by the "highest in the group" rule: a companion who's
+    // an expert in their field can stand in for the player's own level.
     profLvl(id) {
         let lvl = (state.player.proficiencies[id] || { level: 1 }).level;
         state.player.party.forEach(t => {
@@ -7621,12 +7622,12 @@ const Game = {
             pData.xp -= pData.next;
             pData.level++;
             pData.next = Math.floor(pData.next * 1.2);
-            // Savaş içinde alert rahatsız eder, bu yüzden loglara eklenebilir veya console.
+            // An alert would be intrusive mid-battle, so this can go to the logs or console instead.
             console.log(T`Yeteneğin gelişti: ${id} (Lvl ${pData.level})`);
         }
     },
-    // Görüş tek kaynaktan: zeka + Gözcülük yeteneği. Eskiden state.player.visibility
-    // yalnızca zeka puanı harcandığında güncelleniyordu.
+    // Vision from a single source: intelligence + Spotting skill. It used to be that
+    // state.player.visibility only updated when an intelligence point was spent.
     getVisibility() {
         return 500 + (this.attr('int') - 10) * 30 + (this.profLvl('spotting') - 1) * 25;
     },
@@ -7651,7 +7652,7 @@ const Game = {
         else {
             let groups = {};
             state.player.party.forEach(t => {
-                // efsaneviler ve yaralılar ayrı satırda listelenir
+                // legendaries and the wounded are listed on their own row
                 let key = this.troopGroupKey(t);
                 if(!groups[key]) {
                     groups[key] = { base: t.name, sample: t, count: 0, ready: [], normal: [], wounded: 0 };
@@ -7677,7 +7678,7 @@ const Game = {
                     ${g.sample.debuff ? T('<div style="font-size:var(--fs-xs);color:#e0463a">🍖 Et/peynir bulamadı — savaşta can ve saldırı ×0.7</div>') : ''}
                 </div>`;
 
-                // Sıra değiştirme + gruptan çıkarma (#51)
+                // Reordering + removing from the party (#51)
                 let q = name.replace(/'/g, "\\'");
                 html += `<div style="display:flex;gap:0.3rem;align-items:center">
                     <button class="btn" title="Yukarı taşı" style="font-size:var(--fs-xs);padding:0.2rem 0.45rem" onclick="Game.moveTroopGroup('${q}', -1)">▲</button>
@@ -7689,7 +7690,7 @@ const Game = {
                     let upgradeChoices = TROOP_UPGRADES[g.base];
                     html += `<div style="display:flex;gap:0.4rem;margin-top:0.4rem;">`;
                     upgradeChoices.forEach(choice => {
-                        // Hangi seçenek piyade, hangisi atlı okçu — terfi kör tercih olmasın (#51)
+                        // Which option is infantry, which is mounted archer — a promotion shouldn't be a blind pick (#51)
                         let ci = this.troopStats({ name: choice.name });
                         html += `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name.replace(/'/g,"\\'"))}', ${choice.cost})">
                             ${T`Sınıf Terfisi: ${ci.icon} ${T(choice.name)} (${choice.cost} Dinar)`}
@@ -7713,26 +7714,26 @@ const Game = {
         html += this.prisonersHtml();
         document.getElementById('party-list').innerHTML = html;
     },
-    // Efsanevi öneki yalnızca ekranda görünür, veride ad temiz kalır
+    // the legendary prefix only shows on screen, the name in the data stays clean
     troopLabel(t) { return (t.legendary ? T('Efsanevi ') : '') + T(t.name); },
-    // Grup ekranı askerleri bu anahtarla toplar; sıra ve çıkarma da aynı anahtarı kullanır (#51)
+    // The party screen groups troops by this key; reordering and dismissal use the same key (#51)
     troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? T(' 🩹 (yaralı)') : ''); },
     troopClassName(st) {
-        // Kergit atlı okçusu ağaçta 'archer' ama 108 hızla gezer — sınıfı hıza bakarak yaz,
-        // yoksa listede yaya okçularla aynı görünüyor. Sınır `Battle.FOOT_MAX` — savaşta
-        // ormanın "binekli" kuralı da aynı sayıya bakar, iki yerde iki eşik olmasın.
+        // A Khergit mounted archer is 'archer' in the tree but moves at speed 108 — write the class by
+        // looking at speed, or it shows up identical to foot archers in the list. The cutoff is
+        // `Battle.FOOT_MAX` — battle's forest "mounted" rule reads the same number, so there's not two thresholds in two places.
         let mounted = st.type === 'cavalry' || st.speed > Battle.FOOT_MAX;
         if(st.type === 'archer') return mounted ? T('Atlı Okçu') : T('Okçu');
         return mounted ? T('Süvari') : T('Piyade');
     },
-    // Sırayı grup grup değiştir: aynı ada sahip askerler bloğu komşu blokla yer değiştirir
+    // Reorder group by group: the block of troops sharing a name swaps places with the neighboring block
     moveTroopGroup(key, dir) {
         let keys = [];
         state.player.party.forEach(t => { let k = this.troopGroupKey(t); if(keys.indexOf(k) < 0) keys.push(k); });
         let i = keys.indexOf(key), j = i + dir;
         if(i < 0 || j < 0 || j >= keys.length) return;
         keys[i] = keys[j]; keys[j] = key;
-        // sort kararlıdır: blok içindeki sıra bozulmaz
+        // sort is stable: the order within a block stays intact
         state.player.party.sort((a, b) => keys.indexOf(this.troopGroupKey(a)) - keys.indexOf(this.troopGroupKey(b)));
         this.renderPartyScreen();
     },
@@ -7758,10 +7759,10 @@ const Game = {
         alert(T`${key} × ${gone} gruptan ayrıldı.`);
     },
 
-    // --- MORAL ---
-    // Warband'ın moral sistemi: yemek çeşidi, maaş, idare ve kalabalık grubun
-    // bir arada durmasını belirler. Moral düşünce asker firar eder, savaşta
-    // bütün birlik zayıflar.
+    // --- MORALE ---
+    // Warband's morale system: food variety, wages, leadership, and an overcrowded party all
+    // determine whether the party holds together. Low morale means troops desert, and in battle
+    // the whole unit fights weaker.
     moraleTarget(paid, hungry) {
         let p = state.player;
         let foods = ['wheat','bread','meat','cheese'].filter(id => p.inventory.some(i => i.id === id && i.qty > 0)).length;
@@ -7772,8 +7773,8 @@ const Game = {
             'İdare yeteneği': (lead - 1) * 3,
             'Yemek çeşidi': foods * 5,
             'Açlık': hungry ? -30 : 0,
-            // Sabit -25 yerine: borç büyüdükçe hedef de düşer. Asıl ceza saat başı
-            // işleyen -1 moral (Game.wageDebtTick); bu satır moralin toparlanmasını engeller.
+            // Instead of a flat -25: the target drops further as debt grows. The real penalty is the
+            // -1 morale per hour (Game.wageDebtTick); this line just keeps morale from recovering.
             'Maaş borcu': p.wageDebt > 0 ? -Math.min(40, 10 + Math.floor(p.wageDebt / Math.max(1, this.upkeep().wage)) * 10) : 0,
             'Kapasite aşımı': -over * 2
         };
@@ -7782,9 +7783,9 @@ const Game = {
         return Math.max(0, Math.min(100, t));
     },
 
-    // Künyeler ekranın dışına taşmasın. Eskiden her taşan rozete elle
-    // 'left/right' veriliyordu (#chip-speed, #chip-time) — yeni bir rozet
-    // eklenince yine kesiliyordu. Tek yerde, göründüğü anda kaydırılıyor.
+    // Badges shouldn't overflow off screen. It used to be that every overflowing badge got
+    // 'left/right' set by hand (#chip-speed, #chip-time) — adding a new badge meant the same
+    // clipping happened again. Now it's shifted in one place, the moment it appears.
     initTooltipClamp() {
         document.addEventListener('mouseover', e => {
             let c = e.target.closest && e.target.closest('.tooltip-container');
@@ -7792,7 +7793,7 @@ const Game = {
         });
     },
 
-    // Taşma düzeltmesi tek yerde: fareyle gelen de dokunmayla açılan da buradan geçer (#65)
+    // The overflow fix lives in one place: mouse-triggered and touch-triggered both pass through here (#65)
     clampTip(c) {
         let t = c.querySelector('.tooltip-content');
         if(!t) return;
@@ -7803,9 +7804,9 @@ const Game = {
         else if(under > 0) t.style.transform = `translateX(calc(-50% + ${Math.ceil(under)}px))`;
     },
 
-    // Erzak bozulur: her türün kendi dayanıklılığı var (ITEMS[].spoil = gün).
-    // Kesirli kayıp yığının üstünde birikir, tam birime ulaşınca düşer —
-    // 3 birimlik yığın da sonsuza kadar durmasın.
+    // Food spoils: each kind has its own shelf life (ITEMS[].spoil = days).
+    // The fractional loss accumulates on the stack and drops once it reaches a full unit —
+    // so a 3-unit stack doesn't sit there forever either.
     spoilFood() {
         for(let i = state.player.inventory.length - 1; i >= 0; i--) {
             let it = state.player.inventory[i];
@@ -7820,7 +7821,7 @@ const Game = {
         }
     },
 
-    // Bugün bozulmayla kaç birim gidecek (künyede gösterilir).
+    // How many units will be lost to spoilage today (shown in the tooltip).
     spoilRate() {
         return state.player.inventory.reduce((a, it) => {
             let sp = (ITEMS[it.id] || {}).spoil;
@@ -7828,62 +7829,62 @@ const Game = {
         }, 0);
     },
 
-    // Erzak durumu: elde ne var, günde ne gidiyor, kaç gün yeter.
-    // Künye, uyarı ve envanter aynı hesabı kullansın diye tek yerde.
+    // Food status: what's on hand, what's consumed per day, how many days it lasts.
+    // Kept in one place so the tooltip, the warning, and the inventory all use the same math.
     foodStock() {
         let inv = state.player.inventory;
         let sum = q => inv.filter(i => q.includes(i.id)).reduce((a, i) => a + i.qty, 0);
         let low = sum(['wheat','bread']), high = sum(['meat','cheese']);
         let up = this.upkeep();
         let need = Math.ceil(up.foodLow);
-        // Bozulma da stoğu yiyor; "kaç gün yeter" onu saymazsa iyimser çıkar.
+        // Spoilage eats into the stock too; "how many days it lasts" would be too optimistic without it.
         let drain = need + this.spoilRate();
         return {
             low, high, total: low + high,
             need, needHigh: Math.ceil(up.foodHigh), spoil: this.spoilRate(),
-            // Karışık stokta bile doğru: yüksek kalite hem kendi payını hem genel payı kapatır
+            // Correct even with mixed stock: high quality covers both its own share and the general one
             days: drain > 0 ? Math.floor((low + high) / drain) : Infinity,
             kinds: ['wheat','bread','meat','cheese'].filter(id => inv.some(i => i.id === id && i.qty > 0)).length
         };
     },
 
-    // Günlük gider: maaş + yemek. dailyUpdate ve üst çubuk künyesi aynı hesabı kullanır.
-    // Asker günde yarım birim yer, oyuncu tam bir birim (kendi karnını sayarız).
-    // Eskiden kişi başı 1 idi: 20 kişilik ordu günde 21 birim (~84 dinar) yiyor,
-    // yani erzak faturası maaşın iki katı oluyordu. Tek knob burası — tüketim,
-    // "kaç gün yeter" rozeti, açlık cezası ve künye dökümü hepsi upkeep()'ten okur.
+    // Daily expense: wages + food. dailyUpdate and the top-bar tooltip use the same math.
+    // A troop eats half a unit a day, the player a full unit (we count the player's own stomach too).
+    // It used to be 1 per head: a 20-person army ate 21 units a day (~84 dinars),
+    // meaning the food bill ran twice the wage bill. This is the single knob — consumption,
+    // the "days left" badge, the hunger penalty, and the tooltip breakdown all read from upkeep().
     FOOD_MAN: 0.5,
 
     upkeep() {
-        // Oyuncunun kendisi de karnını doyurur (#75). Eskiden yalnız parti sayılıyordu:
-        // tek başına gezen oyuncu hiç erzak yemiyor, üst çubukta "∞ gün" yazıyordu.
-        // Tek satır burada duruyor çünkü tüketim, "kaç gün yeter", açlık cezası ve
-        // künye dökümü hepsi bu tek fonksiyondan okuyor.
+        // The player's own belly is fed too (#75). It used to be only the party was counted:
+        // a player traveling alone ate no food at all, and the top bar read "∞ days".
+        // This one line stays here because consumption, "days left", the hunger penalty,
+        // and the tooltip breakdown all read from this single function.
         let wage = 0, foodLow = 1, foodHigh = 0;
         state.player.party.forEach(t => {
-            wage += this.troopWage(t);                              // yoldaş 20, lvl51 bedava
+            wage += this.troopWage(t);                              // companion 20, lvl51 free
             if(t.isCompanion) { foodLow += this.FOOD_MAN; return; }
             if(t.level >= 51) return;
             foodLow += t.level >= 20 ? this.FOOD_MAN * 1.5 : this.FOOD_MAN;
             if(t.level >= 30) foodHigh += this.FOOD_MAN;
         });
-        wage += this.fiefIncome().wage;   // tımar garnizonunun maaşı da senden çıkar (#23)
+        wage += this.fiefIncome().wage;   // a fief's garrison wage comes out of your pocket too (#23)
         return { wage, foodLow, foodHigh };
     },
 
-    // 0 morali de doğru okumak için: (p.morale || 50) sıfırı 50 sayıyordu
+    // So a morale of 0 reads correctly too: (p.morale || 50) used to count zero as 50
     morale() { return typeof state.player.morale === 'number' ? state.player.morale : 60; },
 
     updateMorale(paid, hungry) {
         let p = state.player;
         p.morale = this.morale();
         let t = this.moraleTarget(paid, hungry);
-        // Moral hızlı düşer, yavaş toparlanır
+        // Morale drops fast, recovers slowly
         p.morale = Math.max(0, Math.min(100, p.morale + Math.max(-10, Math.min(4, t - p.morale))));
 
         if(p.morale < 25 && p.party.length > 0) {
             let n = Math.min(p.party.length, 1 + Math.floor((25 - p.morale) / 8));
-            // ponytail: en son katılanlar ilk firar eder; rastgele seçim bir şey katmıyor
+            // ponytail: the most recently joined desert first; a random pick wouldn't add anything
             let gone = p.party.splice(p.party.length - n, n);
             alert(T`Moral çöktü! ${gone.length} asker gece kamptan kaçtı. (Moral ${Math.round(p.morale)})`);
         }
@@ -7897,7 +7898,7 @@ const Game = {
         return T('<span style="color:#e74c3c">Çökmüş</span>');
     },
 
-    // Moral savaşta bütün birliğin gücünü ölçekler (0 -> x0.8, 50 -> x1.0, 100 -> x1.2)
+    // Morale scales the whole unit's strength in battle (0 -> x0.8, 50 -> x1.0, 100 -> x1.2)
     moraleMult() { return 0.8 + this.morale() / 250; },
 
     moraleHtml() {
@@ -7912,8 +7913,8 @@ const Game = {
             </div>`;
     },
 
-    // --- ESİRLER ---
-    // Kapasite Esir Yönetimi yeteneğine bağlı; soylu esirler de yer kaplar.
+    // --- PRISONERS ---
+    // Capacity depends on the Prisoner Management skill; noble prisoners take up space too.
     prisonerCapacity() {
         let lvl = (state.player.proficiencies.prisonerMgmt || { level: 1 }).level;
         return 5 + (lvl - 1) * 3;
@@ -7965,7 +7966,7 @@ const Game = {
         state.player.money += money;
         this.addProficiencyXp('prisonerMgmt', 8 * sold);
         this.updateTopBar();
-        // Not modalın içinde gösterilir; alert() showModal ile üst üste binerdi
+        // The note is shown inside the modal; alert() would stack on top of showModal
         this.openSlaveTrader(T`${sold} esir satıldı. +${money} dinar.`);
     },
 
@@ -7978,8 +7979,8 @@ const Game = {
         if(n) { this.renderPartyScreen(); alert(T`${n} esir salıverildi.`); }
     },
 
-    // Fidye alınan ya da salıverilen lord haritaya döner — yoksa yenilen soylu
-    // oyundan tamamen siliniyordu.
+    // A ransomed or released lord returns to the map — otherwise a defeated noble
+    // was erased from the game entirely.
     respawnLordParty(pr) {
         let lord = Nobles.lord(pr.lordId);
         if(!lord || state.npcParties.some(n => n.lordId === lord.id)) return;
@@ -7996,7 +7997,7 @@ const Game = {
         if(i === -1) return;
         let pr = state.player.prisoners.splice(i, 1)[0];
         state.player.money += pr.ransom;
-        this.addHonor('ransom'); this.addGrudge(pr.lordId);   // parayla satılan soylu unutmaz (#53)
+        this.addHonor('ransom'); this.addGrudge(pr.lordId);   // a noble sold for money doesn't forget (#53)
         Nobles.addRel(pr.lordId, -20);
         LORDS.filter(l => l.faction === pr.faction && l.id !== pr.lordId).forEach(l => Nobles.addRel(l.id, -4));
         this.respawnLordParty(pr);
@@ -8013,7 +8014,7 @@ const Game = {
         Nobles.addRel(pr.lordId, 25);
         LORDS.filter(l => l.faction === pr.faction && l.id !== pr.lordId).forEach(l => Nobles.addRel(l.id, 6));
         state.player.renown += 3;
-        this.addHonor('release'); delete state.grudges[pr.lordId];   // şeref borcu siler (#53)
+        this.addHonor('release'); delete state.grudges[pr.lordId];   // an honorable act wipes the debt (#53)
         this.respawnLordParty(pr);
         this.updateTopBar();
         this.renderPartyScreen();
@@ -8061,8 +8062,8 @@ const Game = {
             if(token.qty <= 0) state.player.inventory.splice(tokenIdx, 1);
             
             t.level = 51;
-            // Adın başına 'Efsanevi ' eklemek TROOP_TYPES / TROOP_UPGRADES
-            // anahtarını bozuyordu; önek artık yalnızca gösterimde.
+            // Prepending 'Efsanevi ' to the name broke the TROOP_TYPES / TROOP_UPGRADES
+            // key; the prefix is now display-only.
             t.legendary = true;
 
             alert(T`${this.troopLabel(t)} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!`);
@@ -8078,7 +8079,7 @@ const Game = {
             let t = state.player.party[troopIdx];
             t.name = newName;
             t.xp = 0;
-            let nextTier = TROOP_UPGRADES[newName] ? 2 : 3;   // daha üstü yoksa elit kademe
+            let nextTier = TROOP_UPGRADES[newName] ? 2 : 3;   // no further tier means elite rank
             t.xpNext = nextTier * 4;
             t.level = nextTier === 3 ? 20 : 10;
             t.type = TROOP_TYPES[newName].type;
@@ -8122,8 +8123,8 @@ const Game = {
         html += '</div></div>';
         document.getElementById('inventory-content').innerHTML = html;
     },
-    BOSS_RENOWN: 300,   // boss haritasının nam kapısı (#55 madde 9)
-    // Silahın hasar türü künyesi — zırha karşı davranışı burada görünür
+    BOSS_RENOWN: 300,   // the renown gate for the boss map (#55 item 9)
+    // The weapon's damage-type tooltip — its behavior against armor shows up here
     itemNote(item) {
         if(!item) return '';
         if(item.id === 'boss_map') return T`Kullanmak için ${this.BOSS_RENOWN} nam gerekir (sende ${this.peakRenown()})`;
@@ -8156,7 +8157,7 @@ const Game = {
     useItem(idx) {
         let item = state.player.inventory[idx];
         if(item.id === 'boss_map') {
-            // Oyunun en güçlü ödülü yalnız parayla alınmasın (#55 madde 9): kapı nam da ister
+            // The game's strongest reward shouldn't be bought with money alone (#55 item 9): the gate also asks for renown
             if(this.peakRenown() < this.BOSS_RENOWN) {
                 alert(`${T`🗺️ Harita bir yol tarif ediyor ama sonundaki kapı herkese açılmıyor.`}<br><br>`
                     + `${T`Savaş Tanrısı'nın önüne çıkmak için <b>${this.BOSS_RENOWN} nam</b> gerekir (sende ${this.peakRenown()}).`}`);
@@ -8168,7 +8169,7 @@ const Game = {
             if(item.qty <= 0) state.player.inventory.splice(idx, 1);
             this.renderInventoryScreen();
             
-            let bossLevel = 30 + (state.bossEntries - 1) * 5; // İlk giriş 30, sonra zorlaşır
+            let bossLevel = 30 + (state.bossEntries - 1) * 5; // 30 on the first entry, harder after
             Battle.start(T('Savaş Tanrısı (Boss)'), 15 + state.bossEntries * 5, bossLevel);
         }
     },
@@ -8181,9 +8182,9 @@ const Game = {
         this.updateStatsFromEquip();
         if(reRender) this.renderInventoryScreen();
     },
-    // Maksimum can tek bir formülden türetilir: taban + seviye + zırh.
-    // Eskiden yalnızca zırha bakıyordu, bu yüzden nitelik puanı harcamak ya da
-    // zırh giymek seviyeden gelen tüm canı siliyordu.
+    // Max HP is derived from one single formula: base + level + armor.
+    // It used to look at armor alone, so spending an attribute point or
+    // putting on armor would wipe out all the HP that came from level.
     updateStatsFromEquip() {
         let s = state.player.stats;
         let e = state.player.equipment;
@@ -8198,9 +8199,9 @@ const Game = {
             s.xp -= s.xpNext;
             s.level++;
             s.xpNext = Math.floor(s.xpNext * 1.5);
-            s.attributePoints = (s.attributePoints || 0) + 1; // Seviye başına 1 puan (hedef sistemi geldi, puan seyrekleşti)
-            s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord tarzı seviye başına 3 odak puanı
-            this.updateStatsFromEquip(); // seviye +10 max can — tek formülden
+            s.attributePoints = (s.attributePoints || 0) + 1; // 1 point per level (the target system arrived, points got rarer)
+            s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord-style 3 focus points per level
+            this.updateStatsFromEquip(); // +10 max HP per level — from the one formula
             s.hp = s.maxHp;
             alert(`${T`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.`}<br>` +
                   `${T`Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`}`);
@@ -8211,16 +8212,16 @@ const Game = {
 };
 
 
-// --- KAYIT / YÜKLEME ---
-// ponytail: tüm state'i JSON'a atıyoruz. npcParties ve görev data'sı düz veri
-// olduğu için bu yeterli; kaydedilemeyen tek şey canvas/loop referansları.
+// --- SAVE / LOAD ---
+// ponytail: we dump the whole state to JSON. npcParties and quest data are plain data,
+// so this is enough; the only thing that can't be saved is canvas/loop references.
 const Save = {
-    // --- KAYIT SİSTEMİ (#55 madde 1) ---
-    // Tek slot + sürümsüz JSON, "eski kayıt yeni kodla açılınca ne oluyor"
-    // sorusunu cevapsız bırakıyordu. Artık: sürüm numarası + göç zinciri,
-    // 3 elle slot + 5 halkasal otomatik kayıt, panoya dışa/içe aktarma ve
-    // bozuk kaydı silmeden kenara çekme.
-    LEGACY: 'webband_save_v1',        // sürümsüz tek slot — yalnız okunur, göç kaynağı
+    // --- SAVE SYSTEM (#55 item 1) ---
+    // A single slot + unversioned JSON left "what happens when an old save opens with new
+    // code" unanswered. Now: a version number + a migration chain,
+    // 3 manual slots + a ring of 5 autosaves, export/import via the clipboard, and
+    // a broken save gets set aside instead of deleted.
+    LEGACY: 'webband_save_v1',        // the old unversioned single slot — read-only, a migration source
     V: 2,
     SLOTS: ['1', '2', '3'],
     AUTOS: ['a1', 'a2', 'a3', 'a4', 'a5'],
@@ -8233,11 +8234,11 @@ const Save = {
             v: this.V, savedAt: Date.now(), surum: VERSION.no,
             gun: state.time.day, ad: state.player.name, seviye: state.player.stats.level,
             state: { ...state },
-            // x/y de kaydedilmeli: init() yerleşimleri her açılışta rastgele yeniden dağıtıyor,
-            // yoksa yüklemede yollar/oyuncu konumu bambaşka bir dünyaya denk geliyor.
+            // x/y must be saved too: init() reshuffles settlements' placement randomly on every
+            // launch — otherwise, on load, the roads/player position land in a completely different world.
             locations: LOCATIONS.map(l => ({ id: l.id, faction: l.faction, x: l.x, y: l.y, parentId: l.parentId, volunteersAvailable: l.volunteersAvailable, lastRecruitDay: l.lastRecruitDay, prosperity: l.prosperity, raidedDay: l.raidedDay, capturedDay: l.capturedDay,
                 owner: l.owner, garrison: l.garrison, storage: l.storage, stock: l.stock,
-                enterprise: l.enterprise, treasury: l.treasury, intel: l.intel })),   // işletme, kasa (#53), hafıza (#74)
+                enterprise: l.enterprise, treasury: l.treasury, intel: l.intel })),   // enterprise, treasury (#53), memory (#74)
             playerKingdom: FACTIONS['player_kingdom'] || null
         };
     },
@@ -8247,8 +8248,8 @@ const Save = {
             localStorage.setItem(this.key(slot), JSON.stringify(this.snapshot()));
             return true;
         } catch(e) {
-            // Kota dolduysa oyunu kilitlemek yerine söyle: oyuncu eski slotu silebilsin
-            Debug.log('kayit', T('Kayıt yazılamadı: ') + e.message, { slot });
+            // If the quota's full, say so instead of locking up the game: let the player delete an old slot
+            Debug.log('save', T('Kayıt yazılamadı: ') + e.message, { slot });
             return false;
         }
     },
@@ -8257,7 +8258,7 @@ const Save = {
         if(document.getElementById('save-panel')) return this.open(ok ? T`✅ ${this.slotName(slot || '1')} kaydedildi.` : T('❌ Kayıt başarısız — yer kalmamış olabilir, bir slot sil.'));
         alert(ok ? T('Oyun kaydedildi.') : T('Kayıt başarısız: tarayıcı deposu dolu olabilir.'));
     },
-    // Her oyun günü başında halkasal otomatik kayıt (ayarlardan kapatılabilir)
+    // A ring autosave at the start of every game day (can be turned off in settings)
     auto() {
         if(!Game.opt('autosave')) return;
         let i = ((state.meta.autoIdx || 0) % this.AUTOS.length);
@@ -8265,26 +8266,26 @@ const Save = {
         this.write(this.AUTOS[i]);
     },
 
-    // Bozuk JSON oyunu açılmaz hâle getiriyordu; kayıt silinmez, kenara çekilir.
+    // Broken JSON used to make the game unopenable; the save isn't deleted, it's set aside.
     read(slot) {
         let raw = localStorage.getItem(this.key(slot));
         if(!raw) return null;
         try { return JSON.parse(raw); }
         catch(e) {
-            let bak = 'webband_broken_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '');
-            try { localStorage.setItem(bak, raw); localStorage.removeItem(this.key(slot)); } catch(e2) {}
-            Debug.log('kayit', T('Bozuk kayıt: ') + e.message, { slot, yedek: bak });
-            alert(`${T`Kayıt bozuk (${this.slotName(slot)}).<br>Silmedim, <b>${bak}</b> anahtarına taşıdım.`}`);
+            let backup = 'webband_broken_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '');
+            try { localStorage.setItem(backup, raw); localStorage.removeItem(this.key(slot)); } catch(e2) {}
+            Debug.log('save', T('Bozuk kayıt: ') + e.message, { slot, backup });
+            alert(`${T`Kayıt bozuk (${this.slotName(slot)}).<br>Silmedim, <b>${backup}</b> anahtarına taşıdım.`}`);
             return null;
         }
     },
 
-    // Göç zinciri: her sürüm bir öncekinden gelen kaydı bugünkü şekle çevirir.
-    // Eskiden bu yamalar load() içine serpilmiş tek seferlik if'lerdi.
+    // Migration chain: each version turns a save that came from the previous one into today's shape.
+    // These patches used to be one-off ifs scattered inside load().
     migrate(d) {
         if(!d.v || d.v < 2) {
-            delete d.state.explored;   // savaş sisi kaldırıldı, ızgara artık okunmuyor
-            // Efsanevi askerin adı 'Efsanevi ' önekiyle saklanıyordu
+            delete d.state.explored;   // fog of war was removed, the grid is no longer read
+            // A legendary troop's name used to be stored with an 'Efsanevi ' prefix
             (d.state.player.party || []).forEach(t => {
                 if(t.name && t.name.startsWith(T('Efsanevi '))) { t.name = t.name.slice(9); t.legendary = true; }
             });
@@ -8307,7 +8308,7 @@ const Save = {
                      seviye: d.seviye || (((d.state || {}).player || {}).stats || {}).level };
         }).filter(Boolean);
     },
-    // Başlangıç ekranındaki "Kayıttan Devam": en yeni kayıt hangisiyse o
+    // The start screen's "Continue": whichever save is newest
     continueGame() {
         let rows = this.list().filter(r => !r.bozuk).sort((a, b) => b.savedAt - a.savedAt);
         if(!rows.length) return alert(T('Kayıtlı oyun yok.'));
@@ -8334,9 +8335,9 @@ const Save = {
             if(sl.x === undefined) legacyLocs = true;
             Object.assign(l, sl);
         });
-        // x/y taşımayan eski kayıtlarda yerleşimler init()'in rastgele yerinde kalır;
-        // kayıttan gelen yollar o dünyaya ait olmadığı için baştan örülür.
-        // #56 öncesi kayıtlarda yollar düz çizgidir (kind yok) — yeni ağ örülür
+        // In old saves that didn't carry x/y, settlements stayed at init()'s random spot;
+        // the roads coming from the save didn't belong to that world, so they're rebuilt from scratch.
+        // In saves from before #56 roads are straight lines (no kind) — a new network is built
         if(legacyLocs || !(state.roads || []).some(r => r.kind)) Game.buildRoads();
 
         document.getElementById('start-screen').classList.remove('active');
@@ -8348,21 +8349,21 @@ const Save = {
         Game.applySettings();
         Game.updateTopBar();
         Game.renderPrisonerUI();
-        // Kayıtta olmayan alt sistemler kurulur (hepsi kendi içinde tekrarsız)
+        // Subsystems missing from the save are set up (each one is idempotent on its own)
         if(!Object.keys(state.rivals || {}).length) Nobles.initRivals();
-        Game.applyVassals();     // LORDS kayda yazılmaz, vassalların bayrağı burada geri kurulur
-        Game.initDiplomacy();    // diplomasi öncesi kayıtlarda cephe kurulur
-        Game.ensureTraders();    // eski kayıtlarda kervan/kafile yoktu
-        Game.ensureSites();      // eski kayıtlarda keşif noktası yoktu (#58)
-        Game.ensureLairs();      // eski kayıtlarda haydut ini yoktu (#68)
+        Game.applyVassals();     // LORDS isn't written to the save, a vassal's banner is restored here
+        Game.initDiplomacy();    // in pre-diplomacy saves, fronts are set up
+        Game.ensureTraders();    // old saves had no caravans/convoys
+        Game.ensureSites();      // old saves had no exploration sites (#58)
+        Game.ensureLairs();      // old saves had no bandit lairs (#68)
         Game.startGameLoop();
     },
 
-    // Kayıtta olmayan anahtar varsayılan değerinde kalır. Eskiden state'te olup
-    // kayıtta olmayan her anahtar siliniyordu: sürüm ilerledikçe eklenen alanlar
-    // (örneğin state.rivals) eski kayıt yüklenince yok oluyor, o alanları okuyan
-    // sistemler undefined üzerinde patlıyordu. Düz objeler anahtar anahtar
-    // birleşir, diziler ve ilkel değerler kayıttan olduğu gibi gelir.
+    // A key missing from the save stays at its default value. It used to be that any key
+    // present in state but not in the save was deleted: as versions added new fields
+    // (state.rivals, say), loading an old save wiped them out, and the systems reading
+    // those fields blew up on undefined. Plain objects merge key by key,
+    // arrays and primitives come from the save as-is.
     mergeInto(target, src) {
         for(let k in src) {
             let sv = src[k], tv = target[k];
@@ -8378,7 +8379,7 @@ const Save = {
     },
     wipe() { this.SLOTS.concat(this.AUTOS, ['legacy']).forEach(s => localStorage.removeItem(this.key(s))); },
 
-    // --- Kayıt ekranı ---
+    // --- Save screen ---
     open(msg) {
         let rows = this.list(), byId = {};
         rows.forEach(r => byId[r.slot] = r);
@@ -8409,7 +8410,7 @@ const Save = {
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div></div>`, '660px');
     },
-    // file:// altında dosya indirmek sorunlu; metin panoya kopyalanır (#52 raporuyla aynı desen)
+    // Downloading a file under file:// is problematic; the text is copied to the clipboard instead (same pattern as the #52 report)
     exportSave() {
         let txt = JSON.stringify(this.snapshot());
         Game.showModal(`<h3>${T`📤 Kaydı Dışa Aktar`}</h3>
