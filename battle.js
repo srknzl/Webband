@@ -248,9 +248,14 @@ const Battle = {
             } else if(!isBandit) {
                 // Whichever is bigger, the calendar or your own strength (#53/1.3)
                 enemyLvl = Math.max(5 + Math.floor(state.time.day / 15), Game.threatLevel() + 3);
-            } else {
-                enemyLvl = Math.max(1 + Math.floor(state.time.day / 30), Game.threatLevel() - 1);
             }
+            // Bandits do not scale (#99). They used to gain a level every 30 days — +4 HP,
+            // +0.5 attack, +0.25 defense each, with no ceiling — while an un-upgraded recruit
+            // gains nothing at all, so headcount quietly stopped meaning anything. Measured in
+            // the real engine, 25 raw peasants against a 14-strong lair band: 98% wins on day
+            // 60, 73% on day 120, 23% on day 200. The same party one upgrade up wins 100% on
+            // every one of those days. A looter is a looter; the answer to a late-game player
+            // is a lord's army, not a peasant with a veteran's HP bar.
 
             // Level actually strengthens now, not just as a label
             if(!bossLevel) {

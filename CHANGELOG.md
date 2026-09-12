@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.01 — Çapulcu Çapulcudur (2026-09-12)
+
+- **Çapulcular artık takvimle güçlenmiyor.** Her 30 günde bir seviye atlıyorlardı — tavansız,
+  yani 330. günde seviye 12 — ve her seviye +4 can, +0.5 saldırı getiriyordu. Yükseltilmemiş
+  bir köylü ise hiç büyümüyor; sonuçta bir noktadan sonra asker sayısı hiçbir şey ifade
+  etmiyordu. Gerçek savaş motorunda ölçüldü: 25 köylü, 14 kişilik sığınak çetesine karşı
+  60. günde %98, 120. günde %73, 200. günde **%23** kazanıyordu. Çapulcu çapulcudur — geç
+  oyundaki oyuncuya cevap, veteran can barlı bir köylü değil, bir lordun ordusudur.
+
 ## 1.00 — Cenk Sahnesi (2026-09-12)
 
 - **Savaş müzikleri baştan yazıldı, bu sefer tür tür.** On savaş parçasının her biri artık ayrı

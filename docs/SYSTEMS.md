@@ -1470,8 +1470,8 @@ move with it — you're tracking a trail, not an address.
   - Melee damage passes through a single place: `Battle.dealMelee(src, tgt, raw)` — drops
     defense, produces knockback + blood + sparks + floating text, and on a kill calls `logKill`
     + XP.
-  - Enemy mix depends on the band (`BAND_KINDS`, table above). Enemies **scale with the day
-    count** (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per tier.
+  - Enemy mix depends on the band (`BAND_KINDS`, table above). **Faction armies** scale
+    (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per tier. **Bandits do not** (#99).
   - **Impassable rocks** (`terrain.rocks`, 2–4 of them): a unit can't enter one, it gets pushed
     out the same way the boundary check does. Never placed on spawn lanes. *(Arrows pass over a
     rock — it isn't cover.)*
@@ -2651,10 +2651,28 @@ real loop), `hunting` was set for 693 hours; the feud was cleared on **day 31**.
 
 ### Wealth-scaled threat (#53 item 1.3)
 
-`Game.threatLevel()` = `round(√(sum of troop levels + player level) / 2)`. In `battle.js`,
-enemy level no longer looks only at the calendar: bandits `max(1 + day/30, threat − 1)`, a
-faction army `max(5 + day/15, threat + 3)`. The cheapest version of Rimworld's "raid points =
-colony wealth" rule.
+`Game.threatLevel()` = `round(√(sum of troop levels + player level) / 2)`. In `battle.js` a
+faction army's level is `max(5 + day/15, threat + 3)` — the cheapest version of Rimworld's
+"raid points = colony wealth" rule.
+
+**Bandits were pulled out of it (#99).** They scaled as `max(1 + day/30, threat − 1)`, with no
+ceiling, so a looter reached level 12 by day 330 — while an un-upgraded recruit gains nothing
+ever, because a troop's only growth is the upgrade you pay for. Headcount therefore stopped
+meaning anything. Measured in the real engine (40 fights per point, 25 troops + player against
+a 14-strong lair band):
+
+| day | 25 × Svadya Köylüsü | 25 × Svadya Milisi |
+|---|---|---|
+| 1 | %98 | %100 |
+| 60 | %98 | %100 |
+| 120 | %73 | %100 |
+| 200 | **%23** | %100 |
+
+One tier of upgrade wins every one of those days outright; the scaling was not difficulty, it
+was a tax on not upgrading, invisible in a modal that reports only a headcount. Bandits are now
+level 1 forever. The lair's own knob is untouched — `strength` still grows 8 → 24 — so an old
+lair is a bigger fight, not a stronger man. Reward follows automatically: `rewardScale` reads
+`level + 1` per enemy, so late-game looters now pay like the looters they are.
 
 Measured: a lone wandering player **1**, 10 recruits **2**, 20×lvl10 **7**, 40×lvl20 **14**,
 60×lvl30 **21**. On day 20, a 20×lvl10 army against 20 bandits in auto-resolve lost on

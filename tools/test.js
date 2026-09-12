@@ -311,6 +311,23 @@ test('speed: every troop above FOOT_MAX is genuinely mounted (basis of the fores
 // Battle.start sets up the real arena (canvas, settlement) — these need `world`.
 const gw = H.world({ seed: 1 });
 
+test('bandits do not scale with the calendar (#99)', () => {
+    // Two years apart, the same band has to be the same band. It used to gain a level every
+    // 30 days while an un-upgraded recruit gained nothing, and 25 peasants lost to 14 bandits.
+    const banditAt = day => {
+        gw.state.time.day = day;
+        gw.state.player.party = [{ id: 'p1', name: 'Svadya Köylüsü', level: 1 }];
+        gw.Battle.start('Çapulcular', 8);
+        const e = gw.Battle.units.filter(u => !u.isPlayerTeam);
+        gw.Battle.active = false;
+        return { hp: Math.max(...e.map(u => u.hp)), lvl: Math.max(...e.map(u => u.level)) };
+    };
+    const early = banditAt(1), late = banditAt(730);
+    assert.strictEqual(late.lvl, early.lvl, 'a looter on day 730 is the looter of day 1');
+    assert.strictEqual(late.hp, early.hp, 'and carries the same HP: ' + early.hp + ' vs ' + late.hp);
+    gw.state.time.day = 1;
+});
+
 test('speed: morale doesn\'t scale troop speed (the enemy has no morale)', () => {
     const speedAt = morale => {
         gw.state.player.morale = morale;

@@ -15,7 +15,7 @@
 // check alone would install a second, stale copy of every asset on top of the one
 // Capacitor already ships in the bundle.
 // ============================================================
-const CACHE = 'webband-v1.00';
+const CACHE = 'webband-v1.01';
 
 const FILES = [
     './', 'index.html', 'style.css', 'manifest.webmanifest',
