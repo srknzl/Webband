@@ -1028,6 +1028,7 @@ I18N.dicts.id = {
   "{0} savuştur": "{0} ditepis",
   "{0} seni henüz o gözle görmüyor. (İlgi {1}/60) Önce onunla vakit geçir.": "{0} belum memandangmu seperti itu. (Kasih sayang {1}/60)\nHabiskan waktu bersamanya dulu.",
   "{0} seni yere serdi. Beş gün yatakta kaldın. −20 ilgi, 5 gün kayıp.": "{0} merobohkanmu. Kamu terbaring lima hari.\n\n−20 kasih sayang, 5 hari hilang.",
+  " Yenilgiden ustalık çıkmaz — bu maçtan yeterlilik kazanmadın.": "\n\nKekalahan tak mengajarkan kemahiran — kamu tak dapat apa-apa dari laga ini.",
   "{0} seni yere serdi. Bir gün kendine gelemedin.": "{0} merobohkanmu. Kamu tak sadarkan diri sehari penuh.",
   "{0} seçkin askerin</b> et/peynir bulamadı.": "{0} prajurit elitmu</b> tak mendapat daging atau keju.",
   "{0} tarafından toz bulutu yükseliyor. Geliyorlar!": "Awan debu naik dari arah {0}. Mereka datang!",

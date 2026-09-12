@@ -1808,8 +1808,11 @@ also applied to `startDuel`.*
 | Arena Gediklisi | player +2 | 180 |
 | Arena Şampiyonu | player +8 | 340 |
 
-A loss gives **40%** of the XP. The real cost is time (`Game.finishArena`): a win costs
-**3 hours**, a loss costs **1 day** in a sickbed — this bounds infinite XP grinding. Weapon
+A loss gives **nothing** (#99). It used to pay 40%, which made throwing a match the fastest
+proficiency in the game: pick the champion — the one worth 340 — walk in, fall over, collect 136
+XP in a few seconds of real time, with no risk at all, because nobody dies in the arena and the
+player's HP is floored at 5 on the way out. The day in the sickbed was the only brake, and
+in-game time is the cheapest currency there is. The cost of a loss is now just that day. Weapon
 skill matches your equipped weapon's type, and an extra 60% of that amount is written to
 `riding`/`athletics` XP. Measured (One-Handed 1 → 10, always winning): the rookie takes
 **52 fights / 6.5 days**, the veteran **23 / 2.9 days**, the champion **13 / 1.6 days**.

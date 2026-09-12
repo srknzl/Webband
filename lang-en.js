@@ -1028,6 +1028,7 @@ I18N.dicts.en = {
   "{0} savuştur": "{0} deflected",
   "{0} seni henüz o gözle görmüyor. (İlgi {1}/60) Önce onunla vakit geçir.": "{0} doesn't see you that way yet. (Affection {1}/60)\nSpend some time together first.",
   "{0} seni yere serdi. Beş gün yatakta kaldın. −20 ilgi, 5 gün kayıp.": "{0} put you on the ground. You spent five days in bed.\n\n−20 affection, 5 days lost.",
+  " Yenilgiden ustalık çıkmaz — bu maçtan yeterlilik kazanmadın.": "\n\nNo mastery comes of a beating — you learned nothing from this match.",
   "{0} seni yere serdi. Bir gün kendine gelemedin.": "{0} laid you out. You were out cold for a whole day.",
   "{0} seçkin askerin</b> et/peynir bulamadı.": "{0} of your elite troops</b> found no meat or cheese.",
   "{0} tarafından toz bulutu yükseliyor. Geliyorlar!": "A cloud of dust is rising from the {0}. They're coming!",

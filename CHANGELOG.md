@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.02 — Yenilgiden Ustalık Çıkmaz (2026-09-12)
+
+- **Arenada yenilince artık yeterlilik kazanılmıyor.** Eskiden kaybetmek de kesenin %40'ını
+  ödüyordu; en kolay yol şampiyonu seçip kendini yere attırmaktı — risk yok, çünkü arenada kimse
+  ölmüyor. Yenilginin bedeli artık sadece yatakta geçen bir gün.
+
 ## 1.01 — Çapulcu Çapulcudur (2026-09-12)
 
 - **Çapulcular artık takvimle güçlenmiyor.** Her 30 günde bir seviye atlıyorlardı — tavansız,

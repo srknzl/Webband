@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.01', date: '2026-09-12', name: 'Çapulcu Çapulcudur' };  // the version name is not translated
+const VERSION = { no: '1.02', date: '2026-09-12', name: 'Yenilgiden Ustalık Çıkmaz' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -7584,15 +7584,24 @@ const Game = {
     finishArena(foe, won) {
         let wp = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
         if(!state.player.proficiencies[wp]) wp = 'oneHanded';
-        let xp = won ? foe.xp : Math.round(foe.xp * 0.4);
+        // A loss used to pay 40% of the purse, which made throwing a match the fastest
+        // proficiency in the game: pick the champion, walk in, fall over, collect — no
+        // risk, because nobody dies in the arena and HP is floored at 5. The sand teaches
+        // nothing to the man lying in it, so a loss is now only the day it costs (#99).
+        if(!won) {
+            this.advanceTime(24);
+            this.updateTopBar();
+            alert(T`${T(foe.name)} seni yere serdi. Bir gün kendine gelemedin.`
+                + T`\n\nYenilgiden ustalık çıkmaz — bu maçtan yeterlilik kazanmadın.`);
+            return;
+        }
+        let xp = foe.xp;
         let moveProf = state.player.equipment.horse ? 'riding' : 'athletics';
         this.addProficiencyXp(wp, xp);
         this.addProficiencyXp(moveProf, Math.round(xp * 0.6));
-        // The cost is time: a few hours if you win, a day in a sickbed if you lose.
-        this.advanceTime(won ? 3 : 24);
+        this.advanceTime(3);          // a few hours in the ring
         this.updateTopBar();
-        alert((won ? T`${T(foe.name)} kumun üstünde kaldı, kalabalık ıslık çalıyor.`
-                   : T`${T(foe.name)} seni yere serdi. Bir gün kendine gelemedin.`)
+        alert(T`${T(foe.name)} kumun üstünde kaldı, kalabalık ıslık çalıyor.`
             + T`\n\n+${xp} ${this.profName(wp)}, +${Math.round(xp * 0.6)} ${this.profName(moveProf)} yeterlilik XP'si.`
             + T`\nArena para vermez — burada yalnız ustalık kazanılır.`);
     },
