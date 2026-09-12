@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '0.86', date: '2026-09-12', name: 'Cepte Taşınır' };  // the version name is not translated
+const VERSION = { no: '0.87', date: '2026-09-12', name: 'Sancak Yerine Oturdu' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -126,11 +126,11 @@ Debug.init();
 
 // --- DATA ---
 const FACTIONS = {
-    swadia:  { id: 'swadia',  name: 'Svadya Krallığı',  people: 'Svadya',  color: '#ff4d4d', ruler: 'Kral Harlaus', vizier: 'Vezir Klargus', lore: 'Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu\'nun asıl varisi olduğunu iddia eden güçlü bir krallık.' },
-    rhodok:  { id: 'rhodok',  name: 'Rodok Krallığı',   people: 'Rodok',   color: '#33cc33', ruler: 'Kral Graveth', vizier: 'Vezir Matheas', lore: 'Dağlık bölgelerde yaşayan özgür ruhlu insanların kurduğu, tatar yaylı keskin nişancıları ve dev kalkanlı mızraklılarıyla geçilmez bir krallık.' },
-    vaegir:  { id: 'vaegir',  name: 'Veagir Krallığı',  people: 'Veagir',  color: '#cccccc', ruler: 'Kral Yaroglek', vizier: 'Vezir Vuldrat', lore: 'Kuzeyin karlı ve soğuk ormanlarından gelen, baltalı piyadeleri ve ölümcül okçularıyla bilinen sert insanların diyarı.' },
-    nord:    { id: 'nord',    name: 'Nord Krallığı',    people: 'Nord',    color: '#3399ff', ruler: 'Kral Ragnar', vizier: 'Vezir Lethwin', lore: 'Deniz aşırı ülkelerden uzun gemileriyle gelip kıyıları ele geçiren, atları kullanmayan fakat piyade dövüşünde rakipsiz olan savaşçılar.' },
-    khergit: { id: 'khergit', name: 'Kergit Hanlığı',   people: 'Kergit',   color: '#cc66ff', ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
+    swadia:  { id: 'swadia',  name: 'Svadya Krallığı',  people: 'Svadya',  color: '#ff4d4d', crest: 0, ruler: 'Kral Harlaus', vizier: 'Vezir Klargus', lore: 'Ağır zırhlı şövalyeleri ve geniş düzlükleriyle meşhur, eski Kalradya İmparatorluğu\'nun asıl varisi olduğunu iddia eden güçlü bir krallık.' },
+    rhodok:  { id: 'rhodok',  name: 'Rodok Krallığı',   people: 'Rodok',   color: '#33cc33', crest: 1, ruler: 'Kral Graveth', vizier: 'Vezir Matheas', lore: 'Dağlık bölgelerde yaşayan özgür ruhlu insanların kurduğu, tatar yaylı keskin nişancıları ve dev kalkanlı mızraklılarıyla geçilmez bir krallık.' },
+    vaegir:  { id: 'vaegir',  name: 'Veagir Krallığı',  people: 'Veagir',  color: '#cccccc', crest: 3, crestFx: 'saturate(0.2) brightness(1.1)', ruler: 'Kral Yaroglek', vizier: 'Vezir Vuldrat', lore: 'Kuzeyin karlı ve soğuk ormanlarından gelen, baltalı piyadeleri ve ölümcül okçularıyla bilinen sert insanların diyarı.' },
+    nord:    { id: 'nord',    name: 'Nord Krallığı',    people: 'Nord',    color: '#3399ff', crest: 3, ruler: 'Kral Ragnar', vizier: 'Vezir Lethwin', lore: 'Deniz aşırı ülkelerden uzun gemileriyle gelip kıyıları ele geçiren, atları kullanmayan fakat piyade dövüşünde rakipsiz olan savaşçılar.' },
+    khergit: { id: 'khergit', name: 'Kergit Hanlığı',   people: 'Kergit',   color: '#cc66ff', crest: 2, ruler: 'Sancar Han', vizier: 'Vezir Tonju', lore: 'Doğunun bozkırlarından at sırtında gelen, aşırı hızlı atlı okçuları ve göçebe savaş taktikleriyle düşmanlarını çıldırtan boyların birleşimi.' }
 };
 
 // --- CHARACTER CREATION ---
@@ -172,18 +172,21 @@ const BACKGROUND = [
 ]}
 ];
 
-// Banner: kingdom_crests.jpg's 3x3 crests + your own color. Once you found a
+// Banner: kingdom_crests.jpg's 2x2 crests + your own color. Once you found a
 // kingdom, this is the source of your kingdom's color and your party color on the map.
+// The sheet holds four banners (lion / bear / horse / raven), so the nine choices
+// reuse them; the colour and the name are what tell two banners apart. Index is what
+// a save stores (`state.player.banner`), so entries are only ever appended.
 const BANNERS = [
   { crest:0, color:'#c0392b', name:'Kızıl Aslan' },
-  { crest:1, color:'#2e86c1', name:'Mavi Şahin' },
-  { crest:2, color:'#27ae60', name:'Yeşil Meşe' },
-  { crest:3, color:'#8e44ad', name:'Mor Kartal' },
-  { crest:4, color:'#e67e22', name:'Turuncu Güneş' },
-  { crest:5, color:'#ffcc00', name:'Altın Boğa' },
-  { crest:6, color:'#95a5a6', name:'Gümüş Kurt' },
-  { crest:7, color:'#16a085', name:'Deniz Yılanı' },
-  { crest:8, color:'#d35400', name:'Bakır Çekiç' }
+  { crest:3, color:'#2e86c1', name:'Mavi Karga' },
+  { crest:1, color:'#27ae60', name:'Yeşil Ayı' },
+  { crest:2, color:'#8e44ad', name:'Mor At' },
+  { crest:0, color:'#e67e22', name:'Turuncu Aslan' },
+  { crest:1, color:'#ffcc00', name:'Altın Ayı' },
+  { crest:2, color:'#95a5a6', name:'Gümüş At' },
+  { crest:3, color:'#16a085', name:'Deniz Kargası' },
+  { crest:3, color:'#d35400', name:'Bakır Balta' }
 ];
 
 // LORDS, LADIES, PERSONALITIES -> nobles.js
@@ -1499,12 +1502,19 @@ const Game = {
     // Banner selection: if you found a kingdom, this crest and color become yours.
     bannerColor() { return (BANNERS[state.player.banner] || BANNERS[0]).color; },
 
+    // The only place that knows how kingdom_crests.jpg is cut: a 2x2 sheet of four
+    // banners, so 200% zoom and a 0%/100% position picks out one whole quadrant (#92).
+    // Every crest on screen goes through here — banners, kingdoms, anything later.
+    crestCss(crest, size, style = '') {
+        let c = ((crest | 0) % 4 + 4) % 4;
+        return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;background-image:url('kingdom_crests.jpg');
+            background-size:200% 200%;background-position:${(c % 2) * 100}% ${Math.floor(c / 2) * 100}%;${style}"></div>`;
+    },
+
     bannerCss(i, size = 72) {
         let b = BANNERS[i] || BANNERS[0];
-        return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border:3px ridge ${b.color};border-radius:6px;
-            background-image:url('kingdom_crests.jpg');background-size:300% 300%;
-            background-position:${(b.crest % 3) * 50}% ${Math.floor(b.crest / 3) * 50}%;
-            box-shadow:inset 0 0 18px #000;"></div>`;
+        return this.crestCss(b.crest, size,
+            `border:3px ridge ${b.color};border-radius:6px;box-shadow:inset 0 0 18px #000;`);
     },
 
     renderBannerStep() {
@@ -7824,12 +7834,10 @@ const Game = {
                     T`${T(f.name)} · ${T(LADY_TRAITS[L.trait].name)} · Vasisi: ${T((Nobles.lord(L.guardianId)||{name:'?'}).name)}`, T(L.lore));
             });
         } else {
-            let i = 0;
             Object.values(FACTIONS).forEach(f => {
                 if(f.id === 'player' || f.id === 'player_kingdom') return;
-                let crest = `<div style="width:140px;height:140px;background-image:url('kingdom_crests.jpg');
-                    background-size:300% 300%;background-position:${(i%3)*50}% ${Math.floor(i/3)*50}%;filter:sepia(0.2) contrast(1.1);"></div>`;
-                i++;
+                let crest = this.crestCss(f.crest, 140,
+                    `filter:sepia(0.2) contrast(1.1) ${f.crestFx || ''};`);
                 modalHtml += row(frame(crest), f.color, T(f.name), `${T(f.ruler)} · ${T(f.vizier)}`, T(f.lore));
             });
         }

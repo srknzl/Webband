@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 0.87 — Sancak Yerine Oturdu (2026-09-12)
+
+- **Krallık armaları düzeldi.** Arma resmi dört sancak içeriyor ama oyun onu dokuza
+  bölüyordu: ansiklopedideki beş krallığın üçü sancak yerine kale duvarı, ya da iki
+  sancağın birbirine geçmiş yarısı görünüyordu. Artık her krallık kendi bütün sancağını
+  gösteriyor — Svadya aslan, Rodok ayı, Kergit at, Nord karga; Veagir de Nord'un
+  sancağını çelik grisine çevirerek taşıyor.
+- **Sancak seçimi de düzeldi.** Karakter yaratırken çıkan dokuz sancağın çoğu kırık
+  görünüyordu; hepsi artık bütün. Dördü gerçek çizim olduğu için dokuz seçenek bu dördü
+  paylaşıyor, ayıran şey rengi ve adı — adlar da resme uydu (Mavi Karga, Yeşil Ayı,
+  Mor At...). Eski kayıtlardaki sancak seçimin olduğu gibi duruyor.
+
 ## 0.86 — Cepte Taşınır (2026-09-12)
 
 - **Düğmeye iki kez hızlı dokununca sayfa zıplamıyor artık.** Telefonda herhangi bir

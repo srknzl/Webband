@@ -421,6 +421,35 @@ test('kite: even if foot can\'t catch cavalry, the battle resolves', () => {
     assert.notStrictEqual(r.won, null, `fight didn't end in ${r.duration.toFixed(0)} s`);
 });
 
+// --- Sprite sheets (#92) ---
+// kingdom_crests.jpg holds FOUR banners in a 2x2 grid; it was being cut with 3x3 maths,
+// so most crests rendered a slice of castle wall or two half banners. Any crest index
+// outside 0-3 is that bug coming back — there is no fifth banner to point at.
+test('art: every crest index fits the 2x2 kingdom_crests.jpg sheet', () => {
+    const bad = i => !Number.isInteger(i) || i < 0 || i > 3;
+    const offB = g.BANNERS.map((b, i) => [i, b.crest]).filter(([, c]) => bad(c));
+    assert.strictEqual(offB.length, 0, `BANNERS crest out of 0-3: ${JSON.stringify(offB)}`);
+
+    const kingdoms = Object.values(g.FACTIONS).filter(f => f.id !== 'player' && f.id !== 'player_kingdom');
+    const offF = kingdoms.map(f => [f.id, f.crest]).filter(([, c]) => bad(c));
+    assert.strictEqual(offF.length, 0, `FACTIONS crest out of 0-3: ${JSON.stringify(offF)}`);
+
+    // and the cropper itself lands on a whole quadrant, never a third
+    const css = g.Game.crestCss(3, 64);
+    assert.ok(/background-size:200% 200%/.test(css), `crestCss is not slicing 2x2: ${css}`);
+    assert.ok(/background-position:100% 100%/.test(css), `crest 3 is not the bottom-right quadrant: ${css}`);
+});
+
+// --- Version stamp (#88 item 8) ---
+// CI opens the release and reads its notes from that version's CHANGELOG
+// section. If the section is missing, the build breaks there; breaking here is cheaper.
+test('version: VERSION.no finds a section in CHANGELOG.md', () => {
+    const md = require('fs').readFileSync(require('path').join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+    const v = g.VERSION.no;
+    assert.ok(new RegExp(`^## ${v.replace('.', '\\.')}[ (]`, 'm').test(md),
+        `no "## ${v}" section in CHANGELOG.md — version bumped but no line was added`);
+});
+
 // --- Service worker (#91) ---
 // The web build is installable and caches itself, which means a stale cache is now a
 // way to ship nothing at all: the worker serves cache-first, so it only picks up new

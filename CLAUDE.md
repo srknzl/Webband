@@ -28,7 +28,7 @@ after changing it, update the "Measured" lines.
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
 | `CHANGELOG.md` | Change list in player-facing language |
-| `bg*.jpg`, `lord_portraits.jpg`, `kingdom_crests.jpg` | Images (sprite sheets 3×3) |
+| `bg*.jpg`, `lord_portraits.jpg` (3×3), `kingdom_crests.jpg` (2×2) | Images (sprite sheets) |
 
 ## Invariant rules
 

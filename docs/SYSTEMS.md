@@ -27,7 +27,7 @@ rules; the reasoning, numbers, and history live here.
 | `style.css` | Glass panel (glassmorphism) theme, CSS variables (`--primary`, `--danger`, `--success`, `--panel-border`, `--text-muted`) |
 | `bg_hdr.jpg` | Background image (`bg.jpg` was a copy of the same file, deleted — #88 item 10) |
 | `lord_portraits.jpg` | 3x3 sprite sheet — lord portraits (cropped with `background-position`) |
-| `kingdom_crests.jpg` | 3x3 sprite sheet — kingdom crests |
+| `kingdom_crests.jpg` | **2x2** sprite sheet — four banners (lion / bear / horse / raven) |
 | `LICENSE` | AGPL-3.0-or-later |
 
 ## Architecture
@@ -85,10 +85,24 @@ applies the choices from one place and `enterWorld()` (the old `startGame` body)
 | What did you do in your youth? | Servant / Hunting / Streets / Monastery / Stable — skill points |
 | Your first profession? | Mercenary (sword) / Caravan guard (shield) / Knight hopeful (**horse**, −100 coin) / Smuggler (+300 coin, −2 relation) / Bandit (axe, −4 relation) |
 
-- **Banner** (`BANNERS`, 9 crests): cropped from the `kingdom_crests.jpg` 3×3 sprite sheet
-  with `Game.bannerCss(i)`. Its color (`Game.bannerColor()`) is used for the party icon on the
-  map, and for `FACTIONS.player_kingdom` once you found your own kingdom (used to be the fixed
-  `#ffcc00`).
+- **Banner** (`BANNERS`, 9 choices over 4 crests): cropped from the `kingdom_crests.jpg`
+  **2×2** sprite sheet with `Game.bannerCss(i)`. Its color (`Game.bannerColor()`) is used for
+  the party icon on the map, and for `FACTIONS.player_kingdom` once you found your own kingdom
+  (used to be the fixed `#ffcc00`).
+- **Crest cropping is one choke point**: `Game.crestCss(crest, size, style)` (#92). The sheet
+  holds **four** banners in a 2×2 grid, so the crop is `background-size:200%` with a
+  `0%`/`100%` position — it used to be 3×3 maths (`300%`, `0/50/100%`), which cut thirds out
+  of halves and left most crests showing castle wall. Both callers go through it:
+  `Game.bannerCss(i)` for the player's banner and the kingdom list in the encyclopedia.
+  `lord_portraits.jpg` is a genuine 3×3 sheet and keeps its own maths in `Nobles.portraitCss`.
+- **Kingdom crests**: each entry in `FACTIONS` carries an explicit `crest` index —
+  Swadia 0 (lion), Rhodok 1 (bear + crossbow), Khergit 2 (horse), Nord 3 (raven + axe).
+  There are five kingdoms and four banners, so **Vaegir shares Nord's crest** and sets
+  `crestFx: 'saturate(0.2) brightness(1.1)'` to read as steel-grey instead of pale blue.
+  A ninth banner would need new artwork, not new maths.
+
+  *Measured:* 5 kingdoms → crests 0, 1, 3, 3, 2; 9 banners → crests 0, 3, 1, 2, 0, 1, 2, 3, 3 —
+  every value inside 0–3, asserted by `tools/test.js`.
 - `Nobles.initRivals()` is now called from `enterWorld()`, not `spawnNPCs()` — which suitors
   rival you for depends on gender. `Save.load()` sets up rivals if an old save has none.
 

@@ -189,7 +189,7 @@ function load(opts = {}) {
     // `const` stays in the context's lexical scope and isn't visible on the sandbox object — pull it out here
     const names = ['VERSION', 'Debug', 'Input', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame', 'I18N', 'T',
                    'Nobles', 'Feast', 'Quests', 'FACTIONS', 'LOCATIONS', 'ITEMS', 'TROOP_TYPES',
-                   'TROOP_TREES', 'TROOP_UPGRADES', 'BAND_KINDS', 'LORDS', 'LADIES', 'COMPANIONS', 'QUESTS'];
+                   'TROOP_TREES', 'TROOP_UPGRADES', 'BAND_KINDS', 'LORDS', 'LADIES', 'COMPANIONS', 'QUESTS', 'BANNERS'];
     const out = { _ctx: ctx, _sandbox: sandbox, alerts, seed, reseed: s => vm.runInContext('Math.random = __rng;', ctx) };
     for(const n of names) {
         try { out[n] = vm.runInContext(`typeof ${n} !== 'undefined' ? ${n} : undefined`, ctx); }
