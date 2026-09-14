@@ -1028,6 +1028,9 @@ const Nobles = {
     },
 
     courtMenu(ladyId) {
+        // Courtship is single-track after marriage: do not leave compliments, poems and
+        // proposals reachable just because the player opened a different noble's card.
+        if(state.player.spouse && state.player.spouse !== ladyId) return this.spouseMenu(state.player.spouse);
         let L = this.lady(ladyId);
         let a = this.aff(ladyId);
         let t = LADY_TRAITS[L.trait];

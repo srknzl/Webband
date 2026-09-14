@@ -71,6 +71,7 @@ const Battle = {
     // the result goes — `Game.tourneyRoundDone` puts it back on the board instead of the map.
     startTourneyFight(foe) {
         this.isTourney = foe;
+        let rules = foe.tourneyRules || Game.tourneyRules();
         let match = foe.teamFight || { size:1, player:{ name:'Mavi Takım', color:'#2497ff' },
                                       enemy:{ name:'Kırmızı Takım', color:'#ff3b4f' }, allies:[], enemies:[] };
         this.soloFoe(foe, match.enemy.color);
@@ -84,6 +85,19 @@ const Battle = {
             u.color = color; u.defense = 8; u.dmgType = 'blunt'; u.hasShield = false;
             u.type = 'infantry'; u.mounted = false; u.radius = 7;
         };
+        // Higher difficulty is not a second hidden damage multiplier. Tournament opponents
+        // get a deeper roster and also react, close and recover faster; allies keep the same
+        // standard issue so the player has to create the opening instead of stat-checking it.
+        const tuneOpponent = u => {
+            if(!u || u.isPlayerTeam) return;
+            u.hp = u.maxHp = Math.round(u.maxHp * rules.hp);
+            u.attack = Math.round(u.attack * rules.attack);
+            u.defense += rules.defense;
+            u.speed += rules.speed;
+            u.tourneyCadence = rules.cadence;
+            u.tourneyRetarget = rules.retarget;
+            u.tourneyBlock = rules.block;
+        };
         if(player) {
             standardise(player, match.player.color);
             player.attack = 10 + Game.attr('str');
@@ -91,6 +105,7 @@ const Battle = {
             this.arrows = 0;
         }
         standardise(captain, match.enemy.color);
+        tuneOpponent(captain);
         const addFighter = (f, team, color, idx) => {
             let lv = Math.max(1, f.lv || state.player.stats.level);
             let u = {
@@ -102,6 +117,7 @@ const Battle = {
                 y:70 + Math.random() * Math.max(1, this.canvas.height - 140), level:lv
             };
             standardise(u, color);
+            tuneOpponent(u);
             this.units.push(u);
         };
         (match.allies || []).forEach((f, i) => addFighter(f, true, match.player.color, i));
@@ -925,7 +941,7 @@ const Battle = {
                     if(d2 < minD2) { minD2 = d2; closest = e; }
                 });
                 u.tgtId = closest ? closest.id : null;
-                u.retargetCd = 0.3 + Math.random()*0.2;
+                u.retargetCd = (0.3 + Math.random()*0.2) * (u.tourneyRetarget || 1);
             }
             let minD = closest ? Math.sqrt(Math.pow(closest.x-u.x,2)+Math.pow(closest.y-u.y,2)) : Infinity;
 
@@ -1019,8 +1035,8 @@ const Battle = {
                 if(!u.beast && finalDist <= meleeRange + 15) {
                     u.blockCd = (u.blockCd || 0) - dt;
                     if(u.blockCd <= 0) {
-                        u.blockCd = 0.6 + Math.random() * 0.8;
-                        u.wantsBlock = Math.random() < Math.min(0.45, (u.defense || 0) / 40);
+                        u.blockCd = (0.6 + Math.random() * 0.8) * (u.tourneyCadence || 1);
+                        u.wantsBlock = Math.random() < Math.min(0.65, (u.defense || 0) / 40 + (u.tourneyBlock || 0));
                     }
                     u.blocking = !!u.wantsBlock && u.atkCd > 0.2;   // lowers the shield right before swinging
                     if(u.blocking) u.blockAngle = Math.atan2(closest.y - u.y, closest.x - u.x);
@@ -1036,7 +1052,7 @@ const Battle = {
                     u.x += dx*r; u.y += dy*r;
                 } else if(finalDist <= meleeRange) {
                     if(u.atkCd <= 0) {
-                        u.atkCd = (0.85 + Math.random()*0.4) * this.SWING_PACE; // so not everyone swings at the same instant
+                        u.atkCd = (0.85 + Math.random()*0.4) * this.SWING_PACE * (u.tourneyCadence || 1); // so not everyone swings at the same instant
                         this.dealMelee(u, closest, uAttack);
                     }
                 }

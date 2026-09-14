@@ -2605,6 +2605,10 @@ const Game = {
         npc.targetX = point.x; npc.targetY = point.y;
     },
 
+    nearMapEdge(point, margin = 220) {
+        return Math.hypot(point.x - 4500, point.y - 4500) > this.getMapRadius(point.x, point.y) - margin;
+    },
+
     // Crossing someone's path is not a conversation (#131). Only a fight stops you unasked:
     // anything hostile still intercepts, and everything else — a friendly lord, a caravan, a
     // villager train — needs intent on one side, either yours or theirs.
@@ -2872,6 +2876,14 @@ const Game = {
                         let r = Math.random() < 0.45 ? Math.random() * 200 : 300 + Math.random() * 900;
                         npc.targetX = home.x + Math.cos(a)*r;
                         npc.targetY = home.y + Math.sin(a)*r;
+                    } else if(npc.type === 'bandit') {
+                        // Outlaws patrol inhabited roads, not an abstract circle whose outer
+                        // portion lies beyond the irregular coastline. This keeps fresh bands
+                        // distributed through the interior instead of feeding the map edge.
+                        let anchor = LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)];
+                        let r = 120 + Math.random() * 650;
+                        npc.targetX = anchor.x + Math.cos(a) * r;
+                        npc.targetY = anchor.y + Math.sin(a) * r;
                     } else {
                         let r = Math.sqrt(Math.random()) * 3800;   // evenly by area, not by radius (#97)
                         npc.targetX = 4500 + Math.cos(a)*r;
@@ -2946,6 +2958,15 @@ const Game = {
                 let away = Math.hypot(awayX, awayY) || 1;
                 npc.targetX = state.player.x + awayX / away * this.CAMP_SAFE_RADIUS;
                 npc.targetY = state.player.y + awayY / away * this.CAMP_SAFE_RADIUS;
+            }
+
+            // Bands inherited from old saves (and ones that fled there before the patrol
+            // change above) need an escape route too. Do not pull a band away from an actual
+            // chase, but a wandering party at the coast turns back toward the interior.
+            if(npc.type === 'bandit' && !npc.playerTargetId && !npc.hunting && this.nearMapEdge(npc)) {
+                let a = Math.atan2(npc.y - 4500, npc.x - 4500) + (Math.random() - 0.5) * 1.2;
+                npc.targetX = 4500 + Math.cos(a) * 2500;
+                npc.targetY = 4500 + Math.sin(a) * 2500;
             }
 
             this.clampTargetToMap(npc);
@@ -6420,7 +6441,13 @@ const Game = {
     },
     refreshMarket() {
         this.setHtml('market-status', this.marketStatusHtml());
-        let buy = document.getElementById('market-buy'); buy.innerHTML = '';
+        // A purchase can finish just as the settlement/modal is being replaced on mobile.
+        // In that case the market lists are already gone; updating a missing list must not
+        // turn a completed transaction into an uncaught exception.
+        let buy = document.getElementById('market-buy');
+        let sell = document.getElementById('market-sell');
+        if(!buy || !sell) return;
+        buy.innerHTML = '';
         Object.values(ITEMS).forEach(item => {
             let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
@@ -6442,7 +6469,7 @@ const Game = {
                 + (note ? `<div style="font-size:var(--fs-xs);color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
         });
-        let sell = document.getElementById('market-sell'); sell.innerHTML = '';
+        sell.innerHTML = '';
         state.player.inventory.forEach(item => {
             if(item.type === 'trade') {
                 let price = this.marketPrice(item.id, true);
@@ -6737,12 +6764,26 @@ const Game = {
     DIFFS: {
         easy:   { taken: 0.6, dealt: 1.25, name: 'Kolay', note: 'Aldığın hasar %40 az, verdiğin %25 fazla' },
         normal: { taken: 1,   dealt: 1,    name: 'Orta',  note: 'Tasarlandığı denge' },
-        hard:   { taken: 1.5, dealt: 0.85, name: 'Zor',   note: 'Aldığın hasar %50 fazla, verdiğin %15 az' }
+        hard:   { taken: 1.5, dealt: 0.85, name: 'Zor',   note: 'Aldığın hasar %50 fazla, verdiğin %15 az' },
+        extreme: { taken: 1.85, dealt: 0.72, name: 'Extreme', note: 'Rakipler daha sert ve turnuvalarda daha taktiksel' },
+        ultra:   { taken: 2.25, dealt: 0.62, name: 'Ultra Extreme', note: 'En acımasız kadro ve en hızlı turnuva temposu' }
     },
     diff() { return this.DIFFS[this.opt('difficulty')] || this.DIFFS.normal; },
     // If the target is on your side this is the damage "taken", otherwise "dealt".
     // The single call site is `Battle.afterArmor` — melee and arrows both pass through it.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
+    // Higher tournament modes change the draw, team sizes and enemy decisions as well as damage.
+    // Campaign troops deliberately do not read this table.
+    tourneyRules() {
+        let key = this.opt('difficulty');
+        return {
+            easy:    { spread:[-3,-2,-1,0,1,2,4], teams:[3,2,1], hp:0.92, attack:0.94, defense:0, speed:0, cadence:1.08, retarget:1.12, block:0, label:'Kolay ring', summary:'Daha kısa takımlar, daha sakin rakipler' },
+            normal:  { spread:[-1,0,1,2,3,4,6], teams:[4,2,1], hp:1, attack:1, defense:0, speed:0, cadence:1, retarget:1, block:0, label:'Klasik ring', summary:'Sekiz dövüşçü, dengeli kadro' },
+            hard:    { spread:[0,1,2,3,4,6,8], teams:[4,3,1], hp:1.06, attack:1.07, defense:1, speed:3, cadence:0.93, retarget:0.88, block:0.05, label:'Sert ring', summary:'Yarı finalde daha kalabalık ve baskın' },
+            extreme: { spread:[1,2,3,4,6,8,10], teams:[4,3,2], hp:1.15, attack:1.14, defense:2, speed:7, cadence:0.82, retarget:0.7, block:0.12, label:'Extreme ring', summary:'Güçlü kadro, iki kişilik final, hızlı refleksler' },
+            ultra:   { spread:[3,4,5,7,9,11,13], teams:[4,4,2], hp:1.28, attack:1.24, defense:3, speed:12, cadence:0.7, retarget:0.52, block:0.2, label:'Ultra Extreme ring', summary:'Dörtlü yarı final, elit rakipler, sürekli baskı' }
+        }[key] || { spread:[-1,0,1,2,3,4,6], teams:[4,2,1], hp:1, attack:1, defense:0, speed:0, cadence:1, retarget:1, block:0, label:'Klasik ring', summary:'Sekiz dövüşçü, dengeli kadro' };
+    },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
 
     // A JS literal that survives a double-quoted inline handler: JSON.stringify('auto')
@@ -6794,6 +6835,7 @@ const Game = {
             ${it('💾', T('Kayıtlar'), 'Save.open()')}
             ${it(sesli ? '🔊' : '🔇', sesli ? T('Ses Açık') : T('Ses Kapalı'), 'Game.toggleMute(); Game.showMoreMenu()')}
             ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}
+            ${it('🏰', 'Tımarların', 'Game.openFiefLedger()')}
         </div>
         <button class="btn primary" style="margin-top:0.9rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '340px');
     },
@@ -6816,7 +6858,7 @@ const Game = {
         let epBtn = ['auto', true, false].map(v => `<button class="btn${ep === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('edgePan', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let df = this.opt('difficulty');
-        let dfBtn = ['easy', 'normal', 'hard'].map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
+        let dfBtn = Object.keys(this.DIFFS).map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('difficulty', '${v}')">${T(this.DIFFS[v].name)}</button>`).join(' ');
         let hz = this._step === Infinity ? T('ölçülmedi') : Math.round(1000 / this._step) + T(' Hz');
         this.showModal(`<div id="settings-panel"><h3>${T`⚙️ Ayarlar`}</h3>
@@ -7464,13 +7506,14 @@ const Game = {
     // rides with the player: a companion in the party signs up too.
     tourneyField(loc) {
         let lv = state.player.stats.level;
+        let rules = this.tourneyRules();
         let names = LORDS.filter(l => l.faction === loc.faction && l.rank !== 'vizier').map(l => l.name)
             .concat(this.TOURNEY_REGULARS)
             .concat(state.player.party.filter(t => t.isCompanion).map(t => t.name));
         names = names.sort(() => Math.random() - 0.5).slice(0, 7);
         // A bracket where everyone is the player's equal has no shape: the spread runs from an
         // easy first round up to a champion who is genuinely above you.
-        let spread = [-1, 0, 1, 2, 3, 4, 6];
+        let spread = rules.spread;
         let field = names.map((n, i) => ({ name: n, lv: Math.max(1, lv + spread[i]) }));
         field.push({ name: state.player.name, lv, you: true });
         return field.sort(() => Math.random() - 0.5);
@@ -7556,13 +7599,15 @@ const Game = {
             btn = `<button class="btn primary" onclick="Game.tourneyClose()">${T`Meydandan Ayrıl`}</button>`;
         } else {
             let foe = t.rounds[t.round][t.rounds[t.round].findIndex(f => f.you) ^ 1];
-            let teams = this.TOURNEY_TEAMS[t.round], size = [4, 2, 1][t.round];
+            let teams = this.TOURNEY_TEAMS[t.round], size = this.tourneyRules().teams[t.round];
+            let rules = this.tourneyRules();
             msg = `<p>${T`Sıradaki: <b>${T(this.TOURNEY_ROUNDS[t.round])}</b> — karşında <b>${T(foe.name)}</b> (Sv. ${foe.lv}).`}
                    <span style="color:var(--text-muted)">${T`Canın: ${Math.round(state.player.stats.hp)}/${Math.round(state.player.stats.maxHp)}`}</span><br>
                    <b style="color:${teams[0].color}">● ${T(teams[0].name)}</b> ${T`${size} kişi`}
                    <span style="color:var(--text-muted)"> — </span>
                    <b style="color:${teams[1].color}">● ${T(teams[1].name)}</b> ${T`${size} kişi`}<br>
-                   <span style="color:var(--text-muted)">${T('Standart turnuva seti: tahta kılıç, dolgulu zırh, at yok.')}</span></p>`;
+                   <span style="color:var(--text-muted)">${T('Standart turnuva seti: tahta kılıç, dolgulu zırh, at yok.')}<br>
+                   ${T(rules.label)} — ${T(rules.summary)}</span></p>`;
             btn = `<button class="btn primary" onclick="Game.tourneyFight()">${T`⚔️ Meydana Çık`}</button>`;
         }
         this.showModal(`<h3>${T`🏆 ${T((LOCATIONS.find(l => l.id === t.locId) || {}).name || 'Turnuva')} Turnuvası`}</h3>
@@ -7576,7 +7621,8 @@ const Game = {
         if(i < 0) return;
         let foe = cur[i ^ 1];
         foe.round = this.TOURNEY_ROUNDS[t.round];   // raw name; the battle log translates it
-        let size = [4, 2, 1][t.round], pool = t.rounds[0].filter(f => !f.you && f !== foe)
+        foe.tourneyRules = this.tourneyRules();    // freeze this match if the settings modal is opened later
+        let size = this.tourneyRules().teams[t.round], pool = t.rounds[0].filter(f => !f.you && f !== foe)
             .slice().sort(() => Math.random() - 0.5);
         foe.teamFight = {
             size,
@@ -8235,6 +8281,32 @@ const Game = {
     // (you pay its wage), it brings in daily tax, and you can stock its storage.
     // Enemy lords take back a fief you leave undefended (warTick → captureSettlement).
     myFiefs() { return LOCATIONS.filter(l => l.owner === 'player'); },
+    openFiefLedger() {
+        let fiefs = this.myFiefs(), inc = this.fiefIncome();
+        if(!fiefs.length) return alert(T('Henüz tımarın yok. Bir şehir ya da kale fethedildiğinde kral onu sana verirse burada yönetebilirsin.'));
+        let rows = fiefs.map(loc => {
+            let garrison = (loc.garrison || []).length;
+            let wage = (loc.garrison || []).reduce((n, t) => n + this.troopWage(t), 0);
+            let net = this.fiefTax(loc) - wage;
+            let here = this.dist(loc, state.player) < 85;
+            return `<div style="padding:0.8rem;margin:0.55rem 0;border:1px solid var(--panel-border);border-left:4px solid ${(FACTIONS[loc.faction]||{}).color||'#c9a227'};border-radius:6px">
+                <div style="display:flex;justify-content:space-between;gap:0.6rem;align-items:center;flex-wrap:wrap"><b>${T(loc.name)}</b>
+                <span style="color:var(--text-muted)">${T`${loc.type === 'city' ? T('Şehir') : loc.type === 'castle' ? T('Kale') : T('Köy')} · ${Math.round(this.dist(loc, state.player))} birim`}</span></div>
+                <div style="font-size:var(--fs-sm);margin-top:0.35rem">${T`Vergi <b style="color:#ffcc00">+${this.fiefTax(loc)}</b> · garnizon <b style="color:${garrison ? '#7fd8a0' : '#e0463a'}">${garrison}</b> · maaş −${wage} · <b style="color:${net >= 0 ? '#7fd8a0' : '#e0463a'}">net ${net >= 0 ? '+' : ''}${net}/gün</b> · refah ${Math.round(loc.prosperity || 50)}`}</div>
+                <div style="display:flex;gap:0.45rem;flex-wrap:wrap;margin-top:0.6rem">
+                ${here ? `<button class="btn" onclick="Game.openGarrison(LOCATIONS.find(l=>l.id==='${loc.id}'))">${T`🛡️ Garnizonu Yönet`}</button>` : `<button class="btn" onclick="Game.travelToFief('${loc.id}')">${T`🗺️ Buraya Git`}</button>`}
+                ${this.vassals().length && loc.type !== 'village' ? `<button class="btn" onclick="Game.grantFiefMenu('${loc.id}')">${T`👑 Vassala Ver`}</button>` : ''}
+                </div></div>`;
+        }).join('');
+        this.showModal(`<h3>${T`🏰 Tımarların`}</h3><p style="color:var(--text-muted)">${T`Toplam vergi +${inc.tax} · garnizon ${inc.troops} asker / −${inc.wage} maaş · <b style="color:${inc.net >= 0 ? '#7fd8a0' : '#e0463a'}">net ${inc.net >= 0 ? '+' : ''}${inc.net} dinar/gün</b>`}</p>${rows}<button class="btn" style="margin-top:0.6rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '720px');
+    },
+    travelToFief(locId) {
+        let loc = LOCATIONS.find(l => l.id === locId);
+        if(!loc || state.player.prisoner || state.player.wait) return;
+        this.closeModal(); this.showScreen('map');
+        state.player.targetLocation = loc;
+        state.player.status = 'moving';
+    },
     // --- ENTERPRISE (#53 item 1.6) ---
     // Warband's enterprise: one big upfront cost, a small daily income. Like a fief,
     // it goes through fiefIncome; income stops if the city changes hands (the property stays, the profit doesn't).

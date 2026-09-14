@@ -109,6 +109,31 @@ test('getPartyCapacity: marriage adds a household retinue allowance', () => {
     assert.strictEqual(Game.getPartyCapacity(), 17);
     p.spouse = null;
 });
+test('fiefs: ledger lists owned land and directs the party to a distant holding', () => {
+    const g = H.world({ seed: 43 });
+    const { Game, state, LOCATIONS } = g;
+    const fief = LOCATIONS.find(l => l.type === 'castle');
+    fief.owner = 'player'; fief.garrison = [];
+    Game.openFiefLedger();
+    assert.ok(g._sandbox.document.getElementById('modal-body').innerHTML.includes(fief.name), 'fief ledger omitted owned land');
+    Game.travelToFief(fief.id);
+    assert.strictEqual(state.player.targetLocation.id, fief.id, 'ledger could not set a route to a fief');
+    assert.strictEqual(state.player.status, 'moving', 'ledger route did not start movement');
+});
+
+test('mobile more menu: fief ledger remains reachable on a narrow screen', () => {
+    const g = H.world({ seed: 44 });
+    g.Game.showMoreMenu();
+    const html = g._sandbox.document.getElementById('modal-body').innerHTML;
+    assert.ok(html.includes('Game.openFiefLedger()'), 'More menu hid the only mobile route to fiefs');
+});
+test('market: a stale purchase refresh after leaving the settlement cannot throw', () => {
+    const g = H.world({ seed: 45 });
+    const doc = g._sandbox.document, original = doc.getElementById.bind(doc);
+    doc.getElementById = id => (id === 'market-buy' || id === 'market-sell') ? null : original(id);
+    assert.doesNotThrow(() => g.Game.refreshMarket(), 'missing market rows crashed refresh after leaving the market');
+    doc.getElementById = original;
+});
 
 test('prisonerValue: type multiplier, noble ransom', () => {
     assert.strictEqual(Game.prisonerValue({ level: 10, type: 'infantry' }), 145);
@@ -870,6 +895,31 @@ test('tournament: a 4v4 round spawns two complete, colour-coded teams', () => {
     Battle.active = false;
 });
 
+test('tournament: extreme rules change the bracket and opponent behaviour, not just damage', () => {
+    const gt = H.world({ seed: 124 });
+    const { Battle, Game, state } = gt;
+    state.settings.difficulty = 'extreme';
+    const extreme = Game.tourneyRules();
+    assert.strictEqual(Array.from(extreme.teams).join(','), '4,3,2', 'Extreme did not add fighters to later rounds');
+    assert.ok(extreme.spread[6] > 5, 'Extreme did not draw a stronger champion');
+
+    state.settings.difficulty = 'ultra';
+    const ultra = Game.tourneyRules();
+    assert.strictEqual(Array.from(ultra.teams).join(','), '4,4,2', 'Ultra Extreme did not make the semi-final a full team fight');
+    assert.ok(ultra.cadence < 1 && ultra.retarget < 1 && ultra.block > 0,
+        'Ultra Extreme did not change AI reaction, attack tempo and blocking');
+
+    const pair = Game.TOURNEY_TEAMS[1];
+    const foe = { name:'Ultra Kaptan', lv:5, round:Game.TOURNEY_ROUNDS[1], tourneyRules:ultra,
+        teamFight:{ size:4, player:pair[0], enemy:pair[1], allies:[], enemies:[] } };
+    Battle.startTourneyFight(foe);
+    const enemy = Battle.units.find(u => !u.isPlayerTeam);
+    assert.ok(enemy.maxHp > 80 && enemy.attack > 15 && enemy.speed > 70,
+        'Ultra Extreme opponent did not receive roster, stamina and pace tuning');
+    assert.strictEqual(enemy.tourneyCadence, ultra.cadence, 'enemy did not retain tournament attack cadence');
+    Battle.active = false;
+});
+
 test('tournament: the shared result hook completes the ambition immediately and only on a win', () => {
     const gh = H.world({ seed: 123 });
     const { Game, state } = gh;
@@ -1520,6 +1570,19 @@ test('map movement: an off-coast lord destination is pulled back inside instead 
         'lord kept an unreachable target beyond the coast');
 });
 
+test('map movement: wandering bandits turn back from the coast instead of collecting at the edge', () => {
+    const g = H.world({ seed: 47 });
+    const { Game, state } = g;
+    const band = Game.spawnBand('bandit');
+    band.x = band.targetX = 8650; band.y = band.targetY = 4500;
+    Game.clampToMap(band);
+    band.targetX = band.x; band.targetY = band.y;
+    state.npcParties = [band];
+    Game.updateNPCs(0.01);
+    assert.ok(!Game.nearMapEdge({ x:band.targetX, y:band.targetY }, 500),
+        'a wandering bandit selected another coast-hugging destination');
+});
+
 test('map encounter: a friendly lord cannot force a conversation by bumping into the player', () => {
     const gm = H.world({ seed: 26 });
     const { Game, Nobles, state } = gm;
@@ -1638,6 +1701,17 @@ test('marriage: a female player can reach her husband and his benefits (#129)', 
     assert.ok(/spouseMenu/.test(shown), 'her husband offers no way into the spouse conversations');
     Nobles.spouseMenu(s.id);
     assert.ok(/spouseAction/.test(shown), 'the spouse menu is empty for a female player');
+});
+
+test('marriage: another noble no longer opens flirt options after the wedding', () => {
+    const g = H.world({ seed: 46 });
+    const { Nobles, state } = g;
+    const [spouse, other] = Nobles.courtables();
+    state.player.spouse = spouse.id;
+    Nobles.courtMenu(other.id);
+    const html = g._sandbox.document.getElementById('modal-body').innerHTML;
+    assert.ok(html.includes(spouse.name), 'another noble did not redirect to the spouse dialogue');
+    assert.ok(!html.includes('İltifat et'), 'flirt options remained available after marriage');
 });
 
 test('peace: a treaty lifts the player siege against the new partner', () => {
