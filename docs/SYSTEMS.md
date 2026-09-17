@@ -759,6 +759,24 @@ spears and shield lines beat cavalry, cavalry runs down archers.
 Weapon / armor / horse slots. Armor affects max HP, weapon affects attack, horse affects map
 speed (66 → 105). Trade goods are bought and sold at the market (sell price ×0.7).
 
+**Weapon quality tiers (#132).** Each of the 5 base weapons (Kılıç/Savaş Baltası/Topuz/Mızrak/Yay)
+has 3 better versions in the market, same `weaponType`/`dmgType` as their base, price growing
+faster than `attack` does (the same diminishing-return ladder as the horses above):
+
+| Weapon | T1 (base) | T2 | T3 | T4 |
+|---|---|---|---|---|
+| Kılıç (oneHanded/cut) | 15atk/250₺ | Çelik Kılıç 18/700₺ | Şam Kılıcı 21/2200₺ | Kraliyet Kılıcı 24/6000₺ |
+| Savaş Baltası (twoHanded/cut) | 20/300₺ | Çelik Balta 25/750₺ | Usta Baltası 30/2200₺ | Cellat Baltası 35/6000₺ |
+| Topuz (oneHanded/blunt) | 16/220₺ | Çelik Topuz 20/650₺ | Dikenli Topuz 24/2000₺ | Savaş Çekici 28/5500₺ |
+| Mızrak (polearm/pierce) | 12/200₺ | Uzun Mızrak 15/600₺ | Şövalye Mızrağı 18/1900₺ | Zırh Delen Mızrak 21/5000₺ |
+| Yay (bow/pierce) | 10/220₺ | Çelik Yay 13/650₺ | Avcı Yayı 16/2000₺ | Savaş Yayı 19/5500₺ |
+
+The two boss-unique weapons share a `weaponType` with one of these ladders (Kurt Dişi Hançeri is
+oneHanded/cut, Fırtına Yayı is bow/pierce) — both were bumped (17→29, 22→23) to stay above their
+ladder's new T4, keeping the existing "boss unique ≈ best base ×1.2" rule (`dev_orsu_zirhi`,
+`firtina_yayi`) true here too. Axe/mace/lance have no unique rival, so their T4 had no ceiling to
+respect.
+
 **Food isn't a trade good (#47)**: grain 4, bread 6, cheese 16, meat 20 base price — a
 **fifth** of the old price. An army's daily feed alone was draining all the cash flow;
 measured, a 20-person army eats 20 grain a day: it used to cost ~270₺, now **40₺** (the same
@@ -3067,6 +3085,19 @@ Sits at the top of the **Quests** tab (Q): the chosen goal + give up, or the lis
 goals. Measured: the chain walks start to finish — closing 4 goals gives **+35 renown**, the
 open-goal list changes on every completion (`band` → `champion`/`friend` → `sworn` →
 `feud`/`fief`).
+
+### Achievements (#127, rewards in #132)
+
+30 one-time milestones (`Game.ACHIEVEMENTS`, 10 categories × bronze/silver/gold), swept daily and
+on the Quests tab (`Game.checkAchievements`, state-based `cond()` like `AMBITIONS`, no event
+wiring per site). Used to pay nothing but a toast — now each tier is a one-time reward
+(`ACH_TIERS`): bronze 200₺, silver 650₺, gold 2000₺ + 20 renown. Deliberately **not** a permanent
+stat bonus stacking on top of the relic system (`RELICS` already owns "small permanent bonus");
+an achievement pays once and is done. A gold achievement's own name doubles as a cosmetic title
+(`Game.titlesHtml`) shown under the player's name on the character screen — no stat, just a row
+of pills for the ones you've earned. `Game.showAchievements()` (🏆 in "⋯ Daha") lists all 30,
+locked ones greyed with a 🔒, each showing its reward so the still-open ones stay motivating
+rather than mysterious.
 
 ### Enterprise and the fief treasury (#53 item 1.6 / 1.2)
 

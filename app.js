@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.11', date: '2026-09-17', name: 'Tip Kimlik' };  // the version name is not translated
+const VERSION = { no: '1.21.12', date: '2026-09-17', name: 'Ustalık' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -288,11 +288,30 @@ const ITEMS = {
     velvet: { id:'velvet', name:'Kadife',        type:'trade', basePrice:400, icon:'🧵', desc:'Soyluların bayıldığı ince kumaş. Şehirden şehre kâr eder.' },
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺', desc:'Fıçı fıçı köpüklü bira. Her hanın vazgeçilmezi.' },
     salt:   { id:'salt',   name:'Tuz',           type:'trade', basePrice:100, icon:'🧂', desc:'Eti bozulmaktan koruyan beyaz altın. Her yerde alıcısı var.' },
-    sword:  { id:'sword',  name:'Kılıç',         type:'weapon', weaponType:'oneHanded', dmgType:'cut',    basePrice:250, attack:15, icon:'⚔️', desc:'Dengeli tek elli çelik. Kalkanla birlikte güvenli seçim.' },
-    axe:    { id:'axe',    name:'Savaş Baltası', type:'weapon', weaponType:'twoHanded', dmgType:'cut',    basePrice:300, attack:20, icon:'🪓', desc:'İki elli ağır balta. Zırhı deler ama kalkan tutamazsın.' },
-    mace:   { id:'mace',   name:'Topuz',         type:'weapon', weaponType:'oneHanded', dmgType:'blunt',  basePrice:220, attack:16, icon:'🔨', desc:'Ezici demir başlı topuz. Öldürmez, bayıltır — esir toplamaya birebir.' },
-    lance:  { id:'lance',  name:'Mızrak',        type:'weapon', weaponType:'polearm',   dmgType:'pierce', basePrice:200, attack:12, icon:'🔱', desc:'Uzun menzilli mızrak. Atlıya karşı ve at üstünde ölümcül.' },
-    bow:    { id:'bow',    name:'Yay',           type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:220, attack:10, icon:'🏹', desc:'Uzaktan vuran yay. Düşman yaklaşmadan zayiat verdirir.' },
+    // Weapons (#132): 4 quality tiers per weapon, base + 3. Price grows faster than attack does
+    // (diminishing return per dinar, same ladder logic as the horses above) — see docs/SYSTEMS.md
+    // "Weapon quality tiers" for the full table. kurt_disi_hancer/firtina_yayi (below) were bumped
+    // to stay best-in-slot above the new top purchasable tier in their own weaponType.
+    sword:      { id:'sword',      name:'Kılıç',        type:'weapon', weaponType:'oneHanded', dmgType:'cut',    basePrice:250,  attack:15, icon:'⚔️', desc:'Dengeli tek elli çelik. Kalkanla birlikte güvenli seçim.' },
+    sword_steel:{ id:'sword_steel',name:'Çelik Kılıç',  type:'weapon', weaponType:'oneHanded', dmgType:'cut',    basePrice:700,  attack:18, icon:'⚔️', desc:'Daha sert çelikten dövülmüş, kenarı daha uzun tutuyor.' },
+    sword_sham: { id:'sword_sham', name:'Şam Kılıcı',   type:'weapon', weaponType:'oneHanded', dmgType:'cut',    basePrice:2200, attack:21, icon:'⚔️', desc:'Katmanlı çelik, ustaca dövülmüş bir ağız. Vuruşu hissettirir.' },
+    sword_royal:{ id:'sword_royal',name:'Kraliyet Kılıcı',type:'weapon', weaponType:'oneHanded', dmgType:'cut',  basePrice:6000, attack:24, icon:'⚔️', desc:'Saray demircisinin elinden çıkma, kabzası gümüş kakma. Fiyatı da kraliyete yaraşır.' },
+    axe:        { id:'axe',        name:'Savaş Baltası',type:'weapon', weaponType:'twoHanded', dmgType:'cut',    basePrice:300,  attack:20, icon:'🪓', desc:'İki elli ağır balta. Zırhı deler ama kalkan tutamazsın.' },
+    axe_steel:  { id:'axe_steel',  name:'Çelik Balta',  type:'weapon', weaponType:'twoHanded', dmgType:'cut',    basePrice:750,  attack:25, icon:'🪓', desc:'Ağırlaştırılmış çelik ağız, zırhı daha derin keser.' },
+    axe_master: { id:'axe_master', name:'Usta Baltası', type:'weapon', weaponType:'twoHanded', dmgType:'cut',    basePrice:2200, attack:30, icon:'🪓', desc:'Bir ustanın elinden çıkma denge — ağır ama savurması kolay.' },
+    axe_headsman:{ id:'axe_headsman',name:'Cellat Baltası',type:'weapon', weaponType:'twoHanded', dmgType:'cut', basePrice:6000, attack:35, icon:'🪓', desc:'İki elle savrulan devasa ağız. Karşındaki zırhı umursamaz.' },
+    mace:       { id:'mace',       name:'Topuz',        type:'weapon', weaponType:'oneHanded', dmgType:'blunt',  basePrice:220,  attack:16, icon:'🔨', desc:'Ezici demir başlı topuz. Öldürmez, bayıltır — esir toplamaya birebir.' },
+    mace_steel: { id:'mace_steel', name:'Çelik Topuz',  type:'weapon', weaponType:'oneHanded', dmgType:'blunt',  basePrice:650,  attack:20, icon:'🔨', desc:'Daha ağır demir başlık, darbesi daha derinden gelir.' },
+    mace_spiked:{ id:'mace_spiked',name:'Dikenli Topuz',type:'weapon', weaponType:'oneHanded', dmgType:'blunt',  basePrice:2000, attack:24, icon:'🔨', desc:'Çıkıntılı demir başlık — bayıltmaktan çok, ezer.' },
+    mace_warhammer:{ id:'mace_warhammer',name:'Savaş Çekici',type:'weapon', weaponType:'oneHanded', dmgType:'blunt',basePrice:5500,attack:28, icon:'🔨', desc:'İki elin gücüyle savrulan dev çekiç. Zırh önünde anlamını yitirir.' },
+    lance:      { id:'lance',      name:'Mızrak',       type:'weapon', weaponType:'polearm',   dmgType:'pierce', basePrice:200,  attack:12, icon:'🔱', desc:'Uzun menzilli mızrak. Atlıya karşı ve at üstünde ölümcül.' },
+    lance_long: { id:'lance_long', name:'Uzun Mızrak',  type:'weapon', weaponType:'polearm',   dmgType:'pierce', basePrice:600,  attack:15, icon:'🔱', desc:'Standarttan daha uzun gönder, düşmanı önce sen bulursun.' },
+    lance_knight:{ id:'lance_knight',name:'Şövalye Mızrağı',type:'weapon', weaponType:'polearm', dmgType:'pierce',basePrice:1900,attack:18, icon:'🔱', desc:'Şövalye eğitimiyle dövülmüş, şarjda ölümcül.' },
+    lance_piercing:{ id:'lance_piercing',name:'Zırh Delen Mızrak',type:'weapon', weaponType:'polearm', dmgType:'pierce',basePrice:5000,attack:21, icon:'🔱', desc:'İnce, sert uçlu — zırhın en kalınını arar.' },
+    bow:        { id:'bow',        name:'Yay',          type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:220,  attack:10, icon:'🏹', desc:'Uzaktan vuran yay. Düşman yaklaşmadan zayiat verdirir.' },
+    bow_steel:  { id:'bow_steel',  name:'Çelik Yay',    type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:650,  attack:13, icon:'🏹', desc:'Daha sert bir yay gövdesi, ok daha hızlı fırlar.' },
+    bow_hunter: { id:'bow_hunter', name:'Avcı Yayı',    type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:2000, attack:16, icon:'🏹', desc:'Ormanlık av için tasarlanmış hassas bir yay. Menzili uzun.' },
+    bow_war:    { id:'bow_war',    name:'Savaş Yayı',   type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:5500, attack:19, icon:'🏹', desc:'Muharebe için güçlendirilmiş dev bir yay. Çekmesi zor, hasarı büyük.' },
     shield: { id:'shield', name:'Kalkan',        type:'shield', basePrice:150, defense:10, icon:'🛡️', desc:'Meşe ve demirden kalkan. Oklara karşı en iyi dost.' },
     mail:   { id:'mail',   name:'Zincir Zırh',   type:'armor',  basePrice:500, defense:25, icon:'🦺', desc:'Halka halka örülmüş zırh. İyi koruma, orta ağırlık.' },
     leather:{ id:'leather',name:'Deri Zırh',     type:'armor',  basePrice:280, defense:14, icon:'🥋', desc:'Sertleştirilmiş deri. Hafif ve ucuz, yeni başlayana göre.' },
@@ -316,10 +335,10 @@ const ITEMS = {
     horse_zirhli: { id:'horse_zirhli', name:'Zırhlı Savaş Atı', type:'horse', basePrice:3500, icon:'🐴', hSpd:12, hDef:18, desc:'Göğüs zırhı takılmış savaş atı. Yavaşlar ama kolay kolay düşmez.' },
     horse_demir: { id:'horse_demir', name:'Demir Zırhlı Cenk Atı', type:'horse', basePrice:4550, icon:'🐎', hSpd:17, hDef:22, desc:'Baştan ayağa demir donanımlı cenk atı. Satılık atların en pahalısı, en dayanıklısı.' },
     // Boss unique drops (#38) — strong but capped (best base ×1.2); unsellable
-    kurt_disi_hancer: { id:'kurt_disi_hancer', name:'Kurt Dişi Hançeri', type:'weapon', weaponType:'oneHanded', dmgType:'cut', basePrice:4000, attack:17, icon:'🗡️', unique:true, unsellable:true, desc:'Kurt Ana\'nın ininden çıkan kemik saplı hançer. Tek elli çeliğin en keskini.' },
+    kurt_disi_hancer: { id:'kurt_disi_hancer', name:'Kurt Dişi Hançeri', type:'weapon', weaponType:'oneHanded', dmgType:'cut', basePrice:4000, attack:29, icon:'🗡️', unique:true, unsellable:true, desc:'Kurt Ana\'nın ininden çıkan kemik saplı hançer. Tek elli çeliğin en keskini.' },
     han_kisragi: { id:'han_kisragi', name:'Han Kısrağı', type:'horse', basePrice:5000, icon:'🐎', unique:true, unsellable:true, hSpd:20, hDef:26, desc:'Bozkır Hanı\'nın kısrağı. Satılık atların en iyisinden de hızlı ve dayanıklı.' },
     dev_orsu_zirhi: { id:'dev_orsu_zirhi', name:'Dev Örsü Zırhı', type:'armor', basePrice:6000, defense:44, icon:'🛡️', unique:true, unsellable:true, heavy:true, desc:'Demirci Dev\'in örsünde dövülen zırh. En sağlam koruma; ağırlığı harita hızını %5 düşürür.' },
-    firtina_yayi: { id:'firtina_yayi', name:'Fırtına Yayı', type:'weapon', weaponType:'bow', dmgType:'pierce', basePrice:7000, attack:22, icon:'🏹', unique:true, unsellable:true, desc:'Korsan Kral\'ın yayı. Fırtına gibi ok yağdırır — yayların en güçlüsü.' },
+    firtina_yayi: { id:'firtina_yayi', name:'Fırtına Yayı', type:'weapon', weaponType:'bow', dmgType:'pierce', basePrice:7000, attack:23, icon:'🏹', unique:true, unsellable:true, desc:'Korsan Kral\'ın yayı. Fırtına gibi ok yağdırır — yayların en güçlüsü.' },
     boss_map: { id:'boss_map', name:'Boss Haritası', type:'special', basePrice:15000, icon:'🗺️', desc:'Savaş Tanrısı\'na giden yolu gösterir. Kullanmak için dört bossun nişanı ve yüksek nam gerekir.' }
 };
 
@@ -663,7 +682,14 @@ const Input = {
 // Raw Turkish name/desc (translated at the display site); `cond` reads live `state`
 // so it is only ever run at check time, never while this table is built. Tiers colour
 // the badge. `checkAchievements()` walks the list once a day and on demand.
-const ACH_TIERS = { bronze: { ico: '🥉', col: '#cd7f32' }, silver: { ico: '🥈', col: '#c0c0c0' }, gold: { ico: '🥇', col: '#ffd700' } };
+// One-time reward per tier (#132) — a milestone used to pay nothing but a toast. Money-only for
+// bronze/silver, gold adds renown and doubles as a title (the achievement's own name) shown on
+// the character screen — no stacking permanent bonus, that's what relics are for.
+const ACH_TIERS = {
+    bronze: { ico: '🥉', col: '#cd7f32', money: 200, renown: 0 },
+    silver: { ico: '🥈', col: '#c0c0c0', money: 650, renown: 0 },
+    gold:   { ico: '🥇', col: '#ffd700', money: 2000, renown: 20 }
+};
 const ACHIEVEMENTS = [
     { id: 'renown_100',  tier: 'bronze', name: 'Adı Duyulan',        desc: 'İtibarın 100\'e ulaştı.',                    cond: () => state.player.renown >= 100 },
     { id: 'renown_500',  tier: 'silver', name: 'Diyar Diyar Anılan', desc: 'İtibarın 500\'e ulaştı.',                    cond: () => state.player.renown >= 500 },
@@ -7536,9 +7562,15 @@ const Game = {
         ACHIEVEMENTS.forEach(a => {
             if(state.achievements[a.id]) return;
             let ok = false; try { ok = a.cond(); } catch(e) {}
-            if(ok) { state.achievements[a.id] = state.time.day; earned.push(a); }
+            if(ok) {
+                state.achievements[a.id] = state.time.day;
+                let tier = ACH_TIERS[a.tier];
+                state.player.money += tier.money;
+                if(tier.renown) this.gainRenown(tier.renown);
+                earned.push(a);
+            }
         });
-        if(earned.length) this.achToast(earned);
+        if(earned.length) { this.achToast(earned); this.updateTopBar(); }
     },
     // A non-modal toast, so a milestone earned on the same day as a road event doesn't
     // clobber the event's modal. Stacks bottom-right, fades itself out.
@@ -7557,9 +7589,11 @@ const Game = {
             el.style.cssText = `pointer-events:auto;min-width:220px;max-width:300px;padding:10px 14px;border-radius:10px;
                 background:rgba(20,18,14,0.94);border:1px solid ${tier.col};box-shadow:0 6px 24px rgba(0,0,0,0.5);
                 color:#f0e6d2;font-size:13px;opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s`;
+            let rewardTxt = T`+${tier.money} dinar` + (tier.renown ? T` · +${tier.renown} nam` : '');
             el.innerHTML = `<div style="font-size:11px;letter-spacing:.5px;color:${tier.col};margin-bottom:2px">${tier.ico} ${T`Başarım Kazanıldı`}</div>
                 <div style="font-weight:700">${T(a.name)}</div>
-                <div style="opacity:.8;font-size:12px;margin-top:2px">${T(a.desc)}</div>`;
+                <div style="opacity:.8;font-size:12px;margin-top:2px">${T(a.desc)}</div>
+                <div style="color:#9fe0a0;font-size:12px;margin-top:3px;font-weight:600">${rewardTxt}</div>`;
             host.appendChild(el);
             setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }, 30 + k * 120);
             setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(10px)';
@@ -7580,6 +7614,7 @@ const Game = {
                 <div style="flex:1">
                     <div style="font-weight:700;color:${done ? tier.col : '#9a8f78'}">${T(a.name)}</div>
                     <div style="font-size:0.82rem;opacity:0.8">${T(a.desc)}</div>
+                    <div style="font-size:0.75rem;color:#9fe0a0;opacity:${done ? 0.8 : 0.55};margin-top:0.15rem">${T`+${tier.money} dinar`}${tier.renown ? T` · +${tier.renown} nam` : ''}</div>
                 </div>
                 ${done ? `<span style="font-size:0.75rem;opacity:0.6">${T`${done}. gün`}</span>` : ''}
             </div>`;
@@ -7587,6 +7622,18 @@ const Game = {
         this.showModal(`<h3>${T`🏆 Başarımlar`} <span style="font-size:0.7em;opacity:0.6">(${got}/${ACHIEVEMENTS.length})</span></h3>
             <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:60vh;overflow-y:auto;margin:0.6rem 0">${rows}</div>
             <button class="btn primary" style="margin-top:0.4rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '440px');
+    },
+    // Cosmetic only (#132) — no stat, that's what relics are for. A gold achievement's own name
+    // doubles as a title, shown as a small pill row under the character name.
+    titlesHtml() {
+        this.ensureAchievements();
+        let titles = ACHIEVEMENTS.filter(a => a.tier === 'gold' && state.achievements[a.id]);
+        if(!titles.length) return '';
+        return `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin:0.3rem 0 0.5rem">
+            ${titles.map(a => `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;
+                background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.4);color:#ffd700"
+                title="${T(a.desc)}">🥇 ${T(a.name)}</span>`).join('')}
+        </div>`;
     },
 
     // Only four tabs fit in a narrow screen's bottom strip; Quests, Saves, Sound and
@@ -9951,6 +9998,7 @@ const Game = {
         <div style="display:flex;gap:2rem;">
         <div style="flex:1;">
             <h3 style="color:var(--primary)">${p.name}</h3>
+            ${this.titlesHtml()}
             <p>${T`Seviye: ${s.level} (XP: ${s.xp}/${s.xpNext})`}</p>
             <div style="background:rgba(0,0,0,0.3);border-radius:4px;height:8px;width:200px;margin:0.5rem 0;">
                 <div style="background:var(--primary);height:100%;width:${xpBar}%;border-radius:4px;"></div>

@@ -1244,6 +1244,11 @@ function questSuite() {
     const loc = id => LOCATIONS.find(l => l.id === id);
     const enter = id => Quests.emit('entered_location', { locId: id, loc: loc(id) });
     const give = (itemId, qty) => state.player.inventory.push({ ...gq.ITEMS[itemId], qty });
+    // Achievements pay real money now (#132). This suite loops every quest type in one world,
+    // so state.career.quests keeps climbing across sub-tests and quests_5/20/... would eventually
+    // fire mid-loop, adding an unrelated payout right when some other quest's test asserts its
+    // own reward was paid *exactly*. Earning achievements isn't what this suite is testing.
+    Game.checkAchievements = () => {};
 
     // Preconditions a few quests gate on: enemy_muster needs a war on the map,
     // hostage_rescue needs a bandit party to rescue from. Declare war between every

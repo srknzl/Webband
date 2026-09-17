@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.12 — Ustalık (2026-09-17)
+
+- **Başarımlar artık ödül veriyor.** Şimdiye kadar sadece bir bildirimdi; artık her başarım
+  tek seferlik ödül veriyor — bronz 200₺, gümüş 650₺, altın 2000₺ + 20 nam. Altın başarımların
+  adı, karakter ekranında görünen ufak bir unvan rozetine dönüşüyor (savaşı etkilemez, tamamen
+  gösteriş).
+- **Her silaha 3 yeni kalite kademesi eklendi (toplam 4).** Kılıç, Savaş Baltası, Topuz, Mızrak
+  ve Yay'ın artık çelik/usta/kraliyet gibi daha güçlü ve daha pahalı versiyonları var — fiyat
+  güçten daha hızlı artıyor (atlardaki gibi azalan getiri). Kurt Dişi Hançeri ve Fırtına Yayı da
+  bu yeni kademelerin üstünde kalacak şekilde güçlendirildi.
+
 ## 1.21.11 — Tip Kimlik (2026-09-17)
 
 - **Kral/lord ordularının askerleri gün geçtikçe ve sen güçlendikçe güçleniyordu.** Bu ölçekleme
