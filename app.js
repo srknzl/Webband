@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.2', date: '2026-09-17', name: 'Saatin İbresi' };  // the version name is not translated
+const VERSION = { no: '1.21.3', date: '2026-09-17', name: 'Tempo' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2844,7 +2844,7 @@ const Game = {
                     // As it approaches 80, acceleration = 0.1
                     let planSpeed = 0.1 + ((80 - currentChance) / 80) * 4.9;
                     
-                    state.player.prisoner.escapeChance = Math.min(80, currentChance + planSpeed * dt);
+                    state.player.prisoner.escapeChance = Math.min(80, currentChance + planSpeed * dt * this.timeScale());
                 }
                 
                 let el = document.getElementById('ui-escape-chance');
@@ -2871,7 +2871,11 @@ const Game = {
             } else {
                 let spdData = this.getPlayerSpeed();
                 let spd = spdData.value;
-                let r = Math.min(spd * dt / dist, 1);
+                // Scaled by timeScale() so the map-hud speed button actually changes how fast
+                // the party crawls across the map, not just the calendar (#21). NPCs already
+                // do this via npcWorldDelta(); TIME_FLOW is deliberately left out here — it
+                // would silently retune the base 1x travel pace this constant was measured for.
+                let r = Math.min(spd * dt * this.timeScale() / dist, 1);
                 state.player.x += dx * r; state.player.y += dy * r;
                 this.clampToMap(state.player); // prevent going past the natural borders
                 // #22 Pinned against the coastline for ~5s -> offer to drop the (unreachable) route.

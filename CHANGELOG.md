@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.3 — Tempo (2026-09-17)
+
+- **Yeni hız düğmesi sadece takvimi hızlandırıyordu, karakterin haritadaki yürüyüşünü değil** —
+  görünürde hiçbir şey değişmiyordu. Artık ×2 seçince gerçekten daha hızlı yürüyorsun, ×0.5
+  seçince daha yavaş; kaçış planı ilerlemesi de aynı hıza uyuyor.
+
 ## 1.21.2 — Saatin İbresi (2026-09-17)
 
 - **Haritadaki "1x/2x" düğmesi zamanı hızlandırıyordu, yakınlaştırmıyordu — kafa karıştırıyordu.**
