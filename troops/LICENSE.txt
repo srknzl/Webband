@@ -1,5 +1,7 @@
-Battle sprites in this folder come from two CraftPix.net freebies. Both grant
-royalty-free use in unlimited personal/commercial projects, no attribution
+Battle sprites in this folder come from three sources.
+
+--- CraftPix.net (2 freebies) ---
+Royalty-free use in unlimited personal/commercial projects, no attribution
 required (see https://craftpix.net/file-licenses/ for the full terms — raw
 source files may not be resold or redistributed on their own).
 
@@ -20,6 +22,19 @@ player_bow.png
 player_melee.png
   From the same Roguelike Kit, the knight character (character slot 2).
 
-Cavalry has no matching mounted sprite in either pack (or anywhere else
-checked) — it's still drawn procedurally in battle.js
-(Battle.drawTroopRiderSilhouette).
+--- Battle for Wesnoth (GPL v2 or later) ---
+https://www.wesnoth.org/ — a copyleft license, unlike the two packs above:
+redistributing these specific files (modified or not) must keep them under
+GPL and carry this notice. Used here unmodified beyond cropping transparent
+padding. Full license: https://github.com/wesnoth/wesnoth/blob/master/data/COPYING.txt
+Copyright the Battle for Wesnoth project and contributors (human-loyalists
+faction unit art; the "Cavalry Base Sprites" line was developed by Jetrel,
+Sleepwalker and other Wesnoth art contributors — see
+https://forums.wesnoth.org/viewtopic.php?t=38751).
+
+cavalry_weak.png    — data/core/images/units/human-loyalists/horseman/horseman.png
+cavalry_normal.png  — data/core/images/units/human-loyalists/cavalryman/cavalryman.png
+cavalry_armored.png — data/core/images/units/human-loyalists/grand-knight/grand-knight.png
+player_horse.png    — data/core/images/units/human-loyalists/knight/knight.png
+  (fetched from https://github.com/wesnoth/wesnoth, master branch, cropped
+  to content)

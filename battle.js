@@ -1937,27 +1937,23 @@ const Battle = {
         ctx.restore();
     },
 
-    // Remaining unit emoji: beasts and the two narrative one-offs (companion medal, spouse
-    // ring) stay emoji — they're identity markers, not "a soldier's" appearance. Every regular
-    // infantry/cavalry/archer, on either side, now renders as hand-drawn art instead (#132 —
-    // "realistic man art", not an emoji glyph, not the shield-icon-as-a-soldier look).
-    UNIT_ICONS: ['🐺', '🧑‍🌾', '🗡️', '🪓', '🔱', '🏹', '🗡️🐴', '🪓🐴', '🔱🐴', '🏹🐴', '🎖️', '💍'],
-    // Player battle icon reacts to the equipped weapon type (#132) — was gear-independent
-    // besides the mount swap. Armor tier is a second, separate visual axis left for later;
-    // this covers "appearance changes with equipped weapon" without inventing armor tinting too.
-    PLAYER_WEAPON_ICONS: { oneHanded: '🗡️', twoHanded: '🪓', polearm: '🔱', bow: '🏹' },
-    // Troop art (#132) — 3 tiers × 3 types (infantry/cavalry/archer), 9 looks total.
-    // Infantry and archer use real pixel-art sprites (`troops/*.png`, Kenney's "RTS Pack:
-    // Medieval", CC0 — see troops/LICENSE.txt): no image-generation tool is available this
-    // session, but downloading a properly-licensed asset for actual character art is fine, and
-    // it reads as a real medieval human far better than a procedural shape. Infantry is 3
-    // distinct hand-picked levels of a "Swordsman" (CraftPix, free, royalty-free/no attribution
-    // required — troops/LICENSE.txt), genuinely more armored at each tier. Archer is one
-    // sprite (CraftPix Roguelike Kit's hooded archer, bow visible on the back) recolored per
-    // tier (paler/leather → richer → desaturated steel) since only one archer pose was
-    // available. Cavalry has no matching mounted sprite anywhere found, so it stays procedural
-    // vector art (canvas arcs/paths/rects) — same rig as the boss silhouettes below.
-    TROOP_TIER_COLORS: ['#8a7256', '#5a6b7a', '#3f4a56'],   // cavalry-only fallback palette
+    // Remaining unit emoji: beasts, the two narrative one-offs (companion medal, spouse ring),
+    // and 🐎 as cavalry's loading-frame placeholder (see troopSprite) — everything else,
+    // cavalry included once its image is loaded, is a real sprite (see below).
+    UNIT_ICONS: ['🐺', '🧑‍🌾', '🎖️', '💍', '🐎', '🐴'],
+    // Troop art (#132) — real pixel-art sprites for all three types, not emoji or procedural
+    // shapes (troops/LICENSE.txt has full sourcing/licensing for every file here):
+    // - Infantry: 3 hand-picked levels of a "Swordsman" (CraftPix.net, free/royalty-free, no
+    //   attribution required), genuinely more armored at each tier.
+    // - Archer: one sprite (CraftPix.net Roguelike Kit's hooded archer, bow on the back)
+    //   recolored per tier (paler/leather → richer → desaturated steel) since only one archer
+    //   pose was available in that pack.
+    // - Cavalry: 3 real Battle for Wesnoth unit sprites (horseman/cavalryman/grand-knight,
+    //   GPL v2 — a copyleft license, unlike the CC0/no-attribution packs above; used as-is,
+    //   unmodified beyond cropping transparent padding, with attribution kept in
+    //   troops/LICENSE.txt as the license requires). The earlier procedural rider silhouette
+    //   was rejected in review as looking bad; this replaces it with real game art instead.
+    TROOP_TIER_COLORS: ['#8a7256', '#5a6b7a', '#3f4a56'],   // unused now cavalry is a real sprite too; kept for the infantry/archer loading-frame fallback
     TROOP_TIER_ACCENT: ['#c2a878', '#cfd8e0', '#e8e8e8'],
     TROOP_TIER_NAMES: ['weak', 'normal', 'armored'],
     TROOP_SPRITE_SIZE: 36,   // close to the player's own 40x40 emoji sprite, tuned slightly down per playtest feedback
@@ -1986,27 +1982,30 @@ const Battle = {
         cx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
         return c;
     },
+    // Cavalry (horse + rider) draws bigger than a standing infantry/archer tile, matching how
+    // much wider the Wesnoth sprites actually are.
+    TROOP_SPRITE_SIZES: { infantry: 36, archer: 36, cavalry: 48 },
     troopSprite(type, tier) {
         if(!this._troopSprites) this._troopSprites = {};
         let key = type + '_' + tier;
         let c = this._troopSprites[key];
         if(c) return c;   // permanent cache — only ever holds the real, loaded sprite
-        if(type === 'infantry' || type === 'archer') {
-            let img = this.troopImage(type, tier);
-            if(img.complete && img.naturalWidth > 0) {
-                c = this.bakeFitted(img, this.TROOP_SPRITE_SIZE);
-                this._troopSprites[key] = c;
-                return c;
-            }
+        let img = this.troopImage(type, tier);
+        if(img.complete && img.naturalWidth > 0) {
+            c = this.bakeFitted(img, this.TROOP_SPRITE_SIZES[type] || this.TROOP_SPRITE_SIZE);
+            this._troopSprites[key] = c;
+            return c;
         }
-        // Cavalry (always), or infantry/archer for the handful of frames before its image
-        // finishes loading (`warmUp()` starts the fetch well before battle is visible, so this
-        // is normally never seen) — a procedural placeholder, cached separately so it can never
-        // permanently shadow the real sprite once the image is ready.
+        // Infantry/archer/cavalry for the handful of frames before its image finishes loading
+        // (`warmUp()` starts the fetch well before battle is visible, so this is normally never
+        // seen) — a placeholder. Cavalry just borrows the plain 🐎 emoji (cached by unitSprite
+        // already); infantry/archer get a small procedural placeholder, cached separately so it
+        // can never permanently shadow the real sprite once the image is ready.
+        if(type === 'cavalry') return this.unitSprite('🐎');
         if(!this._proceduralSprites) this._proceduralSprites = {};
         let pc = this._proceduralSprites[key];
         if(pc) return pc;
-        let size = type === 'cavalry' ? 40 : 30, h = size / 2;
+        let size = 30, h = size / 2;
         pc = document.createElement('canvas');
         pc.width = pc.height = size;
         let x = pc.getContext('2d');
@@ -2016,7 +2015,6 @@ const Battle = {
         x.lineWidth = Math.max(1.5, size * 0.06);
         x.lineJoin = 'round';
         if(type === 'archer') this.drawArcherSilhouette(x, h, tier);
-        else if(type === 'cavalry') this.drawTroopRiderSilhouette(x, h, tier);
         else this.drawInfantrySilhouette(x, h, tier);
         this._proceduralSprites[key] = pc;
         return pc;
@@ -2040,11 +2038,11 @@ const Battle = {
         if(c) return c;
         let img = this.playerImage(kind);
         if(img.complete && img.naturalWidth > 0) {
-            c = this.bakeFitted(img, 40);
+            c = this.bakeFitted(img, kind === 'horse' ? 48 : 40);   // mounted draws bigger, same as cavalry troops
             this._playerSprites[kind] = c;
             return c;
         }
-        return this.unitSprite('🧑‍🌾');
+        return this.unitSprite(kind === 'horse' ? '🐴' : '🧑‍🌾');
     },
     // Standing soldier: legs, torso, head; tier 1 adds a helmet band, tier 2 adds a shield.
     drawInfantrySilhouette(x, h, tier) {
@@ -2081,20 +2079,6 @@ const Battle = {
             x.beginPath(); x.rect(-h*0.38, -h*0.42, h*0.13, h*0.32); x.fill(); x.stroke(); x.restore();
         }
     },
-    // Mounted trooper: a smaller cousin of the boss's rider silhouette — horse + rider, tier
-    // adds barding weight (a wider horse body) and a helmet accent.
-    drawTroopRiderSilhouette(x, h, tier) {
-        x.beginPath(); x.ellipse(0, h*0.15, h*0.8, h*(0.28 + tier*0.03), 0, 0, Math.PI*2); x.fill(); x.stroke();
-        x.beginPath(); x.moveTo(h*0.55, -h*0.05); x.lineTo(h*0.9, -h*0.32); x.lineTo(h*0.7, -h*0.12); x.closePath(); x.fill(); x.stroke();
-        [-h*0.55,-h*0.15,h*0.25,h*0.6].forEach(lx => { x.beginPath(); x.rect(lx, h*0.35, h*0.13, h*0.35); x.fill(); x.stroke(); });
-        x.beginPath(); x.ellipse(-h*0.05, -h*0.35, h*0.26, h*0.3, 0, 0, Math.PI*2); x.fill(); x.stroke();
-        x.beginPath(); x.arc(-h*0.05, -h*0.62, h*0.16, 0, Math.PI*2); x.fill(); x.stroke();
-        if(tier >= 1) {
-            x.save(); x.strokeStyle = this.TROOP_TIER_ACCENT[tier]; x.lineWidth = Math.max(1, h*0.05);
-            x.beginPath(); x.arc(-h*0.05, -h*0.62, h*0.19, Math.PI*1.1, Math.PI*1.9); x.stroke(); x.restore();
-        }
-    },
-
     // An outlined emoji sprite (built once per icon).
     unitSprite(icon) {
         if(!this._sprites) this._sprites = {};
@@ -2118,7 +2102,7 @@ const Battle = {
         this.UNIT_ICONS.forEach(i => this.unitSprite(i));
         Object.keys(BOSSES).forEach(k => this.bossSprite(k));
         ['infantry', 'cavalry', 'archer'].forEach(t => [0, 1, 2].forEach(tier => this.troopSprite(t, tier)));
-        ['melee', 'bow'].forEach(k => this.playerSprite(k));
+        ['melee', 'bow', 'horse'].forEach(k => this.playerSprite(k));
     },
 
     // Hand-drawn boss art (#132) — no image-generation tool is available and the game ships
@@ -2243,10 +2227,10 @@ const Battle = {
         if(isPlayer) {
             // Weapon-reactive appearance (#132): real sprites, not combined emoji glyphs (that
             // read as two disconnected floating icons, flagged in review) — a melee look
-            // (CraftPix Swordsman-family knight) or a bow look (CraftPix Roguelike archer),
-            // matching whichever real sprite the equipped weapon's category maps to. Mounted
-            // has no matching player-on-horseback art anywhere found, so it stays the 🐴 emoji.
-            if(u.type === 'cavalry') icon = '🐴';
+            // (CraftPix Swordsman-family knight) or a bow look (CraftPix Roguelike archer) on
+            // foot, or the Wesnoth Knight (troops/player_horse.png) mounted — real art all
+            // three ways, not the plain 🐴 emoji this used to fall back to.
+            if(u.type === 'cavalry') bakedSpr = this.playerSprite('horse');
             else {
                 let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
                 bakedSpr = this.playerSprite(wt === 'bow' ? 'bow' : 'melee');
@@ -2255,11 +2239,12 @@ const Battle = {
         else if(u.isBoss) bakedSpr = this.bossSprite(u.bossKey);   // hand-drawn boss art (#132)
         else if(u.icon === '🎖️' || u.icon === '💍') icon = u.icon;   // companion/spouse keep their marker
         else if(u.beast) icon = '🐺';
-        // Every regular infantry/cavalry/archer, either side (#132): hand-drawn art by type ×
-        // a tier fixed at spawn from the unit's identity (`u.tier` — its position in its own
+        // Regular infantry/archer/cavalry, either side (#132): real sprite art by type × a
+        // tier fixed at spawn from the unit's identity (`u.tier` — its position in its own
         // troop tree, or its role in a bandit band), never from its live attack/defense/level.
-        else bakedSpr = this.troopSprite(u.type === 'cavalry' || u.type === 'archer' ? u.type : 'infantry',
-                                          u.tier || 0);
+        // Cavalry's own real art (Wesnoth horseman/cavalryman/grand-knight) replaces the
+        // procedural rider silhouette that was rejected in review as looking bad.
+        else bakedSpr = this.troopSprite(u.type === 'cavalry' ? 'cavalry' : u.type === 'archer' ? 'archer' : 'infantry', u.tier || 0);
 
         let isMoving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
         let offset = (u.x + u.y) * 0.05;

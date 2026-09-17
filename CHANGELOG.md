@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.26.1 — Süvari (2026-09-18)
+
+- **Atlı askerlerin (süvari) görünümü gerçek çizimlerle değişti** — hem düşman/dost süvariler
+  hem de sen atına binince artık gerçek zırhlı şövalye görselleri kullanıyor (üç farklı
+  zırh seviyesi dahil), önceki "at" emojisi veya kötü görünen çizim yerine.
+
 ## 1.26.0 — Boss Yenilendi (2026-09-18)
 
 - **5 boss artık gerçek birer kişilik**: koruma askerleri kaldırıldı, her biri kendi silüetiyle

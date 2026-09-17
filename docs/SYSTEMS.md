@@ -1627,31 +1627,35 @@ move with it — you're tracking a trail, not an address.
     own mount also gets a sound: `Game.sfx('hoofbeat')` fires once per hop peak (hysteresis so
     one peak fires once), the same short-envelope-oscillator approach as the market SFX — no
     audio file, and it's silenced by the existing mute setting for free.
-  - **Real sprite art for infantry, archers, and the player (#132)** — went through two
-    revisions during review. First pass was emoji-based (player icon swapped by weapon type,
-    bandits got a weak/normal/armored emoji picked from live `attack+defense`); both were
-    rejected in review (combining two emoji glyphs read as disconnected floating icons, not a
+  - **Real sprite art for infantry, archers, cavalry, and the player (#132)** — went through
+    several revisions during review. Rejected along the way: an emoji-based pass (player icon
+    swapped by weapon type, bandits got a weak/normal/armored emoji picked from live
+    `attack+defense` — combining two emoji glyphs read as disconnected floating icons, not a
     person holding something, and power-derived tiers meant the same named unit could look
-    different from one spawn to the next — rejected on principle, not just looks). Final version:
+    different from one spawn to the next, rejected on principle, not just looks); a procedural
+    canvas-drawn rider+horse silhouette for cavalry (looked bad); a bow drawn on top of a
+    cropped sprite for the archer (looked broken). Final version, all real sprite art, no
+    procedural shapes and no combined/overlaid glyphs:
     - **Infantry** (`troops/infantry_weak/normal/armored.png`) and **archer**
       (`troops/archer_weak/normal/armored.png`, one sprite recolored per tier — only one archer
-      pose was available) are real cropped pixel-art frames from two CraftPix.net freebies
-      (`troops/LICENSE.txt`), loaded via `Battle.troopImage()`/cached-and-baked via
-      `Battle.troopSprite()`/`bakeFitted()` (aspect-preserving, centered, `imageSmoothingEnabled
-      = false` to keep pixel art crisp) — not emoji, not a combined overlay.
+      pose was available) are real cropped pixel-art frames from two CraftPix.net freebies.
+      **Cavalry** (`troops/cavalry_weak/normal/armored.png`) is three real Battle for Wesnoth
+      unit sprites (horseman/cavalryman/grand-knight) — GPL v2, a copyleft license unlike the
+      CraftPix packs, attribution kept in `troops/LICENSE.txt` as required. All loaded via
+      `Battle.troopImage()`/cached-and-baked via `Battle.troopSprite()`/`bakeFitted()`
+      (aspect-preserving, centered, `imageSmoothingEnabled = false` to keep pixel art crisp);
+      cavalry bakes at a bigger size (`TROOP_SPRITE_SIZES`) since a horse+rider is wider than a
+      standing soldier.
     - **Tier is fixed by identity, never by live stats** — `TROOP_TYPES[name].tier` (0/1/2) is
       the troop's fixed recruit/mid/elite position in its own `TROOP_TREES` branch, carried onto
       the spawned unit as `u.tier`; a bandit's tier comes from its fixed row position in
       `BAND_KINDS[k].battle`/`.leader` (leader always tier 2). The same named troop always
       renders identically regardless of day, player level, or its own `level` field.
-    - **The player** (`troops/player_melee.png` / `player_bow.png`) picks its sprite off
-      `state.player.equipment.weapon.weaponType` (bow → the archer look, everything else → the
-      knight look) via `Battle.playerSprite()` — a real sprite per broad weapon category, not a
-      distinct pose per exact weapon (no assets exist for that granularity). Mounted has no
-      matching on-horseback art anywhere found, so it stays the 🐴 emoji.
-    - **Cavalry has no matching mounted sprite in any pack checked** (CraftPix, Kenney, itch.io,
-      OpenGameArt) — it's the one type still on procedural vector art
-      (`Battle.drawTroopRiderSilhouette`), same rig as the boss silhouettes below.
+    - **The player** (`troops/player_melee.png` / `player_bow.png` / `player_horse.png`) picks
+      its sprite off `state.player.equipment.weapon.weaponType` on foot (bow → the archer look,
+      everything else → the knight look) via `Battle.playerSprite()`, or the Wesnoth Knight
+      sprite when mounted — real art in every case, not the plain 🐴 emoji this used to fall
+      back to. Not a distinct pose per exact weapon (no assets exist for that granularity).
     - Companions/spouse keep their existing 🎖️/💍 emoji markers (identity accents, not "a
       soldier's" appearance) via `u.icon` — checked before the real-sprite branch in `drawUnit`.
   - **Charge stamina** (`Battle.chargeSpeed`): the speed bonus is no longer unlimited — it burns
