@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.8 — Kapı Eşiği (2026-09-17)
+
+- **Haritadan bir şehre/kaleye/köye yürüyünce mobilde ekranın üstü göstergelerin, altı ise alt
+  menünün arkasında kalıyordu.** `enterLocation` haritadan gelirken ekran geçişini kendi başına
+  yapıyor, `showScreen`'in üstlendiği `body.view-map` temizliğini atlıyordu — bu yüzden
+  yerleşim ekranı haritanın "kayan göstergeler" düzenini miras alıyor, üst çubuk şehir adının,
+  alt menü de son düğmenin (ör. "Ayrıl") üstüne biniyordu. `enterLocation` artık her ekran gibi
+  `showScreen('settlement')` üzerinden açılıyor.
+- **Handa çıkış düğmesi yoktu.** Uzun han ekranında köşedeki küçük × dışında bir çıkış yolu
+  gösterilmiyordu; şimdi listenin en altında "🚪 Handan Çık" düğmesi var.
+
 ## 1.21.7 — Eyer (2026-09-17)
 
 - **8 farklı at eklendi.** Köylü Beygiri'nden (500 dinar) Demir Zırhlı Cenk Atı'na (4550 dinar)

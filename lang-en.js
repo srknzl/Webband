@@ -1273,6 +1273,7 @@ I18N.dicts.en = {
   "🍷 Şölene Katıl": "🍷 Join the Feast",
   "🍺 Han - {0}</h3><p>Hancı sana gülümsüyor. \"Hoşgeldin yolcu!\"</p> <p>Burada dinlenip canını yenileyebilirsin. (10 Dinar)": "🍺 Tavern - {0}</h3><p>The innkeeper smiles at you. \"Welcome, traveller!\"</p> <p>You can rest here and recover your health. (10 denars)",
   "🍺 Hana Gir": "🍺 Enter the Tavern",
+  "🚪 Handan Çık": "🚪 Leave the Tavern",
   "🎁 Hediye ver": "🎁 Give a gift",
   "🎁 {0}'a Hediye": "🎁 A gift for {0}",
   "🎖️ Askerlerin Halletti": "🎖️ Your men handled it",

@@ -166,6 +166,12 @@ applies the choices from one place and `enterWorld()` (the old `startGame` body)
   the foot of the nav) is the in-app fullscreen for phones with no F11; it retires the
   `#f11-hint` nudge for good. Measured: at 1280×720 and 375×812 the map canvas's
   `clientWidth/Height` equals the viewport.
+  *(`enterLocation` — walking into a settlement from the map — used to skip `showScreen`
+  entirely and toggle `.view` itself, so `body.view-map` stayed on from the map screen: the
+  settlement's top bar and bottom nav kept floating over the scene instead of making room for
+  it in flow, hiding the city name under the HUD and the last action button under the nav
+  (#132). `enterLocation` now opens through `showScreen('settlement')` like every other
+  screen.)*
 - **Route line and draggable target** (#35): a flowing thin dashed line (shadow + gold
   layer) and, at the target, a small **filled** dot + a pulsing ring. The arrowhead was
   removed — the line already says the direction. The line and marker are screen-sized

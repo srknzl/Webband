@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.7', date: '2026-09-17', name: 'Eyer' };  // the version name is not translated
+const VERSION = { no: '1.21.8', date: '2026-09-17', name: 'Kapı Eşiği' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -6044,8 +6044,11 @@ const Game = {
     // --- SETTLEMENT ---
     enterLocation(loc) {
         if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.getElementById('settlement-view').classList.add('active');
+        // Walking in from the map called this directly, skipping showScreen()'s own bookkeeping —
+        // body.view-map (#40's map-only floating chrome) stayed on, so the settlement's top bar and
+        // bottom nav kept the map's fixed/floating layout and sat on top of the scene and the last
+        // action button instead of making room for them in flow (#132 mobile report).
+        this.showScreen('settlement');
         document.getElementById('settlement-name').innerText = T(loc.name) + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
@@ -7956,6 +7959,10 @@ const Game = {
             <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`"Köşedeki masada bir tüccar oturuyor. Boynundaki nişanı işaret ediyor: her pazarda bir dost demek."`}</p>`;
         if(this.hasRelic('tuccar_mink')) html += `<button class="btn" disabled style="opacity:0.4">${T`Tüccar Mink Nişanı (sende var)`}</button>`;
         else html += `<button class="btn primary" onclick="Game.buyMinkRelic('${loc.id}')">${T`Nişanı Al (${RELIC_PRICE} Dinar)`}</button>`;
+
+        // The tavern is all buttons, so showModal never adds its own "Kapat" fallback (#70) —
+        // on a long scroll, the sticky × alone is easy to miss (#132 mobile report).
+        html += `<button class="btn" style="margin-top:1.2rem" onclick="Game.dismissModal()">${T`🚪 Handan Çık`}</button>`;
 
         this.showModal(html, '600px', this.sceneBg('tavern'));   // tavern interior (#60)
         this._tavernLoc = loc;

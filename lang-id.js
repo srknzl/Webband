@@ -1273,6 +1273,7 @@ I18N.dicts.id = {
   "🍷 Şölene Katıl": "🍷 Ikut Pesta",
   "🍺 Han - {0}</h3><p>Hancı sana gülümsüyor. \"Hoşgeldin yolcu!\"</p> <p>Burada dinlenip canını yenileyebilirsin. (10 Dinar)": "🍺 Kedai - {0}</h3><p>Pemilik kedai tersenyum padamu. \"Selamat datang, musafir!\"</p> <p>Kau bisa beristirahat di sini dan memulihkan nyawa. (10 Dinar)",
   "🍺 Hana Gir": "🍺 Masuk Kedai",
+  "🚪 Handan Çık": "🚪 Keluar Kedai",
   "🎁 Hediye ver": "🎁 Beri hadiah",
   "🎁 {0}'a Hediye": "🎁 Hadiah untuk {0}",
   "🎖️ Askerlerin Halletti": "🎖️ Anak buahmu yang menuntaskan",
