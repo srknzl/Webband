@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.8', date: '2026-09-17', name: 'Kapı Eşiği' };  // the version name is not translated
+const VERSION = { no: '1.21.9', date: '2026-09-17', name: 'Kum Meydanı' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -920,10 +920,11 @@ const Game = {
             if(e.target.id === 'modal-overlay') e.preventDefault();
         });
         window.addEventListener('resize', () => this.resizeCanvases());
-        // Fullscreen button (#40): hide it where the API is missing, flip its icon with the state.
+        // Fullscreen button (#40): hide it where the API is missing, and on touch devices —
+        // a phone browser is already near-fullscreen and the API is flaky there (#132).
         let fsBtn = document.getElementById('fs-btn');
         if(fsBtn) {
-            if(!document.documentElement.requestFullscreen) fsBtn.style.display = 'none';
+            if(!document.documentElement.requestFullscreen || this.isTouch()) fsBtn.style.display = 'none';
             document.addEventListener('fullscreenchange', () => {
                 let ico = document.getElementById('fs-ico');
                 if(ico) ico.textContent = document.fullscreenElement ? '🗗' : '⛶';
@@ -2104,12 +2105,18 @@ const Game = {
     resizeCanvases() {
         // A hidden canvas's parent reports size 0; writing that value leaves the canvas
         // permanently 0x0. Only write when there's a real size.
-        let fit = (canvas) => {
-            let w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight;
+        let fit = (canvas, hReserve) => {
+            let w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight - (hReserve || 0);
             if(w > 0 && h > 0) { canvas.width = w; canvas.height = h; }
         };
         fit(this.mapCanvas);
-        fit(document.getElementById('battle-canvas'));
+        // #battle-canvas's parent is #battle-view, which also holds #battle-ui below it (#132) —
+        // Battle.start() sizes the canvas as view-container minus the UI bar's own height, but a
+        // stray resize (mobile address bar, keyboard, rotation) used to run this instead and
+        // re-stretch the canvas over the UI bar's space too, throwing off everything drawn from
+        // canvas.width/height — including the minimap, pinned to the now-wrong corner.
+        let battleUi = document.getElementById('battle-ui');
+        fit(document.getElementById('battle-canvas'), battleUi ? battleUi.offsetHeight : 0);
     },
 
     // At 144/180 Hz, rAF gives 5-7 ms budget per frame; the game looks the same at 60 fps
@@ -7606,7 +7613,7 @@ const Game = {
             ${it('💾', T('Kayıtlar'), 'Save.open()')}
             ${it(sesli ? '🔊' : '🔇', sesli ? T('Ses Açık') : T('Ses Kapalı'), 'Game.toggleMute(); Game.showMoreMenu()')}
             ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}
-            ${document.documentElement.requestFullscreen
+            ${(document.documentElement.requestFullscreen && !this.isTouch())
                 ? it(document.fullscreenElement ? '🗗' : '⛶', T('Tam Ekran'), 'Game.closeModal(); Game.toggleFullscreen()')
                 : ''}
         </div>
@@ -10669,7 +10676,7 @@ const Game = {
     // --- INVENTORY ---
     renderInventoryScreen() {
         let e = state.player.equipment;
-        let html = `<div style="display:flex;gap:2rem;">
+        let html = `<div id="inv-cols" style="display:flex;gap:2rem;">
         <div style="flex:1;">
             <h3 style="color:var(--primary)">${T`Kuşanılan`}</h3>
             <div class="equip-figures">
@@ -10690,11 +10697,11 @@ const Game = {
             <h3 style="color:var(--primary)">${T`Çanta`} <span style="font-size:var(--fs-sm);color:${this.cargoLoad() > this.cargoCap() ? 'var(--danger)' : 'var(--text-muted)'}">${this.cargoLoad()}/${this.cargoCap()}</span></h3>`;
         if(state.player.inventory.length === 0) html += `<p>${T('Envanterin boş.')}</p>`;
         else {
-            html += '<div style="display:flex;gap:0.8rem;flex-wrap:wrap;">';
+            html += '<div class="inv-grid">';
             state.player.inventory.forEach((item,i) => {
                 let canEquip = ['weapon','shield','armor','helmet','gloves','boots','horse'].includes(item.type);
                 let isUse = item.type === 'special' && item.id === 'boss_map';
-                html += `<div style="padding:0.8rem;background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-radius:6px;width:120px;text-align:center;"
+                html += `<div class="inv-item"
                 ${canEquip ? `draggable="true" ondragstart="Game._eqDragIdx=${i}" ondragend="Game._eqDragIdx=null"` : ''}>
                 <div style="font-size:1.5rem">${item.icon||'📦'}</div>
                 <div style="font-weight:bold;font-size:var(--fs-md);margin-top:0.3rem">${T(item.name)}</div>

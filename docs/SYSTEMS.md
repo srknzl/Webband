@@ -2010,6 +2010,27 @@ you to win 1–2 rounds and then lose, since a bracket has no score to throw.
 tournament branch is unreachable: `start()` defaults to `mode: 'chicken'` and the only caller left
 is the chicken-chasing quest (`goal: 16`, `time: 25`), which fires `chickens_caught`.
 
+**The ring itself is round (#132).** Both `isArena` and `isTourney` fights (not `isDuel` — a
+lady's-honor duel isn't fought in the town's arena building) skip the open-field terrain
+generation entirely and draw a circular sand pit instead (`Battle.buildArenaGround`): raked
+rings, a wooden post fence, a crowd of small "heads" packed around the outside, fading into the
+stand. `Battle.arenaRing(w,h)` (`r = min(w,h)×0.47 − 10`) is the one shared number — the same
+circle both draws the wall and clamps unit movement (`update`'s boundary clamp and `separate`'s
+post-collision clamp both switch from the rectangular field clamp to this circle when either flag
+is set), so nobody drifts past the fence the ground shows them. Player/enemy spawn points are
+likewise anchored to the ring's own center ± half its radius instead of the open-field offsets,
+which could land outside a small ring.
+
+`resizeCanvases()`'s generic `fit()` used to size `#battle-canvas` off `#battle-view.clientHeight`
+alone — the full box, `#battle-ui` included — while `Battle.start()` itself correctly sizes it as
+that same height *minus* `#battle-ui`'s own `offsetHeight` (the canvas and the UI bar stack, they
+don't overlap). The two only agreed at the exact moment a battle starts; any later resize (a
+phone's address bar hiding, the keyboard opening, rotation) re-ran the generic version and quietly
+grew the canvas by the UI bar's height, throwing off everything positioned from
+`canvas.width/height` — the minimap included, pinned to a corner that was no longer where the
+visible canvas ended. `fit()` now takes an optional reserved-height argument and the battle-canvas
+call passes `#battle-ui`'s `offsetHeight`, so a later resize lands on the same number `start()` did.
+
 **The chicken chase is a game now, not a formality** (#123). A 42px circle that sat still for
 1.2 seconds was a target you could not miss with 8 of 15 seconds to spare. The bird is **24px
 base** (`+0.8` per point of agility instead of 1.2), lives **0.8s** (`+0.12` per point of

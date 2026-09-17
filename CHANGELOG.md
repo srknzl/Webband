@@ -3,6 +3,28 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.9 — Kum Meydanı (2026-09-17)
+
+- **Savaşta dost/düşman öldürünce hepsinde "Dost Asker" yazıyordu.** Oyuncu ve grup askerlerinin
+  savaş birimine tip adı hiç yazılmıyordu; artık öldürülen/öldüren oyuncuysa kendi adın, asker ise
+  askerin tipi (ör. "Svadya Milisi") görünüyor.
+- **Mobilde savaş çubukları (sol/sağ joystick) küçük geliyordu.** 92/60 px'ten 116/74 px'e
+  büyütüldü.
+- **Bozgun teklifi ("Düşman kaçıyor" + Bırak Gitsinler) Teslim Ol'un yanında ekran dışına
+  taşıyordu.** Savaş şeridi artık gerektiğinde ikinci satıra sarıyor.
+- **Mobilde Tam Ekran düğmesinin bir anlamı yok.** Dokunmatik cihazda hem şeritten hem "⋯ Daha"
+  menüsünden kaldırıldı.
+- **Envanterde çanta eşyaları mobilde tek tek alt alta diziliyordu.** Kuşanılan bölüm üste
+  taşındı, çanta artık gerçek bir grid — yan yana sığdığı kadar eşya.
+- **Arena ve turnuva dövüşleri açık arazi zeminiyle açılıyordu.** İkisi de artık kendi yuvarlak
+  kum meydanında geçiyor: ahşap çit, etrafta seyirci kalabalığı — ve sınırı görsel değil, gerçek:
+  aynı daire hem zemini çiziyor hem de kimsenin dışarı taşmasını engelliyor.
+- **Mobilde savaş sırasında sağ üstteki küçük harita bazen kayboluyordu.** Telefonun adres
+  çubuğu gizlenince/klavye açılınca tetiklenen `resize` olayı, savaş tuvalini komuta şeridinin
+  yüksekliğini hiç düşmeden yeniden boyutlandırıyordu — tuval göründüğünden uzun oluyor, üstüne
+  çizilen her şey (küçük harita dahil) artık görünmeyen bir köşeye kayıyordu. İki hesaplama artık
+  aynı sayıyı kullanıyor.
+
 ## 1.21.8 — Kapı Eşiği (2026-09-17)
 
 - **Haritadan bir şehre/kaleye/köye yürüyünce mobilde ekranın üstü göstergelerin, altı ise alt

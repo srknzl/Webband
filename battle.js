@@ -191,14 +191,21 @@ const Battle = {
         this.pendingEnd = undefined;   // a stale delayed-end flag from a previous fight must not carry over (#114)
 
         // In an ambush the player isn't caught at the edge but in the middle of the arena (needed for the circle)
-        let startPlayerX = this.siege ? 120
+        // The arena/tournament ring (#132) is its own circle — the open-field spawn offsets can
+        // land outside it, so both sides spawn at a fixed fraction of the ring's own radius instead.
+        let ringSpawn = (this.isArena || this.isTourney) ? this.arenaRing(W, H) : null;
+        let startPlayerX = ringSpawn ? ringSpawn.cx - ringSpawn.r * 0.5
+                         : this.siege ? 120
                          : this.ambushed ? W/2 : (enemyCount < 30 ? W/2 - 200 - Math.random()*100 : 80);
         // In a siege the defender spawns behind the wall, the attacker out in the field
-        let startEnemyX = this.siege ? this.siege.wall.x + 60
+        let startEnemyX = ringSpawn ? ringSpawn.cx + ringSpawn.r * 0.5
+                        : this.siege ? this.siege.wall.x + 60
                         : (enemyCount < 30 ? W/2 + 100 + Math.random()*100 : W - 160);
 
-        // Procedural Terrain Generation
-        this.terrain = { hills: [], pits: [], forests: [], rivers: [] };
+        // Procedural Terrain Generation — skipped in the arena/tournament ring (#132): a sand
+        // pit has no hills, forest or river, and an invisible rock would make no sense there.
+        this.terrain = { hills: [], pits: [], forests: [], rivers: [], mountains: [], rocks: [] };
+        if(!this.isArena && !this.isTourney) {
         for(let i=0; i<3+Math.random()*6; i++) {
             this.terrain.hills.push({ x: Math.random()*W, y: Math.random()*H, r: 50+Math.random()*80 });
         }
@@ -210,13 +217,11 @@ const Battle = {
         }
         // Mountain (#118): unlike a hill's flat patch, speed falls off toward a single summit —
         // 1 at the foot, down to 0.45 at the peak. At most one per field, drawn with contour rings.
-        this.terrain.mountains = [];
         if(Math.random() > 0.5) {
             this.terrain.mountains.push({ x: 60+Math.random()*Math.max(1,W-120), y: 60+Math.random()*Math.max(1,H-120), r: 90+Math.random()*90 });
         }
         // Impassable rocks — adds positioning and tactical variety.
         // Not placed in the spawn lanes (150 units from the edges).
-        this.terrain.rocks = [];
         for(let i=0; i<2+Math.random()*3; i++) {
             this.terrain.rocks.push({
                 x: 150 + Math.random()*Math.max(1, W-300),
@@ -224,7 +229,7 @@ const Battle = {
                 r: 18 + Math.random()*20
             });
         }
-        
+
         // 50% chance of a river (a randomly vertical or horizontal cutting strip)
         if(Math.random() > 0.5) {
             let isVertical = Math.random() > 0.5;
@@ -241,6 +246,7 @@ const Battle = {
         // The river is the one place a rock may not sit.
         this.terrain.rocks = this.terrain.rocks.filter(k => !this.terrain.rivers.some(r =>
             k.x + k.r > r.x && k.x - k.r < r.x + r.w && k.y + k.r > r.y && k.y - k.r < r.y + r.h));
+        }
         
         // Siege field: no river/rocks at the wall's foot, cover stays only on the besieging side
         if(this.siege) {
@@ -270,7 +276,7 @@ const Battle = {
 
         // Player
         this.units.push({
-            id: 'player', isPlayerTeam: true,
+            id: 'player', isPlayerTeam: true, name: state.player.name,
             hp: state.player.stats.hp, maxHp: state.player.stats.maxHp,
             x: startPlayerX, y: H/2,
             // Skill tree #110: Ranger perks scale riding/foot speed
@@ -305,7 +311,7 @@ const Battle = {
             let debuff = Math.max(0.7, (p.debuff ? 0.7 : 1) * Game.moraleMult());
 
             this.units.push({
-                id: p.id, isPlayerTeam: true,
+                id: p.id, isPlayerTeam: true, name: p.name,
                 hp: (typeInfo.hp + lvlBonusHp) * debuff, maxHp: (typeInfo.hp + lvlBonusHp) * debuff,
                 x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
                 // Speed isn't affected by morale: the enemy has no morale, so if it scaled, the same troop
@@ -1225,13 +1231,20 @@ const Battle = {
         // nor searched — leaving `units` makes all three counts correct at once.
         if(this.units.some(u => u.escaped)) this.units = this.units.filter(u => !u.escaped);
 
-        // Nobody can leave the arena — retreating archers used to flee off the map and lock up the battle
+        // Nobody can leave the field — retreating archers used to flee off the map and lock up the battle.
+        // The arena/tournament ring is round (#132), so its own boundary is a circle, not a box.
         let bw = this.canvas.width, bh = this.canvas.height;
+        let ring = (this.isArena || this.isTourney) ? this.arenaRing(bw, bh) : null;
         let rocks = (this.terrain && this.terrain.rocks) || [];
         this.units.forEach(u => {
             if(u.hp <= 0) return;
-            u.x = Math.max(12, Math.min(bw - 12, u.x));
-            u.y = Math.max(12, Math.min(bh - 12, u.y));
+            if(ring) {
+                let dx = u.x - ring.cx, dy = u.y - ring.cy, d = Math.sqrt(dx*dx + dy*dy), max = ring.r - u.radius;
+                if(d > max && d > 0.01) { let s = max / d; u.x = ring.cx + dx * s; u.y = ring.cy + dy * s; }
+            } else {
+                u.x = Math.max(12, Math.min(bw - 12, u.x));
+                u.y = Math.max(12, Math.min(bh - 12, u.y));
+            }
             // Rocks are impassable: anyone who enters one is pushed back out. Also cover now (#118):
             // an arrow that grazes one is stopped 70% of the time (Battle.projectiles update).
             // Except while fleeing: a rock can't push a unit running straight across sideways, or it gets stuck and locks up the battle.
@@ -1315,11 +1328,21 @@ const Battle = {
             }
         }
         let bw2 = this.canvas.width, bh2 = this.canvas.height;
+        let ring2 = (this.isArena || this.isTourney) ? this.arenaRing(bw2, bh2) : null;
         live.forEach(u => {
-            u.x = Math.max(12, Math.min(bw2 - 12, u.x));
-            u.y = Math.max(12, Math.min(bh2 - 12, u.y));
+            if(ring2) {
+                let dx = u.x - ring2.cx, dy = u.y - ring2.cy, d = Math.sqrt(dx*dx + dy*dy), max = ring2.r - u.radius;
+                if(d > max && d > 0.01) { let s = max / d; u.x = ring2.cx + dx * s; u.y = ring2.cy + dy * s; }
+            } else {
+                u.x = Math.max(12, Math.min(bw2 - 12, u.x));
+                u.y = Math.max(12, Math.min(bh2 - 12, u.y));
+            }
         });
     },
+
+    // The sand pit's circle, shared by the ground drawing and the boundary clamp above (#132) —
+    // one set of numbers, so the wall you see is the wall that actually stops you.
+    arenaRing(w, h) { return { cx: w / 2, cy: h / 2, r: Math.min(w, h) * 0.47 - 10 }; },
 
     // --- Ground: grass + terrain is drawn once to an offscreen canvas, never regenerated every frame
     buildGround() {
@@ -1327,6 +1350,8 @@ const Battle = {
         let g = document.createElement('canvas');
         g.width = W; g.height = H;
         let c = g.getContext('2d');
+
+        if(this.isArena || this.isTourney) return this.buildArenaGround(c, g, W, H);
 
         let base = c.createLinearGradient(0, 0, 0, H);
         base.addColorStop(0, '#35532f');
@@ -1434,6 +1459,82 @@ const Battle = {
         c.fillRect(0, 0, W, H);
 
         this.ground = g;
+    },
+
+    // The arena/tournament ring (#132): round sand pit, wooden boundary, a crowd packed around
+    // the outside — seen from above, so the crowd is just a mottled ring of "heads", not figures.
+    // The circle matches `arenaRing()`, the same one the boundary clamp uses: nobody can wander
+    // past the wall the ground shows them.
+    buildArenaGround(c, g, W, H) {
+        let { cx, cy, r } = this.arenaRing(W, H);
+        let lite = Game.lite();
+
+        // Packed dirt outside the ring, where the crowd stands
+        let outer = c.createLinearGradient(0, 0, 0, H);
+        outer.addColorStop(0, '#4a4034'); outer.addColorStop(1, '#2e281f');
+        c.fillStyle = outer; c.fillRect(0, 0, W, H);
+
+        // Crowd: rings of small heads packed shoulder to shoulder around the pit, thinning
+        // toward the canvas edge so it reads as a stand rather than a hard-edged ribbon.
+        let bands = lite ? 3 : 5;
+        for(let b = 0; b < bands; b++) {
+            let br = r + 22 + b * (lite ? 26 : 20);
+            if(br > Math.max(W, H) * 0.8) break;
+            let step = 15 + b * 1.5;
+            let n = Math.max(8, Math.floor((2 * Math.PI * br) / step));
+            for(let i = 0; i < n; i++) {
+                let a = (i / n) * Math.PI * 2 + b * 0.37;
+                let x = cx + Math.cos(a) * br, y = cy + Math.sin(a) * br * 0.94;
+                if(x < -10 || x > W + 10 || y < -10 || y > H + 10) continue;
+                let tone = 40 + Math.floor(this.crowdRnd(b, i) * 50);
+                c.fillStyle = `rgba(${tone + 30},${tone + 14},${tone},0.85)`;
+                c.beginPath(); c.arc(x, y, 4.2, 0, Math.PI * 2); c.fill();
+            }
+        }
+        // A soft glow washes out the crowd right at the wall so the boundary itself still reads clearly
+        let crowdFade = c.createRadialGradient(cx, cy, r, cx, cy, r + 46);
+        crowdFade.addColorStop(0, 'rgba(46,40,31,0)'); crowdFade.addColorStop(1, 'rgba(46,40,31,0.9)');
+        c.fillStyle = crowdFade; c.beginPath(); c.arc(cx, cy, r + 46, 0, Math.PI * 2); c.fill();
+
+        // Sand floor
+        let sand = c.createRadialGradient(cx, cy - r * 0.15, r * 0.1, cx, cy, r);
+        sand.addColorStop(0, '#e0c088'); sand.addColorStop(0.8, '#c9a463'); sand.addColorStop(1, '#a9853f');
+        c.save();
+        c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip();
+        c.fillStyle = sand; c.fillRect(cx - r, cy - r, r * 2, r * 2);
+        // Raked concentric rings, like a groomed fighting pit
+        c.strokeStyle = 'rgba(150,110,60,0.28)'; c.lineWidth = 2;
+        for(let ring = 1; ring <= 5; ring++) { c.beginPath(); c.arc(cx, cy, r * ring / 6, 0, Math.PI * 2); c.stroke(); }
+        // A little grit so it doesn't read as a flat disc
+        for(let i = 0, n = lite ? 120 : 400; i < n; i++) {
+            let a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r;
+            c.fillStyle = Math.random() > 0.5 ? 'rgba(255,240,200,0.12)' : 'rgba(90,60,30,0.14)';
+            c.fillRect(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 2, 2);
+        }
+        c.restore();
+
+        // Wooden boundary wall — the fence nobody fights past
+        c.strokeStyle = '#5a4327'; c.lineWidth = 10;
+        c.beginPath(); c.arc(cx, cy, r + 4, 0, Math.PI * 2); c.stroke();
+        c.strokeStyle = '#7a5c34'; c.lineWidth = 3;
+        c.beginPath(); c.arc(cx, cy, r + 7, 0, Math.PI * 2); c.stroke();
+        let posts = Math.floor((2 * Math.PI * r) / 34);
+        for(let i = 0; i < posts; i++) {
+            let a = (i / posts) * Math.PI * 2;
+            let x = cx + Math.cos(a) * (r + 4), y = cy + Math.sin(a) * (r + 4);
+            c.fillStyle = '#8a6a3c'; c.fillRect(x - 2.5, y - 7, 5, 14);
+        }
+
+        c.fillStyle = 'rgba(6,10,6,0.12)';
+        c.fillRect(0, 0, W, H);
+
+        this.ground = g;
+    },
+    // Deterministic dot placement for the crowd texture — no state kept, just needs to not be pure Math.random
+    // per band/index or the rings would shimmer if buildArenaGround ever re-ran mid-battle.
+    crowdRnd(a, b) {
+        let h = (a * 374761393 + b * 668265263) % 1000003;
+        return Math.abs(h) / 1000003;
     },
 
     // Siege wall: stone band + crenellations outside the breaches, broken gate leaves at the gate (#25)
