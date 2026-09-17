@@ -35,10 +35,12 @@ Developer membership, so until then it is a local Xcode step. To build either lo
 cd native && npm install && npm run sync && npx cap open android
 ```
 
-On Windows, one line in the repo folder puts it on the desktop:
+On Windows, one line in the repo folder drops a desktop shortcut with the game icon. It
+runs `webband-launch.ps1`, which checks the repo for a newer version, offers to update
+itself, and then opens the game in Chrome:
 
 ```powershell
-$s = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:USERPROFILE\Desktop\WebBand.lnk"); $s.TargetPath = "$PWD\index.html"; $s.Save()
+$s=(New-Object -ComObject WScript.Shell).CreateShortcut("$env:USERPROFILE\Desktop\WebBand.lnk");$s.TargetPath="powershell.exe";$s.Arguments="-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PWD\webband-launch.ps1`"";$s.WorkingDirectory="$PWD";$s.IconLocation="$PWD\webband.ico";$s.Save()
 ```
 
 ## Controls
@@ -74,6 +76,7 @@ JSON from the 💾 Kayıtlar screen.
 | `lang-en.js`, `lang-id.js` | English and Bahasa Indonesia dictionaries (generated) |
 | `style.css` | Glassmorphism theme |
 | `sw.js`, `manifest.webmanifest`, `fonts/` | Offline cache, install metadata, self-hosted fonts |
+| `webband-launch.ps1`, `webband.ico` | Windows launcher (update check + Chrome) and its desktop icon |
 | `native/` | Capacitor shell that turns the same files into Android and iOS apps |
 | `tools/` | Headless test, simulation and balance tools, run by CI |
 | `docs/` | Design plans, system notes and measurements (Turkish) |
