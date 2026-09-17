@@ -1853,6 +1853,7 @@ I18N.dicts.en = {
   "I": "I",
   "Q": "Q",
   "K": "K",
+  "N": "N",
   "1 2 3": "1 2 3",
   // Hafif mod (#80) — sözlük üretildikten sonra eklendi (#81)
   "📱 Telefon/tablet algılandı — Hafif Mod açıldı. Deniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer; hedef 30 fps. ⚙️ Ayarlar'dan kapatabilirsin.": "📱 Phone/tablet detected — Lite Mode is on. Sea waves, forest trees, hearth glow and battle particles are reduced; the target is 30 fps. You can turn it off in ⚙️ Settings.",
@@ -1886,6 +1887,11 @@ I18N.dicts.en = {
   "🕹️ Çubuk": "🕹️ Stick",
   "Savaşta hareket — nişan da çubuğun yönü": "Movement in battle — you also aim where the stick points",
   "⚔️ Düğme": "⚔️ Button",
+  // Dual-stick combat controls replaced the old stick+button scheme — sözlük üretildikten sonra eklendi
+  "🕹️ Sol çubuk": "🕹️ Left stick",
+  "Savaşta hareket": "Movement in battle",
+  "⚔️ Sağ çubuk": "⚔️ Right stick",
+  "Kılıca yön ver — çektiğin yere vurur, bıraktığında savurur": "Aim your sword — it strikes where you drag it, then swings when you release",
   "🛡️ Düğme": "🛡️ Button",
   "Blok — basılı tut": "Block — hold it down",
   "1 2 3 düğmeleri": "1 2 3 buttons",
@@ -2723,4 +2729,7 @@ I18N.dicts.en = {
   "Ocakta dövülmüş bir yürek kolay durmaz. (Azami can +%20)": "A heart forged in the furnace does not stop easily. (Max HP +20%)",
   "Her yağma bir fırtına sonrası gibi. (Ganimet +%25)": "Every raid feels like the aftermath of a storm. (Loot +25%)",
   "Her pazarda bir dost, her dostta bir indirim. (Ticaret marjı +%10)": "A friend in every market, a discount in every friend. (Trade edge +10%)",
+  "Tam Ekran": "Fullscreen",
+  "Tam ekran": "Fullscreen",
+  "Haritayı yakınlaştır/uzaklaştır (Z)": "Zoom the map in/out (Z)",
 };

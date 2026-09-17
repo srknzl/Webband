@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.1 — Sağlam Zemin (2026-09-17)
+
+- **Mobilde köşe paneli künyeyi ezmiyor.** Kuşatma, yağma, kamp veya esaret paneli açıkken
+  alt-soldaki arazi/birlik künyesi artık üstünde kalmıyor; altındaki Diplomasi düğmesi ve
+  hız göstergesi tekrar erişilebilir.
+- **Karakter oluşturma ve Lordlar Salonu artık klavye ve ekran okuyucuyla tam kullanılabilir.**
+  Sancak seçimi ve soylu kartları gerçek düğmeye çevrildi; hiçbiri isimsiz veya ulaşılamaz kalmıyor.
+- **Savaştaki çift çubuk kontrolleri İngilizce ve Endonezcede eksik kalmıştı**, düzeltildi.
+
 ## 1.21.0 — Yolların Kıyısı (2026-09-17)
 
 - **Savaş dengesi elden geçti.** Mızraklılar süvariye, kalkanlılar ağır süvariye karşı hak ettiği

@@ -384,12 +384,12 @@ const Nobles = {
         let sub = isLady
             ? `${T`İlgi:`} <b style="color:#ff9ec4">${this.aff(n.id)}</b>`
             : this.relLabel(this.rel(n.id));
-        return `<div onclick="Nobles.talk('${n.id}')" style="cursor:pointer;width:150px;text-align:center;
+        return `<button class="btn" aria-label="${T(n.name)}" onclick="Nobles.talk('${n.id}')" style="cursor:pointer;width:150px;text-align:center;
             padding:0.6rem;background:rgba(0,0,0,0.35);border:1px solid var(--panel-border);border-radius:8px">
             <div style="display:flex;justify-content:center">${this.portraitCss(n, 96)}</div>
             <div style="font-weight:bold;margin-top:0.5rem;font-size:var(--fs-md)">${T(n.name)}</div>
             <div style="font-size:var(--fs-xs);margin-top:0.2rem">${sub}</div>
-        </div>`;
+        </button>`;
     },
 
     swearFealtyPrompt(fid) {

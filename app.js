@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.0', date: '2026-09-17', name: 'Yolların Kıyısı' };  // the version name is not translated
+const VERSION = { no: '1.21.1', date: '2026-09-17', name: 'Sağlam Zemin' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1901,6 +1901,7 @@ const Game = {
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
+                aria-label="${T(o.label)}"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
                 <b>${T(o.label)}</b>
                 <div style="font-size:var(--fs-sm);color:var(--text-muted);font-style:italic">${T(o.desc)}</div>
@@ -1947,11 +1948,11 @@ const Game = {
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
-            html += `<div onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
+            html += `<button class="btn" aria-label="${T(b.name)}" onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
                 border-radius:8px;border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
                 <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
                 <div style="font-size:var(--fs-sm);margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
-            </div>`;
+            </button>`;
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
@@ -6932,7 +6933,12 @@ const Game = {
         this.skipType();
         let el = document.getElementById(elId);
         if(!el) return;
-        if(this.reduceMotion()) { el.textContent = text; if(then) then(); return; }
+        // Reserve the final height before typing a single letter: growing the element as text
+        // appears pushes whatever sits below it (almost always the modal's action buttons) down
+        // mid-animation, so a tap aimed at a button can land wherever the layout has shifted to.
+        el.textContent = text;
+        el.style.minHeight = el.offsetHeight + 'px';
+        if(this.reduceMotion()) { if(then) then(); return; }
         el.textContent = '';
         let i = 0, step = 2;
         this._type = { el, text, then, timer: setInterval(() => {
@@ -7581,6 +7587,9 @@ const Game = {
             ${it('💾', T('Kayıtlar'), 'Save.open()')}
             ${it(sesli ? '🔊' : '🔇', sesli ? T('Ses Açık') : T('Ses Kapalı'), 'Game.toggleMute(); Game.showMoreMenu()')}
             ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}
+            ${document.documentElement.requestFullscreen
+                ? it(document.fullscreenElement ? '🗗' : '⛶', T('Tam Ekran'), 'Game.closeModal(); Game.toggleFullscreen()')
+                : ''}
         </div>
         <button class="btn primary" style="margin-top:0.9rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '340px');
     },
@@ -7588,8 +7597,11 @@ const Game = {
     showSettings() {
         let sw = (k, on, off) => `<button class="btn${this.opt(k) ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.7rem"
             onclick="Game.setOpt('${k}', ${!this.opt(k)})">${this.opt(k) ? on : off}</button>`;
-        let row = (label, ctrl, note) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:0.5rem 0;border-bottom:1px solid var(--panel-border)">
-            <div><div>${label}</div>${note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted)">${note}</div>` : ''}</div><div style="white-space:nowrap">${ctrl}</div></div>`;
+        // `flex-wrap` + no `white-space:nowrap`: a 3-4 button control group (language, tri-state
+        // toggles) was forced onto one unbreakable line and dragged the whole modal into
+        // horizontal scroll on a 375px phone — the buttons now wrap under the label instead.
+        let row = (label, ctrl, note) => `<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0.4rem 1rem;padding:0.5rem 0;border-bottom:1px solid var(--panel-border)">
+            <div><div>${label}</div>${note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted)">${note}</div>` : ''}</div><div>${ctrl}</div></div>`;
         let rm = this.opt('reducedMotion');
         let rmBtn = ['auto', true, false].map(v => `<button class="btn${rm === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('reducedMotion', ${this.lit(v)})">${v === 'auto' ? T('Sistem') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');

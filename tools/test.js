@@ -2468,6 +2468,17 @@ test('i18n: faction people-names are in both dictionaries', () => {
     assert.strictEqual(missing.length, 0, `people-name with no dictionary entry: ${missing.join(', ')}`);
 });
 
+// Same blind spot again: the keyboard/touch help table is rendered with `T(k)`/`T(v)`
+// (showKeys()), so a redesigned control scheme (the old single-stick+button touch
+// layout became the current dual-stick one) can change Game.TOUCH_HELP's strings
+// without the extractor ever noticing the new ones have no dictionary entry.
+test('i18n: keyboard/touch help entries are in both dictionaries', () => {
+    const d = require('./i18n-keys').dicts();
+    const cells = [...g.Game.KEYS, ...g.Game.TOUCH_HELP].flat();
+    const missing = cells.filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(missing.length, 0, `help entry with no dictionary entry: ${missing.join(', ')}`);
+});
+
 test('i18n: top-level data tables are language-independent', () => {
     // Same seed, two languages: if T(...) runs while the table is being built, values diverge.
     const tr = H.load({ seed: 7 }), en = H.load({ seed: 7, lang: 'en' });

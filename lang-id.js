@@ -1853,6 +1853,7 @@ I18N.dicts.id = {
   "I": "I",
   "Q": "Q",
   "K": "K",
+  "N": "N",
   "1 2 3": "1 2 3",
   // Hafif mod (#80) — sözlük üretildikten sonra eklendi (#81)
   "📱 Telefon/tablet algılandı — Hafif Mod açıldı. Deniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer; hedef 30 fps. ⚙️ Ayarlar'dan kapatabilirsin.": "📱 Ponsel/tablet terdeteksi — Mode Ringan menyala. Ombak laut, pohon hutan, cahaya perapian dan partikel pertempuran dikurangi; targetnya 30 fps. Kamu bisa mematikannya di ⚙️ Pengaturan.",
@@ -1886,6 +1887,11 @@ I18N.dicts.id = {
   "🕹️ Çubuk": "🕹️ Tuas",
   "Savaşta hareket — nişan da çubuğun yönü": "Gerak saat bertempur — arah bidikan mengikuti tuas",
   "⚔️ Düğme": "⚔️ Tombol",
+  // Dual-stick combat controls replaced the old stick+button scheme — sözlük üretildikten sonra eklendi
+  "🕹️ Sol çubuk": "🕹️ Tuas kiri",
+  "Savaşta hareket": "Gerak saat bertempur",
+  "⚔️ Sağ çubuk": "⚔️ Tuas kanan",
+  "Kılıca yön ver — çektiğin yere vurur, bıraktığında savurur": "Arahkan pedangmu — menusuk ke arah tarikanmu, lalu mengayun saat kamu lepaskan",
   "🛡️ Düğme": "🛡️ Tombol",
   "Blok — basılı tut": "Tangkis — tekan dan tahan",
   "1 2 3 düğmeleri": "Tombol 1 2 3",
@@ -2723,4 +2729,7 @@ I18N.dicts.id = {
   "Ocakta dövülmüş bir yürek kolay durmaz. (Azami can +%20)": "Hati yang ditempa di tungku tak mudah berhenti. (Nyawa maks +20%)",
   "Her yağma bir fırtına sonrası gibi. (Ganimet +%25)": "Setiap jarahan terasa seperti setelah badai. (Jarahan +25%)",
   "Her pazarda bir dost, her dostta bir indirim. (Ticaret marjı +%10)": "Seorang teman di setiap pasar, diskon di setiap teman. (Margin dagang +10%)",
+  "Tam Ekran": "Layar Penuh",
+  "Tam ekran": "Layar penuh",
+  "Haritayı yakınlaştır/uzaklaştır (Z)": "Perbesar/perkecil peta (Z)",
 };

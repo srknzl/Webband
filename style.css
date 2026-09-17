@@ -589,7 +589,12 @@ input[type="text"]:focus {
 }
 #modal-close:hover { color: var(--primary); background: rgba(212, 175, 55, 0.18); }
 
-#modal-body { margin-bottom: 1.5rem; text-align: left; line-height: 1.6; font-size: 1.05rem; }
+/* The opaque backing above only keeps the × glyph legible over scrolled-under text —
+   it doesn't stop that text from reaching it, so a line can still wrap mid-word right
+   against the button (or a button/card edge can tuck half behind it). Sticky pins the
+   × over the body at every scroll position, not just the top, so the gutter has to run
+   the full height, not just around the heading. */
+#modal-body { margin-bottom: 1.5rem; padding-right: 1.8rem; text-align: left; line-height: 1.6; font-size: 1.05rem; }
 
 .hidden { display: none !important; }
 
@@ -977,6 +982,16 @@ body.touch .menu-btn kbd { display: none; }
     -webkit-backdrop-filter: none;
 }
 #map-tooltip, #prisoner-ui, #siege-ui, #raid-ui, #wait-ui { background: rgba(12,14,18,0.93); }
+
+/* Kuşatma/yağma/kamp paneli açıkken alt-sol künye (arazi + birlik) dar ekranda
+   tam ene yayılır ve köşe panelinin altında kalır (#86 ile aynı künye, farklı çakışma):
+   panel açıkken künye gizlenir, zaten aynı bilgiyi panel kendi başlığında taşır. */
+body:has(#prisoner-ui:not(.hidden)) #map-hud,
+body:has(#siege-ui:not(.hidden)) #map-hud,
+body:has(#raid-ui:not(.hidden)) #map-hud,
+body:has(#wait-ui:not(.hidden)) #map-hud {
+    display: none;
+}
 
 /* Esaret paneli */
 #prisoner-ui {
