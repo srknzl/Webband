@@ -259,8 +259,10 @@ const Battle = {
 
         // Mount: if there's a horse the player enters as cavalry — the engine already knows cavalry (and being unhorsed)
         let mounted = !!state.player.equipment.horse;
-        let horseBonus = mounted ? (state.player.equipment.horse.horseBonus || 1) : 1;   // Han Kısrağı: +15% (#38)
-        armorDef = Math.round(armorDef * horseBonus);
+        // Each horse tier carries its own speed/armor bonus (#132) instead of one shared scalar
+        let hSpd = 1 + (mounted ? (state.player.equipment.horse.hSpd || 0) / 100 : 0);
+        let hDef = 1 + (mounted ? (state.player.equipment.horse.hDef || 0) / 100 : 0);
+        armorDef = Math.round(armorDef * hDef);
         // The quiver fills per battle; zero if there's no bow
         // Skill tree #110: Ranger perks add flat arrows
         this.arrows = this.playerHasBow() ? 24 + this.prof('bow') * 2 + Game.perkMod('arrowCount') : 0;
@@ -272,7 +274,7 @@ const Battle = {
             hp: state.player.stats.hp, maxHp: state.player.stats.maxHp,
             x: startPlayerX, y: H/2,
             // Skill tree #110: Ranger perks scale riding/foot speed
-            speed: mounted ? (95 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 3) * (1 + Game.perkMod('ridingSpeed')) * horseBonus
+            speed: mounted ? (95 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 3) * (1 + Game.perkMod('ridingSpeed')) * hSpd
                            : this.footSpeed(),
             attack: 10 + Game.attr('str') + weaponAtk,
             defense: armorDef, type: mounted ? 'cavalry' : 'infantry', mounted,
@@ -281,6 +283,7 @@ const Battle = {
             color: '#ffcc00', radius: mounted ? 9 : 8, atkCd: 0,
             isAttacking: false, attackTimer: 0, swingCd: 0, angleToMouse: 0, currentWeaponAngle: 0
         });
+        this._horseDied = false;   // rolled when the player is thrown (#132), read in endBattle
 
         // Troop kills/XP/casualties are watched from a single log this battle, read back
         // in endBattle() for the detail tab (#120).
@@ -293,10 +296,10 @@ const Battle = {
             // Growth used to be a single lump at promotion; now every level nudges something,
             // so the levels between promotions are felt too (#124) — the big jump still comes
             // from the class upgrade itself, this only softens the flat stretch between them.
-            let lvlBonusHp = p.level * 2 + (p.level===51?100:0);
-            let lvlBonusAtk = Math.floor(p.level / 3) + (p.level===51?15:0);
-            let lvlBonusDef = Math.floor(p.level / 2) + (p.level===51?10:0);
-            let lvlBonusSpd = Math.floor(p.level / 4) + (p.level===51?8:0);
+            let lvlBonusHp = p.level * 2;
+            let lvlBonusAtk = Math.floor(p.level / 3);
+            let lvlBonusDef = Math.floor(p.level / 2);
+            let lvlBonusSpd = Math.floor(p.level / 4);
             // Hunger and morale were two separate multipliers; both at once dragged HP AND attack to ×0.56 —
             // a losing battle fed on itself. It now floors at 0.7.
             let debuff = Math.max(0.7, (p.debuff ? 0.7 : 1) * Game.moraleMult());
@@ -955,6 +958,9 @@ const Battle = {
                 u.speed = u.id === 'player' ? this.footSpeed() : Math.max(50, u.speed * 0.55);
                 if(u.id === 'player') u.radius = 8;
                 this.floatingTexts.push({ x: u.x, y: u.y - 12, text: T('Attan Düştü!'), color: '#ffaa00', life: 1.0 });
+                // Only the player's mount is a real item that can be lost (#132) — a troop's
+                // horse is baked into its fixed TROOP_TREES stats, nothing to remove from anywhere.
+                if(u.id === 'player' && Math.random() < 0.10) this._horseDied = true;
             }
 
             // Rout: whoever flees doesn't fight, they run to the edge they came from. This is exactly
@@ -2301,6 +2307,16 @@ const Battle = {
             return;
         }
 
+        // The player's own horse (#132): rolled once already in the dismount check above; here
+        // it's just turned into the removal + the line shown in the summary/defeat message. Real
+        // battle only — arena/duel/tournament already returned above, nothing to lose there.
+        let horseTxt = '';
+        if(this._horseDied && state.player.equipment.horse) {
+            horseTxt = T('🐴 Atın savaşta öldü, elinden gitti.');
+            state.player.equipment.horse = null;
+        }
+        this._horseDied = false;
+
         // A troop whose HP hits zero doesn't die outright: the Surgery skill can save them as
         // wounded instead. The wounded stay in the group, can't fight, and heal over a few days.
         // Matching is done by id instead of order: the already-wounded who skip battle used to shift the order.
@@ -2370,12 +2386,11 @@ const Battle = {
                     state.finalBoss = false;
                     this._bossWin = { final: true };
                 } else if(boss) {
-                    // A unique boss: its one-of-a-kind drop, its relic, and a level-51 token
+                    // A unique boss: its one-of-a-kind drop and its relic
                     state.bossKills[bossKey] = true;
                     state.sites = (state.sites || []).filter(s => s.id !== 'boss_' + bossKey);
                     Game.addItem(boss.item, 1);
                     Game.gainRelic(boss.relic);
-                    Game.addItem('lvl51_token', 1);
                     Game.gainRenown(30);
                     this._bossWin = { boss: bossKey };
                 }
@@ -2484,13 +2499,13 @@ const Battle = {
                 }
             }
 
-            // Boss drop line (#38): the unique item + relic + level-51 token, shown in the summary
+            // Boss drop line (#38): the unique item + relic, shown in the summary
             let bossTxt = '';
             if(this._bossWin && this._bossWin.boss) {
                 let b = BOSSES[this._bossWin.boss];
                 bossTxt = '<b>' + T(b.name) + ' ' + T('yenildi!') + '</b> '
                     + ITEMS[b.item].icon + ' ' + T(ITEMS[b.item].name) + ' · '
-                    + RELICS[b.relic].icon + ' ' + T(RELICS[b.relic].name) + ' · 🏅 ' + T('Savaş Tanrısı Nişanı');
+                    + RELICS[b.relic].icon + ' ' + T(RELICS[b.relic].name);
             }
 
             // #120: the detail tab reads the same numbers the summary already computed.
@@ -2512,6 +2527,7 @@ const Battle = {
                     ${conquestTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">🏰 ${conquestTxt}</p>` : ''}
                     ${lairTxt ? `<p style="margin-top:0.8rem;color:#e59b3d">☠️ ${lairTxt}</p>` : ''}
                     ${bossTxt ? `<p style="margin-top:0.8rem;color:#e0b0b0">💀 ${bossTxt}</p>` : ''}
+                    ${horseTxt ? `<p style="margin-top:0.8rem;color:#ff8866">${horseTxt}</p>` : ''}
                     ${cargoTxt ? `<p style="margin-top:0.8rem"><b>${T`Yük Ganimeti:`}</b> <span style="color:#e0b062">${cargoTxt}</span> 🐪</p>` : ''}
                     ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>${T`👑 ${nobleTaken} esir alındı!`}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Grup ekranından fidye iste ya da salıver.`}</span></p>` : ''}
                     ${assistTxt ? `<p style="margin-top:0.8rem;color:#9fe0a0">🤝 ${assistTxt}</p>` : ''}
@@ -2556,7 +2572,10 @@ const Battle = {
             if(captor) {
                 Game.beginCaptivity(captor, daysLost);
             } else if(this.isBossFight) {
-                alert(T('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.'));
+                alert(T('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.')
+                    + (horseTxt ? `<br>${horseTxt}` : ''));
+            } else if(horseTxt) {
+                alert(horseTxt);
             }
             state.player.currentEncounterNpcId = null;
             state.player.currentSiege = null;
@@ -2565,7 +2584,8 @@ const Battle = {
             state.player.currentLair = null;
 
             if(captor) alert(`${T`Yenildin! Esir düştün! Tüm birliğin dağıldı.<br>-${moneyLost} Dinar`}`
-                + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : ''));
+                + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : '')
+                + (horseTxt ? `<br>${horseTxt}` : ''));
         }
 
         // Sync HP — so a defeat doesn't crush the 30% floor set above

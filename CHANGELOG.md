@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.7 — Eyer (2026-09-17)
+
+- **8 farklı at eklendi.** Köylü Beygiri'nden (500 dinar) Demir Zırhlı Cenk Atı'na (4550 dinar)
+  kadar her atın kendi hız/zırh dengesi var — ucuzu hızlı ama zırhsız, pahalısı yavaş ama sağlam.
+  Fiyat arttıkça getiri azalıyor; boss ödülü Han Kısrağı hâlâ satılıklardan üstün.
+- **At artık savaşta ölebilir.** Attan her düşüşte %10 ihtimalle at kalıcı olarak ölüyor ve
+  envanterden siliniyor; savaş bitince özet ekranında bildiriliyor. Sadece oyuncunun bindiği
+  at için geçerli — ordudaki atlı askerlerin atları ölmüyor.
+- **Savaş Tanrısı Nişanı ve bir askeri 51. seviyeye çıkarma mekaniği kaldırıldı.** Bosslar artık
+  sadece kendine özgü eşya ve relic bırakıyor; "Efsanevi" asker etiketi ve ona bağlı tüm kodlar
+  silindi.
+
 ## 1.21.6 — Parmak İzi (2026-09-17)
 
 - **Şehir ekranında mobilde en aşağı kadar kaydırılamıyordu.** Bina resmi (`#scene-canvas`)

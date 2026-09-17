@@ -73,7 +73,6 @@ test('troopWage: tiers', () => {
     assert.strictEqual(Game.troopWage(troop(19)), 2);
     assert.strictEqual(Game.troopWage(troop(20)), 10);      // lvl/2
     assert.strictEqual(Game.troopWage(troop(30)), 15);
-    assert.strictEqual(Game.troopWage(troop(51)), 0);       // Legendary
     assert.strictEqual(Game.troopWage(troop(1, { isCompanion: true })), 20);
 });
 

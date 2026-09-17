@@ -761,7 +761,7 @@ carried for profit. Caravans carry cartloads of food for this reason (see "Trade
 **Everything you can buy, you can sell back (#26, 1.20.0).** The market sell list used to show
 `item.type === 'trade'` only, so a bought sword or horse had no resale path. It now shows every
 inventory item that isn't `unique`, `unsellable`, or `type: 'special'` — i.e. the boss drops and
-the earned key items (`boss_map`, `lvl51_token`) stay unsellable, everything else resells at the
+the earned key item (`boss_map`) stays unsellable, everything else resells at the
 usual ×0.7. `sellItem`'s guard mirrors the same predicate. Equipped gear never appears in the
 list: equipping moves the item out of `inventory` into `state.player.equipment[slot]`, so there's
 nothing to accidentally sell out from under yourself.
@@ -1558,6 +1558,23 @@ move with it — you're tracking a trail, not an address.
     dismounted you genuinely stay on foot: the player drops to `footSpeed()`, a troop drops to
     `max(50, speed×0.55)`. It used to be −30, so a 174-speed knight still stayed at 144, faster
     than even the best foot troop.
+  - **Horses (#132)**: `ITEMS` carries eight `type:'horse'` entries, each with its own `hSpd`/
+    `hDef` percent bonus (`speed × (1 + hSpd/100)`, `armorDef × (1 + hDef/100)`) instead of one
+    shared scalar — a cheap horse buys speed, an armored one buys survivability, none dominates
+    both axes. Price climbs faster than the stats do, so each tier is a smaller return per
+    dinar: Köylü Beygiri 500₺ (5/0), Bozkır Midillisi 800₺ (12/0), Savaş Atı 1250₺ (15/5), Rodok
+    Dağ Atı 1850₺ (10/8), Zırhsız Cenk Atı 2600₺ (20/8), Zırhlı Savaş Atı 3500₺ (12/18), Demir
+    Zırhlı Cenk Atı 4550₺ (17/22) — the priciest purchasable. Han Kısrağı (20/26), the Bozkır
+    Hanı boss drop, stays best-in-slot on both axes over every purchasable tier, matching the
+    other unique drops. Only the player's own mount carries these stats — army cavalry
+    (`TROOP_TREES`) has fixed per-unit stats and only spends a horse as a one-time promotion
+    cost, so troop horses can't die.
+  - **Losing the horse for good**: the same dismount check that unhorses the player for the
+    battle also rolls a flat 10% chance (`Math.random() < 0.10`, player only) to kill the horse
+    outright. `endBattle()` reads that flag once, clears `equipment.horse`, and folds a line into
+    the win summary or the defeat alert — folded into the same `alert()` call rather than a
+    second one, since `alert()` here doesn't block (1.21.5) and a second call can overwrite the
+    first. It fires on both win and loss, not in arena/duel/tournament.
   - **Charge stamina** (`Battle.chargeSpeed`): the speed bonus is no longer unlimited — it burns
     for 2s while you hold the charge, then 4s of **recovery** (×0.9) follows, and it only
     refills once you're fully rested. There's **no passive regen**: with one, tapping the charge
@@ -2037,7 +2054,7 @@ Kurt Ana (60), Bozkır Hanı (130), Demirci Dev (200), Korsan Kral (280). `Game.
 is reached and never respawns a killed one (`state.bossKills`). Each boss fights with a guard
 retinue at `BOSS_BASE_LEVEL (30) + dLevel`, is beaten once, and drops: a **unique item**
 (`unique:true, unsellable:true` — Kurt Dişi Hançer / Han Kısrağı / Dev Örsü Zırhı / Fırtına Yayı,
-never sold in the market, never buyable), a **relic**, and a lvl-51 medal.
+never sold in the market, never buyable) and a **relic**.
 
 **Relics** (`RELICS`) are one-of-a-kind (`state.player.relics`, no stacking, kept through
 captivity). `Game.relicMod(name)` sums the owned relics' one modifier each, mirroring `perkMod`:

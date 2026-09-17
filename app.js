@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.6', date: '2026-09-17', name: 'Parmak İzi' };  // the version name is not translated
+const VERSION = { no: '1.21.7', date: '2026-09-17', name: 'Eyer' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -304,14 +304,23 @@ const ITEMS = {
     gauntlets:{ id:'gauntlets', name:'Çelik Eldiven', type:'gloves', basePrice:300, defense:6, icon:'🧤', desc:'Çelik plakalı eldiven. Kılıcı tutan eli güvene alır.' },
     shoes:  { id:'shoes',  name:'Yol Çizmesi',   type:'boots',  basePrice:75,  defense:2,  icon:'🥾', desc:'Sağlam deri çizme. Uzun yolun yoldaşı.' },
     greaves:{ id:'greaves',name:'Çelik Baldırlık',type:'boots', basePrice:340, defense:7,  icon:'🥾', desc:'Bacağı saran çelik zırh. Süvariye karşı bacakları korur.' },
-    horse:  { id:'horse',  name:'Savaş Atı',     type:'horse',  basePrice:600, icon:'🐴', desc:'Eğitimli savaş atı. Hem hızlı gezersin hem atlı savaşırsın.' },
+    // Horses (#132): hSpd/hDef are percent bonuses applied only to the player's own mounted
+    // speed/armor (battle.js) — troop cavalry stats come from TROOP_TREES, unaffected. Price
+    // grows faster than the stats do (diminishing return per dinar), and no tier dominates on
+    // both axes — see docs/SYSTEMS.md "Horses" for the full ladder and the death mechanic.
+    horse_kib:  { id:'horse_kib',  name:'Köylü Beygiri',  type:'horse', basePrice:500,  icon:'🐴', hSpd:5,  hDef:0,  desc:'Tarlada yetişmiş sıradan beygir. Ata binmiş sayılırsın, o kadar.' },
+    horse_midilli: { id:'horse_midilli', name:'Bozkır Midillisi', type:'horse', basePrice:800,  icon:'🐎', hSpd:12, hDef:0,  desc:'Küçük ama çevik bozkır midillisi. Zırhı yok, hızı var.' },
+    horse:      { id:'horse',      name:'Savaş Atı',      type:'horse', basePrice:1250, icon:'🐴', hSpd:15, hDef:5,  desc:'Eğitimli savaş atı. Hem hızlı gezersin hem atlı savaşırsın.' },
+    horse_dag:  { id:'horse_dag',  name:'Rodok Dağ Atı',  type:'horse', basePrice:1850, icon:'🐴', hSpd:10, hDef:8,  desc:'Dağ yollarına alışkın, sağlam nallı at. Sarp arazide diğerlerinden geri kalmaz.' },
+    horse_cenk: { id:'horse_cenk', name:'Zırhsız Cenk Atı',type:'horse', basePrice:2600, icon:'🐎', hSpd:20, hDef:8,  desc:'Yarış için değil, muharebe için yetiştirilmiş hızlı at. Zırhı yok ama ardında kimseyi bırakmaz.' },
+    horse_zirhli: { id:'horse_zirhli', name:'Zırhlı Savaş Atı', type:'horse', basePrice:3500, icon:'🐴', hSpd:12, hDef:18, desc:'Göğüs zırhı takılmış savaş atı. Yavaşlar ama kolay kolay düşmez.' },
+    horse_demir: { id:'horse_demir', name:'Demir Zırhlı Cenk Atı', type:'horse', basePrice:4550, icon:'🐎', hSpd:17, hDef:22, desc:'Baştan ayağa demir donanımlı cenk atı. Satılık atların en pahalısı, en dayanıklısı.' },
     // Boss unique drops (#38) — strong but capped (best base ×1.2); unsellable
     kurt_disi_hancer: { id:'kurt_disi_hancer', name:'Kurt Dişi Hançeri', type:'weapon', weaponType:'oneHanded', dmgType:'cut', basePrice:4000, attack:17, icon:'🗡️', unique:true, unsellable:true, desc:'Kurt Ana\'nın ininden çıkan kemik saplı hançer. Tek elli çeliğin en keskini.' },
-    han_kisragi: { id:'han_kisragi', name:'Han Kısrağı', type:'horse', basePrice:5000, icon:'🐎', unique:true, unsellable:true, horseBonus:1.15, desc:'Bozkır Hanı\'nın kısrağı. Savaş atından %15 daha hızlı ve dayanıklı.' },
+    han_kisragi: { id:'han_kisragi', name:'Han Kısrağı', type:'horse', basePrice:5000, icon:'🐎', unique:true, unsellable:true, hSpd:20, hDef:26, desc:'Bozkır Hanı\'nın kısrağı. Satılık atların en iyisinden de hızlı ve dayanıklı.' },
     dev_orsu_zirhi: { id:'dev_orsu_zirhi', name:'Dev Örsü Zırhı', type:'armor', basePrice:6000, defense:44, icon:'🛡️', unique:true, unsellable:true, heavy:true, desc:'Demirci Dev\'in örsünde dövülen zırh. En sağlam koruma; ağırlığı harita hızını %5 düşürür.' },
     firtina_yayi: { id:'firtina_yayi', name:'Fırtına Yayı', type:'weapon', weaponType:'bow', dmgType:'pierce', basePrice:7000, attack:22, icon:'🏹', unique:true, unsellable:true, desc:'Korsan Kral\'ın yayı. Fırtına gibi ok yağdırır — yayların en güçlüsü.' },
-    boss_map: { id:'boss_map', name:'Boss Haritası', type:'special', basePrice:15000, icon:'🗺️', desc:'Savaş Tanrısı\'na giden yolu gösterir. Kullanmak için dört bossun nişanı ve yüksek nam gerekir.' },
-    lvl51_token: { id:'lvl51_token', name:'Savaş Tanrısı Nişanı', type:'special', basePrice:10000, icon:'🏅', desc:'Bir askeri 51. seviyeye yükseltir. Tek kullanımlık.' }
+    boss_map: { id:'boss_map', name:'Boss Haritası', type:'special', basePrice:15000, icon:'🗺️', desc:'Savaş Tanrısı\'na giden yolu gösterir. Kullanmak için dört bossun nişanı ve yüksek nam gerekir.' }
 };
 
 // --- RELICS (#37) ---
@@ -1323,7 +1332,6 @@ const Game = {
                 <div style="color:var(--primary);font-weight:bold;margin-bottom:0.3rem">${T`Ödül`}</div>
                 <div>${item.icon} <b>${T(item.name)}</b></div>
                 <div>${relic.icon} <b>${T(relic.name)}</b> — ${T(relic.desc)}</div>
-                <div>🏅 <b>${T('Savaş Tanrısı Nişanı')}</b> ×1</div>
             </div>
             <div style="display:flex;gap:0.5rem;margin-top:1rem">
                 <button class="btn primary" onclick="Game.attackBoss('${s.id}')">${T`⚔️ Saldır`}</button>
@@ -9084,7 +9092,7 @@ const Game = {
     },
 
     fiefTax(loc) { return Math.round((loc.prosperity || 50) * (loc.type === 'city' ? 2 : loc.type === 'castle' ? 0.7 : 1)); },
-    troopWage(t) { return t.isCompanion ? 20 : t.level >= 51 ? 0 : t.level >= 20 ? Math.floor(t.level / 2) : t.level >= 10 ? 2 : 0; },
+    troopWage(t) { return t.isCompanion ? 20 : t.level >= 20 ? Math.floor(t.level / 2) : t.level >= 10 ? 2 : 0; },
     fiefIncome() {
         let tax = 0, wage = 0, troops = 0;
         this.myFiefs().forEach(l => {
@@ -10207,7 +10215,7 @@ const Game = {
                     groups[key] = { base: t.name, sample: t, count: 0, ready: [], normal: [], wounded: 0 };
                 }
                 if(t.wounded) groups[key].wounded = Math.max(groups[key].wounded, t.wounded);
-                if(!t.legendary && !t.wounded && t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
+                if(!t.wounded && t.xp >= t.xpNext && TROOP_UPGRADES[t.name]) {
                     groups[key].ready.push(t);
                 } else {
                     groups[key].normal.push(t);
@@ -10249,12 +10257,6 @@ const Game = {
                     html += `</div>`;
                 }
 
-                let maxLevelTroop = g.normal.find(t => t.level === 50) || g.ready.find(t => t.level === 50);
-                let hasToken = state.player.inventory.some(i => i.id === 'lvl51_token');
-                if(maxLevelTroop && hasToken) {
-                    html += `<div style="margin-top:0.5rem"><button class="btn" style="border-color:#aa00ff;color:#aa00ff;font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTo51('${maxLevelTroop.id}')">${T`🌟 Savaş Tanrısı Nişanı Kullan (Lvl 51 Yap)`}</button></div>`;
-                }
-
                 html += `</li>`;
             }
             html += '</ul>';
@@ -10263,8 +10265,7 @@ const Game = {
         html += this.prisonersHtml();
         document.getElementById('party-list').innerHTML = html;
     },
-    // the legendary prefix only shows on screen, the name in the data stays clean
-    troopLabel(t) { return (t.legendary ? T('Efsanevi ') : '') + T(t.name); },
+    troopLabel(t) { return T(t.name); },
     // The party screen groups troops by this key; reordering and dismissal use the same key (#51)
     troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? T(' 🩹 (yaralı)') : ''); },
     troopClassName(st) {
@@ -10428,9 +10429,8 @@ const Game = {
         // and the tooltip breakdown all read from this single function.
         let wage = 0, foodLow = this.FOOD_PLAYER, foodHigh = 0;
         state.player.party.forEach(t => {
-            wage += this.troopWage(t);                              // companion 20, lvl51 free
+            wage += this.troopWage(t);                              // companion 20, else scaled by level
             if(t.isCompanion) { foodLow += this.FOOD_MAN; return; }
-            if(t.level >= 51) return;
             // Stronger troops eat more (#27): 1×→3× scaled by level, the toughest elite (~lvl50) at 3×.
             let mult = Math.min(3, 1 + Math.min(t.level, 50) / 25);
             foodLow += this.FOOD_MAN * mult;
@@ -10630,24 +10630,6 @@ const Game = {
         return html + '</ul>';
     },
 
-    promoteTo51(id) {
-        let t = state.player.party.find(x => x.id === id);
-        let tokenIdx = state.player.inventory.findIndex(i => i.id === 'lvl51_token');
-        if(t && tokenIdx !== -1) {
-            let token = state.player.inventory[tokenIdx];
-            token.qty--;
-            if(token.qty <= 0) state.player.inventory.splice(tokenIdx, 1);
-            
-            t.level = 51;
-            // Prepending 'Efsanevi ' to the name broke the TROOP_TYPES / TROOP_UPGRADES
-            // key; the prefix is now display-only.
-            t.legendary = true;
-
-            alert(T`${this.troopLabel(t)} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!`);
-            this.renderPartyScreen();
-            this.updateTopBar();
-        }
-    },
     promoteTroop(oldName, newName, cost) {
         if(state.player.money < cost) { this.sfx('error'); return alert(T('Yeterli dinarın yok!')); }
         // Cavalry promotions consume a mount from the stable/inventory (#30). The unique mare is spared.
