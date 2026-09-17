@@ -1627,6 +1627,18 @@ move with it — you're tracking a trail, not an address.
     own mount also gets a sound: `Game.sfx('hoofbeat')` fires once per hop peak (hysteresis so
     one peak fires once), the same short-envelope-oscillator approach as the market SFX — no
     audio file, and it's silenced by the existing mute setting for free.
+  - **Battle icons react to gear and tier (#132)**: the player's own sprite was gear-independent
+    besides the mount swap — `Battle.PLAYER_WEAPON_ICONS` now picks the icon off
+    `state.player.equipment.weapon.weaponType` (oneHanded🗡️/twoHanded🪓/polearm🔱/bow🏹),
+    combined with the mount icon when riding. Faction troops and the player's own party already
+    had a per-tier icon in `TROOP_TYPES[name].icon` (built from `TROOP_TREES`) that was being
+    computed and then dropped at spawn — it's carried onto the unit now, and `drawUnit` prefers
+    `u.icon` over the generic type-based fallback whenever one is set (companions/spouse get
+    their existing 🎖️/💍 for free the same way). Bandits have no such per-tier table, so
+    `Battle.strengthIcon(type, attack, defense)` picks a weak/normal/armored variant off raw
+    power (`attack+defense`, thresholds 15/30) from a small `STRENGTH_ICONS` lookup — still
+    emoji through the existing `unitSprite()` cache, not new character art (that would need a
+    different rendering pipeline entirely, out of scope here).
   - **Charge stamina** (`Battle.chargeSpeed`): the speed bonus is no longer unlimited — it burns
     for 2s while you hold the charge, then 4s of **recovery** (×0.9) follows, and it only
     refills once you're fully rested. There's **no passive regen**: with one, tapping the charge

@@ -331,7 +331,7 @@ const Battle = {
                 speed: typeInfo.speed + lvlBonusSpd, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense + lvlBonusDef,
                 type: typeInfo.type, mounted: typeInfo.type === 'cavalry' || typeInfo.speed > this.FOOT_MAX,
                 dmgType: typeInfo.dmgType, brace: typeInfo.brace, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
-                radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0, level: p.level
+                radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0, level: p.level, icon: typeInfo.icon   // #132
             });
         });
 
@@ -347,6 +347,7 @@ const Battle = {
             let name = 'Çapulcu';   // BAND_KINDS/TROOP_TYPES key — translated on screen via T()
             let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
             let dmgType = (band && band.dmg) || 'cut', brace;
+            let icon = null;   // #132: a tiered troop carries its own icon; drawUnit falls back to type otherwise
 
             if(!bossLevel && isBandit) {
                 // Band mix: each kind has its own units; a large band gets its leader up front
@@ -387,6 +388,7 @@ const Battle = {
                 name = pool[Math.floor(Math.random() * pool.length)];
                 let ti = TROOP_TYPES[name];
                 hp = ti.hp; speed = ti.speed; attack = ti.attack; defense = ti.defense; type = ti.type; dmgType = ti.dmgType; brace = ti.brace;
+                icon = ti.icon;   // #132: each troop tier already has its own icon, just wasn't carried through
                 radius = type === 'cavalry' ? 7 : 5;
                 color = '#ff6666';
             }
@@ -422,6 +424,11 @@ const Battle = {
                 hp = Math.round(hp * (1 + this.siege.defBonus));
                 attack = Math.round(attack * (1 + this.siege.defBonus));
             }
+            // Bandits have no per-tier icon table (unlike faction soldiers above) — a small
+            // weak/normal/armored lookup keyed off raw power stands in, so a lair boss doesn't
+            // look identical to the peasant next to them (#132). Bosses/guards aren't bandits,
+            // so this doesn't touch them.
+            if(isBandit && !icon) icon = this.strengthIcon(type, attack, defense);
 
             this.units.push({
                 id: 'enemy_'+i, isPlayerTeam: false, name: name,
@@ -434,7 +441,7 @@ const Battle = {
                 y: this.ambushed ? Math.max(20, Math.min(H-20, H/2 + Math.sin(i*2.4)*(130+Math.random()*110)))
                                  : 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense, dmgType: dmgType, brace: brace,
-                type: type, mounted: type === 'cavalry' || speed > this.FOOT_MAX,
+                type: type, mounted: type === 'cavalry' || speed > this.FOOT_MAX, icon,
                 color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
             });
         }
@@ -1877,7 +1884,20 @@ const Battle = {
 
     // All the unit emoji used in battle. warmUp() bakes these before the battle
     // starts; otherwise the first frames stuttered from glyph rasterization.
-    UNIT_ICONS: ['💂', '🏹', '🐎', '🐺', '🐴', '🧑‍🌾'],
+    UNIT_ICONS: ['💂', '🏹', '🐎', '🐺', '🐴', '🧑‍🌾', '🗡️', '🪓', '🔱', '🗡️🐴', '🪓🐴', '🔱🐴', '🏹🐴',
+                 '🧍', '🎯', '🎯🛡️', '⚔️🐴', '🛡️', '🎖️', '💍'],
+    // Player battle icon reacts to the equipped weapon type (#132) — was gear-independent
+    // besides the mount swap. Armor tier is a second, separate visual axis left for later;
+    // this covers "appearance changes with equipped weapon" without inventing armor tinting too.
+    PLAYER_WEAPON_ICONS: { oneHanded: '🗡️', twoHanded: '🪓', polearm: '🔱', bow: '🏹' },
+    // Bandits have no per-tier icon table like faction troops do (#132) — this is a small
+    // stand-in keyed off raw power (attack+defense), not a per-unit hardcode.
+    STRENGTH_ICONS: { infantry: ['🧍', '💂', '🛡️'], archer: ['🏹', '🎯', '🎯🛡️'], cavalry: ['🐎', '🐴', '⚔️🐴'] },
+    strengthIcon(type, attack, defense) {
+        let tiers = this.STRENGTH_ICONS[type] || this.STRENGTH_ICONS.infantry;
+        let power = (attack || 0) + (defense || 0);
+        return tiers[power < 15 ? 0 : power < 30 ? 1 : 2];
+    },
 
     // An outlined emoji sprite (built once per icon).
     unitSprite(icon) {
@@ -1905,7 +1925,13 @@ const Battle = {
     drawUnit(ctx, u, now) {
         let isPlayer = u.id === 'player';
         let icon = '💂';
-        if(isPlayer) icon = u.type === 'cavalry' ? '🐴' : '🧑‍🌾';
+        if(isPlayer) {
+            // Weapon-reactive appearance (#132) — was gear-independent besides the mount swap.
+            let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
+            let base = this.PLAYER_WEAPON_ICONS[wt] || '🧑‍🌾';
+            icon = u.type === 'cavalry' ? (wt ? base + '🐴' : '🐴') : base;
+        }
+        else if(u.icon) icon = u.icon;   // a tiered troop or bandit already picked its own (#132)
         else if(u.beast) icon = '🐺';
         else if(u.type === 'archer') icon = '🏹';
         else if(u.type === 'cavalry') icon = '🐎';

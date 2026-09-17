@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.25.0 — Kılık (2026-09-18)
+
+- **Karakterinin görünümü artık kuşandığın silaha göre değişiyor** (kılıç/balta/mızrak/yay,
+  atlıyken de).
+- **Asker ikonları artık daha çeşitli**: her birlik türünün kendi rütbe ikonu savaşta görünüyor,
+  eşkıyalar da güçlerine göre farklı görünüyor.
+
 ## 1.24.0 — Tezgah (2026-09-18)
 
 - **Pazarda kategori sekmeleri eklendi**: Tümü/Silah/Zırh/At/Mal/Yiyecek/Özel. Hem alım hem
