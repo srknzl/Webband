@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.13 — Nal Sesi (2026-09-17)
+
+- **Savaş kamerası çok yakındı**, özellikle dar telefon ekranında. Yakınlaştırma 3'ten 2.3'e
+  çekildi, etrafı görmek daha kolay.
+- **Atlı hareket dümdüz "uçuyordu."** Atın (ve tüm atlı birimlerin) yürüyüş sıçraması artık hıza
+  göre değişiyor — dörtnala kalkınca adım daha hızlı, daha belirgin sallanıyor; sabit bir tempoda
+  kaymıyor. Oyuncunun kendi atı için her adımda kısa bir nal sesi de eklendi (ses dosyası yok,
+  diğer efektler gibi anlık üretiliyor — ses kapalıyken o da susuyor).
+
 ## 1.21.12 — Ustalık (2026-09-17)
 
 - **Başarımlar artık ödül veriyor.** Şimdiye kadar sadece bir bildirimdi; artık her başarım

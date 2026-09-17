@@ -1599,6 +1599,14 @@ move with it — you're tracking a trail, not an address.
     the win summary or the defeat alert — folded into the same `alert()` call rather than a
     second one, since `alert()` here doesn't block (1.21.5) and a second call can overwrite the
     first. It fires on both win and loss, not in arena/duel/tournament.
+  - **Gait and hoofbeats (#132)**: a mounted unit's visual bounce (`drawUnit`'s `hop`/`sway`,
+    already there for every walking unit) now reads as a distinct gait instead of the same walk
+    cycle everyone gets — bigger amplitude, and its period tracks the unit's own current speed
+    (`6000 / speed`, floored at 85ms) instead of a flat 150ms, so a gallop visibly moves faster
+    than a trot and neither slides smoothly regardless of pace the way it used to. The player's
+    own mount also gets a sound: `Game.sfx('hoofbeat')` fires once per hop peak (hysteresis so
+    one peak fires once), the same short-envelope-oscillator approach as the market SFX — no
+    audio file, and it's silenced by the existing mute setting for free.
   - **Charge stamina** (`Battle.chargeSpeed`): the speed bonus is no longer unlimited — it burns
     for 2s while you hold the charge, then 4s of **recovery** (×0.9) follows, and it only
     refills once you're fully rested. There's **no passive regen**: with one, tapping the charge

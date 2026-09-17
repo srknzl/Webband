@@ -21,7 +21,10 @@ const Battle = {
     // Camera (#4): the field used to render at 1:1 — the whole arena visible at once, every
     // unit tiny. Now zoomed in on the player; drawMinimap() compensates for the lost overview.
     // A literal ~10x would put less than one melee range on screen, so this is tuned down for playability.
-    CAM_ZOOM: 3,
+    // Pulled back from 3 (#132 mobile report: too tight, especially on a narrow phone screen
+    // where the same zoom shows less absolute area than on a desktop monitor) — still closer
+    // than the old 1:1, just with more of the field visible around the player.
+    CAM_ZOOM: 2.3,
 
     // Rival suitor duel: 1-on-1, no group, no loot
     startDuel(lord) {
@@ -1894,8 +1897,24 @@ const Battle = {
 
         let isMoving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
         let offset = (u.x + u.y) * 0.05;
-        let hop = isMoving ? Math.abs(Math.sin(now/150 + offset)) * 4 : 0;
-        let sway = isMoving ? Math.sin(now/150 + offset) * 0.15 : 0;
+        // A horse's gait reads distinctly from a foot soldier's walk (#132: mounted movement
+        // "flew" — dead smooth regardless of speed). The stride period now tracks actual
+        // velocity — a galloping horse's legs move faster than a trotting one's — and the
+        // bounce/tilt is bigger, so covering ground at speed looks like running, not sliding.
+        let mountedGait = u.mounted || u.type === 'cavalry';
+        let speedMag = mountedGait ? Math.hypot(u.vx, u.vy) : 0;
+        let strideMs = mountedGait ? Math.max(85, 6000 / Math.max(25, speedMag)) : 150;
+        let hopAmp = mountedGait ? 7 : 4, swayAmp = mountedGait ? 0.24 : 0.15;
+        let hop = isMoving ? Math.abs(Math.sin(now/strideMs + offset)) * hopAmp : 0;
+        let sway = isMoving ? Math.sin(now/strideMs + offset) * swayAmp : 0;
+
+        // Hoofbeats (#132): only the player's own mount, timed to its own stride above —
+        // a clop lands each time the visual hop peaks, hysteresis so one peak = one sound.
+        if(isPlayer && mountedGait && isMoving) {
+            let hopPhase = Math.abs(Math.sin(now/strideMs + offset));
+            if(hopPhase > 0.97 && !u._hoofUp) { u._hoofUp = true; Game.sfx('hoofbeat'); }
+            else if(hopPhase < 0.9) u._hoofUp = false;
+        }
         let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
 
         // Ground shadow + team ring (filled and fully opaque so it doesn't wash out against the ground)

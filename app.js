@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.12', date: '2026-09-17', name: 'Ustalık' };  // the version name is not translated
+const VERSION = { no: '1.21.13', date: '2026-09-17', name: 'Nal Sesi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -7232,7 +7232,10 @@ const Game = {
         sell:    { f: [659, 988],       t: 'triangle', d: 0.10 },
         error:   { f: [196, 131],       t: 'square',   d: 0.16 },
         recruit: { f: [392, 523, 659],  t: 'triangle', d: 0.11 },
-        upgrade: { f: [523, 659, 880],  t: 'triangle', d: 0.13 }
+        upgrade: { f: [523, 659, 880],  t: 'triangle', d: 0.13 },
+        // A single low, short-envelope thump (#132) — not tonal like the others, just a knock.
+        // Battle.drawUnit calls this once per hoof-fall of the player's own mount.
+        hoofbeat:{ f: [95],             t: 'square',   d: 0.045 }
     },
     sfx(kind) {
         let s = this.SFX[kind];
