@@ -825,13 +825,13 @@ body.view-map #map-hud { left: 66px; }
 #map-comp { display: flex; gap: 0.5rem; }
 #map-comp span { display: inline-flex; align-items: center; gap: 3px; color: var(--text-muted); }
 #map-comp b { color: #e8dcbb; font-weight: 600; }
-#btn-map-zoom {
+#btn-map-speed {
     pointer-events: auto; align-self: flex-start;
     background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.35);
     color: #f0e3c0; font-family: inherit; font-size: 0.72rem; font-weight: 600;
     padding: 2px 10px; border-radius: 5px; cursor: pointer;
 }
-#btn-map-zoom:hover { background: rgba(212,175,55,0.25); }
+#btn-map-speed:hover { background: rgba(212,175,55,0.25); }
 
 /* --- Başlıklar: altın ince çizgi --- */
 .view > h2 {

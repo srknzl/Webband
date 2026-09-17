@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.2 — Saatin İbresi (2026-09-17)
+
+- **Haritadaki "1x/2x" düğmesi zamanı hızlandırıyordu, yakınlaştırmıyordu — kafa karıştırıyordu.**
+  O düğme artık gerçekten söylediğini yapıyor: zaman akış hızını (0.5x/1x/2x) gösterip değiştiriyor.
+  Harita yakınlaştırma fare tekerleği/iki parmakla elde kalıyor; Z tuşu da artık hız değiştiriyor.
+
 ## 1.21.1 — Sağlam Zemin (2026-09-17)
 
 - **Mobilde köşe paneli künyeyi ezmiyor.** Kuşatma, yağma, kamp veya esaret paneli açıkken

@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.1', date: '2026-09-17', name: 'Sağlam Zemin' };  // the version name is not translated
+const VERSION = { no: '1.21.2', date: '2026-09-17', name: 'Saatin İbresi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -611,8 +611,8 @@ const Input = {
                 // N: next piece — the music re-composes itself, so skipping is the only way
                 // to hear a different band without waiting out the current one
                 else if(k === 'n') Game.Music.skip();
-                // Z: toggle the world-map 2x zoom (#21)
-                else if(k === 'z' && document.getElementById('map-view').classList.contains('active')) Game.toggleMapZoom();
+                // Z: cycle the time-flow speed (0.5x/1x/2x) — same key the map zoom used to own (#21)
+                else if(k === 'z' && document.getElementById('map-view').classList.contains('active')) Game.cycleTimeScale();
             }
         });
         window.addEventListener('keyup', e => { 
@@ -4799,6 +4799,7 @@ const Game = {
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
         t.innerText = T(terrain.name) + (terrain.mult !== 1 ? T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
         document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
+        document.getElementById('btn-map-speed').textContent = '⏱️ ×' + this.timeScale();
 
         let c = this.getPartyComposition();
         // Unspent points should show from the map and open the character screen (#35)
@@ -4881,16 +4882,6 @@ const Game = {
         // menu is immediately subtracted from the freshly cleared offset.
         this._camPx = state.player.x;
         this._camPy = state.player.y;
-    },
-
-    // #21 World-map zoom toggle: flips between the default view (~0.8) and 2× (1.6).
-    // The midpoint decides direction, so it still works after a wheel/pinch zoom.
-    toggleMapZoom() {
-        let base = 0.8, hi = 1.6;
-        let toHi = this.camera.zoom < (base + hi) / 2;
-        this.camera.targetZoom = Math.max(this.minZoom(), Math.min(3.0, toHi ? hi : base));
-        let btn = document.getElementById('btn-map-zoom');
-        if(btn) btn.textContent = toHi ? '2x' : '1x';
     },
 
     showScreen(screenId) {
