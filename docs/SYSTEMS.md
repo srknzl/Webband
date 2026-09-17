@@ -2078,8 +2078,17 @@ permanently deleted.)*
 Four unique bosses (`BOSSES` in `app.js`) surface on the map as peak renown climbs:
 Kurt Ana (60), Bozkır Hanı (130), Demirci Dev (200), Korsan Kral (280). `Game.ensureBosses()`
 (called from `lairTick` and on save-load) spawns a `kind:'boss'` site the day its renown gate
-is reached and never respawns a killed one (`state.bossKills`). Each boss fights with a guard
-retinue at `BOSS_BASE_LEVEL (30) + dLevel`, is beaten once, and drops: a **unique item**
+is reached and never respawns a killed one (`state.bossKills`). Each boss unit itself scales with
+`BOSS_BASE_LEVEL (30) + dLevel` (`Battle.start`'s `bossLevel` branch: `hp = 100 + bossLevel×10`,
+`attack = 25 + bossLevel`, `defense = 20`) — Kurt Ana fights at 30, Bozkır Hanı 35, Demirci Dev 40,
+Korsan Kral 45, the final Savaş Tanrısı 55. Its retinue ("Karanlık Muhafız") does **not** scale
+with `bossLevel` (#132): they're a fixed `hp 90 / attack 22 / defense 12` regardless of which boss,
+close to the best regular troop in the game (Nord Baltacısı: 80/24/13) rather than compounding on
+top of it — before this they used the same `bossLevel` formula as the boss itself, so Kurt Ana's
+guards (the first, lowest-renown-gated fight) already stood at hp 140/attack 30, tougher than
+anything a player at that point could plausibly field. The boss's own escalation is still the
+fight's difficulty curve; the final encounter's danger instead comes from guard *count*
+(`BOSSES.korsan_kral.guards × 2`). Each boss is beaten once and drops: a **unique item**
 (`unique:true, unsellable:true` — Kurt Dişi Hançer / Han Kısrağı / Dev Örsü Zırhı / Fırtına Yayı,
 never sold in the market, never buyable) and a **relic**.
 

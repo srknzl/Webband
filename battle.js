@@ -352,13 +352,20 @@ const Battle = {
             }
             
             if(bossLevel) {
-                if(i === 0) { // War God
-                    name = 'Savaş Tanrısı';
+                if(i === 0) {
+                    // The boss's own identity (#132): this used to be hardcoded 'Savaş Tanrısı' for
+                    // every unique boss, so Kurt Ana/Bozkır Hanı/Demirci Dev/Korsan Kral all fought
+                    // under the final boss's name. `enemyName` already carries the real one in.
+                    name = enemyName;
                     hp = 100 + bossLevel * 10; speed = 70; attack = 25 + bossLevel; defense = 20; type = 'infantry'; radius = 10;
                     color = '#aa00ff';
                 } else {
                     name = 'Karanlık Muhafız';
-                    hp = 50 + bossLevel * 3; speed = 65; attack = 15 + Math.floor(bossLevel/2); defense = 10; type = (Math.random()>0.5?'infantry':'archer'); radius = 6;
+                    // Guards are a fixed elite tier (#132), not scaled by bossLevel — they used to
+                    // outscale the best troop in the game (Nord Baltacısı: 80/24/13) at Kurt Ana,
+                    // the very first and lowest-renown-gated boss. The boss itself still scales
+                    // with bossLevel; the escalating fight is meant to be against *it*, not its guards.
+                    hp = 90; speed = 65; attack = 22; defense = 12; type = (Math.random()>0.5?'infantry':'archer'); radius = 6;
                     color = '#8800cc';
                 }
             }
@@ -374,10 +381,12 @@ const Battle = {
 
             let enemyLvl = 1;
             if(bossLevel) {
-                // A floor is essential: if the guard's level would go negative (bossLevel < 10)
-                // they'd spawn with negative HP/attack the moment scaling applied.
+                // The boss's own level still tracks bossLevel; the guard's shown level is fixed
+                // (#132, same reasoning as their now-fixed combat stats above) so the rank pip
+                // over their head and the loot/renown they're worth don't keep advertising the
+                // old bossLevel-10 scaling their stats no longer have.
                 if(i===0) enemyLvl = bossLevel;
-                else enemyLvl = Math.max(1, bossLevel - 10);
+                else enemyLvl = 12;
             } else if(!isBandit) {
                 // Whichever is bigger, the calendar or your own strength (#53/1.3)
                 enemyLvl = Math.max(5 + Math.floor(state.time.day / 15), Game.threatLevel() + 3);

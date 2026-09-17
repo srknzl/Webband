@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.10 — Muhafız (2026-09-17)
+
+- **Boss muhafızları abartılı güçlüydü.** Muhafızların gücü hangi boss olduğuna göre ölçekleniyordu
+  — Kurt Ana gibi en erişilebilir (60 nam) bossun muhafızları bile oyundaki en iyi askerden
+  (Nord Baltacısı: 80/24/13) daha güçlüydü (140 can/30 saldırı). Artık muhafızlar hangi boss
+  olursa olsun sabit bir "seçkin" seviyesinde (90/22/12); asıl zorluk artışı bossun kendisinde ve
+  final dövüşte muhafız sayısında.
+- **Her boss dövüşü ekranda "Savaş Tanrısı" yazıyordu.** Kurt Ana, Bozkır Hanı, Demirci Dev ve
+  Korsan Kral'a karşı savaşırken bile birim adı hep "Savaş Tanrısı" görünüyordu; artık dövüştüğün
+  bossun kendi adı yazıyor.
+
 ## 1.21.9 — Kum Meydanı (2026-09-17)
 
 - **Savaşta dost/düşman öldürünce hepsinde "Dost Asker" yazıyordu.** Oyuncu ve grup askerlerinin
