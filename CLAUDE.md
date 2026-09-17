@@ -24,7 +24,7 @@ after changing it, update the "Measured" lines.
 | `style.css` | Glass panel theme, CSS variables |
 | `sw.js`, `manifest.webmanifest`, `fonts/`, `icon-*.png` | PWA: offline cache, install metadata, self-hosted Cinzel/Inter |
 | `native/` | Capacitor shell — the only place npm exists. `ios/`/`android/` are generated, never committed |
-| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`) |
+| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node` |
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
 | `CHANGELOG.md` | Change list in player-facing language |
