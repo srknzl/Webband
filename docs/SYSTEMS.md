@@ -905,6 +905,18 @@ Real price differences thus fall back to their actual sources: **production regi
 (`GOOD_ORIGIN`, ±35%) and **stock** (`supplyMul`, ×0.55–2.0). Both are learnable, both change
 with the player's own behavior.
 
+#### Market category tabs (#132)
+The buy and sell lists used to be one flat, unsorted list (`Object.values(ITEMS)`/inventory
+order) — fine at a dozen items, hard to scan once weapon tiers and eight horses were added.
+`Game.MARKET_CATEGORIES` groups by the `type` field every `ITEMS` entry already carries (no new
+data): all/weapon/armor (armor+helmet+gloves+boots+shield)/horse/goods/food/special. The active
+category (`Game._marketCategory`) is transient UI state, not persisted and not a `Game.OPTS`
+setting — it resets to "Tümü" every time the market opens. Both `refreshMarket()` loops (buy from
+`ITEMS`, sell from the player's inventory) filter on the same category, so switching to "At"
+filters what you're selling too, not just what's for sale. The pill row scrolls horizontally
+(`overflow-x:auto`, no new breakpoint) rather than wrapping, verified at both desktop and a
+375px-wide mobile viewport.
+
 #### Limited stock and the supply curve (#46)
 A market's stock isn't infinite: `loc.stock[id]` (saved, inside `Save`'s `locations` array).
 

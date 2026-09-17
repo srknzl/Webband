@@ -3,6 +3,11 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.24.0 — Tezgah (2026-09-18)
+
+- **Pazarda kategori sekmeleri eklendi**: Tümü/Silah/Zırh/At/Mal/Yiyecek/Özel. Hem alım hem
+  satım listesi aynı kategoriye göre filtreleniyor. Mobilde de test edildi.
+
 ## 1.23.0 — Eyer (2026-09-18)
 
 - **Atlı savaşta çok hızlıydın.** Atlı hareket hızı savaşta ~%20 azaltıldı — hâlâ yayadan

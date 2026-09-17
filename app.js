@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.23.0', date: '2026-09-18', name: 'Eyer' };  // the version name is not translated
+const VERSION = { no: '1.24.0', date: '2026-09-18', name: 'Tezgah' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -7031,9 +7031,37 @@ const Game = {
     },
 
     // --- MARKET ---
+    // Category tabs (#132): one flat list mixing weapons/armor/horses/goods/food/special was
+    // hard to scan once there were enough items. Categories key off `item.type`, which every
+    // ITEMS entry already carries — no new data. `_marketCategory` is transient UI state (not
+    // `state`/`Game.OPTS`, reset every time the market opens), and both the buy AND sell lists
+    // share it so switching to "Atlar" filters what you're selling too, not just what's for sale.
+    MARKET_CATEGORIES: [
+        { id: 'all',    label: 'Tümü',   types: null },
+        { id: 'weapon', label: 'Silah',  types: ['weapon'] },
+        { id: 'armor',  label: 'Zırh',   types: ['armor', 'helmet', 'gloves', 'boots', 'shield'] },
+        { id: 'horse',  label: 'At',     types: ['horse'] },
+        { id: 'goods',  label: 'Mal',    types: ['goods'] },
+        { id: 'food',   label: 'Yiyecek',types: ['food'] },
+        { id: 'special',label: 'Özel',   types: ['special'] }
+    ],
+    marketCatsHtml() {
+        let cur = this._marketCategory || 'all';
+        return `<div style="display:flex;gap:0.4rem;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:0.6rem;padding-bottom:0.2rem">
+            ${this.MARKET_CATEGORIES.map(c => `<button class="btn ${c.id === cur ? 'primary' : ''}"
+                style="padding:0.25rem 0.6rem;font-size:var(--fs-sm);white-space:nowrap;flex:none"
+                onclick="Game.setMarketCategory('${c.id}')">${T(c.label)}</button>`).join('')}
+        </div>`;
+    },
+    setMarketCategory(id) {
+        this._marketCategory = id;
+        this.refreshMarket();
+    },
     openMarket(loc) {
+        this._marketCategory = 'all';
         let html = `<h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
         <div id="market-status"></div>
+        <div id="market-cats"></div>
         <div id="market-cols" style="display:flex;flex-wrap:wrap;gap:2rem;margin-top:1rem;">
         <div style="flex:1;min-width:220px;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
         <div style="flex:1;min-width:220px;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
@@ -7199,9 +7227,13 @@ const Game = {
     },
     refreshMarket() {
         this.setHtml('market-status', this.marketStatusHtml());
+        this.setHtml('market-cats', this.marketCatsHtml());
+        let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
+        let matchesCat = type => !cat.types || cat.types.includes(type);
         let buy = document.getElementById('market-buy'); buy.innerHTML = '';
         Object.values(ITEMS).forEach(item => {
             if(item.unique) return;   // unique boss drops are earned, never bought (#38)
+            if(!matchesCat(item.type)) return;
             let price = this.marketPrice(item.id);
             let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
             li.id = 'mrow-buy-' + item.id;   // the row is rebuilt on every refresh; the flash effect finds it by id
@@ -7228,7 +7260,7 @@ const Game = {
         });
         let sell = document.getElementById('market-sell'); sell.innerHTML = '';
         state.player.inventory.forEach(item => {
-            if(!item.unique && !item.unsellable && item.type !== 'special') {
+            if(!item.unique && !item.unsellable && item.type !== 'special' && matchesCat(item.type)) {
                 let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
                 li.id = 'mrow-sell-' + item.id;

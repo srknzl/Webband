@@ -686,6 +686,8 @@ I18N.dicts.id = {
   "Maaşımız bu ay gecikti efendim.": "Gaji kami telat bulan ini, Tuan.",
   "Maceracı": "Petualang",
   "Mal": "Barang",
+  "Yiyecek": "Makanan",
+  "Özel": "Khusus",
   "Max can +{0} · {1} saatte 1 can": "HP maks +{0} · 1 HP tiap {1} jam",
   "Mağara": "Gua",
   "Mektubu <b>{0}</b> köyünde bul": "Temukan surat itu di desa <b>{0}</b>",

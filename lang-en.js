@@ -686,6 +686,8 @@ I18N.dicts.en = {
   "Maaşımız bu ay gecikti efendim.": "Our wages are late this month, my lord.",
   "Maceracı": "Adventurer",
   "Mal": "Goods",
+  "Yiyecek": "Food",
+  "Özel": "Special",
   "Max can +{0} · {1} saatte 1 can": "Max HP +{0} · 1 HP every {1} hours",
   "Mağara": "Cave",
   "Mektubu <b>{0}</b> köyünde bul": "Find the letter in the village of <b>{0}</b>",
