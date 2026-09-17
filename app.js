@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.13', date: '2026-09-17', name: 'Nal Sesi' };  // the version name is not translated
+const VERSION = { no: '1.22.0', date: '2026-09-17', name: 'Savaş İlanı' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -337,7 +337,7 @@ const ITEMS = {
     // Boss unique drops (#38) — strong but capped (best base ×1.2); unsellable
     kurt_disi_hancer: { id:'kurt_disi_hancer', name:'Kurt Dişi Hançeri', type:'weapon', weaponType:'oneHanded', dmgType:'cut', basePrice:4000, attack:29, icon:'🗡️', unique:true, unsellable:true, desc:'Kurt Ana\'nın ininden çıkan kemik saplı hançer. Tek elli çeliğin en keskini.' },
     han_kisragi: { id:'han_kisragi', name:'Han Kısrağı', type:'horse', basePrice:5000, icon:'🐎', unique:true, unsellable:true, hSpd:20, hDef:26, desc:'Bozkır Hanı\'nın kısrağı. Satılık atların en iyisinden de hızlı ve dayanıklı.' },
-    dev_orsu_zirhi: { id:'dev_orsu_zirhi', name:'Dev Örsü Zırhı', type:'armor', basePrice:6000, defense:44, icon:'🛡️', unique:true, unsellable:true, heavy:true, desc:'Demirci Dev\'in örsünde dövülen zırh. En sağlam koruma; ağırlığı harita hızını %5 düşürür.' },
+    dev_orsu_zirhi: { id:'dev_orsu_zirhi', name:'Dev Örsü Zırhı', type:'armor', basePrice:6000, defense:44, icon:'🦺', unique:true, unsellable:true, heavy:true, desc:'Demirci Dev\'in örsünde dövülen zırh. En sağlam koruma; ağırlığı harita hızını %5 düşürür.' },
     firtina_yayi: { id:'firtina_yayi', name:'Fırtına Yayı', type:'weapon', weaponType:'bow', dmgType:'pierce', basePrice:7000, attack:23, icon:'🏹', unique:true, unsellable:true, desc:'Korsan Kral\'ın yayı. Fırtına gibi ok yağdırır — yayların en güçlüsü.' },
     boss_map: { id:'boss_map', name:'Boss Haritası', type:'special', basePrice:15000, icon:'🗺️', desc:'Savaş Tanrısı\'na giden yolu gösterir. Kullanmak için dört bossun nişanı ve yüksek nam gerekir.' }
 };
@@ -4924,6 +4924,14 @@ const Game = {
     },
 
     showScreen(screenId) {
+        // A menu button (map/character/party/inventory/quests) has no `Battle.active` guard of
+        // its own — only the keyboard shortcuts do. On desktop/web the sidebar stayed visible
+        // and clickable *during* a battle (including the arena, #86's hiding rule only fired on
+        // touch), so clicking one swapped the DOM to a non-battle view while the game loop
+        // stayed stopped (only a battle-end restarts it) — a screen that's "active" in the DOM
+        // but never drawn to. Refusing the switch here is the single choke point for every
+        // caller; leaving battle only ever happens through its own end-of-battle flow (#132).
+        if(screenId !== 'battle' && (Battle.active || TournamentMinigame.active)) return;
         let wasMap = document.getElementById('map-view').classList.contains('active');
         this.resetMapInteractionState();   // the map starts every screen from a clean input state (#96)
         // Returning from a menu/battle with an old free-pan offset made the player appear lost.
@@ -5876,6 +5884,11 @@ const Game = {
 
     onMapMove(e) {
         if(e.pointerType === 'mouse') return this.handleMapHover(e);
+        // Same visibility gate the wheel handler uses (#94): a pinch that lands the instant a
+        // battle starts (map canvas hidden, `active` tab unchanged) must not touch zoom at all —
+        // otherwise `resetMapInteractionState()` on return trusts an already-corrupted `zoom` as
+        // correct and locks in a zoomed-out camera (#132).
+        if(this.mapCanvas && this.mapCanvas.offsetParent === null) return;
         let p = this._ptr.get(e.pointerId);
         if(!p) return;
         let dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -7202,10 +7215,14 @@ const Game = {
                 + this.haveTag(item.id)
                 + (empty ? `<i style="font-size:var(--fs-sm);color:var(--text-muted)">${T`tükendi`}</i>`
                     // "Tümü" is just a big count: buyItem already stops at the first of money,
-                    // stock and bag room, and says in the message which one it hit.
-                    : this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)
-                        + this.qtyBtn('x5', `Game.buyItem('${item.id}',5)`)
-                        + this.qtyBtn(T`Tümü`, `Game.buyItem('${item.id}',999)`)))
+                    // stock and bag room, and says in the message which one it hit. Equipment
+                    // and horses dropped bulk-buy (#132) — a one-off purchase, no reason to
+                    // stock 5+; goods/food keep it since provisioning an army needs bulk buys.
+                    : (item.type === 'goods' || item.type === 'food')
+                        ? this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)
+                            + this.qtyBtn('x5', `Game.buyItem('${item.id}',5)`)
+                            + this.qtyBtn(T`Tümü`, `Game.buyItem('${item.id}',999)`))
+                        : this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)))
                 + (note ? `<div style="font-size:var(--fs-xs);color:#cbb26b">${note}</div>` : '');
             buy.appendChild(li);
         });
@@ -7233,9 +7250,9 @@ const Game = {
         error:   { f: [196, 131],       t: 'square',   d: 0.16 },
         recruit: { f: [392, 523, 659],  t: 'triangle', d: 0.11 },
         upgrade: { f: [523, 659, 880],  t: 'triangle', d: 0.13 },
-        // A single low, short-envelope thump (#132) — not tonal like the others, just a knock.
-        // Battle.drawUnit calls this once per hoof-fall of the player's own mount.
-        hoofbeat:{ f: [95],             t: 'square',   d: 0.045 }
+        // Two short-envelope knocks, not tonal like the others (#132) — a "clop-clop" rather
+        // than a beep. Battle.drawUnit calls this once per hoof-fall of the player's own mount.
+        hoofbeat:{ f: [130, 90],        t: 'triangle', d: 0.05 }
     },
     sfx(kind) {
         let s = this.SFX[kind];
@@ -8572,6 +8589,16 @@ const Game = {
         let mine = this.playerFaction() === a || this.playerFaction() === b;
         this.news(T`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaşa girdi.`, mine);
     },
+    // Player-initiated, one-sided only (#132) — no peace-offer negotiation, matching how
+    // raiding a village already declares war as a side effect. `declareWar` itself is
+    // faction-agnostic, so this is just exposing it as a direct player action — only for a
+    // player who rules their own kingdom (the button is hidden otherwise; this is belt-and-
+    // braces against any other call site).
+    playerDeclareWar(f) {
+        if(!this.isKing()) return;
+        this.declareWar(this.playerFaction(), f);
+        this.showDiplomacy();
+    },
     makePeace(a, b) {
         if(!this.atWar(a, b)) return;
         delete state.wars[this.warKey(a, b)];
@@ -8975,16 +9002,27 @@ const Game = {
     },
     // Diplomacy screen: who's at war with whom, who holds how much land, the latest news
     showDiplomacy() {
+        let mine = this.playerFaction();
+        // Player-initiated war (#132): one-sided declaration only, no peace-offer negotiation —
+        // the AI side of `declareWar`/`makePeace` already exists and both just work when either
+        // argument is the player's own faction id (playerFaction()), so this button is the only
+        // new thing needed.
         let rows = Object.keys(FACTIONS).map(f => {
             let foes = this.warsOf(f);
             let holds = LOCATIONS.filter(l => l.faction === f).length;
+            // Only a player who rules their own kingdom can unilaterally drag it into a war —
+            // an independent adventurer or someone else's vassal has no kingdom to declare on
+            // behalf of (#132).
+            let canDeclare = this.isKing() && f !== mine && !this.atWar(mine, f) && !this.allied(mine, f);
             return `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${T(FACTIONS[f].name)}</span>
                 <span style="color:var(--text-muted);min-width:70px">${T`${holds} toprak`}</span>
                 <span>${foes.length ? '⚔️ ' + foes.map(x => this.factionName(x)).join(', ')
                                     : T('<span style="color:#2ecc71">🕊️ Barış içinde</span>')}${
                     this.alliesOf(f).length ? ` <span style="color:#6fc3ff">🤝 ${this.alliesOf(f).map(x => this.factionName(x)).join(', ')}</span>` : ''
-                }</span></div>`;
+                }</span>
+                ${canDeclare ? `<button class="btn" style="padding:0.15rem 0.5rem;font-size:var(--fs-xs);margin-left:auto" onclick="Game.playerDeclareWar('${f}')">${T`⚔️ Savaş İlan Et`}</button>` : ''}
+                </div>`;
         }).join('');
         // Ongoing campaigns: who's marshal, where the army is headed
         let camps = Object.keys(state.campaigns).map(f => {
@@ -8998,7 +9036,6 @@ const Game = {
         let log = state.warLog.length
             ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${T`${n.day}. gün`}</span> — ${n.msg}</div>`).join('')
             : T('<p style="color:var(--text-muted)">Henüz haber yok.</p>');
-        let mine = this.playerFaction();
         this.showModal(`<h3>${T`🌍 Kalradya'nın Hâli`}</h3>
             ${mine === 'player'
                 ? `<p style="color:var(--text-muted)">${T`Bağımsızsın — kimseye yemin etmedin.${this.warsOf('player').length
@@ -10471,12 +10508,14 @@ const Game = {
     },
 
     // Daily expense: wages + food. dailyUpdate and the top-bar tooltip use the same math.
-    // A troop eats 0.4 units a day, the player 0.75 (we count the player's own stomach too).
+    // A troop eats 0.3 units a day, the player 0.5625 (we count the player's own stomach too).
     // It used to be 1 per head: a 20-person army ate 21 units a day (~84 dinars),
-    // meaning the food bill ran twice the wage bill. This is the single knob — consumption,
-    // the "days left" badge, the hunger penalty, and the tooltip breakdown all read from upkeep().
-    FOOD_MAN: 0.4,
-    FOOD_PLAYER: 0.75,
+    // meaning the food bill ran twice the wage bill. Cut to 0.75× again (#132) — even at the old
+    // 0.4/0.75 rate, a real campaign army spent too much of its time provisioning. This is the
+    // single knob — consumption, the "days left" badge, the hunger penalty, and the tooltip
+    // breakdown all read from upkeep().
+    FOOD_MAN: 0.3,
+    FOOD_PLAYER: 0.5625,
 
     upkeep() {
         // The player's own belly is fed too (#75). It used to be only the party was counted:
@@ -10778,6 +10817,8 @@ const Game = {
         let bits = [];
         if(item.attack) bits.push(T`+${item.attack} saldırı`);
         if(item.defense) bits.push(T`+${item.defense} savunma`);
+        if(item.hSpd) bits.push(T`+%${item.hSpd} hız`);
+        if(item.hDef) bits.push(T`+%${item.hDef} zırh`);
         let t = DMG_TYPES[item.dmgType];
         if(t) bits.push(T`${T(t.name)} — düşman savunması %${Math.round(t.armor*100)} etkili, hasar ×${t.mult}${t.knock ? T(', bayıltır (esir)') : ''}`);
         if(item.desc) bits.push(T(item.desc));

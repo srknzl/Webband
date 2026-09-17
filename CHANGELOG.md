@@ -3,6 +3,24 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.22.0 — Savaş İlanı (2026-09-17)
+
+- **Herhangi bir krallığa savaş ilan edebilirsin.** Diplomasi ekranında (K) her krallığın yanında
+  bir "⚔️ Savaş İlan Et" butonu var — barış teklifi yok henüz, sadece tek taraflı ilan.
+- **Savaştan haritaya dönünce bazen zoom sonuna kadar açık kalıyordu.** Savaş başlarken bitmemiş
+  bir pinch-zoom hareketi haritanın kamerasını yanlış değere kilitliyordu; düzeltildi.
+- **Demirci Dev zırhı kalkan ikonuyla görünüyordu**, artık doğru zırh ikonu var.
+- **At nal sesi tek bir "bip" gibiydi**, artık iki tonlu bir "tak-tak" sesi.
+- **Asker erzak tüketimi %25 daha da azaldı** (0.75× — bu, önceki bir indirimin üstüne).
+- **"⚑ Fırsat" satırı İngilizce'de "Opening" diye çevrilmişti**, komut vermediğin halde emir
+  verilmiş gibi okunuyordu — "Available" (mevcut) olarak düzeltildi.
+- **At özellikleri (hız/zırh bonusu) envanterde ve pazarda görünmüyordu**, artık silah/zırh gibi
+  gösteriliyor.
+- **Pazarda ekipman ve atlarda 5x/Tümü satın alma seçenekleri kaldırıldı** (yiyecek/mal hâlâ var).
+- **8 yeni at türünün İngilizce/Endonezce çevirileri eksikti**, eklendi.
+- **Savaş sırasında (arena dâhil) kenar menüsüne tıklayınca ekran kararıyordu.** Menü, savaş
+  bitmeden tıklanabilir kalıyordu; artık savaştayken tamamen gizli.
+
 ## 1.21.13 — Nal Sesi (2026-09-17)
 
 - **Savaş kamerası çok yakındı**, özellikle dar telefon ekranında. Yakınlaştırma 3'ten 2.3'e

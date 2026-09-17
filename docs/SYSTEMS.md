@@ -472,29 +472,31 @@ Every day:
   Every foodstuff has its own shelf life (`ITEMS[].spoil` = days): grain 60, cheese 40, meat 30,
   bread 20. `Game.spoilFood()` subtracts `qty/spoil` every day (the fractional loss
   accumulates in `it.decay`), `foodStock().days` counts this in.
-  **The player eats too (#75)**: `upkeep()` starts with `foodLow = FOOD_PLAYER` (0.75) — it used to count only
+  **The player eats too (#75)**: `upkeep()` starts with `foodLow = FOOD_PLAYER` (0.5625) — it used to count only
   the party, so a solo party consumed no food at all and the badge showed `—`. Hunger's
   consequence used to be morale alone; since morale only affects troops (`moraleMult`), a
   player traveling alone was never touched by starving at all. Now every day spent hungry
   costs **−`Game.HUNGER_HP` = 3 health** and `regenTick` doesn't heal that day (floor 1 health
   — starvation doesn't kill, it lays you low). Starting inventory is now **3 grain → 1 bread**:
   the food problem should start on day one.
-  Measured (seed 1, 20 days): a solo party now eats **0 → 1** unit a day, the "how many days
-  left" badge shows a real number instead of `—` (a fresh character: **0 days**, red); a player
-  traveling without buying food starves on **day 3**, health goes 50 → 41 by day 5 → 26 by day
-  10 → 1 by day 20. The same player leaving with 30 bread lasts 12 days (1 consumption + 1.5
-  spoilage), first hunger on **day 17**. 10 troops (lvl 10) + player = **7** units a day (see
-  `FOOD_MAN` below).
+  Measured (seed 1, 20 days, current 0.75×-cut rates — see `FOOD_MAN`/`FOOD_PLAYER` below): a
+  solo party now eats **0 → 1** unit a day, the "how many days left" badge shows a real number
+  instead of `—` (a fresh character: **0 days**, red); a player traveling without buying food
+  starves on **day 2**, health goes 50 → 47 by day 2 → 38 by day 5 → 23 by day 10 → **1 by day
+  18**. The same player leaving with 30 bread lasts 18 days, first hunger on **day 19**. 10
+  troops (lvl 10) + player = **5** units a day (see `FOOD_MAN` below).
 #### A troop eats a fraction of a unit a day (`FOOD_MAN`), scaled by level (#27)
 1 unit per head was too much: a 20-strong army ate 21 units a day (~84 denars), so the
-**food bill ran double the wage bill**. One knob, `Game.FOOD_MAN` = **0.4**, sits right above
-`upkeep()`; consumption, the "how many days left" badge, the hunger penalty, and the tooltip
-breakdown all read from `upkeep()` already, so nothing else needed touching. The player's own
-belly is `Game.FOOD_PLAYER` = **0.75** (#75) — the knob is only the troops' share.
+**food bill ran double the wage bill**. One knob, `Game.FOOD_MAN` = **0.3** (cut to 0.75× of the
+original 0.4 again, #132 — a real campaign army was still spending too much time
+provisioning), sits right above `upkeep()`; consumption, the "how many days left" badge, the
+hunger penalty, and the tooltip breakdown all read from `upkeep()` already, so nothing else
+needed touching. The player's own belly is `Game.FOOD_PLAYER` = **0.5625** (0.75× of 0.75, #75,
+#132) — the knob is only the troops' share.
 **Stronger troops eat more (#27)**: each troop's low-quality share is
-`FOOD_MAN × min(3, 1 + min(level, 50)/25)` — a level-10 recruit at 1.4× (0.56 units), a
-level-25 veteran at 2× (0.8), the toughest elite (~lvl 50) capped at **3×** (1.2). Lvl 30+
-additionally wants meat/cheese equal to `FOOD_MAN` (0.4); companions eat a flat `FOOD_MAN`;
+`FOOD_MAN × min(3, 1 + min(level, 50)/25)` — a level-10 recruit at 1.4× (0.42 units), a
+level-25 veteran at 2× (0.6), the toughest elite (~lvl 50) capped at **3×** (0.9). Lvl 30+
+additionally wants meat/cheese equal to `FOOD_MAN` (0.3); companions eat a flat `FOOD_MAN`;
 lvl 51 free.
 
 Measured (`upkeep()` directly, `need = ceil(foodLow)`):
@@ -502,15 +504,15 @@ Measured (`upkeep()` directly, `need = ceil(foodLow)`):
 | Party | Daily units (`need`) | Meat/cheese (`needHigh`) | Wages | Grain cost |
 |---|---|---|---|---|
 | solo | 1 | 0 | 0 | 4₺ |
-| 10 × lvl10 | **7** *(0.56 ea + 0.75)* | 0 | 20₺ | 28₺ |
-| 20 × lvl10 | **12** *(0.56 ea + 0.75)* | 0 | 40₺ | 48₺ |
-| 20 × lvl20 | 16 *(0.72 ea)* | 0 | 200₺ | 64₺ |
-| 10 × lvl30 | 10 *(0.88 ea)* | 4 | 150₺ | 40₺ |
+| 10 × lvl10 | **5** *(0.42 ea + 0.5625)* | 0 | 20₺ | 20₺ |
+| 20 × lvl10 | **9** *(0.42 ea + 0.5625)* | 0 | 40₺ | 36₺ |
+| 20 × lvl20 | 12 *(0.54 ea)* | 0 | 200₺ | 48₺ |
+| 10 × lvl30 | 8 *(0.66 ea)* | 3 | 150₺ | 32₺ |
 
-60 grain lasts a 10-person party (lvl 10) **7 days**. Two `foodStock` assertions in
-`tools/test.js` encode these numbers (need 7, days 7, need 3, needHigh 1) — they went
-red when the balance changed and were updated by hand, so the regression gate is doing its
-job.
+60 grain lasts a 10-person party (lvl 10) **10 days**. Two `foodStock` assertions in
+`tools/test.js` encode these numbers (need 5, days 10, need 2, needHigh 1) — they went
+red when the balance changed (twice, #132) and were updated by hand, so the regression gate is
+doing its job.
 
 - Morale is recalculated (`Game.updateMorale`)
 - Player +5 HP

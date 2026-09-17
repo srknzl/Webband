@@ -1208,15 +1208,17 @@ input[type="range"] { touch-action: none; height: 2.4rem; }
     }
 }
 
-/* --- Savaşta tam ekran (#86) ---
+/* --- Savaşta tam ekran (#86, #132) ---
    Telefonda sefer çubuğu + menü şeridi 664 px'in 228'ini yiyordu; savaşta ikisi de
-   işe yaramıyor (menüye savaş içinde girilemez zaten). Yalnız parmakla oynanan
-   cihazda gizlenir — masaüstünde yerleşim aynı kalır. */
-@media (pointer: coarse) {
-    body.in-battle #top-bar, body.in-battle #sidebar { display: none; }
-    body.in-battle .content-area { padding: 0; gap: 0; }
-    body.in-battle #battle-view { border-radius: 0; border-width: 0; }
+   işe yaramıyor. Bu artık her cihazda geçerli: menü butonlarının kendi `Battle.active`
+   koruması yoktu (yalnız klavye kısayollarında vardı), masaüstünde görünür ve tıklanabilir
+   kalıyordu — tıklayınca `showScreen` DOM'u değiştiriyor ama oyun döngüsü savaş bitene kadar
+   yeniden başlamıyor, sonuç kara bir ekran (#132: arenada görüldü, ama her savaşta olurdu). */
+body.in-battle #top-bar, body.in-battle #sidebar { display: none; }
+body.in-battle .content-area { padding: 0; gap: 0; }
+body.in-battle #battle-view { border-radius: 0; border-width: 0; }
 
+@media (pointer: coarse) {
     /* Savaş kütüğü telefonda tek satır (#89). İki köşe yığını 46vw × %20'ydi: ölüm
        satırları, komutan repliği ve emir yazıları arenanın alt yarısını kaplıyor,
        oyuncu kendi silüetini göremiyordu. Artık güç çubuğunun altında, tam enine

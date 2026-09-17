@@ -194,18 +194,18 @@ test('foodStock: day count accounts for spoilage too', () => {
     p.inventory = [{ id: 'wheat', qty: 60 }];
     const fs = Game.foodStock();
     assert.strictEqual(fs.low, 60);
-    assert.strictEqual(fs.need, 7);                   // 10 × lvl10 (0.4×1.4=0.56) + player 0.75 = 6.35 → 7 (#27)
+    assert.strictEqual(fs.need, 5);                   // 10 × lvl10 (0.3×1.4=0.42) + player 0.5625 = 4.7625 → 5 (#27, cut to 0.75× again #132)
     assert.strictEqual(fs.kinds, 1);
     assert.strictEqual(fs.spoil, 1);                  // 60 wheat / 60-day shelf life
-    assert.strictEqual(fs.days, 7);                   // 60 / (7 + 1)
+    assert.strictEqual(fs.days, 10);                  // 60 / (5 + 1)
 });
 test('foodStock: elite troops want meat, variety is counted', () => {
     const p = reset();
     p.party = [troop(30), troop(30)];
     p.inventory = [{ id: 'wheat', qty: 10 }, { id: 'meat', qty: 10 }];
     const fs = Game.foodStock();
-    assert.strictEqual(fs.need, 3);                   // 2 × lvl30 (0.4×2.2=0.88) + player 0.75 = 2.51 → 3 (#27)
-    assert.strictEqual(fs.needHigh, 1);               // 0.4 meat per lvl 30+ troop
+    assert.strictEqual(fs.need, 2);                   // 2 × lvl30 (0.3×2.2=0.66) + player 0.5625 = 1.8825 → 2 (#27, cut to 0.75× again #132)
+    assert.strictEqual(fs.needHigh, 1);               // 0.3 meat per lvl 30+ troop, ×2 = 0.6 → 1
     assert.strictEqual(fs.high, 10);
     assert.strictEqual(fs.kinds, 2);
 });
