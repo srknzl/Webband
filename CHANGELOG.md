@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.4 — Çentik (2026-09-17)
+
+- **Haritadayken üst çubuk çentikli iPhone'larda göstergelerin arkasına düşüyordu.** #40'taki
+  "harita odaklı düzen" üst çubuğu ekranın üstüne sabitlerken çentik boşluğunu unutmuştu —
+  düzeltildi, üst çubuk artık haritada da çentiğin altında kalıyor.
+
 ## 1.21.3 — Tempo (2026-09-17)
 
 - **Yeni hız düğmesi sadece takvimi hızlandırıyordu, karakterin haritadaki yürüyüşünü değil** —

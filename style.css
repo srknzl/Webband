@@ -737,10 +737,13 @@ body {
    with the wrapping (variable-height) top bar. */
 body.view-map #view-container { position: fixed; inset: 0; z-index: 1; }
 body.view-map #top-bar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+    /* Fixed escapes .screen's containing block (absolute doesn't contain fixed), so it
+       needs its own notch offset instead of inheriting .screen's inset (#40 regression). */
+    position: fixed; top: env(safe-area-inset-top); left: 0; right: 0; z-index: 40;
     opacity: 0.9; transition: opacity .2s;
 }
 body.view-map #top-bar:hover { opacity: 1; }
+.native-shell body.view-map #top-bar { top: 59px; }
 body.view-map #sidebar {
     position: fixed; left: 8px; top: 50%; transform: translateY(-50%);
     width: auto; height: auto; max-height: calc(100vh - 96px);
