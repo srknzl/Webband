@@ -1984,9 +1984,12 @@ test('bosses: spawn at their renown gate, relics stack modifiers, the final map 
     const { Game, state, BOSSES, RELICS } = g;
 
     // No boss is on the map at renown 0, and the cheapest one appears once its gate is crossed.
+    // The final boss (BOSSES.savas_tanrisi, renown 0, `final:true`) is excluded throughout —
+    // it's only ever revealed by the boss_map item, never by this renown loop (#132).
     Game.ensureBosses();
     assert.strictEqual(Game.bossSites().length, 0, 'a boss appeared before any renown was earned');
-    const cheapest = Object.keys(BOSSES).reduce((a, b) => BOSSES[a].renown <= BOSSES[b].renown ? a : b);
+    const regularKeys = Object.keys(BOSSES).filter(k => !BOSSES[k].final);
+    const cheapest = regularKeys.reduce((a, b) => BOSSES[a].renown <= BOSSES[b].renown ? a : b);
     state.player.renown = state.player.maxRenown = BOSSES[cheapest].renown;
     Game.ensureBosses();
     assert.ok(Game.bossSites().some(s => s.bossKey === cheapest), 'the boss didn\'t spawn at its gate');
@@ -2011,21 +2014,36 @@ test('bosses: spawn at their renown gate, relics stack modifiers, the final map 
     assert.strictEqual(Game.relicMod('mapSpeed'), kk.mod.mapSpeed, 'a duplicate relic stacked its modifier');
 
     // The final map: blocked until all four boss relics are held AND renown clears the gate.
+    // Redesigned (#132): using the map no longer starts the fight directly — it reveals the
+    // final boss as a map site, exactly like the other 4. `state.finalBoss` is only set once
+    // the player actually attacks that revealed site.
     Game.addItem('boss_map', 1);
     const idx = state.player.inventory.findIndex(i => i.id === 'boss_map');
     state.player.relics = {};
     state.player.renown = state.player.maxRenown = Game.BOSS_RENOWN;
     state.finalBoss = false;
     Game.useItem(idx);
-    assert.ok(!state.finalBoss, 'the final boss opened without the four relics');
-    Object.keys(BOSSES).forEach(k => Game.gainRelic(BOSSES[k].relic));
+    assert.ok(!Game.bossSites().some(s => s.bossKey === 'savas_tanrisi'), 'the final boss map revealed a site without the four relics');
+    regularKeys.forEach(k => Game.gainRelic(BOSSES[k].relic));
     state.player.renown = state.player.maxRenown = Game.BOSS_RENOWN - 1;
     Game.useItem(idx);
-    assert.ok(!state.finalBoss, 'the final boss opened below the renown gate');
+    assert.ok(!Game.bossSites().some(s => s.bossKey === 'savas_tanrisi'), 'the final boss map revealed a site below the renown gate');
     state.player.renown = state.player.maxRenown = Game.BOSS_RENOWN;
-    Game.useItem(idx);
-    assert.ok(state.finalBoss, 'the final boss stayed shut with relics and renown in hand');
+    Game.useItem(idx);   // neither earlier call consumed the item — both returned before item.qty--
+    const finalSite = Game.bossSites().find(s => s.bossKey === 'savas_tanrisi');
+    assert.ok(finalSite, 'the final boss map didn\'t reveal a site with relics and renown in hand');
+    assert.ok(!state.finalBoss, 'finalBoss was set just from revealing the site, before attacking it');
+    Game.attackBoss(finalSite.id);
+    assert.ok(state.finalBoss, 'attacking the revealed final boss site didn\'t set finalBoss');
     g.Battle.active = false;
+});
+
+test('bosses: the final boss never auto-spawns from the renown loop, only from the boss map', () => {
+    const g = H.world({ seed: 11 });
+    const { Game, state } = g;
+    state.player.renown = state.player.maxRenown = 9999;
+    Game.ensureBosses();
+    assert.ok(!Game.bossSites().some(s => s.bossKey === 'savas_tanrisi'), 'the final boss spawned from the renown loop without the map item');
 });
 
 // --- Rumours (#71) ---

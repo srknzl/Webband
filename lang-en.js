@@ -2761,8 +2761,24 @@ I18N.dicts.en = {
   "Korsan Kral": "Pirate King",
   "Ormanın derinliğinde uluma dinmez. Sürünün anası burada avlanır.": "Deep in the forest the howling never ends. The mother of the pack hunts here.",
   "Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han.": "Lord of the steppe — a khan born on horseback and fated to die on it.",
+  "Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han. Kısrağına öyle bağlı ki, hiçbir darbe onu attan indiremez — han'ın kendi canı bitmeden o savaş alanını terk etmez.":
+    "Lord of the steppe — a khan born on horseback and fated to die on it. So bonded to his mare that no blow can ever throw him — he won't leave the field until his own life does.",
   "Dağ ocağının çekiç sesi vadiyi titretir. Devin örsü hiç soğumaz.": "The mountain forge's hammer shakes the valley. The giant's anvil never cools.",
   "Kıyı kalesinde bir korsanın bayrağı dalgalanır. Denizin de karanın da kralı olduğunu söyler.": "A pirate's flag flies over the coastal keep. He calls himself king of sea and land alike.",
+  "Savaş Tanrısı'nın gölgesi düşer düşmez toprak inler. Onu ancak dört bossun nişanını taşıyan, boss haritasını kullanan bulabilir.":
+    "The moment the War God's shadow falls, the ground groans. Only one who carries all four boss relics and uses the boss map can find him.",
+  "Sürü Çağrısı": "Pack Call",
+  "Bozkır Şarjı": "Steppe Charge",
+  "Örs Darbesi": "Anvil Strike",
+  "Fırtına Yayı Yağmuru": "Storm Bow Rain",
+  "Tanrı Gazabı": "Wrath of the God",
+  "Kalradya Sancağı": "Banner of Kalradia",
+  "Kalradya'nın birleşik gücü elinde. (Saldırı +10, azami grup +50, taşıma kapasitesi +%50)":
+    "The united strength of Kalradia in your hand. (Attack +10, max party +50, carry capacity +50%)",
+  "Bu benzersiz bir düşman — koruması yok, tek başına ve tek sefer yenilir. Asla kaçmaz. <b>{0}</b> adlı bir alan saldırısı kullanır — yerdeki işareti görünce uzaklaş.":
+    "A one-of-a-kind enemy — no escort, fought alone, beaten once. It never flees. It uses an area attack called <b>{0}</b> — get off the marked ground when you see it.",
+  "💀 Benzersiz boss — {0}": "💀 Unique boss — {0}",
+  "🗺️ Harita, Savaş Tanrısı'nın yerini gösterdi. Haritada işaretlendi.": "🗺️ The map revealed the War God's location. It's marked on the map.",
   "Kurt Dişi Hançeri": "Wolf-Tooth Dagger",
   "Han Kısrağı": "Khan's Mare",
   "Dev Örsü Zırhı": "Giant's Anvil Armor",

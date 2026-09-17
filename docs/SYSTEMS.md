@@ -1627,18 +1627,33 @@ move with it — you're tracking a trail, not an address.
     own mount also gets a sound: `Game.sfx('hoofbeat')` fires once per hop peak (hysteresis so
     one peak fires once), the same short-envelope-oscillator approach as the market SFX — no
     audio file, and it's silenced by the existing mute setting for free.
-  - **Battle icons react to gear and tier (#132)**: the player's own sprite was gear-independent
-    besides the mount swap — `Battle.PLAYER_WEAPON_ICONS` now picks the icon off
-    `state.player.equipment.weapon.weaponType` (oneHanded🗡️/twoHanded🪓/polearm🔱/bow🏹),
-    combined with the mount icon when riding. Faction troops and the player's own party already
-    had a per-tier icon in `TROOP_TYPES[name].icon` (built from `TROOP_TREES`) that was being
-    computed and then dropped at spawn — it's carried onto the unit now, and `drawUnit` prefers
-    `u.icon` over the generic type-based fallback whenever one is set (companions/spouse get
-    their existing 🎖️/💍 for free the same way). Bandits have no such per-tier table, so
-    `Battle.strengthIcon(type, attack, defense)` picks a weak/normal/armored variant off raw
-    power (`attack+defense`, thresholds 15/30) from a small `STRENGTH_ICONS` lookup — still
-    emoji through the existing `unitSprite()` cache, not new character art (that would need a
-    different rendering pipeline entirely, out of scope here).
+  - **Real sprite art for infantry, archers, and the player (#132)** — went through two
+    revisions during review. First pass was emoji-based (player icon swapped by weapon type,
+    bandits got a weak/normal/armored emoji picked from live `attack+defense`); both were
+    rejected in review (combining two emoji glyphs read as disconnected floating icons, not a
+    person holding something, and power-derived tiers meant the same named unit could look
+    different from one spawn to the next — rejected on principle, not just looks). Final version:
+    - **Infantry** (`troops/infantry_weak/normal/armored.png`) and **archer**
+      (`troops/archer_weak/normal/armored.png`, one sprite recolored per tier — only one archer
+      pose was available) are real cropped pixel-art frames from two CraftPix.net freebies
+      (`troops/LICENSE.txt`), loaded via `Battle.troopImage()`/cached-and-baked via
+      `Battle.troopSprite()`/`bakeFitted()` (aspect-preserving, centered, `imageSmoothingEnabled
+      = false` to keep pixel art crisp) — not emoji, not a combined overlay.
+    - **Tier is fixed by identity, never by live stats** — `TROOP_TYPES[name].tier` (0/1/2) is
+      the troop's fixed recruit/mid/elite position in its own `TROOP_TREES` branch, carried onto
+      the spawned unit as `u.tier`; a bandit's tier comes from its fixed row position in
+      `BAND_KINDS[k].battle`/`.leader` (leader always tier 2). The same named troop always
+      renders identically regardless of day, player level, or its own `level` field.
+    - **The player** (`troops/player_melee.png` / `player_bow.png`) picks its sprite off
+      `state.player.equipment.weapon.weaponType` (bow → the archer look, everything else → the
+      knight look) via `Battle.playerSprite()` — a real sprite per broad weapon category, not a
+      distinct pose per exact weapon (no assets exist for that granularity). Mounted has no
+      matching on-horseback art anywhere found, so it stays the 🐴 emoji.
+    - **Cavalry has no matching mounted sprite in any pack checked** (CraftPix, Kenney, itch.io,
+      OpenGameArt) — it's the one type still on procedural vector art
+      (`Battle.drawTroopRiderSilhouette`), same rig as the boss silhouettes below.
+    - Companions/spouse keep their existing 🎖️/💍 emoji markers (identity accents, not "a
+      soldier's" appearance) via `u.icon` — checked before the real-sprite branch in `drawUnit`.
   - **Charge stamina** (`Battle.chargeSpeed`): the speed bonus is no longer unlimited — it burns
     for 2s while you hold the charge, then 4s of **recovery** (×0.9) follows, and it only
     refills once you're fully rested. There's **no passive regen**: with one, tapping the charge
@@ -2132,35 +2147,70 @@ skill matches your equipped weapon's type, and an extra 60% of that amount is wr
 old path didn't restore `_duelParty`, so a player withdrawing from the match had their party
 permanently deleted.)*
 
-### Bosses and relics (#37, #38)
+### Bosses and relics (#37, #38, redesigned #132)
 Four unique bosses (`BOSSES` in `app.js`) surface on the map as peak renown climbs:
 Kurt Ana (60), Bozkır Hanı (130), Demirci Dev (200), Korsan Kral (280). `Game.ensureBosses()`
 (called from `lairTick` and on save-load) spawns a `kind:'boss'` site the day its renown gate
-is reached and never respawns a killed one (`state.bossKills`). Each boss unit itself scales with
-`BOSS_BASE_LEVEL (30) + dLevel` (`Battle.start`'s `bossLevel` branch: `hp = 100 + bossLevel×10`,
-`attack = 25 + bossLevel`, `defense = 20`) — Kurt Ana fights at 30, Bozkır Hanı 35, Demirci Dev 40,
-Korsan Kral 45, the final Savaş Tanrısı 55. Its retinue ("Karanlık Muhafız") does **not** scale
-with `bossLevel` (#132): they're a fixed `hp 90 / attack 22 / defense 12` regardless of which boss,
-close to the best regular troop in the game (Nord Baltacısı: 80/24/13) rather than compounding on
-top of it — before this they used the same `bossLevel` formula as the boss itself, so Kurt Ana's
-guards (the first, lowest-renown-gated fight) already stood at hp 140/attack 30, tougher than
-anything a player at that point could plausibly field. The boss's own escalation is still the
-fight's difficulty curve; the final encounter's danger instead comes from guard *count*
-(`BOSSES.korsan_kral.guards × 2`). Each boss is beaten once and drops: a **unique item**
-(`unique:true, unsellable:true` — Kurt Dişi Hançer / Han Kısrağı / Dev Örsü Zırhı / Fırtına Yayı,
-never sold in the market, never buyable) and a **relic**.
+is reached and never respawns a killed one (`state.bossKills`). The fifth entry, `savas_tanrisi`
+(`final:true`), is skipped by this renown loop entirely — it's only ever revealed by the
+`boss_map` item (see below).
+
+**No more guards (#132).** Every boss used to be a generic reskinned infantry unit
+(`hp = 100 + bossLevel×10`, `attack = 25 + bossLevel`, `defense = 20`) plus 7-11 fixed
+"Karanlık Muhafız" escorts — `guards` doubled as `Battle.start`'s total enemy headcount. Now each
+boss is a real solo unit with its own hp/attack/defense pulled straight from its `BOSSES` entry
+(`enemyCount` is always `1`): Kurt Ana 800/80/25, Bozkır Hanı 950/90/25 (**mounted**), Demirci Dev
+1100/100/35, Korsan Kral 1150/105/25, Savaş Tanrısı (final) 2600/130/40. HP was sized as
+*(old solo boss hp) + ~60% of the removed guard pool's hp* — most of the lost durability carries
+over, the rest is meant to come back through the boss's own AOE instead of guard headcount; attack
+only rose ~1.3-1.5× since the AOE already multiplies effective output. **Free side effect**: with
+headcount always 1, `Battle.routCheck()`'s `ROUT_MIN: 6` (any side starting at ≤6 never routs)
+means a boss can no longer flee — no separate exemption needed, just a comment at the spawn site.
+The player's own dismount check (`!u.isBoss`, `battle.js:~1000`) also skips a boss entirely, so
+Bozkır Hanı's mount is never separately unhorsed mid-fight — its own hp governs the whole thing.
+
+**Dodgable signature attacks.** `BOSSES.<key>.special` is a small config (`shape`, `radius` or
+`length`+`width`, `telegraph` duration, `dmgMult`, `cooldown`) shared by one generic state machine,
+`Battle.updateBossSpecial()`: idle → telegraph (a pulsing ground marker drawn by
+`drawBossSpecial()`, the actual dodge window) → strike (every enemy-side unit standing in the
+marked shape takes `attack × dmgMult` via the existing `dealMelee`/`afterArmor` choke point) →
+brief recovery → back to idle. One AOE system, five data-driven configs, not five bespoke ones —
+only Bozkır Hanı's line-shaped charge needs real geometry (`pointInOrientedRect`), the other four
+are a plain circle (distance check). Sürü Çağrısı (Kurt Ana), Bozkır Şarjı (Bozkır Hanı, a 260×70
+line), Örs Darbesi (Demirci Dev), Fırtına Yayı Yağmuru (Korsan Kral), Tanrı Gazabı (Savaş Tanrısı).
+
+**Hand-drawn boss art, not emoji (#132).** No image-generation tool is available and the game
+ships zero image assets (everything is drawn live on canvas) — `Battle.bossSprite(key)` bakes one
+bespoke silhouette per boss from basic canvas primitives (arcs/paths/rects: a crouched wolf, a
+mounted rider, a broad hammer-wielding giant, a tricorne-hatted pirate, a haloed war god), cached
+exactly like `unitSprite()` caches emoji, drawn through its own branch in `drawUnit` that skips the
+emoji pipeline entirely. Draw sizes are notably bigger than a regular unit's ~10-20px footprint:
+Kurt Ana 44px, Bozkır Hanı 46px, Korsan Kral 48px, Demirci Dev 64px (biggest of the 4 — "Dev" =
+Giant), Savaş Tanrısı 70px (the single largest sprite in the game).
+
+Each boss is beaten once and drops: a **unique item** (`unique:true, unsellable:true` — Kurt Dişi
+Hançer / Han Kısrağı / Dev Örsü Zırhı / Fırtına Yayı, never sold in the market, never buyable;
+the final boss has none, only its relic) and a **relic**.
 
 **Relics** (`RELICS`) are one-of-a-kind (`state.player.relics`, no stacking, kept through
 captivity). `Game.relicMod(name)` sums the owned relics' one modifier each, mirroring `perkMod`:
 Kurt Kanı `mapSpeed 15`, Bozkır Tuğu `moraleBonus 10`, Demir Yürek `maxHpPct 20`,
-Fırtına Tılsımı `loot 25`, Tüccar Mink `tradeEdge 10`. Tüccar Mink is bought at the innkeeper
-for `RELIC_PRICE (6000)`; the other four drop from bosses. A duplicate (only via a save edit)
-pays 1500 coin instead of stacking.
+Fırtına Tılsımı `loot 25`, Tüccar Mink `tradeEdge 10`, **Kalradya Sancağı**
+`atk 10, partyCap 50, cargoPct 50` (#132, the final boss's drop). Tüccar Mink is bought at the
+innkeeper for `RELIC_PRICE (6000)`; the rest drop from bosses. A duplicate (only via a save edit)
+pays 1500 coin instead of stacking. Kalradya Sancağı's three modifiers each wire into an existing
+single source of truth: `atk` adds to the player's battle `attack:` stat (`battle.js:~290`, one
+field already drives both melee and ranged damage), `partyCap` adds alongside the existing
+`perkMod('partyCap')` term in `Game.getPartyCapacity()`, `cargoPct` is a new multiply on
+`Game.cargoCap()`'s return (that function had no modifier hook before).
 
-**Boss of bosses.** The `boss_map` item (15000 denars) opens the **Savaş Tanrısı** fight, but is
-doubly gated: all four boss relics (`bossRelicCount() === 4`) **and** `Game.BOSS_RENOWN = 300`
-peak renown. Killing it sets `state.finalBoss` → `Game.showVictory()` (victory banner, +50
-renown; the save survives so play continues).
+**Boss of bosses.** The `boss_map` item (15000 denars) is doubly gated: all four boss relics
+(`bossRelicCount() === 4`) **and** `Game.BOSS_RENOWN = 300` peak renown. Using it no longer starts
+the **Savaş Tanrısı** fight directly (#132) — it calls `Game.spawnBossSite('savas_tanrisi')`,
+revealing it as an ordinary `kind:'boss'` map site exactly like the other 4; `state.finalBoss` is
+only set once the player actually walks up and attacks that site (`attackBoss()`). Killing it
+grants Kalradya Sancağı and sets `state.finalBoss` → `Game.showVictory()` (victory banner; the
+save survives so play continues).
 
 ### Daily event pool (#35)
 So a campaign isn't just staring at a silent table, `Game.dailyEvent()` rolls a die at the end

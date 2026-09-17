@@ -40,16 +40,19 @@ const Battle = {
             // The lone foe must be infantry: if an archer comes up from the pool it kites you forever in 1v1
             e.name = lord.name; e.type = 'infantry';
             e.defense = 8; e.speed = 70; e.radius = 9; e.color = '#ff8800';
+            e.tier = 1;   // a lord in a formal duel: fixed "normal" look, not level-derived (#132)
         }
         document.getElementById('battle-log-left').innerHTML = `<b>${T`🗡️ Şeref Düellosu:`}</b> ${T(lord.name)}`;
     },
 
     // Arena (#26): free practice fight in the city's sand ring. Reuses the
     // same duel infrastructure — no group enters, no loot/capture/honor, only proficiency XP.
+    // `tier` is each foe's own fixed weak/normal/armored look (#132) — the ladder is real
+    // (harder fights pay more xp), but the art doesn't derive from that live difficulty number.
     ARENA_FOES: [
-        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  desc: 'Kolay lokma, az ter.' },
-        { name: 'Arena Gediklisi', dLv: 2,  xp: 180, desc: 'Senden bir gömlek üstün.' },
-        { name: 'Arena Şampiyonu', dLv: 8,  xp: 340, desc: 'Dayak yersin ama çok şey öğrenirsin.' }
+        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  tier: 0, desc: 'Kolay lokma, az ter.' },
+        { name: 'Arena Gediklisi', dLv: 2,  xp: 180, tier: 1, desc: 'Senden bir gömlek üstün.' },
+        { name: 'Arena Şampiyonu', dLv: 8,  xp: 340, tier: 2, desc: 'Dayak yersin ama çok şey öğrenirsin.' }
     ],
     // The rig behind both the arena and the tournament (#122): the party steps out, one
     // wooden-weapon opponent steps in. `foe.lv` is an absolute level, `foe.dLv` one relative
@@ -68,6 +71,9 @@ const Battle = {
         // Wooden weapon: blunt, i.e. it knocks out instead of killing — nobody dies on the sand
         e.name = foe.name; e.type = 'infantry'; e.dmgType = 'blunt';
         e.speed = 70; e.radius = 9; e.color = color || '#ffcc55';
+        // The foe's own fixed tier (#132) if it has one (ARENA_FOES does); otherwise a plain
+        // "normal" look — never derived from `lv`, which is precisely what varies here.
+        e.tier = foe.tier !== undefined ? foe.tier : 1;
     },
     startArena(idx) {
         let f = this.ARENA_FOES[idx] || this.ARENA_FOES[1];
@@ -91,6 +97,7 @@ const Battle = {
             if(!u) return;
             u.color = color; u.defense = 8; u.dmgType = 'blunt'; u.hasShield = false;
             u.type = 'infantry'; u.mounted = false; u.radius = 7;
+            u.tier = 1;   // standard-issue tournament kit for everyone — fixed, not level-derived (#132)
         };
         if(player) {
             standardise(player, match.player.color);
@@ -331,7 +338,7 @@ const Battle = {
                 speed: typeInfo.speed + lvlBonusSpd, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense + lvlBonusDef,
                 type: typeInfo.type, mounted: typeInfo.type === 'cavalry' || typeInfo.speed > this.FOOT_MAX,
                 dmgType: typeInfo.dmgType, brace: typeInfo.brace, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
-                radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0, level: p.level, icon: typeInfo.icon   // #132
+                radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0, level: p.level, icon: typeInfo.icon, tier: typeInfo.tier   // #132
             });
         });
 
@@ -347,40 +354,46 @@ const Battle = {
             let name = 'Çapulcu';   // BAND_KINDS/TROOP_TYPES key — translated on screen via T()
             let hp = 24, speed = 52, attack = 6, defense = 0, type = 'infantry', color = '#ff4444', radius = 5;
             let dmgType = (band && band.dmg) || 'cut', brace;
-            let icon = null;   // #132: a tiered troop carries its own icon; drawUnit falls back to type otherwise
+            let icon = null;   // stays null for every enemy — only the player's own companions/spouse (#132) ever set this
+            // Battle art tier (weak/normal/armored, #132) — fixed by the unit's identity (which
+            // named row it is), never computed from its live attack/defense or level. A "Nord
+            // Serfi" looks the same whether it's a fresh spawn or has fought for 50 days.
+            let tier = null;
 
             if(!bossLevel && isBandit) {
                 // Band mix: each kind has its own units; a large band gets its leader up front
                 let row;
                 if(i === 0 && enemyCount >= 6 && band.leader) {
                     row = band.leader;
+                    tier = 2;   // the named leader always reads as the elite of the band
                 } else {
                     let total = band.battle.reduce((a2, r) => a2 + r[6], 0);
                     let roll = Math.random() * total;
-                    row = band.battle.find(r => (roll -= r[6]) <= 0) || band.battle[0];
+                    let bIdx = band.battle.findIndex(r => (roll -= r[6]) <= 0);
+                    if(bIdx < 0) bIdx = 0;
+                    row = band.battle[bIdx];
+                    tier = Math.min(2, bIdx);   // fixed by the row's own position in the roster, not by its stats
                 }
                 name = row[0]; type = row[1]; hp = row[2]; speed = row[3]; attack = row[4]; defense = row[5];
                 radius = type === 'cavalry' ? 7 : 5;
                 color = band.beast ? '#c9b6a0' : type === 'archer' ? '#ff7744' : type === 'cavalry' ? '#ff5522' : '#ff4444';
             }
             
+            let bossData = null;
             if(bossLevel) {
-                if(i === 0) {
-                    // The boss's own identity (#132): this used to be hardcoded 'Savaş Tanrısı' for
-                    // every unique boss, so Kurt Ana/Bozkır Hanı/Demirci Dev/Korsan Kral all fought
-                    // under the final boss's name. `enemyName` already carries the real one in.
-                    name = enemyName;
-                    hp = 100 + bossLevel * 10; speed = 70; attack = 25 + bossLevel; defense = 20; type = 'infantry'; radius = 10;
-                    color = '#aa00ff';
-                } else {
-                    name = 'Karanlık Muhafız';
-                    // Guards are a fixed elite tier (#132), not scaled by bossLevel — they used to
-                    // outscale the best troop in the game (Nord Baltacısı: 80/24/13) at Kurt Ana,
-                    // the very first and lowest-renown-gated boss. The boss itself still scales
-                    // with bossLevel; the escalating fight is meant to be against *it*, not its guards.
-                    hp = 90; speed = 65; attack = 22; defense = 12; type = (Math.random()>0.5?'infantry':'archer'); radius = 6;
-                    color = '#8800cc';
-                }
+                // No more guards (#132) — enemyCount is always 1 for a boss fight, so this loop
+                // never reaches i>0 here. Real per-boss stats/identity come from BOSSES, keyed by
+                // whichever boss the player is actually fighting (state.player.currentBoss);
+                // `enemyName` is the fallback if that's somehow unresolved.
+                bossData = BOSSES[state.player.currentBoss];
+                name = enemyName;
+                hp = bossData ? bossData.hp : 100 + bossLevel * 10;
+                speed = 70;
+                attack = bossData ? bossData.attack : 25 + bossLevel;
+                defense = bossData ? bossData.defense : 20;
+                type = (bossData && bossData.mounted) ? 'cavalry' : 'infantry';
+                radius = 10;
+                color = '#aa00ff';
             }
             else if(!isBandit) {
                 // Faction soldier — from the encountered kingdom's own troop tree
@@ -388,20 +401,14 @@ const Battle = {
                 name = pool[Math.floor(Math.random() * pool.length)];
                 let ti = TROOP_TYPES[name];
                 hp = ti.hp; speed = ti.speed; attack = ti.attack; defense = ti.defense; type = ti.type; dmgType = ti.dmgType; brace = ti.brace;
-                icon = ti.icon;   // #132: each troop tier already has its own icon, just wasn't carried through
+                tier = ti.tier;   // fixed recruit/mid/elite position in its own tree (#132)
                 radius = type === 'cavalry' ? 7 : 5;
                 color = '#ff6666';
             }
 
-            let enemyLvl = 1;
-            if(bossLevel) {
-                // The boss's own level still tracks bossLevel; the guard's shown level is fixed
-                // (#132, same reasoning as their now-fixed combat stats above) so the rank pip
-                // over their head and the loot/renown they're worth don't keep advertising the
-                // old bossLevel-10 scaling their stats no longer have.
-                if(i===0) enemyLvl = bossLevel;
-                else enemyLvl = 12;
-            }
+            // The rank pip over the boss's head and the loot/renown it's worth track bossLevel —
+            // there's no guard case to special-case anymore (#132, one enemy, always i===0).
+            let enemyLvl = bossLevel ? bossLevel : 1;
             // Nobody but the boss itself scales with the calendar or the player's own strength
             // (#99, extended to faction/lord soldiers in #132). Bandits used to gain a level
             // every 30 days — +4 HP, +0.5 attack, +0.25 defense each, with no ceiling — while an
@@ -424,12 +431,6 @@ const Battle = {
                 hp = Math.round(hp * (1 + this.siege.defBonus));
                 attack = Math.round(attack * (1 + this.siege.defBonus));
             }
-            // Bandits have no per-tier icon table (unlike faction soldiers above) — a small
-            // weak/normal/armored lookup keyed off raw power stands in, so a lair boss doesn't
-            // look identical to the peasant next to them (#132). Bosses/guards aren't bandits,
-            // so this doesn't touch them.
-            if(isBandit && !icon) icon = this.strengthIcon(type, attack, defense);
-
             this.units.push({
                 id: 'enemy_'+i, isPlayerTeam: false, name: name,
                 beast: !!(band && band.beast),
@@ -441,8 +442,13 @@ const Battle = {
                 y: this.ambushed ? Math.max(20, Math.min(H-20, H/2 + Math.sin(i*2.4)*(130+Math.random()*110)))
                                  : 50 + Math.random()*(H-100),
                 speed: speed, attack: attack, defense: defense, dmgType: dmgType, brace: brace,
-                type: type, mounted: type === 'cavalry' || speed > this.FOOT_MAX, icon,
-                color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl
+                type: type, mounted: type === 'cavalry' || speed > this.FOOT_MAX, icon, tier,
+                color: color, radius: radius, atkCd: Math.random()*0.6, level: enemyLvl,
+                // Signature dodgable AOE (#132) — ticked by updateBossSpecial(), one config per
+                // boss in BOSSES.<key>.special. `state`/`t` are the special's own tiny state
+                // machine (idle/telegraph/strike), separate from the unit's own hp/position.
+                isBoss: !!bossData, bossKey: bossData ? state.player.currentBoss : null,
+                special: bossData ? { ...bossData.special, state: 'idle', t: 1.5 + Math.random() } : null
             });
         }
 
@@ -746,6 +752,47 @@ const Battle = {
         }
     },
 
+    // Shared dodgable-AOE mechanic (#132) — one generic idle→telegraph→strike→recovery state
+    // machine, data-driven off BOSSES.<key>.special (shape/radius-or-length+width/telegraph
+    // duration/damage multiplier/cooldown), so 5 distinct bosses share one system instead of 5
+    // bespoke ones. `sp.tx/ty/angle` freeze at the moment the telegraph starts — the boss itself
+    // can keep moving, but the strike lands where it was marked, which is what makes it
+    // genuinely dodgable (walk out of the marked ground before the telegraph timer ends).
+    updateBossSpecial(u, dt) {
+        let sp = u.special;
+        if(!sp || u.hp <= 0) return;
+        sp.t -= dt;
+        if(sp.state === 'idle') {
+            if(sp.t <= 0) {
+                sp.state = 'telegraph'; sp.t = sp.telegraph;
+                sp.tx = u.x; sp.ty = u.y;
+                let target = this.units.find(t => t.hp > 0 && t.isPlayerTeam !== u.isPlayerTeam);
+                sp.angle = target ? Math.atan2(target.y - u.y, target.x - u.x) : 0;
+            }
+        } else if(sp.state === 'telegraph') {
+            if(sp.t <= 0) {
+                sp.state = 'strike'; sp.t = 0.4;   // brief recovery before the cooldown starts
+                this.units.forEach(t => {
+                    if(t.hp <= 0 || t.isPlayerTeam === u.isPlayerTeam) return;
+                    let hit = sp.shape === 'circle'
+                        ? Math.hypot(t.x - sp.tx, t.y - sp.ty) <= sp.radius
+                        : this.pointInOrientedRect(t.x, t.y, sp.tx, sp.ty, sp.angle, sp.length, sp.width);
+                    if(hit) this.dealMelee(u, t, u.attack * sp.dmgMult);
+                });
+            }
+        } else if(sp.state === 'strike') {
+            if(sp.t <= 0) { sp.state = 'idle'; sp.t = sp.cooldown; }
+        }
+    },
+    // Point-in-oriented-rectangle: only Bozkır Hanı's line-shaped charge needs this, the other
+    // 4 bosses use a plain circle (simple distance check, no geometry helper needed).
+    pointInOrientedRect(px, py, ox, oy, angle, length, width) {
+        let dx = px - ox, dy = py - oy;
+        let c = Math.cos(-angle), s = Math.sin(-angle);
+        let lx = dx * c - dy * s, ly = dx * s + dy * c;
+        return lx >= 0 && lx <= length && Math.abs(ly) <= width / 2;
+    },
+
     // Blood and sparks both pass through one gate: so they can be turned off in settings (#55 item 6/7).
     // Blood/corpses fall under "gore", sparks under the reduce-motion setting — two separate needs.
     blood(x, y, size) {
@@ -962,6 +1009,7 @@ const Battle = {
         // Units movement & action update
         this.units.forEach(u => {
             if(u.hp <= 0) return;
+            if(u.isBoss && u.special) this.updateBossSpecial(u, dt);
 
             u.vx = 0; u.vy = 0; // Reset velocity
             if(u.atkCd > 0) u.atkCd -= dt; // attack cooldown timer (dt-based — independent of frame rate)
@@ -1000,7 +1048,10 @@ const Battle = {
                 this.floatingTexts.push({ x: u.x, y: u.y - 12, text: T('Attan Düştü!'), color: '#ffaa00', life: 1.0 });
                 // Only the player's mount is a real item that can be lost (#132) — a troop's
                 // horse is baked into its fixed TROOP_TREES stats, nothing to remove from anywhere.
-                if(u.id === 'player' && Math.random() < 0.10) this._horseDied = true;
+                // An `immortal` horse (Han Kısrağı, the Bozkır Hanı reward — its own desc says
+                // as much) never rolls this, in every fight from here on, not just the boss's own.
+                let horse = state.player.equipment.horse;
+                if(u.id === 'player' && !(horse && horse.immortal) && Math.random() < 0.10) this._horseDied = true;
             }
 
             // Rout: whoever flees doesn't fight, they run to the edge they came from. This is exactly
@@ -1798,6 +1849,10 @@ const Battle = {
             ctx.restore();
         }
 
+        // Boss special-attack telegraph (#132) — a ground marker during the dodge window, drawn
+        // under the units so it reads as a decal rather than an overlay on top of them.
+        this.units.forEach(u => { if(u.hp > 0 && u.special) this.drawBossSpecial(ctx, u, now); });
+
         // Units — sorted by y for a sense of depth
         this.units.filter(u => u.hp > 0).sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));
 
@@ -1882,21 +1937,162 @@ const Battle = {
         ctx.restore();
     },
 
-    // All the unit emoji used in battle. warmUp() bakes these before the battle
-    // starts; otherwise the first frames stuttered from glyph rasterization.
-    UNIT_ICONS: ['💂', '🏹', '🐎', '🐺', '🐴', '🧑‍🌾', '🗡️', '🪓', '🔱', '🗡️🐴', '🪓🐴', '🔱🐴', '🏹🐴',
-                 '🧍', '🎯', '🎯🛡️', '⚔️🐴', '🛡️', '🎖️', '💍'],
+    // Remaining unit emoji: beasts and the two narrative one-offs (companion medal, spouse
+    // ring) stay emoji — they're identity markers, not "a soldier's" appearance. Every regular
+    // infantry/cavalry/archer, on either side, now renders as hand-drawn art instead (#132 —
+    // "realistic man art", not an emoji glyph, not the shield-icon-as-a-soldier look).
+    UNIT_ICONS: ['🐺', '🧑‍🌾', '🗡️', '🪓', '🔱', '🏹', '🗡️🐴', '🪓🐴', '🔱🐴', '🏹🐴', '🎖️', '💍'],
     // Player battle icon reacts to the equipped weapon type (#132) — was gear-independent
     // besides the mount swap. Armor tier is a second, separate visual axis left for later;
     // this covers "appearance changes with equipped weapon" without inventing armor tinting too.
     PLAYER_WEAPON_ICONS: { oneHanded: '🗡️', twoHanded: '🪓', polearm: '🔱', bow: '🏹' },
-    // Bandits have no per-tier icon table like faction troops do (#132) — this is a small
-    // stand-in keyed off raw power (attack+defense), not a per-unit hardcode.
-    STRENGTH_ICONS: { infantry: ['🧍', '💂', '🛡️'], archer: ['🏹', '🎯', '🎯🛡️'], cavalry: ['🐎', '🐴', '⚔️🐴'] },
-    strengthIcon(type, attack, defense) {
-        let tiers = this.STRENGTH_ICONS[type] || this.STRENGTH_ICONS.infantry;
-        let power = (attack || 0) + (defense || 0);
-        return tiers[power < 15 ? 0 : power < 30 ? 1 : 2];
+    // Troop art (#132) — 3 tiers × 3 types (infantry/cavalry/archer), 9 looks total.
+    // Infantry and archer use real pixel-art sprites (`troops/*.png`, Kenney's "RTS Pack:
+    // Medieval", CC0 — see troops/LICENSE.txt): no image-generation tool is available this
+    // session, but downloading a properly-licensed asset for actual character art is fine, and
+    // it reads as a real medieval human far better than a procedural shape. Infantry is 3
+    // distinct hand-picked levels of a "Swordsman" (CraftPix, free, royalty-free/no attribution
+    // required — troops/LICENSE.txt), genuinely more armored at each tier. Archer is one
+    // sprite (CraftPix Roguelike Kit's hooded archer, bow visible on the back) recolored per
+    // tier (paler/leather → richer → desaturated steel) since only one archer pose was
+    // available. Cavalry has no matching mounted sprite anywhere found, so it stays procedural
+    // vector art (canvas arcs/paths/rects) — same rig as the boss silhouettes below.
+    TROOP_TIER_COLORS: ['#8a7256', '#5a6b7a', '#3f4a56'],   // cavalry-only fallback palette
+    TROOP_TIER_ACCENT: ['#c2a878', '#cfd8e0', '#e8e8e8'],
+    TROOP_TIER_NAMES: ['weak', 'normal', 'armored'],
+    TROOP_SPRITE_SIZE: 36,   // close to the player's own 40x40 emoji sprite, tuned slightly down per playtest feedback
+    // Kicks off the network/cache fetch; returns the (possibly still-loading) Image. Cached by
+    // key so repeated calls don't create new Image objects.
+    troopImage(type, tier) {
+        if(!this._troopImages) this._troopImages = {};
+        let key = type + '_' + this.TROOP_TIER_NAMES[tier];
+        let img = this._troopImages[key];
+        if(img) return img;
+        img = new Image();
+        img.src = 'troops/' + key + '.png';
+        this._troopImages[key] = img;
+        return img;
+    },
+    // Draws a loaded image into a `size`x`size` canvas, preserving aspect ratio and centered —
+    // every real sprite file here is already tightly cropped to its own content, no two are the
+    // same exact width/height, so this (not a fixed source-crop rect) is what fits them all.
+    bakeFitted(img, size) {
+        let c = document.createElement('canvas');
+        c.width = c.height = size;
+        let cx = c.getContext('2d');
+        cx.imageSmoothingEnabled = false;   // keep the pixel art crisp, not blurred
+        let scale = Math.min(size / img.naturalWidth, size / img.naturalHeight) * 0.92;
+        let w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+        cx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        return c;
+    },
+    troopSprite(type, tier) {
+        if(!this._troopSprites) this._troopSprites = {};
+        let key = type + '_' + tier;
+        let c = this._troopSprites[key];
+        if(c) return c;   // permanent cache — only ever holds the real, loaded sprite
+        if(type === 'infantry' || type === 'archer') {
+            let img = this.troopImage(type, tier);
+            if(img.complete && img.naturalWidth > 0) {
+                c = this.bakeFitted(img, this.TROOP_SPRITE_SIZE);
+                this._troopSprites[key] = c;
+                return c;
+            }
+        }
+        // Cavalry (always), or infantry/archer for the handful of frames before its image
+        // finishes loading (`warmUp()` starts the fetch well before battle is visible, so this
+        // is normally never seen) — a procedural placeholder, cached separately so it can never
+        // permanently shadow the real sprite once the image is ready.
+        if(!this._proceduralSprites) this._proceduralSprites = {};
+        let pc = this._proceduralSprites[key];
+        if(pc) return pc;
+        let size = type === 'cavalry' ? 40 : 30, h = size / 2;
+        pc = document.createElement('canvas');
+        pc.width = pc.height = size;
+        let x = pc.getContext('2d');
+        x.translate(h, h);
+        x.fillStyle = this.TROOP_TIER_COLORS[tier];
+        x.strokeStyle = 'rgba(0,0,0,0.85)';
+        x.lineWidth = Math.max(1.5, size * 0.06);
+        x.lineJoin = 'round';
+        if(type === 'archer') this.drawArcherSilhouette(x, h, tier);
+        else if(type === 'cavalry') this.drawTroopRiderSilhouette(x, h, tier);
+        else this.drawInfantrySilhouette(x, h, tier);
+        this._proceduralSprites[key] = pc;
+        return pc;
+    },
+    // The player's own real-sprite look (#132) — `kind` is 'melee' or 'bow', matching
+    // whichever real sprite the equipped weapon's category maps to (both CraftPix, see
+    // troops/LICENSE.txt). Falls back to the emoji farmer glyph for the few frames before the
+    // image loads (warmUp() starts the fetch at battle start, same pattern as troopSprite()).
+    playerImage(kind) {
+        if(!this._playerImages) this._playerImages = {};
+        let img = this._playerImages[kind];
+        if(img) return img;
+        img = new Image();
+        img.src = 'troops/player_' + kind + '.png';
+        this._playerImages[kind] = img;
+        return img;
+    },
+    playerSprite(kind) {
+        if(!this._playerSprites) this._playerSprites = {};
+        let c = this._playerSprites[kind];
+        if(c) return c;
+        let img = this.playerImage(kind);
+        if(img.complete && img.naturalWidth > 0) {
+            c = this.bakeFitted(img, 40);
+            this._playerSprites[kind] = c;
+            return c;
+        }
+        return this.unitSprite('🧑‍🌾');
+    },
+    // Standing soldier: legs, torso, head; tier 1 adds a helmet band, tier 2 adds a shield.
+    drawInfantrySilhouette(x, h, tier) {
+        x.beginPath(); x.rect(-h*0.22, h*0.05, h*0.18, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.04, h*0.05, h*0.18, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.ellipse(0, -h*0.25, h*0.32, h*0.32, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(0, -h*0.68, h*0.16, 0, Math.PI*2); x.fill(); x.stroke();
+        x.save(); x.strokeStyle = '#ccc'; x.lineWidth = Math.max(2, h*0.09);
+        x.beginPath(); x.moveTo(h*0.3, -h*0.3); x.lineTo(h*0.55, -h*0.65); x.stroke(); x.restore();
+        if(tier >= 1) {
+            x.save(); x.strokeStyle = this.TROOP_TIER_ACCENT[tier]; x.lineWidth = Math.max(1, h*0.06);
+            x.beginPath(); x.arc(0, -h*0.68, h*0.19, Math.PI*1.15, Math.PI*1.85); x.stroke(); x.restore();
+        }
+        if(tier >= 2) {
+            x.save(); x.fillStyle = '#5b4632';
+            x.beginPath(); x.ellipse(-h*0.42, -h*0.1, h*0.16, h*0.26, 0, 0, Math.PI*2); x.fill(); x.stroke(); x.restore();
+        }
+    },
+    // Standing archer with a drawn bow; tier 1 adds a quiver, tier 2 a heavier coat (wider torso).
+    drawArcherSilhouette(x, h, tier) {
+        x.beginPath(); x.rect(-h*0.2, h*0.05, h*0.16, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.04, h*0.05, h*0.16, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.ellipse(0, -h*0.25, h*(0.26 + tier*0.03), h*0.3, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(0, -h*0.65, h*0.15, 0, Math.PI*2); x.fill(); x.stroke();
+        x.save(); x.strokeStyle = '#8a5a2b'; x.lineWidth = Math.max(2, h*0.07);
+        x.beginPath(); x.arc(h*0.35, -h*0.3, h*0.35, -Math.PI*0.35, Math.PI*0.35); x.stroke();
+        x.strokeStyle = '#eee'; x.lineWidth = 1;
+        x.beginPath();
+        x.moveTo(h*0.35 + Math.cos(-Math.PI*0.35)*h*0.35, -h*0.3 + Math.sin(-Math.PI*0.35)*h*0.35);
+        x.lineTo(h*0.35 + Math.cos(Math.PI*0.35)*h*0.35, -h*0.3 + Math.sin(Math.PI*0.35)*h*0.35);
+        x.stroke(); x.restore();
+        if(tier >= 1) {
+            x.save(); x.fillStyle = '#5b4632';
+            x.beginPath(); x.rect(-h*0.38, -h*0.42, h*0.13, h*0.32); x.fill(); x.stroke(); x.restore();
+        }
+    },
+    // Mounted trooper: a smaller cousin of the boss's rider silhouette — horse + rider, tier
+    // adds barding weight (a wider horse body) and a helmet accent.
+    drawTroopRiderSilhouette(x, h, tier) {
+        x.beginPath(); x.ellipse(0, h*0.15, h*0.8, h*(0.28 + tier*0.03), 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(h*0.55, -h*0.05); x.lineTo(h*0.9, -h*0.32); x.lineTo(h*0.7, -h*0.12); x.closePath(); x.fill(); x.stroke();
+        [-h*0.55,-h*0.15,h*0.25,h*0.6].forEach(lx => { x.beginPath(); x.rect(lx, h*0.35, h*0.13, h*0.35); x.fill(); x.stroke(); });
+        x.beginPath(); x.ellipse(-h*0.05, -h*0.35, h*0.26, h*0.3, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(-h*0.05, -h*0.62, h*0.16, 0, Math.PI*2); x.fill(); x.stroke();
+        if(tier >= 1) {
+            x.save(); x.strokeStyle = this.TROOP_TIER_ACCENT[tier]; x.lineWidth = Math.max(1, h*0.05);
+            x.beginPath(); x.arc(-h*0.05, -h*0.62, h*0.19, Math.PI*1.1, Math.PI*1.9); x.stroke(); x.restore();
+        }
     },
 
     // An outlined emoji sprite (built once per icon).
@@ -1920,21 +2116,150 @@ const Battle = {
     warmUp() {
         this._swordGrad = null;   // the context may have been recreated
         this.UNIT_ICONS.forEach(i => this.unitSprite(i));
+        Object.keys(BOSSES).forEach(k => this.bossSprite(k));
+        ['infantry', 'cavalry', 'archer'].forEach(t => [0, 1, 2].forEach(tier => this.troopSprite(t, tier)));
+        ['melee', 'bow'].forEach(k => this.playerSprite(k));
+    },
+
+    // Hand-drawn boss art (#132) — no image-generation tool is available and the game ships
+    // zero image assets (everything is drawn live on canvas, baked once per the performance
+    // rules), so this is procedural vector art built from basic canvas primitives (arcs, paths,
+    // rects), not emoji and not a downloaded image — one bespoke silhouette per boss, baked once
+    // into its own offscreen canvas exactly like `unitSprite()` bakes emoji, and drawn through a
+    // dedicated branch in `drawUnit` that skips the shared emoji-glyph pipeline entirely.
+    BOSS_COLORS: {
+        kurt_ana: '#7a5c8e', bozkir_hani: '#c9a24b', demirci_dev: '#b5451f',
+        korsan_kral: '#2b2b3d', savas_tanrisi: '#8e1616'
+    },
+    // Draw size (bounding box) — notably bigger than a regular unit's ~10-20px footprint.
+    // Demirci Dev is the biggest of the 4 field bosses ("Dev" = Giant); Savaş Tanrısı, the final
+    // boss, is the single largest sprite in the game.
+    BOSS_DRAW_SIZE: {
+        kurt_ana: 44, bozkir_hani: 46, korsan_kral: 48, demirci_dev: 64, savas_tanrisi: 70
+    },
+    bossSprite(key) {
+        if(!this._bossSprites) this._bossSprites = {};
+        let c = this._bossSprites[key];
+        if(c) return c;
+        let size = this.BOSS_DRAW_SIZE[key] || 50, half = size / 2;
+        c = document.createElement('canvas');
+        c.width = c.height = size;
+        let x = c.getContext('2d');
+        x.translate(half, half);
+        x.fillStyle = this.BOSS_COLORS[key] || '#aa00ff';
+        x.strokeStyle = 'rgba(0,0,0,0.85)';
+        x.lineWidth = Math.max(2, size * 0.05);
+        x.lineJoin = 'round';
+        const drawers = {
+            kurt_ana: this.drawWolfSilhouette, bozkir_hani: this.drawRiderSilhouette,
+            demirci_dev: this.drawGiantSilhouette, korsan_kral: this.drawPirateSilhouette,
+            savas_tanrisi: this.drawWarGodSilhouette
+        };
+        (drawers[key] || this.drawGiantSilhouette).call(this, x, half);
+        this._bossSprites[key] = c;
+        return c;
+    },
+    // Crouched wolf: body, head, snout, two ears, four legs.
+    drawWolfSilhouette(x, h) {
+        x.beginPath(); x.ellipse(0, h*0.15, h*0.75, h*0.4, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.ellipse(-h*0.6, -h*0.05, h*0.35, h*0.28, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(-h*0.95, -h*0.05); x.lineTo(-h*0.6, -h*0.2); x.lineTo(-h*0.6, h*0.1); x.closePath(); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(-h*0.75,-h*0.3); x.lineTo(-h*0.6,-h*0.55); x.lineTo(-h*0.45,-h*0.32); x.closePath(); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(-h*0.45,-h*0.3); x.lineTo(-h*0.32,-h*0.5); x.lineTo(-h*0.2,-h*0.28); x.closePath(); x.fill(); x.stroke();
+        [-h*0.5,-h*0.1,h*0.3,h*0.6].forEach(lx => { x.beginPath(); x.rect(lx, h*0.35, h*0.15, h*0.35); x.fill(); x.stroke(); });
+    },
+    // Mounted khan: horse body/neck/legs, rider torso+head, a plume accent.
+    drawRiderSilhouette(x, h) {
+        x.beginPath(); x.ellipse(0, h*0.15, h*0.85, h*0.35, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(h*0.6, -h*0.05); x.lineTo(h*0.95, -h*0.35); x.lineTo(h*0.75, -h*0.15); x.closePath(); x.fill(); x.stroke();
+        [-h*0.6,-h*0.2,h*0.2,h*0.6].forEach(lx => { x.beginPath(); x.rect(lx, h*0.4, h*0.14, h*0.4); x.fill(); x.stroke(); });
+        x.beginPath(); x.ellipse(-h*0.05, -h*0.35, h*0.3, h*0.35, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(-h*0.05, -h*0.65, h*0.18, 0, Math.PI*2); x.fill(); x.stroke();
+        x.save(); x.strokeStyle = '#ffdd88'; x.lineWidth = Math.max(2, h*0.08);
+        x.beginPath(); x.moveTo(-h*0.05,-h*0.83); x.lineTo(h*0.05,-h*1.05); x.stroke(); x.restore();
+    },
+    // Broad hulking blacksmith: legs, wide torso, head, hammer arm.
+    drawGiantSilhouette(x, h) {
+        x.beginPath(); x.rect(-h*0.35, h*0.25, h*0.3, h*0.6); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.05, h*0.25, h*0.3, h*0.6); x.fill(); x.stroke();
+        x.beginPath(); x.ellipse(0, -h*0.05, h*0.55, h*0.45, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(0, -h*0.6, h*0.25, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.4, -h*0.3, h*0.18, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.3, -h*0.75, h*0.5, h*0.3); x.fill(); x.stroke();
+    },
+    // Pirate captain: legs, coat, head, tricorne hat, raised cutlass, a skull accent.
+    drawPirateSilhouette(x, h) {
+        x.beginPath(); x.rect(-h*0.25, h*0.15, h*0.2, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.05, h*0.15, h*0.2, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(-h*0.4,-h*0.3); x.lineTo(h*0.4,-h*0.3); x.lineTo(h*0.5,h*0.25); x.lineTo(-h*0.5,h*0.25); x.closePath(); x.fill(); x.stroke();
+        x.beginPath(); x.arc(0, -h*0.55, h*0.22, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(-h*0.35,-h*0.65); x.lineTo(h*0.35,-h*0.65); x.lineTo(h*0.15,-h*0.9); x.lineTo(-h*0.15,-h*0.9); x.closePath(); x.fill(); x.stroke();
+        x.save(); x.strokeStyle = '#cccccc'; x.lineWidth = Math.max(2, h*0.06);
+        x.beginPath(); x.moveTo(h*0.4,-h*0.2); x.lineTo(h*0.75,-h*0.7); x.stroke(); x.restore();
+        x.save(); x.fillStyle = '#e8e0c8';
+        x.beginPath(); x.arc(-h*0.55, -h*0.05, h*0.1, 0, Math.PI*2); x.fill(); x.restore();
+    },
+    // War God: aura rings, legs, armored torso, pauldrons, haloed head, a glowing raised weapon.
+    drawWarGodSilhouette(x, h) {
+        x.save(); x.strokeStyle = 'rgba(255,215,120,0.55)'; x.lineWidth = Math.max(2, h*0.04);
+        [0.7,0.85,1.0].forEach(r => { x.beginPath(); x.arc(0, 0, h*r, 0, Math.PI*2); x.stroke(); });
+        x.restore();
+        x.beginPath(); x.rect(-h*0.28, h*0.2, h*0.22, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.rect(h*0.06, h*0.2, h*0.22, h*0.55); x.fill(); x.stroke();
+        x.beginPath(); x.ellipse(0, -h*0.1, h*0.5, h*0.5, 0, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(-h*0.5, -h*0.35, h*0.2, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(h*0.5, -h*0.35, h*0.2, 0, Math.PI*2); x.fill(); x.stroke();
+        x.beginPath(); x.arc(0, -h*0.7, h*0.22, 0, Math.PI*2); x.fill(); x.stroke();
+        x.save(); x.strokeStyle = '#ffe9a8'; x.lineWidth = Math.max(2, h*0.05);
+        x.beginPath(); x.arc(0, -h*0.7, h*0.34, 0, Math.PI*2); x.stroke(); x.restore();
+        x.save(); x.strokeStyle = '#fff4c8'; x.lineWidth = Math.max(3, h*0.08);
+        x.beginPath(); x.moveTo(h*0.45,-h*0.2); x.lineTo(h*0.9,-h*0.85); x.stroke(); x.restore();
+    },
+
+    // Pulsing outline over the marked ground during the telegraph window (#132) — the actual
+    // dodge signal. Nothing draws once the strike itself has landed (state moves to 'strike').
+    drawBossSpecial(ctx, u, now) {
+        let sp = u.special;
+        if(sp.state !== 'telegraph') return;
+        let pulse = 0.4 + 0.3 * Math.abs(Math.sin(now / 120));
+        ctx.save();
+        ctx.strokeStyle = `rgba(255,60,60,${pulse})`;
+        ctx.fillStyle = `rgba(255,60,60,${pulse * 0.18})`;
+        ctx.lineWidth = 3;
+        if(sp.shape === 'circle') {
+            ctx.beginPath(); ctx.arc(sp.tx, sp.ty, sp.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        } else {
+            ctx.save();
+            ctx.translate(sp.tx, sp.ty); ctx.rotate(sp.angle);
+            ctx.beginPath(); ctx.rect(0, -sp.width / 2, sp.length, sp.width); ctx.fill(); ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
     },
 
     drawUnit(ctx, u, now) {
         let isPlayer = u.id === 'player';
-        let icon = '💂';
+        let icon = '💂', bakedSpr = null;
         if(isPlayer) {
-            // Weapon-reactive appearance (#132) — was gear-independent besides the mount swap.
-            let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
-            let base = this.PLAYER_WEAPON_ICONS[wt] || '🧑‍🌾';
-            icon = u.type === 'cavalry' ? (wt ? base + '🐴' : '🐴') : base;
+            // Weapon-reactive appearance (#132): real sprites, not combined emoji glyphs (that
+            // read as two disconnected floating icons, flagged in review) — a melee look
+            // (CraftPix Swordsman-family knight) or a bow look (CraftPix Roguelike archer),
+            // matching whichever real sprite the equipped weapon's category maps to. Mounted
+            // has no matching player-on-horseback art anywhere found, so it stays the 🐴 emoji.
+            if(u.type === 'cavalry') icon = '🐴';
+            else {
+                let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
+                bakedSpr = this.playerSprite(wt === 'bow' ? 'bow' : 'melee');
+            }
         }
-        else if(u.icon) icon = u.icon;   // a tiered troop or bandit already picked its own (#132)
+        else if(u.isBoss) bakedSpr = this.bossSprite(u.bossKey);   // hand-drawn boss art (#132)
+        else if(u.icon === '🎖️' || u.icon === '💍') icon = u.icon;   // companion/spouse keep their marker
         else if(u.beast) icon = '🐺';
-        else if(u.type === 'archer') icon = '🏹';
-        else if(u.type === 'cavalry') icon = '🐎';
+        // Every regular infantry/cavalry/archer, either side (#132): hand-drawn art by type ×
+        // a tier fixed at spawn from the unit's identity (`u.tier` — its position in its own
+        // troop tree, or its role in a bandit band), never from its live attack/defense/level.
+        else bakedSpr = this.troopSprite(u.type === 'cavalry' || u.type === 'archer' ? u.type : 'infantry',
+                                          u.tier || 0);
 
         let isMoving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
         let offset = (u.x + u.y) * 0.05;
@@ -1988,9 +2313,10 @@ const Battle = {
         ctx.save();
         ctx.translate(u.x, u.y - hop);
         ctx.rotate(sway);
-        // The emoji shouldn't be re-rasterized every frame: its outlined form is baked once
-        // is baked into a sprite and blitted (measured: 13 us -> 3.4 us, 3.8x).
-        let spr = this.unitSprite(icon);
+        // Nothing is rasterized/drawn from scratch every frame: emoji are baked into a sprite
+        // once (measured: 13 us -> 3.4 us, 3.8x) and hand-drawn boss/troop art is baked the
+        // same way at spawn/warmUp — this just blits whichever canvas applies to this unit.
+        let spr = bakedSpr || this.unitSprite(icon);
         ctx.drawImage(spr, -spr.width/2, -spr.height/2);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
@@ -2552,8 +2878,10 @@ const Battle = {
                 state.player.currentBoss = null;
                 let boss = bossKey ? BOSSES[bossKey] : null;
                 if(state.finalBoss) {
-                    // The boss-of-bosses: the game is won (#38)
+                    // The boss-of-bosses: the game is won (#38). Banner of Kalradia (#132) —
+                    // the one relic it drops, no unique item (BOSSES.savas_tanrisi.item is null).
                     state.finalBoss = false;
+                    Game.gainRelic('kalradia_sancagi');
                     this._bossWin = { final: true };
                 } else if(boss) {
                     // A unique boss: its one-of-a-kind drop and its relic

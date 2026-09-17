@@ -15,7 +15,7 @@
 // check alone would install a second, stale copy of every asset on top of the one
 // Capacitor already ships in the bundle.
 // ============================================================
-const CACHE = 'webband-v1.25.0';
+const CACHE = 'webband-v1.26.0';
 
 // The soundtrack (#131) is 20.8 MB and deliberately NOT in FILES: precaching it would make
 // the install a 20 MB download before the game is playable at all. Each piece is cached the
@@ -30,7 +30,10 @@ const FILES = [
     'bg_hdr.jpg', 'kingdom_crests.jpg', 'lord_portraits.jpg',
     'fonts/cinzel-latin.woff2', 'fonts/cinzel-latin-ext.woff2',
     'fonts/inter-latin.woff2', 'fonts/inter-latin-ext.woff2',
-    'icon-192.png', 'icon-512.png'
+    'icon-192.png', 'icon-512.png',
+    'troops/infantry_weak.png', 'troops/infantry_normal.png', 'troops/infantry_armored.png',
+    'troops/archer_weak.png', 'troops/archer_normal.png', 'troops/archer_armored.png',
+    'troops/player_melee.png', 'troops/player_bow.png'
 ];
 
 self.addEventListener('install', e => {

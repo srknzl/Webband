@@ -2761,8 +2761,24 @@ I18N.dicts.id = {
   "Korsan Kral": "Raja Bajak Laut",
   "Ormanın derinliğinde uluma dinmez. Sürünün anası burada avlanır.": "Jauh di dalam hutan lolongan tak pernah reda. Induk kawanan berburu di sini.",
   "Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han.": "Penguasa padang — khan yang lahir di atas kuda dan akan mati di atasnya.",
+  "Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han. Kısrağına öyle bağlı ki, hiçbir darbe onu attan indiremez — han'ın kendi canı bitmeden o savaş alanını terk etmez.":
+    "Penguasa padang — khan yang lahir di atas kuda dan akan mati di atasnya. Begitu terikat dengan kuda betinanya hingga tak ada pukulan yang bisa menjatuhkannya — ia tak akan meninggalkan medan perang sebelum nyawanya sendiri berakhir.",
   "Dağ ocağının çekiç sesi vadiyi titretir. Devin örsü hiç soğumaz.": "Suara palu tungku gunung menggetarkan lembah. Landasan sang raksasa tak pernah mendingin.",
   "Kıyı kalesinde bir korsanın bayrağı dalgalanır. Denizin de karanın da kralı olduğunu söyler.": "Bendera bajak laut berkibar di benteng pesisir. Ia menyebut dirinya raja laut dan darat sekaligus.",
+  "Savaş Tanrısı'nın gölgesi düşer düşmez toprak inler. Onu ancak dört bossun nişanını taşıyan, boss haritasını kullanan bulabilir.":
+    "Begitu bayangan Dewa Perang jatuh, tanah pun mengerang. Hanya yang membawa keempat jimat boss dan menggunakan peta boss yang bisa menemukannya.",
+  "Sürü Çağrısı": "Panggilan Kawanan",
+  "Bozkır Şarjı": "Serangan Padang",
+  "Örs Darbesi": "Pukulan Landasan",
+  "Fırtına Yayı Yağmuru": "Hujan Panah Badai",
+  "Tanrı Gazabı": "Amarah Dewa",
+  "Kalradya Sancağı": "Panji Kalradia",
+  "Kalradya'nın birleşik gücü elinde. (Saldırı +10, azami grup +50, taşıma kapasitesi +%50)":
+    "Kekuatan bersatu Kalradia di tanganmu. (Serangan +10, grup maksimal +50, kapasitas bawa +%50)",
+  "Bu benzersiz bir düşman — koruması yok, tek başına ve tek sefer yenilir. Asla kaçmaz. <b>{0}</b> adlı bir alan saldırısı kullanır — yerdeki işareti görünce uzaklaş.":
+    "Musuh yang satu-satunya — tanpa pengawal, sendirian, dan hanya bisa dikalahkan sekali. Ia tak pernah kabur. Ia menggunakan serangan area bernama <b>{0}</b> — menjauhlah dari tanda di tanah saat kau melihatnya.",
+  "💀 Benzersiz boss — {0}": "💀 Boss unik — {0}",
+  "🗺️ Harita, Savaş Tanrısı'nın yerini gösterdi. Haritada işaretlendi.": "🗺️ Peta menunjukkan lokasi Dewa Perang. Ditandai di peta.",
   "Kurt Dişi Hançeri": "Belati Taring Serigala",
   "Han Kısrağı": "Kuda Betina Khan",
   "Dev Örsü Zırhı": "Zirah Landasan Raksasa",

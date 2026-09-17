@@ -1,0 +1,25 @@
+Battle sprites in this folder come from two CraftPix.net freebies. Both grant
+royalty-free use in unlimited personal/commercial projects, no attribution
+required (see https://craftpix.net/file-licenses/ for the full terms — raw
+source files may not be resold or redistributed on their own).
+
+infantry_weak.png / infantry_normal.png / infantry_armored.png
+  From "Free Swordsman 1-3 Level Pixel Top-Down Sprite Character" —
+  https://craftpix.net/freebies/free-swordsman-1-3-level-pixel-top-down-sprite-character-pack/
+  One idle frame per level (1/2/3), cropped to content.
+
+archer_weak.png / archer_normal.png / archer_armored.png
+player_bow.png
+  From "Free Top-Down Roguelike Game Kit Pixel Art", the hooded archer
+  character (character slot 1) —
+  https://craftpix.net/freebies/free-top-down-roguelike-game-kit-pixel-art/
+  One idle frame, cropped to content. The three archer tiers are the same
+  sprite recolored (weak/normal/armored) since only one archer pose exists
+  in the pack.
+
+player_melee.png
+  From the same Roguelike Kit, the knight character (character slot 2).
+
+Cavalry has no matching mounted sprite in either pack (or anywhere else
+checked) — it's still drawn procedurally in battle.js
+(Battle.drawTroopRiderSilhouette).

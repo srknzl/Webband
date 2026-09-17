@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.26.0 — Boss Yenilendi (2026-09-18)
+
+- **5 boss artık gerçek birer kişilik**: koruma askerleri kaldırıldı, her biri kendi silüetiyle
+  (çizilmiş görsel, emoji değil) ve önceye göre daha büyük görünüyor — Demirci Dev ve Savaş
+  Tanrısı en büyükleri. Hiçbiri artık kaçmıyor.
+- **Her boss kendine özgü, kaçınılabilir bir alan saldırısı kullanıyor** — yerde işaretlenen
+  alandan uzaklaşırsan darbeyi yemezsin.
+- **Bozkır Hanı artık gerçekten atlı bir boss**, ve kısrağı (Han Kısrağı) savaşta asla ölmüyor —
+  ne bossken ne de sen kazanıp bindiğinde.
+- **Boss Haritası artık Savaş Tanrısı'nın yerini haritada gösteriyor**, önceden direkt savaşı
+  başlatıyordu. Onu yenince **Kalradya Sancağı** nişanı düşüyor (Saldırı +10, azami grup +50,
+  taşıma kapasitesi +%50).
+- **Asker ve okçu görselleri artık gerçek çizim**, emoji değil — her birliğin kendi ağacındaki
+  sabit konumuna göre (acemi/orta/elit), güne veya seviyeye göre değişmiyor. Oyuncunun kendi
+  görünümü de kuşandığı silaha göre (kılıç/yay) gerçek bir karakterle değişiyor.
+
 ## 1.25.0 — Kılık (2026-09-18)
 
 - **Karakterinin görünümü artık kuşandığın silaha göre değişiyor** (kılıç/balta/mızrak/yay,

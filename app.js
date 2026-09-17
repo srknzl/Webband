@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.25.0', date: '2026-09-18', name: 'Kılık' };  // the version name is not translated
+const VERSION = { no: '1.26.0', date: '2026-09-18', name: 'Boss Yenilendi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -336,7 +336,7 @@ const ITEMS = {
     horse_demir: { id:'horse_demir', name:'Demir Zırhlı Cenk Atı', type:'horse', basePrice:4550, icon:'🐎', hSpd:17, hDef:22, desc:'Baştan ayağa demir donanımlı cenk atı. Satılık atların en pahalısı, en dayanıklısı.' },
     // Boss unique drops (#38) — strong but capped (best base ×1.2); unsellable
     kurt_disi_hancer: { id:'kurt_disi_hancer', name:'Kurt Dişi Hançeri', type:'weapon', weaponType:'oneHanded', dmgType:'cut', basePrice:4000, attack:29, icon:'🗡️', unique:true, unsellable:true, desc:'Kurt Ana\'nın ininden çıkan kemik saplı hançer. Tek elli çeliğin en keskini.' },
-    han_kisragi: { id:'han_kisragi', name:'Han Kısrağı', type:'horse', basePrice:5000, icon:'🐎', unique:true, unsellable:true, hSpd:20, hDef:26, desc:'Bozkır Hanı\'nın kısrağı. Satılık atların en iyisinden de hızlı ve dayanıklı.' },
+    han_kisragi: { id:'han_kisragi', name:'Han Kısrağı', type:'horse', basePrice:5000, icon:'🐎', unique:true, unsellable:true, immortal:true, hSpd:20, hDef:26, desc:'Bozkır Hanı\'nın kısrağı. Satılık atların en iyisinden de hızlı ve dayanıklı. Bu kısrağı savaşta hiçbir şey öldüremez.' },
     dev_orsu_zirhi: { id:'dev_orsu_zirhi', name:'Dev Örsü Zırhı', type:'armor', basePrice:6000, defense:44, icon:'🦺', unique:true, unsellable:true, heavy:true, desc:'Demirci Dev\'in örsünde dövülen zırh. En sağlam koruma; ağırlığı harita hızını %5 düşürür.' },
     firtina_yayi: { id:'firtina_yayi', name:'Fırtına Yayı', type:'weapon', weaponType:'bow', dmgType:'pierce', basePrice:7000, attack:23, icon:'🏹', unique:true, unsellable:true, desc:'Korsan Kral\'ın yayı. Fırtına gibi ok yağdırır — yayların en güçlüsü.' },
     boss_map: { id:'boss_map', name:'Boss Haritası', type:'special', basePrice:15000, icon:'🗺️', desc:'Savaş Tanrısı\'na giden yolu gösterir. Kullanmak için dört bossun nişanı ve yüksek nam gerekir.' }
@@ -350,23 +350,53 @@ const RELICS = {
     bozkir_tugu:    { id:'bozkir_tugu',    name:'Bozkır Tuğu',     icon:'🏇', boss:'bozkir_hani', desc:'Bozkır kanı damarlarda; ordu yılmaz. (Moral +10)',           mod:{ moraleBonus:10 } },
     demir_yurek:    { id:'demir_yurek',    name:'Demir Yürek',     icon:'🛡️', boss:'demirci_dev', desc:'Ocakta dövülmüş bir yürek kolay durmaz. (Azami can +%20)',   mod:{ maxHpPct:20 } },
     firtina_tilsimi:{ id:'firtina_tilsimi',name:'Fırtına Tılsımı', icon:'🌩️', boss:'korsan_kral', desc:'Her yağma bir fırtına sonrası gibi. (Ganimet +%25)',         mod:{ loot:25 } },
-    tuccar_mink:    { id:'tuccar_mink',    name:'Tüccar Mink',     icon:'📿', boss:null,          desc:'Her pazarda bir dost, her dostta bir indirim. (Ticaret marjı +%10)', mod:{ tradeEdge:10 } }
+    tuccar_mink:    { id:'tuccar_mink',    name:'Tüccar Mink',     icon:'📿', boss:null,          desc:'Her pazarda bir dost, her dostta bir indirim. (Ticaret marjı +%10)', mod:{ tradeEdge:10 } },
+    kalradia_sancagi: { id:'kalradia_sancagi', name:'Kalradya Sancağı', icon:'🚩', boss:'savas_tanrisi',
+        desc:'Kalradya\'nın birleşik gücü elinde. (Saldırı +10, azami grup +50, taşıma kapasitesi +%50)',
+        mod:{ atk:10, partyCap:50, cargoPct:50 } }
 };
 const RELIC_PRICE = 6000;   // Tüccar Mink is bought at the innkeeper; the rest drop from bosses
 
-// --- BOSSES (#38) ---
+// --- BOSSES (#38, redesigned #132) ---
 // Four unique bosses appear on the map as renown-gated sites; the fifth (Savaş Tanrısı) is the
 // boss-of-bosses, opened by boss_map once all four relics are held. B = base boss level.
+//
+// Redesign (#132): guards are gone — each boss used to be a generic reskinned infantry unit
+// plus 7-11 fixed "Karanlık Muhafız" escorts (`guards` used to double as Battle.start's total
+// enemy headcount). A real solo boss needed to fill the HP the guard pool used to provide
+// without just being a bigger punching bag, so HP ≈ (old solo boss HP) + 60% of the removed
+// guard pool's HP (guards' aggregate durability mostly carries over, not 1:1 — the new `special`
+// AOE recovers "multiple simultaneous threats" instead), attack only ~1.3-1.5× (the AOE already
+// multiplies effective output; a bigger single-target bump risks one-shotting the player).
+// `guards` dropping to an implicit headcount of 1 is also why bosses can never rout anymore —
+// `Battle.routCheck()`'s `ROUT_MIN: 6` already exempts any side with a starting headcount ≤6.
 const BOSS_BASE_LEVEL = 30;
 const BOSSES = {
-    kurt_ana:    { key:'kurt_ana',    name:'Kurt Ana',    icon:'🐺', renown:60,  dLevel:0,  guards:8,  item:'kurt_disi_hancer', relic:'kurt_kani',
+    kurt_ana:    { key:'kurt_ana',    name:'Kurt Ana',    icon:'🐺', renown:60,  dLevel:0,
+                   hp:800,  attack:80,  defense:25, mounted:false,
+                   item:'kurt_disi_hancer', relic:'kurt_kani',
+                   special:{ id:'suru_cagrisi',  name:'Sürü Çağrısı',       shape:'circle', radius:90,  telegraph:0.9, dmgMult:1.8, cooldown:9 },
                    siteDesc:'Ormanın derinliğinde uluma dinmez. Sürünün anası burada avlanır.' },
-    bozkir_hani: { key:'bozkir_hani', name:'Bozkır Hanı', icon:'🏇', renown:130, dLevel:5,  guards:10, item:'han_kisragi', relic:'bozkir_tugu',
-                   siteDesc:'Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han.' },
-    demirci_dev: { key:'demirci_dev', name:'Demirci Dev', icon:'⚒️', renown:200, dLevel:10, guards:12, item:'dev_orsu_zirhi', relic:'demir_yurek',
+    bozkir_hani: { key:'bozkir_hani', name:'Bozkır Hanı', icon:'🏇', renown:130, dLevel:5,
+                   hp:950,  attack:90,  defense:25, mounted:true,
+                   item:'han_kisragi', relic:'bozkir_tugu',
+                   special:{ id:'bozkir_sarji',   name:'Bozkır Şarjı',        shape:'line',   length:260, width:70, telegraph:0.7, dmgMult:2.2, cooldown:11 },
+                   siteDesc:'Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han. Kısrağına öyle bağlı ki, hiçbir darbe onu attan indiremez — han\'ın kendi canı bitmeden o savaş alanını terk etmez.' },
+    demirci_dev: { key:'demirci_dev', name:'Demirci Dev', icon:'⚒️', renown:200, dLevel:10,
+                   hp:1100, attack:100, defense:35, mounted:false,
+                   item:'dev_orsu_zirhi', relic:'demir_yurek',
+                   special:{ id:'ors_darbesi',    name:'Örs Darbesi',         shape:'circle', radius:110, telegraph:1.1, dmgMult:2.4, cooldown:10 },
                    siteDesc:'Dağ ocağının çekiç sesi vadiyi titretir. Devin örsü hiç soğumaz.' },
-    korsan_kral: { key:'korsan_kral', name:'Korsan Kral', icon:'🏴‍☠️', renown:280, dLevel:15, guards:12, item:'firtina_yayi', relic:'firtina_tilsimi',
-                   siteDesc:'Kıyı kalesinde bir korsanın bayrağı dalgalanır. Denizin de karanın da kralı olduğunu söyler.' }
+    korsan_kral: { key:'korsan_kral', name:'Korsan Kral', icon:'🏴‍☠️', renown:280, dLevel:15,
+                   hp:1150, attack:105, defense:25, mounted:false,
+                   item:'firtina_yayi', relic:'firtina_tilsimi',
+                   special:{ id:'firtina_yagmuru',name:'Fırtına Yayı Yağmuru', shape:'circle', radius:130, telegraph:1.0, dmgMult:1.6, cooldown:8, ranged:true },
+                   siteDesc:'Kıyı kalesinde bir korsanın bayrağı dalgalanır. Denizin de karanın da kralı olduğunu söyler.' },
+    savas_tanrisi: { key:'savas_tanrisi', name:'Savaş Tanrısı', icon:'⚔️', renown:0, dLevel:25, final:true,
+                   hp:2600, attack:130, defense:40, mounted:false,
+                   item:null, relic:'kalradia_sancagi',
+                   special:{ id:'tanri_gazabi',   name:'Tanrı Gazabı',        shape:'circle', radius:150, telegraph:1.2, dmgMult:2.8, cooldown:7 },
+                   siteDesc:'Savaş Tanrısı\'nın gölgesi düşer düşmez toprak inler. Onu ancak dört bossun nişanını taşıyan, boss haritasını kullanan bulabilir.' }
 };
 
 // --- UPGRADE TREES & STATS ---
@@ -426,14 +456,18 @@ const TROOP_TREES = {
 const TROOP_UPGRADES = {};
 const TROOP_TYPES = {};
 (function buildTroopTrees() {
-    const stats = r => ({ hp: r[2], speed: r[3], attack: r[4], defense: r[5], type: r[1], icon: r[6], dmgType: r[7], brace: r[9] });
+    // `tier` (0 recruit / 1 mid / 2 elite) is the troop's fixed position in its own tree —
+    // never computed from level/stats (#132: a troop's battle art must look the same whether
+    // it's a fresh recruit or has fought for 50 days; only promotion, which changes the name,
+    // changes the look).
+    const stats = (r, tier) => ({ hp: r[2], speed: r[3], attack: r[4], defense: r[5], type: r[1], icon: r[6], dmgType: r[7], brace: r[9], tier });
     const up = r => ({ name: r[0], cost: r[8], type: r[1] });
     for(let f in TROOP_TREES) {
         let tree = TROOP_TREES[f];
-        TROOP_TYPES[tree.recruit[0]] = stats(tree.recruit);
+        TROOP_TYPES[tree.recruit[0]] = stats(tree.recruit, 0);
         TROOP_UPGRADES[tree.recruit[0]] = tree.branches.map(b => up(b[0]));
         tree.branches.forEach(b => b.forEach((r, i) => {
-            TROOP_TYPES[r[0]] = stats(r);
+            TROOP_TYPES[r[0]] = stats(r, i + 1);
             if(b[i + 1]) TROOP_UPGRADES[r[0]] = [up(b[i + 1])];
         }));
     }
@@ -1326,6 +1360,7 @@ const Game = {
         let peak = this.peakRenown();
         for(let key in BOSSES) {
             let b = BOSSES[key];
+            if(b.final) continue;   // the final boss is only revealed by boss_map (#132), never by this renown loop
             if(state.bossKills[key]) continue;
             if(peak < b.renown) continue;
             if(this.bossSites().some(s => s.bossKey === key)) continue;
@@ -1351,13 +1386,13 @@ const Game = {
     enterBoss(s) {
         let b = BOSSES[s.bossKey];
         if(!b) return this.closeModal();
-        let item = ITEMS[b.item], relic = RELICS[b.relic];
+        let item = b.item ? ITEMS[b.item] : null, relic = RELICS[b.relic];
         this.showModal(`<h3>${b.icon} ${T(b.name)}</h3>
             <p style="font-style:italic;color:var(--text-muted)">${T(b.siteDesc)}</p>
-            <p>${T`Bu benzersiz bir düşman — tek sefer yenilir. Yanında yaklaşık <b>${b.guards} koruma</b> var.`}</p>
+            <p>${T`Bu benzersiz bir düşman — koruması yok, tek başına ve tek sefer yenilir. Asla kaçmaz. <b>${T(b.special.name)}</b> adlı bir alan saldırısı kullanır — yerdeki işareti görünce uzaklaş.`}</p>
             <div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-radius:6px;padding:0.6rem;margin:0.6rem 0">
                 <div style="color:var(--primary);font-weight:bold;margin-bottom:0.3rem">${T`Ödül`}</div>
-                <div>${item.icon} <b>${T(item.name)}</b></div>
+                ${item ? `<div>${item.icon} <b>${T(item.name)}</b></div>` : ''}
                 <div>${relic.icon} <b>${T(relic.name)}</b> — ${T(relic.desc)}</div>
             </div>
             <div style="display:flex;gap:0.5rem;margin-top:1rem">
@@ -1372,7 +1407,9 @@ const Game = {
         this.closeModal();
         state.player.currentEncounterNpcId = null;
         state.player.currentBoss = s.bossKey;
-        Battle.start(T(b.name), b.guards, this.bossBaseLevel() + b.dLevel);
+        state.finalBoss = !!b.final;
+        // Guards are gone (#132) — every boss fight is a solo unit now, `enemyCount` is always 1.
+        Battle.start(T(b.name), 1, this.bossBaseLevel() + b.dLevel);
     },
     bossRelicCount() { return Object.keys(BOSSES).filter(k => state.player.relics[BOSSES[k].relic]).length; },
 
@@ -1459,7 +1496,7 @@ const Game = {
 
     siteTipHtml(s) {
         let k = this.SITE_KINDS[s.kind];
-        if(k.boss) { let b = BOSSES[s.bossKey]; return `<i>${T(b.siteDesc)}</i><br>${T`💀 Benzersiz boss — ${b.guards} koruma`}`; }
+        if(k.boss) { let b = BOSSES[s.bossKey]; return `<i>${T(b.siteDesc)}</i><br>${T`💀 Benzersiz boss — ${T(b.special.name)}`}`; }
         if(k.lair) return `<i>${T(k.desc)}</i><br>${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
         return `<i>${T(k.desc)}</i><br>${this.siteReady(s)
             ? T('🔍 Henüz araştırılmadı')
@@ -2368,7 +2405,7 @@ const Game = {
         // ("15/15.785700000000002"). The fraction is truncated at the source so the
         // comparison, the info-card readout, and the badge all see the same whole number (#43).
         return 12 + Math.floor((cha - 10) * 3) + (leadership - 1) * 4 + Math.floor((state.player.renown || 0) / 40)
-            + (state.player.spouse ? 5 : 0) + this.perkMod('partyCap');
+            + (state.player.spouse ? 5 : 0) + this.perkMod('partyCap') + this.relicMod('partyCap');
     },
 
     // Unpaid wages cost 1 morale every hour and the debt accumulates. It's paid off
@@ -2493,7 +2530,7 @@ const Game = {
                      type: c.troopType || 'infantry', icon: c.icon || '🎖️' };
         }
         if(t.isSpouse) return { hp: 60, speed: 90, attack: 14, defense: 8, type: 'cavalry', icon: '💍' };
-        return TROOP_TYPES[t.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖' };
+        return TROOP_TYPES[t.name] || { hp: 30, speed: 60, attack: 8, defense: 0, type: 'infantry', icon: '🪖', tier: 0 };
     },
 
     // --- HEDEFLER (#53 madde 1.4) ---
@@ -2582,7 +2619,8 @@ const Game = {
     CARGO_BASE: 20, CARGO_PER_MAN: 5, CARGO_PER_MOUNT: 4,
     cargoCap() {
         let mounted = this.getPartyComposition().cavalry + (state.player.equipment.horse ? 1 : 0);
-        return this.CARGO_BASE + this.CARGO_PER_MAN * (state.player.party.length + 1) + this.CARGO_PER_MOUNT * mounted;
+        let base = this.CARGO_BASE + this.CARGO_PER_MAN * (state.player.party.length + 1) + this.CARGO_PER_MOUNT * mounted;
+        return Math.round(base * (1 + this.relicMod('cargoPct') / 100));
     },
     cargoLoad() { return state.player.inventory.reduce((n, i) => n + (i.qty || 0), 0); },
     // Loot and quest rewards can exceed the cap; the cost is speed, and it bites harder the
@@ -10912,9 +10950,11 @@ const Game = {
             item.qty--;
             if(item.qty <= 0) state.player.inventory.splice(idx, 1);
             this.renderInventoryScreen();
-            state.finalBoss = true;
-            state.player.currentBoss = null;
-            Battle.start(T('Savaş Tanrısı'), (BOSSES.korsan_kral.guards) * 2, this.bossBaseLevel() + 25);
+            // Reveals the final boss's location on the map instead of starting the fight
+            // directly (#132) — same site machinery the other 4 bosses use; `attackBoss()`
+            // sets `state.finalBoss` once the player actually walks up and attacks it.
+            this.spawnBossSite('savas_tanrisi');
+            alert(T`🗺️ Harita, Savaş Tanrısı'nın yerini gösterdi. Haritada işaretlendi.`);
         }
     },
     // The boss-of-bosses is dead: the game is won (#38). A single self-contained banner —
