@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.11 — Tip Kimlik (2026-09-17)
+
+- **Kral/lord ordularının askerleri gün geçtikçe ve sen güçlendikçe güçleniyordu.** Bu ölçekleme
+  kaldırıldı (`Game.threatLevel()` de onunla birlikte) — artık hiçbir düşman asker (çapulcu, boss
+  muhafızı, lord askeri) takvime ya da senin gücüne göre güçlenmiyor. Gücü tamamen asker tipi
+  (`TROOP_TREES`) belirliyor, tıpkı çapulcularda zaten olduğu gibi.
+
 ## 1.21.10 — Muhafız (2026-09-17)
 
 - **Boss muhafızları abartılı güçlüydü.** Muhafızların gücü hangi boss olduğuna göre ölçekleniyordu

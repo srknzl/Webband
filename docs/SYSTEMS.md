@@ -3010,17 +3010,22 @@ Measured (a feud opened on one lord, 30-day sim, sampled hourly): the lord's par
 within 1200 units for **674 of 720 hours**, distance dropped to **0** (an encounter in the
 real loop), `hunting` was set for 693 hours; the feud was cleared on **day 31**.
 
-### Wealth-scaled threat (#53 item 1.3)
+### No enemy soldier scales with the calendar or your own strength (#53 item 1.3, #99, #132)
 
-`Game.threatLevel()` = `round(√(sum of troop levels + player level) / 2)`. In `battle.js` a
-faction army's level is `max(5 + day/15, threat + 3)` — the cheapest version of Rimworld's
-"raid points = colony wealth" rule.
+This used to be wealth-scaled: `Game.threatLevel()` (`round(√(sum of troop levels + player
+level) / 2)`) fed a faction army's level (`max(5 + day/15, threat + 3)`) — the cheapest version
+of Rimworld's "raid points = colony wealth" rule. It's gone now, `threatLevel()` with it — a
+faction/lord soldier's stats are whatever `TROOP_TREES` says for that type, exactly like a
+bandit's are whatever its band-roster row says, and exactly like a boss guard is now a fixed
+elite tier regardless of which boss (#132). The type you're fighting is the only thing that
+decides how hard it hits; the calendar and your own progress don't quietly reweight the fight
+you already agreed to.
 
-**Bandits were pulled out of it (#99).** They scaled as `max(1 + day/30, threat − 1)`, with no
-ceiling, so a looter reached level 12 by day 330 — while an un-upgraded recruit gains nothing
-ever, because a troop's only growth is the upgrade you pay for. Headcount therefore stopped
-meaning anything. Measured in the real engine (40 fights per point, 25 troops + player against
-a 14-strong lair band):
+**Bandits were pulled out of the old system first (#99).** They scaled as `max(1 + day/30, threat
+− 1)`, with no ceiling, so a looter reached level 12 by day 330 — while an un-upgraded recruit
+gained nothing ever, because a troop's only growth is the upgrade you pay for. Headcount
+therefore stopped meaning anything. Measured in the real engine (40 fights per point, 25 troops
++ player against a 14-strong lair band):
 
 | day | 25 × Svadya Köylüsü | 25 × Svadya Milisi |
 |---|---|---|
@@ -3030,10 +3035,13 @@ a 14-strong lair band):
 | 200 | **%23** | %100 |
 
 One tier of upgrade wins every one of those days outright; the scaling was not difficulty, it
-was a tax on not upgrading, invisible in a modal that reports only a headcount. Bandits are now
-level 1 forever. The lair's own knob is untouched — `strength` still grows 8 → 24 — so an old
-lair is a bigger fight, not a stronger man. Reward follows automatically: `rewardScale` reads
-`level + 1` per enemy, so late-game looters now pay like the looters they are.
+was a tax on not upgrading, invisible in a modal that reports only a headcount. Every non-boss
+enemy is level 1 forever now (bandits since #99, faction/lord soldiers since #132) — `enemyLvl`
+stays at its default and the flat per-level HP/attack/defense bonus in `Battle.start` adds
+nothing, so `TROOP_TREES`/band-roster stats stand alone. The lair's own knob is untouched —
+`strength` still grows 8 → 24 — so an old lair is a bigger fight, not a stronger man. Reward
+follows automatically: `rewardScale` reads `level + 1` per enemy, so late-game looters (and now
+late-game lord armies too) pay like what they are, not like a scaled-up threat.
 
 Measured: a lone wandering player **1**, 10 recruits **2**, 20×lvl10 **7**, 40×lvl20 **14**,
 60×lvl30 **21**. On day 20, a 20×lvl10 army against 20 bandits in auto-resolve lost on

@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.10', date: '2026-09-17', name: 'Muhafız' };  // the version name is not translated
+const VERSION = { no: '1.21.11', date: '2026-09-17', name: 'Tip Kimlik' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2537,15 +2537,6 @@ const Game = {
                         <span style="color:#e0b062">${T`+${o.renown} nam`}</span></button>`).join('')
                 : `<div style="color:var(--text-muted);margin-top:0.4rem">${T`Bütün hedefleri kapattın.`}</div>`}
         </div>`;
-    },
-
-    // Wealth-scaled pressure (#53 item 1.3): the threat looks at your strength, not just the calendar.
-    // The cheap version of Rimworld's "raid points = colony wealth" rule — the square root of
-    // the army's total level. It doesn't crush a lone player, and it doesn't go easy on a 20-elite army.
-    threatLevel() {
-        let sum = (state.player.party || []).reduce((a, t) => a + (t.level || 1), 0)
-                + (state.player.stats.level || 1);
-        return Math.round(Math.sqrt(sum) / 2);
     },
 
     getPartyComposition() {
