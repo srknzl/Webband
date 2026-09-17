@@ -1328,7 +1328,7 @@ const Quests = {
                     giver.isGuild ? T('Süre dolarsa ya da vazgeçersen görev yanar, lonca defterine kırmızı bir çizik düşer.')
                                   : T`Süre dolarsa ya da vazgeçersen görev yanar ve ${this.giverName(giver)} ile −10 ilişki.`}</div>
             </div>
-            <div style="display:flex;gap:1rem;margin-top:1rem">
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem">
                 <button class="btn primary" onclick="Quests.accept()">${T`Kabul Ediyorum`}</button>
                 <button class="btn" onclick="Quests.decline('${giverId}')">${T`Reddet`}</button>
             </div>`, '680px');

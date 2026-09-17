@@ -397,9 +397,7 @@ const Nobles = {
         state.player.vassalOf = fid;
         state.player.rightToRule += 5;
         LORDS.filter(l => l.faction === fid).forEach(l => this.addRel(l.id, 10));
-        alert(T`Artık ${T(FACTIONS[fid].name)} derebeyisin! Krallığın lordları seni tanımaya başladı.`);
-        Game.closeModal();
-        Game.updateTopBar();
+        alert(T`Artık ${T(FACTIONS[fid].name)} derebeyisin! Krallığın lordları seni tanımaya başladı.`, () => Game.updateTopBar());
     },
 
     // ---------- Dialogue ----------
@@ -956,8 +954,7 @@ const Nobles = {
             };
         }
 
-        alert(`${T(asked.name)}: ${msg}${accuracy !== null ? T('\n\n📍 Haritaya bir işaret düştü (3 gün geçerli).') : ''}`);
-        this.talk(askedId);
+        alert(`${T(asked.name)}: ${msg}${accuracy !== null ? T('\n\n📍 Haritaya bir işaret düştü (3 gün geçerli).') : ''}`, () => this.talk(askedId));
     },
 
     compass(p) {
@@ -1116,8 +1113,7 @@ const Nobles = {
             T`"Sen konuşurken kaleyi unutuyorum. Bunu kimseye söyleme."`,
             T`"Bugün kimse bana bir şey sormadı. Sen sordun. Tuhaf ama iyi geldi."`
         ];
-        alert(T`${T(L.name)}: ${lines[Math.floor(Math.random()*lines.length)]}\n\n+3 ilgi`);
-        this.courtMenu(ladyId);
+        alert(T`${T(L.name)}: ${lines[Math.floor(Math.random()*lines.length)]}\n\n+3 ilgi`, () => this.courtMenu(ladyId));
     },
 
     complimentMenu(ladyId) {
@@ -1275,12 +1271,11 @@ const Nobles = {
         if(Math.random() < 0.30) {
             LORDS.filter(l => l.faction === rl.faction).forEach(l => this.addRel(l.id, -25));
             this.addAff(ladyId, -10);
-            alert(T`Yaydığın dedikodu geri tepti. Kimin uydurduğu anlaşıldı.\n${T(FACTIONS[rl.faction].name)}'nın bütün lordlarıyla −25 ilişki, −10 ilgi.`);
+            alert(T`Yaydığın dedikodu geri tepti. Kimin uydurduğu anlaşıldı.\n${T(FACTIONS[rl.faction].name)}'nın bütün lordlarıyla −25 ilişki, −10 ilgi.`, () => this.courtMenu(ladyId));
         } else {
             r.affection = Math.max(0, r.affection - 20);
-            alert(T`Meyhanelerde ${T(rl.name)} hakkında anlatılanlar salona kadar ulaştı.\nRakibinin ilgisi −20 düştü.`);
+            alert(T`Meyhanelerde ${T(rl.name)} hakkında anlatılanlar salona kadar ulaştı.\nRakibinin ilgisi −20 düştü.`, () => this.courtMenu(ladyId));
         }
-        this.courtMenu(ladyId);
     },
 
     // ---------- Asking the father, and the dowry ----------
@@ -1385,17 +1380,17 @@ const Nobles = {
         let g = this.dowryFor(ladyId).guardian;
         let lvl = (state.player.proficiencies.persuasion || { level: 1 }).level;
         let chance = 0.40 + lvl * 0.05;
+        let showDowry = () => Game.showModal(`<h3>${T`💍 ${T(g.name)} ile Pazarlık`}</h3>` + this.dowryBreakdown(ladyId), '680px');
 
         if(Math.random() < chance) {
             o.amount = Math.max(1000, Math.round(o.amount * 0.8 / 50) * 50);
             Game.addProficiencyXp('persuasion', 60);
-            alert(T`"...Peki. Ama bir kuruş daha aşağı inmem."\n\nBedel %20 düştü → ${o.amount} dinar.`);
+            alert(T`"...Peki. Ama bir kuruş daha aşağı inmem."\n\nBedel %20 düştü → ${o.amount} dinar.`, showDowry);
         } else {
             this.addRel(g.id, -5);
             Game.addProficiencyXp('persuasion', 20);
-            alert(T`"Burası pazar yeri mi sanıyorsun?"\n\nPazarlık tutmadı, −5 ilişki. Yarın tekrar dene.`);
+            alert(T`"Burası pazar yeri mi sanıyorsun?"\n\nPazarlık tutmadı, −5 ilişki. Yarın tekrar dene.`, showDowry);
         }
-        Game.showModal(`<h3>${T`💍 ${T(g.name)} ile Pazarlık`}</h3>` + this.dowryBreakdown(ladyId), '680px');
     },
 
     payDowry(ladyId) {
@@ -1410,8 +1405,7 @@ const Nobles = {
         Game.closeModal();
         let q = Quests.offerFrom(g.id, { forced: true, dowryFor: ladyId });
         if(!q) {
-            alert(T`${T(g.name)}: "Şu an sana verecek bir işim yok. Bir süre sonra gel."`);
-            return this.courtMenu(ladyId);
+            return alert(T`${T(g.name)}: "Şu an sana verecek bir işim yok. Bir süre sonra gel."`, () => this.courtMenu(ladyId));
         }
         alert(T`${T(g.name)}: "Kesen boşsa kılıcın çalışsın. Şunu hallet, drahomanın yarısını unutayım."`);
     },
@@ -1425,7 +1419,7 @@ const Nobles = {
             • ${T(FACTIONS[L.faction].name)}'nın bütün lordlarıyla <b>−20</b><br>
             • <b>−30</b> nam, <b>−20</b> şeref<br>
             • ${T(L.name)}'nın ilgisi <b>−10</b> (böyle hayal etmemişti)`}</p>
-            <div style="display:flex;gap:1rem;margin-top:1rem">
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem">
             <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Nobles.elope('${ladyId}')">${T`Atları hazırla`}</button>
             <button class="btn" onclick="Nobles.courtMenu('${ladyId}')">${T`Vazgeç`}</button></div>`);
     },
@@ -1615,7 +1609,6 @@ const Feast = {
         });
         Game.advanceTime(4);
         alert(n ? T`Salonu dolaştın, ${n} soyluyla kadeh tokuşturdun. Her biriyle +2 ilişki.` : T('Bu şölende herkesi zaten selamladın.'));
-        Game.closeModal();
     },
 
     // Host your own feast (if you have your own city)

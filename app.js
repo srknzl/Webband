@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.21.4', date: '2026-09-17', name: 'Çentik' };  // the version name is not translated
+const VERSION = { no: '1.21.5', date: '2026-09-17', name: 'Ulak' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -254,11 +254,14 @@ const FORESTS = [
     { x: 3300, y: 4650, radius: 180 }
 ];
 
-window.alert = function(msg) {
+window.alert = function(msg, then) {
     // `const Game` doesn't attach to window (it's a lexical global binding), so
     // window.Game was always undefined and EVERY alert in the game was being swallowed silently.
     if(typeof Game !== 'undefined' && Game.showModal) {
-        Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">${T`Bildirim`}</h3><p style="font-size:1.1rem;line-height:1.5">${String(msg).replace(/\n/g, '<br>')}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.closeModal()">${T`Tamam`}</button></div>`);
+        // Unlike a native alert(), this doesn't block — a caller that needs to open another
+        // screen afterward must pass it as `then`, run on "Tamam" (see Game.alertOk).
+        Game._alertThen = typeof then === 'function' ? then : null;
+        Game.showModal(`<div style="text-align:center"><h3 style="margin-bottom:1rem;color:#ffaa00">${T`Bildirim`}</h3><p style="font-size:1.1rem;line-height:1.5">${String(msg).replace(/\n/g, '<br>')}</p><button class="btn primary" style="margin-top:1.5rem" onclick="Game.alertOk()">${T`Tamam`}</button></div>`);
     }
 };
 
@@ -1645,7 +1648,7 @@ const Game = {
         <p style="color:var(--text-muted)">${T`Yük: ${cargo}${npc.purse ? T` · 💰 kese` : ''}`}</p>
         ${war ? `<p style="color:#2ecc71">${T`Krallığın ${this.factionName(npc.faction)} ile savaşta — bu yük meşru ganimet.`}</p>`
               : `<p style="color:var(--danger)">${T`Soyarsan eşkıyalık sayılır: ${this.factionName(npc.faction)} lordları <b>−4</b>, namın <b>−5</b>.`}</p>`}
-        <div style="display:flex;gap:1rem;margin-top:1rem;">
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
         <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.robTrader('${npc.id}')">${T`🗡️ Soy`}</button>
         <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 6; state.player.currentEncounterNpcId = null;">${T`🚪 Yoluna Bırak`}</button>
         </div>`);
@@ -3529,7 +3532,7 @@ const Game = {
             <p style="color:#2d2;font-size:var(--fs-sm);margin-top:0.5rem">${bk.beast
                 ? T`${this.npcName(npc)} sayınızı tartıyor, üstünüze gelmiyor.`
                 : T`${this.npcName(npc)} seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
-            <div style="display:flex;gap:1rem;margin-top:1rem;">
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
             <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">${T`Uzaklaş`}</button>
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}', null, false, '${npc.band || ''}')">${T`⚔️ Yine De Savaş!`}</button>
             </div>`;
@@ -6911,6 +6914,16 @@ const Game = {
     // while currentEncounterNpcId is still set, and asking there too would leave the window stuck open.
     canDismiss() { return !state.player.currentEncounterNpcId; },
     dismissModal() { if(this.canDismiss()) this.closeModal(); },
+    // "Tamam" on an alert() runs whatever continuation was queued for it (see window.alert) —
+    // callers that need to open another screen after an alert must pass it as that continuation,
+    // not call it on the next line: alert() doesn't block, so the next line would run in the same
+    // tick and overwrite the alert before it's ever painted.
+    alertOk() {
+        let then = this._alertThen;
+        this._alertThen = null;
+        this.closeModal();
+        if(then) then();
+    },
     closeModal() {
         this.skipType();
         // Every self-serve way out of the pause menu — Esc, ×, clicking outside, "Devam Et" —
@@ -8629,7 +8642,7 @@ const Game = {
         <b>${T(c.marshalName)}</b> mareşal seçildi; ordu <b>${T(loc.name)}</b> üzerine yürüyor.`}</p>
         <p style="color:var(--text-muted)">${T`Katılırsan hedefin yakınında bulunman gerekir — harita
         sefer işaretini gösterir. Söz verip gitmemek, çağrıyı baştan reddetmekten pahalıdır.`}</p>
-        <div style="display:flex;gap:1rem;margin-top:1rem">
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem">
         <button class="btn primary" onclick="Game.answerSummons(true)">${T`⚔️ Sefere Katıl`}</button>
         <button class="btn" onclick="Game.answerSummons(false)">${T`🚪 Reddet`}</button></div>`);
     },

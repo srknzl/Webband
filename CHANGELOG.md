@@ -3,6 +3,16 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.5 — Ulak (2026-09-17)
+
+- **Soylulara "birinin yerini sor" gibi bazı diyalog cevapları hiç görünmeden kayboluyordu.**
+  `alert()` bu oyunda bloklamıyor; hemen ardından ekranı değiştiren kod (diyaloğa dönmek,
+  başka bir pencere açmak) mesajı tarayıcı hiç çizmeden eziyordu. Artık mesaj "Tamam"a
+  basılana kadar ekranda kalıyor, devamı ancak ondan sonra açılıyor.
+- **Görev teklifi ekranında "Reddet" butonunun metni mobilde kenardan taşıyordu.** Dokunma
+  hedefi büyütmesi (#86) buton satırının otomatik daralma sınırını devre dışı bırakmıştı;
+  satır artık gerektiğinde alt satıra kayıyor, metin kırpılmıyor.
+
 ## 1.21.4 — Çentik (2026-09-17)
 
 - **Haritadayken üst çubuk çentikli iPhone'larda göstergelerin arkasına düşüyordu.** #40'taki
