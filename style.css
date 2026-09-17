@@ -1159,8 +1159,11 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
    İkisi ayrı sorular — tabletin geniş ekranı da parmakla sürülür.
    ============================================================ */
 
-/* Tuvaller tarayıcının kendi kaydırma/zoom jestini yemesin; pan ve pinch bizde */
-#map-canvas, #battle-canvas, #scene-canvas { touch-action: none; }
+/* Tuvaller tarayıcının kendi kaydırma/zoom jestini yemesin; pan ve pinch bizde.
+   #scene-canvas hariç: onun kendi pan/pinch kodu yok, sadece tıklama (#renderScene). `none`
+   bırakılırsa üstünden başlayan bir parmak kaydırması ne native scroll'a ne bize gider,
+   sessizce yutulur — şehir ekranı mobilde en alta kadar kaydırılamaz hale gelir. */
+#map-canvas, #battle-canvas { touch-action: none; }
 /* Pinch-zooming the whole UI breaks the game (panel sizes are computed from the
    screen, so after a zoom nothing sits where it belongs). Scrolling stays free, pinch
    is gone, and `pan-x pan-y` closes the double-tap zoom with it.

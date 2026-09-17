@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.21.6 — Parmak İzi (2026-09-17)
+
+- **Şehir ekranında mobilde en aşağı kadar kaydırılamıyordu.** Bina resmi (`#scene-canvas`)
+  kendi kaydırma/yakınlaştırma kodu olmadığı halde tarayıcının dokunma jestini yutan bir
+  kuraldan pay alıyordu; üstünden başlayan bir parmak kaydırması hiçbir yere gitmiyordu.
+  Artık sadece haritanın ve savaş ekranının kendi pan/pinch kodu olan tuvalleri bu kuralı
+  taşıyor, şehir resmi normal kaydırmaya açık.
+
 ## 1.21.5 — Ulak (2026-09-17)
 
 - **Soylulara "birinin yerini sor" gibi bazı diyalog cevapları hiç görünmeden kayboluyordu.**
