@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.23.0 — Eyer (2026-09-18)
+
+- **Atlı savaşta çok hızlıydın.** Atlı hareket hızı savaşta ~%20 azaltıldı — hâlâ yayadan
+  belirgin şekilde hızlısın, sadece o kadar ezici değil.
+- **Canın az olsa bile ata binebilmelisin.** Şimdi ata binince, azami canının %33'ü kadar
+  ekstra bir "tampon" kazanıyorsun — yaralı girsen bile bu tampon tam ekleniyor. Tampon
+  bitince (canın normal azami canına dönünce) attan düşüyorsun; at ölme ihtimali (yüzde 10)
+  hâlâ var ama artık bu anda değerlendiriliyor.
+
 ## 1.22.0 — Savaş İlanı (2026-09-17)
 
 - **Herhangi bir krallığa savaş ilan edebilirsin.** Diplomasi ekranında (K) her krallığın yanında

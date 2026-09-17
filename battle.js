@@ -278,12 +278,21 @@ const Battle = {
         this.blockHeld = false;
 
         // Player
+        // A horse adds a flat +33% of max HP as a buffer on top of whatever health you're
+        // already carrying (#132) — riding in wounded still means riding in with a cushion,
+        // not 33% of an already-small number. `baseMaxHp` is the unbuffered value the dismount
+        // check below compares against; once hp drops back down to it, the buffer is spent and
+        // the rider comes off (same 10% roll for a permanently lost horse as any other dismount,
+        // just gated on this new trigger instead of the old flat 50%).
+        let baseMaxHp = state.player.stats.maxHp;
+        let mountHpBonus = mounted ? baseMaxHp * 0.33 : 0;
         this.units.push({
             id: 'player', isPlayerTeam: true, name: state.player.name,
-            hp: state.player.stats.hp, maxHp: state.player.stats.maxHp,
+            hp: state.player.stats.hp + mountHpBonus, maxHp: baseMaxHp + mountHpBonus, baseMaxHp,
             x: startPlayerX, y: H/2,
-            // Skill tree #110: Ranger perks scale riding/foot speed
-            speed: mounted ? (95 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 3) * (1 + Game.perkMod('ridingSpeed')) * hSpd
+            // Skill tree #110: Ranger perks scale riding/foot speed. Nerfed ~20% (#132) — mounted
+            // was overwhelmingly faster than foot at every riding level, not just at the top end.
+            speed: mounted ? (80 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 2) * (1 + Game.perkMod('ridingSpeed')) * hSpd
                            : this.footSpeed(),
             attack: 10 + Game.attr('str') + weaponAtk,
             defense: armorDef, type: mounted ? 'cavalry' : 'infantry', mounted,
@@ -966,8 +975,14 @@ const Battle = {
             if(u.adrenalineT > 0) uSpeed *= 1.4;   // the adrenaline burst itself
             let uAttack = u.attack * attackMod;
 
-            // When the horse is hit, the rider falls off — one check for everyone, player included
-            if(u.type === 'cavalry' && u.hp < u.maxHp * 0.5 && !u.dismounted) {
+            // When the horse is hit, the rider falls off — one check for everyone, player included.
+            // The player's own trigger is "the +33% mount buffer is spent" (hp back down to the
+            // unbuffered baseMaxHp) instead of a flat 50% (#132) — troops have no buffer/baseMaxHp
+            // of their own, so they keep the original flat-50% trigger. `!u.isBoss` is a no-op
+            // until bosses exist as mountable units; a boss's own hp governs its fight entirely.
+            let playerBufferSpent = u.id === 'player' && u.baseMaxHp !== undefined && u.hp <= u.baseMaxHp;
+            if(u.type === 'cavalry' && !u.dismounted && !u.isBoss &&
+               (playerBufferSpent || (u.id !== 'player' && u.hp < u.maxHp * 0.5))) {
                 u.type = 'infantry';
                 u.dismounted = true;
                 u.mounted = false;   // yayan kalan ormanda ceza yemez

@@ -638,7 +638,7 @@ branches play `sfx('error')`, success plays `recruit`), `promoteTroop` (`upgrade
 |---|---|
 | `oneHanded`/`twoHanded`/`polearm` | battle damage multiplier `0.35 + min(0.4, lvl×0.004)` |
 | `bow` | arrow damage `0.5 + min(0.5, lvl×0.005)`, arrow count `24 + lvl×2`, shot time `max(0.5, 1.15 − lvl×0.006)` s, reduces spread |
-| `riding` | mounted battle speed `95 + agility×0.5 + (lvl−1)×3` |
+| `riding` | mounted battle speed `80 + agility×0.5 + (lvl−1)×2` (nerfed ~20% from `95 + ×0.5 + ×3`, #132 — mounted was overwhelmingly faster than foot at every riding level) |
 | `athletics` | foot battle speed `min(85, 56 + agility×0.5 + (lvl−1)×2)` — capped at `Battle.FOOT_MAX` |
 | `leadership` | party capacity +3/level, morale +3/level |
 | `persuasion` | dowry negotiation |
@@ -1579,8 +1579,14 @@ move with it — you're tracking a trail, not an address.
     **Charge** (`Battle.chargeMult`): damage is `1 + speed ratio × (spear 1.6 / other 0.6)`,
     so a full gallop with a spear reaches ×2.6; at ≥1.8 "LANCE CHARGE!" appears. Measured
     (mounted, same swing): standing 11 → galloping spear 22, galloping sword 16, on foot 11.
-    Once health drops to half, **the player is unhorsed too** (`dismounted`, icon 🧑‍🌾) — this
-    check runs before the player's own branch, applied to everyone from a single place. Once
+    Once health drops to half, **a mounted troop is unhorsed too** (`dismounted`, icon 🧑‍🌾) —
+    this check runs before the player's own branch, applied to everyone from a single place.
+    **The player's own trigger is different (#132)**: a horse adds a flat `+33%` of max HP as a
+    buffer on top of whatever health the player already carries into the fight (`baseMaxHp` is
+    the unbuffered value, stored on the unit) — riding in already wounded still gets the full
+    cushion, not 33% of an already-small number. The player dismounts once hp drops back down to
+    `baseMaxHp` (the buffer spent), not at a flat 50% of the buffed max; the same 10% permanent
+    horse-death roll still applies at that moment, just gated on this new trigger. Once
     dismounted you genuinely stay on foot: the player drops to `footSpeed()`, a troop drops to
     `max(50, speed×0.55)`. It used to be −30, so a 174-speed knight still stayed at 144, faster
     than even the best foot troop.

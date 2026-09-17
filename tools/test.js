@@ -586,6 +586,62 @@ test('bandits do not scale with the calendar (#99)', () => {
     gw.state.time.day = 1;
 });
 
+// --- Mounted battle speed (#132) ---
+// Nerfed ~20% (base and riding coefficient both cut) — mounted was overwhelmingly faster than
+// foot at every riding level, not just the top end. This pins the formula itself so a future
+// tweak has to be a deliberate edit, not a silent drift.
+test('battle: mounted speed formula reflects the #132 nerf', () => {
+    gw.state.player.stats.agi = 10; gw.state.player.stats.eff = {};
+    gw.state.player.proficiencies.riding = { level: 1, xp: 0, next: 100, focus: 0 };
+    gw.state.player.equipment.horse = { id: 'horse', name: 'At', hSpd: 0, hDef: 0 };
+    gw.state.player.party = [];
+    gw.Battle.start('Çapulcular', 4);
+    const player = gw.Battle.units.find(u => u.id === 'player');
+    assert.strictEqual(player.speed, 85, '(80 + agi 10 × 0.5) at riding level 1 — was 100 before #132');
+    gw.Battle.active = false;
+    gw.state.player.equipment.horse = null;
+});
+
+// --- Mounted HP buffer and dismount (#132) ---
+// A horse adds a flat +33% of max HP on top of whatever health the player carries into the
+// fight, and the dismount trigger moves from "50% of the buffed max" to "back down to the
+// unbuffered max" — the buffer is meant to be spent before the rider comes off, not on top of
+// a separate 50% cushion.
+test('battle: mounted player gets a flat +33%-of-max HP buffer, not +33% of current HP', () => {
+    gw.state.player.stats.maxHp = 100; gw.state.player.stats.hp = 40;   // riding in already hurt
+    gw.state.player.equipment.horse = { id: 'horse', name: 'At', hSpd: 0, hDef: 0 };
+    gw.state.player.party = [];
+    gw.Battle.start('Çapulcular', 4);
+    const player = gw.Battle.units.find(u => u.id === 'player');
+    assert.strictEqual(player.baseMaxHp, 100);
+    assert.strictEqual(player.maxHp, 133);                 // 100 + 33% of max, not 40 × 1.33
+    assert.strictEqual(player.hp, 40 + 33);                // current hp + the same flat bonus
+    gw.Battle.active = false;
+    gw.state.player.equipment.horse = null;
+    gw.state.player.stats.hp = gw.state.player.stats.maxHp;
+});
+test('battle: dismount fires when the buffer is spent, not at a flat 50% of the buffed max', () => {
+    gw.state.player.stats.maxHp = 100; gw.state.player.stats.hp = 100;
+    gw.state.player.equipment.horse = { id: 'horse', name: 'At', hSpd: 0, hDef: 0 };
+    gw.state.player.party = [];
+    gw.Battle.start('Çapulcular', 4);
+    const player = gw.Battle.units.find(u => u.id === 'player');
+    player.hp = 110;   // 110/133 ≈ 83% of the buffed max, but below the OLD flat-50%-of-buffed
+                        // line's target too — still above baseMaxHp, so the buffer isn't spent yet
+    gw.Battle.update(0.016);
+    assert.strictEqual(player.dismounted, undefined, 'dismounted before the buffer was actually spent');
+    player.hp = player.baseMaxHp;   // buffer (33) is now exactly spent
+    const before = Math.random;
+    Math.random = () => 0.99;       // dodge the 10% horse-death roll so the assertion is deterministic
+    gw.Battle.update(0.016);
+    Math.random = before;
+    assert.strictEqual(player.dismounted, true, 'buffer-spent dismount did not fire');
+    assert.strictEqual(player.type, 'infantry');
+    gw.Battle.active = false;
+    gw.state.player.equipment.horse = null;
+    gw.state.player.stats.hp = gw.state.player.stats.maxHp;
+});
+
 test('battle terrain: a siege wall cannot persist into the next field battle', () => {
     const plan = { name:'Test siege', defBonus:0.2, gaps:1 };
     gw.Battle.start('Garnizon', 8, null, '', plan);
