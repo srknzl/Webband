@@ -1164,6 +1164,20 @@ const Battle = {
                 if(curD > 60 && curD > u._tgtLastD - 8) { u.avoidId = closest.id; u.avoidUntil = this.battleTime + 3; closest = null; }
             }
             if(!closest || u.retargetCd <= 0) {
+                // Ally-engaged bias (#132): a target an ally is already trading blows with scores
+                // 15% better than the raw distance says, so units pile onto the same fight instead
+                // of spreading thin chasing separate targets past each other. Built once per retarget
+                // (an O(n) pass over allies' own current engagement, not a per-candidate scan) —
+                // "engaged" means the ally's own target is within melee range of it right now.
+                let engagedIds = null;
+                if(this.units.length > 2) {
+                    engagedIds = new Set();
+                    this.units.forEach(a => {
+                        if(a === u || a.hp <= 0 || a.isPlayerTeam !== u.isPlayerTeam || !a.tgtId) return;
+                        let t = this._byId[a.tgtId];
+                        if(t && t.hp > 0 && Math.hypot(a.x - t.x, a.y - t.y) < 60) engagedIds.add(a.tgtId);
+                    });
+                }
                 // `fallback` ignores the avoid list: a unit must never end up with no target at all
                 // just because the one enemy left standing was marked stuck (this bit a 1-on-1 badly).
                 let minScore = Infinity, pick = null, fallbackD2 = Infinity, fallback = null;
@@ -1175,6 +1189,7 @@ const Battle = {
                     // Role priority: a melee unit leans toward running down a nearby archer instead
                     // of always taking the geometrically closest body — a light nudge, not a hard rule.
                     let score = (u.type !== 'archer' && e.type === 'archer') ? d2 * 0.7 : d2;
+                    if(engagedIds && engagedIds.has(e.id)) score *= 0.85;
                     if(score < minScore) { minScore = score; pick = e; }
                 });
                 closest = pick || fallback;
@@ -1272,10 +1287,29 @@ const Battle = {
             // gives up its own swing for nothing, which used to tank foot's win rate against cavalry.
             if(!u.beast && u.type !== 'cavalry' && u.hp < u.maxHp * 0.25 && !(closest && closest.mounted)) {
                 u.retreatCd = (u.retreatCd || 0) - dt;
-                if(u.retreatCd <= 0) { u.retreatCd = 1 + Math.random() * 0.6; u.wantsRetreat = Math.random() < 0.5; }
+                if(u.retreatCd <= 0) {
+                    u.retreatCd = 1 + Math.random() * 0.6;
+                    u.wantsRetreat = Math.random() < 0.5;
+                    // Retreat toward the nearest living ally within 300, not blindly away from the
+                    // enemy (#132): a unit that falls back onto its own line can rejoin the fight,
+                    // one that runs into open ground just gets run down alone. Picked once per
+                    // reroll, same caching pattern as the target search above, not scanned per frame.
+                    if(u.wantsRetreat) {
+                        let ally = null, allyD2 = 300 * 300;
+                        this.units.forEach(a => {
+                            if(a === u || a.hp <= 0 || a.isPlayerTeam !== u.isPlayerTeam) return;
+                            let dx = a.x - u.x, dy = a.y - u.y, d2 = dx*dx + dy*dy;
+                            if(d2 < allyD2) { allyD2 = d2; ally = a; }
+                        });
+                        u.retreatAllyId = ally ? ally.id : null;
+                    }
+                }
             } else u.wantsRetreat = false;
             if(u.wantsRetreat && closest && finalDist < 90) {
-                let dx = u.x - closest.x, dy = u.y - closest.y;
+                let ally = u.retreatAllyId ? this._byId[u.retreatAllyId] : null;
+                let dx, dy;
+                if(ally && ally.hp > 0) { dx = ally.x - u.x; dy = ally.y - u.y; }
+                else { dx = u.x - closest.x; dy = u.y - closest.y; }
                 let len = Math.max(1, Math.sqrt(dx*dx + dy*dy));
                 let rs = uSpeed * 0.75;
                 u.vx = (dx/len)*rs; u.vy = (dy/len)*rs;

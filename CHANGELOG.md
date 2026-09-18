@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.0 — Sıra Savaşı (2026-09-18)
+
+- **Savaşta askerler artık birbirini destekliyor** — bir müttefik zaten uğraştığı bir düşmana
+  yakınsa, diğer askerler de aynı hedefe yönelmeye biraz daha meyilli; tek tek dağılıp
+  düşmanları birbirinin yanından geçmek yerine aynı çarpışmaya toplanıyorlar.
+- **Ağır yaralı askerler artık rastgele değil, en yakın müttefiğe doğru geri çekiliyor** — kendi
+  hattına düşen bir asker tekrar çarpışmaya katılabilir; boş araziye kaçan yalnız yakalanıp
+  öldürülüyordu.
+
 ## 1.27.0 — Yol Hikâyeleri (2026-09-18)
 
 - **25 yeni rastgele olay eklendi** — 11 yeni günlük kamp olayı (kargalar, kırılan tekerlek,
