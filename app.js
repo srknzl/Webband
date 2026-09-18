@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.26.1', date: '2026-09-18', name: 'Süvari' };  // the version name is not translated
+const VERSION = { no: '1.26.2', date: '2026-09-18', name: 'Denge' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -375,27 +375,27 @@ const BOSSES = {
     kurt_ana:    { key:'kurt_ana',    name:'Kurt Ana',    icon:'🐺', renown:60,  dLevel:0,
                    hp:800,  attack:80,  defense:25, mounted:false,
                    item:'kurt_disi_hancer', relic:'kurt_kani',
-                   special:{ id:'suru_cagrisi',  name:'Sürü Çağrısı',       shape:'circle', radius:90,  telegraph:0.9, dmgMult:1.8, cooldown:9 },
+                   special:{ id:'suru_cagrisi',  name:'Sürü Çağrısı',       shape:'circle', radius:90,  telegraph:0.9, dmgMult:0.9, cooldown:9 },
                    siteDesc:'Ormanın derinliğinde uluma dinmez. Sürünün anası burada avlanır.' },
     bozkir_hani: { key:'bozkir_hani', name:'Bozkır Hanı', icon:'🏇', renown:130, dLevel:5,
                    hp:950,  attack:90,  defense:25, mounted:true,
                    item:'han_kisragi', relic:'bozkir_tugu',
-                   special:{ id:'bozkir_sarji',   name:'Bozkır Şarjı',        shape:'line',   length:260, width:70, telegraph:0.7, dmgMult:2.2, cooldown:11 },
+                   special:{ id:'bozkir_sarji',   name:'Bozkır Şarjı',        shape:'line',   length:260, width:70, telegraph:0.7, dmgMult:1.0, cooldown:11 },
                    siteDesc:'Bozkırın efendisi, atının üstünde doğup at üstünde ölecek bir han. Kısrağına öyle bağlı ki, hiçbir darbe onu attan indiremez — han\'ın kendi canı bitmeden o savaş alanını terk etmez.' },
     demirci_dev: { key:'demirci_dev', name:'Demirci Dev', icon:'⚒️', renown:200, dLevel:10,
                    hp:1100, attack:100, defense:35, mounted:false,
                    item:'dev_orsu_zirhi', relic:'demir_yurek',
-                   special:{ id:'ors_darbesi',    name:'Örs Darbesi',         shape:'circle', radius:110, telegraph:1.1, dmgMult:2.4, cooldown:10 },
+                   special:{ id:'ors_darbesi',    name:'Örs Darbesi',         shape:'circle', radius:110, telegraph:1.1, dmgMult:1.05, cooldown:10 },
                    siteDesc:'Dağ ocağının çekiç sesi vadiyi titretir. Devin örsü hiç soğumaz.' },
     korsan_kral: { key:'korsan_kral', name:'Korsan Kral', icon:'🏴‍☠️', renown:280, dLevel:15,
                    hp:1150, attack:105, defense:25, mounted:false,
                    item:'firtina_yayi', relic:'firtina_tilsimi',
-                   special:{ id:'firtina_yagmuru',name:'Fırtına Yayı Yağmuru', shape:'circle', radius:130, telegraph:1.0, dmgMult:1.6, cooldown:8, ranged:true },
+                   special:{ id:'firtina_yagmuru',name:'Fırtına Yayı Yağmuru', shape:'circle', radius:130, telegraph:1.0, dmgMult:1.0, cooldown:8, ranged:true },
                    siteDesc:'Kıyı kalesinde bir korsanın bayrağı dalgalanır. Denizin de karanın da kralı olduğunu söyler.' },
     savas_tanrisi: { key:'savas_tanrisi', name:'Savaş Tanrısı', icon:'⚔️', renown:0, dLevel:25, final:true,
                    hp:2600, attack:130, defense:40, mounted:false,
                    item:null, relic:'kalradia_sancagi',
-                   special:{ id:'tanri_gazabi',   name:'Tanrı Gazabı',        shape:'circle', radius:150, telegraph:1.2, dmgMult:2.8, cooldown:7 },
+                   special:{ id:'tanri_gazabi',   name:'Tanrı Gazabı',        shape:'circle', radius:150, telegraph:1.2, dmgMult:1.2, cooldown:7 },
                    siteDesc:'Savaş Tanrısı\'nın gölgesi düşer düşmez toprak inler. Onu ancak dört bossun nişanını taşıyan, boss haritasını kullanan bulabilir.' }
 };
 
@@ -2816,12 +2816,19 @@ const Game = {
         state.meta.playtime = (state.meta.playtime || 0) + dt;   // playtime shown in the save info card
         
         // Mouse Edge Panning — gated by Game.edgePan(), can be turned off from ⚙️ Settings.
+        // Also gated on no modal being open (#132): renderMap() already skips drawing while a
+        // modal is up, but this update loop doesn't stop, so the camera used to keep panning off
+        // wherever the mouse happened to be sitting during a lord conversation — invisible since
+        // nothing was rendered, then the map "jumped" the moment the modal closed and drawing
+        // resumed. Same guard as the WASD pan below, checked here directly since it's needed before
+        // `isModalOpen` is otherwise computed further down this function.
         let edgeMargin = 40;
         let panSpeed = 600 * dt / this.camera.zoom;
         let mx = Input.mouse.clientX;
         let my = Input.mouse.clientY;
-        
-        if (this.edgePan() && document.getElementById('map-view').classList.contains('active') && mx !== undefined) {
+        let modalOpenNow = !document.getElementById('modal-overlay').classList.contains('hidden');
+
+        if (this.edgePan() && !modalOpenNow && document.getElementById('map-view').classList.contains('active') && mx !== undefined) {
             let rect = this.mapCanvas.getBoundingClientRect();
             if (mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom) {
                 let innerX = mx - rect.left;
@@ -2860,7 +2867,7 @@ const Game = {
         // camera to the player; the only way to look around the map by hand was to push
         // the mouse to the screen edge.
         // Returning to the player is already possible with Space and 🎯 Find Me.
-        if(document.getElementById('map-view').classList.contains('active')) {
+        if(!modalOpenNow && document.getElementById('map-view').classList.contains('active')) {
             let k = Input.keys;
             if(k['a']||k['arrowleft'])  this.camera.offsetX -= panSpeed;
             if(k['d']||k['arrowright']) this.camera.offsetX += panSpeed;
@@ -2876,7 +2883,7 @@ const Game = {
         }
 
         let isMapActive = document.getElementById('map-view').classList.contains('active');
-        let isModalOpen = !document.getElementById('modal-overlay').classList.contains('hidden');
+        let isModalOpen = modalOpenNow;
         let timeFlows = false;
         
         if (isMapActive && !isModalOpen) {

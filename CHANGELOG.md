@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.26.2 — Denge (2026-09-18)
+
+- **Boss'ların alan saldırısı artık her askeri tek vuruşta öldürmüyor** — hasar çarpanları
+  dengelendi, saldırı hâlâ ciddi acıtıyor ve zayıf askerleri düşürüyor ama artık en güçlü
+  askerler bile garanti tek vuruşta gitmiyor (Savaş Tanrısı hâlâ en sert vuran boss).
+- **Atlı savaşa yaralı girildiğinde artık anında düşmüyorsun** — at, mevcut canının üstüne
+  %33'lük bir tampon ekliyordu ama düşme kontrolü yanlışlıkla tam can değerine göre
+  bakıyordu; yaralı bir oyuncu için bu tampon anında "harcanmış" sayılıp ilk karede atından
+  düşürüyordu. Artık düşme, savaşa hangi canla girildiyse o değere göre tetikleniyor.
+- **Lord'la konuşup çıkınca haritanın rastgele bir yere zıplaması düzeltildi** — diyalog
+  penceresi açıkken fare ekran kenarına yakınsa kamera görünmeden kaymaya devam ediyordu
+  (pencere kapalıyken çizim durduğu için fark edilmiyordu); artık pencere açıkken kamera
+  hiç kaymıyor.
+
 ## 1.26.1 — Süvari (2026-09-18)
 
 - **Atlı askerlerin (süvari) görünümü gerçek çizimlerle değişti** — hem düşman/dost süvariler

@@ -287,15 +287,16 @@ const Battle = {
         // Player
         // A horse adds a flat +33% of max HP as a buffer on top of whatever health you're
         // already carrying (#132) — riding in wounded still means riding in with a cushion,
-        // not 33% of an already-small number. `baseMaxHp` is the unbuffered value the dismount
-        // check below compares against; once hp drops back down to it, the buffer is spent and
-        // the rider comes off (same 10% roll for a permanently lost horse as any other dismount,
-        // just gated on this new trigger instead of the old flat 50%).
+        // not 33% of an already-small number. `dismountFloor` is the entry hp *before* that
+        // bonus was added — the dismount check below compares against it, so a wounded rider
+        // dismounts once the buffer specifically is spent, not at their theoretical full health
+        // (which a wounded player's buffered hp could already be at or under on frame one).
         let baseMaxHp = state.player.stats.maxHp;
+        let dismountFloor = state.player.stats.hp;
         let mountHpBonus = mounted ? baseMaxHp * 0.33 : 0;
         this.units.push({
             id: 'player', isPlayerTeam: true, name: state.player.name,
-            hp: state.player.stats.hp + mountHpBonus, maxHp: baseMaxHp + mountHpBonus, baseMaxHp,
+            hp: state.player.stats.hp + mountHpBonus, maxHp: baseMaxHp + mountHpBonus, baseMaxHp, dismountFloor,
             x: startPlayerX, y: H/2,
             // Skill tree #110: Ranger perks scale riding/foot speed. Nerfed ~20% (#132) — mounted
             // was overwhelmingly faster than foot at every riding level, not just at the top end.
@@ -1031,11 +1032,14 @@ const Battle = {
             let uAttack = u.attack * attackMod;
 
             // When the horse is hit, the rider falls off — one check for everyone, player included.
-            // The player's own trigger is "the +33% mount buffer is spent" (hp back down to the
-            // unbuffered baseMaxHp) instead of a flat 50% (#132) — troops have no buffer/baseMaxHp
-            // of their own, so they keep the original flat-50% trigger. `!u.isBoss` is a no-op
-            // until bosses exist as mountable units; a boss's own hp governs its fight entirely.
-            let playerBufferSpent = u.id === 'player' && u.baseMaxHp !== undefined && u.hp <= u.baseMaxHp;
+            // The player's own trigger is "the +33% mount buffer is spent" (hp back down to
+            // dismountFloor, the hp they actually entered the fight with) instead of a flat 50%
+            // (#132) — comparing against baseMaxHp instead would dismount a wounded rider
+            // instantly, since entry_hp + 33%_bonus can already be <= baseMaxHp on frame one.
+            // Troops have no buffer/dismountFloor of their own, so they keep the flat-50% trigger.
+            // `!u.isBoss` is a no-op until bosses exist as mountable units; a boss's own hp
+            // governs its fight entirely.
+            let playerBufferSpent = u.id === 'player' && u.dismountFloor !== undefined && u.hp <= u.dismountFloor;
             if(u.type === 'cavalry' && !u.dismounted && !u.isBoss &&
                (playerBufferSpent || (u.id !== 'player' && u.hp < u.maxHp * 0.5))) {
                 u.type = 'infantry';
