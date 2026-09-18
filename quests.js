@@ -1180,7 +1180,7 @@ const Quests = {
     descFor(q) {
         if(q.state === 'awaiting') {
             let g = this.giver(q.giverId);
-            return T`Görev tamam. Ödülü almak için <b>${this.giverName(g)}</b>'e git — en son <b>${this.locName(q.turnInLocId)}</b>'de görüldü.`;
+            return T`Görev tamam. Ödülü almak için <b>${this.giverName(g)}</b>'le konuş — en son <b>${this.locName(q.turnInLocId)}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.`;
         }
         return QUESTS[q.id].desc(q);
     },
@@ -1272,13 +1272,20 @@ const Quests = {
 
     offerMenu(giverId) {
         let giver = this.giver(giverId);
-        // Standing right in front of the giver is itself proof of presence — if their
-        // reward is just waiting on a hand-off, settle it here instead of making the
-        // player wait for a fresh entered_location that may never come (they're already in).
+        // Standing right in front of the giver IS presence — opening this menu already means
+        // you found them (their own dialogue, wherever it was reached from). The old gate here
+        // re-checked distance from the giver's *live* party to the *snapshot* location taken
+        // back when the quest finished, instead of trusting that you're already talking to
+        // them — so a lord who'd moved on since that snapshot (which is most lords, most of the
+        // time) failed the check even with the player standing right in front of him, and the
+        // only way to actually collect was to stumble into whatever settlement he happened to
+        // be near at that exact moment (#132 report: "finding the giver is hard"). Completing
+        // here needs no presence check at all — return right after so the reward alert this
+        // shows isn't immediately clobbered by falling through to a cooldown/new-offer modal.
         let pending = state.player.quests.find(x => x.giverId === giverId);
-        if(pending && pending.state === 'awaiting' && this.giverPresent(giverId, pending.turnInLocId)) {
-            this.tryTurnIn(pending);
-            pending = state.player.quests.find(x => x.giverId === giverId);
+        if(pending && pending.state === 'awaiting') {
+            this.complete(pending);
+            return;
         }
         if(pending) {
             let q = pending;
@@ -1429,7 +1436,7 @@ const Quests = {
         q.turnInLocId = this.turnInLoc(q);
         q.turnInSnapshotDay = state.time.day;
         let g = this.giver(q.giverId);
-        alert(T`✅ Görev tamam: ${T(def.title)}\nÖdülü almak için ${T(this.giverName(g))}'e git — en son ${T(this.locName(q.turnInLocId))}'de görüldü.`);
+        alert(T`✅ Görev tamam: ${T(def.title)}\nÖdülü almak için ${T(this.giverName(g))}'le konuş — en son ${T(this.locName(q.turnInLocId))}'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.`);
         this.render();
     },
 

@@ -3,6 +3,19 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.1 — Görev Teslimi (2026-09-18)
+
+- **Görev ödülünü almak için lordu bulmak artık kolay** — bir görevi bitirdiğinde oyun seni
+  lordun görevi bitirdiğin anki konumuna gönderiyordu; lord genelde oraya kadar sefere çıkmış
+  oluyordu ve "son görüldüğü yer" bir yerden bir yere kovalamaca haline geliyordu. Artık lordu
+  nerede bulursan bul (kalesinde, yolda karşına çıkarsa, şölende), onunla konuşup "Bana bir iş
+  var mı?" dediğinde ödül orada teslim ediliyor — ayrıca o konuma gitmene gerek yok.
+- **Tavuk kovalama görevinde her denemeden sonra haritaya atılma sorunu giderildi** — süre
+  dolduğunda (ya da kazandığında) artık kaleden dışarı çıkmadan tekrar deneyebiliyorsun.
+- **Kampta beklerken görmediği düşmanların seni sarması düzeltildi** — bir bölük seni önceden
+  fark etmemişse, sen otururken uzaktan sana doğru yürüyüp kamp çevresine dizilmiyor artık;
+  zaten peşindeki bölükler eskisi gibi yaklaşıp güvenlik çemberinin dışında bekliyor.
+
 ## 1.28.0 — Sıra Savaşı (2026-09-18)
 
 - **Savaşta askerler artık birbirini destekliyor** — bir müttefik zaten uğraştığı bir düşmana

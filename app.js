@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.28.0', date: '2026-09-18', name: 'Sıra Savaşı' };  // the version name is not translated
+const VERSION = { no: '1.28.1', date: '2026-09-18', name: 'Görev Teslimi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3296,14 +3296,24 @@ const Game = {
 
             // A weak band spots a strong army from afar and flees; a pursuer notices up close
             let sense = npc.size > ps ? 360 : 360 + Math.min(640, (ps / Math.max(1, npc.size)) * 240);
+            // A noble doesn't flee: an enemy lord will still walk toward an army a little bigger
+            // than theirs, but pulls back if you're clearly stronger (×1.5) (#48).
+            let might = npc.size * (npc.lordId ? 1.5 : 1);
             // Fleeing is now independent of hostility: if a band is too weak to attack you
             // anyway (isHostile false) it used to never flee, and kept wandering instead.
             // A caravan/convoy flees an army from a kingdom it's at war with (otherwise carries on)
             let notices = dp < sense && (hostile || npc.type === 'bandit'
                           || (npc.trade && this.atWar(this.playerFaction(), npc.faction)));
-            // A noble doesn't flee: an enemy lord will still walk toward an army a little bigger
-            // than theirs, but pulls back if you're clearly stronger (×1.5) (#48).
-            let might = npc.size * (npc.lordId ? 1.5 : 1);
+            // A camp doesn't just stop a pursuer from overlapping you (below) — it also stops
+            // *new* pursuers from starting. `sense` is a real tactical range (up to 360-1000
+            // units), not line-of-sight, so a party that only wandered within it while you sat
+            // still for hours used to lock on and walk in from clear across the region: it never
+            // "saw" you, it just happened to pass close enough to a stationary point (#132 report
+            // — "if it can't see us, it shouldn't chase us"). A party already tracking you
+            // (`playerTargetId` set before this tick, i.e. before or shortly after camp began)
+            // keeps closing in and holds at the safety perimeter below, exactly as before — this
+            // only blocks a fresh lock-on while camped, not an ongoing one.
+            if(this.campProtected() && might > ps && npc.playerTargetId !== 'player') notices = false;
             // A quest wave was summoned to fight *you*, and it is deliberately smaller than
             // your army — so the generic "a weak band runs" rule below sent it fleeing from
             // the very fight the quest promises, and Hasat Nöbeti became a chase (#94).
@@ -6396,7 +6406,7 @@ const Game = {
                         () => this.besiegeLocation(loc, !state.player.vassalOf));
         } else {
             let chickenQ = state.player.quests.find(q => q.id === 'crazy_chickens' && q.data.locId === loc.id);
-            if(chickenQ) this.addBtn(ac, T('🐔 Tavukları Kovala (25 sn)'), () => TournamentMinigame.start({ mode:'chicken', goal:16, time:25 }));
+            if(chickenQ) this.addBtn(ac, T('🐔 Tavukları Kovala (25 sn)'), () => TournamentMinigame.start({ mode:'chicken', goal:16, time:25, loc }));
             if(loc.owner === 'player' && loc.type !== 'village') {
                 this.addBtn(ac, T`🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
                 this.addBtn(ac, T`📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));

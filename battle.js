@@ -3177,6 +3177,7 @@ const TournamentMinigame = {
         this.mode = opts.mode || 'chicken';
         this.goal = opts.goal || 12;
         this.bet = opts.bet || 0;
+        this.loc = opts.loc || null;
         this.round = 1;
         this.perRound = Math.max(1, Math.ceil(this.goal / this.ROUNDS));
         this.gear = this.mode === 'chicken' ? null : this.rollGear();
@@ -3310,14 +3311,19 @@ const TournamentMinigame = {
         this.active = false;
         this.canvas.removeEventListener('mousedown', this.clickHandler);
         cancelAnimationFrame(this.loopId);
-        Game.showScreen('map');
 
         if(this.mode === 'chicken') {
+            // Win or lose, you're still standing in the courtyard — dumping the player out to
+            // the map screen meant retrying a failed attempt was a walk back out through the
+            // gate and in again every single time (#132 report). Back into the settlement
+            // instead, so a miss is just another click on the same button.
+            if(this.loc) Game.enterLocation(this.loc); else Game.showScreen('map');
             Quests.emit('chickens_caught', { won, score: this.score });
             if(won) alert(T`Son tavuğu ahırın arkasında kıstırdın. ${this.score}/${this.goal}.`);
             Game.updateTopBar();
             return;
         }
+        Game.showScreen('map');
 
         // Bet: the money was taken at entry, payout is based on the round you were eliminated in (#26)
         let betTxt = '';

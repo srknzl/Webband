@@ -2883,4 +2883,6 @@ I18N.dicts.id = {
   "Vaiz senin ve adamların için dua etti.<br><b>−25 dinar</b>, moral <b>+3</b>, şeref <b>+{0}</b>.": "Sang pendeta mendoakanmu dan anak buahmu.<br><b>−25 dinar</b>, moral <b>+3</b>, kehormatan <b>+{0}</b>.",
   "🚶 Yürü": "🚶 Jalan terus",
   "Duasını arkandan duydun ama durmadın.": "Kau mendengar doanya di belakangmu, tapi tak berhenti.",
+  "Görev tamam. Ödülü almak için <b>{0}</b>'le konuş — en son <b>{1}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.": "Tugas selesai. Bicaralah dengan <b>{0}</b> untuk mengambil hadiahmu — terakhir terlihat di <b>{1}</b>, tapi bisa diserahkan di mana pun kau bertemu dengannya.",
+  "✅ Görev tamam: {0} Ödülü almak için {1}'le konuş — en son {2}'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.": "✅ Tugas selesai: {0} Bicaralah dengan {1} untuk mengambil hadiahnya — terakhir terlihat di {2}, tapi bisa diserahkan di mana pun kau bertemu dengannya.",
 };
