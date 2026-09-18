@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.4 — İşaretli Çete (2026-09-18)
+
+- **"Zincirdeki Kardeş" ve iki kardeş görevi yine tek bir çeteyi hedefliyor, ama artık o çete
+  kaybolamıyor** — bir önceki düzeltme "herhangi bir çapulcu" saydırıyordu; bunun yerine görevin
+  hedeflediği çete artık haritada **altın bir halkayla** işaretli, yani hangi çete olduğunu
+  görebiliyorsun. Ayrıca o çete artık bir kervan baskınını kaybedip dağılarak yok olamıyor —
+  darbe yiyor ama ayakta kalıyor, görev bitene kadar.
+
 ## 1.28.3 — Eşit Şartlar (2026-09-18)
 
 - **Kovalayan lordun hızı artık kendi asker sayısına göre değişiyor** — sabit %15 yavaşlama

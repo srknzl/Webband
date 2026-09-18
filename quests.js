@@ -114,8 +114,13 @@ const QUESTS = {
         minRelation: 15,
         days: 25,
         reward: { money: 800, renown: 15, rel: 15 },
+        // The target band is locked for real (#132): `questLocks` marks it immune to
+        // banditTick's "routed one raid too many → disbanded" wipe (see banditTick in app.js)
+        // and draws a gold ring on the map so it reads as *the* gang, not just any bandit party.
+        // Released back to normal in Quests.complete()/fail() once this quest is off the books.
         setup(q, giver) {
             let b = state.npcParties.filter(n => n.type === 'bandit').sort((a, b) => b.size - a.size)[0];
+            if(b) b.questLocks = (b.questLocks || 0) + 1;
             q.data = { npcId: b ? b.id : null, npcName: b ? b.name : 'Çapulcular' };
         },
         offer(q) {
@@ -138,17 +143,7 @@ const QUESTS = {
             return near ? near.id : null;
         },
         on(q, ev, d) {
-            // Any bandit-gang win counts, not just the one exact party snapshotted at setup()
-            // (#132 report: "found the bandit gang but the quest didn't complete") — the
-            // tracked party can be wiped and silently replaced by a same-looking, different-id
-            // respawn (banditTick + bandRefillTick) before the player gets there, and nothing
-            // in the UI distinguishes "the" tracked gang from any other bandit party anyway.
-            // Looked up fresh here since Quests.emit() runs before the just-beaten party is
-            // removed from state.npcParties.
-            if(ev === 'battle_won') {
-                let beaten = state.npcParties.find(n => n.id === d.npcId);
-                if(beaten && beaten.type === 'bandit') return 'done';
-            }
+            if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done';
             if(ev === 'escaped_captivity' && d.npcId === q.data.npcId) {
                 q.bonus = true;
                 return 'done';
@@ -801,6 +796,7 @@ QUESTS.hostage_rescue = {
     setup(q) {
         let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0);
         let b = bands[Math.floor(Math.random() * bands.length)];
+        if(b) b.questLocks = (b.questLocks || 0) + 1;   // see brother_in_chains for the rationale
         q.data = { npcId: b ? b.id : null, npcName: b ? b.name : T('Çapulcular') };
     },
     offer(q) { return T`Ortağım son kervanla yola çıktı, geri dönmedi. Çapulcular kaçırmış olmalı.
@@ -813,15 +809,7 @@ QUESTS.hostage_rescue = {
         let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, b) - Game.dist(y, b))[0];
         return near ? near.id : null;
     },
-    // Any bandit-gang win counts, not just the exact party snapshotted at setup() (#132 —
-    // see brother_in_chains for the full rationale: the tracked party can be silently wiped
-    // and respawned with a new id before the player arrives, and nothing distinguishes it
-    // from any other bandit party in the UI anyway).
-    on(q, ev, d) {
-        if(ev !== 'battle_won') return;
-        let beaten = state.npcParties.find(n => n.id === d.npcId);
-        if(beaten && beaten.type === 'bandit') return 'done';
-    }
+    on(q, ev, d) { if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done'; }
 };
 
 QUESTS.relay_packages = {
@@ -951,6 +939,7 @@ QUESTS.rogue_company = {
     setup(q) {
         let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0);
         let b = bands[Math.floor(Math.random() * bands.length)];
+        if(b) b.questLocks = (b.questLocks || 0) + 1;   // see brother_in_chains for the rationale
         q.data = { npcId: b ? b.id : null, npcName: b ? b.name : T('Kaçak Birlik') };
     },
     offer(q) { return T`Bayrağımı taşıyan bir birlik firar etti, şimdi kendi hesabına yağma yapıyor.
@@ -963,15 +952,7 @@ QUESTS.rogue_company = {
         let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, b) - Game.dist(y, b))[0];
         return near ? near.id : null;
     },
-    // Any bandit-gang win counts, not just the exact party snapshotted at setup() (#132 —
-    // see brother_in_chains for the full rationale: the tracked party can be silently wiped
-    // and respawned with a new id before the player arrives, and nothing distinguishes it
-    // from any other bandit party in the UI anyway).
-    on(q, ev, d) {
-        if(ev !== 'battle_won') return;
-        let beaten = state.npcParties.find(n => n.id === d.npcId);
-        if(beaten && beaten.type === 'bandit') return 'done';
-    }
+    on(q, ev, d) { if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done'; }
 };
 
 QUESTS.shadow_dispatch = {
@@ -1478,8 +1459,21 @@ const Quests = {
         this.render();
     },
 
+    // A "find and defeat this exact bandit party" quest (brother_in_chains and its two siblings)
+    // marks its target `questLocks++` at setup — immune to banditTick's disband-on-loss and
+    // shown with a gold ring on the map, so it can't vanish out from under the quest and the
+    // player can actually tell it apart from any other bandit party (#132). Whatever happens to
+    // the quest, the lock has to come back off; harmless no-op for every other quest, which
+    // either has no `data.npcId` or points at something with no `questLocks` counter at all.
+    releaseQuestLock(q) {
+        if(!q.data || !q.data.npcId) return;
+        let b = state.npcParties.find(n => n.id === q.data.npcId);
+        if(b && b.questLocks) b.questLocks = Math.max(0, b.questLocks - 1);
+    },
+
     complete(q) {
         let def = QUESTS[q.id];
+        this.releaseQuestLock(q);
         // Waves summoned for this quest no longer have a quest to belong to, and since
         // they never flee they would follow the player for good (#94).
         state.npcParties = state.npcParties.filter(n => n.questWave !== q.id);
@@ -1508,6 +1502,7 @@ const Quests = {
 
     fail(q, why) {
         let def = QUESTS[q.id];
+        this.releaseQuestLock(q);
         state.npcParties = state.npcParties.filter(n => n.questWave !== q.id);   // see complete()
         let g = this.giver(q.giverId);
         state.player.quests = state.player.quests.filter(x => x !== q);

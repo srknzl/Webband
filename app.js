@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.28.3', date: '2026-09-18', name: 'Eşit Şartlar' };  // the version name is not translated
+const VERSION = { no: '1.28.4', date: '2026-09-18', name: 'İşaretli Çete' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1758,7 +1758,13 @@ const Game = {
             if(pw(t) * (t.trade.kind === 'caravan' ? 1.15 : 0.5) > pw(b)) {
                 b.size = Math.round(b.size * (0.5 + Math.random() * 0.3));
                 t.size = Math.max(2, Math.round(t.size * (0.75 + Math.random() * 0.2)));
-                if(b.size < 4) { b.size = 0; this.news(T`🛡️ ${this.npcName(t)}, ${T(b.name)} baskınını püskürttü.`); }
+                if(b.size < 4) {
+                    // A quest's tracked band survives a lost raid, just battered — it's the one
+                    // party a "find and defeat this exact gang" quest (#132) can't let vanish out
+                    // from under it. Everyone else disbands as before.
+                    if(b.questLocks) b.size = Math.max(1, b.size);
+                    else { b.size = 0; this.news(T`🛡️ ${this.npcName(t)}, ${T(b.name)} baskınını püskürttü.`); }
+                }
                 return;
             }
             b.cargo = b.cargo || [];
@@ -5909,6 +5915,19 @@ const Game = {
                 ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
                 ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(performance.now() / 260));
                 ctx.stroke(); ctx.globalAlpha = 1;
+            }
+
+            // A gold ring for the one party a "find and defeat this exact gang" quest is locked
+            // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
+            // marker on a settlement, so it reads as "this one, specifically" among identical-
+            // looking bandit parties instead of just another red silhouette.
+            if(npc.questLocks) {
+                ctx.beginPath();
+                ctx.ellipse(npc.x, npc.y + 22, 28, 11, 0, 0, Math.PI*2);
+                ctx.strokeStyle = '#e0b062'; ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(performance.now() / 400));
+                ctx.stroke(); ctx.globalAlpha = 1;
+                this.emoji(ctx, '📜', npc.x, npc.y - 26, 20 * this.iconScale());
             }
 
             // Bandits are on foot, nobles are mounted — the icon should make it obvious right away

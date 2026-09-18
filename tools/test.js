@@ -1478,37 +1478,49 @@ function questSuite() {
 }
 questSuite();
 
-// A "find and defeat the bandit gang" quest used to lock onto one exact bandit party's id at
-// setup() — but that party can be silently wiped and respawned with a new id (banditTick +
-// bandRefillTick) before the player gets there, or the player may reasonably fight a different
-// bandit party than the one live-tracked (#132 report: "found the bandit gang but the quest
-// didn't complete"). Completion now accepts any bandit-type win while the quest is active.
-test('quest: brother_in_chains completes on any bandit win, not just the one exact tracked id', () => {
+// A "find and defeat this exact bandit gang" quest (brother_in_chains and its two siblings)
+// keeps its narrative meaning — the tracked party stays a specific target (#132) — but it's
+// no longer allowed to just vanish out from under the quest: setup() marks it `questLocks++`,
+// which banditTick() must respect (a lost raid batters it instead of disbanding it), and
+// complete()/fail() must release the lock again once the quest is off the books either way.
+test('quest: a bandit gang locked by a quest survives a lost raid, and the lock releases after', () => {
     const gq2 = H.world({ seed: 7 });
     const { Quests, QUESTS, LORDS, Game, state } = gq2;
     state.player.quests = []; state.player.money = 0;
+    // brother_in_chains.setup() picks the *largest* current bandit party — clear the world's
+    // own generated ones so this test's own party is unambiguously the one tracked.
+    state.npcParties = state.npcParties.filter(n => n.type !== 'bandit');
     const b = Game.createNPC('Çapulcu Reisi', 'bandit', 6, '#8b0000');
     state.npcParties.push(b);
     const giver = LORDS.find(l => QUESTS.brother_in_chains.givers.includes(l.personality));
     const q = Quests.make('brother_in_chains', giver.id);
     state.player.quests.push(q);
-    assert.notStrictEqual(q.data.npcId, null, 'setup should have tracked a bandit party');
+    assert.strictEqual(q.data.npcId, b.id, 'setup should have tracked this exact bandit party');
+    assert.strictEqual(b.questLocks, 1, 'the tracked party should be locked once');
 
-    // A battle won against a *different* bandit party (stale/respawned id, or simply a
-    // different gang the player ran into) should still finish the quest.
+    // Still the exact match it always was — a win against some other bandit party doesn't count.
     const other = Game.createNPC('Başka Çete', 'bandit', 5, '#888');
     state.npcParties.push(other);
-    assert.notStrictEqual(other.id, q.data.npcId, 'test setup needs two distinct bandit ids');
     Quests.emit('battle_won', { npcId: other.id });
-    assert.strictEqual(q.state, 'awaiting',
-        'a win against a different bandit party should have completed the objective');
+    assert.strictEqual(q.state, 'active', 'a different bandit party should not complete the quest');
 
-    // A win against a non-bandit party must NOT complete it — the fix isn't over-broad.
-    state.player.quests = [q]; q.state = 'active';
-    const lordNpc = Game.createNPC('Bir Lord', 'lord', 10, '#333');
-    state.npcParties.push(lordNpc);
-    Quests.emit('battle_won', { npcId: lordNpc.id });
-    assert.strictEqual(q.state, 'active', 'a non-bandit win should not complete a bandit-gang quest');
+    // A raid loss that would normally disband a small band (banditTick, size < 4 -> 0 and
+    // removed) instead just batters a locked one down to a floor of 1 — it survives.
+    b.size = 3;
+    const caravan = Game.createNPC('Kervan', 'caravan', 50, '#4a7');
+    caravan.trade = { kind: 'caravan' };
+    caravan.x = b.x; caravan.y = b.y;
+    state.npcParties.push(caravan);
+    Game.banditTick();
+    assert.ok(state.npcParties.includes(b) && b.size > 0,
+        'a quest-locked bandit party should not be wiped out by a lost raid');
+
+    // Completing the quest releases the lock — the band goes back to being an ordinary,
+    // vulnerable bandit party once the quest is done.
+    Quests.emit('battle_won', { npcId: b.id });
+    assert.strictEqual(q.state, 'awaiting', 'the exact tracked party should still complete the quest');
+    Quests.complete(q);
+    assert.strictEqual(b.questLocks, 0, 'the lock should be released once the quest is complete');
 });
 
 test('wait: world parties receive the same fourfold camping acceleration as the clock', () => {
