@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.3 — Eşit Şartlar (2026-09-18)
+
+- **Kovalayan lordun hızı artık kendi asker sayısına göre değişiyor** — sabit %15 yavaşlama
+  yerine, lord da tıpkı senin gibi kendi parti büyüklüğünün kuralına tabi: küçük, toparlanmakta
+  olan bir müfreze hızlı kovalıyor, büyük bir ordu ağır kalıyor. İki taraf da aynı kuralla
+  oynuyor.
+- **"Zincirdeki Kardeş", "Rehin Tüccar" ve "Kaçak Birlik" görevleri artık takılıp kalmıyor** —
+  bu görevler tek bir çapulcu çetesinin kimliğini görevi aldığın anda kilitliyordu; o çete
+  sen oraya varmadan başka biri tarafından dağıtılıp aynı inden yeni bir kimlikle yeniden
+  doğabiliyordu, ya da haritada gördüğün başka bir çeteyle karıştırılabiliyordu. Artık görev
+  süresince yenilen **herhangi bir** çapulcu çetesi görevi tamamlıyor.
+
 ## 1.28.2 — Takip (2026-09-18)
 
 - **Kampta hâlâ sizi hiç fark etmemiş lordların üşüşmesi düzeltildi** — bir önceki düzeltme

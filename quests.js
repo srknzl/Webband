@@ -138,7 +138,17 @@ const QUESTS = {
             return near ? near.id : null;
         },
         on(q, ev, d) {
-            if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done';
+            // Any bandit-gang win counts, not just the one exact party snapshotted at setup()
+            // (#132 report: "found the bandit gang but the quest didn't complete") — the
+            // tracked party can be wiped and silently replaced by a same-looking, different-id
+            // respawn (banditTick + bandRefillTick) before the player gets there, and nothing
+            // in the UI distinguishes "the" tracked gang from any other bandit party anyway.
+            // Looked up fresh here since Quests.emit() runs before the just-beaten party is
+            // removed from state.npcParties.
+            if(ev === 'battle_won') {
+                let beaten = state.npcParties.find(n => n.id === d.npcId);
+                if(beaten && beaten.type === 'bandit') return 'done';
+            }
             if(ev === 'escaped_captivity' && d.npcId === q.data.npcId) {
                 q.bonus = true;
                 return 'done';
@@ -803,7 +813,15 @@ QUESTS.hostage_rescue = {
         let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, b) - Game.dist(y, b))[0];
         return near ? near.id : null;
     },
-    on(q, ev, d) { if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done'; }
+    // Any bandit-gang win counts, not just the exact party snapshotted at setup() (#132 —
+    // see brother_in_chains for the full rationale: the tracked party can be silently wiped
+    // and respawned with a new id before the player arrives, and nothing distinguishes it
+    // from any other bandit party in the UI anyway).
+    on(q, ev, d) {
+        if(ev !== 'battle_won') return;
+        let beaten = state.npcParties.find(n => n.id === d.npcId);
+        if(beaten && beaten.type === 'bandit') return 'done';
+    }
 };
 
 QUESTS.relay_packages = {
@@ -945,7 +963,15 @@ QUESTS.rogue_company = {
         let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, b) - Game.dist(y, b))[0];
         return near ? near.id : null;
     },
-    on(q, ev, d) { if(ev === 'battle_won' && d.npcId === q.data.npcId) return 'done'; }
+    // Any bandit-gang win counts, not just the exact party snapshotted at setup() (#132 —
+    // see brother_in_chains for the full rationale: the tracked party can be silently wiped
+    // and respawned with a new id before the player arrives, and nothing distinguishes it
+    // from any other bandit party in the UI anyway).
+    on(q, ev, d) {
+        if(ev !== 'battle_won') return;
+        let beaten = state.npcParties.find(n => n.id === d.npcId);
+        if(beaten && beaten.type === 'bandit') return 'done';
+    }
 };
 
 QUESTS.shadow_dispatch = {

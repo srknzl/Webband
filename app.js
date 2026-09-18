@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.28.2', date: '2026-09-18', name: 'Takip' };  // the version name is not translated
+const VERSION = { no: '1.28.3', date: '2026-09-18', name: 'Eşit Şartlar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2687,14 +2687,19 @@ const Game = {
         return 0;
     },
 
+    // A small party moves nimbly, a large army moves heavily. Shared between the player's own
+    // overworld speed and a pursuing lord's (#132) — same rule on both sides of a chase: solo
+    // +50%, degrading to +20% at size 10, to 0% at size 20, then −1%/person down to a −45% floor.
+    partySizeSpeedBonus(size) {
+        if(size <= 1) return 0.5;
+        if(size <= 10) return 0.5 - ((size - 1) / 9) * 0.3;
+        if(size <= 20) return 0.2 - ((size - 10) / 10) * 0.2;
+        return -Math.min(0.45, (size - 20) * 0.01);
+    },
+
     getPlayerSpeed() {
-        // A small party moves nimbly, a large army moves heavily (mounted ratio softens the penalty)
         let size = state.player.party.length + 1;
-        let speedBonus = 0;
-        if(size <= 1) speedBonus = 0.5;
-        else if(size <= 10) speedBonus = 0.5 - ((size - 1) / 9) * 0.3;
-        else if(size <= 20) speedBonus = 0.2 - ((size - 10) / 10) * 0.2;
-        else speedBonus = -Math.min(0.45, (size - 20) * 0.01);
+        let speedBonus = this.partySizeSpeedBonus(size);
 
         // The mounted/foot difference comes from a single place (#72). Two multipliers used to
         // stack: a 105/66 base (=1.59×) plus an additional +0.35 from the mounted ratio — in a
@@ -3493,16 +3498,19 @@ const Game = {
             let dx = npc.targetX - npc.x, dy = npc.targetY - npc.y;
             let d = Math.sqrt(dx*dx+dy*dy);
             if(d > 3) {
-                // A lord's fixed 84 (#132) beats a decently-sized foot army's own formula
-                // (66 base, no penalty below 0 until party 20, then down to a −45% floor) well
-                // before the army gets large — a 20-strong unmounted party is already down to
-                // ~80, so any war meant an unwinnable footrace the moment a hostile lord noticed
-                // you, with no way to actually shake the chase (report: "getting caught a lot").
-                // Only while actively closing on the player specifically (not patrolling, not
-                // marching to a campaign target) a lord's party rides a shade more cautiously —
-                // raid-response and campaign-march speed (both documented/measured elsewhere)
-                // are untouched.
-                let pursuitMult = (npc.lordId && npc.playerTargetId === 'player') ? 0.85 : 1;
+                // A lord's fixed 84 (#132) beat a decently-sized foot army's own formula well
+                // before the army got large, so any war meant an unwinnable footrace the moment a
+                // hostile lord noticed you (report: "getting caught a lot"). A flat 0.85× fixed
+                // that but favored either side arbitrarily depending on force sizes; pursuit now
+                // shares the exact same party-size curve the player's own speed uses
+                // (`partySizeSpeedBonus`), applied to the lord's own `npc.size` — a small pursuing
+                // band (e.g. a lord freshly regrouping after a loss) closes in quickly, a big army
+                // chases heavily, symmetric with how the player already experiences their own
+                // party size. Only while actively closing on the player specifically (not
+                // patrolling, not marching to a campaign target) — raid-response and
+                // campaign-march speed (both documented/measured elsewhere) are untouched.
+                let pursuitMult = (npc.lordId && npc.playerTargetId === 'player')
+                    ? 1 + this.partySizeSpeedBonus(npc.size) : 1;
                 let spd = npc.speed * this.getTerrainMultiplier(npc.x, npc.y) * burst * pursuitMult;
                 let r = Math.min(spd * dt / d, 1);
                 npc.x += dx*r; npc.y += dy*r;

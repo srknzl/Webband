@@ -440,6 +440,13 @@ Base is **66**, same while mounted. **Party bonus**: solo +50%, +20% at 10 peopl
 −1% per person after that (floor −45%) — a crowded army marches heavier. Mounted ratio =
 (cavalry count + 1 if you have a horse) / party size.
 
+**Shared with pursuit (#132)**: `Game.partySizeSpeedBonus(size)` is the party-bonus curve above
+pulled out on its own; `updateNPCs()` reuses it for a lord's own `npc.size` while it's actively
+pursuing the player specifically (not patrolling, not marching to a campaign target, not
+responding to a raid) — a small regrouping band chases quickly, a big army chases heavily, the
+same rule the player's own party already lives by, so a chase doesn't arbitrarily favor either
+side.
+
 **The mounted/foot difference is capped at exactly 1.5× (#72)**, so being mounted is a
 *multiplier*, not an addend. It used to be two multipliers stacked on top of each other — a
 base 105/66 (=1.59×) **plus** an additive `mounted ratio×0.35` on top. Being additive didn't

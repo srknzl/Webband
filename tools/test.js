@@ -366,6 +366,40 @@ test('speed: mounted/foot gap is capped at 1.5× at every party size', () => {
     state.player.equipment.horse = null;
 });
 
+// A pursuing lord's speed now shares the player's own party-size curve (#132) — a small
+// regrouping band chases quickly, a big army chases heavily, on both sides of a chase alike.
+test('speed: a pursuing lord slows by the same party-size curve the player uses', () => {
+    assert.ok(Game.partySizeSpeedBonus(5) > Game.partySizeSpeedBonus(32),
+        'a small party should be faster than a "flat lord"-sized one');
+    assert.ok(Game.partySizeSpeedBonus(32) > Game.partySizeSpeedBonus(99),
+        'a "flat lord"-sized party should be faster than a big king-sized one');
+    assert.ok(Math.abs(Game.partySizeSpeedBonus(32) - (-0.12)) < 0.001, 'size 32 should sit at -12%');
+    assert.ok(Math.abs(Game.partySizeSpeedBonus(99) - (-0.45)) < 0.001, 'size 99 should floor at -45%');
+});
+
+test('speed: a pursuing lord\'s party size actually changes how fast it closes the gap', () => {
+    const g2 = H.world({ seed: 41 });
+    const { Game: G, state: st } = g2;
+    st.player.party = [];
+    G.declareWar(G.playerFaction(), Object.keys(g2.FACTIONS).find(f => f !== 'player_kingdom'));
+    const foeFaction = Object.keys(g2.FACTIONS).find(f => f !== 'player_kingdom' && G.atWar(G.playerFaction(), f));
+
+    const closingDist = (size) => {
+        const npc = G.createNPC('Test Lordu', 'lord', size, '#800', foeFaction);
+        npc.lordId = 'test_lord';
+        npc.x = st.player.x + 200; npc.y = st.player.y;
+        npc.targetX = npc.x; npc.targetY = npc.y;
+        st.npcParties = [npc];
+        const before = G.dist(npc, st.player);
+        G.updateNPCs(1);
+        assert.strictEqual(npc.playerTargetId, 'player', 'the lord should have locked onto the player to begin with');
+        return before - G.dist(npc, st.player);
+    };
+    const smallClosed = closingDist(5), bigClosed = closingDist(99);
+    assert.ok(smallClosed > bigClosed,
+        `a small pursuing lord (closed ${smallClosed.toFixed(1)}) should gain ground faster than a huge one (closed ${bigClosed.toFixed(1)})`);
+});
+
 // --- Foot crowd slow (#23) ---
 test('speed: nearby foot NPCs stack a capped slowdown, riders ignored', () => {
     const save = state.npcParties;
@@ -1443,6 +1477,39 @@ function questSuite() {
     });
 }
 questSuite();
+
+// A "find and defeat the bandit gang" quest used to lock onto one exact bandit party's id at
+// setup() — but that party can be silently wiped and respawned with a new id (banditTick +
+// bandRefillTick) before the player gets there, or the player may reasonably fight a different
+// bandit party than the one live-tracked (#132 report: "found the bandit gang but the quest
+// didn't complete"). Completion now accepts any bandit-type win while the quest is active.
+test('quest: brother_in_chains completes on any bandit win, not just the one exact tracked id', () => {
+    const gq2 = H.world({ seed: 7 });
+    const { Quests, QUESTS, LORDS, Game, state } = gq2;
+    state.player.quests = []; state.player.money = 0;
+    const b = Game.createNPC('Çapulcu Reisi', 'bandit', 6, '#8b0000');
+    state.npcParties.push(b);
+    const giver = LORDS.find(l => QUESTS.brother_in_chains.givers.includes(l.personality));
+    const q = Quests.make('brother_in_chains', giver.id);
+    state.player.quests.push(q);
+    assert.notStrictEqual(q.data.npcId, null, 'setup should have tracked a bandit party');
+
+    // A battle won against a *different* bandit party (stale/respawned id, or simply a
+    // different gang the player ran into) should still finish the quest.
+    const other = Game.createNPC('Başka Çete', 'bandit', 5, '#888');
+    state.npcParties.push(other);
+    assert.notStrictEqual(other.id, q.data.npcId, 'test setup needs two distinct bandit ids');
+    Quests.emit('battle_won', { npcId: other.id });
+    assert.strictEqual(q.state, 'awaiting',
+        'a win against a different bandit party should have completed the objective');
+
+    // A win against a non-bandit party must NOT complete it — the fix isn't over-broad.
+    state.player.quests = [q]; q.state = 'active';
+    const lordNpc = Game.createNPC('Bir Lord', 'lord', 10, '#333');
+    state.npcParties.push(lordNpc);
+    Quests.emit('battle_won', { npcId: lordNpc.id });
+    assert.strictEqual(q.state, 'active', 'a non-bandit win should not complete a bandit-gang quest');
+});
 
 test('wait: world parties receive the same fourfold camping acceleration as the clock', () => {
     const g = H.world({ seed: 33 });
