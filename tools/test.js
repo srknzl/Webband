@@ -2212,7 +2212,11 @@ test('gate 500: the envoy leaves the party, comes back, and only one rides at a 
 // The target picked here is the enemy holding farthest from the kingdom's own lords.
 test('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords', () => {
     let lords = 0, reached = 0, seeds = 0;
-    for(const seed of [1, 3, 4, 5]) {
+    // A wider seed sample (#132) — a fixed 4-seed list is brittle against any change that
+    // shifts the shared RNG stream earlier in the run (e.g. the day/road event pools growing),
+    // even when that change has nothing to do with marshals or campaigns. 16 seeds at the same
+    // ~75% pass ratio absorbs that kind of drift without hiding a real regression.
+    for(const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
         const g = H.world({ seed });
         const { Game, state, LOCATIONS, LORDS } = g;
         H.run(g, 20);
@@ -2246,7 +2250,7 @@ test('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords',
         }
         reached += seen.size;
     }
-    assert.ok(seeds >= 3, `only ${seeds} seeds produced a campaign to lead`);
+    assert.ok(seeds >= 12, `only ${seeds} seeds produced a campaign to lead`);
     assert.ok(reached / lords >= 0.5,
         `the marshal's target pulled only ${reached}/${lords} lords in 20 days — the post is decorative`);
 });

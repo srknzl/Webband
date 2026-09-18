@@ -3,6 +3,19 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.27.0 — Yol Hikâyeleri (2026-09-18)
+
+- **25 yeni rastgele olay eklendi** — 11 yeni günlük kamp olayı (kargalar, kırılan tekerlek,
+  kumar borcu, kâbus, kavga, bozuk su, fareler, hasat şenliği, hikâye anlatıcısı, cevher
+  bulgusu, gezgin zanaatkâr) ve 14 yeni yol olayı (toprak kayması, yangın, geyik sürüsü, arı
+  kovanı, sirk, ozan, kara kedi, kayan yıldız, kaçak, rakip bir bölük, kervan kılavuzu, bilge
+  bir ermiş, kayıp çocuk, gezgin vaiz). Toplamda günlük olay havuzu 24'e, yol olayı havuzu
+  34'e çıktı.
+- **Olay sıklığı ölçüldü, değiştirilmedi** — plana göre olayların "günde birden fazla" olduğu
+  varsayılmıştı; gerçek ölçüm (`tools/harness.js` ile 5 tohum × 40 gün) günde birleşik
+  **0.35–0.65** olay gösterdi, yani zaten günde birin altında. Sıklık sabitleri bu yüzden
+  değiştirilmedi — ölçüm `docs/SYSTEMS.md`'de kayıtlı.
+
 ## 1.26.2 — Denge (2026-09-18)
 
 - **Boss'ların alan saldırısı artık her askeri tek vuruşta öldürmüyor** — hasar çarpanları

@@ -2222,7 +2222,7 @@ of every day (at the very bottom of `dailyUpdate`, after the day's accounting is
 `EVENT_CHANCE` **0.35**. If an event fires, it's told as a modal and its mechanical result is
 written in a line.
 
-- The pool is `Game.DAY_EVENTS` (13 events, 8 negative / 5 positive). Every event has a
+- The pool is `Game.DAY_EVENTS` (24 events, 15 negative / 9 positive, #132). Every event has a
   `when(ctx)` filter — `ctx` = party headcount, **the nearest settlement within 900 units**,
   total food, morale. So "drunk soldier" only appears near a settlement, "lost a horseshoe"
   only while mounted, "a village woman left cheese" only right by a village.
@@ -2238,7 +2238,21 @@ written in a line.
 - Helpers: `Game.addMorale/addItem/takeFood`; no event fires during captivity or a siege camp.
 
 Measured (400 days, a roaming and growing 6-person party): **156 events — one every 2.6 days**,
-60% negative, 12 of 13 events appeared (the horseshoe event needs a horse).
+60% negative, 12 of 13 events appeared (the horseshoe event needs a horse) — this run predates
+the 11 events added in #132; the rate is set by `EVENT_CHANCE` alone and doesn't move when the
+pool grows, only the variety does.
+
+**Frequency re-check (#132)**: the original Phase 7 plan assumed the combined day+road rate was
+already "considerably more than once a day" and asked to retune it down toward ~1/day. Measured
+directly instead of assumed — `tools/harness.js`, 5 seeds × 40 days, `Game.dailyEvent()` and
+`Game.roadEvent()` both counted, `Game.roadTick()` fed a synthetic distance to stand in for
+actual travel (since the playerless harness never moves the map cursor): day-event rate lands
+at **0.35–0.38/day** regardless of travel (matches `EVENT_CHANCE` exactly, as expected), and
+road events add **0.10/day** at a modest 4h/day of travel up to **0.28/day** even at a generous
+12h/day of nonstop travel. Combined, the measured rate tops out around **0.6–0.65/day** —
+*under* one event per day even for an unusually road-heavy player, not over it. The plan's
+premise didn't hold up against measurement, so `EVENT_CHANCE`/`ROAD_CHANCE`/`ROAD_EVERY` were
+left unchanged rather than pushed down from an already-under-target baseline.
 
 ### Who may stop you (#131, first half in 1.10)
 
@@ -2273,9 +2287,9 @@ hostile, so that clause was the only thing letting one through, and it let *ever
 Removing it costs no interaction: trade was already reachable by clicking, on the other path.
 
 ### Road events — encounters with a decision (#67)
-The day's event just *happens to* you; a road event **asks** you. `Game.ROAD_EVENTS` has 20
-events, each with 2–3 options, and every option has a real cost: money, hours, morale, honor,
-a troop getting wounded, or a straight battle.
+The day's event just *happens to* you; a road event **asks** you. `Game.ROAD_EVENTS` has 34
+events (#132), each with 2–3 options, and every option has a real cost: money, hours, morale,
+honor, a troop getting wounded, or a straight battle.
 
 - **The die depends on distance, not the day.** `Game.roadTick(step)` accumulates distance
   walked every frame inside the movement branch; every `ROAD_EVERY` **1200** units it rolls
