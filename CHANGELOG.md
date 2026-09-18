@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.2 — Takip (2026-09-18)
+
+- **Kampta hâlâ sizi hiç fark etmemiş lordların üşüşmesi düzeltildi** — bir önceki düzeltme
+  sadece yeni bir "fark etme" anını engelliyordu; haritanın herhangi bir yerindeki (sizi hiç
+  görmemiş) her düşman lord, kampınız sürdükçe hâlâ çadırınıza doğru yürüyüp güvenlik
+  çemberinin dışında bekliyordu. Artık yalnızca zaten sizi takip eden ya da kan davası güden
+  lordlar çemberde bekliyor; savaştaki diğer bütün lordlar kendi işine bakıyor.
+- **Savaşta lordlardan kaçmak artık gerçekten mümkün** — bir lord peşinize düştüğünde sabit
+  84 hızla geliyordu; orta-büyük, atsız bir ordu (~20 asker ve üstü) bundan daha yavaştı,
+  yani bir kez fark edildiniz mi kaçış imkânsızdı (rapor: "kovalamacada çok yakalanıyorum").
+  Artık bir lord sizi doğrudan kovalarken biraz daha temkinli/yavaş ilerliyor — sefer
+  yürüyüşü ve baskın tepkisi hızları (başka yerlerde ölçülmüş) değişmedi, sadece asıl
+  kovalama.
+
 ## 1.28.1 — Görev Teslimi (2026-09-18)
 
 - **Görev ödülünü almak için lordu bulmak artık kolay** — bir görevi bitirdiğinde oyun seni

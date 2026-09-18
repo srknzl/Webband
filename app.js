@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.28.1', date: '2026-09-18', name: 'Görev Teslimi' };  // the version name is not translated
+const VERSION = { no: '1.28.2', date: '2026-09-18', name: 'Takip' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3470,7 +3470,19 @@ const Game = {
             // A camp is a protected time-skip, not a way to let a pursuer overlap the
             // player and trigger on the first frame after waking. Hostile parties can keep
             // moving on the campaign map, but hold outside the camp's safety perimeter.
-            if(this.campProtected() && hostile) {
+            // This used to fire for every `hostile` npc, full stop — and `hostile` just means
+            // "at war / grudge / hated", not "aware of you": during a war, EVERY enemy lord on
+            // the whole map counts, so camping quietly pulled all of them toward your tent
+            // regardless of distance, and you'd surface surrounded by lords who never actually
+            // noticed you (#132 report: "getting caught a lot" right after camping — the
+            // perimeter itself never let anyone through, but by the time you broke camp a dozen
+            // strangers had queued up at its edge). Held to the same `dp < sense` reach as a
+            // normal notice above (not `playerTargetId`, which the new-pursuit suppression right
+            // above this can leave unset on the very tick a genuinely nearby party first closes
+            // in) — plus an active blood-feud hunt (`hunting`), which has no distance gate of its
+            // own by design. Anyone outside both stays on its own business instead of being
+            // magnetized in from across the map.
+            if(this.campProtected() && hostile && (dp < sense || npc.hunting === 'player')) {
                 let awayX = npc.x - state.player.x, awayY = npc.y - state.player.y;
                 let away = Math.hypot(awayX, awayY) || 1;
                 npc.targetX = state.player.x + awayX / away * this.CAMP_SAFE_RADIUS;
@@ -3481,7 +3493,17 @@ const Game = {
             let dx = npc.targetX - npc.x, dy = npc.targetY - npc.y;
             let d = Math.sqrt(dx*dx+dy*dy);
             if(d > 3) {
-                let spd = npc.speed * this.getTerrainMultiplier(npc.x, npc.y) * burst;
+                // A lord's fixed 84 (#132) beats a decently-sized foot army's own formula
+                // (66 base, no penalty below 0 until party 20, then down to a −45% floor) well
+                // before the army gets large — a 20-strong unmounted party is already down to
+                // ~80, so any war meant an unwinnable footrace the moment a hostile lord noticed
+                // you, with no way to actually shake the chase (report: "getting caught a lot").
+                // Only while actively closing on the player specifically (not patrolling, not
+                // marching to a campaign target) a lord's party rides a shade more cautiously —
+                // raid-response and campaign-march speed (both documented/measured elsewhere)
+                // are untouched.
+                let pursuitMult = (npc.lordId && npc.playerTargetId === 'player') ? 0.85 : 1;
+                let spd = npc.speed * this.getTerrainMultiplier(npc.x, npc.y) * burst * pursuitMult;
                 let r = Math.min(spd * dt / d, 1);
                 npc.x += dx*r; npc.y += dy*r;
             }
