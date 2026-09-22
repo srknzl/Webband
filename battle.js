@@ -313,7 +313,8 @@ const Battle = {
 
         // Troop kills/XP/casualties are watched from a single log this battle, read back
         // in endBattle() for the detail tab (#120).
-        this._battleLog = { deaths: [], xpGain: {}, xpStart: {} };
+        this._battleLog = { deaths: [], xpGain: {}, xpStart: {}, playerKills: 0 };
+        this._odds = { foes: enemyCount, own: state.player.party.filter(p => !p.wounded).length + 1 };   // #127
         state.player.party.forEach(p => { this._battleLog.xpStart[p.id] = { level: p.level, name: p.name }; });
 
         // Troops (Player's party) — the wounded don't join the battle, they heal in camp
@@ -2550,6 +2551,7 @@ const Battle = {
             isPlayerTeam: !!victim.isPlayerTeam, type: victim.type || 'infantry', level: victim.level || 1,
             killerName: killer ? (killer.name || (killer.isPlayerTeam ? T('Dost Asker') : T('Çapulcu'))) : T('Bilinmeyen')
         });
+        if(killer && killer.id === 'player' && !victim.isPlayerTeam && this._battleLog) this._battleLog.playerKills++;
         if(victim.id === 'player') {
             this.knockedOut = true;
             this.log(T('<span style="color:#ff4444"><b>Yere yığıldın!</b> Adamların savaşa devam ediyor…</span>'), 'right');
@@ -2840,7 +2842,7 @@ const Battle = {
         let surgery = (state.player.proficiencies.surgery || { level: 1 }).level;
         // Skill tree #110: Medic perks raise wounded-survival odds
         let saveChance = Math.min(0.95, 0.35 + surgery * 0.03 + Game.perkMod('healChance') / 100);
-        let saved = 0, killed = 0;
+        let saved = 0, killed = 0, bySurgery = 0;
         state.player.party.forEach(t => {
             let u = this.units.find(x => x.id === t.id);
             if(!u || u.hp > 0) return;
@@ -2848,11 +2850,15 @@ const Battle = {
             if(t.isCompanion || Math.random() < saveChance) {
                 t.wounded = Math.max(1, 3 + Math.floor(Math.random()*2) - Math.floor(surgery / 4));
                 saved++;
+                if(!t.isCompanion) bySurgery++;
             } else { t._dead = true; killed++; }
         });
         state.player.party = state.player.party.filter(t => !t._dead);
         if(saved) Game.addProficiencyXp('surgery', 30 * saved);
         this.lastCasualties = { saved, killed };
+        let log = this._battleLog || { deaths: [], playerKills: 0 }, odds = this._odds || { foes: 0, own: 1 };
+        Game.careerBattle({ won, kills: log.playerKills || 0, slain: log.deaths.filter(d => !d.isPlayerTeam).length,
+                            foes: odds.foes, own: odds.own, killed, surgery: bySurgery });
 
         // Some of the fallen enemies don't die, they're taken prisoner (Warband's captive system).
         // Capacity depends on the Prisoner Management skill; nobody is captured in a boss fight.

@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.31.1 — Elli Başarım (2026-09-22)
+
+- **19 yeni başarım, toplam 50** — savaş (İlk Kan, Kasap, Sağ Kalan, Sayı Üstünlüğü Efsanedir,
+  Üç Katı, Kusursuz, Cerrah), ordu (Eğitmen, Kadro), ticaret ve para (Kazık Yemez, Kazıklandın,
+  Beş Parasız), esirler (Köle Tüccarı, Merhametli), keşif ve hayatta kalma (Kuleci, Haritacı,
+  Kış Çocuğu, Doludan Kaçan) ve arena (Arena Kralı). Ödülleri diğerleri gibi kademesine göre
+  (bronz 200, gümüş 650, altın 2000 dinar + 20 nam).
+
 ## 1.31.0 — Dolu ve Kış (2026-09-22)
 
 - **Dolu artık sıradan bir olay değil** — gökten taş yağar gibi iri dolu iniyor, adamlar

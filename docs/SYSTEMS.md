@@ -3262,14 +3262,22 @@ open-goal list changes on every completion (`band` → `champion`/`friend` → `
 
 ### Achievements (#127, rewards in #132)
 
-30 one-time milestones (`Game.ACHIEVEMENTS`, 10 categories × bronze/silver/gold), swept daily and
-on the Quests tab (`Game.checkAchievements`, state-based `cond()` like `AMBITIONS`, no event
-wiring per site). Used to pay nothing but a toast — now each tier is a one-time reward
+**50** one-time milestones (`ACHIEVEMENTS`; 31 until the top-up to the issue's 50), swept daily
+and on the Quests tab (`Game.checkAchievements`, state-based `cond()` like `AMBITIONS`). What
+state can't show later is tallied into `state.career` at its one choke point — `Game.tally(k, n)`
+(which also checks at once) or `Game.careerBattle(r)` from `Battle.endBattle`'s real-battle path:
+own kills (`logKill` with the `'player'` unit), enemies slain, battles, best winning odds
+(enemy count ÷ your fielded party + you), a 20+ win with no dead, surgery saves in one battle;
+plus elite promotions, prisoners sold/freed, the peddler caught/fooled, tower climbs, settlements
+visited, arena run (its own counter — the purse series resets at five), a warm winter, a hail
+walked without a death. "Ten different towers" became ten climbs: the map holds three and they
+renew. `tools/test.js` drives each of the 19 new ones through its real hook. The 19 add, if all
+earned, ≈ **18,650₺ + 120 renown** over a campaign (4 bronze, 9 silver, 6 gold). Used to pay nothing but a toast — now each tier is a one-time reward
 (`ACH_TIERS`): bronze 200₺, silver 650₺, gold 2000₺ + 20 renown. Deliberately **not** a permanent
 stat bonus stacking on top of the relic system (`RELICS` already owns "small permanent bonus");
 an achievement pays once and is done. A gold achievement's own name doubles as a cosmetic title
 (`Game.titlesHtml`) shown under the player's name on the character screen — no stat, just a row
-of pills for the ones you've earned. `Game.showAchievements()` (🏆 in "⋯ Daha") lists all 30,
+of pills for the ones you've earned. `Game.showAchievements()` (🏆 in "⋯ Daha") lists all 50,
 locked ones greyed with a 🔒, each showing its reward so the still-open ones stay motivating
 rather than mysterious.
 

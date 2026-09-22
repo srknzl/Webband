@@ -1691,6 +1691,80 @@ test('quests: a finished job says so everywhere the player looks for it (#106)',
     assert.ok(!Quests.awaiting(), 'the quest still reads as waiting after the hand-in');
 });
 
+test('achievements: fifty of them, each new one reachable through its own hook (#127)', () => {
+    const g = H.world({ seed: 12 });
+    const { Game, Battle, state, ITEMS, LOCATIONS, ACHIEVEMENTS } = g;
+    assert.strictEqual(ACHIEVEMENTS.length, 50, 'the list is not fifty long');
+    assert.strictEqual(new Set(ACHIEVEMENTS.map(a => a.id)).size, 50, 'two achievements share an id');
+    const got = id => { Game.checkAchievements(); return !!state.achievements[id]; };
+    const troops = (n, name) => Array.from({ length: n }, (_, i) => ({ id: name[0] + i, name, level: 1, xp: 0, xpNext: 8 }));
+
+    // A real fought battle: 25 foes against ten and you, every one on the field felled by your hand.
+    state.player.party = troops(10, 'Svadya Milisi');
+    Battle.start('Çapulcular', 25);
+    const me = Battle.units.find(u => u.id === 'player');
+    Battle.units.filter(u => !u.isPlayerTeam).forEach(u => { u.hp = 0; Battle.logKill(u, me); });
+    Battle.active = false;
+    Battle.endBattle(true);
+    ['first_blood', 'odds_2', 'flawless'].forEach(id => assert.ok(got(id), `${id} did not unlock from a real battle`));
+    assert.ok(!got('odds_3'), 'odds of 25 to 11 counted as threefold');
+    // The rest of the battle ones through the same summary endBattle hands over.
+    Game.careerBattle({ won: true, kills: 0, slain: 1000, foes: 33, own: 11, killed: 1, surgery: 5 });
+    ['odds_3', 'butcher', 'surgeon'].forEach(id => assert.ok(got(id), `${id} did not unlock`));
+    while(state.career.battles < 50) Game.careerBattle({ won: false, kills: 0, slain: 0, foes: 5, own: 5, killed: 0, surgery: 0 });
+    assert.ok(got('survivor'), 'survivor did not unlock at 50 battles');
+
+    // Promotion to the top of a tree, then ten of them at once.
+    state.player.party = troops(1, 'Svadya Milisi'); state.player.party[0].xp = 8; state.player.money = 5000;
+    Game.promoteTroop('Svadya Milisi', 'Svadya Çavuşu', 100);
+    assert.ok(got('drillmaster'), 'promoting to the top rank did not count');
+    assert.ok(!got('elite_10'), 'one elite counted as ten');
+    state.player.party = troops(10, 'Svadya Çavuşu');
+    assert.ok(got('elite_10'), 'ten elite troops did not count');
+
+    // The peddler, both ways.
+    const peddler = Game.ROAD_EVENTS.find(e => e.id === 'peddler');
+    const deal = (scam, detect) => Object.assign(Game.eventCtx(), { _peddler: { scam, detect, price: 300 } });
+    peddler.choices[1].run(deal(true, true));
+    peddler.choices[0].run(deal(true, false));
+    ['scam_caught', 'scammed'].forEach(id => assert.ok(got(id), `${id} did not unlock`));
+
+    state.player.money = 0; state.player.wageDebt = 5;
+    assert.ok(got('broke'), 'an empty purse with wage debt did not count');
+    state.player.money = 5000; state.player.wageDebt = 0;
+
+    // Prisoners: sold and set free through the party-screen actions.
+    const captives = (n, name) => Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name, level: 1 }));
+    state.player.prisoners = captives(200, 'Çapulcu');
+    Game.sellPrisoners();
+    state.player.prisoners = captives(50, 'Haydut');
+    Game.releasePrisoners('Haydut');
+    ['slaver', 'merciful'].forEach(id => assert.ok(got(id), `${id} did not unlock`));
+
+    // Towers: ten climbs (the map only has three, and they renew).
+    const tower = state.sites.find(s => s.kind === 'tower');
+    for(let i = 0; i < 10; i++) { tower.usedDay = -999; Game.investigateSite(tower.id); Game.towerReveal = null; }
+    assert.ok(got('tower_10'), 'ten tower climbs did not count');
+
+    // Every settlement's gate.
+    LOCATIONS.forEach(l => { Game.enterLocation(l); Game.closeModal(); });
+    assert.ok(got('cartographer'), 'visiting every settlement did not count');
+
+    // A winter with coal to spare every day, then the thaw.
+    state.player.party = troops(9, 'Svadya Milisi');
+    state.player.inventory = [{ ...ITEMS.coal, qty: 40 }];
+    for(let d = 101; d <= 121; d++) { state.time.day = d; Game.winterTick(); }
+    assert.ok(got('winter_child'), 'a warm winter did not count');
+
+    // Walking the hail and reaching a roof before the first hour struck anyone.
+    Game.startStorm(true); Game.enterLocation(LOCATIONS[0]); Game.closeModal();
+    assert.ok(got('hail_walker'), 'walking the hail without a loss did not count');
+
+    // Ten arena wins in a row — past the purse series, which resets at five.
+    for(let i = 0; i < 10; i++) Game.finishArena({ name: 'Rakip', xp: 5 }, true);
+    assert.ok(got('arena_king'), 'ten arena wins in a row did not count');
+});
+
 test('wait: world parties receive the same fourfold camping acceleration as the clock', () => {
     const g = H.world({ seed: 33 });
     const { Game, state } = g;

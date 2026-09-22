@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.31.0', date: '2026-09-22', name: 'Dolu ve Kış' };  // the version name is not translated
+const VERSION = { no: '1.31.1', date: '2026-09-22', name: 'Elli Başarım' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -757,7 +757,31 @@ const ACHIEVEMENTS = [
     { id: 'quests_20',   tier: 'silver', name: 'Aranan Adam',        desc: '20 görev tamamladın.',                       cond: () => (state.career && state.career.quests || 0) >= 20 },
     { id: 'quests_50',   tier: 'gold',   name: 'Diyarın Hizmetkârı', desc: '50 görev tamamladın.',                       cond: () => (state.career && state.career.quests || 0) >= 50 },
     { id: 'prof_master', tier: 'silver', name: 'Bir Dalda Usta',     desc: 'Bir yeterlilikte 5. kademeye ulaştın.',      cond: () => Object.values(state.player.proficiencies || {}).some(p => (p.level || 1) >= 5) },
+    // 31 → 50 (#127). What state can't show is tallied into `state.career` at its one choke
+    // point (Game.tally): battle end, promotion, prisoner sale/release, the peddler, a tower,
+    // a gate, the arena, the hail, the winter. Towers: the map holds three and they renew, so
+    // "ten different towers" could never be met — it is ten climbs instead.
+    { id: 'first_blood',  tier: 'bronze', name: 'İlk Kan',                  desc: 'İlk düşmanını kendi elinle öldürdün.',                   cond: () => careerN('kills') >= 1 },
+    { id: 'butcher',      tier: 'gold',   name: 'Kasap',                    desc: 'Savaşlarında toplam 1000 düşman öldü.',                  cond: () => careerN('slain') >= 1000 },
+    { id: 'survivor',     tier: 'silver', name: 'Sağ Kalan',                desc: '50 savaştan sağ çıktın.',                                cond: () => careerN('battles') >= 50 },
+    { id: 'odds_2',       tier: 'silver', name: 'Sayı Üstünlüğü Efsanedir', desc: 'İki katı büyüklükteki bir orduyu yendin.',               cond: () => careerN('bestOdds') >= 2 },
+    { id: 'odds_3',       tier: 'gold',   name: 'Üç Katı',                  desc: 'Üç katı büyüklükteki bir orduyu yendin.',                cond: () => careerN('bestOdds') >= 3 },
+    { id: 'flawless',     tier: 'silver', name: 'Kusursuz',                 desc: '20 kişiden büyük bir orduyu tek ölü vermeden yendin.',   cond: () => careerN('flawless') >= 1 },
+    { id: 'drillmaster',  tier: 'silver', name: 'Eğitmen',                  desc: 'Bir askeri en üst rütbeye terfi ettirdin.',              cond: () => careerN('elitePromoted') >= 1 },
+    { id: 'elite_10',     tier: 'gold',   name: 'Kadro',                    desc: 'Grubunda aynı anda 10 en üst rütbe asker vardı.',        cond: () => state.player.party.filter(t => Game.isEliteTroop(t)).length >= 10 },
+    { id: 'surgeon',      tier: 'silver', name: 'Cerrah',                   desc: 'Tek savaşta cerrahlıkla 5 askeri ölümden kurtardın.',    cond: () => careerN('bestSaves') >= 5 },
+    { id: 'scam_caught',  tier: 'silver', name: 'Kazık Yemez',              desc: 'Dolandırıcı bir satıcıyı ticaret gözünle yakaladın.',    cond: () => careerN('scamsCaught') >= 1 },
+    { id: 'scammed',      tier: 'bronze', name: 'Kazıklandın',              desc: 'Dolandırıcı bir satıcıdan fark etmeden mal aldın.',      cond: () => careerN('scammed') >= 1 },
+    { id: 'broke',        tier: 'bronze', name: 'Beş Parasız',              desc: 'Kesen boşaldı, üstüne maaş borcun birikti.',             cond: () => state.player.money <= 0 && (state.player.wageDebt || 0) > 0 },
+    { id: 'slaver',       tier: 'silver', name: 'Köle Tüccarı',             desc: 'Toplam 200 esir sattın.',                                cond: () => careerN('prisonersSold') >= 200 },
+    { id: 'merciful',     tier: 'silver', name: 'Merhametli',               desc: 'Toplam 50 esiri serbest bıraktın.',                      cond: () => careerN('prisonersFreed') >= 50 },
+    { id: 'tower_10',     tier: 'bronze', name: 'Kuleci',                   desc: 'Gözetleme kulelerine 10 kez çıktın.',                    cond: () => careerN('towers') >= 10 },
+    { id: 'cartographer', tier: 'silver', name: 'Haritacı',                 desc: 'Kalradya\'daki bütün yerleşimlere uğradın.',            cond: () => LOCATIONS.every(l => ((state.career || {}).visited || []).includes(l.id)) },
+    { id: 'winter_child', tier: 'gold',   name: 'Kış Çocuğu',               desc: 'Bir kışı bir gün bile kömürsüz kalmadan atlattın.',      cond: () => careerN('warmWinters') >= 1 },
+    { id: 'hail_walker',  tier: 'gold',   name: 'Doludan Kaçan',            desc: 'Dolunun altında yürüdün ve tek adam kaybetmedin.',       cond: () => careerN('hailUnscathed') >= 1 },
+    { id: 'arena_king',   tier: 'gold',   name: 'Arena Kralı',              desc: 'Arenada üst üste 10 maç kazandın.',                      cond: () => careerN('arenaBest') >= 10 },
 ];
+function careerN(k) { return (state.career && state.career[k]) || 0; }
 
 // --- SKILL TREE (#110) ---
 // 6 branches x 5 tiers x 2 opposing perks = 60. Designed with Fable (docs/danisma/002).
@@ -1480,6 +1504,7 @@ const Game = {
         }
         let r = this.SITE_OUTCOMES[this.pickWeighted(pool)].run(s);
         s.usedDay = state.time.day;
+        if(s.kind === 'tower') this.tally('towers');
         if(!k.renew) state.sites = state.sites.filter(x => x !== s);
         this.addProficiencyXp('spotting', 20);
         this.updateTopBar();
@@ -4574,12 +4599,14 @@ const Game = {
             { label: c => { let d = Game.peddlerDeal(c); return T`🧺 Denkleri satın al (−${d.price} dinar)`; }, run(c) {
                 let d = Game.peddlerDeal(c);
                 Game.spend(d.price); Game.addItem('velvet', 2); Game.addProficiencyXp('trade', d.scam ? 15 : 40);
+                if(d.scam && !d.detect) Game.tally('scammed');
                 if(!d.scam) return T`İki top kadife, şehirde bunun iki katı eder — şehre varabilirsen.<br><b>−${d.price} dinar</b>, <b>+2 kadife</b>, <b>Ticaret +40 tecrübe</b>.`;
                 return T`İki top kadife aldın. Sonradan pazarda gördün ki adam sana <b>iki katına yakın</b> yutturmuş.<br><b>−${d.price} dinar</b>, <b>+2 kadife</b>. Pahalı bir ders — <b>Ticaret +15 tecrübe</b>.`;
             }},
             // Only offered when your trade eye catches the con (#117): call his bluff.
             { label: c => Game.peddlerDeal(c).detect ? T`🗣️ Yüzüne vur, gerçek fiyata ver` : '', run(c) {
                 Game.spend(56); Game.addItem('velvet', 2); Game.addProficiencyXp('trade', 60);
+                Game.tally('scamsCaught');
                 return T`"Bu kadife pazarda 60 dinar." Adam kızardı, sesi kısıldı: iki topu <b>56 dinara</b> bıraktı.<br><b>−56 dinar</b>, <b>+2 kadife</b>, <b>Ticaret +60 tecrübe</b>.`;
             }},
             // The dark option: rob the con man. You get little and it costs your name (#117).
@@ -6651,6 +6678,9 @@ const Game = {
     // --- SETTLEMENT ---
     enterLocation(loc) {
         if(state.player.storm && state.player.storm.walking) this.endStorm(true);   // a roof at last (#121)
+        this.ensureAchievements();
+        let seen = state.career.visited = state.career.visited || [];
+        if(!seen.includes(loc.id)) { seen.push(loc.id); this.checkAchievements(); }   // Haritacı (#127)
         if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
         // Walking in from the map called this directly, skipping showScreen()'s own bookkeeping —
         // body.view-map (#40's map-only floating chrome) stayed on, so the settlement's top bar and
@@ -8179,6 +8209,25 @@ const Game = {
         if(!state.achievements) state.achievements = {};
         if(!state.career) state.career = { quests: 0 };
     },
+    tally(k, n = 1) {
+        this.ensureAchievements();
+        state.career[k] = (state.career[k] || 0) + n;
+        this.checkAchievements();
+    },
+    // One line per fought battle, from Battle.endBattle's real-battle path (not arena/duel).
+    careerBattle(r) {
+        this.ensureAchievements();
+        let c = state.career;
+        c.battles = (c.battles || 0) + 1;
+        c.kills = (c.kills || 0) + r.kills;
+        c.slain = (c.slain || 0) + r.slain;
+        c.bestSaves = Math.max(c.bestSaves || 0, r.surgery);
+        if(r.won) {
+            c.bestOdds = Math.max(c.bestOdds || 0, r.foes / Math.max(1, r.own));
+            if(r.foes >= 20 && !r.killed) c.flawless = (c.flawless || 0) + 1;
+        }
+        this.checkAchievements();
+    },
     // Walked once a day and whenever a milestone might have shifted. State-based conditions
     // mean nothing has to be wired into each event site — the daily sweep catches them.
     checkAchievements() {
@@ -8924,6 +8973,9 @@ const Game = {
         // proficiency in the game: pick the champion, walk in, fall over, collect — no
         // risk, because nobody dies in the arena and HP is floored at 5. The sand teaches
         // nothing to the man lying in it, so a loss is now only the day it costs (#99).
+        this.ensureAchievements();
+        state.career.arenaRun = won ? (state.career.arenaRun || 0) + 1 : 0;       // Arena Kralı (#127): the purse series resets at 5, this doesn't
+        state.career.arenaBest = Math.max(state.career.arenaBest || 0, state.career.arenaRun);
         if(!won) {
             state.player.arenaStreak = 0;
             this.advanceTime(24);
@@ -11241,6 +11293,7 @@ const Game = {
             return false;
         });
         if(!sold) return;
+        this.tally('prisonersSold', sold);
         state.player.money += money;
         this.addProficiencyXp('prisonerMgmt', 8 * sold);
         this.updateTopBar();
@@ -11254,7 +11307,7 @@ const Game = {
             if(p.noble || p.name !== name) return true;
             n++; return false;
         });
-        if(n) { this.renderPartyScreen(); alert(T`${n} esir salıverildi.`); }
+        if(n) { this.tally('prisonersFreed', n); this.renderPartyScreen(); alert(T`${n} esir salıverildi.`); }
     },
 
     // A ransomed or released lord returns to the map — otherwise a defeated noble
@@ -11359,6 +11412,7 @@ const Game = {
             t.xpNext = nextTier * 4;
             t.level = nextTier === 3 ? 20 : 10;
             t.type = TROOP_TYPES[newName].type;
+            if(this.isEliteTroop(t)) this.tally('elitePromoted');
             
             this.updateTopBar();
             this.renderPartyScreen();
