@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.29.1', date: '2026-09-22', name: 'Dokuz İn' };  // the version name is not translated
+const VERSION = { no: '1.30.0', date: '2026-09-22', name: 'Yolcular' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3352,6 +3352,11 @@ const Game = {
                 let dtx = npc.targetX - npc.x, dty = npc.targetY - npc.y;
                 if(Math.sqrt(dtx*dtx + dty*dty) < 15) {
                     if(npc.trade) return this.traderArrive(npc);   // the convoy arrived at its stop
+                    if(npc.wanderer) {                              // loiters around their village (#119)
+                        let h = LOCATIONS.find(l => l.id === npc.homeId) || npc, a = Math.random() * Math.PI * 2, r = 150 + Math.random() * 400;
+                        if(npc.speed) { npc.targetX = h.x + Math.cos(a) * r; npc.targetY = h.y + Math.sin(a) * r; }
+                        return;
+                    }
                     let a = Math.random() * Math.PI * 2;
                     // Nobles wander around their own settlements; this is required so you can
                     // find others in their halls.
@@ -3603,6 +3608,10 @@ const Game = {
         if(npc.trade) {
             let live = state.npcParties.find(n => n.id === npc.id);
             if(live) return this.meetTrader(live);
+        }
+        if(npc.wanderer) {
+            let live = state.npcParties.find(n => n.id === npc.id);
+            return live ? this.meetWanderer(live) : undefined;
         }
 
         // Two parties locked in a clash nearby (#32): offer to fight beside the friendly side
@@ -3942,11 +3951,6 @@ const Game = {
             Game.addItem('meat', n);
             return `${T`Avcı çıkışan askerin bu sefer şansı yaver gitti: akşam yemeğine <b>${n} et</b> geldi.`}`;
         }},
-        { id: 'deserter', bad: 0, when: c => c.party + 1 < Game.getPartyCapacity(), run(c) {
-            // #33: a lone wanderer now asks to join instead of falling in automatically.
-            Game.offerWanderer(c.near);
-            return '';
-        }},
         { id: 'blessing', bad: 0, when: c => c.near && c.near.type === 'village', run(c) {
             Game.addItem('cheese', 2);
             Game.addMorale(2);
@@ -4023,32 +4027,128 @@ const Game = {
         state.player.party.push(t);
         return t;
     },
-    // A lone wanderer on the road (#33): instead of falling in automatically, he now asks,
-    // and the player accepts or waves him on. Accept reuses the plain level-1 recruit.
-    offerWanderer(near) {
-        let name = this.recruitName(near || LOCATIONS[0]);
-        this._pendingWanderer = { name, near };
-        this.showModal(`<h3>🚶 ${T`Yolda`}</h3>
-            <p>${T`Yolda başıboş dolaşan bir <b>${T(name)}</b> önünü kesti. Grubuna katılmak istiyor.`}</p>
-            <div style="display:flex;gap:1rem;justify-content:center;margin-top:1.2rem">
-                <button class="btn primary" onclick="Game.acceptWanderer()">${T`Kabul Et`}</button>
-                <button class="btn" onclick="Game.declineWanderer()">${T`Reddet`}</button>
-            </div>`, '520px');
+    // --- WANDERERS (#119) ---
+    // Nobody joins from a road-event dice roll any more: a stranger who wants to join walks the
+    // map as a sprite, and the player decides whether to go over. The five "take me along"
+    // stories that used to be road/day events are these sprites' stories, text and choices
+    // unchanged (so the dictionaries are too); `size` is how many join, `still` ones sit where
+    // they were found (chained to a stake, camped by a fire). `c.near` is the village the
+    // stranger hangs around, not wherever the player happens to stand.
+    // ponytail: spawn numbers are a first guess (≈2 on the map at a time); tune by playtest.
+    WANDERER_MAX: 4,
+    WANDERER_CHANCE: 0.6,    // per day
+    WANDERER_LIFE: 4,        // days before a stranger nobody went to see moves on
+    WANDERERS: [
+        { id: 'deserter', icon: '🚶', name: 'Başıboş Asker', size: 1,
+          text: c => T`Yolda başıboş dolaşan bir <b>${T(Game.recruitName(c.near))}</b> önünü kesti. Grubuna katılmak istiyor.`,
+          choices: [
+            { label: () => T`Kabul Et`, run(c) {
+                let t = Game.addRecruit(c.near);
+                return T`Yolda başıboş dolaşan bir <b>${T(t.name)}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`;
+            }},
+            { label: () => T`Reddet`, run() { return T('Adam omuz silkti ve yoluna devam etti.'); } }
+          ]},
+        { id: 'runaway', icon: '👦', name: 'Kaçak Delikanlı', size: 1,
+          text: c => T`${T(c.near.name)} köyünden kaçtığını söyleyen bir delikanlı yolunu kesti. "Beni de al," diyor, "tarlaya dönmem."`,
+          choices: [
+            { label: () => T`⚔️ Yanına al`, run(c) {
+                let t = Game.addRecruit(c.near);
+                return T`<b>${T(t.name)}</b> gruba katıldı. Köyün ağası bunu duyunca hoşnut olmayacak.<br>Şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }},
+            { label: () => T`🏡 Köyüne geri yolla`, run(c) {
+                if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 3);
+                return T`Ensesinden tuttuğun gibi köyün yolunu gösterdin. Ağası duydu, borcunu bilecek.<br>${T(c.near.name)} refahı <b>+3</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }}
+          ]},
+        { id: 'chained', icon: '⛓️', name: 'Zincirli Adam', size: 1, still: true,
+          text: () => T`Yol kenarındaki kazığa bağlı, ayağı zincirli bir adam. "Efendim beni burada unuttu," diyor. Gözlerinden bunun tam doğru olmadığı okunuyor.`,
+          choices: [
+            { label: () => T`🔓 Zincirini kır, yanına al`, run(c) {
+                let t = Game.addRecruit(c.near);
+                return T`<b>${T(t.name)}</b> gruba katıldı ve bir daha arkasına bakmadı.<br>Şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
+            }},
+            { label: () => T`🪙 Fidyesini öde, azat et (−80 dinar)`, run() {
+                Game.spend(80); Game.addMorale(3);
+                return T`Parayı kazığın dibine bıraktın, zinciri çözdün. Adam koşarak gitti.<br><b>−80 dinar</b>, moral <b>+3</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }},
+            { label: () => T`🚶 Bu işe karışma`, run() {
+                return T`Zincirin sahibi kim bilinmez, ama kesin biri var. Yoluna devam ettin.`;
+            }}
+          ]},
+        { id: 'deserters', icon: '🛡️', name: 'İki Firari', size: 2, still: true,
+          text: () => T`Ateş başında iki firari asker. Silahları hâlâ üstlerinde, ama üniformalarındaki arma sökülmüş.`,
+          choices: [
+            { label: () => T`⚔️ Aralarına al`, run(c) {
+                let a = Game.addRecruit(c.near), b = Game.addRecruit(c.near);
+                Game.addMorale(-3);
+                return T`<b>${T(a.name)}</b> ve <b>${T(b.name)}</b> gruba katıldı. Eski askerlerin bu işe iyi bakmadı.<br>Moral <b>−3</b>.`;
+            }},
+            { label: () => T`⛓️ Bağla, en yakın kaleye teslim et (−4 saat)`, run() {
+                Game.roadDelay(4);
+                let n = 60 + Math.floor(Math.random() * 60);
+                state.player.money += n; state.player.renown += 1;
+                return T`Firari teslim etmenin bir bedeli vardır, alanın da.<br><b>+${n} dinar</b>, itibar <b>+1</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.<br><i>4 saat kaybettin.</i>`;
+            }},
+            { label: () => T`🚶 Ateşlerini söndürmeden geç`, run() {
+                return T`Göz göze geldiniz, kimse kımıldamadı. İyisi de bu.`;
+            }}
+          ]},
+        { id: 'orphan', icon: '🗡️', name: 'Kılıçlı Yetim', size: 1,
+          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${T(c.near.name)}'de bana iş yok," diyor, "savaşmayı öğrenirim."`,
+          choices: [
+            { label: () => T`⚔️ Al yanına`, run(c) {
+                let t = Game.addRecruit(c.near);
+                Game.addProficiencyXp('trainer', 25);
+                return T`<b>${T(t.name)}</b> gruba katıldı. Kılıcı babasından kalmaydı, tutuşu değil.<br><b>Eğitmenlik +25 tecrübe</b>.`;
+            }},
+            { label: () => T`🪙 Kılıcını satın al, evine yolla (−60 dinar)`, run() {
+                Game.spend(60); Game.addItem('sword', 1);
+                return T`Para oğlanın eline, kılıç senin denginde. İkisi de kazandı sayılır.<br><b>−60 dinar</b>, <b>+1 kılıç</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
+            }}
+          ]},
+    ],
+    wandererTick() {
+        let day = state.time.day;
+        state.npcParties = state.npcParties.filter(n => !n.wanderer || n.leaveDay > day);
+        if(state.npcParties.filter(n => n.wanderer).length >= this.WANDERER_MAX) return;
+        if(Math.random() < this.WANDERER_CHANCE) this.spawnWanderer();
     },
-    acceptWanderer() {
-        let w = this._pendingWanderer; this._pendingWanderer = null;
-        this.closeModal();
-        if(!w) return;
-        state.player.party.push({ id: 'troop_' + Math.random().toString(36).substr(2, 9),
-            name: w.name, level: 1, xp: 0, xpNext: 3, type: 'infantry' });
-        this.updateTopBar();
-        alert(T`Yolda başıboş dolaşan bir <b>${T(w.name)}</b> gruba katıldı. Eski komutanını sormamak en iyisi.`);
+    spawnWanderer(id) {
+        let ev = this.WANDERERS.find(w => w.id === id) || this.WANDERERS[Math.floor(Math.random() * this.WANDERERS.length)];
+        let villages = LOCATIONS.filter(l => l.type === 'village');
+        let home = null, p = null;
+        for(let k = 0; k < 20 && !p; k++) {       // not right under the player's nose
+            home = villages[Math.floor(Math.random() * villages.length)];
+            let a = Math.random() * Math.PI * 2, r = 250 + Math.random() * 350;
+            let q = { x: home.x + Math.cos(a) * r, y: home.y + Math.sin(a) * r };
+            if(this.dist(q, state.player) > 500) p = q;
+        }
+        if(!p) return null;
+        let npc = this.createNPC(ev.name, 'wanderer', ev.size || 1, '#d8d2c4');
+        npc.x = npc.targetX = p.x; npc.y = npc.targetY = p.y;
+        npc.wanderer = ev.id; npc.homeId = home.id;
+        npc.leaveDay = state.time.day + this.WANDERER_LIFE;
+        npc.speed = ev.still ? 0 : 30;
+        state.npcParties.push(npc);
+        return npc;
     },
-    declineWanderer() {
-        this._pendingWanderer = null;
-        this.closeModal();
-        alert(T('Adam omuz silkti ve yoluna devam etti.'));
+    // Walking up to a stranger: the same choice modal a road event uses. Infamy keeps them
+    // away and a full party can't take them, but either way they have had their say and go.
+    meetWanderer(npc) {
+        state.player.currentEncounterNpcId = null;
+        state.npcParties = state.npcParties.filter(n => n !== npc);
+        let ev = this.WANDERERS.find(w => w.id === npc.wanderer);
+        if(!ev) return;
+        let ctx = this.eventCtx();
+        ctx.near = LOCATIONS.find(l => l.id === npc.homeId) || ctx.near || LOCATIONS[0];
+        let refuse = this.infamyPenalty() > 0.5 ? T`Kim olduğunu duyunca geri çekildi: "Senin yanında iş yapılmaz."`
+                   : ctx.party + (ev.size || 1) >= ctx.cap ? T`Grubunda yer olmadığını görünce yoluna devam etti.` : '';
+        if(refuse) return this.showModal(`<h3>${ev.icon} ${T(ev.name)}</h3>
+            <p style="font-style:italic;color:var(--text-muted)">${ev.text(ctx)}</p><p>${refuse}</p>
+            <button class="btn primary" style="margin-top:1rem" onclick="Game.closeModal()">${T`Tamam`}</button>`);
+        this.showChoiceEvent(ev, ctx);
     },
+
     addItem(id, qty) {
         let ex = state.player.inventory.find(i => i.id === id);
         if(ex) ex.qty += qty; else state.player.inventory.push({ ...ITEMS[id], qty });
@@ -4177,19 +4277,6 @@ const Game = {
             }}
           ]},
 
-        { id: 'runaway', icon: '👦', when: c => c.near && c.near.type === 'village' && c.party + 1 < c.cap,
-          text: c => T`${T(c.near.name)} köyünden kaçtığını söyleyen bir delikanlı yolunu kesti. "Beni de al," diyor, "tarlaya dönmem."`,
-          choices: [
-            { label: () => T`⚔️ Yanına al`, run(c) {
-                let t = Game.addRecruit(c.near);
-                return T`<b>${T(t.name)}</b> gruba katıldı. Köyün ağası bunu duyunca hoşnut olmayacak.<br>Şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
-            }},
-            { label: () => T`🏡 Köyüne geri yolla`, run(c) {
-                if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 3);
-                return T`Ensesinden tuttuğun gibi köyün yolunu gösterdin. Ağası duydu, borcunu bilecek.<br>${T(c.near.name)} refahı <b>+3</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
-            }}
-          ]},
-
         { id: 'mill', icon: '🏚️', when: c => c.near && c.near.type === 'village' && c.money >= 200,
           text: c => T`${T(c.near.name)} değirmeni yıkılmış; çarkı derede çamura saplanmış duruyor. Köylüler taş taşıyor ama usta parası yok.`,
           choices: [
@@ -4207,22 +4294,6 @@ const Game = {
             }},
             { label: () => T`🚶 Yoluna devam et`, run() {
                 return T`Yıkık değirmen arkanda kaldı. Yarın da yıkık olacak.`;
-            }}
-          ]},
-
-        { id: 'chained', icon: '⛓️', when: c => c.party + 1 < c.cap,
-          text: () => T`Yol kenarındaki kazığa bağlı, ayağı zincirli bir adam. "Efendim beni burada unuttu," diyor. Gözlerinden bunun tam doğru olmadığı okunuyor.`,
-          choices: [
-            { label: () => T`🔓 Zincirini kır, yanına al`, run(c) {
-                let t = Game.addRecruit(c.near);
-                return T`<b>${T(t.name)}</b> gruba katıldı ve bir daha arkasına bakmadı.<br>Şeref <b>−${-Game.addHonor('roadCruel')}</b>.`;
-            }},
-            { label: () => T`🪙 Fidyesini öde, azat et (−80 dinar)`, run() {
-                Game.spend(80); Game.addMorale(3);
-                return T`Parayı kazığın dibine bıraktın, zinciri çözdün. Adam koşarak gitti.<br><b>−80 dinar</b>, moral <b>+3</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
-            }},
-            { label: () => T`🚶 Bu işe karışma`, run() {
-                return T`Zincirin sahibi kim bilinmez, ama kesin biri var. Yoluna devam ettin.`;
             }}
           ]},
 
@@ -4305,25 +4376,6 @@ const Game = {
             }},
             { label: () => T`🚶 Burada durmak akıllıca değil`, run() {
                 return T`Leşi bıraktın, adımını sıklaştırdın.`;
-            }}
-          ]},
-
-        { id: 'deserters', icon: '🛡️', when: c => c.party >= 3 && c.party + 2 < c.cap,
-          text: () => T`Ateş başında iki firari asker. Silahları hâlâ üstlerinde, ama üniformalarındaki arma sökülmüş.`,
-          choices: [
-            { label: () => T`⚔️ Aralarına al`, run(c) {
-                let a = Game.addRecruit(c.near), b = Game.addRecruit(c.near);
-                Game.addMorale(-3);
-                return T`<b>${T(a.name)}</b> ve <b>${T(b.name)}</b> gruba katıldı. Eski askerlerin bu işe iyi bakmadı.<br>Moral <b>−3</b>.`;
-            }},
-            { label: () => T`⛓️ Bağla, en yakın kaleye teslim et (−4 saat)`, run() {
-                Game.roadDelay(4);
-                let n = 60 + Math.floor(Math.random() * 60);
-                state.player.money += n; state.player.renown += 1;
-                return T`Firari teslim etmenin bir bedeli vardır, alanın da.<br><b>+${n} dinar</b>, itibar <b>+1</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.<br><i>4 saat kaybettin.</i>`;
-            }},
-            { label: () => T`🚶 Ateşlerini söndürmeden geç`, run() {
-                return T`Göz göze geldiniz, kimse kımıldamadı. İyisi de bu.`;
             }}
           ]},
 
@@ -4416,20 +4468,6 @@ const Game = {
             }},
             { label: () => T`🚶 İşine bak`, run() {
                 return T`Denklerini sürüyerek arkanda kaldı.`;
-            }}
-          ]},
-
-        { id: 'orphan', icon: '🗡️', when: c => c.near && c.party + 1 < c.cap,
-          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${T(c.near.name)}'de bana iş yok," diyor, "savaşmayı öğrenirim."`,
-          choices: [
-            { label: () => T`⚔️ Al yanına`, run(c) {
-                let t = Game.addRecruit(c.near);
-                Game.addProficiencyXp('trainer', 25);
-                return T`<b>${T(t.name)}</b> gruba katıldı. Kılıcı babasından kalmaydı, tutuşu değil.<br><b>Eğitmenlik +25 tecrübe</b>.`;
-            }},
-            { label: () => T`🪙 Kılıcını satın al, evine yolla (−60 dinar)`, run() {
-                Game.spend(60); Game.addItem('sword', 1);
-                return T`Para oğlanın eline, kılıç senin denginde. İkisi de kazandı sayılır.<br><b>−60 dinar</b>, <b>+1 kılıç</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
             }}
           ]},
 
@@ -4728,12 +4766,17 @@ const Game = {
         let ctx = this.eventCtx();
         let ev = this.pickEvent(this.ROAD_EVENTS, ctx);
         if(!ev) return null;
+        state.player.status = 'idle';   // the walk pauses in front of the decision
+        this.showChoiceEvent(ev, ctx);
+        return ev.id;
+    },
+    // One modal for every "text + choices" story: road events and wanderers (#119).
+    showChoiceEvent(ev, ctx) {
         this._roadEv = { ev, ctx };
         // A road event can appear between a map pointer-down and pointer-up. Without a short
         // guard, that same touch is retargeted to whichever choice materialised under the finger.
         // Keyboard activation has detail=0 and remains immediate.
         this._roadChoiceLockUntil = Date.now() + 650;
-        state.player.status = 'idle';   // the walk pauses in front of the decision
         this.showModal(`<h3>${ev.icon} ${T`Yolda`}</h3>
             <p style="font-style:italic;color:var(--text-muted)">${ev.text(ctx)}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
@@ -4741,7 +4784,6 @@ const Game = {
                     .filter(o => o.lab)   // a choice whose label is empty this encounter is hidden (keeps run() index)
                     .map(o => `<button class="btn" style="text-align:left" onclick="Game.roadChoice(${o.i}, event)">${o.lab}</button>`).join('')}
             </div>`);
-        return ev.id;
     },
     // One result hook for every tournament implementation. Keeping the win counter, ambition
     // and quest event together prevents one arena path from waiting until the daily fallback.
@@ -4977,6 +5019,7 @@ const Game = {
         this.campaignTick();    // marshal selection, campaign target, calling the player
         this.envoyTick();       // a companion sent as envoy comes back with an answer (#69)
         this.banditTick();      // bandits hit caravans on the road
+        this.wandererTick();    // strangers who want to join appear and move on (#119)
         this.lordBanditTick();  // lords clear nearby outlaw parties; refill holds their population steady
         this.siegeTick();       // siege camp: preparation, starvation, relief army (#25)
 
@@ -5940,9 +5983,10 @@ const Game = {
 
             // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
+            let lone = npc.type === 'wanderer';
             this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
-                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' ? 'foot' : 'rider'),
-                mounted: npc.type !== 'bandit',
+                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
+                mounted: npc.type !== 'bandit' && !lone,
                 size: npc.size || 1,
                 color: nCol,
                 scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * this.iconScale(),
@@ -5950,6 +5994,10 @@ const Game = {
                 dim: npc.type === 'bandit'
             });
 
+            if(lone) {                                      // what their story is, at a glance (#119)
+                let w = this.WANDERERS.find(x => x.id === npc.wanderer);
+                if(w) this.emoji(ctx, w.icon, npc.x, npc.y - 30, 22 * this.iconScale());
+            }
             // Crown: king/vizier
             if(npc.type === 'king' || npc.type === 'vizier') {
                 let cs = npc.type === 'king' ? 30 : 24;

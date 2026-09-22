@@ -3,6 +3,18 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.30.0 — Yolcular (2026-09-22)
+
+- **Grubuna katılmak isteyenler artık haritada yürüyor** — yolda zar tutunca birinin önüne
+  çıkıp "beni de al" demesi bitti. Köylerin çevresinde dolaşan gezginleri haritada görüyorsun:
+  başıboş bir asker 🚶, köyünden kaçan bir delikanlı 👦, kazığa zincirlenmiş bir adam ⛓️,
+  ateş başında iki firari 🛡️, babasının kılıcını taşıyan bir yetim 🗡️. Yanına gitmek senin
+  kararın; gidersen hikâyesini anlatıyor ve seçeneklerin eskisi gibi.
+- **Gruba katılmanın tek yolu bu** — yol ve kamp olaylarında artık kimse gruba eklenmiyor.
+- Grubunda yer yoksa ya da kötü şöhretin yüzünden senden çekinirse konuşup yoluna gidiyor.
+- Gezginler birkaç gün sonra kendiliğinden başka yere gidiyor; haritada aynı anda en fazla dört
+  tane oluyor.
+
 ## 1.29.1 — Dokuz İn (2026-09-22)
 
 - **Haydutlar haritaya daha dengeli yayılıyor** — haydut ini sayısı 5'ten 9'a çıktı ve yeni

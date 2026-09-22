@@ -1138,19 +1138,49 @@ test('fief: the lands window renders a single heading, not a duplicate (#6)', ()
     loc.owner = prev;
 });
 
-test('road: a lone wanderer asks to join instead of auto-joining (#33)', () => {
+test('wanderers: joining happens only by walking up to one on the map (#119, #33)', () => {
     const { Game, state, _sandbox } = gw;
+    const html = () => _sandbox.document.getElementById('modal-body').innerHTML;
+    // No road or day event adds a man any more — that is what the sprites are for.
+    const joinIds = Game.WANDERERS.map(w => w.id);
+    assert.strictEqual(joinIds.length, 5, 'the five "take me along" stories did not all move');
+    const recruits = e => /addRecruit|offerWanderer/.test(String(e.run) + (e.choices || []).map(c => String(c.run)).join(''));
+    [...Game.ROAD_EVENTS, ...Game.DAY_EVENTS].forEach(e =>
+        assert.ok(!joinIds.includes(e.id) && !recruits(e), `${e.id} still adds a man from a dice roll`));
+
     state.player.party = [];
-    const before = state.player.party.length;
-    Game.offerWanderer(gw.LOCATIONS[0]);
-    const html = _sandbox.document.getElementById('modal-body').innerHTML;
-    assert.ok(html.includes('acceptWanderer') && html.includes('declineWanderer'), 'no accept/reject buttons');
-    assert.strictEqual(state.player.party.length, before, 'the wanderer joined before consent');
-    Game.acceptWanderer();
-    assert.strictEqual(state.player.party.length, before + 1, 'accept did not add the recruit');
-    Game.offerWanderer(gw.LOCATIONS[0]);
-    Game.declineWanderer();
-    assert.strictEqual(state.player.party.length, before + 1, 'decline still added the recruit');
+    state.npcParties = state.npcParties.filter(n => !n.wanderer);
+    const w = Game.spawnWanderer('deserter');
+    assert.ok(w && w.type === 'wanderer' && !Game.isHostile(w) && !Game.mapPartyIsFoe(w), 'a wanderer spawned hostile');
+    // Meeting: the story asks first — nobody joins before a choice.
+    Game.triggerEncounter({ ...w, isNpc: true });
+    assert.ok(/roadChoice/.test(html()), 'meeting a wanderer did not offer a choice');
+    assert.strictEqual(state.player.party.length, 0, 'the wanderer joined before consent');
+    assert.ok(!state.npcParties.includes(w), 'the wanderer stayed on the map after being met');
+    Game.roadChoice(0);                                   // Kabul Et
+    assert.strictEqual(state.player.party.length, 1, 'accepting did not add the recruit');
+
+    // A full party can't take them, infamy keeps them away — either way nobody joins.
+    const cap = Game.getPartyCapacity();
+    state.player.party = Array.from({ length: cap - 1 }, (_, i) => ({ id: 'f' + i, name: 'Asker', level: 1 }));
+    const full = Game.spawnWanderer('deserters');
+    Game.triggerEncounter({ ...full, isNpc: true });
+    assert.ok(!/roadChoice/.test(html()) && state.player.party.length === cap - 1, 'two deserters joined a full party');
+    state.player.party = [];
+    const honor = state.player.honor; state.player.honor = -90;
+    const shy = Game.spawnWanderer('orphan');
+    Game.triggerEncounter({ ...shy, isNpc: true });
+    assert.ok(!/roadChoice/.test(html()) && state.player.party.length === 0, 'a stranger joined an infamous party');
+    state.player.honor = honor;
+
+    // They come and go on their own.
+    state.npcParties = state.npcParties.filter(n => !n.wanderer);
+    for(let d = 0; d < 30; d++) { state.time.day++; Game.wandererTick(); }
+    const alive = state.npcParties.filter(n => n.wanderer);
+    assert.ok(alive.length > 0 && alive.length <= Game.WANDERER_MAX, `${alive.length} wanderers after a month`);
+    assert.ok(alive.every(n => n.leaveDay > state.time.day), 'a wanderer outstayed its time');
+    state.npcParties = state.npcParties.filter(n => !n.wanderer);
+    state.player.party = [];
 });
 
 test('road: the storm now offers three balanced choices, the middle one costs food (#121)', () => {
@@ -2420,13 +2450,19 @@ test('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords',
 test('gate 800: the post lasts exactly one campaign', () => {
     const g = H.world({ seed: 3 });
     const { Game, state, LORDS } = g;
+    // Wait for a kingdom that actually opens a campaign rather than guessing one at war on day
+    // 20: a guess made the test hostage to whichever peace the dice rolled in between.
     H.run(g, 20);
-    const f = Object.keys(g.FACTIONS).find(x => x !== 'player_kingdom' && Game.warsOf(x).length);
+    let f = null, w = 0;
+    while(!f && w++ < 60) {
+        H.run(g, 1);
+        f = Object.keys(state.campaigns).find(x => x !== 'player_kingdom' && state.campaigns[x] && Game.warsOf(x).length);
+    }
+    assert.ok(f, 'no kingdom opened a campaign in 80 days');
     const king = LORDS.find(l => l.faction === f && l.rank === 'king');
     state.player.vassalOf = f;
     state.player.renown = state.player.maxRenown = Game.RENOWN_GATES.marshal;
     state.relations[king.id] = Game.MARSHAL_REL + 20;
-    let w = 0; while(!state.campaigns[f] && w++ < 60) H.run(g, 1);
     Game.askMarshal(king.id);
     assert.strictEqual(state.marshalOf, f);
     Game.endCampaign(f);

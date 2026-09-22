@@ -2886,4 +2886,11 @@ I18N.dicts.id = {
   "Görev tamam. Ödülü almak için <b>{0}</b>'le konuş — en son <b>{1}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.": "Tugas selesai. Bicaralah dengan <b>{0}</b> untuk mengambil hadiahmu — terakhir terlihat di <b>{1}</b>, tapi bisa diserahkan di mana pun kau bertemu dengannya.",
   "Ödül: <b>+{0} dinar, {1}{2} nam</b>. Konuşma penceresinde <b>✅ Görevi teslim et</b> düğmesine bas.": "Hadiah: <b>+{0} dinar, {1}{2} nama besar</b>. Tekan <b>✅ Serahkan tugas</b> di jendela percakapan.",
   "✅ Görevi teslim et: {0}": "✅ Serahkan tugas: {0}",
+  "Başıboş Asker": "Prajurit Tersesat",
+  "Kaçak Delikanlı": "Pemuda Pelarian",
+  "Zincirli Adam": "Pria Terantai",
+  "İki Firari": "Dua Desertir",
+  "Kılıçlı Yetim": "Yatim Berpedang",
+  "Kim olduğunu duyunca geri çekildi: \"Senin yanında iş yapılmaz.\"": "Begitu tahu siapa dirimu, ia mundur: \"Tak ada yang mau bekerja untuk orang sepertimu.\"",
+  "Grubunda yer olmadığını görünce yoluna devam etti.": "Melihat rombonganmu sudah penuh, ia melanjutkan perjalanan.",
 };

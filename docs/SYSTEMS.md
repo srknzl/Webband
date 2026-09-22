@@ -2240,7 +2240,8 @@ of every day (at the very bottom of `dailyUpdate`, after the day's accounting is
 `EVENT_CHANCE` **0.35**. If an event fires, it's told as a modal and its mechanical result is
 written in a line.
 
-- The pool is `Game.DAY_EVENTS` (24 events, 15 negative / 9 positive, #132). Every event has a
+- The pool is `Game.DAY_EVENTS` (23 events, 15 negative / 8 positive — `deserter` moved to the
+  wanderers, #119). Every event has a
   `when(ctx)` filter — `ctx` = party headcount, **the nearest settlement within 900 units**,
   total food, morale. So "drunk soldier" only appears near a settlement, "lost a horseshoe"
   only while mounted, "a village woman left cheese" only right by a village.
@@ -2305,8 +2306,8 @@ hostile, so that clause was the only thing letting one through, and it let *ever
 Removing it costs no interaction: trade was already reachable by clicking, on the other path.
 
 ### Road events — encounters with a decision (#67)
-The day's event just *happens to* you; a road event **asks** you. `Game.ROAD_EVENTS` has 34
-events (#132), each with 2–3 options, and every option has a real cost: money, hours, morale,
+The day's event just *happens to* you; a road event **asks** you. `Game.ROAD_EVENTS` has 30
+events (34 until the four "take me along" stories moved to the wanderers, #119), each with 2–3 options, and every option has a real cost: money, hours, morale,
 honor, a troop getting wounded, or a straight battle.
 
 - **The die depends on distance, not the day.** `Game.roadTick(step)` accumulates distance
@@ -2346,6 +2347,25 @@ honor, a troop getting wounded, or a straight battle.
 Measured (seeds 1–5, 30 days of **uninterrupted** travel, a 6-person party ≈111 units/hour):
 **15.6 events on average**. In real play, since not the whole day is spent traveling, this
 shows up at about half that rate.
+
+### Wanderers — the only way a stranger joins (#119)
+Nobody is added to the party by a road or day die any more. A stranger who wants to join
+**walks the map as a sprite** (`type: 'wanderer'`, a lone figure on foot with its story's icon
+above it) and the player decides whether to go over — clicking it walks you there like any
+other party. The five stories that used to be events are `Game.WANDERERS`, text and choices
+moved unchanged (so the dictionaries didn't change): `deserter` 🚶 (was a day event), `runaway`
+👦, `chained` ⛓️, `deserters` 🛡️ (two of them), `orphan` 🗡️. `chained` and `deserters` sit
+still (a stake, a campfire); the rest loiter 150–550 units around their village.
+- `wandererTick()` (daily): strangers older than `WANDERER_LIFE` **4** days move on; below
+  `WANDERER_MAX` **4** a new one appears with `WANDERER_CHANCE` **0.6**, 250–600 units from a
+  random village and never within 500 of the player. These three numbers are a first guess.
+- Meeting (`triggerEncounter` → `meetWanderer`) takes the sprite off the map and opens the
+  same modal as a road event (`showChoiceEvent`), with `c.near` = the stranger's village.
+  An infamous player (`infamyPenalty() > 0.5`) gets a refusal instead, and so does a party
+  without room for `size` more — either way the stranger has had their say and is gone.
+- A wanderer has no faction and is not a bandit: never hostile, never a foe label, never in a
+  clash, never prey. Measured (8 seeds × 120 days, playerless): campaigns 130 vs 137 and peace
+  treaties 80 vs 95 with and without wanderers — noise, not an effect.
 
 ### Debug report (#52)
 So there's more on hand than a screenshot when something breaks, there's a **🐞 Debug Report**

@@ -2886,4 +2886,11 @@ I18N.dicts.en = {
   "Görev tamam. Ödülü almak için <b>{0}</b>'le konuş — en son <b>{1}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.": "Objective complete. Talk to <b>{0}</b> to claim your reward — last seen at <b>{1}</b>, but you can hand it in wherever you run into them.",
   "Ödül: <b>+{0} dinar, {1}{2} nam</b>. Konuşma penceresinde <b>✅ Görevi teslim et</b> düğmesine bas.": "Reward: <b>+{0} denars, {1}{2} renown</b>. Press <b>✅ Hand in the quest</b> in their dialogue.",
   "✅ Görevi teslim et: {0}": "✅ Hand in the quest: {0}",
+  "Başıboş Asker": "Stray Soldier",
+  "Kaçak Delikanlı": "Runaway Lad",
+  "Zincirli Adam": "Chained Man",
+  "İki Firari": "Two Deserters",
+  "Kılıçlı Yetim": "Orphan with a Sword",
+  "Kim olduğunu duyunca geri çekildi: \"Senin yanında iş yapılmaz.\"": "Hearing who you are, they stepped back: \"There's no working for the likes of you.\"",
+  "Grubunda yer olmadığını görünce yoluna devam etti.": "Seeing there was no room in your party, they went on their way.",
 };
