@@ -925,7 +925,7 @@ const Battle = {
             if(!proj._terrRolled && this.terrain) {
                 let snagged = false, rolled = false;
                 for(let k of this.terrain.rocks || []) {
-                    let dx = proj.x - k.x, dy = proj.y - k.y;
+                    let dx = proj.x - k.x, dy = (proj.y - k.y) / this.ROCK_SQUASH;
                     if(dx*dx + dy*dy <= (k.r + 3) * (k.r + 3)) { rolled = true; snagged = Math.random() < 0.7; break; }
                 }
                 if(!rolled) for(let f of this.terrain.forests || []) {
@@ -1371,13 +1371,7 @@ const Battle = {
             // Rocks are impassable: anyone who enters one is pushed back out. Also cover now (#118):
             // an arrow that grazes one is stopped 70% of the time (Battle.projectiles update).
             // Except while fleeing: a rock can't push a unit running straight across sideways, or it gets stuck and locks up the battle.
-            if(!u.routing) rocks.forEach(k => {
-                let dx = u.x - k.x, dy = u.y - k.y;
-                let d = Math.sqrt(dx*dx + dy*dy), min = k.r + u.radius;
-                // Sliding push (#118): only closes part of the overlap each frame instead of
-                // snapping straight to the boundary, so brushing the edge reads as a slide, not a wall.
-                if(d < min && d > 0.01) { let nx = dx/d, ny = dy/d, correct = (min - d) * 0.55; u.x += nx * correct; u.y += ny * correct; }
-            });
+            if(!u.routing) rocks.forEach(k => this.pushOffRock(u, k));
             // Wall: impassable outside a breach, narrows it into a corridor inside the breach (#25)
             let w = this.siege && this.siege.wall;
             if(w && Math.abs(u.x - w.x) < w.t/2 + u.radius) {
@@ -1768,6 +1762,15 @@ const Battle = {
         }
     },
 
+    ROCK_SQUASH: 0.8,   // a rock is drawn this flat vertically; collision reads the same number
+    // Measured in the rock's own squashed space so the hit area is the ellipse that is drawn,
+    // not a taller circle around it — "stuck on a rock that isn't there" (#118). Sliding push:
+    // only part of the overlap closes each frame, so brushing the edge reads as a slide, not a wall.
+    pushOffRock(u, k) {
+        let dx = u.x - k.x, dy = (u.y - k.y) / this.ROCK_SQUASH;
+        let d = Math.sqrt(dx*dx + dy*dy), min = k.r + u.radius;
+        if(d < min && d > 0.01) { let correct = (min - d) * 0.55; u.x += dx/d * correct; u.y += dy/d * correct * this.ROCK_SQUASH; }
+    },
     drawRock(c, x, y, r) {
         c.fillStyle = 'rgba(0,0,0,0.45)';
         c.beginPath(); c.ellipse(x + r*0.2, y + r*0.5, r*1.05, r*0.45, 0, 0, Math.PI*2); c.fill();
@@ -1777,7 +1780,7 @@ const Battle = {
         c.beginPath();
         for(let i = 0; i < 8; i++) {
             let a2 = i / 8 * Math.PI * 2, rr = r * (0.82 + ((i * 37) % 11) / 40);
-            let px = x + Math.cos(a2)*rr, py = y + Math.sin(a2)*rr*0.8;
+            let px = x + Math.cos(a2)*rr, py = y + Math.sin(a2)*rr*this.ROCK_SQUASH;
             i ? c.lineTo(px, py) : c.moveTo(px, py);
         }
         c.closePath(); c.fill();

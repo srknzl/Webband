@@ -728,6 +728,18 @@ test('battle terrain: no impassable rock is left standing in the river (#21)', (
     assert.ok(withRiver > 0, '60 fields and not one river — the case was never exercised');
 });
 
+test('battle terrain: a rock blocks where it is drawn, not a taller circle around it (#118)', () => {
+    // The rock is drawn squashed to ROCK_SQUASH vertically; the hit test used a full circle, so a
+    // unit walking up from below stopped against empty ground.
+    const k = { x: 200, y: 200, r: 12 }, reach = k.r + 5, S = gw.Battle.ROCK_SQUASH;
+    const below = off => { const u = { x: k.x, y: k.y + reach * S + off, radius: 5 }; gw.Battle.pushOffRock(u, k); return u; };
+    assert.strictEqual(below(1).y, k.y + reach * S + 1, 'pushed while standing clear of the drawn rock');
+    assert.ok(below(-3).y > k.y + reach * S - 3, 'walked into the drawn rock without being pushed out');
+    const side = { x: k.x + reach - 3, y: k.y, radius: 5 };
+    gw.Battle.pushOffRock(side, k);
+    assert.ok(side.x > k.x + reach - 3, 'the rock no longer blocks from the side');
+});
+
 test('no party, no orders (#114)', () => {
     // A duel and an arena bout both empty the party before the fight, so the command strip was
     // drawn and "opportunities" announced for orders nobody could obey. The gate is the party

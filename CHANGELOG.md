@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.5 — Taş Yerinde (2026-09-22)
+
+- **Savaşta "olmayan bir kayaya takılma" düzeltildi** — kayalar basık çiziliyor ama çarpışma
+  alanı tam bir daireydi, yani kayanın üstünden ya da altından yaklaşan biri çizilen taşa
+  değmeden durduruluyordu. Artık kaya tam olarak göründüğü yerde engel; oka siper olduğu alan
+  da aynı.
+
 ## 1.28.4 — İşaretli Çete (2026-09-18)
 
 - **"Zincirdeki Kardeş" ve iki kardeş görevi yine tek bir çeteyi hedefliyor, ama artık o çete
