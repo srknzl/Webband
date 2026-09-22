@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.31.1', date: '2026-09-22', name: 'Elli Başarım' };  // the version name is not translated
+const VERSION = { no: '1.31.2', date: '2026-09-23', name: 'Uçtan Uca' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2189,8 +2189,11 @@ const Game = {
         this.initDiplomacy();   // There's always an open front in Calradia
         document.getElementById('start-screen').classList.remove('active');
         document.getElementById('main-ui').classList.add('active');
-        this.resizeCanvases();
-        
+        // Through showScreen, as Save.apply does: this path used to set the screen up by hand and
+        // skip its body classes, so a new game started without the map's floating chrome (#40)
+        // until the first switch to another screen and back.
+        this.showScreen('map');
+
         // Instantly focus the camera on the player at start
         this.camera.x = state.player.x;
         this.camera.y = state.player.y;
@@ -5248,8 +5251,10 @@ const Game = {
 
     updateTopBar() {
         let p = state.player;
-        let qb = document.querySelector('.menu-btn[data-view="quests"]');
-        if(qb && typeof Quests !== 'undefined') qb.classList.toggle('has-turnin', !!Quests.awaiting());
+        // The turn-in dot (#106) goes on "⋯ Daha" too: on a phone the Quests tab lives behind it,
+        // and a dot on a hidden button tells nobody anything. CSS shows exactly one of the two.
+        if(typeof Quests !== 'undefined') document.querySelectorAll('.menu-btn[data-view="quests"], .menu-btn.sb-more')
+            .forEach(b => b.classList.toggle('has-turnin', !!Quests.awaiting()));
         let set = (id, v) => { let e = document.getElementById(id); if(e) e.innerText = v; };
         let bar = (id, pct) => { let e = document.getElementById(id); if(e) e.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
 
@@ -5566,10 +5571,12 @@ const Game = {
         let ok = document.fullscreenEnabled && !document.fullscreenElement
             && !this.isTouch() && localStorage.getItem('f11hint') !== 'off';
         el.classList.toggle('hidden', !ok);
+        // Written on every show, not once: a language switch has to reach it too. The span is
+        // born empty in index.html so I18N.prime() never keys its two text nodes separately.
+        let txt = document.getElementById('f11-hint-text');
+        if(ok && txt) txt.innerHTML = T`🖥️ Tam ekran için <kbd>F11</kbd>`;
         if(ok && !this._f11wired) {
             this._f11wired = true;
-            let txt = document.getElementById('f11-hint-text');
-            if(txt) txt.innerHTML = T`🖥️ Tam ekran için <kbd>F11</kbd>`;
             let close = document.getElementById('f11-hint-close');
             if(close) close.onclick = () => { localStorage.setItem('f11hint', 'off'); el.classList.add('hidden'); };
             document.addEventListener('fullscreenchange', () => { if(document.fullscreenElement) el.classList.add('hidden'); });
@@ -6330,7 +6337,7 @@ const Game = {
             // `rect` wasn't defined in this body: every time the cursor reached a settlement it
             // threw a ReferenceError and the tooltip never opened. The measurement goes through the same gate as mapPos.
             let rect = this.mapCanvas.getBoundingClientRect();
-            tooltip.innerHTML = `<strong>${T(found.name)}</strong><br>${found.sub}`;
+            tooltip.innerHTML = `<strong>${found.name}</strong><br>${found.sub}`;   // `found.name` is translated where it is built
             tooltip.style.left = '0px'; tooltip.style.top = '0px';
             tooltip.classList.remove('hidden');
             // Measure and pull it inward: a narrow screen doesn't have room for a tooltip to the right of a finger (#65)
@@ -6401,7 +6408,7 @@ const Game = {
     // boot and on every language switch.
     renderVerTag() {
         let vt = document.getElementById('ver-tag');
-        if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${T(VERSION.name)} · ${VERSION.date}`;
+        if(vt) vt.textContent = T`WebBand ${VERSION.no} · ${VERSION.name} · ${VERSION.date}`;   // the name is a stamp, never translated (see VERSION)
     },
 
     // Install (#93). Chrome and the desktop browsers won't install on their own: they
@@ -7829,6 +7836,9 @@ const Game = {
         return `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm);white-space:nowrap" onclick="${call}">${label}</button>`;
     },
     refreshMarket() {
+        // A trade can finish a quest (bought_item → Quests.markDone), and that notice takes the
+        // modal over before the trade redraws its rows: with the market gone there is nothing to redraw.
+        if(!this.marketOpen()) return;
         this.setHtml('market-status', this.marketStatusHtml());
         this.setHtml('market-cats', this.marketCatsHtml());
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];

@@ -3,6 +3,24 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.31.2 — Uçtan Uca (2026-09-23)
+
+Oyun artık her sürümde gerçek bir tarayıcıda, masaüstünde ve telefonda, üç dilde baştan sona
+oynanarak sınanıyor. İlk tur şunları yakaladı:
+
+- **Başarımlar ve Topraklarım masaüstünde açılmıyordu** — ikisi yalnız "⋯ Daha" menüsündeydi,
+  o menü de geniş ekranda gizli. Artık masaüstünde kenar çubuğunda duruyorlar.
+- **Telefonda "teslime hazır" işareti görünmüyordu** — yeşil nokta yalnız Görevler düğmesine
+  konuyordu, telefonda o düğme "⋯ Daha"nın arkasında. Nokta artık "⋯ Daha"da da çıkıyor.
+- **Görevi pazarda bitiren alım hata veriyordu** — son peyniri alınca görev bitti mesajı
+  çıkıyor, ardından köşede kırmızı bir hata rozeti beliriyordu. Düzeldi.
+- **Yeni oyun haritanın kendi düzeniyle açılmıyordu** — kenar çubuğu ve üst çubuk, başka bir
+  ekrana geçip dönene kadar haritanın üstüne yüzen hâllerine geçmiyordu.
+- **Çeviri** — İngilizce ve Endonezce'de haritada bir çetenin üstüne gelince ipucu adı bozuk
+  çeviriyordu; hız düğmesinin ipucu ve tam ekran ipucu çevrilmemişti.
+- Kenar çubuğu artık en uzun etikete göre genişliyor; "Topraklarım" ve Endonezce "Inventaris"
+  kenara taşmıyor.
+
 ## 1.31.1 — Elli Başarım (2026-09-22)
 
 - **19 yeni başarım, toplam 50** — savaş (İlk Kan, Kasap, Sağ Kalan, Sayı Üstünlüğü Efsanedir,

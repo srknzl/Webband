@@ -79,6 +79,7 @@ JSON from the 💾 Kayıtlar screen.
 | `webband-launch.ps1`, `webband.ico` | Windows launcher (update check + Chrome) and its desktop icon |
 | `native/` | Capacitor shell that turns the same files into Android and iOS apps |
 | `tools/` | Headless test, simulation and balance tools, run by CI |
+| `e2e/` | Playwright browser tests — desktop and phone, Turkish/English/Indonesian, run by CI |
 | `docs/` | Design plans, system notes and measurements (Turkish) |
 | `CLAUDE.md` | Design notes and measured numbers (Turkish) |
 | `CHANGELOG.md` | Player-facing change log (Turkish) |

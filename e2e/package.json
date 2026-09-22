@@ -1,0 +1,14 @@
+{
+  "name": "webband-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser end-to-end tests for WebBand. The repo root stays build-free; npm lives here and in native/ only.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

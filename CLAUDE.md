@@ -23,7 +23,8 @@ after changing it, update the "Measured" lines.
 | `lang-en.js` / `lang-id.js` | Generated dictionaries — never hand-edited |
 | `style.css` | Glass panel theme, CSS variables |
 | `sw.js`, `manifest.webmanifest`, `fonts/`, `icon-*.png` | PWA: offline cache, install metadata, self-hosted Cinzel/Inter |
-| `native/` | Capacitor shell — the only place npm exists. `ios/`/`android/` are generated, never committed |
+| `native/` | Capacitor shell — npm lives here and in `e2e/` only. `ios/`/`android/` are generated, never committed |
+| `e2e/` | Playwright end-to-end tests: the real game in Chromium, desktop + phone layout, TR/EN/ID |
 | `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node` |
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
@@ -107,10 +108,25 @@ node tools/framegate.js         # frame-skip gate + #42 parity regression
 node tools/sim.js --days 200 --seed 1-5 | duel.js --n 200 | economy.js --days 60 --troops 10
 ```
 
-CI runs the first two on every push; the web build has no `npm install` step. `native.yml`
-is the second pipeline — it assembles `native/www` from these same files, runs
+CI runs the first two on every push; the game itself has no `npm install` step. The `e2e`
+job is the browser half:
+
+```
+cd e2e && npm ci && npx playwright install chromium   # once
+npx playwright test [--project=tr-phone] [specs/quests.spec.js]
+```
+
+Every spec runs in four projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop`), so the
+language projects *are* the translation test. `e2e/fixtures.js` fails any test — even one
+whose own steps passed — on a page error, a `console.error`, a failed request, an entry in
+`Debug.errors`, a `T()` key missing from the dictionary, or `{0}`/`undefined`/`NaN`/a
+Turkish-only letter painted on an EN/ID screen. Tests drive the real screens by click/tap;
+world setup (pinning a quest offer, arriving at a gate) goes through the game's own calls.
+Labels are looked up with `L(page, 'Türkçe anahtar')`, never hard-coded.
+
+`native.yml` is the second pipeline — it assembles `native/www` from these same files, runs
 `npx cap add`, and leaves a sideloadable Android `.apk` plus a compiled iOS build as run
-artifacts. npm lives only under `native/`. The expected numbers are
+artifacts. npm lives only under `native/` and `e2e/`. The expected numbers are
 the "Measured" lines in `docs/SYSTEMS.md` — if one changes, either the code or the doc is
 wrong.
 

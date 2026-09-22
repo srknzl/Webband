@@ -158,6 +158,12 @@
                         <span class="mb-ico">🎒</span><span class="mb-lbl">Envanter</span><kbd>İ</kbd></button>
                     <button class="menu-btn sb-extra" data-view="quests" onclick="Game.showScreen('quests')">
                         <span class="mb-ico">📜</span><span class="mb-lbl">Görevler</span><kbd>Q</kbd></button>
+                    <!-- These two used to live only behind "⋯ Daha", which the wide layout hides —
+                         a desktop player had no way in at all. The phone keeps them in that sheet. -->
+                    <button class="menu-btn sb-extra" onclick="Game.showAchievements()">
+                        <span class="mb-ico">🏆</span><span class="mb-lbl">Başarımlar</span></button>
+                    <button class="menu-btn sb-extra" onclick="Game.showFiefs()">
+                        <span class="mb-ico">🏰</span><span class="mb-lbl">Topraklarım</span></button>
                     <div style="flex:1"></div>
                     <div class="sb-title">Kayıt</div>
                     <button class="menu-btn sb-extra" onclick="Save.open()">
@@ -294,7 +300,7 @@
     <div id="pause-bar" class="hidden"></div>
     <!-- Tam ekran ipucu (#kenar menüleri): göster/gizle app.js işi, id burada hazır -->
     <div id="f11-hint" class="hidden glass-panel">
-        <span id="f11-hint-text">🖥️ Tam ekran için <kbd>F11</kbd></span>
+        <span id="f11-hint-text"></span>
         <button id="f11-hint-close" aria-label="Kapat">&times;</button>
     </div>
     <!-- Modals -->

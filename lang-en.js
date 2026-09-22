@@ -2943,4 +2943,5 @@ I18N.dicts.en = {
   "Dolunun altında yürüdün ve tek adam kaybetmedin.": "You marched through the hail and lost not a single man.",
   "Arena Kralı": "King of the Arena",
   "Arenada üst üste 10 maç kazandın.": "You won 10 arena bouts in a row.",
+  "Zaman akış hızı (Z)": "Time flow speed (Z)",
 };

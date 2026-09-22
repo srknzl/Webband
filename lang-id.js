@@ -2943,4 +2943,5 @@ I18N.dicts.id = {
   "Dolunun altında yürüdün ve tek adam kaybetmedin.": "Kau berjalan menembus hujan es tanpa kehilangan seorang pun.",
   "Arena Kralı": "Raja Arena",
   "Arenada üst üste 10 maç kazandın.": "Kau memenangkan 10 pertandingan arena berturut-turut.",
+  "Zaman akış hızı (Z)": "Kecepatan aliran waktu (Z)",
 };
