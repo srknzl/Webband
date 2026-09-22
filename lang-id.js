@@ -682,7 +682,7 @@ I18N.dicts.id = {
   "Mektup çantanda — <b>{0}</b>'a ulaştır; onu ancak kendi salonundayken bulursun": "Surat ada di tasmu — antarkan kepada <b>{0}</b>; dia hanya bisa ditemui di balainya sendiri",
   "MIZRAK ŞARJI!": "TERJANGAN TOMBAK!",
   "Maaş gecikmesi": "Gaji tertunggak",
-  "Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.": "Gaji yang tak terbayar menumpuk jadi utang dan menggerus 1 moral per jam; utang lunas sendiri begitu kamu punya uang. Prajurit di bawah level 10 tak minta gaji, level 51 tak minta apa pun.",
+  "Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez.": "Gaji yang tak terbayar menumpuk jadi utang dan menggerus 1 moral per jam; utang lunas sendiri begitu kamu punya uang. Prajurit di bawah level 10 tak minta gaji.",
   "Maaşımız bu ay gecikti efendim.": "Gaji kami telat bulan ini, Tuan.",
   "Maceracı": "Petualang",
   "Mal": "Barang",

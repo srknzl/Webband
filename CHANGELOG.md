@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.29.0 — Kademe (2026-09-22)
+
+- **Askerin gücü artık yalnız rütbesinden geliyor** — seviye sadece terfinin kapısını açıyor;
+  terfi etmeden seviyenin savaşta hiçbir artısı yok. Aynı rütbedeki iki şövalye, hangisi daha
+  çok savaş görmüş olursa olsun aynı güçte dövüşür.
+- **En üst rütbedeki askerler artık seviye atlamıyor** — terfi edecek yerleri kalmadığı için
+  tecrübe de toplamıyorlar; maaşları ve yedikleri de terfi anında sabitleniyor, zamanla
+  pahalanmıyorlar. Eski kayıtlardaki 20. seviyenin üstündeki gaziler 20'ye çekilir.
+- **Et/peynir isteyen artık "seviye 30 üstü" değil, en üst rütbedeki her asker** — bir askeri
+  son rütbeye terfi ettirdiğin gün onun için et ya da peynir taşıman gerekiyor.
+- **Paralı askerler rütbelerine uygun seviyede geliyor** — orta rütbe 10, en üst rütbe 20
+  (eskiden ikisi de rastgele 10–15). Fiyat seviyeden geldiği için orta rütbe kişi başı 180,
+  en üst rütbe 300 dinar (eskiden 180–240); kötü şöhret zammı ayrıca eklenir.
+- Yoldaşlar bundan etkilenmiyor: seviye atlamaya devam ediyorlar, çünkü grubun yeteneklerini
+  onların seviyesi taşıyor.
+
 ## 1.28.6 — Teslim Çağrısı (2026-09-22)
 
 - **Bitmiş bir görevin ödülü artık gözden kaçmıyor** — görev bitince çıkan mesaj ödülü ve nasıl

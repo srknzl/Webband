@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.28.6', date: '2026-09-22', name: 'Teslim Çağrısı' };  // the version name is not translated
+const VERSION = { no: '1.29.0', date: '2026-09-22', name: 'Kademe' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -4856,13 +4856,9 @@ const Game = {
                 return req; // Remaining (unmet) amount
             };
 
-            // High-quality food is for level 30+ troops
+            // High-quality food is for elite troops, the top of their tree (#124)
             let missingHighQuality = consumeFood(highQualityFoods, Math.ceil(foodRequiredHigh));
-            if(missingHighQuality > 0) {
-                state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = true; });
-            } else {
-                state.player.party.forEach(t => { if(t.level >= 30 && t.level < 51) t.debuff = false; });
-            }
+            state.player.party.forEach(t => { if(this.isEliteTroop(t)) t.debuff = missingHighQuality > 0; });
 
             // The remaining food need can also be met with low-quality food
             let missingLow = consumeFood([...lowQualityFoods, ...highQualityFoods], Math.ceil(foodRequiredLow - foodRequiredHigh + missingHighQuality));
@@ -4892,7 +4888,7 @@ const Game = {
 
             // A quality shortfall is separate from hunger: full stomach, but an elite troop grumbles.
             // The player was rightly confused: "I have bread in inventory, why am I debuffed?"
-            let elite = state.player.party.filter(t => t.level >= 30 && t.level < 51).length;
+            let elite = state.player.party.filter(t => this.isEliteTroop(t)).length;
             if(missingHighQuality > 0 && elite && !state.player.wasLowQuality) {
                 alert(`🥩 <b>${T`${elite} seçkin askerin</b> et/peynir bulamadı.`}<br>` +
                       `${T`Ekmek ve tahıl karınlarını doyurur ama <b>savaşta ×0.7</b> güçle dövüşürler.`}<br>` +
@@ -5083,7 +5079,7 @@ const Game = {
             (p.spouse ? R(T('Evlilik geliri'), '+50', true) : '') +
             (p.wageDebt > 0 ? R(T('Gecikmiş maaş'), T`${Math.ceil(p.wageDebt)} dinar · ${p.wageLateHours || 0} saattir`, false) : '') +
             (p.wageDebt > 0 ? R(T('Saatlik moral kaybı'), '-1', false) : ''),
-            T('Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.')));
+            T('Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez.')));
 
         let fs = this.foodStock();
         this.setHtml('tip-food', this.tipBox(T('Erzak'),
@@ -8439,7 +8435,7 @@ const Game = {
             for(let i = 0; i < 2; i++) {
                 let name = names[Math.floor(Math.random() * names.length)];
                 if(list.some(x => x.name === name)) continue;
-                list.push({ name, level: 10 + Math.floor(Math.random() * 6), count: 3 + Math.floor(Math.random() * 6) });
+                list.push({ name, level: this.tierLevel(name), count: 3 + Math.floor(Math.random() * 6) });
             }
             p = state.mercPools[loc.id] = { day: state.time.day, list };
         }
@@ -8476,8 +8472,8 @@ const Game = {
         for(let i = 0; i < n; i++) {
             state.player.party.push({
                 id: 'merc_' + Math.random().toString(36).substr(2,9),
-                name: m.name, level: m.level, xp: 0,
-                xpNext: m.level < 30 ? 3 + m.level : 5 + m.level * 2
+                name: m.name, level: this.tierLevel(m.name), xp: 0,
+                xpNext: TROOP_UPGRADES[m.name] ? 8 : 0      // same bar a promotion to this step starts
             });
         }
         if(m.count <= 0) pool.list.splice(idx, 1);
@@ -10565,9 +10561,14 @@ const Game = {
             }
         }
     },
+    // Level is the step of the tree a troop stands on (#124): recruit 1, mid 10, elite 20. It moves
+    // only on promotion, so an elite troop — nothing left to promote to — no longer levels at all.
+    // Companions and a spouse are not tree troops and keep levelling (their level backs party skills).
+    isEliteTroop(t) { return !!t && !t.isCompanion && !t.isSpouse && !!TROOP_TYPES[t.name] && !TROOP_UPGRADES[t.name]; },
+    tierLevel(name) { return !TROOP_UPGRADES[name] ? 20 : (TROOP_TYPES[name] || {}).tier ? 10 : 1; },
     // Troop experience passes through a single place: a kill in battle, and the Training skill too.
     giveTroopXp(t, n = 1) {
-        if(!t || t.level >= 50) return null;                             // above 50 only via the Boss Token
+        if(!t || t.level >= 50 || this.isEliteTroop(t)) return null;
         if(TROOP_UPGRADES[t.name] && t.xp >= t.xpNext) return null;      // ready to promote, doesn't take XP
         t.xp += n;
         if(t.xp < t.xpNext) return null;
@@ -10916,7 +10917,7 @@ const Game = {
             // Stronger troops eat more (#27): 1×→3× scaled by level, the toughest elite (~lvl50) at 3×.
             let mult = Math.min(3, 1 + Math.min(t.level, 50) / 25);
             foodLow += this.FOOD_MAN * mult;
-            if(t.level >= 30) foodHigh += this.FOOD_MAN;
+            if(this.isEliteTroop(t)) foodHigh += this.FOOD_MAN;
         });
         wage += this.fiefIncome().wage;   // a fief's garrison wage comes out of your pocket too (#23)
         wage *= (1 - this.perkMod('wageReduce') / 100);   // Command perks (#110)
@@ -11428,6 +11429,11 @@ const Save = {
         if(pl && !Array.isArray(pl.perks)) pl.perks = [];
         if(pl && typeof pl.relics !== 'object') pl.relics = {};   // #37: relics
         if(pl && pl.currentBoss === undefined) pl.currentBoss = null;
+        // #124: an elite troop's level no longer climbs past its tree step; saves from before
+        // carry veterans at 21–50 whose level would otherwise keep costing wage and food.
+        let lvlFix = t => { if(Game.isEliteTroop(t) && t.level > 20) { t.level = 20; t.xp = 0; } };
+        ((pl || {}).party || []).forEach(lvlFix);
+        (((d || {}).locations) || []).forEach(l => (l.garrison || []).forEach(lvlFix));
         let st = ((d || {}).state);                      // #38: boss kills / victory
         if(st) { if(typeof st.bossKills !== 'object') st.bossKills = {}; if(st.victory === undefined) st.victory = false; }
         return d;

@@ -682,7 +682,7 @@ I18N.dicts.en = {
   "Mektup çantanda — <b>{0}</b>'a ulaştır; onu ancak kendi salonundayken bulursun": "The letter is in your bag — deliver it to <b>{0}</b>; you'll only find them in their own hall",
   "MIZRAK ŞARJI!": "LANCE CHARGE!",
   "Maaş gecikmesi": "Late wages",
-  "Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez, lvl 51 hiçbir şey istemez.": "Unpaid wages pile up as debt and cost 1 morale an hour; the debt clears itself once you have coin. Troops below level 10 take no wages, level 51 takes nothing at all.",
+  "Maaş ödenemezse borç birikir ve her saat 1 moral gider; paran olunca borç kendiliğinden ödenir. Lvl 10 altı asker maaş istemez.": "Unpaid wages pile up as debt and cost 1 morale an hour; the debt clears itself once you have coin. Troops below level 10 take no wages.",
   "Maaşımız bu ay gecikti efendim.": "Our wages are late this month, my lord.",
   "Maceracı": "Adventurer",
   "Mal": "Goods",

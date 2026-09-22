@@ -201,14 +201,44 @@ test('foodStock: day count accounts for spoilage too', () => {
 });
 test('foodStock: elite troops want meat, variety is counted', () => {
     const p = reset();
-    p.party = [troop(30), troop(30)];
+    // Elite = the top of its tree, not a level (#124): two knights, and a mid-tier troop that eats bread only.
+    const knight = id => troop(20, { id, name: 'Svadya Şövalyesi' });
+    p.party = [knight('k1'), knight('k2'), troop(10, { name: 'Svadya Süvarisi' })];
     p.inventory = [{ id: 'wheat', qty: 10 }, { id: 'meat', qty: 10 }];
     const fs = Game.foodStock();
-    assert.strictEqual(fs.need, 2);                   // 2 × lvl30 (0.3×2.2=0.66) + player 0.5625 = 1.8825 → 2 (#27, cut to 0.75× again #132)
-    assert.strictEqual(fs.needHigh, 1);               // 0.3 meat per lvl 30+ troop, ×2 = 0.6 → 1
+    assert.strictEqual(fs.need, 3);                   // 2 × lvl20 (0.3×1.8=0.54) + lvl10 (0.42) + player 0.5625 = 2.0625 → 3 (#27, #132)
+    assert.strictEqual(fs.needHigh, 1);               // 0.3 meat per elite troop, ×2 = 0.6 → 1
     assert.strictEqual(fs.high, 10);
     assert.strictEqual(fs.kinds, 2);
 });
+test('troop level only opens a promotion, it adds no strength (#124)', () => {
+    const p = reset();
+    const mid = troop(10, { id: 'm', name: 'Svadya Süvarisi', xp: 0, xpNext: 8 });
+    const elite = troop(20, { id: 'e', name: 'Svadya Şövalyesi', xp: 0, xpNext: 12 });
+    const comp = troop(5, { id: 'c', name: 'Yoldaş', isCompanion: true, xp: 0, xpNext: 8 });
+    for(let i = 0; i < 40; i++) { Game.giveTroopXp(mid); Game.giveTroopXp(elite); Game.giveTroopXp(comp); }
+    assert.strictEqual(mid.level, 10, 'a promotable troop levelled instead of waiting for its promotion');
+    assert.ok(mid.xp >= mid.xpNext, 'a promotable troop never became ready to promote');
+    assert.strictEqual(elite.level, 20, 'an elite troop still climbs past its tree step');
+    assert.ok(comp.level > 5, 'a companion stopped levelling — its level backs the party skills');
+    // In battle a troop is exactly its class: the same knight at any level fields the same unit.
+    const w = H.world({ seed: 2 });
+    const field = lvl => {
+        w.state.player.party = [troop(lvl, { id: 'k', name: 'Svadya Şövalyesi' })];
+        w.Battle.start('Çapulcular', 1);
+        const u = w.Battle.units.find(x => x.id === 'k'); w.Battle.active = false;
+        return [u.maxHp, u.attack, u.defense, u.speed].join('/');
+    };
+    assert.strictEqual(field(20), field(45), 'a higher level still adds stats in battle');
+    const merc = w.Game.mercPool({ id: 'merc_test', faction: 'swadia' }).list[0];
+    assert.strictEqual(merc.level, w.Game.tierLevel(merc.name), 'a mercenary\'s level is off its tree step');
+    const save = { v: 2, state: { player: { party: [troop(35, { name: 'Svadya Şövalyesi' }), troop(35, { name: 'Yoldaş', isCompanion: true })], equipment: {} } },
+                   locations: [{ id: 'x', garrison: [troop(41, { name: 'Svadya Şövalyesi' })] }] };
+    Save.migrate(save);
+    assert.deepStrictEqual([save.state.player.party[0].level, save.state.player.party[1].level, save.locations[0].garrison[0].level], [20, 35, 20],
+        'an old save keeps its veterans above their tree step (or clamps a companion)');
+});
+
 test('foodStock: empty inventory is 0 days, never infinite', () => {
     const p = reset();
     p.party = [troop(10)];

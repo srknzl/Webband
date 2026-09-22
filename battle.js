@@ -318,25 +318,20 @@ const Battle = {
 
         // Troops (Player's party) — the wounded don't join the battle, they heal in camp
         state.player.party.filter(p => !p.wounded).forEach((p, i) => {
+            // A troop is exactly its class (#124): level only decides when a promotion opens, so
+            // strength comes from the tree step alone and changes only when the name does.
             let typeInfo = Game.troopStats(p);
-            // Growth used to be a single lump at promotion; now every level nudges something,
-            // so the levels between promotions are felt too (#124) — the big jump still comes
-            // from the class upgrade itself, this only softens the flat stretch between them.
-            let lvlBonusHp = p.level * 2;
-            let lvlBonusAtk = Math.floor(p.level / 3);
-            let lvlBonusDef = Math.floor(p.level / 2);
-            let lvlBonusSpd = Math.floor(p.level / 4);
             // Hunger and morale were two separate multipliers; both at once dragged HP AND attack to ×0.56 —
             // a losing battle fed on itself. It now floors at 0.7.
             let debuff = Math.max(0.7, (p.debuff ? 0.7 : 1) * Game.moraleMult());
 
             this.units.push({
                 id: p.id, isPlayerTeam: true, name: p.name,
-                hp: (typeInfo.hp + lvlBonusHp) * debuff, maxHp: (typeInfo.hp + lvlBonusHp) * debuff,
+                hp: typeInfo.hp * debuff, maxHp: typeInfo.hp * debuff,
                 x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
                 // Speed isn't affected by morale: the enemy has no morale, so if it scaled, the same troop
                 // would run at two different speeds on the two sides. Morale scales HP and attack (the UI says so too).
-                speed: typeInfo.speed + lvlBonusSpd, attack: (typeInfo.attack + lvlBonusAtk) * debuff, defense: typeInfo.defense + lvlBonusDef,
+                speed: typeInfo.speed, attack: typeInfo.attack * debuff, defense: typeInfo.defense,
                 type: typeInfo.type, mounted: typeInfo.type === 'cavalry' || typeInfo.speed > this.FOOT_MAX,
                 dmgType: typeInfo.dmgType, brace: typeInfo.brace, color: typeInfo.type === 'cavalry' ? '#33ddff' : typeInfo.type === 'archer' ? '#55ff55' : '#33aaff',
                 radius: typeInfo.type === 'cavalry' ? 7 : 5, atkCd: 0, level: p.level, icon: typeInfo.icon, tier: typeInfo.tier   // #132

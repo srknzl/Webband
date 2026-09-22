@@ -467,9 +467,10 @@ tooltip. Night (hour <6 or ≥20) is ×0.85. If your pack exceeds its carry limi
 `Game.cargoMult()` kicks in (see "Carry capacity").
 
 Every day:
-- Troop wages (lvl 10–19: 2, lvl 20+: `level/2`, lvl 51: free)
-- Food consumption — low quality (grain/bread) and high quality (meat/cheese). Lvl 30+ troops
-  get a `debuff` if they can't get high quality (×0.7 in battle).
+- Troop wages (lvl 10–19: 2, lvl 20: 10 — a tree troop's level is its step, so elite is always 20)
+- Food consumption — low quality (grain/bread) and high quality (meat/cheese). Elite troops
+  (`Game.isEliteTroop`: the top of their tree) get a `debuff` if they can't get high quality
+  (×0.7 in battle).
   Status is read from a single place: `Game.foodStock()` → `{low, high, total, need, needHigh, days, kinds}`.
   The 🍞 badge in the top bar shows how many days it'll last (turns red under 3 days), its
   tooltip has a line-by-line breakdown.
@@ -502,9 +503,9 @@ needed touching. The player's own belly is `Game.FOOD_PLAYER` = **0.5625** (0.75
 #132) — the knob is only the troops' share.
 **Stronger troops eat more (#27)**: each troop's low-quality share is
 `FOOD_MAN × min(3, 1 + min(level, 50)/25)` — a level-10 recruit at 1.4× (0.42 units), a
-level-25 veteran at 2× (0.6), the toughest elite (~lvl 50) capped at **3×** (0.9). Lvl 30+
-additionally wants meat/cheese equal to `FOOD_MAN` (0.3); companions eat a flat `FOOD_MAN`;
-lvl 51 free.
+elite (lvl 20) at 1.8× (0.54); the 3× cap (lvl 50) is only reachable by a companion now (#124).
+An elite troop additionally wants meat/cheese equal to `FOOD_MAN` (0.3) — from the day it is
+promoted, since #124 there is no "lvl 30+" veteran any more; companions eat a flat `FOOD_MAN`.
 
 Measured (`upkeep()` directly, `need = ceil(foodLow)`):
 
@@ -745,12 +746,15 @@ spears and shield lines beat cavalry, cavalry runs down archers.
   threshold is the **same constant** as battle's forest rule. The prisoner section shows
   capacity, the daily escape chance (`max(1, 6 − Prisoner Management×0.5)`), and the total
   value of prisoners on hand.
-- XP is +1 per kill in battle. Once XP fills, a troop either auto-levels or, if
-  `TROOP_UPGRADES` has an entry, becomes **ready to promote** — pick a class from the party
-  screen by paying denars. Promotion tier looks at the tree, not the name: a troop with no
-  further branch counts as elite (lvl 20).
-- Level cap 50. The **War God's Medal**, dropped by the boss, promotes a troop to lvl 51
-  "Legendary": no wages or food needed, +100 HP / +15 attack.
+- XP is +1 per kill in battle. Once XP fills, a troop with a `TROOP_UPGRADES` entry becomes
+  **ready to promote** — pick a class from the party screen by paying denars.
+- **Level is only the promotion gate (#124)**: a tree troop's level is the step it stands on
+  (`Game.tierLevel`: recruit 1, mid 10, elite 20) and changes only on promotion. It adds **no**
+  battle stats — a unit fields exactly `Game.troopStats(t)` — and an elite troop, with nothing
+  left to promote to, gains no XP (`giveTroopXp` returns early). Wage and food still read the
+  level, so they too change only at promotion. Mercenaries are hired at their step's level.
+  Companions and a spouse are not tree troops and keep levelling (cap 50), because their level
+  backs the party skills (`profLvl`). `Save.migrate` clamps pre-#124 elite veterans (21–50) to 20.
 
 ### Companions (`COMPANIONS`)
 7 named heroes, each waiting at one town's inn (`c.city`), joining for 600–900 denars.
@@ -2000,13 +2004,14 @@ A conquered settlement is no longer just a flag change: `loc.owner === 'player'`
 | **Garrison** | settlement screen → 🛡️ Garrison | `loc.garrison[]` are real troop objects; they don't count against your party capacity but their **wage adds to `upkeep()`**. A companion can't stay in a garrison |
 | **Storage** | settlement screen → 📦 Storage | `loc.storage[]`; **food in storage doesn't spoil** (`spoilFood` only walks `state.player.inventory`) and isn't looted on defeat |
 
-- Wage is read from a single rule: `Game.troopWage(t)` (companion 20, lvl 51 free, lvl 20+
-  `level/2`, lvl 10+ 2, below that free) — both `upkeep()` and `fiefIncome()` call it.
+- Wage is read from a single rule: `Game.troopWage(t)` (companion 20, lvl 20 elite 10, lvl 10+
+  2, below that free) — both `upkeep()` and `fiefIncome()` call it.
 - `Game.fiefIncome()` = `{tax, wage, troops, net}`. The treasury tooltip has a "Fief tax" line,
   the diplomacy screen (**K**) shows the fief list + net income.
-- **Balance**: stuffing a garrison with elite troops is a loss — measured, 12 knights (lvl 30)
-  eat 180 denars/day, dropping a 141-denar town to **−39**. Filling it with cheap troops is
-  the correct move, same as in Warband.
+- **Balance**: stuffing a garrison with elite troops is a loss — measured (1.29.0, seed 1),
+  12 knights (lvl 20; veterans no longer climb, #124) cost **120** denars/day against a
+  100-denar town tax, net **−20**. Filling it with cheap troops is the correct move, same as
+  in Warband.
 - **An undefended fief gets taken back**: `warTick`'s siege threshold looks at `garrisonOf`, so
   a garrisonless fief falls the first time an enemy lord passes by. `captureSettlement` then
   drops `owner`, **wipes the garrison**, and shows you the news as a modal; storage stays put.
