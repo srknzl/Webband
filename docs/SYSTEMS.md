@@ -1539,9 +1539,14 @@ Measured (seeds 1–5, playerless so renown stays 0): day 0 **10** bands (target
 that climbs by a third of one, so the gap never opens more than a band or two wide.
 `tools/test.js` asserts both that the target climbs over 60 days and that the refill keeps up.
 
-**A band comes from a lair (#68)**. The map has `LAIR_COUNT`=5 **bandit lairs**, and every
-spawned band is bound to one (`npc.lairId`, spawning within 200–500 units of the lair); no new
-band spawns in a world with no lairs — that's clearing's payoff. A lair sits in `state.sites`
+**A band comes from a lair (#68)**. The map has `LAIR_COUNT`=9 **bandit lairs** (5 until #97),
+and every spawned band is bound to one (`npc.lairId`, spawning within 200–500 units of the lair);
+no new band spawns in a world with no lairs — that's clearing's payoff. **The emptiest lair sends
+the next band (#97)**: `spawnFromLair` picks, among the lairs outside `SPAWN_SAFE`, one with the
+fewest live bands (random among ties), so the population evens out instead of piling up where
+the dice happened to fall. Measured (1.29.1, seeds 1–5, 60 days, playerless): the busiest lair
+holds **14%** of the lair-born bands on average, **20%** at worst — with 5 lairs and a random pick
+it was **29–62%** on average, **78%** at worst. `tools/test.js` holds the worst at ≤30%. A lair sits in `state.sites`
 as `kind:'lair'`: since drawing, tooltip, clicking, targeting, and saving already run through
 that array, a separate `state.lairs` would have meant a second loop in five separate places
 (this is the deliberate deviation from the issue's own suggestion). A lair is **assaulted, not
@@ -1552,7 +1557,8 @@ undiscovered lair is **absent** from the map (`lairSeen`: gets stamped `seen` on
 sight range; drawing/tooltip/clicking all check this stamp).
 
 Daily: purse +15 (cap 1200), current 8–12 people +0.15/day (cap 24) — a lair left standing
-grows. A settlement within range (`LAIR_RANGE`=1500) loses **0.5 prosperity a day**, and this
+grows. A settlement within range (`LAIR_RANGE`=1100; 1500 with 5 lairs — shrunk with #97 so the
+share of settlements under decay holds: 54.5% before, **52.5%** after, 8 seeds) loses **0.5 prosperity a day**, and this
 **doesn't stack**: a village where two lairs' ranges overlapped used to lose 1.0 a day and die,
 same reasoning as the `worst()` rule for terrain penalties. At the initial 2500-unit range,
 22 of the map's 30 settlements sat inside a lair's range, leaving nothing "regional" about it.

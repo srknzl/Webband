@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.29.0', date: '2026-09-22', name: 'Kademe' };  // the version name is not translated
+const VERSION = { no: '1.29.1', date: '2026-09-22', name: 'Dokuz İn' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1267,8 +1267,11 @@ const Game = {
     // A band no longer spawns out of thin air: every band has a lair it comes from.
     // It gnaws at nearby settlements every day and its purse grows; clearing it gives
     // you the purse and stops bands from spawning in that region. For the first time the map becomes genuinely "clearable".
-    LAIR_COUNT: 5,
-    LAIR_RANGE: 1500,        // gnaws at prosperity within this radius (at 2500 the whole map was in lair range)
+    // Nine lairs, not five (#97): five sources packed 14–34 bands into five rings. The range
+    // shrank with the count so the share of settlements under decay stays where it was —
+    // measured over 8 seeds, 5 × 1500 covered 54.5% of them, 9 × 1100 covers 52.5%.
+    LAIR_COUNT: 9,
+    LAIR_RANGE: 1100,        // gnaws at prosperity within this radius (at 2500 the whole map was in lair range)
     LAIR_DECAY: 0.5,         // prosperity per day (daily recovery is 0.4/0.15 — so the lair wins)
     LAIR_PURSE: 15,          // purse accumulated per day
     LAIR_RESPAWN: 20,        // a missing lair is rebuilt every this many days
@@ -1302,10 +1305,15 @@ const Game = {
         return !!s.seen;
     },
     // A band comes out of its lair. No band spawns in a lair-free region — that's the payoff of clearing it.
+    // The emptiest lair sends the next band (#97): a random pick let one lair keep feeding an
+    // already crowded region while another stayed quiet, so the spread never evened out.
     spawnFromLair() {
         let l = this.lairs().filter(x => this.dist(x, state.player) >= this.SPAWN_SAFE);
         if(!l.length) return null;
-        let lair = l[Math.floor(Math.random() * l.length)];
+        let alive = x => state.npcParties.filter(n => n.lairId === x.id && n.size > 0).length;
+        let least = Math.min(...l.map(alive));
+        let pool = l.filter(x => alive(x) === least);
+        let lair = pool[Math.floor(Math.random() * pool.length)];
         return this.spawnBand(lair.band, lair);
     },
     lairTick() {

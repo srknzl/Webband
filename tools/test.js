@@ -2096,6 +2096,22 @@ test('peace: a treaty lifts the player siege against the new partner', () => {
     assert.strictEqual(state.player.status, 'idle', 'peace left the player in besieging status');
 });
 
+test('bandit lairs: bands spread across the lairs instead of piling on a few (#97)', () => {
+    // A random lair pick let the busiest of five lairs hold 29–62% of the bands on average
+    // (worst 78%); the emptiest lair now sends the next band. Measured over 60 days, seeds 1–5:
+    // the busiest of nine holds 14% on average, 20% at worst.
+    const g = H.world({ seed: 3 });
+    assert.strictEqual(g.Game.lairs().length, g.Game.LAIR_COUNT, 'the world doesn\'t start with every lair');
+    let worst = 0;
+    H.run(g, 30, () => {
+        const bands = g.state.npcParties.filter(n => n.type === 'bandit' && n.lairId);
+        if(bands.length < 5) return;
+        const c = {}; bands.forEach(b => c[b.lairId] = (c[b.lairId] || 0) + 1);
+        worst = Math.max(worst, Math.max(...Object.values(c)) / bands.length);
+    });
+    assert.ok(worst <= 0.3, `one lair held ${Math.round(worst * 100)}% of the bands`);
+});
+
 test('bandit lair: erodes the region, pays out when cleared, and is a band source', () => {
     const g = H.world({ seed: 6 });
     const lairs = g.Game.lairs();

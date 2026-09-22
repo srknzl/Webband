@@ -3,6 +3,16 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.29.1 — Dokuz İn (2026-09-22)
+
+- **Haydutlar haritaya daha dengeli yayılıyor** — haydut ini sayısı 5'ten 9'a çıktı ve yeni
+  çıkan çete artık rastgele bir inden değil, **en az çetesi olan** inden doğuyor. Eskiden bir
+  bölge çete kaynarken öbürü bomboş kalabiliyordu: en kalabalık in çetelerin ortalama üçte
+  birini, kötü günlerde dörtte üçünü barındırıyordu; şimdi ortalama yedide birini.
+- **Toplam çete sayısı değişmedi** — yalnız dağılımı değişti.
+- **İnlerin köyleri kemirdiği alan daraldı** (1500 → 1100 birim), böylece in sayısı artsa da
+  refah kaybı yaşayan yerleşimlerin oranı aşağı yukarı aynı kaldı (%54.5 → %52.5).
+
 ## 1.29.0 — Kademe (2026-09-22)
 
 - **Askerin gücü artık yalnız rütbesinden geliyor** — seviye sadece terfinin kapısını açıyor;
