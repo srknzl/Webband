@@ -1186,8 +1186,9 @@ const Quests = {
 
     descFor(q) {
         if(q.state === 'awaiting') {
-            let g = this.giver(q.giverId);
-            return T`Görev tamam. Ödülü almak için <b>${this.giverName(g)}</b>'le konuş — en son <b>${this.locName(q.turnInLocId)}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.`;
+            let g = this.giver(q.giverId), r = QUESTS[q.id].reward;
+            return T`Görev tamam. Ödülü almak için <b>${this.giverName(g)}</b>'le konuş — en son <b>${this.locName(q.turnInLocId)}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.` +
+                `<br>${T`Ödül: <b>+${r.money} dinar, ${r.renown > 0 ? '+' : ''}${r.renown} nam</b>. Konuşma penceresinde <b>✅ Görevi teslim et</b> düğmesine bas.`}`;
         }
         return QUESTS[q.id].desc(q);
     },
@@ -1224,7 +1225,7 @@ const Quests = {
         let m = {};
         (state.player.quests || []).forEach(q => {
             let w = this.effectiveWhere(q);
-            if(w) (m[w] = m[w] || []).push(T(QUESTS[q.id].title));
+            if(w) (m[w] = m[w] || []).push({ title: T(QUESTS[q.id].title), done: q.state === 'awaiting' });
         });
         return m;
     },
@@ -1275,6 +1276,15 @@ const Quests = {
             ${w ? `<div style="margin-top:0.4rem;color:#e0b062;font-size:var(--fs-sm)">${
                 gun ? T`📍 ${this.locName(w)} · şu an ~${gun} günlük yol` : T`📍 ${this.locName(w)}`}</div>` : ''}
         </div>`;
+    },
+
+    // The giver's own dialogue is where a finished job is handed in; while one waits, the
+    // plain "any work?" button would hide that, so it turns into the hand-in itself.
+    awaiting(giverId) { return state.player.quests.find(x => x.state === 'awaiting' && (!giverId || x.giverId === giverId)); },
+    askBtn(giverId, label) {
+        let q = this.awaiting(giverId);
+        return q ? `<button class="btn primary" onclick="Quests.offerMenu('${giverId}')">${T`✅ Görevi teslim et: ${T(QUESTS[q.id].title)}`}</button>`
+                 : `<button class="btn" onclick="Quests.offerMenu('${giverId}')">${label}</button>`;
     },
 
     offerMenu(giverId) {
@@ -1442,9 +1452,9 @@ const Quests = {
         q.state = 'awaiting';
         q.turnInLocId = this.turnInLoc(q);
         q.turnInSnapshotDay = state.time.day;
-        let g = this.giver(q.giverId);
-        alert(T`✅ Görev tamam: ${T(def.title)}\nÖdülü almak için ${T(this.giverName(g))}'le konuş — en son ${T(this.locName(q.turnInLocId))}'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.`);
+        alert(`✅ <b>${T(def.title)}</b><br>${this.descFor(q)}`);
         this.render();
+        Game.updateTopBar();
     },
 
     // Player reached the snapshot spot: pay out if the giver is actually still there,
@@ -1532,7 +1542,8 @@ const Quests = {
                 • Bir şehrin <b>hanı</b>nda lonca ustasıyla konuş — ilişki istemez, para öder.`}</p>`;
             return;
         }
-        el.innerHTML = amb + state.player.quests.map(q => {
+        let list = state.player.quests.slice().sort((a, b) => (b.state === 'awaiting') - (a.state === 'awaiting'));
+        el.innerHTML = amb + list.map(q => {
             let def = QUESTS[q.id];
             let left = q.deadline - state.time.day;
             let awaiting = q.state === 'awaiting';

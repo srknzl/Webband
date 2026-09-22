@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.28.5', date: '2026-09-22', name: 'Taş Yerinde' };  // the version name is not translated
+const VERSION = { no: '1.28.6', date: '2026-09-22', name: 'Teslim Çağrısı' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -5012,6 +5012,8 @@ const Game = {
 
     updateTopBar() {
         let p = state.player;
+        let qb = document.querySelector('.menu-btn[data-view="quests"]');
+        if(qb && typeof Quests !== 'undefined') qb.classList.toggle('has-turnin', !!Quests.awaiting());
         let set = (id, v) => { let e = document.getElementById(id); if(e) e.innerText = v; };
         let bar = (id, pct) => { let e = document.getElementById(id); if(e) e.style.width = Math.max(0, Math.min(100, pct)) + '%'; };
 
@@ -5847,11 +5849,13 @@ const Game = {
             ctx.fillStyle = fc.color; ctx.fill();
             ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
 
-            if(questMarks[loc.id]) this.emoji(ctx, '📜', loc.x - big*0.55, loc.y - 15 - 34*ik, 36*ik);
+            let qm = questMarks[loc.id], qDone = qm && qm.some(x => x.done);
+            if(qm) this.emoji(ctx, qDone ? '✅' : '📜', loc.x - big*0.55, loc.y - 15 - 34*ik, 36*ik);
 
             this.mapLabel(ctx, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
-            if(questMarks[loc.id] && this.camera.zoom > 0.18)
-                this.mapLabel(ctx, questMarks[loc.id].join(' · '), loc.x, loc.y - big*0.82 - 34, '#e0b062', '#8a6a2a');
+            if(qm && this.camera.zoom > 0.18)
+                this.mapLabel(ctx, qm.map(x => (x.done ? '✅ ' : '') + x.title).join(' · '), loc.x, loc.y - big*0.82 - 34,
+                              qDone ? '#7ddc8a' : '#e0b062', qDone ? '#2a7a3a' : '#8a6a2a');
         });
 
         // --- TIME OF DAY ---
@@ -8380,7 +8384,7 @@ const Game = {
         html += `<hr style="border-color:var(--panel-border);margin:1.2rem 0">
             <h4 style="color:var(--primary)">${T`⚖️ Lonca Ustası`}</h4>
             <p style="font-size:var(--fs-md);color:var(--text-muted)">${T`Köşedeki masada, defterine bir şeyler yazıyor.`}</p>
-            <button class="btn" onclick="Quests.offerMenu('guild_${loc.id}')">${T`İşi Sor`}</button>
+            ${Quests.askBtn('guild_' + loc.id, T`İşi Sor`)}
             <button class="btn" onclick="Game.guildPrices('${loc.id}')">${state.guildPaid[loc.id] === state.time.day
                 ? T`📈 Fiyat Defterine Bak` : T`📈 Fiyat Defterine Bak (${this.GUILD_FEE} dinar)`}</button>`;
 

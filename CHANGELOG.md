@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.28.6 — Teslim Çağrısı (2026-09-22)
+
+- **Bitmiş bir görevin ödülü artık gözden kaçmıyor** — görev bitince çıkan mesaj ödülü ve nasıl
+  teslim edileceğini söylüyor; görevi veren lordun (ya da lonca ustasının) konuşma penceresinde
+  "Bana bir iş var mı?" yerine belirgin bir **✅ Görevi teslim et** düğmesi çıkıyor. Görev
+  listesinde teslim bekleyenler en üstte, haritada yeşil ✅ etiketle ayrılıyor ve yan menüde
+  Görevler'in üstünde yeşil bir nokta yanıyor.
+
 ## 1.28.5 — Taş Yerinde (2026-09-22)
 
 - **Savaşta "olmayan bir kayaya takılma" düzeltildi** — kayalar basık çiziliyor ama çarpışma

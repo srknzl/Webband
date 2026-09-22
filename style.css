@@ -1708,3 +1708,11 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
        CSS burada zorlamıyor, sadece dar ekranda ipucu haritayı örtmesin diye üst şeride iner. */
     #f11-hint { top: auto; bottom: calc(env(safe-area-inset-bottom) + 8px); }
 }
+
+/* A finished quest waiting for its hand-in: a green dot on the Quests button, visible on the
+   collapsed map sidebar too, where the label is hidden. */
+.menu-btn.has-turnin .mb-ico { position: relative; }
+.menu-btn.has-turnin .mb-ico::after {
+    content: ''; position: absolute; top: -2px; right: -4px; width: 8px; height: 8px;
+    border-radius: 50%; background: #2ecc71; box-shadow: 0 0 6px #2ecc71;
+}

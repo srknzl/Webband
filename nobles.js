@@ -434,7 +434,7 @@ const Nobles = {
             ? `<button class="btn" disabled style="opacity:0.4">${T`🗣️ Hâl hatır soruldu (bugünlük yeter)`}</button>`
             : `<button class="btn" onclick="Nobles.smallTalk('${id}')">${T`🗣️ Hâl hatır sor`}</button>`;
 
-        html += `<button class="btn" onclick="Quests.offerMenu('${id}')">${T`📜 Bana bir iş var mı?`}</button>`;
+        html += Quests.askBtn(id, T`📜 Bana bir iş var mı?`);
         html += `<button class="btn" onclick="Nobles.askWhereMenu('${id}')">${T`🗺️ Birinin yerini sor`}</button>`;
         html += `<button class="btn" onclick="Nobles.giftMenu('${id}')">${T`🎁 Hediye ver`}</button>`;
 

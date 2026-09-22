@@ -1535,6 +1535,31 @@ test('quest: a bandit gang locked by a quest survives a lost raid, and the lock 
     assert.strictEqual(b.questLocks, 0, 'the lock should be released once the quest is complete');
 });
 
+test('quests: a finished job says so everywhere the player looks for it (#106)', () => {
+    // The hand-in used to hide behind the same "any work for me?" button, and the map marked a
+    // finished job exactly like an open one — the player had no cue that a reward was waiting.
+    const g = H.world({ seed: 34 });
+    const { Quests, Nobles, LORDS, state } = g;
+    state.player.quests = [];
+    const lord = LORDS.find(l => Nobles.partyOf(l.id));
+    const open = Quests.make('lost_letter', LORDS.find(l => l.id !== lord.id).id);
+    const q = Quests.make('butter_blockade', lord.id);
+    state.player.quests.push(open, q);
+    assert.ok(!/primary/.test(Quests.askBtn(lord.id, 'x')), 'an open quest already offers a hand-in');
+    Quests.markDone(q);
+    assert.ok(/primary/.test(Quests.askBtn(lord.id, 'x')) && /Quests\.offerMenu/.test(Quests.askBtn(lord.id, 'x')),
+        'the giver\'s dialogue does not offer the hand-in');
+    const marks = Object.values(Quests.targets()).flat();
+    assert.deepStrictEqual(marks.map(x => x.done).sort(), [false, true], 'the map marks the finished job like an open one');
+    Quests.render();
+    const list = g._sandbox.document.getElementById('quest-list');
+    if(list) assert.ok(list.innerHTML.indexOf('Tereyağı') < list.innerHTML.indexOf('Mektup'), 'the waiting reward is not at the top');
+    const before = state.player.money;
+    Quests.offerMenu(lord.id);
+    assert.ok(state.player.money > before && !state.player.quests.includes(q), 'handing in through the dialogue does not pay');
+    assert.ok(!Quests.awaiting(), 'the quest still reads as waiting after the hand-in');
+});
+
 test('wait: world parties receive the same fourfold camping acceleration as the clock', () => {
     const g = H.world({ seed: 33 });
     const { Game, state } = g;
