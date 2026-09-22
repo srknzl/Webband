@@ -1183,15 +1183,86 @@ test('wanderers: joining happens only by walking up to one on the map (#119, #33
     state.player.party = [];
 });
 
-test('road: the storm now offers three balanced choices, the middle one costs food (#121)', () => {
-    const { Game, state } = gw;
+test('hail: ten seconds to choose, eight hours that follow the choice (#121)', () => {
+    const g = H.world({ seed: 5 });
+    const { Game, state, ITEMS, LOCATIONS } = g;
     const storm = Game.ROAD_EVENTS.find(e => e.id === 'storm');
-    assert.strictEqual(storm.choices.length, 3, 'storm should have 3 choices');
-    state.player.party = [{ id: 'p1', name: 'Asker', level: 1 }];
-    state.player.inventory = [{ ...gw.ITEMS.wheat, qty: 5 }];
-    const before = Game.foodStock().total;
-    storm.choices[1].run({ food: before });     // "Atları yatıştır"
-    assert.ok(Game.foodStock().total < before, 'the middle choice should cost food');
+    assert.strictEqual(storm.timer, 10, 'the hail gives no ten-second decision');
+    assert.strictEqual(storm.choices.length, 2, 'the hail is shelter or walk');
+    const hour = () => state.time.day * 24 + state.time.hour;
+    const setup = () => {
+        state.player.party = Array.from({ length: 20 }, (_, i) => ({ id: 's' + i, name: 'Svadya Milisi', level: 1 }));
+        state.player.inventory = [{ ...ITEMS.wheat, qty: 200 }];
+        state.player.morale = 70; state.player.storm = null;
+    };
+    // Shelter: eight hours pass, nobody is hurt, and those hours eat three times the ration.
+    setup();
+    const daily = Game.upkeep().foodLow, food0 = Game.foodStock().total, h0 = hour();
+    storm.choices[0].run(Game.eventCtx());
+    assert.ok(hour() - h0 >= Game.STORM_HOURS, 'sheltering did not cost the eight hours');
+    assert.ok(!state.player.party.some(t => t.wounded) && state.player.party.length === 20, 'someone was hurt under shelter');
+    const eaten = food0 - Game.foodStock().total;
+    assert.ok(eaten >= Math.floor(2 * daily * Game.STORM_HOURS / 24), `sheltering ate only ${eaten} extra food`);
+    assert.strictEqual(state.player.storm, null, 'the storm outlived its eight hours');
+    // Walk: every hour under the hail strikes two men; a roof ends it.
+    setup();
+    storm.choices[1].run(Game.eventCtx());
+    for(let i = 0; i < 3; i++) Game.advanceTime(1);
+    const struck = state.player.storm.dead + state.player.storm.hurt;
+    assert.strictEqual(struck, 3 * Game.STORM_HITS, `three hours of hail struck ${struck} men`);
+    assert.strictEqual(20 - state.player.party.length, state.player.storm.dead, 'the dead are still in the party');
+    Game.enterLocation(LOCATIONS[0]);
+    assert.strictEqual(state.player.storm, null, 'reaching a settlement did not end the hail');
+    Game.closeModal();
+    // Out of time: a choice is made anyway and the hesitation costs morale and pace.
+    setup();
+    const pace = Game.getPlayerSpeed().value;
+    Game.showChoiceEvent(storm, Game.eventCtx());
+    assert.ok(!Game.canDismiss(), 'a timed decision can be closed away');
+    Game.indecision(); Game.roadChoice(1, null, true);
+    assert.ok(Game.canDismiss(), 'the decision stayed locked after it was made');
+    assert.strictEqual(state.player.morale, 62, 'indecision did not cost 8 morale');
+    assert.ok(Math.abs(Game.getPlayerSpeed().value / pace - 0.9) < 1e-9, 'indecision did not slow the march');
+    Game.advanceTime(Game.INDECISION_HOURS);
+    assert.ok(!Game.indecisive(), 'the indecision outlasted its hours');
+    state.player.storm = null; Game.closeModal();
+});
+
+test('winter: the last 20 days of a 120-day year burn coal; without it the army sickens (#121)', () => {
+    const g = H.world({ seed: 6 });
+    const { Game, state, ITEMS } = g;
+    assert.deepStrictEqual([100, 101, 120, 121, 221].map(d => Game.isWinter(d)), [false, true, true, false, true], 'winter falls on the wrong days');
+    assert.strictEqual(Game.daysToWinter(95), 6);
+    state.player.party = Array.from({ length: 19 }, (_, i) => ({ id: 'w' + i, name: 'Svadya Milisi', level: 1 }));
+    state.player.party.push({ id: 'c', name: 'Yoldaş', isCompanion: true, companionId: 'x', level: 5 });
+    state.time.day = 101;
+    // Warm: 20 in the party plus the player is 21 heads — three coal a day; morale free to climb.
+    state.player.inventory = [{ ...ITEMS.coal, qty: 4 }];
+    Game.winterTick();
+    assert.strictEqual(Game.coalCount(), 1, '21 heads did not burn three coal');
+    state.player.morale = 80;
+    assert.strictEqual(Game.morale(), 80, 'a warm army is capped');
+    // Cold: morale capped at 40, and after three cold days a share of the troops dies each day.
+    for(let d = 0; d < 3; d++) Game.winterTick();
+    assert.ok(Game.cold() && Game.morale() === Game.COLD_MORALE_CAP, 'a cold army is not capped at 40');
+    const before = state.player.party.length;
+    Game.winterTick();
+    assert.ok(state.player.party.length < before, 'the fourth cold day killed no one');
+    assert.ok(state.player.party.some(t => t.isCompanion), 'the cold killed a companion');
+    // Coal again: warm, cap lifted.
+    state.player.inventory = [{ ...ITEMS.coal, qty: 10 }];
+    Game.winterTick();
+    assert.ok(!Game.cold() && Game.morale() === 80, 'coal did not lift the cold');
+    // A winter with no cold day counts as warm when it ends; this one had some.
+    state.time.day = 121; Game.winterTick();
+    assert.ok(!(state.career && state.career.warmWinters), 'a winter with cold days counted as warm');
+});
+
+test('market: trade goods are under the "Mal" tab and can be bought in bulk', () => {
+    const { Game } = gw;
+    const cat = Game.MARKET_CATEGORIES.find(c => c.id === 'goods');
+    const trade = Object.values(gw.ITEMS).filter(i => i.type === 'trade');
+    assert.ok(trade.length && trade.every(i => cat.types.includes(i.type)), 'the "Mal" tab matches no trade good');
 });
 
 test('speed: morale doesn\'t scale troop speed (the enemy has no morale)', () => {

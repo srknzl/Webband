@@ -1716,3 +1716,10 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
     content: ''; position: absolute; top: -2px; right: -4px; width: 8px; height: 8px;
     border-radius: 50%; background: #2ecc71; box-shadow: 0 0 6px #2ecc71;
 }
+
+/* Timed decision (#121): the bar empties over the decision's seconds (duration set inline).
+   No fill-mode on purpose — under reduced motion the animation ends at once and the bar
+   stays full, while the seconds counter below it keeps the clock readable. */
+.ev-timer { height: 6px; margin-top: 1rem; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.ev-timer > div { height: 100%; background: var(--danger); transform-origin: left; animation: evTimer linear; }
+@keyframes evTimer { from { transform: scaleX(1); } to { transform: scaleX(0); } }

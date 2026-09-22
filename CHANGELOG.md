@@ -3,6 +3,24 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.31.0 — Dolu ve Kış (2026-09-22)
+
+- **Dolu artık sıradan bir olay değil** — gökten taş yağar gibi iri dolu iniyor, adamlar
+  dağılıyor ve karar vermek için **10 saniyen** var. Süre dolarsa adamlar kendi başlarına bir
+  yol seçiyor ve kararsızlığın bedeli ödeniyor: moral −8, 6 saat boyunca hız −%10.
+- **Dolu 8 saat sürüyor ve seçimin seni takip ediyor** — **sığınırsan** kimse yaralanmaz ama
+  8 saat kaybedersin ve o saatlerde ordu üç kat erzak yer (yetmezse moral −20). **En yakın
+  yerleşime yürürsen** bir çatıya varana kadar her saat iki askerin isabet alır: dörtte biri
+  ölür, kalanı iki gün yaralı yatar. Seçenekte en yakın yerleşim ve kaç saat uzakta olduğu
+  yazıyor. Fırtına sürerken haritaya dolu yağıyor, üstte kalan saat ve kayıplar görünüyor.
+- **Kış geldi** — yıl 120 gün, son 20 günü kış (ilk kış 101. gün). Kışın ordu her gün her 10
+  kişi için 1 **kömür** yakar; kömür pazarlarda satılıyor. Kömür yoksa kimse donarak ölmez ama
+  moral **40'ın** üstüne çıkamaz; üç soğuk günden sonra her gün askerlerin bir kısmı
+  hastalanıp ölür. Kış yaklaşınca 5 gün önceden uyarılıyorsun; pazarın üst şeridinde kışa kaç
+  gün kaldığı ve kaç günlük kömürün olduğu, üst çubukta kışın ❄️ görünüyor.
+- **Pazarda "Mal" sekmesi artık çalışıyor** — ticaret mallarını hiç listelemiyordu; toplu alım
+  (x5 / Tümü) düğmeleri de artık ticaret mallarında var.
+
 ## 1.30.0 — Yolcular (2026-09-22)
 
 - **Grubuna katılmak isteyenler artık haritada yürüyor** — yolda zar tutunca birinin önüne

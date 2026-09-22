@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.30.0', date: '2026-09-22', name: 'Yolcular' };  // the version name is not translated
+const VERSION = { no: '1.31.0', date: '2026-09-22', name: 'Dolu ve Kış' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -287,6 +287,7 @@ const ITEMS = {
     iron:   { id:'iron',   name:'Demir',         type:'trade', basePrice:150, icon:'⛏️', desc:'Ham demir külçesi. Silah diyarlarında altın kadar değerli.' },
     velvet: { id:'velvet', name:'Kadife',        type:'trade', basePrice:400, icon:'🧵', desc:'Soyluların bayıldığı ince kumaş. Şehirden şehre kâr eder.' },
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺', desc:'Fıçı fıçı köpüklü bira. Her hanın vazgeçilmezi.' },
+    coal:   { id:'coal',   name:'Kömür',         type:'trade', basePrice:6,   icon:'🪨', desc:'Kışın ordunun ısınacağı tek şey. Kömürsüz bir kış, askeri hasta eder.' },
     salt:   { id:'salt',   name:'Tuz',           type:'trade', basePrice:100, icon:'🧂', desc:'Eti bozulmaktan koruyan beyaz altın. Her yerde alıcısı var.' },
     // Weapons (#132): 4 quality tiers per weapon, base + 3. Price grows faster than attack does
     // (diminishing return per dinar, same ladder logic as the horses above) — see docs/SYSTEMS.md
@@ -2730,6 +2731,7 @@ const Game = {
         let pathMult = 1 + (this.profLvl('pathfinding') - 1) * 0.02 + this.perkMod('mapSpeed') / 100 + this.relicMod('mapSpeed') / 100 - heavyPenalty;  // Pathfinding skill + Scout perks (#110) + Kurt Kanı relic (#37)
         let cargoMult = this.cargoMult();                             // overload (#78)
         let footMult = this.footCrowdMult();                          // #23 nearby foot NPCs press in and slow the march
+        if(this.indecisive()) footMult *= 0.9;                        // hesitated in the hail (#121)
 
         return {
             value: (base + agiBonus) * (1 + speedBonus) * (1 + mountBonus) * terrain.mult * nightMult * pathMult * cargoMult * footMult,
@@ -3847,7 +3849,7 @@ const Game = {
         // penalty. We count whole-hour boundaries since dt arrives fractional.
         let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
         for(let i = 0; i < passed; i++) {
-            this.wageDebtTick(); this.regenTick(); this.scoutTick();
+            this.wageDebtTick(); this.regenTick(); this.scoutTick(); this.stormTick();
             this.bandRefillTick(Math.floor(before) + 1 + i);   // hourly band refill (#126)
         }
         while(state.time.hour >= 24) {
@@ -4008,6 +4010,130 @@ const Game = {
             return `${T`Gezgin bir zanaatkâr kampa uğrayıp askerlerin teçhizatını karşılıksız elden geçirdi.<br><b>Eğitmenlik +30 tecrübe</b>.`}`;
         }}
     ],
+
+    // --- HAIL (#121) ---
+    // `state.player.storm` lives for STORM_HOURS game hours. Every hour it eats two extra days'
+    // share of food (three times the ration) and, if the party chose to walk, strikes two men
+    // until a settlement is reached: a quarter of them die, the rest are wounded for two days.
+    // Companions and a spouse are only ever wounded, as in battle. "Every second" in #121 is a
+    // game hour here — a real-time second would end the army before the modal closed.
+    STORM_HOURS: 8,
+    STORM_HITS: 2,
+    STORM_KILL: 0.25,
+    startStorm(walking) {
+        state.player.storm = { untilH: state.time.day * 24 + state.time.hour + this.STORM_HOURS,
+                               walking, food: 0, starved: false, dead: 0, hurt: 0 };
+        this._stormShakeUntil = performance.now() + 1500;
+        if(walking) this.stormBar();
+        return state.player.storm;
+    },
+    stormTick() {
+        let s = state.player.storm;
+        if(!s) return;
+        s.food += 2 * this.upkeep().foodLow / 24;
+        let n = Math.floor(s.food);
+        if(n) { s.food -= n; if(this.takeFood(n) < n && !s.starved) { s.starved = true; this.addMorale(-20); } }
+        if(s.walking && !state.player.prisoner) {
+            for(let k = 0; k < this.STORM_HITS; k++) {
+                let ok = state.player.party.filter(t => !t.wounded);
+                if(!ok.length) break;
+                let t = ok[Math.floor(Math.random() * ok.length)];
+                if(!t.isCompanion && !t.isSpouse && Math.random() < this.STORM_KILL) {
+                    state.player.party = state.player.party.filter(x => x !== t); s.dead++;
+                } else { t.wounded = Math.max(t.wounded || 0, 2); s.hurt++; }
+            }
+            this.stormBar();
+            this.updateTopBar();
+        }
+        if(state.time.day * 24 + state.time.hour >= s.untilH) this.endStorm(true);
+    },
+    stormBar() {
+        let s = state.player.storm;
+        this.pauseBar(s && s.walking ? T`⛈️ DOLU · ${Math.max(0, Math.ceil(s.untilH - state.time.day * 24 - state.time.hour))} saat · ${s.dead} ölü, ${s.hurt} yaralı` : '');
+    },
+    // `announce` only for the walk: the shelter's own choice text already sums it up.
+    endStorm(announce = false) {
+        let s = state.player.storm;
+        if(!s) return {};
+        state.player.storm = null;
+        if(s.walking) {
+            this.pauseBar('');
+            if(!s.dead) { this.ensureAchievements(); state.career.hailUnscathed = (state.career.hailUnscathed || 0) + 1; }   // walked it and lost nobody
+            if(announce) alert(T`⛈️ Dolu dindi. <b>${s.dead}</b> asker öldü, <b>${s.hurt}</b> asker yaralandı.` + (s.starved ? `<br>${T`Erzak yetmedi — moral <b>−20</b>.`}` : ''));
+        }
+        return s;
+    },
+    nearestLoc() { return LOCATIONS.slice().sort((a, b) => this.dist(a, state.player) - this.dist(b, state.player))[0]; },
+    hoursTo(loc) { let v = this.getPlayerSpeed().value; return v > 0 ? Math.max(1, Math.round(this.dist(state.player, loc) / v)) : '?'; },
+    // Hail from the sky, drawn in screen space over the map while a storm lasts; a short shake
+    // when it starts. Skipped in lite mode and under reduced motion (#84, #121).
+    drawHail(ctx, W, H) {
+        if(!state.player.storm || this.lite() || this.reduceMotion()) {
+            if(this.mapCanvas.style.transform) this.mapCanvas.style.transform = '';
+            return;
+        }
+        let t = performance.now() / 1000;
+        ctx.strokeStyle = 'rgba(225,235,245,0.75)'; ctx.lineWidth = Math.max(1.5, W / 700);
+        ctx.beginPath();
+        for(let i = 0; i < 90; i++) {
+            let x = ((i * 157.3) % W + t * 60) % W, y = ((i * 97.1) % H + t * (380 + (i % 7) * 40)) % H;
+            ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12);
+        }
+        ctx.stroke();
+        if(performance.now() < (this._stormShakeUntil || 0)) {
+            let k = (this._stormShakeUntil - performance.now()) / 1500;
+            this.mapCanvas.style.transform = `translate(${(Math.random() - 0.5) * 10 * k}px, ${(Math.random() - 0.5) * 10 * k}px)`;
+        } else if(this.mapCanvas.style.transform) this.mapCanvas.style.transform = '';
+    },
+
+    // --- WINTER AND COAL (#121) ---
+    // A year is YEAR_DAYS long and its last WINTER_DAYS are winter. In winter the party burns
+    // one coal per COAL_PER heads a day. Without it nobody freezes to death, but morale can't
+    // climb above COLD_MORALE_CAP (read in `morale()`), and after COLD_SICK_AFTER cold days a
+    // share of the troops falls sick and dies each day — unwashed, unwarmed.
+    YEAR_DAYS: 120,
+    WINTER_DAYS: 20,
+    COAL_PER: 10,
+    COLD_MORALE_CAP: 40,
+    COLD_SICK_AFTER: 3,
+    COLD_SICK_RATE: 0.05,
+    isWinter(day = state.time.day) { return (day - 1) % this.YEAR_DAYS >= this.YEAR_DAYS - this.WINTER_DAYS; },
+    daysToWinter(day = state.time.day) { return this.isWinter(day) ? 0 : this.YEAR_DAYS - this.WINTER_DAYS - (day - 1) % this.YEAR_DAYS; },
+    coalNeed() { return Math.ceil((state.player.party.length + 1) / this.COAL_PER); },
+    coalCount() { return state.player.inventory.filter(i => i.id === 'coal').reduce((n, i) => n + (i.qty || 0), 0); },
+    coalDays() { return Math.floor(this.coalCount() / this.coalNeed()); },
+    cold() { return (state.player.coldDays || 0) > 0; },
+    winterTick() {
+        let p = state.player, say = [];
+        if(this.daysToWinter() === 5) say.push(T`❄️ <b>Kış 5 gün sonra geliyor.</b> Kışın ordu her gün her ${this.COAL_PER} kişi için 1 kömür yakar; kömürsüz asker hastalanır. Pazarlarda kömür bulunur.`);
+        if(!this.isWinter()) {
+            if(p.winterSeen) {                          // the first day after a winter
+                if(!p.winterColdDays) { this.ensureAchievements(); state.career.warmWinters = (state.career.warmWinters || 0) + 1; }
+                p.winterSeen = false; p.winterColdDays = 0;
+            }
+            p.coldDays = 0; p.wasCold = false;
+        } else {
+            if(!p.winterSeen) { p.winterSeen = true; p.winterColdDays = 0;
+                say.push(T`❄️ <b>Kış geldi.</b> ${this.WINTER_DAYS} gün sürecek. Grubun günde <b>${this.coalNeed()} kömür</b> yakar; elinde ${this.coalCount()} var.`); }
+            let need = this.coalNeed(), got = 0;
+            for(let it of p.inventory) if(it.id === 'coal' && got < need) { let k = Math.min(it.qty, need - got); it.qty -= k; got += k; }
+            p.inventory = p.inventory.filter(i => i.id !== 'coal' || i.qty > 0);
+            let cold = got < need;
+            p.coldDays = cold ? (p.coldDays || 0) + 1 : 0;
+            if(cold) p.winterColdDays = (p.winterColdDays || 0) + 1;
+            if(cold && !p.wasCold) say.push(T`🥶 <b>Kömür bitti!</b> Ordu üşüyor: moral <b>${this.COLD_MORALE_CAP}</b>'ın üstüne çıkamaz. ${this.COLD_SICK_AFTER} günden sonra askerler hastalanıp ölmeye başlar.`);
+            if(!cold && p.wasCold) say.push(T('🔥 Ateşler yeniden yandı, ordu ısındı.'));
+            p.wasCold = cold;
+            let troops = p.party.filter(t => !t.isCompanion && !t.isSpouse);
+            if(p.coldDays > this.COLD_SICK_AFTER && troops.length) {
+                let n = Math.max(1, Math.round(troops.length * this.COLD_SICK_RATE));
+                let sick = troops.sort(() => Math.random() - 0.5).slice(0, n);
+                p.party = p.party.filter(t => !sick.includes(t));
+                say.push(T`🤒 Soğuk ve kir hastalık getirdi: <b>${sick.length}</b> asker öldü. Kömür bulmadıkça her gün devam edecek.`);
+            }
+        }
+        if(say.length) alert(say.join('<br><br>'));
+    },
 
     // Event helpers: all one-liners, kept here so they don't need to be written out separately
     addMorale(n) { state.player.morale = Math.max(0, Math.min(100, this.morale() + n)); },
@@ -4297,22 +4423,25 @@ const Game = {
             }}
           ]},
 
-        { id: 'storm', icon: '⛈️', when: c => c.party >= 1,
-          text: () => T`Ufuktan gelen kara bulut yolu bir anda kapattı. Dolu taneleri miğferlerde çınlıyor.`,
+        // Hail (#121): a ten-second decision and eight hours that follow you. Sheltering costs
+        // time and three times the food; walking costs men every hour until you reach a roof.
+        { id: 'storm', icon: '⛈️', timer: 10, when: c => c.party >= 1,
+          text: () => T`Gök bir anda karardı. Ceviz iriliğinde dolu, gökten taş atılıyormuş gibi iniyor — kalkanlar delik deşik, atlar şaha kalkıyor, adamlar bağırışarak dağılıyor. Karar ver, hemen!`,
           choices: [
-            { label: () => T`⛺ Sığınak ara, bekle (2 saat)`, run() {
-                Game.roadDelay(2); Game.addProficiencyXp('pathfinding', 25);
-                return T`Kaya dibinde kuru bir oyuk buldun. Fırtına geçene kadar kimse ıslanmadı.<br><b>Yol Bulma +25 tecrübe</b>.<br><i>2 saat kaybettin.</i>`;
+            { label: () => T`⛺ Sığın, geçmesini bekle (${Game.STORM_HOURS} saat, üç kat erzak)`, run() {
+                let st = Game.startStorm(false);
+                Game.roadDelay(Game.STORM_HOURS);
+                Game.endStorm();
+                Game.addProficiencyXp('pathfinding', 25);
+                return T`Kaya diplerine, arabaların altına sığındınız. Dolu geçene kadar kimse yaralanmadı ama ateş başında sayısız öğün eridi.<br><b>Yol Bulma +25 tecrübe</b>.<br><i>${Game.STORM_HOURS} saat kaybettin.</i>` +
+                       (st.starved ? `<br>${T`Erzak yetmedi — moral <b>−20</b>.`}` : '');
             }},
-            { label: c => T`🐴 Atları yatıştır, ağır ilerle (−${Math.min(2, c.food)} yiyecek)`, run() {
-                let n = Game.takeFood(2); Game.addMorale(-2);
-                return T`Hayvanların başını örttün, yürüyüşü yavaşlattın. Kimse yaralanmadı ama azık eridi.<br><b>−${n} yiyecek</b>, moral <b>−2</b>.`;
-            }},
-            { label: () => T`🌧️ Doluda yürümeye devam et`, run() {
-                Game.addMorale(-4); Game.addProficiencyXp('athletics', 20);
-                let t = Math.random() < 0.25 ? Game.woundRandom(2) : null;
-                return t ? T`Islak taşta kayan <b>${Game.troopLabel(t)}</b> bileğini burktu, iki gün savaşa giremez.<br>Moral <b>−4</b>, <b>Atletizm +20 tecrübe</b>.`
-                         : T`Herkes sırılsıklam oldu ama yol kısaldı. Sağ salim çıktınız.<br>Moral <b>−4</b>, <b>Atletizm +20 tecrübe</b>.`;
+            { label: () => { let n = Game.nearestLoc(); let h = Game.hoursTo(n);
+                             return T`🌨️ Dolunun altında en yakın yerleşime yürü (${T(n.name)}, ~${h} saat)`; }, run() {
+                Game.startStorm(true);
+                Game.addProficiencyXp('athletics', 20);
+                let n = Game.nearestLoc();
+                return T`Kalkanları başlarının üstüne kaldırıp yürüyorsunuz. Bir çatıya varana kadar <b>her saat iki adam</b> vurulacak.<br>En yakın yerleşim: <b>${T(n.name)}</b>, ~${Game.hoursTo(n)} saat.<br><b>Atletizm +20 tecrübe</b>.`;
             }}
           ]},
 
@@ -4772,7 +4901,9 @@ const Game = {
     },
     // One modal for every "text + choices" story: road events and wanderers (#119).
     showChoiceEvent(ev, ctx) {
+        this.stopEventTimer();
         this._roadEv = { ev, ctx };
+        if(ev.timer) this.startEventTimer(ev);
         // A road event can appear between a map pointer-down and pointer-up. Without a short
         // guard, that same touch is retargeted to whichever choice materialised under the finger.
         // Keyboard activation has detail=0 and remains immediate.
@@ -4783,8 +4914,34 @@ const Game = {
                 ${ev.choices.map((ch, i) => ({ i, lab: ch.label(ctx) }))
                     .filter(o => o.lab)   // a choice whose label is empty this encounter is hidden (keeps run() index)
                     .map(o => `<button class="btn" style="text-align:left" onclick="Game.roadChoice(${o.i}, event)">${o.lab}</button>`).join('')}
-            </div>`);
+            </div>${ev.timer ? `<div class="ev-timer"><div style="animation-duration:${ev.timer}s"></div></div>
+            <div id="ev-timer-left" style="text-align:center;font-size:var(--fs-sm);color:var(--danger);margin-top:0.3rem">${T`${ev.timer} sn`}</div>` : ''}`);
     },
+    // A timed decision (#121): when the clock runs out one choice is taken at random and the
+    // party pays for the hesitation. While it runs the modal can't be closed (canDismiss), so
+    // the only ways out are a choice or the clock.
+    startEventTimer(ev) {
+        let left = ev.timer;
+        this._evTimed = true;
+        this._evTimer = setInterval(() => {
+            left--;
+            this.setHtml('ev-timer-left', T`${Math.max(0, left)} sn`);
+            if(left > 0) return;
+            this.stopEventTimer();
+            if(!this._roadEv || this._roadEv.ev !== ev) return;
+            let opts = ev.choices.map((ch, i) => ch.label(this._roadEv.ctx) ? i : -1).filter(i => i >= 0);
+            this.indecision();
+            this.roadChoice(opts[Math.floor(Math.random() * opts.length)], null, true);
+        }, 1000);
+    },
+    stopEventTimer() { clearInterval(this._evTimer); this._evTimer = null; this._evTimed = false; },
+    INDECISION_HOURS: 6,
+    indecision() {
+        this.addMorale(-8);
+        state.player.indecisionUntil = state.time.day * 24 + state.time.hour + this.INDECISION_HOURS;
+        this.ensureAchievements(); state.career.indecisive = (state.career.indecisive || 0) + 1;
+    },
+    indecisive() { return (state.player.indecisionUntil || 0) > state.time.day * 24 + state.time.hour; },
     // One result hook for every tournament implementation. Keeping the win counter, ambition
     // and quest event together prevents one arena path from waiting until the daily fallback.
     tournamentFinished(won, details = {}) {
@@ -4812,17 +4969,19 @@ const Game = {
         if(caught) this._roadDelayEncounter = caught.id;
     },
 
-    roadChoice(i, inputEvent = null) {
+    roadChoice(i, inputEvent = null, timedOut = false) {
         if(inputEvent && inputEvent.detail !== 0 && Date.now() < (this._roadChoiceLockUntil || 0)) {
             inputEvent.preventDefault();
             inputEvent.stopPropagation();
             return;
         }
+        this.stopEventTimer();
         let e = this._roadEv;
         if(!e) return this.closeModal();
         this._roadEv = null;
         let r = e.ev.choices[i].run(e.ctx);
         if(typeof r === 'string') r = { html: r };
+        if(timedOut) r.html = `${T`⌛ <b>Kararsız kaldın.</b> Adamlar kendi başlarına davrandı. Moral <b>−8</b>, ${this.INDECISION_HOURS} saat boyunca hız <b>${this.pct(-10, true)}</b>.`}<br><br>` + r.html;
         let caughtId = this._roadDelayEncounter;
         this._roadDelayEncounter = null;
         if(caughtId) {
@@ -4945,6 +5104,9 @@ const Game = {
                       T`Bu açlık değil, <b>kalite</b> meselesi: günde ${Math.ceil(foodRequiredHigh)} birim et ya da peynir gerekiyor.`);
             }
             state.player.wasLowQuality = missingHighQuality > 0 && elite > 0;
+            // After the food alerts: alert() doesn't queue, the later one wins. The cold cap is
+            // read live in morale(), so it holds from this moment whatever ran before (#121).
+            this.winterTick();
 
             // Training skill: drills a few of the least experienced troops each day
             let trained = state.player.party.filter(t => !t.wounded)
@@ -5067,7 +5229,7 @@ const Game = {
         let cap = this.getPartyCapacity();
         let dp = this.getDayPart();
 
-        set('ui-day', T`${state.time.day}. Gün`);
+        set('ui-day', T`${state.time.day}. Gün` + (this.isWinter() ? ' ❄️' : ''));
         set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
         set('ui-daypart', dp.icon);
         set('ui-money', Math.floor(p.money));
@@ -6097,6 +6259,7 @@ const Game = {
         Nobles.drawMarkers(ctx);
 
         ctx.restore();
+        this.drawHail(ctx, W, H);
     },
 
     handleMapHover(e) {
@@ -6487,6 +6650,7 @@ const Game = {
 
     // --- SETTLEMENT ---
     enterLocation(loc) {
+        if(state.player.storm && state.player.storm.walking) this.endStorm(true);   // a roof at last (#121)
         if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
         // Walking in from the map called this directly, skipping showScreen()'s own bookkeeping —
         // body.view-map (#40's map-only floating chrome) stayed on, so the settlement's top bar and
@@ -7367,7 +7531,7 @@ const Game = {
     // — ask from one place; asking separately would leave one of them an escape hatch from an encounter (#70).
     // closeModal itself doesn't ask: encounter buttons ("Fight", "Surrender") close the window
     // while currentEncounterNpcId is still set, and asking there too would leave the window stuck open.
-    canDismiss() { return !state.player.currentEncounterNpcId; },
+    canDismiss() { return !state.player.currentEncounterNpcId && !this._evTimed; },
     dismissModal() { if(this.canDismiss()) this.closeModal(); },
     // "Tamam" on an alert() runs whatever continuation was queued for it (see window.alert) —
     // callers that need to open another screen after an alert must pass it as that continuation,
@@ -7448,7 +7612,7 @@ const Game = {
         { id: 'weapon', label: 'Silah',  types: ['weapon'] },
         { id: 'armor',  label: 'Zırh',   types: ['armor', 'helmet', 'gloves', 'boots', 'shield'] },
         { id: 'horse',  label: 'At',     types: ['horse'] },
-        { id: 'goods',  label: 'Mal',    types: ['goods'] },
+        { id: 'goods',  label: 'Mal',    types: ['trade'] },
         { id: 'food',   label: 'Yiyecek',types: ['food'] },
         { id: 'special',label: 'Özel',   types: ['special'] }
     ],
@@ -7618,6 +7782,8 @@ const Game = {
             ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '')}
             ${chip(T`🍞 Yiyecek: ${isFinite(fs.days) ? fs.days : '∞'} gün`, fs.days < 3 ? '#e8a13a' : '')}
             ${chip(T`💰 ${Math.floor(state.player.money)}₺`)}
+            ${this.daysToWinter() <= 15 ? chip((this.isWinter() ? T`❄️ Kış` : T`❄️ Kışa ${this.daysToWinter()} gün`) + ` · ${T`🔥 Kömür: ${this.coalDays()} gün`}`,
+                                                this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
         </div>`;
     },
     // "Sende: N" next to the price (#103): deciding whether to sell shouldn't need a trip
@@ -7657,7 +7823,7 @@ const Game = {
                     // stock and bag room, and says in the message which one it hit. Equipment
                     // and horses dropped bulk-buy (#132) — a one-off purchase, no reason to
                     // stock 5+; goods/food keep it since provisioning an army needs bulk buys.
-                    : (item.type === 'goods' || item.type === 'food')
+                    : (item.type === 'trade' || item.type === 'food')
                         ? this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)
                             + this.qtyBtn('x5', `Game.buyItem('${item.id}',5)`)
                             + this.qtyBtn(T`Tümü`, `Game.buyItem('${item.id}',999)`))
@@ -10982,7 +11148,10 @@ const Game = {
     },
 
     // So a morale of 0 reads correctly too: (p.morale || 50) used to count zero as 50
-    morale() { return typeof state.player.morale === 'number' ? state.player.morale : 60; },
+    morale() {
+        let m = typeof state.player.morale === 'number' ? state.player.morale : 60;
+        return this.cold() ? Math.min(m, this.COLD_MORALE_CAP) : m;   // a cold army can't be cheerful (#121)
+    },
 
     updateMorale(paid, hungry) {
         let p = state.player;

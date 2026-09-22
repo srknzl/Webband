@@ -15,7 +15,7 @@
 // check alone would install a second, stale copy of every asset on top of the one
 // Capacitor already ships in the bundle.
 // ============================================================
-const CACHE = 'webband-v1.30.0';
+const CACHE = 'webband-v1.31.0';
 
 // The soundtrack (#131) is 20.8 MB and deliberately NOT in FILES: precaching it would make
 // the install a 20 MB download before the game is playable at all. Each piece is cached the

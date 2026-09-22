@@ -2348,6 +2348,34 @@ Measured (seeds 1–5, 30 days of **uninterrupted** travel, a 6-person party ≈
 **15.6 events on average**. In real play, since not the whole day is spent traveling, this
 shows up at about half that rate.
 
+### Hail and winter (#121)
+**Hail** is the one road event with a clock: `storm.timer` **10** s. `showChoiceEvent` draws a
+bar and a seconds counter; while it runs `canDismiss()` is false (no ×, no Esc, no click-away).
+When it runs out `indecision()` costs **−8** morale and **×0.9** map speed for
+`INDECISION_HOURS` **6** (`state.player.indecisionUntil`, one factor in `getPlayerSpeed`), and
+a random visible choice is applied. The two choices both start `state.player.storm` for
+`STORM_HOURS` **8** game hours; `stormTick()` runs on every hour boundary in `advanceTime`:
+- every hour it eats **2 × upkeep().foodLow / 24** extra (three times the ration over the
+  storm); the first shortfall costs **−20** morale once.
+- **Shelter** passes the 8 hours at once through `roadDelay` (the world keeps moving).
+- **Walk** strikes `STORM_HITS` **2** unwounded men an hour: `STORM_KILL` **25%** die, the rest
+  are wounded 2 days; companions and a spouse are only wounded, as in battle. It ends at the
+  first `enterLocation` or after 8 hours, with a tally alert; the choice label shows the nearest
+  settlement and the hours to it (`hoursTo` = distance / map speed). The issue's "every second"
+  is a game hour here — a real second would wipe the army before the modal closed.
+- On the map: hail streaks in screen space and a 1.5 s canvas shake at the start (`drawHail`),
+  both off in lite mode and under reduced motion. The pause bar shows hours left and the tally.
+
+**Winter**: a year is `YEAR_DAYS` **120** days and its last `WINTER_DAYS` **20** are winter
+(days 101–120, 221–240, …; `isWinter`, `daysToWinter`). Five days before, an alert says so;
+the market strip shows "❄️ N days to winter · 🔥 coal: N days" from 15 days out, and the top
+bar's day gets ❄️ in winter. `winterTick()` runs once a day after the food alerts:
+- burns `coalNeed()` = **⌈(party + 1) / 10⌉** coal (`ITEMS.coal`, a trade good, base price 6);
+- short of it the day is **cold**: `morale()` returns at most `COLD_MORALE_CAP` **40** (read
+  live, so no event or victory lifts it past the cap), and after `COLD_SICK_AFTER` **3**
+  cold days **5%** of the troops (at least one; never a companion or spouse) die each day;
+- the alerts of a day are joined into one message, because `alert()` doesn't queue.
+
 ### Wanderers — the only way a stranger joins (#119)
 Nobody is added to the party by a road or day die any more. A stranger who wants to join
 **walks the map as a sprite** (`type: 'wanderer'`, a lone figure on foot with its story's icon
