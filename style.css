@@ -1412,6 +1412,13 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
     #rout-prompt .btn { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
     /* Künyedeki düğme sırası dar ekranda sığmıyordu: künye tam ene yayılır, satır sarar */
     #map-hud { max-width: calc(100vw - 28px); }
+    /* Künye dört satıra çıkıp haritanın dörtte birini yiyordu: iki satıra iner. Diplomasi ve
+       "Sıradaki" "⋯ Daha"ya taşındı (aynı onclick), hız düğmesi kendi satırı yerine düğme
+       sırasının sonuna oturur. Düğmeler yazılı kalır (#86: yalnız ikon, "yazısız düğme" demekti). */
+    #map-hud { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 0.3rem; }
+    #map-terrain { flex-basis: 100%; }
+    #map-comp #btn-diplo, #map-comp #btn-track { display: none; }
+    #btn-map-speed { align-self: center; }
     #map-comp { flex-wrap: wrap; }
     #map-tooltip { max-width: 78vw; }
     /* Sabit köşe panelleri dar ekranda birbirini ezmesin */

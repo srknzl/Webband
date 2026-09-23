@@ -56,6 +56,13 @@ test('yerleşim denetimi: bütün ekranlar ve pencereler', async ({ page, isMobi
     await page.evaluate(() => Game.closeModal());
     await newGame(page);
     await look('harita');
+    // The map badge takes two rows at most: place + troops, then one row of buttons (the
+    // narrow layout moved diplomacy and the music skip into "⋯ Daha" for that)
+    if(await page.locator('#sidebar .sb-more').isVisible()) {
+        const tops = await page.evaluate(() => [...document.querySelectorAll('#map-hud button')]
+            .filter(b => b.offsetParent).map(b => b.getBoundingClientRect().top));
+        expect(Math.max(...tops) - Math.min(...tops), 'map badge buttons sit on one row').toBeLessThan(10);
+    }
     for(const v of ['character', 'party', 'inventory', 'quests']) { await openView(page, v); await look(v); }
     await openView(page, 'map');
     if(isMobile) { await page.locator('#sidebar .sb-more').click(); await look('daha'); }

@@ -39,14 +39,21 @@ function pageInit({ lang, seed }) {
         seen.add(key);
         issues.push({ kind, text });
     };
+    // A word the translation itself kept is a name, not a leak: "Kör Hafız" → "Blind Hafız".
+    // So the allowed Turkish-lettered words are read from the current dictionary's own values.
+    const bare = w => w.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
+    const kept = {};
+    const keptBy = lang => kept[lang] || (kept[lang] = new Set(Object.values((I18N.dicts || {})[lang] || {})
+        .flatMap(v => String(v).split(/\s+/)).map(bare).filter(w => TURKISH.test(w))));
     const check = text => {
         if(!text || !text.trim()) return;
         const b = text.match(BROKEN);
         if(b) note('broken', text.slice(Math.max(0, b.index - 40), b.index + 40).trim());
         // The release name is a stamp, deliberately never translated (see VERSION in app.js)
         if(typeof VERSION !== 'undefined') text = text.split(VERSION.name).join('');
-        if(document.documentElement.lang !== 'tr' && TURKISH.test(text))
-            text.split(/\s+/).filter(w => TURKISH.test(w)).forEach(w => note('turkish', w));
+        const lang = document.documentElement.lang;
+        if(lang !== 'tr' && TURKISH.test(text))
+            text.split(/\s+/).map(bare).filter(w => TURKISH.test(w) && !keptBy(lang).has(w)).forEach(w => note('turkish', w));
     };
     const skip = n => { const p = n.nodeType === 3 ? n.parentElement : n; return !p || !!p.closest('script,style'); };
     // A node written and replaced within the same task never reached the screen — skipped.

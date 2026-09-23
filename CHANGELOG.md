@@ -3,6 +3,16 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.31.3 — Emin misin? (2026-09-23)
+
+- **Savaşta "🏳️ Teslim Ol" artık önce soruyor** — tek dokunuş bütün orduyu kaybettiriyordu,
+  telefonda yanlışlıkla basmak kolaydı. Şimdi savaş duruyor, bedeli yazıyor (birliğin dağılır,
+  esir düşersin; arenada maçı kaybetmiş sayılırsın) ve iki seçenek sunuyor. **⚔️ Savaşa Dön**
+  varsayılan: Enter, Esc ve × da savaşa döndürüyor.
+- **Telefonda harita künyesi iki satıra indi** — dört satıra çıkıp haritanın dörtte birini
+  kaplıyordu. **🌍 Diplomasi** ve **🎵 Sıradaki parça** "⋯ Daha" menüsüne taşındı, hız
+  düğmesi (×1) kendi satırı yerine düğmelerin yanına oturdu. Düğmeler yazılı kalıyor.
+
 ## 1.31.2 — Uçtan Uca (2026-09-23)
 
 Oyun artık her sürümde gerçek bir tarayıcıda, masaüstünde ve telefonda, üç dilde baştan sona

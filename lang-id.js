@@ -2944,4 +2944,9 @@ I18N.dicts.id = {
   "Arena Kralı": "Raja Arena",
   "Arenada üst üste 10 maç kazandın.": "Kau memenangkan 10 pertandingan arena berturut-turut.",
   "Zaman akış hızı (Z)": "Kecepatan aliran waktu (Z)",
+  "🏳️ Teslim olmak mı?": "🏳️ Menyerah?",
+  "Bütün birliğin dağılır ve esir düşersin.": "Seluruh pasukanmu bubar dan kau menjadi tawanan.",
+  "Maçı kaybetmiş sayılırsın.": "Pertandingan dianggap kalah.",
+  "⚔️ Savaşa Dön": "⚔️ Kembali Bertarung",
+  "Sıradaki parça": "Lagu berikutnya",
 };

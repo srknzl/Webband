@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.31.2', date: '2026-09-23', name: 'Uçtan Uca' };  // the version name is not translated
+const VERSION = { no: '1.31.3', date: '2026-09-23', name: 'Emin misin?' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -7568,7 +7568,12 @@ const Game = {
     // — ask from one place; asking separately would leave one of them an escape hatch from an encounter (#70).
     // closeModal itself doesn't ask: encounter buttons ("Fight", "Surrender") close the window
     // while currentEncounterNpcId is still set, and asking there too would leave the window stuck open.
-    canDismiss() { return !state.player.currentEncounterNpcId && !this._evTimed; },
+    // The surrender question comes mid-battle, while the encounter id is still set — it is the
+    // one window there whose every way out (Esc, ×) must work, since each lands on "keep fighting".
+    canDismiss() {
+        let asking = typeof Battle !== 'undefined' && Battle._askingSurrender;
+        return (!state.player.currentEncounterNpcId || asking) && !this._evTimed;
+    },
     dismissModal() { if(this.canDismiss()) this.closeModal(); },
     // "Tamam" on an alert() runs whatever continuation was queued for it (see window.alert) —
     // callers that need to open another screen after an alert must pass it as that continuation,
@@ -7587,6 +7592,8 @@ const Game = {
         // Clearing the map flag directly, not through setPaused: while a battle is running
         // setPaused would reach for Battle.paused and leave this one stuck on forever.
         if(this.paused) { this.paused = false; this.pauseBar(''); }
+        // The surrender question froze the fight; every way out of it unfreezes it (Battle.askSurrender)
+        if(typeof Battle !== 'undefined' && Battle._askingSurrender) { Battle._askingSurrender = false; Battle.paused = false; }
         document.getElementById('modal-overlay').classList.add('hidden');
     },
 
@@ -8321,7 +8328,8 @@ const Game = {
     },
 
     // Only four tabs fit in a narrow screen's bottom strip; Quests, Saves, Sound and
-    // Settings open from here (#86). The strip itself is still the one real menu — this page
+    // Settings open from here (#86). So do the map badge's two least urgent buttons —
+    // diplomacy and the music skip — which the narrow layout drops from the badge. The strip itself is still the one real menu — this page
     // calls the same `onclick`s, it doesn't open a second path.
     showMoreMenu() {
         let sesli = !this.opt('muted');
@@ -8332,6 +8340,8 @@ const Game = {
             ${it('📜', T('Görevler'), "Game.closeModal(); Game.showScreen('quests')")}
             ${it('🏆', T('Başarımlar'), 'Game.showAchievements()')}
             ${it('🏰', T('Topraklarım'), 'Game.showFiefs()')}
+            ${it('🌍', T('Diplomasi'), 'Game.showDiplomacy()')}
+            ${it('🎵', T('Sıradaki parça'), 'Game.closeModal(); Game.Music.skip()')}
             ${it('💾', T('Kayıtlar'), 'Save.open()')}
             ${it(sesli ? '🔊' : '🔇', sesli ? T('Ses Açık') : T('Ses Kapalı'), 'Game.toggleMute(); Game.showMoreMenu()')}
             ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}

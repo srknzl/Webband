@@ -8,9 +8,9 @@ test('yerleşime tıklayınca grup yürür ve içeri girer', async ({ page }) =>
     const loc = await page.evaluate(id => { const l = LOCATIONS.find(x => x.id === id); return { x: l.x, y: l.y, name: l.name }; }, city);
     await placeParty(page, loc.x - 70, loc.y);
 
-    await tapWorld(page, loc);
-    await expect.poll(() => page.evaluate(() => state.player.status)).toBe('moving');
     const hour = await page.evaluate(() => state.time.hour);
+    await tapWorld(page, loc);
+    // 'moving' is transient — a short walk can finish between two polls — so wait for the arrival
     await expect(page.locator('#settlement-view')).toHaveClass(/\bactive\b/, { timeout: 30_000 });
     await expect(page.locator('#settlement-name')).toContainText(await L(page, loc.name));
     expect(await page.evaluate(() => state.time.hour), 'walking spends game time').not.toBe(hour);
@@ -29,9 +29,8 @@ test('boş araziye tıklamak hedef işaretler, saat yalnız yürürken akar', as
 
     const p = await page.evaluate(() => ({ x: state.player.x, y: state.player.y }));
     await tapWorld(page, { x: p.x + 40, y: p.y + 30 });
-    await expect.poll(() => page.evaluate(() => state.player.status)).toBe('moving');
-    await expect.poll(() => page.evaluate(() => state.player.status), { timeout: 20_000 }).toBe('idle');
-    const end = await page.evaluate(() => ({ x: state.player.x, y: state.player.y, h: state.time.hour }));
-    expect(Math.hypot(end.x - p.x - 40, end.y - p.y - 30)).toBeLessThan(20);
-    expect(end.h).not.toBe(t0);
+    // Arrived: idle again, standing on the tapped spot (the walk itself can be over in one poll)
+    await expect.poll(() => page.evaluate(([x, y]) => state.player.status === 'idle'
+        && Math.hypot(state.player.x - x, state.player.y - y) < 20, [p.x + 40, p.y + 30]), { timeout: 20_000 }).toBe(true);
+    expect(await page.evaluate(() => state.time.hour)).not.toBe(t0);
 });

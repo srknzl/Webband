@@ -74,6 +74,27 @@ test('başarımlar ve topraklarım her cihazda açılabiliyor', async ({ page })
     await page.evaluate(() => Game.closeModal());
 });
 
+test('diplomasi ve sıradaki parça her düzende erişilebilir', async ({ page }) => {
+    await newGame(page);
+    // Wide layout: buttons on the map badge. Narrow: the badge drops them, "⋯ Daha" has them.
+    const badge = page.locator('#btn-diplo');
+    if(await badge.isVisible()) await badge.click();
+    else {
+        await expect(page.locator('#btn-track')).toBeHidden();
+        await page.locator('#sidebar .sb-more').click();
+        await modal(page).locator('button[onclick="Game.showDiplomacy()"]').click();
+    }
+    await expect(modal(page).locator('h3').first()).toBeVisible();
+    await page.evaluate(() => Game.closeModal());
+
+    if(await page.locator('#btn-track').isVisible()) await page.locator('#btn-track').click();
+    else {
+        await page.locator('#sidebar .sb-more').click();
+        await modal(page).locator('button[onclick*="Game.Music.skip()"]').click();
+        await expect(page.locator('#modal-overlay')).toBeHidden();
+    }
+});
+
 test('ayarlar: ses aç/kapa ve oyun içinde dil değiştirme', async ({ page, lang }) => {
     await newGame(page);
     await openExtra(page, 'Game.showSettings()');
@@ -98,13 +119,13 @@ test('ayarlar: ses aç/kapa ve oyun içinde dil değiştirme', async ({ page, la
 });
 
 test('kaydet, sayfayı yenile, kayıttan devam et', async ({ page }) => {
-    await newGame(page, 'Kayıtçı');
+    await newGame(page, 'Kaydeden');
     await page.evaluate(() => { state.player.money = 4321; state.time.day = 7; Game.updateTopBar(); });
     await openExtra(page, 'Save.open()');
     await modal(page).locator(`button[onclick="Save.save('1')"]`).click();
     const slot = await page.evaluate(() => Save.slotName('1'));
     await expect(modal(page)).toContainText(await L(page, '✅ {0} kaydedildi.', slot));
-    await expect(modal(page)).toContainText('Kayıtçı');
+    await expect(modal(page)).toContainText('Kaydeden');
 
     await page.reload();
     await expect(page.locator('#start-screen')).toHaveClass(/\bactive\b/);
@@ -112,6 +133,6 @@ test('kaydet, sayfayı yenile, kayıttan devam et', async ({ page }) => {
     expect(await okAlert(page)).toContain(await L(page, 'Kayıt yüklendi ({0}). Gün {1}.', slot, 7));
     await expect(page.locator('#map-view')).toHaveClass(/\bactive\b/);
     await expect(page.locator('#ui-money')).toHaveText('4321');
-    expect(await page.evaluate(() => state.player.name)).toBe('Kayıtçı');
+    expect(await page.evaluate(() => state.player.name)).toBe('Kaydeden');
     await page.waitForFunction(() => Game._loopId);
 });

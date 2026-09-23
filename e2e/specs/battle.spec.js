@@ -87,13 +87,40 @@ test('köyde gönüllü topla, askerlerini gönder (otomatik savaş)', async ({ 
     await page.waitForFunction(() => Game._loopId && !Battle.active);
 });
 
-test('savaşta teslim olmak esarete düşürür', async ({ page }) => {
+test('teslim ol önce sorar: savaşa dönmek savaşı sürdürür, onay esarete düşürür', async ({ page }) => {
     await newGame(page);
     const b = await band(page);
     await tapWorld(page, b);
     await modal(page).locator('button[onclick*="Battle.start"]').click({ timeout: 20_000 });
     await expect(page.locator('#battle-view')).toHaveClass(/\bactive\b/);
+    await expect.poll(() => page.evaluate(() => Battle.battleTime)).toBeGreaterThan(0.2);
+
+    // A stray tap only asks — with the price named and the fight frozen meanwhile
     await page.locator('#btn-surrender').click();
+    await expect(modal(page)).toContainText(await L(page, 'Bütün birliğin dağılır ve esir düşersin.'));
+    const t = await page.evaluate(() => Battle.battleTime);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => Battle.battleTime), 'the fight waits for the answer').toBe(t);
+    expect(await page.evaluate(() => Battle.active)).toBe(true);
+
+    // "Back to the fight" is the default answer and resumes the clock
+    await expect(await modalBtn(page, '⚔️ Savaşa Dön')).toHaveClass(/\bprimary\b/);
+    await (await modalBtn(page, '⚔️ Savaşa Dön')).click();
+    await expect(page.locator('#modal-overlay')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => Battle.battleTime)).toBeGreaterThan(t);
+
+    // Esc (a keyboard's way out) resumes too
+    if(!await page.evaluate(() => Game.isTouch())) {
+        await page.locator('#btn-surrender').click();
+        await expect(modal(page)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#modal-overlay')).toBeHidden();
+        expect(await page.evaluate(() => Battle.paused)).toBe(false);
+    }
+
+    // Asked and answered yes: captivity
+    await page.locator('#btn-surrender').click();
+    await (await modalBtn(page, '🏳️ Teslim Ol')).click();
     await expect(page.locator('#map-view')).toHaveClass(/\bactive\b/);
     const said = await L(page, 'Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-{0} Dinar', 0);
     await expect(modal(page)).toContainText(said.split('<br>')[0]);

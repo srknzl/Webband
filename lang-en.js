@@ -2944,4 +2944,9 @@ I18N.dicts.en = {
   "Arena Kralı": "King of the Arena",
   "Arenada üst üste 10 maç kazandın.": "You won 10 arena bouts in a row.",
   "Zaman akış hızı (Z)": "Time flow speed (Z)",
+  "🏳️ Teslim olmak mı?": "🏳️ Surrender?",
+  "Bütün birliğin dağılır ve esir düşersin.": "Your whole party scatters and you are taken prisoner.",
+  "Maçı kaybetmiş sayılırsın.": "The bout counts as lost.",
+  "⚔️ Savaşa Dön": "⚔️ Back to the Fight",
+  "Sıradaki parça": "Next track",
 };

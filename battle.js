@@ -3121,6 +3121,25 @@ const Battle = {
         Game.showScreen('map');
     },
 
+    // One tap on the bar used to hand over the whole army — a stray thumb on a phone was
+    // enough. The button now asks, with the fight paused, and names the price; "back to the
+    // fight" is the primary answer, so Enter, Esc and × all land on the safe side (canDismiss
+    // lets this one window close mid-battle). Every way out resumes the fight (Game.closeModal).
+    askSurrender() {
+        if(!this.active) return this.surrender();
+        this.paused = true;
+        this._askingSurrender = true;
+        let price = (this.isDuel || this.isArena || this.isTourney)
+            ? T('Maçı kaybetmiş sayılırsın.') : T('Bütün birliğin dağılır ve esir düşersin.');
+        Game.showModal(`<h3>${T`🏳️ Teslim olmak mı?`}</h3>
+            <p style="margin-top:0.6rem">${price}</p>
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:1.2rem">
+                <button class="btn primary" onclick="Game.closeModal()">${T`⚔️ Savaşa Dön`}</button>
+                <button class="btn" style="border-color:var(--danger);color:var(--danger)"
+                    onclick="Game.closeModal(); Battle.surrender()">${T`🏳️ Teslim Ol`}</button>
+            </div>`, '380px');
+    },
+
     surrender() {
         // Withdrawing from a duel/arena match is a defeat, not a captivity — this path used to
         // not restore _duelParty, permanently wiping out the group.

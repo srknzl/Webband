@@ -580,8 +580,11 @@ per day); a victory is +5, a defeat −15.
   battle is open. In the save section: **💾 Saves** (`Save.open()`), 🔊 sound, and
   **⚙️ Settings** sit. `showScreen()` activates the clicked button via `data-view`.
 - **Map HUD** (`#map-hud`): the terrain you're on + its speed effect, below it troop
-  composition (🪖 infantry / 🏹 archers / 🐎 cavalry), **🎯 Find Me** and **🌍 Diplomacy**
-  buttons. `Game.updateMapHud()` fills it in.
+  composition (🪖 infantry / 🏹 archers / 🐎 cavalry), **⏳ Wait**, **🎯 Find Me**, **🎵 Next**
+  and **🌍 Diplomacy** buttons, and the ⏱️ time-speed button. `Game.updateMapHud()` fills it in.
+  On the narrow layout (≤820 px, where "⋯ Daha" exists) the HUD is two rows: terrain on the
+  first, troops + buttons + speed on the second; Diplomacy and Next move into "⋯ Daha" (same
+  `onclick`s). Measured on a 412 px phone: four rows → two. Labels stay on the buttons (#86).
   **Unspent-points badge** (#35): if you have an attribute/focus point, the same row shows a
   `✨ 2 attribute · 3 focus` button; clicking it opens the character screen. It doesn't jump
   around, it just breathes its glow (`#btn-points`, `@keyframes pointsGlow` 2.2s) — the badge
@@ -1419,6 +1422,9 @@ are **much richer**. Convoy count stays fixed at 14 thanks to `ensureTraders`.
   vassal of the enemy kingdom or relation ≤ −50; otherwise a collision opens **dialogue**.
 - Encounter modal: fight / **send your troops** / **flee** / surrender (#30). You can't
   surrender to an animal pack.
+- In battle, **🏳️ Teslim Ol** asks first (`Battle.askSurrender`): the fight pauses, the price is
+  named, and **⚔️ Savaşa Dön** is the primary answer — Enter, Esc and × all resume the fight
+  (`canDismiss` opens for this one window mid-battle; `closeModal` unpauses).
 - **The announced roster is the roster that takes the field** (#116). The modal counted
   `party.length`, but `Battle.start` leaves the wounded in camp — so a party of 4 with 2
   wounded was announced as 5 and 3 walked out. `Game.fieldSize()` (leader + the unwounded) is
