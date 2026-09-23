@@ -1,3973 +1,961 @@
 # WebBand — system notes
 
-The detailed counterpart to CLAUDE.md. Each section writes down a mechanic, its design
-decision, and that decision's **measured** counterpart. CLAUDE.md carries only the invariant
-rules; the reasoning, numbers, and history live here.
-
+Companion to CLAUDE.md: one entry per mechanic, its key formula/constants, and the load-bearing
+**why** behind a non-obvious choice. Kept short on purpose — future sessions (human or agent)
+read a section before touching that mechanic, and update its numbers after. Don't re-inflate
+this file with narrative ("we tried X, here's the whole story") or confirmation measurements
+that just prove a fixed number is that number — one representative figure is enough; exact
+counts that drift with every feature (quest count, dictionary size, assertion count) belong to
+the tools that generate them, not to hand-maintained prose here.
 
 ## Files
-
-| File | Contents |
-|---|---|
-| `index.html` | DOM skeleton for every screen (start, main-ui, map/settlement/character/party/inventory/battle views, modal, captivity panel, siege camp panel, loot panel, camp panel) |
-| `app.js` | Core — map, time, settlements, diplomacy, saves. Global objects: `Debug`, `Input`, `Game`, `Save` + `state` |
-| `battle.js` | Battle arena and the tournament minigame: `Battle`, `TournamentMinigame` |
-| `nobles.js` | `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS` + the `Nobles` and `Feast` objects |
-| `quests.js` | `QUESTS` (15 quest definitions) + the `Quests` quest engine |
-| `i18n.js` | Language layer: `I18N` + global `T` — the key is the Turkish source text itself |
-| `lang-en.js` / `lang-id.js` | Generated dictionaries (1785 keys); never hand-edited |
-| `docs/PLAN-nobles-and-quests.md` | Design plan for this system |
-| `docs/PLAN-mobile-port.md` | Mobile port research and plan (measured codebase breakdown + framework comparison) |
-| `tools/` | Node measurement tools (`harness.js` + `sim`/`duel`/`economy`/`framegate`) — see "Measurement tools" |
-| `docs/measurements/` | Dated measurement reports produced by the tools |
-| `README.md` | English repo blurb — setup is one line: open `index.html` |
-| `CHANGELOG.md` | A dated change list in player-facing language; the version number is the `VERSION` constant |
-| `.github/workflows/test.yml` | Runs `test.js` + `framegate.js` on every push; if green, opens a release for `VERSION.no` — see "Versions and releases" |
-| `.github/ISSUE_TEMPLATE/bug.md` | Bug template: version stamp, **screen refresh rate**, debug report, save JSON |
-| `style.css` | Glass panel (glassmorphism) theme, CSS variables (`--primary`, `--danger`, `--success`, `--panel-border`, `--text-muted`) |
-| `bg_hdr.jpg` | Background image (`bg.jpg` was a copy of the same file, deleted — #88 item 10) |
-| `lord_portraits.jpg` | 3x3 sprite sheet — lord portraits (cropped with `background-position`) |
-| `kingdom_crests.jpg` | **2x2** sprite sheet — four banners (lion / bear / horse / raven) |
-| `LICENSE` | AGPL-3.0-or-later |
+See CLAUDE.md's file table for the canonical list. Extra detail specific to this doc:
+`kingdom_crests.jpg` is a 2×2 sprite sheet (4 banners); `lord_portraits.jpg` is 3×3. Design
+docs: `docs/PLAN-nobles-and-quests.md`, `docs/PLAN-mobile-port.md` (mobile-port research),
+`docs/measurements/<date>-<topic>.md` (dated tool output). LICENSE is AGPL-3.0-or-later.
 
 ## Architecture
+`window.onload → Game.init()` → map generation + NPC spawn. `Game.startGame()` opens the
+character-creation wizard; on confirm, `enterWorld()` starts the game loop
+(`requestAnimationFrame`, `update(dt)` + `renderMap()`). The loop **genuinely stops** while
+`Battle.active || TournamentMinigame.active` (`_loopId = null`); battle/tournament run their own
+loop. `showScreen()` is the only place that restarts it — every way out of battle funnels
+through `Game.showScreen('map')`, so no extra hook is needed.
 
-`window.onload → Game.init()` → map generation + NPC spawn. `Game.startGame()` starts the
-game loop (`requestAnimationFrame`). The loop calls `update(dt)` + `renderMap()` and
-**genuinely stops** while `Battle.active || TournamentMinigame.active` (`_loopId = null`,
-no new frame requested); battle/tournament run their own loop. The only place that restarts
-the loop is `showScreen()`: when returning to a non-battle screen, if `_loopId` is empty and
-both engines are off, `startGameLoop()` is called. Every path out of battle (victory, defeat,
-surrender, duel, arena, tournament) goes through `Game.showScreen('map')`, so no extra hook is
-needed.
+Script order: `i18n.js → lang-en.js → lang-id.js → app.js → battle.js → nobles.js → quests.js` —
+only matters to avoid a `const` collision (a classic script's `const` is a lexical global, not
+`window.X`).
 
-Script load order: `i18n.js` → `lang-en.js` → `lang-id.js` → `app.js` → `battle.js` →
-`nobles.js` → `quests.js`. Since every reference between them lives inside function bodies,
-the order only matters to avoid a `const` collision. *(In a classic script, `const` enters
-global lexical scope, so `Battle` in `battle.js` is visible from `app.js` too — it shouldn't be
-looked up as `window.Battle`.)*
+All data lives in one `state` object; `Save` writes it to localStorage as JSON. `VERSION = { no,
+date, name }` sits at the top of `app.js`, bumped by hand alongside a `CHANGELOG.md` line and a
+matching `CACHE` name in `sw.js` (cache-first service worker — an unbumped cache ships stale
+code forever; `tools/test.js` asserts the two stay in sync).
 
-All data lives in a single `state` object; `Save` writes it to localStorage as JSON
-(3 slots + a ring of 5 autosaves, see "Save system").
-
-`VERSION = { no, date, name }` sits at the very top of `app.js` and is **bumped by hand**.
-The `#ver-tag` in the corner of the start screen and the first line of the debug report both
-read from the same constant — since the player's desktop shortcut pulls the repo to `main` on
-every launch, this is the only answer to "which code are we talking about" (#55 item 8). A line
-is also added to `CHANGELOG.md` when the version is bumped.
-
-Global data constants: in app.js — `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
-`TROOP_TREES` (+ the `TROOP_UPGRADES` / `TROOP_TYPES` generated from it); in nobles.js —
-`LORDS`, `LADIES`, `PERSONALITIES`, `LADY_TRAITS`, `COMPLIMENTS`, `POEMS`; in quests.js —
-`QUESTS`.
-
-`window.alert` is overridden → shown as a modal.
+Global data constants: `app.js` — `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`, `ITEMS`,
+`TROOP_TREES`, `BAND_KINDS`, `SITE_KINDS`, `BOSSES`, `RELICS`, `ACHIEVEMENTS`,
+`AMBITIONS`; `nobles.js` — `LORDS` (23), `LADIES` (12), `COMPANIONS` (7), `PERSONALITIES`,
+`LADY_TRAITS`; `quests.js` — `QUESTS`. `window.alert` is overridden to a modal.
 
 ## Current features
 
 ### Character creation
-`start-btn` → `Game.startGame()` no longer drops you straight into the world; it opens a
-6-step wizard running on a modal (`Game.creation = { step, sel }`): gender + 4 background
-questions (`BACKGROUND`) + a banner (`BANNERS`), then a summary. On confirm, `applyCreation()`
-applies the choices from one place and `enterWorld()` (the old `startGame` body) runs.
+`Game.startGame()` opens a 7-step wizard on a modal (`Game.creation = { step, sel }`): gender +
+4 background questions + a banner + a difficulty step, then a summary. `applyCreation()` applies
+every choice from one place; `enterWorld()` runs the old `startGame` body.
 
-- Choice effects sit as data: `attr{}`, `prof{}`, `money`, `renown`, `item` (equipped),
-  `relAll`, `relFaction{id,n}`. `Game.bonusText(o)` turns this into human language — both the
-  choice card and the summary read from the same function.
-- Answers are stored in `state.player.background`; the character screen writes them with
-  `Game.backgroundLine()`.
+Choice effects are data (`attr{}`, `prof{}`, `money`, `renown`, `item`, `relAll`,
+`relFaction{id,n}`); `Game.bonusText(o)` turns this into text for both the choice card and the
+summary. Answers live in `state.player.background`.
 
 | Question | Choices (summary) |
 |---|---|
-| Who are you? | Male (neutral) / Female (**−5** relation with every lord, marriage path changes) |
-| Where were you born? | 5 faction homelands — one gives an attribute/skill + **+5 relation with that kingdom's lords** |
-| What did your father do? | Noble (+200 coin, +10 renown, Leadership+1) / Merchant / Blacksmith / Soldier / Shepherd |
-| What did you do in your youth? | Servant / Hunting / Streets / Monastery / Stable — skill points |
-| Your first profession? | Mercenary (sword) / Caravan guard (shield) / Knight hopeful (**horse**, −100 coin) / Smuggler (+300 coin, −2 relation) / Bandit (axe, −4 relation) |
+| Gender | Male / Female (**−5** relation with every lord, different marriage path) |
+| Birthplace | 5 faction homelands — one gives an attribute/skill + **+5** relation with that kingdom |
+| Father's trade | Noble (+200 coin, +10 renown, Leadership+1) / Merchant / Blacksmith / Soldier / Shepherd |
+| Youth | Servant / Hunting / Streets / Monastery / Stable — skill points |
+| First profession | Mercenary (sword) / Caravan guard (shield) / Knight hopeful (horse, −100 coin) / Smuggler (+300 coin, −2 rel) / Bandit (axe, −4 rel) |
 
-- **Banner** (`BANNERS`, 9 choices over 4 crests): cropped from the `kingdom_crests.jpg`
-  **2×2** sprite sheet with `Game.bannerCss(i)`. Its color (`Game.bannerColor()`) is used for
-  the party icon on the map, and for `FACTIONS.player_kingdom` once you found your own kingdom
-  (used to be the fixed `#ffcc00`).
-- **Crest cropping is one choke point**: `Game.crestCss(crest, size, style)` (#92). The sheet
-  holds **four** banners in a 2×2 grid, so the crop is `background-size:200%` with a
-  `0%`/`100%` position — it used to be 3×3 maths (`300%`, `0/50/100%`), which cut thirds out
-  of halves and left most crests showing castle wall. Both callers go through it:
-  `Game.bannerCss(i)` for the player's banner and the kingdom list in the encyclopedia.
-  `lord_portraits.jpg` is a genuine 3×3 sheet and keeps its own maths in `Nobles.portraitCss`.
-- **Kingdom crests**: each entry in `FACTIONS` carries an explicit `crest` index —
-  Swadia 0 (lion), Rhodok 1 (bear + crossbow), Khergit 2 (horse), Nord 3 (raven + axe).
-  There are five kingdoms and four banners, so **Vaegir shares Nord's crest** and sets
-  `crestFx: 'saturate(0.2) brightness(1.1)'` to read as steel-grey instead of pale blue.
-  A ninth banner would need new artwork, not new maths.
-
-  *Measured:* 5 kingdoms → crests 0, 1, 3, 3, 2; 9 banners → crests 0, 3, 1, 2, 0, 1, 2, 3, 3 —
-  every value inside 0–3, asserted by `tools/test.js`.
-- `Nobles.initRivals()` is now called from `enterWorld()`, not `spawnNPCs()` — which suitors
-  rival you for depends on gender. `Save.load()` sets up rivals if an old save has none.
+- **Banner**: 9 choices over the 4 crests, cropped from `kingdom_crests.jpg` via
+  `Game.crestCss(crest, size, style)` — the single choke point for both the player's banner and
+  the encyclopedia's kingdom list. `Game.bannerColor()` colors the party icon and
+  `FACTIONS.player_kingdom` once a kingdom is founded.
+- **Kingdom crests**: each `FACTIONS` entry carries a `crest` index (0 lion / 1 bear+crossbow /
+  2 horse / 3 raven+axe). 5 kingdoms, 4 banners — Vaegir shares Nord's crest with `crestFx:
+  'saturate(0.2) brightness(1.1)'` so it still reads grey, not pale blue.
+- **Difficulty** (Easy/Medium/Hard) is asked here so it's set before Settings is ever opened —
+  see "Difficulty" below.
 
 ### World map
-- Procedural continent border: `getMapRadius()` produces an irregular coastline from an
-  angle-dependent sum of sines; `clampToMap()` keeps everyone inside it.
-- Settlements (`LOCATIONS`) are **rule-based redistributed** inside `init()` (`Game.layoutWorld`)
-  — the array's x/y values aren't used; see "Settlement layout (#57)".
-- Roads: a network with natural routes, varied kinds, and junctions (`state.roads`,
-  `state.bridges`) — see "Road network (#56)".
-- Rivers (`RIVERS`) and forests (`FORESTS`) have fixed coordinates.
-- Points of interest (`state.sites`): ruins, farms, towers, caves, camps — see "Abandoned
-  structures (#58)".
-- **Forest affects gameplay**: an enemy in a forest isn't visible at normal sight range
-  (`Game.spotRange(npc)` = sight × `min(0.9, 0.25 + Scouting×3% + Pathfinding×2%)`; 500 → 125
-  units with base skills). Rendering, the tooltip, and clicking all go through the single
-  `Game.canSee(npc)` check. A wolf pack in a forest locks onto the player from **as close as
-  `spotRange(npc)`** and **lunges at ×1.6 speed**; a charging pack is marked on the map with a
-  pulsing red ring (`npc.charging`). *(The range used to be a fixed 700 — with the pack
-  closing at ×2 speed, the player only saw it from 125 units away, meaning the whole approach
-  was invisible.)*
-- **Ambush** (`Game.checkAmbush`, one roll per second): while moving through a forest,
-  jumps onto a hidden band within `min(AMBUSH_RANGE=240, spotRange(band))` — meaning **the
-  band that ambushes you is always close enough to be drawn**. *(The fixed 240 was wider than
-  a starting character's forest sight (125): a band setting up an ambush would, by definition,
-  never have been drawn on screen. 240 stays as a ceiling so ambushes don't get more frequent
-  as skills grow.)* A strong party isn't ambushed: the check is `your healthy troop count <
-  band.size × 1.5` — six wolves won't jump a forty-strong army. Notice chance is
-  `min(0.9, 0.2 + Scouting×6% + Pathfinding×4%)` — if you notice, it's a normal encounter
-  (green warning); if you don't, `state.ambush` opens: `Battle.start` places the player at the
-  center of the arena and spawns the enemy in a 130–240 unit **ring** around them (normally
-  470–530 units away, in a single line).
-- **No fog of war** (unlike Warband): terrain, roads, rivers, and settlements are visible
-  from the first frame. The only thing hidden is **parties** — `Game.canSee(npc)` /
-  `Game.spotRange(npc)` are still the single gate, so distant and forest-hidden bands stay
-  invisible. Sight is `Game.getVisibility()` = `500 + (int−10)×30 + (Scouting−1)×25`, **×0.7 at
-  night**, **×4 while a watchtower reveal is running** (#125, below); it no longer scrapes away
-  fog, it only sets the party-notice range.
-  *(Removed: `exploredCanvas`/`exploredCtx`/`exploredGrid`, `markExplored`, `repaintFog`,
-  `loadExplored`, the layer that darkened everything outside the sight circle with
-  `evenodd`.)*
-- Camera: mouse wheel zoom (`Game.minZoom()`–3.0), edge-of-screen mouse pan, **free pan with
-  WASD/arrow keys** (#44), soft follow on the player. The camera tracks `state.player +
-  camera.offset`; panning only moves the offset, is clamped to ±9000 units, and **Space** /
-  🎯 Find Me (`Game.centerOnPlayer`) resets it. *(WASD used to do the opposite and reset the
-  offset: the only way to pan the map by hand was pinning the mouse to the screen edge. The
-  rule that auto-pulled the offset back while clicking-and-walking was also removed — reining
-  in the camera is now the player's own call.)* The lower bound is computed from the screen
-  (`min(short side/9600, 0.8)`, floor 0.07) — **the whole continent (9000 units) fits on one
-  screen**. Measured at 1440×900: zoom 0.084, the screen shows a 14453×9600-unit area, all 25
-  settlements are drawn and only 4 of 36 parties (the ones in sight). Since settlement and
-  party icons shrink away in world units when zoomed out, they're scaled up with
-  `Game.iconScale()` = `max(1, 0.55/zoom)` (labels were already screen-sized via `1/zoom`).
-- **Map-focused layout** (#40): on the map view the canvas fills the whole viewport and the
-  chrome floats over it as translucent glass edge panels — it never steals canvas space. The
-  stamp is `body.view-map` (set by `showScreen('map')`, cleared on every other screen, a fifth
-  layout knob beside `in-battle`); its CSS moves `#view-container` to `position:fixed; inset:0`,
-  pins `#top-bar` to the top edge and `#sidebar` to a vertically-centred left icon strip
-  (bottom bar under 820px). `showScreen` re-runs `resizeCanvases()` when the class flips, so
-  the canvas reads its new full-viewport parent box. `Game.toggleFullscreen()` (the ⛶ button at
-  the foot of the nav) is the in-app fullscreen for phones with no F11; it retires the
-  `#f11-hint` nudge for good. Measured: at 1280×720 and 375×812 the map canvas's
-  `clientWidth/Height` equals the viewport.
-  *(`enterLocation` — walking into a settlement from the map — used to skip `showScreen`
-  entirely and toggle `.view` itself, so `body.view-map` stayed on from the map screen: the
-  settlement's top bar and bottom nav kept floating over the scene instead of making room for
-  it in flow, hiding the city name under the HUD and the last action button under the nav
-  (#132). `enterLocation` now opens through `showScreen('settlement')` like every other
-  screen.)*
-- **Route line and draggable target** (#35): a flowing thin dashed line (shadow + gold
-  layer) and, at the target, a small **filled** dot + a pulsing ring. The arrowhead was
-  removed — the line already says the direction. The line and marker are screen-sized
-  (`/zoom`), so they don't thicken up and swamp the map when zoomed out. The target marker
-  **can be dragged with the mouse**: `startTargetDrag` grabs it if pressed near the marker's
-  `targetGrabRadius()` (16 px on screen), `handleMapHover` moves `Game.dragTarget` while
-  dragging, `endTargetDrag` hands the drop point to `setTarget`. The temporary dragged route is
-  **white and static**, the confirmed route is **gold and flowing** — which one is active is
-  clear at a glance. The `click` that follows a drop is swallowed (`suppressClick`), otherwise
-  the target got set twice.
-- Click-to-move: settlement → enter it, NPC → encounter, empty space → free movement.
-  Clicking, dragging, and the tooltip all go through the same two gates: `Game.mapPos(e)`
-  (screen → world) and `Game.setTarget(m)` (settlement < 36 → NPC < 30 → empty space).
-- **Party icons** (show what the party looks like, like in Warband, `Game.drawPartyIcon`):
-  a **mounted** silhouette if it has a horse (`drawRider`: horse + saddle cloth + raised sword),
-  otherwise a spearman on foot (`drawFootman`: spear + shield + helmet). Faction color is on
-  the saddle cloth/shield and the banner. A party of 10+ gets 1 extra figure drawn behind it,
-  30+ gets 2 — a crowd reads as a crowd from a distance. Nobles are mounted; a king gets 👑, a
-  marshal gets 🎖️.
-- Name labels (`Game.mapLabel`) are drawn at a **zoom-independent screen size** and
-  overlapping ones get nudged upward (`_labelRects` collision test).
-- **Map tooltip** (`handleMapHover` → `#map-tooltip`): hovering a settlement shows
-  `Game.locTipHtml(loc)` — faction + type, its lord and your relation with them, prosperity,
-  garrison (`Game.garrisonOf`), pending recruit, an "siege only" warning if it's enemy soil —
-  but **only as much as you actually know** (see "A settlement's location is known, its state
-  isn't"). Over a band/party: type (creature pack / bandit band / faction) + troop count.
-  *(The screen→world conversion was missing the `rect/2` centering offset — the tooltip was
-  looking for whatever was half a screen away from the cursor, so it never opened.)*
+- Procedural continent border (`getMapRadius()`, sum of angle-dependent sines); `clampToMap()`
+  keeps everyone inside it.
+- Settlements are **rule-based redistributed** inside `init()` — see "Settlement layout".
+- Roads form a network with bends, kinds, and junctions (`state.roads`/`state.bridges`) — see
+  "Road network".
+- Rivers/forests have fixed coordinates. Points of interest (`state.sites`) — see "Abandoned
+  structures".
+- **Forest hides bands**: `Game.spotRange(npc)` = sight × `min(0.9, 0.25 + Scouting×3% +
+  Pathfinding×2%)` inside a forest (drawing/tooltip/click all gate on `Game.canSee(npc)`). A
+  wolf pack in a forest locks on from `spotRange` and lunges at ×1.6.
+- **Ambush** (`checkAmbush`, one roll/sec while moving through forest): a hidden band within
+  `min(AMBUSH_RANGE=240, spotRange(band))` jumps you. A strong party is immune (`healthy troop
+  count < band.size × 1.5`). Notice chance `min(0.9, 0.2 + Scouting×6% + Pathfinding×4%)` — miss
+  it and the enemy rings you at 130–240 units instead of a normal 470–530 unit approach.
+- **No fog of war**: terrain/roads/settlements are always visible; only *parties* hide, via
+  `canSee`/`spotRange`. Sight (`getVisibility()`) = `500 + (int−10)×30 + (Scouting−1)×25`, ×0.7
+  at night, ×`TOWER_REVEAL_MUL`(4) during a watchtower reveal.
+- Camera: wheel zoom (`minZoom()`–3.0), edge pan, free WASD/arrow pan (offset clamped ±9000),
+  Space/🎯 recenters. Icons/labels scale with `Game.iconScale()`/`1/zoom` so they don't vanish
+  when zoomed out to see the whole 9000-unit continent.
+- **`body.view-map`** (set by `showScreen('map')`) makes the canvas fill the viewport with glass
+  chrome floating over it; `enterLocation` goes through `showScreen('settlement')` like every
+  other screen so this class never leaks onto a non-map screen.
+- Route line: a flowing dashed gold line + pulsing dot; the target marker is **draggable**
+  (`startTargetDrag`/`endTargetDrag`), shown white/static while dragging vs. gold/flowing once
+  confirmed.
+- Click-to-move: settlement → enter, NPC → encounter, empty space → move. All go through
+  `Game.mapPos(e)` (screen→world) and `Game.setTarget(m)`.
+- **Party icons** (`drawPartyIcon`): mounted silhouette if the party has a horse, else a
+  spearman; faction color on saddle cloth/shield/banner; 10+/30+ draws extra figures behind for
+  a crowd. Nobles are mounted, king gets 👑, marshal 🎖️.
+- **Map tooltip** (`locTipHtml`): shows only what you actually know — see below.
 
 #### A settlement's location is known, its state isn't (#74)
-There was a sight check for bands (`canSee`), but not for settlements: a keep on the far side
-of the map had its garrison, prosperity, and pending recruit written right into the tooltip.
-Now the tooltip shows one of three states:
-
 | State | Condition | Tooltip |
 |---|---|---|
-| **Live** | `Game.locLive(loc)` — within `getVisibility() × LOC_SPOT` (1.5) | today's real values |
-| **Memory** | you've entered its range before, or entered it (`loc.intel`) | values **from that day**, headed *"4 days ago:"* |
-| **Unknown** | never visited | "You don't know its state — get closer or go inside." |
+| **Live** | within `getVisibility() × LOC_SPOT`(1.5) — range 750 units | today's real values |
+| **Memory** | visited/entered before (`loc.intel`) | values from that day, "N days ago:" |
+| **Unknown** | never | "You don't know its state." |
 
-Range is wider than a band's sight (500 → **750** units): the smoke over the wall is visible
-from a distance, but counting the garrison needs getting close. `Game.noteLoc(loc)` writes the
-memory; it has two callers — `Game.scoutTick()`, which runs once an hour (inside
-`advanceTime`'s hourly loop, next to `regenTick`) and `enterLocation` (walking through the gate
-sees everything). The record is written as `loc.intel` alongside `state`; an old save has no
-such field, so that settlement starts as "unknown" — no migration code was needed.
-
-**Location info isn't hidden**: the settlement stays on the map, its name and faction banner
-are visible, it can be targeted — only the things that **change** are hidden (its lord, its
-prosperity, its garrison, its recruit). There was never a way to see market prices from a
-distance anyway; that information channel is already the **guild price ledger** at the inn.
-
-Measured (no seed, fresh world): sight 500 → settlement range **750**, **1 of 25** settlements
-in range at the start. The Emir's village at 3517 units has the tooltip
-*"Svadya Kingdom · Village — You don't know its state"*; Azgad at 723 units gets the full
-readout. Passing by Praven and moving away, the tooltip reads *"Today's news: … Garrison ~30
-troops"*; 4 days later, even though prosperity is actually 51 → **90**, the tooltip still says
-**"4 days ago: … Prosperity: Managing (51)"**. Over a recording run, `intel` came back
-byte-for-byte identical for three settlements; a call to `enterLocation` from 9000 units away
-refreshed the memory to **day 99**. A `scoutTick` call costs **0.003 ms** (25 settlements),
-0.072 ms total per day. 3 new keys went into both dictionaries; `I18N.missing` is empty across
-tr/en/id.
+`Game.noteLoc(loc)` writes memory; called hourly from `scoutTick()` (inside `advanceTime`) and
+by `enterLocation`. The settlement itself (name, banner, targetability) is never hidden — only
+lord/prosperity/garrison/recruit are. An old save with no `loc.intel` just starts "unknown," no
+migration needed.
 
 ### Settlement layout — minimum gap, border keep, village center (#57)
-The old layout was one line: every settlement dropped at a **fully random** point (1000–3500
-units from center) inside its faction's angular slice. Measured (200 worlds): **6.81 minimum-
-gap violations** per world, **200 of 200 worlds** had at least one violation, the median
-closest pair was **148** units apart (worst **12** — two towns nearly stacked), and **82
-settlements** ended up outside the continent. `layoutWorld()` replaces this with three rules;
-the world is rebuilt from scratch (up to 12 tries) until the rules hold.
+`layoutWorld()` rebuilds the world (up to 12 tries) until three rules hold, validated by
+`validateLocations()`:
 
-**1. Minimum gap** (`Game.MIN_GAP`, `minGap(a,b)` looks at the pair's types): town–town 700,
-town–keep 480, town–village 380, keep–keep 620, keep–village 340, village–village 420 units.
-`spotOk(p, type, placed)` is the single gate: a candidate point must be **320 units** inside
-the coast *and* far enough from everyone already placed per their pair rule. If no spot is
-found in 400 tries, the last candidate is accepted (a flawed world beats a hang — validation
-catches it anyway).
+1. **Minimum gap** (`Game.MIN_GAP`, per pair type): town–town 700, town–keep 480, town–village
+   380, keep–keep 620, keep–village 340, village–village 420 units; every point also ≥320 units
+   inside the coast (`spotOk`).
+2. **Keep at the border, town in the middle** (`placeLocations`): within a faction's angular
+   slice, a keep sits in the outer 20% band (facing the neighbor), a town in the middle 56%.
+   Distance from center is relative to the coastline (`R × 0.28–0.82`), not a fixed band.
+3. **A village has a parent** (`placeVillage`): attaches to the town/keep of its faction with
+   the fewest villages (`loc.parentId`), placed 420–900 units away.
 
-**2. Keep at the border, town in the middle** (`placeLocations`): within the slice, the angle
-`f` is `0.02–0.20` or `0.80–0.98` for a keep, `0.22–0.78` for a town. So the keep faces the
-neighboring kingdom's border while the town sits in the heartland. Measured (40 worlds, 240
-keeps / 520 towns): **100%** of keeps, **0%** of towns fall in the slice's outer 20% band.
-Distance from center is **relative to the coastline** (`R = getMapRadius(angle)`,
-`d = R × 0.28–0.82`) — a fixed 1300–3200 band left the continent's bulging sides empty.
-
-**3. A village has a parent** (`placeVillage`): every village attaches to the town/keep of
-that faction with the **fewest villages** (`loc.parentId`) and is placed `VILLAGE_RANGE` =
-**420–900** units away from it. Measured (200 worlds): village-to-parent distance min **420**
-/ median **655** / max **900**.
-
-`validateLocations()` audits the generated world and returns a **human-language** list of
-problems: off-continent, minimum-gap violation, a village with no parent/disconnected, a
-settlement **not connected to the road network** (within 40 units of a `state.roads`
-endpoint). `layoutWorld` loops until this list is empty; if it still hasn't settled after 12
-tries, it writes the reason with `console.warn`. Measured (200 worlds): **median tries 1, max
-tries 1, 0 failures in 12 tries**.
-
-| | old | new |
-|---|---|---|
-| Violations / world | 6.81 | **0** |
-| Worlds with a violation (of 200) | 200 | **0** |
-| Closest pair (median / worst) | 148 / **12** | **431 / 345** |
-| Off-continent (total over 200 worlds) | 82 | **0** |
-| Distance to emptiest point (median of 40 worlds) | 2294 | **2189** |
-| Random point to nearest settlement (median) | 680 | **637** |
-
-The tightest gap measured per pair type settles right at the rule itself: town|town 701,
-keep|town 481, town|village 380, keep|keep 622, keep|village 345, village|village 454.
-
-**`parentId` erases three duplicated heuristics.** Conquest (`captureSettlement`), granting a
-fief (`grantFief`), and granting a fief to a vassal (`grantFiefTo`) each wrote their own
-"villages within 900 units come along too" rule **separately**; now all three call
-`Game.villagesOf(loc)`. An old save's village has no `parentId` — `villagesOf` then falls back
-to the old 900-unit rule, so no migration code was needed. (`parentId` is written into
-`Save.snapshot`'s `locations` array.)
+`Game.villagesOf(loc)` is the single reader `captureSettlement`/`grantFief`/`grantFiefTo` all
+call — an old save with no `parentId` falls back to the old "within 900 units" rule.
 
 ### Road network — bends, kind, and bridges (#56)
-Roads used to be the **straight-line edges** of a minimum spanning tree connecting
-settlements: 24 segments, all the same brown, all the same ×1.1. The network has changed in
-three ways.
+`Game.roadPath(a, b)` bends a route into a polyline (a base sine bend + a second-harmonic
+deviation, midpoints inside a forest pushed to its edge) rather than a straight MST edge — roads
+are ~5% longer than straight-line but never cut through forests.
 
-**1. A route bends** (`Game.roadPath(a, b)`): not a straight line between two points, but a
-polyline of `max(6, min(18, distance/220))` segments. A base bend that zeroes out at the ends
-via `sin(t·π)` (amplitude = length × 0.10–0.24) is layered with a deviation from the second
-harmonic; if a midpoint lands inside a forest it's pushed to the **edge** (radius + 45) and
-run through `clampToMap`. Measured (285 random settlement pairs): road-length-to-straight-line
-ratio, median **1.049**, p90 1.088, max 1.122 — so a road is ~5% longer than as the crow
-flies. Segments passing **through** a forest: 0 (straight lines used to slice right through
-forests).
+| Kind (from destination type) | Radius | Speed | Texture |
+|---|---|---|---|
+| 🛣️ Stone Road (→town) | 26 | ×1.18 | gray, short dashed centerline |
+| 🛤️ Dirt Road (→keep) | 22 | ×1.10 | brown, wheel ruts |
+| 🥾 Goat Path (→village) | 15 | ×1.04 | thin, sparse |
 
-**2. A road has a kind** (`Game.ROAD_KINDS`, from the destination settlement's type: town →
-stone, keep → dirt, village → goat path). The kind sets both the radius, the speed
-multiplier, and the texture:
-
-| Kind | Radius | Speed | Measured speed (same group, flatness 121.5) | Texture |
-|---|---|---|---|---|
-| 🛣️ Stone Road | 26 | ×1.18 | **143.4** | gray stone surface, short dashed center line |
-| 🛤️ Dirt Road | 22 | ×1.10 | **133.7** | brown, long dashed wheel ruts |
-| 🥾 Goat Path | 15 | ×1.04 | **126.4** | thin, faint, sparse dashes |
-
-A road is 5% longer but 18% faster, so following a stone road is a net ~12% gain — a
-Warband-style "stick to the road" preference, not a requirement.
-
-**3. Junctions and bridges.** Not every edge of the MST leaves from a settlement anymore: a
-new settlement checks its distance to connected settlements **and to existing road points**,
-and the closest wins. When a road point wins, a real **T-junction** forms in the network
-(measured: a typical world has **5 junctions** away from settlements). If a road segment
-crosses a river segment (`Game.segCross`), the intersection point is written into
-`state.bridges` as a **bridge**: drawn on the map as planks perpendicular to the road,
-`Game.onBridge(x, y)` (70 units) means `getTerrainInfo` **doesn't apply** the river's ×0.5
-penalty there, the name stays "🌉 Bridge" but it gets the road's speed multiplier (measured:
-133.7 on the bridge, vs. "River Crossing" ×0.5 at the same river's unbridged spot).
-
-**Cost**: segment count 24 → **~150**. `getTerrainInfo`'s road loop got a cheap bounding-box
-cull first and the `sqrt` comparison was squared instead; even so, per-call cost went from
-0.35 µs → **3.84 µs**. The frame-budget impact was measured (50 NPCs, `update` +
-`renderMap`): **0.88 ms → 1.17 ms**, i.e. 1.7% of the 16.7 ms budget. A spatial grid wasn't
-needed.
-
-*(Save note: `state.roads` and `state.bridges` are written alongside `state`. A pre-`#56`
-save's segments have no `kind` — `Save.apply` notices and re-weaves the network from scratch.)*
+A road is ~5% longer but the fastest kind is 18% faster — sticking to stone roads nets ~12%,
+Warband-style, not mandatory. A new settlement can also snap onto an existing road point
+instead of another settlement, forming a real T-junction; a road segment crossing a river writes
+a **bridge** into `state.bridges` (`Game.onBridge`, 70-unit radius) that cancels the river's
+×0.5 speed penalty while keeping the road's own multiplier. An old save's roads have no `kind` —
+`Save.apply` re-weaves the network from scratch when it notices.
 
 ### Abandoned structures and points of interest (#58)
-Terrain used to be only settlements and enemies; two towns meant an empty road between them.
-Now the map has **14 points of interest** (`state.sites`, 5 types). They don't go into
-`LOCATIONS` — they have their own light-weight array — but since they carry `type: 'site'`,
-the targeting and arrival machinery (`setTarget` → `update` → `enterLocation`) routes them
-through **one line**: the first line of `enterLocation` is
-`if(loc.type === 'site') return this.enterSite(loc)`. So a modal opens instead of a screen —
-no separate movement/arrival code was written.
+`state.sites`, own array (not `LOCATIONS`), routed through `enterLocation`'s
+`if(loc.type === 'site') return this.enterSite(loc)`. Placed ≥`SITE_MIN_GAP`(520) units from
+settlements and each other.
 
-**Distribution** (`spawnSites`): at least `SITE_MIN_GAP` = **520** units from settlements and
-from each other, inside the continent. Measured (200 worlds): worst distance to nearest
-settlement **520**, median 539; worst distance between two points **522**, median 581; landing
-outside the continent: **0**.
-
-| Type | Respawn | Outcome pool (measured, 2000 rolls) |
+| Type | Respawn | Outcome pool |
 |---|---|---|
-| 🏚️ Ruins | **one-time** (removed from the map once explored) | coin 31%, ambush 30%, gear 20%, empty 19% |
-| 🌾 Abandoned Farm | 25 days | food 46%, recruit 22%, empty 22%, ambush 11% |
-| 🗼 Watchtower | 12 days | see-far 55%, empty 24%, coin 11%, trap 10% |
-| 🕳️ Cave | 30 days | ambush 40%, coin 21%, trap 20%, gear 19% |
-| ⛺ Abandoned Camp | 15 days | food 23%, coin 22%, shelter 21%, ambush 21%, empty 12% |
+| 🏚️ Ruins | one-time (removed) | coin 31% / ambush 30% / gear 20% / empty 19% |
+| 🌾 Abandoned Farm | 25 days | food 46% / recruit 22% / empty 22% / ambush 11% |
+| 🗼 Watchtower | 12 days | see-far 55% / empty 24% / coin 11% / trap 10% |
+| 🕳️ Cave | 30 days | ambush 40% / coin 21% / trap 20% / gear 19% |
+| ⛺ Abandoned Camp | 15 days | food 23% / coin 22% / shelter 21% / ambush 21% / empty 12% |
 
-Outcomes (`Game.SITE_OUTCOMES`) are written **in the same pattern as the daily event pool**: a
-`when` filter + a `run` that returns text. `recruit` only enters the pool if the party has
-capacity. Weights sum to **57% reward, 28% risk, 15% empty** — you can't know which without
-entering, but the type is a hint: caves and ruins are a gamble, farms and camps are relatively
-safe.
-
-| Outcome | What it does |
-|---|---|
-| `coin` | 60–220 denars |
-| `gear` | random weapon/armor to inventory |
-| `food` | 3–8 grain/cheese/meat |
-| `shelter` | morale +4 |
-| `recruit` | a local villager joins the party (if there's capacity) |
-| `scout` | the closest party more than 700 units away is **marked on the map** (the "where is it?" mechanic's `state.knownLocations` marker, auto-removed by `Nobles.dailyTick` after 3 days), **and the horizon opens for a few seconds** (below) |
-| `trap` | 8–25 health |
-| `ambush` | a band spawns based on the site's type (cave → wolves, ruins → mountain bandits, others → marauders) and `triggerEncounter(npc, 'ambush')` |
-| `empty` | three different empty-handed flavor lines |
-
-**The watchtower's few seconds (#125).** Climbing the tower used to leave nothing but one
-distant pin. Now `scout`'s `then` calls `Game.startTowerReveal()`: `getVisibility()` returns
-**×`TOWER_REVEAL_MUL` = 4** while `Game.towerReveal` is set, and the clock stops
-(`clockStopped()`), so every band, lord army and lair inside the widened circle is drawn live
-and the player can actually look. It rides `getVisibility()` on purpose — that is the one number
-`spotRange`, `locSpotRange`, `lairSeen` and the map draw gate all read, so **no drawing code
-learns that towers exist**. Duration is `min(8, 3 + (Scouting − 1) × 0.3)` seconds, counted off
-the rAF timestamp in `towerRevealTick` rather than a `setTimeout`: there is no timer to cancel
-and a backgrounded tab freezes it on its own. The countdown starts on the **first frame**, not at
-the call — the reveal is kicked off from the site window and `renderMap` draws nothing while a
-modal is open. Two things that normally happen over time are done once up front, since the clock
-is about to stop: `scoutTick()` writes every in-range settlement's status to memory, and lairs
-need no help because `lairSeen` marks them from the draw path. `renew: 12` is untouched — this is
-not a free ability. *(Not done: item 3 of the issue, a 1-day faint ghost marker for every party
-seen. ~30 entries into `state.knownLocations`, each drawn by `Nobles.drawMarkers` as a loud
-dashed yellow ring — 30 of them would make the map unreadable, and the 3-day `scout` pin already
-covers the "I saw something over there" intent.)*
-
-An ambush outcome's battle opens on the modal's **close**: `run` returns a `then`,
-`Game.siteDone()` closes the modal and then runs it — otherwise the battle modal was
-clobbering the outcome text.
-
-Respawn resolves to a single field (`kind.renew`): **0 = one-time** (the point is removed),
-otherwise it refills that many days after `usedDay`. Measured: exploring ruins takes it from
-14 → 13 points; a cave explored on day 100 → still closed on day 129, **open on day 130**. An
-explored-but-not-removed point is drawn **faded** on the map and its tooltip says how many
-days ago it was cleared.
-
-The label is only drawn at `zoom > 0.18` — 14 long names were clobbering settlement names in
-the continent view. Measured: the draw cost of 14 points sits below measurement noise inside
-`renderMap` (1.02–1.26 ms without sites, 1.12–1.16 ms with).
-
-*(Save note: `state.sites` is written alongside `state`, `usedDay` is preserved. An old save
-has no points — `Game.ensureSites()` inside `Save.apply` fills them in, same pattern as
-`ensureTraders`.)*
+Outcomes (`Game.SITE_OUTCOMES`) follow the daily-event pattern (`when` filter + `run`). `scout`
+calls `Game.startTowerReveal()`: `getVisibility() ×4` and the clock stops
+(`clockStopped()`) for `min(8, 3 + (Scouting−1)×0.3)` seconds — every band/lair inside the
+widened circle draws live, riding the same `getVisibility()` every other spot-check reads, so no
+drawing code needs to know towers exist. `renew: 0` in `kind` means one-time; otherwise it
+refills `renew` days after `usedDay`.
 
 ### Time & daily cycle (`advanceTime` / `dailyUpdate`)
-Time flows **only** on the map screen, only while no modal is open and the player is moving
-(or in captivity) (`dt * Game.timeScale()`).
+Time flows only on the map screen, only while not paused/tower-revealing and the player is
+moving or captive (`dt × Game.timeScale()`).
 
-**Pause (#113).** There is no single clock to stop — the map and the battle are two loops — so
-the flag lands on whichever one is alive: `Game.setPaused(on)` writes `Battle.paused` during a
-battle and `Game.paused` otherwise, and `Game.clockStopped()` (`paused || towerReveal`) is what
-gates `update(dt)` in the map loop. **`renderMap()` is deliberately left outside that gate**: the
-watchtower reveal (#125) is a frozen map you are meant to look at. The flag sits on `Game`, not
-in `state` — `state` is what gets saved, and a pause is a session thing.
+**Pause**: `Game.setPaused(on)` writes `Battle.paused` mid-battle or `Game.paused` otherwise;
+`Game.clockStopped()` (`paused || towerReveal`) gates `update(dt)` — `renderMap()` stays outside
+that gate on purpose (a tower reveal is a frozen map you're meant to look at). Esc: close a
+window → go to map → pause (opens Resume/Save/Settings/Main Menu). `closeModal` is the one place
+that clears `Game.paused` directly. `state.timeScale` cycles 0.5→1→2 via the calendar badge.
 
-Esc is one key with three jobs, in order: a window is open → close it (unchanged); not on the map
-→ go to the map (unchanged); already on the map, nothing left to back out of → **pause**, opening
-the menu (Resume / Save / Settings / Main Menu). In battle Esc goes through the same door with no
-menu. Resuming lives in **`closeModal`**, the one place Esc, ×, clicking outside and "Resume" all
-reach; it clears `Game.paused` directly rather than through `setPaused`, which during a battle
-would reach for `Battle.paused` and leave the map flag stuck on. "Main Menu" is a
-`location.reload()` behind a confirmation — a page load is a cleaner reset than any teardown we
-would write, and the autosave ring is what survives it. The `#pause-bar` banner is shared by both
-pauses and by the tower reveal; `Game.pauseBar()` parks it under `#top-bar`'s live bottom edge, so
-it never covers the day, the purse and the food count — the numbers you want while stopped. Flow speed is left to the player: clicking the
-calendar badge in the top bar cycles `state.timeScale` through 0.5 → 1 → 2 (default 1; it used
-to be a fixed 2, and days passed too fast).
+**Map speed** (`getPlayerSpeed`): `(base 66 + agility×1.5) × (1 + party bonus) × (1 + mounted
+ratio×0.5) × terrain × night(×0.85) × overload`. Party bonus: solo +50%, +20% at 10, 0 at 20,
+−1%/person after (floor −45%) — shared with a pursuing lord's own chase speed
+(`partySizeSpeedBonus`), so neither side is arbitrarily favored.
 
-**Map speed** (`getPlayerSpeed`, close to Warband's model):
-`(base + agility×1.5) × (1 + party bonus) × (1 + mounted ratio×0.5) × terrain × night × overload`.
-Base is **66**, same while mounted. **Party bonus**: solo +50%, +20% at 10 people, 0 at 20,
-−1% per person after that (floor −45%) — a crowded army marches heavier. Mounted ratio =
-(cavalry count + 1 if you have a horse) / party size.
+**Mounted/foot gap is capped at exactly ×1.5** (`Battle.FOOT_MAX` = 85, below the slowest horse's
+88) — it used to be two stacked multipliers that drifted up to ×2.4 with party size; now it's a
+flat multiplier at every size (`tools/test.js` regression-guards this). Terrain: forest ×0.8,
+river ×0.5, road ×1.1 (`worst()` applies only the single worst penalty, they don't stack).
 
-**Shared with pursuit (#132)**: `Game.partySizeSpeedBonus(size)` is the party-bonus curve above
-pulled out on its own; `updateNPCs()` reuses it for a lord's own `npc.size` while it's actively
-pursuing the player specifically (not patrolling, not marching to a campaign target, not
-responding to a raid) — a small regrouping band chases quickly, a big army chases heavily, the
-same rule the player's own party already lives by, so a chase doesn't arbitrarily favor either
-side.
+Every day: troop wages, food consumption, morale recalc, +5 player HP, village/town recruit
+refill, king/vizier armies grow (king → lvl20/110 troops by day 90), tournaments top up toward 3
+open, `lairTick`, `Nobles.dailyTick`, `Feast.dailyTick`, `Quests.dailyTick`, then
+`Game.dailyEvent()` (see "Daily event pool").
 
-**The mounted/foot difference is capped at exactly 1.5× (#72)**, so being mounted is a
-*multiplier*, not an addend. It used to be two multipliers stacked on top of each other — a
-base 105/66 (=1.59×) **plus** an additive `mounted ratio×0.35` on top. Being additive didn't
-give a fixed ratio since the party bonus sits in the denominator: the gap drifted as the party
-grew. Measured (seed 1, flat ground, daytime), fully mounted / fully on foot:
-
-| Party | Old | New |
-|---|---|---|
-| 1 | 1.83× | 1.50× |
-| 10 | 1.91× | 1.50× |
-| 20 | 2.00× | 1.50× |
-| 65 | 2.42× | 1.50× |
-
-`tools/test.js` holds the regression → *"speed: mounted/foot gap capped at 1.5× at every
-party size"*; if it goes back to additive, that line fails.
-Terrain comes from `getTerrainInfo()` (forest ×0.8, river ×0.5, road ×1.1) and is named in the
-tooltip. Night (hour <6 or ≥20) is ×0.85. If your pack exceeds its carry limit,
-`Game.cargoMult()` kicks in (see "Carry capacity").
-
-Every day:
-- Troop wages (lvl 10–19: 2, lvl 20: 10 — a tree troop's level is its step, so elite is always 20)
-- Food consumption — low quality (grain/bread) and high quality (meat/cheese). Elite troops
-  (`Game.isEliteTroop`: the top of their tree) get a `debuff` if they can't get high quality
-  (×0.7 in battle).
-  Status is read from a single place: `Game.foodStock()` → `{low, high, total, need, needHigh, days, kinds}`.
-  The 🍞 badge in the top bar shows how many days it'll last (turns red under 3 days), its
-  tooltip has a line-by-line breakdown.
-  A warning fires **once per transition** when hunger starts/ends and when an elite troop
-  can't find meat (`state.player.wasHungry` / `wasLowQuality`) — separate text so a quality
-  shortage isn't confused with starvation.
-  Every foodstuff has its own shelf life (`ITEMS[].spoil` = days): grain 60, cheese 40, meat 30,
-  bread 20. `Game.spoilFood()` subtracts `qty/spoil` every day (the fractional loss
-  accumulates in `it.decay`), `foodStock().days` counts this in.
-  **The player eats too (#75)**: `upkeep()` starts with `foodLow = FOOD_PLAYER` (0.5625) — it used to count only
-  the party, so a solo party consumed no food at all and the badge showed `—`. Hunger's
-  consequence used to be morale alone; since morale only affects troops (`moraleMult`), a
-  player traveling alone was never touched by starving at all. Now every day spent hungry
-  costs **−`Game.HUNGER_HP` = 3 health** and `regenTick` doesn't heal that day (floor 1 health
-  — starvation doesn't kill, it lays you low). Starting inventory is now **3 grain → 1 bread**:
-  the food problem should start on day one.
-  Measured (seed 1, 20 days, current 0.75×-cut rates — see `FOOD_MAN`/`FOOD_PLAYER` below): a
-  solo party now eats **0 → 1** unit a day, the "how many days left" badge shows a real number
-  instead of `—` (a fresh character: **0 days**, red); a player traveling without buying food
-  starves on **day 2**, health goes 50 → 47 by day 2 → 38 by day 5 → 23 by day 10 → **1 by day
-  18**. The same player leaving with 30 bread lasts 18 days, first hunger on **day 19**. 10
-  troops (lvl 10) + player = **5** units a day (see `FOOD_MAN` below).
-#### A troop eats a fraction of a unit a day (`FOOD_MAN`), scaled by level (#27)
-1 unit per head was too much: a 20-strong army ate 21 units a day (~84 denars), so the
-**food bill ran double the wage bill**. One knob, `Game.FOOD_MAN` = **0.3** (cut to 0.75× of the
-original 0.4 again, #132 — a real campaign army was still spending too much time
-provisioning), sits right above `upkeep()`; consumption, the "how many days left" badge, the
-hunger penalty, and the tooltip breakdown all read from `upkeep()` already, so nothing else
-needed touching. The player's own belly is `Game.FOOD_PLAYER` = **0.5625** (0.75× of 0.75, #75,
-#132) — the knob is only the troops' share.
-**Stronger troops eat more (#27)**: each troop's low-quality share is
-`FOOD_MAN × min(3, 1 + min(level, 50)/25)` — a level-10 recruit at 1.4× (0.42 units), a
-elite (lvl 20) at 1.8× (0.54); the 3× cap (lvl 50) is only reachable by a companion now (#124).
-An elite troop additionally wants meat/cheese equal to `FOOD_MAN` (0.3) — from the day it is
-promoted, since #124 there is no "lvl 30+" veteran any more; companions eat a flat `FOOD_MAN`.
-
-Measured (`upkeep()` directly, `need = ceil(foodLow)`):
-
-| Party | Daily units (`need`) | Meat/cheese (`needHigh`) | Wages | Grain cost |
-|---|---|---|---|---|
-| solo | 1 | 0 | 0 | 4₺ |
-| 10 × lvl10 | **5** *(0.42 ea + 0.5625)* | 0 | 20₺ | 20₺ |
-| 20 × lvl10 | **9** *(0.42 ea + 0.5625)* | 0 | 40₺ | 36₺ |
-| 20 × lvl20 | 12 *(0.54 ea)* | 0 | 200₺ | 48₺ |
-| 10 × lvl30 | 8 *(0.66 ea)* | 3 | 150₺ | 32₺ |
-
-60 grain lasts a 10-person party (lvl 10) **10 days**. Two `foodStock` assertions in
-`tools/test.js` encode these numbers (need 5, days 10, need 2, needHigh 1) — they went
-red when the balance changed (twice, #132) and were updated by hand, so the regression gate is
-doing its job.
-
-- Morale is recalculated (`Game.updateMorale`)
-- Player +5 HP
-- Village recruits refill (village cap 5; towns 4–8 every 2 days)
-- Kings/viziers strengthen over time (king reaches lvl 20 / 110 troops in 90 days, vizier lvl
-  10 / 50 troops)
-- Tournaments are topped up towards `Game.TOURNEY_OPEN` = **3** open at once (each free city
-  rolls 50% until the board is full), an open tournament has a 30% chance to close. The roll
-  used to sit *in* the `while` condition, so the first failed toss ended the day's whole top-up
-  and the board settled at 1.35 open. Measured now (5 seeds × 120 days): **2.11 open on an
-  average day**, never over the cap, and **2.7%** of days with none at all
-- `Game.lairTick()` — lairs earn and grow (band respawn itself is hourly, see below)
-- `Nobles.dailyTick()` — ages location markers, raises rival suitors' interest, marriage
-  income, wedding-day check
-- `Feast.dailyTick()` — closes a feast whose time is up, starts a scheduled/spontaneous feast
-- `Quests.dailyTick()` — quests' `day()` hook and deadline check
+#### Food — a troop eats a fraction of a unit a day (`FOOD_MAN` = 0.3, `FOOD_PLAYER` = 0.5625)
+`Game.foodStock()` → `{low, high, total, need, needHigh, days, kinds}` is the single source for
+the 🍞 badge, the hunger warning, and the tooltip. Each troop's low-quality share is
+`FOOD_MAN × min(3, 1 + min(level,50)/25)` — stronger troops eat more; an elite troop
+additionally wants meat/cheese equal to `FOOD_MAN` or takes a ×0.7 battle debuff. The player
+eats too (`upkeep()` starts with `foodLow = FOOD_PLAYER`) — a solo party without food starves on
+day 2 (−`HUNGER_HP`=3 health/day, no regen that day, floor 1 HP; doesn't kill). Every foodstuff
+has a shelf life (`ITEMS[].spoil` days: grain 60, cheese 40, meat 30, bread 20),
+`Game.spoilFood()` decays it daily. A 10×lvl10 party + player needs 5 units/day (20₺ food, 20₺
+wages).
 
 ### Morale
-`state.player.morale` (0–100, starts at 60). Daily target `Game.moraleTarget()`:
-`50 + (management−1)×3 + food variety×5 − hunger 30 − wage debt (10..40) − over-capacity×2`.
-**Wage debt is time-based**: unpaid wages accumulate in `state.player.wageDebt` and
-`Game.wageDebtTick()` costs 1 morale every hour (`wageLateHours` counts it). Once there's
-enough money the debt pays itself off and the counter resets. Visible in the treasury and
-morale tooltips. Morale drifts toward the target but **falls fast, recovers slow** (−10 / +4
-per day); a victory is +5, a defeat −15.
-- Morale < 25 → every day `1 + (25−morale)/8` troops **desert** (most recently joined first).
-- In battle, every player troop's health and attack is multiplied by `Game.moraleMult()` =
-  `0.8 + morale/250` (morale 0 → ×0.8, 50 → ×1.0, 100 → ×1.2). **Speed is not multiplied** — it
-  used to be silently multiplied; since the enemy has no morale, that meant a penalty at low
-  morale (failing to catch the enemy) that was never written down anywhere.
-- The 🎺 badge in the top bar, a line-by-line breakdown on the party screen (`Game.moraleHtml`).
+`state.player.morale` (0–100, starts 60). Daily target: `50 + (Management−1)×3 + food
+variety×5 − hunger 30 − wage debt(10–40) − over-capacity×2`. Wage debt accrues from
+`state.player.wageDebt`, costs 1 morale/hour until paid off. Drifts toward target **fast down,
+slow up** (−10/+4 per day; victory +5, defeat −15). Below 25: `1 + (25−morale)/8` troops desert
+daily (newest first). In battle, `Game.moraleMult()` = `0.8 + morale/250` scales health/attack
+(not speed — the enemy has no morale to compare against).
 
 ### UI
-- **Campaign bar** (`#top-bar`): day + hour + time-of-day icon, denars, renown, then **bar-
-  style** badges — health, party/capacity, **carry load**, morale, level/XP. The last badge is
-  speed; hovering it shows `#ui-speed-breakdown`, a line-by-line breakdown (base / agility /
-  party / mounted ratio / terrain / night / overload). The badge icon is 🐎 mounted, 🥾 on foot.
-  A badge over its limit turns red — `.hud-chip.warn` is no longer specific to `#chip-food`,
-  it's a shared rule.
-- **Tooltip overflow** is solved from a single place, `Game.initTooltipClamp()`: the moment a
-  tooltip appears it's measured and nudged back inside the screen (it used to be a hand-rolled
-  CSS exception just for `#chip-speed`/`#chip-time`, and a new badge got clipped again).
-  `.tooltip-content`'s **transform is never animated** (`transition: opacity/visibility`) —
-  otherwise the measurement reads the animation's mid-transition value and corrects wrong.
-- **Every badge has a tooltip** (`Game.updateTips`, `.tooltip-container`): hovering a badge
-  spells out what the value is, where it comes from, and what it affects — calendar (flow
-  speed), treasury (daily wage/food expense, `Game.upkeep()`), renown (which gate opens at
-  what renown), health (level + armor share), party (capacity breakdown + troop composition),
-  morale (`Game.moraleTip`), level (XP, pending points). The calendar badge is also clickable
-  (time flow).
-- Every skill line on the character screen states **its current effect as a number** (e.g.
-  "Sight 615 units", "Prisoner capacity 8", "Battle loot +12%").
-- **Side menu**: icon + name + shortcut badge. Shortcuts `M/C/P/I/Q`, **K** opens the diplomacy
-  screen (`Game.showDiplomacy`), **Esc** returns to the map from any screen, **WASD/arrows**
-  freely pan the map camera, **Space** brings the camera back to the player
-  (`Game.centerOnPlayer()`) — all inside `Input.init`, none of them work while a modal or
-  battle is open. In the save section: **💾 Saves** (`Save.open()`), 🔊 sound, and
-  **⚙️ Settings** sit. `showScreen()` activates the clicked button via `data-view`.
-- **Map HUD** (`#map-hud`): the terrain you're on + its speed effect, below it troop
-  composition (🪖 infantry / 🏹 archers / 🐎 cavalry), **⏳ Wait**, **🎯 Find Me**, **🎵 Next**
-  and **🌍 Diplomacy** buttons, and the ⏱️ time-speed button. `Game.updateMapHud()` fills it in.
-  On the narrow layout (≤820 px, where "⋯ Daha" exists) the HUD is two rows: terrain on the
-  first, troops + buttons + speed on the second; Diplomacy and Next move into "⋯ Daha" (same
-  `onclick`s). Measured on a 412 px phone: four rows → two. Labels stay on the buttons (#86).
-  **Unspent-points badge** (#35): if you have an attribute/focus point, the same row shows a
-  `✨ 2 attribute · 3 focus` button; clicking it opens the character screen. It doesn't jump
-  around, it just breathes its glow (`#btn-points`, `@keyframes pointsGlow` 2.2s) — the badge
-  disappears on its own once the points are spent.
-  Since the HUD is `pointer-events:none`, the button is given `pointer-events:auto` in CSS.
-- `Game.setHtml(id, html)` only writes innerHTML if the text actually changed —
-  `updateTopBar` is called every frame, so this avoids needless DOM writes.
+- **Campaign bar**: day/hour/time icon, denars, renown, then bar-style badges (health,
+  party/capacity, carry load, morale, level/XP, speed). Every badge has a tooltip
+  (`Game.updateTips`) breaking down where the value comes from.
+- Tooltip overflow is solved once (`Game.initTooltipClamp()`), never per-badge.
+- Side menu: `M/C/P/I/Q` shortcuts, **K** diplomacy, **Esc** to map, **WASD**/arrows pan,
+  **Space** recenters — all via `Input.init`, disabled during a modal/battle.
+- Map HUD: terrain + speed, troop composition, ⏳ Wait / 🎯 Find Me / 🎵 Next / 🌍 Diplomacy,
+  time-speed button. Collapses to two rows + "⋯ Daha" under 820px.
+- `Game.setHtml(id, html)` only writes `innerHTML` when the text actually changed.
 
-#### Transaction feedback — flash, floating text, sound (#45)
-Buy/sell/recruit actions used to only write a line to the `#market-msg` strip; whether the
-click landed wasn't clear. Now every transaction goes through one gate:
-`Game.feedback(kind, el, moneyDelta)` → `sfx(kind)` + `flash(el, ok)` + `floatText(...)`.
-`kind` = `buy | sell | error | recruit | upgrade`.
-
-- **Sound** (`Game.SFX` + `Game.sfx`): no files, a WebAudio oscillator. Each kind is a short
-  arpeggio — buy `523→784 Hz` triangle, sell `659→988`, error `196→131 Hz` square wave, recruit
-  `392→523→659`, promotion `523→659→880`. `AudioContext` is lazily built as a single instance,
-  all of it wrapped in `try/catch` (a muted/permissionless browser doesn't break the game), and
-  it never plays at all if `state.muted`.
-- **Mute**: the 🔊/🔇 button in the side menu (`Game.toggleMute`), state lives in
-  `state.muted`, `updateTopBar` writes `mute-ico`/`mute-lbl`. Saved alongside `state`.
-- **Flash** (`Game.flash`): adds `.fx-flash` (green) or `.fx-flash-bad` (red) to the row. Both
-  are removed before adding the class and a reflow is forced with `void el.offsetWidth` —
-  otherwise the animation wouldn't restart on back-to-back identical transactions.
-- **Floating text** (`Game.floatText`): `−65₺` / `+140₺` rises and fades above the treasury
-  badge (`.fx-float`, removed from the DOM 950 ms later). `position:fixed`, `z-index:200`.
-- Market rows got `mrow-buy-<id>` / `mrow-sell-<id>` ids (`refreshMarket`) — the only way to
-  find the element to flash. On a buy, the buy row flashes green, and the matching sell row
-  flashes too, quietly (stock changed).
-- Animations live at the end of `style.css`: `@keyframes fxFlash` / `fxFlashBad` / `fxFloat`.
-
-Wired up at: `buyItem` / `sellItem` (`error` if not enough money), `doRecruit` (three failure
-branches play `sfx('error')`, success plays `recruit`), `promoteTroop` (`upgrade`).
+#### Transaction feedback (#45)
+Every buy/sell/recruit/promote goes through `Game.feedback(kind, el, moneyDelta)` →
+`sfx(kind)` + `flash(el, ok)` + `floatText(...)`. Sound is a WebAudio oscillator arpeggio per
+kind (no audio files), muted via `state.muted`. `.fx-flash`/`.fx-flash-bad` on the row,
+`.fx-float` (`±N₺`) rises above the treasury badge.
 
 ### Character
-- Attributes work as **target/effective** (`Game.ATTRS`). Spending a point raises `stats.<k>`'s
-  **target**; the value that actually applies is `stats.eff.<k>`, which approaches the target
-  the more you play in a way that suits that attribute. Reads always go through `Game.attr(k)`
-  — `stats.str` is never read directly. `Game.trainAttr(k, w)`: gain is
-  `w × ATTR_RATE × (0.25 + gap)` — fast while the gap is large, slow as it nears the target;
-  without the 0.25 floor the target would never be reached. **1** point per level.
+Attributes are **target/effective** (`Game.ATTRS`): a spent point raises the target, the
+effective value (`stats.eff.<k>`, read only via `Game.attr(k)`) approaches it through play —
+`Game.trainAttr(k, w)` gain is `w × ATTR_RATE(0.08) × (0.25 + gap)`.
 
-| Attribute | Effect | Trained by (`w`) |
+| Attribute | Effect | Trained by |
 |---|---|---|
-| 💪 Strength | melee attack, tournament target duration | landing a hit (0.15) |
-| 🏃 Agility | map speed +1.5, battle speed +0.5, tournament target size | covering distance (distance/1500) |
-| 🧠 Intelligence | sight +30 | taking a quest (1) / finishing one (2) |
-| 👑 Leadership *(was Charisma)* | party capacity +3 | commanding a crowd (daily party/20) |
-| 🫀 Vitality | max health +5, health regen rate | taking damage in battle (damage/60) + daily 0.1 |
+| 💪 Strength | melee attack, tournament target duration | landing a hit |
+| 🏃 Agility | map speed +1.5, battle speed +0.5 | covering distance |
+| 🧠 Intelligence | sight +30 | taking/finishing quests |
+| 👑 Leadership | party capacity +3 | commanding a crowd (daily) |
+| 🫀 Vitality | max HP +5, regen rate | taking damage + daily 0.1 |
 
-  Measured (`ATTR_RATE = 0.08`): closing a 5-point gap takes ~37 actions — ~11 map crossings
-  for agility, ~8 battles for strength, ~37 days for leadership, ~12 quests for intelligence.
-- **Health regen** isn't a +5 jump per day, it's **1 health per hour** via `Game.regenTick()`;
-  the interval depends on Vitality (`hpRegenHours()` = `max(1, 8 − (vit−10)/2)`; vit 10 → 8
-  hours, vit 20 → 3 hours). Capped at maxHp. Works during captivity too.
-- To avoid a skill-name collision, the **skill** `leadership` is now "Management", the
-  attribute is "Leadership".
-- Skills (Bannerlord-style focus system). 3 focus points per level; focus multiplies XP gain
-  by `0.5 + focus` (max focus 5).
+Health regen: 1 HP/hour, interval `hpRegenHours()` = `max(1, 8 − (vit−10)/2)`. Skills (Bannerlord
+focus system, 3 focus points/level, XP × `0.5 + focus`):
 
 | Skill | Effect |
 |---|---|
-| `oneHanded`/`twoHanded`/`polearm` | battle damage multiplier `0.35 + min(0.4, lvl×0.004)` |
-| `bow` | arrow damage `0.5 + min(0.5, lvl×0.005)`, arrow count `24 + lvl×2`, shot time `max(0.5, 1.15 − lvl×0.006)` s, reduces spread |
-| `riding` | mounted battle speed `80 + agility×0.5 + (lvl−1)×2` (nerfed ~20% from `95 + ×0.5 + ×3`, #132 — mounted was overwhelmingly faster than foot at every riding level) |
-| `athletics` | foot battle speed `min(85, 56 + agility×0.5 + (lvl−1)×2)` — capped at `Battle.FOOT_MAX` |
-| `leadership` | party capacity +3/level, morale +3/level |
-| `persuasion` | dowry negotiation |
-| `surgery` | chance a dying troop survives wounded instead |
-| `prisonerMgmt` | prisoner capacity, reduces prisoner escapes |
-| `pathfinding` | map speed ×(1 + (lvl−1)×0.02) |
-| `spotting` | sight +25/level (`Game.getVisibility`) |
-| `trade` | discount buying / premium selling, capped at 25% |
-| `looting` | battle loot +4%/level |
-| `trainer` | every day, +1 XP to the `lvl−1` least experienced troops |
-- Leveling up: `xpNext *= 1.5`, +10 max HP, full heal.
-- Party capacity: `12 + floor((cha−10)×3) + (Management−1)×4 + floor(renown/40)` — a new
-character starts with **12 people**; the army grows with attributes, skills, and renown (base
-50 → 24 → 12). Since attributes are effective (i.e. fractional), capacity is floored **at the
-source** (#43) — so the badge, the tooltip breakdown, and every comparison all see the same
-integer (it used to display `15/15.785700000000002`). The Management line in the tooltip reads
-the player's **own** level, not `profLvl` (the highest in the party) — otherwise the total in
-the breakdown didn't match when a companion was along.
+| `oneHanded`/`twoHanded`/`polearm` | dmg mult `0.35 + min(0.4, lvl×0.004)` |
+| `bow` | arrow dmg `0.5+min(0.5,lvl×0.005)`, arrows `24+lvl×2`, less spread |
+| `riding` | mounted battle speed `80 + agility×0.5 + (lvl−1)×2` |
+| `athletics` | foot battle speed, capped at `Battle.FOOT_MAX`(85) |
+| `leadership` (renamed from Charisma-adjacent "Management") | party cap +3/lvl, morale +3/lvl |
+| `persuasion` | dowry negotiation | `surgery` | wounded-not-dead chance |
+| `prisonerMgmt` | prisoner capacity, fewer escapes | `pathfinding` | map speed ×(1+(lvl−1)×0.02) |
+| `spotting` | sight +25/lvl | `trade` | buy/sell edge, capped 25% |
+| `looting` | battle loot +4%/lvl | `trainer` | daily +1 XP to the least-experienced troops |
+
+Party capacity: `12 + floor((cha−10)×3) + (Management−1)×4 + floor(renown/40)`, floored at the
+source so every UI reads the same integer.
 
 ### Starting balance
-Start: **250 denars** (background choices shift it ±300), party capacity 12, a 1-person party.
-Every denar is a decision in the early game; the army grows with leadership/charisma. Loot
-taken from a low-level enemy is scaled down by `Battle.rewardScale`.
+250 denars (background shifts ±300), party capacity 12, solo. Loot from a low-level enemy is
+scaled down (`Battle.rewardScale`).
 
 ### Mercenaries
-2 slots per town at the inn, a pool that refreshes every 3 days (`state.mercPools`): troops
-ready at level 10–15 (from that town's own faction's tree), `60 + level×12` denars each. An
-alternative to the volunteer grind — the only way to turn money directly into an army.
+2 slots/town at the inn, refreshed every 3 days: troops at level 10–15 from that town's faction
+tree, `60 + level×12` denars.
 
 ### Party & troops
-- **Faction troop trees** (`TROOP_TREES`): every kingdom has its own villager → branch →
-  elite chain. This table is the single source; `TROOP_UPGRADES` and `TROOP_TYPES` are
-  generated from it at load time (row format
-  `[name, class, hp, speed, attack, defense, icon, damage type, promotion cost]`; a villager
-  row has no promotion cost).
+**Faction troop trees** (`TROOP_TREES`, the single source `TROOP_UPGRADES`/`TROOP_TYPES` are
+generated from):
 
-| Faction | Villager | Branches (mid → elite) | Character |
+| Faction | Villager | Branches | Character |
 |---|---|---|---|
-| Svadya | Svadya Köylüsü | Milis→Çavuş, Avcı→Keskin Nişancı, Süvari→Şövalye | balanced, the strongest heavy cavalry |
-| Rodok | Rodok Köylüsü | Mızraklı→Kalkanlı, Nişancı→Tatar Yaylısı | **no cavalry**, highest defense and archer damage |
-| Veagir | Veagir Köylüsü | Piyade→Baltacı, Okçu→Nişancı, Atlı→Süvari | axe infantry, deadly archers, mediocre cavalry |
-| Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | **no horses**, the strongest infantry (Baltacı 80 hp / 24 atk) |
-| Kergit | Kergit Çobanı | Atlı→Süvari, Atlı Okçu→Han Muhafızı | **all mounted**, the fastest (105–118), light armor |
+| Svadya | Svadya Köylüsü | Milis→Çavuş, Avcı→Keskin Nişancı, Süvari→Şövalye | balanced, strongest heavy cavalry |
+| Rodok | Rodok Köylüsü | Mızraklı→Kalkanlı, Nişancı→Tatar Yaylısı | no cavalry, best defense/archers |
+| Veagir | Veagir Köylüsü | Piyade→Baltacı, Okçu→Nişancı, Atlı→Süvari | axes, deadly archers, mediocre cavalry |
+| Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | no horses, strongest infantry |
+| Kergit | Kergit Çobanı | Atlı→Süvari, Atlı Okçu→Han Muhafızı | all mounted, fastest, light armor |
 
-- **Foot speeds stay under `Battle.FOOT_MAX` (85)**; elite infantry were nudged closer to the
-  ceiling so that even if they can't outrun cavalry, they can still chase down archers: Svadya
-  Çavuşu 65→70, Nord Baltacısı 66→74, Kergit Çobanı 55→70 (the villager couldn't flee, 55 was
-  everyone's easy prey).
-- **Troops have a damage type too (#37)**: the tree's damage-type column passes through
-  `TROOP_TYPES` into the unit `Battle` spawns (`u.dmgType`), which then enters the
-  `Battle.afterArmor` math that already existed. The rule is simple: **axe/sword is cutting,
-  spear and bow are piercing, a villager's club is blunt**; cavalry counts as cutting since
-  `chargeMult` already represents their lance. Bands are set with a single field
-  (`BAND_KINDS[].dmg`) — marauders and mountain bandits use clubs (`blunt`), village militia
-  and caravan guards use pitchforks/spears (`pierce`), everyone else is cutting.
-#### The balance target is a range rule, not a win-rate table (Fable danisma 006)
+**Damage type by troop** (`u.dmgType`): axe/sword = cutting, spear/bow = piercing, a villager's
+club = blunt; cavalry counts as cutting (the charge already represents the lance).
 
-Troops are balanced to a rock-paper-scissors *shape*, not to fixed percentages: same-tier
-units land **40–60**, a one-tier gap **65–80**, two tiers **85+**, and a unit's *opposing type*
-(spear→cavalry, bow→light) gets **+10**. The triangle: plain infantry loses to elite cavalry,
-spears and shield lines beat cavalry, cavalry runs down archers.
+#### Balance is a range rule, not a win-rate table
+Same tier **40–60%**, one-tier gap **65–80%**, two tiers **85%+**; a unit's counter-type
+(spear→cavalry, bow→light) gets **+10**. `ARMOR_FLOOR`(0.18) means a strong hit is never reduced
+below 18% of its type-adjusted raw. Anti-cavalry lives in the **brace**
+(`Battle.braceMult`), not the damage type — spear infantry ×1.5, a shield troop gets a lighter
+explicit `u.brace` so its identity doesn't leak into every matchup (`pierce` on a shield troop
+was tried and rejected — it halves armor in *every* fight, not just against horses).
 
-- **Armor floor (#8)**: `afterArmor` used to drop a strong hit against heavy defense to the
-  `Math.max(1)` floor — an axeman could not scratch a knight ("1 damage"). A fraction of the
-  type-adjusted raw (`ARMOR_FLOOR = 0.18`) now always lands, so armor blunts a blow without
-  trivializing it.
-- **Anti-cavalry lives in the brace, not the damage type (`Battle.braceMult`)**: a standing
-  infantry unit hits a charging horse harder. Spears (pierce infantry) get **×1.5**; a shield
-  troop carries an explicit lighter brace so its anti-cav identity doesn't leak into every
-  matchup — **Rodok Kalkanlısı 1.25** (10th column of its tree row → `u.brace`). *An earlier
-  attempt gave Kalkanlı `pierce` instead; pierce halves armor in **every** fight, not just
-  against horses, so it beat both the knight and the axeman 100%.* Kalkanlı stays `cut`.
-- Measured (`node tools/duel.js`, real engine, 50 fights; multi-unit for the archer rows so the
-  bow gets volleys off): Rodok Mızraklısı vs Kergit Süvarisi **57%**, Rodok Kalkanlısı vs Svadya
-  Şövalyesi **50%**, Nord Baltacısı vs Rodok Kalkanlısı **53%** (same-tier mirror), Nord Baltacısı
-  vs Svadya Şövalyesi **6%** (plain infantry can't beat elite cavalry head-on — bring spears),
-  Svadya Şövalyesi vs Rodok Tatar Yaylısı **100%** (cavalry reaches the bow line). Five anchor
-  assertions in `test.js` guard these bands.
-  - A villager's club (`blunt`) is both slightly better against armor (Svadya Köylüsü →
-    Svadya Milisi 38.7s → 30.5s) and stuns the enemy it downs: fighting a green army raises
-    the capture rate from 45% to 90% (`stunned`, see "Taking prisoners").
-  - The party screen's troop row now names the class next to the damage type ("Infantry ·
-    piercing").
+Sources: a settlement recruit comes from `Game.recruitName(loc)` (that town's own faction);
+mercenaries/enemy armies come from `Game.factionTroopPool(faction)` (2 shares mid-tier, 1 elite).
+Party screen row: class + damage type, ▲/▼ (troops with the same name move as a block), ➖
+dismiss.
 
-- Sources are faction-bound: a village/town recruit comes from `Game.recruitName(loc)`, which
-  gives that settlement's villager; the mercenary pool at the inn and the enemy faction army
-  in battle come from `Game.factionTroopPool(faction)` (2 shares mid-tier per branch, 1 share
-  elite). An unknown/empty faction falls back to the Svadya tree; an old save's
-  `Acemi Asker` is an alias for the Svadya villager.
-- **Party screen** (#51): every row names the class (`Game.troopClassName`) + damage type,
-  with **▲ / ▼** on the right (troops with the same name move as a block, `moveTroopGroup`;
-  the order is `state.player.party`'s own array order) and **➖** (`dismissTroops` → "One /
-  All" confirmation). Promotion buttons are no longer a blind choice either: every option
-  names icon + class + damage type ("🐴 Svadya Süvarisi · Cavalry · cutting"). Class is read
-  from **speed** — Kergit Atlı Okçusu is `archer` in the tree but travels at speed 108; any
-  speed above `Battle.FOOT_MAX` (85) counts as "mounted" and displays "Mounted Archer". The
-  threshold is the **same constant** as battle's forest rule. The prisoner section shows
-  capacity, the daily escape chance (`max(1, 6 − Prisoner Management×0.5)`), and the total
-  value of prisoners on hand.
-- XP is +1 per kill in battle. Once XP fills, a troop with a `TROOP_UPGRADES` entry becomes
-  **ready to promote** — pick a class from the party screen by paying denars.
-- **Level is only the promotion gate (#124)**: a tree troop's level is the step it stands on
-  (`Game.tierLevel`: recruit 1, mid 10, elite 20) and changes only on promotion. It adds **no**
-  battle stats — a unit fields exactly `Game.troopStats(t)` — and an elite troop, with nothing
-  left to promote to, gains no XP (`giveTroopXp` returns early). Wage and food still read the
-  level, so they too change only at promotion. Mercenaries are hired at their step's level.
-  Companions and a spouse are not tree troops and keep levelling (cap 50), because their level
-  backs the party skills (`profLvl`). `Save.migrate` clamps pre-#124 elite veterans (21–50) to 20.
+**Level is only the promotion gate** (`Game.tierLevel`: recruit 1, mid 10, elite 20) — a tree
+troop's stats are exactly `TROOP_TYPES` for its current step, no XP-driven stat growth. Wage and
+food read the level, so they too change only at promotion. Companions/spouse aren't tree troops
+and keep leveling (cap 50) because their level backs party skills (`profLvl`).
 
 ### Companions (`COMPANIONS`)
-7 named heroes, each waiting at one town's inn (`c.city`), joining for 600–900 denars.
-- They **don't die** in battle, only get wounded; they level up like a regular troop
-  (`Game.giveTroopXp`).
-- They lend their expertise skills to the party: `Game.profLvl(id)` applies the "highest in
-  the party" rule (a wounded companion contributes nothing).
-- **Feuds**: a companion on someone's `dislikes` list won't join while that person is in the
-  party (Gaddar Kudret ↔ Cerrah Ferhat / Tüccar Mervan).
-- They want a 20-denar daily wage + 1 food.
-- Party members' battle/screen stats come from `Game.troopStats(t)` — since companions and a
-  spouse aren't in `TROOP_TYPES`, every caller used to invent its own defaults.
+7 named heroes, each at one town's inn, 600–900 denars. Don't die, only get wounded; level like
+a normal troop. Lend expertise via `Game.profLvl(id)` ("highest in the party" rule — a wounded
+one contributes nothing). Feuds: a companion on someone's `dislikes` list won't join while they're
+in the party. 20 denar/day wage + 1 food.
 
 ### Inventory & equipment
-Weapon / armor / horse slots. Armor affects max HP, weapon affects attack, horse affects map
-speed (66 → 105). Trade goods are bought and sold at the market (sell price ×0.7).
-
-**Weapon quality tiers (#132).** Each of the 5 base weapons (Kılıç/Savaş Baltası/Topuz/Mızrak/Yay)
-has 3 better versions in the market, same `weaponType`/`dmgType` as their base, price growing
-faster than `attack` does (the same diminishing-return ladder as the horses above):
-
-| Weapon | T1 (base) | T2 | T3 | T4 |
-|---|---|---|---|---|
-| Kılıç (oneHanded/cut) | 15atk/250₺ | Çelik Kılıç 18/700₺ | Şam Kılıcı 21/2200₺ | Kraliyet Kılıcı 24/6000₺ |
-| Savaş Baltası (twoHanded/cut) | 20/300₺ | Çelik Balta 25/750₺ | Usta Baltası 30/2200₺ | Cellat Baltası 35/6000₺ |
-| Topuz (oneHanded/blunt) | 16/220₺ | Çelik Topuz 20/650₺ | Dikenli Topuz 24/2000₺ | Savaş Çekici 28/5500₺ |
-| Mızrak (polearm/pierce) | 12/200₺ | Uzun Mızrak 15/600₺ | Şövalye Mızrağı 18/1900₺ | Zırh Delen Mızrak 21/5000₺ |
-| Yay (bow/pierce) | 10/220₺ | Çelik Yay 13/650₺ | Avcı Yayı 16/2000₺ | Savaş Yayı 19/5500₺ |
-
-The two boss-unique weapons share a `weaponType` with one of these ladders (Kurt Dişi Hançeri is
-oneHanded/cut, Fırtına Yayı is bow/pierce) — both were bumped (17→29, 22→23) to stay above their
-ladder's new T4, keeping the existing "boss unique ≈ best base ×1.2" rule (`dev_orsu_zirhi`,
-`firtina_yayi`) true here too. Axe/mace/lance have no unique rival, so their T4 had no ceiling to
-respect.
-
-**Food isn't a trade good (#47)**: grain 4, bread 6, cheese 16, meat 20 base price — a
-**fifth** of the old price. An army's daily feed alone was draining all the cash flow;
-measured, a 20-person army eats 20 grain a day: it used to cost ~270₺, now **40₺** (the same
-army's wages are 40₺). Trade goods (iron, velvet, ale, salt) weren't discounted — those are
-carried for profit. Caravans carry cartloads of food for this reason (see "Trade parties").
-**Everything you can buy, you can sell back (#26, 1.20.0).** The market sell list used to show
-`item.type === 'trade'` only, so a bought sword or horse had no resale path. It now shows every
-inventory item that isn't `unique`, `unsellable`, or `type: 'special'` — i.e. the boss drops and
-the earned key item (`boss_map`) stays unsellable, everything else resells at the
-usual ×0.7. `sellItem`'s guard mirrors the same predicate. Equipped gear never appears in the
-list: equipping moves the item out of `inventory` into `state.player.equipment[slot]`, so there's
-nothing to accidentally sell out from under yourself.
-
-Quantity is **1x / x5 / All** (`Game.qtyBtns`/`qtyBtn`, #103). `.btn` is a block, so two of them
-loose in an `<li>` wrapped and the x5 fell to its own line; an `inline-flex` wrapper with
-`flex-wrap: nowrap` is what keeps the three side by side. **"All" is just a big count** —
-`buyItem(id, 999)` stops at the first of money, stock and pack room and its message says which
-one it hit, so no second code path exists; selling passes the stack's own quantity. Every
-transaction writes the item + quantity + amount paid/received + remaining denars to the
-`#market-msg` strip (`Game.marketMsg`). If there's not enough money it buys as much as it can and
-says so — `alert()` is never used, it would close the market.
-
-**The status strip (#103).** The three numbers that decide a purchase — room left, days of food,
-purse — are printed under the market's heading (`Game.marketStatusHtml`), not one screen away on
-the map HUD; over capacity the load chip turns red and carries the speed penalty
-(`cargoMult()`). Each row also shows **"you have N"** (`Game.haveTag`), so deciding whether to
-sell doesn't need a round trip to the inventory. It is redrawn by `refreshMarket`, which every
-buy and sell already calls, so it can't go stale.
-
-*(Gotcha found here: `Game.setHtml` skips the write when the html matches what it wrote last
-time, but `showModal` had just destroyed and rebuilt every id inside the body — so the cache was
-lying and the strip stayed blank on the second visit to the same market. `showModal` now clears
-`_htmlCache`; it is a write-skip optimization, so clearing it can only cost one redundant
-`innerHTML` write.)*
-
-#### Carry capacity — the pack has a bottom (#78)
-Inventory used to be unlimited: a solo character could carry 500 units of wheat. The limit is
-**per head** (`Game.cargoCap()`), load is the sum of every good's quantity (`cargoLoad()`),
-both are derived — no new field went into the save.
-
-| Item | Value |
-|---|---|
-| Base (`CARGO_BASE`) | 20 |
-| Per head (`CARGO_PER_MAN`, player included) | +5 |
-| Mounted share (`CARGO_PER_MOUNT`, cavalry + your own horse) | +4 |
-
-Measured: solo **25**, with 10 foot **75**, plus 10 cavalry **165**, with your own horse
-**169**. The second gate is speed: `cargoMult()` = `max(0.5, 1 − overload/capacity × 0.5)`.
-Measured (a party with capacity 169, flat ground): under capacity 140.8 speed (×1), at ×1.25
-load **123.3** (×0.876), at ×1.5 **105.4** (×0.749), at ×2 and beyond **70.4** (×0.5 floor) —
-it doesn't lock you out of walking, it slows you down.
-
-**The market doesn't silently ignore the limit.** `buyItem` counts remaining room inside its
-loop: it buys as much as fits and says "*(your pack is full)*", and if there's no room at all
-it buys nothing and says why. Measured (capacity 50, load 48): an `x5` purchase gives
-*"🌾 Grain x2 bought · -4₺ · … (your pack is full)"*, the second purchase says
-*"No room in your pack — your carry limit is 50 units, you're holding 50. Sell, put it in
-storage, or grow your party."* — in all of tr/en/id, `I18N.missing` is empty.
-
-Loot, quest rewards, and points of interest **can exceed the limit**; the cost is the speed
-penalty. A fief's storage (`loc.storage`) doesn't take up room — storage is thus both a
-safety net and a warehouse.
-
-Measured (the issue's own scenario): with 100,000 denars, a solo character calling
-`buyItem('wheat', 500)` gets **25 units**, even though the town's warehouse still has 387
-grain — the limit is the pack, not the shelf. The same call with a 10-person party gets **75
-units**. So trade scales with the **party**, not the purse (#46's supply curve already
-constrained the purse). The economy tool showed a small difference
-(`--days 60 --troops 10`: trade route −14.4 → **−15.1**₺/day) because that script was already
-bounded by the supply curve; capacity's real effect is on **food/grain stockpiling**.
+Weapon/armor/horse slots; armor→max HP, weapon→attack, horse→map speed (66→105). Sell price is
+×0.7 of buy. **Weapon tiers**: 5 base weapons × 4 quality tiers each (T1 base → T4, price growing
+faster than attack). Carry capacity (`Game.cargoCap()` = `20 + 5×heads + 4×mounted`) gates
+purchases (`buyItem` stops at whichever of money/stock/room runs out first) and speed
+(`cargoMult()` = `max(0.5, 1 − overload/capacity×0.5)`). Everything sellable can be sold back
+except `unique`/`unsellable`/`type:'special'` items; equipped gear never appears in the sell
+list (it lives in `equipment`, not `inventory`).
 
 #### Per-good supply/demand pricing (#24)
-Price is no longer a **single die roll** applied on entering a town (it used to hit all goods
-with the same 0.8–1.2 multiplier, so no trade route could ever be built). Every settlement has
-its own multiplier per good:
+`Game.priceMult(loc, id)` = `basePriceMult(loc,id)` (production region ± geography-based
+deviation × village/prosperity adjustment) `× supplyMul` (stock-driven, `(stock/base)^−0.5`
+clamped 0.55–2.0). Price is computed **unit by unit** inside the buy/sell loop, so buying in
+bulk costs the same total as one at a time. `Game.priceNoise(x,y,id)` makes per-good regional
+deviation continuous across the map (two low-frequency sines) instead of a per-settlement hash —
+neighboring towns now sit close in price, distant ones diverge. Stock (`loc.stock[id]`, saved)
+regresses toward its base at `0.08 + prosperity/700`/day. **Guild price ledger** (inn → ⚖️
+Guildmaster) shows every food/trade price across the nearest 5 towns — the information source
+for planning a route.
 
-- `Game.basePriceMult(loc, id)` = **production region** (`Game.GOOD_ORIGIN`: Svadya grain
-  0.70, Rodok ale 0.65 / iron 0.80, Veagir meat 0.70, Nord salt 0.70, Kergit cheese 0.70; a
-  distant kingdom 1.20–1.35) × **location-based** ±6% deviation (`Game.priceNoise`, below) ×
-  village adjustment (food ×0.8, trade good ×1.15) × prosperity (`1.15 − prosperity/400`).
-- `Game.priceMult(loc, id)` = base × **supply curve** (`supplyMul`). Price has no state of its
-  own; the only thing that moves is **stock** (below). Entering the market a second time on
-  the same day doesn't change the price — measured: ale in Praven is 44₺ on both entries.
-- The price badge on the market list and the guild ledger (`Game.priceTag()`) is now
-  **just a colored percentage** (#76): ≤ −12% green, ≥ +12% red, in between faint. It used to
-  have a word in front too (`cheap −22%`); the sign, color, and number were already saying the
-  same thing. Measured (3 seeds, 19 settlements × 8 goods = 456 badges): the badge's visible
-  text went from a **median of 10 → 4 characters**, total **4557 → 1593** (longest 11 → 4);
-  **228 of them (50%)** already just said "normal", meaning half the line carried no
-  information at all. In English, total went 4671 → 1593.
-- **Guild price ledger** (inn → ⚖️ Guildmaster → 📈 View Price Ledger,
-  `Game.guildPrices`): every food/trade-good price across the nearest 5 towns in one table.
-  This is the information source for building a route — Warband's "commodity prices" screen.
-
-#### Deviation is geography, not a hash (#77)
-Per-settlement deviation used to come from a `loc.id + id` hash: **±12%**, with no connection
-to geography whatsoever. Of two neighboring towns, one could draw 0.88 and the other 1.12 —
-price couldn't be read off the map, only memorized by visiting every town one by one.
-
-`Game.priceNoise(x, y, id)` generates the deviation **from position**: the sum of two
-low-frequency sines (`PRICE_WAVE = [1800, 1100]` unit scale, weight 0.6 / 0.4), with wave
-direction and phase coming from **a hash of the good's identity**. So the region where grain
-is cheap isn't the region where iron is cheap, but every good has its own region and that
-region is continuous. Amplitude is `PRICE_NOISE` = **0.06** (±6%). Nothing new goes into the
-save — `loc.x`/`loc.y` are already saved.
-
-Measured (5 seeds, 25 settlements × 8 goods, deviation isolated by dividing out
-`GOOD_ORIGIN`/village/prosperity):
-
-| | hash (old) | position (new) |
-|---|---|---|
-| Deviation range | −12% .. +12% | **−5.9% .. +5.9%** |
-| **Gap to nearest neighboring town** (median / p90 / worst) | 6.0% / 15.0% / **23.0%** | **1.1% / 2.4% / 5.8%** |
-| Gap to a distant pair (>3500 units, median / worst) | 7.0% / 24.0% | **3.0% / 11.4%** |
-
-The result worth reading is the **ratio** of the last two rows: it used to be that the
-neighbor gap (6.0%) and the distant-pair gap (7.0%) were nearly the same — distance said
-nothing. Now neighbor is 1.1%, distant is 3.0%: region is real information. Measured (seed 3,
-iron, west to east): Veluca −7% / Jelkala +8% (a 15% gap 150 units apart) becomes
-**−2.6% / −1.6%**; the deviation from Praven toward Suno decreases **smoothly**,
-−5.7% → −1.7%.
-
-Real price differences thus fall back to their actual sources: **production region**
-(`GOOD_ORIGIN`, ±35%) and **stock** (`supplyMul`, ×0.55–2.0). Both are learnable, both change
-with the player's own behavior.
-
-#### Market category tabs (#132)
-The buy and sell lists used to be one flat, unsorted list (`Object.values(ITEMS)`/inventory
-order) — fine at a dozen items, hard to scan once weapon tiers and eight horses were added.
-`Game.MARKET_CATEGORIES` groups by the `type` field every `ITEMS` entry already carries (no new
-data): all/weapon/armor (armor+helmet+gloves+boots+shield)/horse/goods/food/special. The active
-category (`Game._marketCategory`) is transient UI state, not persisted and not a `Game.OPTS`
-setting — it resets to "Tümü" every time the market opens. Both `refreshMarket()` loops (buy from
-`ITEMS`, sell from the player's inventory) filter on the same category, so switching to "At"
-filters what you're selling too, not just what's for sale. The pill row scrolls horizontally
-(`overflow-x:auto`, no new breakpoint) rather than wrapping, verified at both desktop and a
-375px-wide mobile viewport.
-
-#### Limited stock and the supply curve (#46)
-A market's stock isn't infinite: `loc.stock[id]` (saved, inside `Save`'s `locations` array).
-
-- `Game.stockBase(loc, id)` = `STOCK_SCALE` (town 500 / village 190 / keep 150) ×
-  `(0.55 + prosperity/110)` ÷ (production-region multiplier × **√price**). Measured
-  (prosperity 86 Praven): grain 474, bread 361, meat 148, ale 80, velvet 22; a village with
-  prosperity 56 has grain 144, meat 45. Cheap staple food is plentiful, expensive trade goods
-  are scarce — a town's grain store can't be emptied out, a velvet stall can be. *(Dividing by
-  raw price was tried: a town was left with 6 bolts of velvet, one wagonload emptied the
-  market and turned trade into a loss.)*
-- `Game.supplyMul` = `(stock/base)^−0.5`, clamped to **0.55–2.0**. Stock halving raises price
-  ×1.41, doubling drops it to ×0.71.
-- **Price is computed unit by unit** (the `buyItem`/`sellItem` loop): every unit bought lowers
-  stock, and lowered stock makes the next one pricier. So buying one at a time costs the same
-  total as buying in bulk.
-- **You can't buy more than the stock**: an exhausted good shows "sold out" instead of a
-  button, the row carries a red "stock 0" badge. What you sell enters the market's stock and
-  lowers its price.
-- `Game.stockTick()` nudges stock toward its base every day at a rate of
-  `0.08 + prosperity/700` (prosperity 50 → 15%/day). Measured: an ale stock of 80, once
-  emptied, returns to 63 in 12 days, price falls from 87₺ to 45₺.
-
-Measured (fresh world, trade skill 1) — **a single load's profit share shrinks as the load
-grows**:
-
-| Good / route | 10 units | 20 units | 30 units |
-|---|---|---|---|
-| Ale, Jelkala→Reyvadin | +116 (35%) | +182 (26%) | +253 (24%) |
-| Salt, Sargoth→Uxkhal | +287 (49%) | +462 (38%) | +575 (31%) |
-| Iron, Veluca→Tihr | +383 (37%) | +618 (29%) | +553 (16%) |
-| Velvet, Veluca→Narra | +404 (11%) | **−741 (−9%)** | **−3847 (−27%)** |
-
-So a cheap good (ale/salt) turns a profit the bigger the load gets, while an expensive good
-(velvet, 22 bolts in the town) saturates a single market: dumping 20 bolts on one town is a
-loss, the load has to be split across towns. Since a bandit fight costs ~80 denars, trade is
-still a real profession.
+A single load's profit share shrinks as it grows (cheap goods like ale/salt scale better than
+scarce ones like velvet, which saturates a single town fast) — trade profits from **route
+count**, not one big haul.
 
 ### Settlements
-- **Town**: market, slave trader, inn (rest + learn poems from the bard + **mercenaries** +
-  **guildmaster** + hiring **companions**), **arena** (always open), tournament (if any),
-  lords' hall, feast (join one if there is one; if it's your own kingdom, host one), recruiting
-- **Keep**: lords' hall, feast (if any)
-- Buttons tied to an active quest also appear here (e.g. chicken chase).
-- **On your own fief** (`loc.owner === 'player'`, except villages): **🛡️ Garrison** and
-  **📦 Storage** buttons appear at the top (see "Fief management").
-- **Village**: village elder (context-dependent dialogue), recruiting, food market,
-  **raiding the village**. A village belonging to a kingdom you're at war with shows only the
-  raid option — an enemy village gives you neither troops nor food. **The village elder always
-  talks** (#50): what they say depends on context — open hostility and a shoulder of stone
-  within the 30-day raid window (`Game.raidedRecently`), a scared/cold refusal in an enemy
-  kingdom's village, and even a friendly village gives "leave, quickly" if your dishonor tier
-  is 2 ("💀 Village Burner"). A village you raided **also withholds recruits and food** during
-  that window — it won't sell cheese to the man who just cursed it.
-- If it's a town/keep of a faction you're at war with, only the **siege** option appears — the
-  market, inn, hall, recruiting, even quest buttons are all closed (#48). If you're
-  independent, the same button becomes "Besiege! (Found Your Own Kingdom)" — no two separate
-  siege buttons appear.
-- **Prosperity** (`loc.prosperity`, 35–90; assigned in `init()`, saved) is a single number that
-  feeds three things: garrison (`Game.garrisonOf` = base × (0.6 + prosperity/125)), recruit
-  refill (+prosperity/40), and the market multiplier (× (1.15 − prosperity/400) — abundance
-  lowers price). It recovers on its own every day: +0.4 below 50, +0.15 above (cap 90).
+- **Town**: market, slave trader, inn (rest, bard's poems, mercenaries, guildmaster, hire
+  companions), arena (always open), tournament (if any), lords' hall, feast, recruiting.
+- **Keep**: lords' hall, feast (if any). **Village**: elder, recruiting, food market, raiding.
+- On your own fief (except villages): 🛡️ Garrison / 📦 Storage buttons.
+- At war with the owner: only the siege option shows (market/inn/hall/recruit all closed); if
+  you're independent it reads "Besiege! (Found Your Own Kingdom)."
+- An enemy village gives neither troops nor food; a village you raided withholds both for 7
+  days and its elder turns hostile (village-burner-tier dishonor even makes a *friendly* village
+  ask you to leave).
+- **Prosperity** (35–90, saved) drives garrison size, recruit refill, and market price;
+  recovers +0.4/day below 50, +0.15 above (cap 90).
 
-#### Settlement scene — buttons as buildings (#60)
-The settlement screen used to be a flat list of buttons. Now `#scene-canvas` (900×280) sits
-above the list, and **the scene is generated from the buttons**: `Game.renderScene(loc)` reads
-`#settlement-actions`'s children, maps each button's **icon** to a building type
-(`SCENE_KIND`: 👑🛡️🏆 → tower, 🍺🧓⛓️ → house, 🏭 → workshop, 🛒🍷 → stall, 🪖⚔️ → tent,
-🤺 → arena ring, 🔥 → fire, 🐔 → coop, 🚪 → gate; an unrecognized icon falls back to a house)
-and draws that building.
+#### Settlement scene (#60)
+`#scene-canvas` is generated **from the settlement's own buttons**: `Game.renderScene(loc)`
+maps each button's icon to a building type (`SCENE_KIND`) and draws it — adding a settlement
+button becomes a building for free, no separate hotspot table. Everything is drawn code, no
+image files. Backed at `900×280 × min(2, devicePixelRatio)` (unlike the map/battle canvases,
+which stay 1:1 since they redraw every frame and DPR would cost real frame time there).
+Inn/hall interiors reuse the same machinery (`Game.sceneBg(kind)`) as backdrops for the
+character/party/inventory/quest screens (`Game.applyViewBg`).
 
-**Device pixels (#101).** The scene canvas is the one canvas in the game whose bitmap is
-stretched: it is authored at a fixed 900×280 and CSS blows it up to the panel width, so on a
-2× screen every edge was drawn at a quarter of the resolution it was displayed at. The backing
-store is now sized `900×280 × min(2, devicePixelRatio)` and `drawScene` applies a matching
-`setTransform`, so every drawing routine still works in 900×280 units and none of them
-changed; the hover hit-test converts the pointer into those same units, not into backing-store
-pixels. Deliberately **not** applied to the map and battle canvases — those redraw every
-frame, and the bottleneck there is the compositor, so four times the pixels would cost frames.
-
-**Since `addBtn` is the single gate, a new settlement button becomes a building on its own** —
-no separate "hotspot table" is kept. Clicking works the same way: `cv.onclick` calls the
-`btn.onclick()` of whichever box it finds, so the scene is the button's twin, not a copy.
-
-| Piece | Rule |
-|---|---|
-| Layout | Even-indexed buttons in the front row (122×88, floor `H−16`), odd-indexed in the back row (96×66, ×0.82 darkened) |
-| Sky | `state.time.hour`: night <6/≥20, dawn 6–8, sunset 18–20; night has stars + a moon disc, day has a sun |
-| Backdrop | Village: field strips + fence · Keep: crenellated inner keep + banner · Town: a 7–12 house silhouette; all three have a 92-unit wall, battlements, gate arch, and faction banner in front |
-| Randomness | `Game.sceneRnd(loc, i)` = a hash of `loc.id + '|' + i` (×131) — **nothing is written to the save**, the same town gives the same silhouette on every open |
-| Mouse | `cv.onmousemove` does a box test; it only redraws **when the hovered building changes**, the cursor becomes `pointer`, the building glows gold via `shadowBlur`, a plaque with its name appears above it |
-
-**Interior** (`Game.sceneBg(kind)`): the inn and lords' hall modal get that location's image
-behind them — using `showModal`'s already-existing third argument (`bgImage`). Drawn once and
-cached via `toDataURL` (`_sceneBg`). Inn: wooden wall + beams, hearth light, barrels, a long
-table, hanging lamps. Hall: stone benches, columns, two banners, a throne, a red carpet,
-torches. *The modal's black curtain went from 0.80/0.90 down to **0.62/0.82** — at the old
-value the drawing was completely swallowed; text is still readable.*
-
-**Every drawing is code** — not a single external image file, so no license/attribution
-concern.
-
-Measured: all **25 of 25** settlements have a different backdrop fingerprint; button layout
-falls into 3 patterns by type (town 9 buttons, village 5, keep 3 — plus status buttons, e.g. a
-tournament or your own fief, add to the count). A full scene draw is **1.62 ms** (once on
-entering a settlement and once when the mouse changes building), the mouse hovering the same
-building costs **0.007 ms** (early exit, no redraw). The sky genuinely changes: the same
-town's top-left pixel is `120,172,222` at noon, `82,73,100` at sunset, `14,19,44` at night. The
-interior JPEG is **19.8 KB**, first open **17.3 ms**, cached after that.
-
-#### Themed backgrounds for menu screens (#61)
-The inventory/character/party/quest screens were flat `.glass-panel`s. The same
-`Game.sceneBg(kind)` machinery (see the scene section above) now draws a backdrop for these
-screens too; the single gate is `showScreen` → `Game.applyViewBg(id)`, the backdrop is set
-**once per screen**, everything after that is CSS.
-
-| Screen | Drawing | What's in it |
-|---|---|---|
-| Character | `armory` | Stone wall, crossed sword, shield, two side banners, a helmet rack |
-| Party | `camp` | Night sky + stars, a hill line, three tents, a campfire, a bundle of spears |
-| Inventory | `storage` | A wooden warehouse, shelves, a chest + lock, sacks, a hanging lantern |
-| Quests | `parchment` | Fiber texture, faded lines, a burnt edge, a wax seal |
-
-Curtain darkness varies by screen (`VIEW_BG` = `[kind, topAlpha, bottomAlpha]`): 0.70–0.74 on
-dark drawings, 0.60 on the light parchment. **No blur above the moving canvas** — these are
-static `background-image`s, `backdrop-filter` was never added (see "Performance").
-
-**Readability was measured** (WCAG contrast ratio between the backdrop color under the
-curtain and the text color, top third of the screen):
-
-| Screen | Backdrop | `--text-muted` | white | gold heading |
-|---|---|---|---|---|
-| Character | `19,20,21` | **7.19** | 18.44 | 8.77 |
-| Party | `16,16,20` | **7.40** | 18.98 | 9.03 |
-| Inventory | `25,20,15` | **7.13** | 18.29 | 8.70 |
-| Quests | `88,77,57` | **6.07** | 8.28 | 3.94 |
-
-The quest screen's `--text-muted` (#94a3b8) dropped to **3.23** over the brown paper (AA floor
-is 4.5). The fix was one line of CSS: the variable was pulled to `#e6dcc2` inside
-`#quests-view` → 6.07. The gold headings are large and bold, so they clear the AA-large (3:1)
-floor at 3.94.
-
-Cost: **8.2–11.9 ms** per screen on first open (draw + JPEG encode), data **27–37 KB**; a
-second visit to the same screen's early-exit via `dataset.bg` costs **0.3 µs**. No backdrop was
-added to the settlement screen — it already has `#scene-canvas`.
-
-#### Raiding a village (#21)
-`Game.raidVillage(loc)` confirmation modal → `startRaid` → `Battle.start('Köy Milisi', n, null, faction)`.
-The militia count is `max(4, prosperity/5)` (~7–18) and is spawned from the
-`BAND_KINDS.militia` mix (Köylü / Köy Avcısı / Köy Bekçisi + Köy Muhtarı after 6 people) — not
-a faction army, villagers. On winning the battle, `Battle`'s victory branch calls
-`Game.completeRaid(locId)`:
-
-| Gain | Cost |
-|---|---|
-| `prosperity × 6 × 0.85–1.15` denars | Relation with the owning lord **−30**, that kingdom's other lords **−6** |
-| Grain `4 + prosperity/12`, cheese `1 + prosperity/25` | Prosperity **−20** (floor 10), `loc.raidedDay` is marked |
-| +60 XP to the looting skill | Village withholds recruits for **7 days**, renown **−6** (eating even the victory's +3) |
-
-Burning down a village of a kingdom you're at peace with **is grounds for war** (`declareWar`).
-On defeat/surrender, `state.player.currentRaid` gets cleared the same way as `currentSiege`.
-Measured: a prosperity-44 village yields 408 denars + 9 grain + 4 cheese, its prosperity drops
-to 24, the owner's relation goes 5 → −25, prosperity recovers to 54 over 40 days.
-
-#### Raiding is an action, not a loot button (#49)
-Beating the militia is the raid's **start**, not its end. `Game.completeRaid` no longer hands
-out loot directly; it sets up `state.player.raid = { locId, t }`, pins the player over the
-village, and sets `state.player.status = 'raiding'` — the same pattern as a siege camp: time
-flows (in `update`'s `timeFlows` list), map clicks are ignored, and a `#raid-ui` panel sits in
-the bottom right (time left, a progress bar, the nearest lord's distance).
-
-| Constant | Value | What it does |
-|---|---|---|
-| `RAID_SECONDS` | 15s | time to empty the warehouse; on completion `finishRaid` → `grantRaidLoot` |
-| `RAID_ALERT` | 1600 units | the lord who sees the smoke (`npc.raidResponder`) — covers ~1200–1600 units in 15s, so a bordering lord can make it |
-| `RAID_COOLDOWN` | 30 days | the same village can't be raided again (`loc.raidedDay`) |
-
-`Game.raidTick(dt)` steers marked lords toward the village every frame; if one gets within
-**60 units** the raid is cancelled, relation drops **−15**, and `triggerEncounter(responder, 'raid')` opens a battle.
-The `'raid'` mode skips `triggerEncounter`'s friendly-noble branch — otherwise the lord
-catching you red-handed would stop to make small talk. 🚪 *Abandon Raid* lets you withdraw
-without loot.
-
-**The raider stigma** is no longer a separate number, it's **honor's negative side** (#53 item
-1.5). `Game.infamy()` = `−honor` (only the negative side); `infamyTier()`/`infamyLabel()`/
-`infamyPenalty()` still stand under the same names — every old call site (recruiting,
-mercenaries, village elder, noble weighting) works unchanged in a single line. A raid is
-**−12 honor**. The "Honor" section below covers the tiers and their measured effects.
-
-Measured: an unhindered raid finishes in 15.1 hours, yielding 297 denars + 8 grain + 3 cheese;
-a lord 900 units away (speed 70) arrives at second 12 and breaks up the raid, opening a
-"🔥 Raid!" battle; a lord 2000 units away never gets marked, the raid completes.
+#### Raiding a village (#21, #49)
+`Game.raidVillage(loc)` → beat the militia (`militia count = max(4, prosperity/5)`) → the raid
+becomes a **15-second timed action** (`RAID_SECONDS`), not instant loot: `state.player.raid`
+pins you over the village, time flows, a nearby lord (`RAID_ALERT`=1600 units) can interrupt and
+cancel it. Reward: `prosperity×6×0.85–1.15` denars + grain/cheese + 60 looting XP; cost: owner
+relation −30 (other lords −6), prosperity −20 (floor 10), recruits withheld 7 days, renown −6,
+**−12 honor**, and burning a peacetime village is grounds for war. `RAID_COOLDOWN`=30 days
+before the same village can be raided again.
 
 ### Nobles (`nobles.js`)
-23 lords + 12 ladies. Every lord has their own party roaming the map (`npc.lordId`); the party
-wanders around its own settlement, so it can be found in its hall. `Nobles.isAt()` checks
-"are they home" with a 420-unit radius.
+23 lords + 12 ladies, each with a roaming party (`npc.lordId`) that wanders near its home
+settlement (`Nobles.isAt`, 420-unit radius).
 
-- **Portraits**: lords come from the `lord_portraits.jpg` sprite sheet, which has no ladies in
-  it (#39). A lady's portrait is **drawn in code** via `Nobles.ladyPortrait(n, size)` — an
-  inline SVG standing in for the initial-letter medallion. Since everything derives from a
-  hash of `n.id`, the same lady gets the same face every time the game opens: dress/skin
-  palette from faction (`Nobles.LADY_LOOK`), hair/eye/lip color and face width from the hash,
-  accessory from **personality** (`ambitious` a crown, `pious` a veil, `romantic` flowers +
-  braid, `wild` wind-blown strands). The accessory splits into `back`/`front` — a veil not
-  drawn beneath the face was covering it. Since lord portraits are photos, the SVG's clean
-  edges stuck out next to them: a light `feDisplacementMap` ripple + canvas grain +
-  `sepia(0.35)` brings it closer to the same frame. `portraitCss` is still the single gate;
-  suitor (`suitor_*`) identities keep using the lord's own portrait.
-- **Relation** `state.relations[lordId]` (−100..100). `Nobles.relLabel()` labels them: Blood
-  Feud / Enemy / Resentful / Indifferent / Content / Friend / Loyal Friend.
-- **Personality** (`PERSONALITIES`): `martial`, `cunning`, `debauched`, `goodnatured`,
-  `quarrelsome`. Greeting lines, which gift they like, which quest they give, and the dowry
-  multiplier all depend on this.
-- **Standing** (`Nobles.standing(id)`, −1..4): renown/130 + relation + the ratio of the army
-  you bring to the gate against the lord's own, −1 for a quarrelsome personality. This decides
-  the greeting pool (`Nobles.GREETS`) and how a conversation lands: standing ≤ −1 →
-  **−1 relation and a brush-off**, 0 → relation unchanged, 1–2 → +1, 3–4 → +2. Shown as a
-  label in the dialogue header (`standingLabel`).
-- **Dialogue** (`Nobles.talk`): ask how they're doing (once a day, depends on standing), ask
-  for a quest, ask someone's location, give a gift, recite a poem (if courting), talk about
-  their daughter, insult them (−15 relation, +2 renown, +5 with rival kingdom's lords), swear
-  fealty.
-- **Gift**: an item matching their personality gives +6..+10, a mismatched one +1, a
-  quarrelsome lord gets +3 for anything. Once a day.
-- **"Where is …?"** (`Nobles.askWhere`): accuracy depends on relation. rel<0 → a lie (points
-  800–1500 units away from the real location), 0–19 → direction only, 20–49 → a 600-unit
-  uncertainty circle, 50+ → 200 units + 3 days of live tracking. Asking about someone from
-  another kingdom drops a tier. Markers are drawn on the map as a dashed gold circle
-  (`Nobles.drawMarkers`, called from inside `renderMap`), removed after 3 days.
-- **Encounter**: bumping into a non-hostile noble's party doesn't start a battle, it opens
-  dialogue (the `npc.lordId` branch inside `Game.triggerEncounter`).
-
-### Lord personalities and line pool (#59)
-
-Personality (`PERSONALITIES`) decides **what** a lord does (which gift they like, which quest
-they give, the dowry multiplier). On top of that, every lord has a character trait that
-decides **how they talk** (`Nobles.LORD_TRAITS`): 🦚 Vain, 🐁 Cowardly, 🗡️ Cruel, 🍺 Jovial,
-💰 Greedy, ⚜️ Honorable, 🙇 Sycophantic.
-
-The trait is **never written to the save**: `Nobles.traitOf(id)` derives it from a hash of the
-lord's id (`h = h*131 + code`), so every open, and every old save, lands the same personality
-on the same lord — no migration code, no new `state` field, no `Save` change. Measured (23
-lords): with multiplier 131, the distribution is **2–4** per trait (all 7 traits show up); the
-first attempt with 31 gave **1–6**.
-
-**The pool** `Nobles.LORD_LINES` splits by kind: `greet` (greeting), `chat` (small talk),
-`brush` (brush-off), `quest` (a quest offer's preamble), `retort` (reply to an insult),
-`retinue` (a retinue exchange, a `[retinue's line, lord's reply]` pair).
-Measured: **119 lines** (greet 42, chat 20, brush 10, quest 20, retort 7, retinue 20 pairs =
-40 sentences) + the old `GREETS` tier pool's 18 lines, **137 selectable entries** total.
-
-Selection passes through three filters (`Nobles.lineFor(kind, id, extra)`):
-
-| Filter | Source |
-|---|---|
-| Character trait | `LORD_LINES[kind][traitOf(id)]` |
-| Player standing | `band(standing(id))` → **0** dismissive / **1** normal / **2** wary–fawning. For `greet`, the trait pool is itself split three ways by band; the others add a `b0/b1/b2` pool |
-| Context | the calling site adds `extra`, pulling a line from the live world (the faction's tax rate in small talk, a random lord's name) |
-
-Since renown, relation, and the army you bring to the gate all feed `standing`, **the same
-lord's tone changes as the player grows stronger**. Measured (a Jovial lord, relation 0):
-renown 0 / party of 1 → *"And who are you? We give alms to beggars at the gate, not in the
-hall."*; renown 600 / party of 80 → *"I saw your army outside my gate. I'll assume you come in
-friendship... yes?"*
-
-**Repeat filter** `Nobles.fresh(pool, kind)` — the same pattern as `Game.dailyEvent`'s "last N"
-rule, with two differences: the counter is kept **per kind+band** (`state.recentLines`) and
-lookback is **60% of the pool** in size. A fixed window of 12 was draining a small pool
-completely dry and selection fell back to random. Measured (a 5-line pool, 300 draws): with
-the filter, **0 back-to-back repeats**, **0** repeats in a 3-draw window; without it,
-**66 (22%)** and **141 (47%)**.
-
-**Retinue exchange**: `Nobles.retinueHtml(id)` cuts in **34%** of the time, not on every
-dialogue; the speaker is a random pick from `RETAINERS` (Old Sergeant / Steward / Squire /
-Advisor / Young Servant / Clerk) and sits as two lines under the lord's own line, along with
-the lord's reply.
-
-**The typewriter** `Game.typeIn(elId, text, then, cps)` / `Game.skipType()` — writes into
-`textContent` character by character (no chance of a partial HTML tag). Only one text writes
-at a time: a new call, the modal closing, or **any click** completes it and runs the `then`
-hook (the retinue exchange becomes visible through this hook). Doesn't wait at all if
-`Game.reduceMotion()` is on. Measured: 44 characters took **781 ms** (~56 chars/s), a click at
-the 12th character completed the text, 48 characters were written in a **single frame** with
-reduced motion.
-
-Wired up at: `Nobles.talk` (greeting + retinue + a trait badge in the header), `Nobles.smallTalk`
-(no longer `alert`, a portrait-bearing `Nobles.say` modal), `Nobles.insult` (the lord's reply),
-`Quests.offerMenu` (the lord's preamble; the guildmaster has no character trait, so it never
-appears for them).
+- **Portraits**: lords from `lord_portraits.jpg` (3×3); ladies are drawn in code
+  (`Nobles.ladyPortrait`) — hash-derived face, faction palette, personality-driven accessory,
+  same face every time for the same lady.
+- **Relation** `state.relations[lordId]` (−100..100): Blood Feud / Enemy / Resentful /
+  Indifferent / Content / Friend / Loyal Friend.
+- **Personality** (`martial`/`cunning`/`debauched`/`goodnatured`/`quarrelsome`) drives greeting
+  lines, favorite gift, quest type, dowry multiplier.
+- **Standing** (`Nobles.standing(id)`, −1..4): renown/130 + relation + army-brought ratio − 1 if
+  quarrelsome. Decides dialogue tone: ≤−1 → −1 relation + brush-off, 0 → unchanged, 1–2 → +1,
+  3–4 → +2.
+- **Dialogue** (`Nobles.talk`): daily chat, ask for a quest, ask location, gift, poem (if
+  courting), insult (−15 relation, +2 renown, +5 with rivals), swear fealty.
+- **Character trait** (`Nobles.LORD_TRAITS`, hash-derived, never saved): 🦚Vain 🐁Cowardly
+  🗡️Cruel 🍺Jovial 💰Greedy ⚜️Honorable 🙇Sycophantic — decides *how* a lord talks
+  (`Nobles.LORD_LINES`, filtered by trait × standing band × context, ~130+ lines total). A
+  retinue exchange (a random retainer's aside) cuts in 34% of the time.
+- **"Where is …?"** (`Nobles.askWhere`): accuracy scales with relation, from a deliberate lie
+  (rel<0) to a live 3-day tracking marker (rel 50+).
 
 ### Courtship and marriage
-- **For a female player, the targets aren't ladies but unmarried lords** (`SUITORS`): every
-  non-king lord is wrapped "as a lady" under the identity `suitor_<lordId>` — their guardian is
-  their own king, their personality derives from their own trait (`SUITOR_TRAIT`). This way the
-  entire courtship machine (interest, compliments, poems, rival, dowry, engagement, wedding)
-  runs through a single code path; `Nobles.courtables()` picks the list by gender,
-  `Nobles.lady()` resolves either identity. The list is never generated for a male player
-  (`SUITORS` stays empty). A female player has no separate guest section in the hall: courting
-  runs from the **💘 Court them** button inside the lord's own dialogue (the 80-renown gate
-  lives there), and the rival suitor is a lady — instead of her, her **guardian** steps up for
-  the honor duel (`Nobles.duelTarget`).
-- Entering a hall's lady section costs **80 renown**, entering a feast costs **150 renown**.
-- **Interest** `state.affection[ladyId]` (0..100). Ways to raise it: small talk +3 (3-day
-  cooldown), a compliment (+5 if it matches personality, −8 if it clashes, +1 neutral), a poem
-  +12 (each poem works once per lady), dedicating a tournament win +18
-  (`state.pendingDedication`), winning a duel +15.
-- **Personalities** (`LADY_TRAITS`): `romantic`/`ambitious`/`pious`/`wild` — each likes one
-  compliment topic and hates one. A hint is shown on screen.
-- **Rival suitor**: assigned with 60% chance at game start (`state.rivals`), advances +1.5 a
-  day. Whoever reaches 100 first gets engaged. Countermove: an honor duel (`Battle.startDuel`,
-  1v1, no party enters the arena) or reputation smearing (30% chance to backfire).
-- **Proposing** (`Nobles.askForHand`): requires interest ≥60, renown ≥120, relation with the
-  guardian ≥25. Dowry: `8000 + keep/town×400 − 2200·log10(1+renown/60) − relation×25`, a rank
-  multiplier (your own kingdom 0.6 / a vassal 0.8 / independent 1.0), and a personality
-  multiplier (cunning 1.3 … goodnatured 0.8), floor 2500. Measured: renown 120/relation 25 →
-  ~10500, renown 300/relation 80 → ~8000, renown 1000/relation 100 + your own kingdom → ~3700.
-  Shown line by line. Options: pay / negotiate (depends on persuasion level, 20% discount,
-  once a day) / "no money but I have my sword" (200 renown, taking a quest halves the dowry) /
-  elope (−60 guardian, −20 kingdom, −30 renown).
-- **Engagement → wedding**: `Feast.schedule()` sets up a feast 5–10 days out. You need to be
-  there that day; letting two days pass disgraces you (−25 relation, −25 interest).
-- **Marriage**: +15 to management, +20 with the spouse's kingdom's lords, +50 denars a day,
-  the spouse joins the party.
+- **A female player courts unmarried lords** (`SUITORS`, wrapped as `suitor_<lordId>`) instead
+  of ladies — one code path handles both genders (`Nobles.courtables()`/`lady()`).
+- Entering a hall's lady section costs 80 renown, a feast 150 renown.
+- **Interest** `state.affection[ladyId]` (0–100): small talk +3 (3-day cooldown), matching
+  compliment +5 (mismatched −8), poem +12 (once/lady), dedicated tournament win +18, duel win
+  +15.
+- **Rival suitor**: 60% chance at game start, +1.5/day; first to 100 gets engaged. Countered by
+  an honor duel or reputation smearing (30% backfire chance).
+- **Proposing** (`Nobles.askForHand`): interest ≥60, renown ≥120, guardian relation ≥25. Dowry
+  `8000 + keep/town×400 − 2200·log10(1+renown/60) − relation×25`, floor 2500, scaled by rank and
+  personality.
+- **Wedding**: scheduled 5–10 days out; miss it by 2+ days → −25 relation/interest. Marriage:
+  +15 Management, +20 with spouse's kingdom, +50 denars/day, spouse joins the party.
 
 ### Feasts (`Feast`)
-Held every 10–20 days in a random town, lasts 4 days. Every noble of that kingdom counts as
-being there (`Nobles.isAt` accepts a feast too). "Walk the hall" gives +2 relation with
-everyone, once each. You can host a feast in your own kingdom's town for 3000 denars +
-30 meat/cheese (+5 relation, +15 renown).
+Every 10–20 days, a random town, 4 days. Every noble of that kingdom counts as present. "Walk
+the hall" gives +2 relation with everyone (once). Hosting one in your own kingdom's town: 3000
+denars + 30 meat/cheese for +5 relation, +15 renown.
 
 ### Quests (`quests.js`)
-The quest engine is event-driven. `Quests.emit(ev, data)` calls: `entered_location`,
-`bought_item`, `battle_won`, `escaped_captivity`, `tournament_end`, `chickens_caught`,
-`talked_to`, `poem_recited_lord`, `raided`. `Quests.dailyTick()` also calls the `day(q)` hook
-every day and checks for expired deadlines.
+Event-driven engine. `Quests.emit(ev, data)` fires on `entered_location`, `bought_item`,
+`battle_won`, `escaped_captivity`, `tournament_end`, `chickens_caught`, `talked_to`,
+`poem_recited_lord`, `raided`; `Quests.dailyTick()` runs each quest's `day()` hook and checks
+deadlines.
 
-A quest definition has four hooks; three aren't mandatory:
+A quest definition has 4 hooks (only `desc`/`where` mandatory): `setup(q, giver)` (assume the
+precondition — `can` already filtered), `can(giver)` (is it currently offerable), `desc(q)`
+(what + progress), `where(q)` (target settlement id — the single source both the quest card's 📍
+line and the map's 📜 stamp read from). `Quests.taskHtml(q)` merges the two; `Quests.make(id,
+giverId)` generates an instance.
 
-| Hook | What it does |
-|---|---|
-| `setup(q, giver)` | Sets up `q.data`. Can **assume** the precondition — `can` already filtered |
-| `can(giver)` | Does the world currently make this quest possible; if not, it isn't even offered (`dawn_raid` needs a war) |
-| `desc(q)` | **What** to do + progress. Same text on the quest screen and the offer window |
-| `where(q)` | **Where** — the id of the settlement to go to. Single source: both the 📍 line on the quest card and the 📜 stamp on the map (`Quests.targets()` → `renderMap`) read from this, so the two can never diverge |
+The roster has grown well past its original handful — `quests.js` currently defines **over 40**
+quests (both hand-designed ones like the two-solution "Brother in Chains" or the lair-revealing
+"Clear the Lair," and a larger batch of shorter, more generic delivery/escort/bounty/hostage
+quests added later for variety). Don't duplicate the full list here — it drifts with every
+addition; read `quests.js` directly, and `Object.keys(QUESTS)` is what `tools/test.js`'s quest
+suite iterates to guarantee every quest has a driver.
 
-`Quests.taskHtml(q)` merges these two into a single box and writes "~N days away right now"
-via `daysTo(where)`; both the offer window and the quest list call it. Generating a quest
-instance is `Quests.make(id, giverId)`'s job — the draw happens in `pick()`, the setup happens
-there, and tests generate from there too.
-
-Quests aren't a copy of Warband's quest list; they target **WebBand's own mechanics**:
-
-| Quest | Which mechanic |
-|---|---|
-| Butter Blockade | Buying 15 cheese from the market in a specific town |
-| Sergeant's Trial | Promotion tree — reaching the lord's gate with 5 troops at level 20+ |
-| Hungry Army | Daily food consumption — carrying 20 food while your own army eats into it |
-| Brother in Chains | **Two solutions**: beat the band, or deliberately get captured and escape via the escape-plan mechanic (extra reward) |
-| Thrown Fight | Getting eliminated from a tournament with a score of 5–8 (−15 renown, +2500 denars) |
-| False Report | The "Where?" mechanic — lie to 2+ lords; they lie back to you for 5 days afterward |
-| Mad Hüsnü's Chickens | The tournament minigame's 15-second / 8-target chicken variant |
-| Harvest Watch | Wait near a village, repel 2 waves of marauders |
-| Lost Letter | Pick up from a village, deliver to another lord |
-| Bring a Poem | Learn a poem from the tavern bard, recite it to a lord |
-| Clear the Caravan Road | *(guild)* Break up 2 bandit bands, then reach the target town |
-| Guild Order | *(guild)* Deliver 10 units of a trade good to the guild's town |
-| Arena Champion | The **win** side of a tournament — the mirror of Thrown Fight |
-| Chain Market | Prisoner mechanic: deliver 4 captured troops to the lord's gate |
-| Clear the Lair | *(guild)* Clear the bandit lair the guildmaster marked — this quest's value is **the location**: the lair isn't drawn until seen, the guildmaster stamps it `seen` (`can`: not offered if no lair is on the map) |
-| Dawn Raid | Raid an enemy village (the `raided` event). `can`: not offered without an open front; reward +1800 denars but **−8 renown** |
-
-The giver can be a lord, or the **guildmaster** (`giverId = 'guild_<locId>'`, `Quests.giver()`
-resolves both). A guildmaster has no relation: the reward is only denars and renown, failure
-carries no relation penalty. `Quests.back()` returns to dialogue for a lord, to the inn for the
-guild.
-
-Accepted quests live in `state.player.quests`; the **Quests** tab (`#quests-view`) lists them.
-Every card carries a "what + where + how many days away" box, a quest with a target is stamped
-📜 on the map (close up, it also shows the quest's name).
-A lord who was refused won't offer a new quest for 7–15 days (`state.questCooldown`).
-Failure is −10 relation. A given lord can have only one active quest at a time.
+Giver is either a lord or the **guildmaster** (`giverId = 'guild_<locId>'`, no relation stake —
+reward is denars/renown only, failure carries no relation penalty). Accepted quests live in
+`state.player.quests`; a refused lord won't offer again for 7–15 days; one active quest per
+lord; failure is −10 relation.
 
 ### Trade parties — caravans and convoys (#22)
-The map isn't only bandits and lords anymore: **6 caravans + 8 villager convoys** roam the
-roads (`Game.ensureTraders`, `spawnTrader`). Both are defined in `BAND_KINDS` like any band
-(`trade: true`), so the map icon, the battle unit mix, and the leader logic all come from the
-existing machinery for free.
+6 caravans + 8 villager convoys roam the roads (`BAND_KINDS.caravan`/`.villager`,
+`trade: true`), so map icon/battle mix/leader logic are free from the existing band machinery.
 
-| Party | Route | Guard | Cargo (measured) | Map icon |
+| Party | Route | Guard | Cargo | Icon |
 |---|---|---|---|---|
-| Caravan | town → another town at peace (`traderNext`) | 6–14: Kervan Muhafızı / Okçu / Atlı Muhafız + **Kervanbaşı** | 2 trade-good items + a 120–380 denar purse → sells for **790–1350 denars** | a cart (`cart`), golden yellow |
-| Villager convoy | village ↔ nearest town (shuttle) | 3–7: Köylü / Köy Avcısı | 15–44 grain + 5–19 cheese + 20–70 denars → **100–270 denars** | a spearman on foot, light green |
+| Caravan | town↔town at peace | 6–14 (+Kervanbaşı) | 2 trade goods + 120–380₺ purse → **790–1350₺** | a cart, gold |
+| Convoy | village↔nearest town | 3–7 | 15–44 grain + 5–19 cheese + 20–70₺ → **100–270₺** | a spearman, light green |
 
-- Cargo is balanced by value: `qty ≈ (3–7) × 100 / basePrice`, so velvet carries 1–2 units,
-  ale carries 10–19.
-- **They don't attack.** `isHostile` returns false; they only flee you if you're at war with
-  their kingdom.
-- **Clicking** one opens a **choice**, not a battle (`Game.meetTrader`): 🗡️ Rob / 🚪 Let Pass
-  (letting it pass sets `encounterCooldown = 6`, so passing right by it doesn't reopen the modal).
-  Since #131 merely *bumping into* one opens nothing — see "Who may stop you" below.
-- **Robbing is banditry** (`Game.robTrader`): hitting a convoy of a kingdom at peace costs
-  **−5 renown** and **−4 relation** with *every* lord of that kingdom (net −2 once the
-  victory's +3 renown is counted). A convoy of a kingdom you're at war with is fair loot, no
-  penalty.
-- Victory loot: cargo goes straight to inventory, the purse straight to the treasury
-  (`beaten.cargo` / `beaten.purse`, a "Cargo Loot" line in the victory modal). `rewardScale`
-  only shrinks the denar reward, not the cargo.
-- Feeds the prosperity of the settlement it reaches (caravan +0.5, convoy +0.15 per arrival).
-- Since convoys live in `state.npcParties`, they're saved automatically; an old save is filled
-  in by `Game.ensureTraders()` inside `Save.load`.
-- **Its name isn't the settlement's name.** The map label used to be clipped to the name's
-  first word (`renderMap`), so "Praven Villagers" showed on the map as just **Praven**,
-  confused with the settlement itself. Trade parties are now drawn with their full name. A
-  caravan's name also comes from the **people's** name, not the state's
-  (`Game.factionPeople`, `FACTIONS[f].people`): "Kergit Khanate Caravan" didn't fit the row, now
-  it's **Kergit Caravan** — the same wording as troop names ("Kergit Rider"). The people's name
-  is raw data (`T(k.people)`), the static extractor can't see it, so its presence in the
-  dictionary is gated by a separate assertion.
+They never attack (`isHostile` false unless at war). Clicking one opens a choice (`meetTrader`):
+🗡️ Rob or 🚪 Let Pass. **Robbing a peacetime kingdom's convoy is banditry** (−5 renown, −4
+relation with every lord of that kingdom) — a wartime one is free loot. Feeds destination
+prosperity on arrival (caravan +0.5, convoy +0.15).
 
-### Highway robbery — bandits hunt caravans
-Convoys aren't only robbed by the player. `Game.banditTick()` runs every day (inside
-`dailyUpdate`, after `warTick`) and matches bandit bands against trade parties: if paths cross
-within **400 units**, a raid happens. A wolf pack doesn't loot (`BAND_KINDS[].beast` is
-excluded).
-
-- Strength roll is `size × 0.7–1.3`; a caravan guard resists at **×1.15**, a villager convoy at
-  **×0.5** — so a caravan often fights it off, a convoy nearly always loses.
-- **A repelled band** is cut in half (scattering if it drops under 4 people), the convoy loses
-  a few people and moves on.
-- **A raided convoy is removed from the map**; its cargo and purse *pass to the band*
-  (`b.cargo` merges into the same slots, `b.purse` adds up). Since the victory branch already
-  writes `beaten.cargo`/`beaten.purse` to inventory, **whoever catches that band gets the
-  cargo too** — no extra code.
-  The tooltip (`npcTipHtml`) now shows cargo for anyone carrying it, not just trade parties.
-- Cargo that never arrives lowers the destination settlement's prosperity (caravan −1.5,
-  convoy −0.5).
-- News lands in `state.warLog` (no notification pops up, read it from the diplomacy screen).
+**Bandits hunt them too** (`Game.banditTick()`/`.hunting`, daily): a band within 400 units of a
+crossing convoy rolls a raid (guard resistance ×1.15 caravan / ×0.5 convoy); a repelled band is
+halved, a raided convoy is removed and its cargo passes to the band (whoever beats that band
+next gets it — no extra code, same loot pipeline). Idle bands within 1200 units actively chase
+the nearest trade party if it's a winnable fight.
 
 ### Fighting beside a clashing lord (#32)
-There is **no npc-vs-npc battle engine**; a "clash" is defined at the moment of encounter, not
-simulated. `Game.clashContext(npc)` looks for another party within **`CLASH_RANGE` = 260 units**
-that is `npc`'s enemy — a lord and a bandit, or two lords whose kingdoms are at war
-(`atWar`). From that pair it picks the **ally** (a lord the player is at peace with and not at war
-with) and the **foe** (a bandit, or a lord of a faction the player is at war with). The most
-common case in the wild is a peaceable lord being hunted by a bandit band, which happens
-constantly via `lordBanditTick`.
-
-When `triggerEncounter` sees a clash (and it isn't an ambush/raid), it skips the plain talk /
-battle path and shows `showAssistModal` instead: *lend a hand* or *stay out*. Choosing to help
-calls `Game.assistFight(allyLordId, foeId)` — it records `state.player.assistAlly =
-{lordId, faction}`, points `currentEncounterNpcId` at the foe, and starts the battle against the
-foe **at 70% of its roster** (`Math.max(3, size × 0.7)`): the ally's men have already worn them
-down. `endBattle` grants the reward only on a win — **+6 relation** with the ally lord, **+2**
-with every lord of their faction, **+4 renown**, and a gratitude line in the victory summary;
-`assistAlly` is cleared on a loss so a defeat earns nothing. It's transient battle state, so no
-save migration is needed.
-
-**Bands now go hunting (#38)**: inside `updateNPCs`, a bandit party not busy with the player
-(`!notices`) heads for the nearest trade party within **1200 units**. The chase condition is
-the same as the raid's strength condition: `convoy strength × (caravan 1.15 / convoy 0.5) <
-band × 1.2` — a weak band doesn't die chasing a strong caravan. A wolf pack never hunts
-(`beast`). The target sits in `npc.hunting` and shows up in the map tooltip as
-"🎯 Hunting: …"; the raid itself is still resolved by `banditTick` — hunting behavior only
-**makes paths cross**.
-
-Measured (200 days, playerless, 3 seeds — each round its own fresh page load):
-
-| | without hunting | with hunting |
-|---|---|---|
-| Raids / day | 0.11 / 0.18 / 0.27 (avg **0.19**) | 0.43 / 0.70 / 0.92 (avg **0.68**) |
-| Repelled (over 200 days) | 9–11 | 21–30 |
-| Lifespan of a raided convoy | 13–21 days (avg 16) | 6–8 days (avg **7**) |
-| Loaded bands at day 200 | 2–5, purse 49–229 denars | 0–1, purse **668–822** denars |
-
-So hunting behavior raises raids to **3.5×** but doesn't fill the map with loaded bands: a
-band hits more, gets repelled and scattered more, and the small number of bands still standing
-are **much richer**. Convoy count stays fixed at 14 thanks to `ensureTraders`.
+No NPC-vs-NPC battle engine — a "clash" is detected at the moment of encounter
+(`Game.clashContext(npc)`, another hostile party within `CLASH_RANGE`=260 units). Choosing to
+help (`assistFight`) starts the battle against the foe at **70% of its roster** (already worn
+down by the ally). A win: +6 relation with the ally, +2 with their faction, +4 renown; a loss
+grants nothing.
 
 ### Encounters & combat
-- Hostility rules `isHostile()`: marauders always attack within 120 units, they flee if the
-  player is 1.5× stronger; the first 14 days ramp up aggression gradually based on an id hash.
-- **Flee range depends on the strength gap** (`updateNPCs`): a weak band notices you and flees
-  from `360 + min(640, (our strength/their strength)×240)` units away. **A noble never flees**
-  (#48): a lord's party chase threshold is `size × 1.5`, so it'll walk toward an army bigger
-  than itself; only a clearly overwhelming one makes it retreat. Measured (a 100-person lord):
-  it walks toward a 101- and a 122-person army (300 → 20 units), it flees a 151-person one
-  (300 → 580 units). It used to be that `isHostile` returning false meant never fleeing at all,
-  wandering until it walked right into you. Nobles (`npc.lordId`) only attack if you're a
-  vassal of the enemy kingdom or relation ≤ −50; otherwise a collision opens **dialogue**.
-- Encounter modal: fight / **send your troops** / **flee** / surrender (#30). You can't
-  surrender to an animal pack.
-- In battle, **🏳️ Teslim Ol** asks first (`Battle.askSurrender`): the fight pauses, the price is
-  named, and **⚔️ Savaşa Dön** is the primary answer — Enter, Esc and × all resume the fight
-  (`canDismiss` opens for this one window mid-battle; `closeModal` unpauses).
-- **The announced roster is the roster that takes the field** (#116). The modal counted
-  `party.length`, but `Battle.start` leaves the wounded in camp — so a party of 4 with 2
-  wounded was announced as 5 and 3 walked out. `Game.fieldSize()` (leader + the unwounded) is
-  the single source for the count, and the modal names how many stay behind. The enemy number
-  is snapshotted into `state.encounterSize` when the modal opens: `fleeEncounter` and
-  `autoBattle` used to re-read `npc.size` live, so a band that grew while you were deciding
-  fought you at its new size. The issue's other half — "the enemies didn't even fight" — is
-  not reproducible: a probe stepping 3 seconds of frames through an ambush and a plain battle
-  found every enemy with a target and the field count equal to the announcement.
-- **The withdraw branch looks at the band's kind (#79)**: a bandit band in its first 14 days
-  gives a 25% chance of a "walk away" option — it looks down on a rookie. **An animal pack
-  doesn't talk**: wolves know neither renown nor words, only numbers; if your party is
-  **1.5× the pack's size**, there's a 50% chance it bares its teeth and retreats, below that it
-  always attacks (independent of the calendar — animals have no 14-day rule). The
-  distinguishing field is `BAND_KINDS[npc.band].beast`; the text is no longer a fixed
-  "Marauders" either, it's `Game.npcName(npc)`, so Forest Bandits get called by their own name.
-  Measured (200 encounters each, against a 6-person band): wolves — 1 person 0%, 9 people 49%,
-  13 people 53% (day 30: 56%, i.e. the calendar has no effect); marauders — day 5: 20–24%,
-  **day 30: 0%**.
-- **Pre-battle troop chatter** (#35, `Game.troopChatter`): under the enemy's line, one of your
-  own men also gets a couple of words in ("How did I end up here, my mother's house was so
-  warm..."). The pool is chosen by context — **fear** (enemy/your ratio ≥
-  `1.3 + (Management−1)×0.08` or morale < 25), **hunger** (stock under daily need), **wage
-  debt**, **courage** (morale ≥ 70 or ratio ≤ 0.6), the rest **grumbling**. The speaker is a
-  random party member, named via `troopLabel`; nobody speaks if the party is empty. Measured
-  (an 11-person party, 40 samples each): a 3-person enemy + morale 80 → always courage, a
-  40-person enemy → always fear, an even enemy → grumbling, empty food stock → hunger, wage
-  debt present → wage; against a 16-person enemy, **Management 1 fears while Management 8
-  merely grumbles**.
+- **Hostility** (`isHostile()`): marauders attack within 120 units, flee if you're 1.5× stronger
+  (ramping up over the first 14 days). **A noble never flees** below an overwhelming threat
+  (chase-vs-flee at `size × 1.5`) — nobles only attack you if you're a vassal of an enemy
+  kingdom or relation ≤ −50; otherwise a collision opens dialogue, not a fight.
+- Encounter modal: fight / send troops (auto-resolve) / flee / surrender. **The announced roster
+  is the roster that fights** (`Game.fieldSize()` = leader + unwounded only, snapshotted at
+  modal-open so a growing enemy doesn't retroactively change the fight you agreed to).
+- **Withdraw chance depends on band kind**: a young (<14 day) bandit band gives 25% "walk away";
+  an animal pack only backs off (50%) if you outnumber it 1.5×, no calendar effect.
+- **Pre-battle troop chatter** (`troopChatter`): fear / hunger / wage-debt / courage / grumbling
+  lines picked from live party state.
 
-#### Fleeing, auto-resolve, and waves (#30)
-**Fleeing** (`Game.fleeChance` / `fleeEncounter`): available in every encounter except a raid
-being caught red-handed. Chance depends on the **speed ratio**:
-`clamp(0.1, 0.9, (your speed/their speed − 0.8) × 1.2)`.
-**Fleeing isn't disabled during an ambush, it's expensive**: while `state.ambush` is open,
-chance is multiplied by `AMBUSH_FLEE = 0.5` (the multiplier lives inside `fleeChance` so the
-percentage shown on screen never diverges from the percentage the roll actually uses); if you
-get away, `state.ambush` resets — being surrounded doesn't carry into the next battle.
-*(A gap-based formula was tried — a 20-person army fled Kergit riders at 89%.)* Failure is a
-normal battle. Measured (a fresh character): a lone foot character (speed 122) flees a
-marauder (66) 90%, a lord's party (84) 78%, a Kergit (100) 50%; a 20-infantry army is the
-same, a 20-cavalry army (speed 161) flees all of them 90%.
-
-**Auto-resolve** — "🎖️ Send Your Troops" appears when your army is **1.5× the enemy's**.
-Not a separate calculation, the same engine: `Battle.start(..., auto = true)` sets up units
-normally, doesn't open the arena, `Battle.autoResolve()` computes the outcome and enters
-**the same `endBattle`** — loot, prisoners, siege/raid/caravan branches all stay in one place.
-Loss rate is `0.45 / strength ratio`, falling as low as 40% with the Management skill; strength
-is `Σ(health × (attack+2))`, the result gets a ±15% luck factor layered on top. *(Lanchester's
-square law was tried: at 5× superior strength, losses fell to 3%, making auto-resolve
-essentially free.)* The player doesn't die in auto-resolve, only loses some health.
-Measured (20 rounds, lvl-10 Svadya Milisi, Management 1): 20 vs 10 marauders → **4% loss
-(0.7 troops)**, 20 vs 25 → **7% (1.3)**, 20 vs 40 → **12% (2.9)**, 20 villagers vs 25 marauders
-→ **20% (3.9)**; with Management 8, the 20 vs 25 loss falls to 6%. The same fight, played by
-hand, ends with 0 losses in 7.2s — auto-resolve is the price paid for speed.
-
-**Partial commitment and waves**: at most `Battle.FIELD_CAP` (**30**) units per side take the
-field (`splitReserves`), the rest wait in `Battle.reserves`. Once the field drops **below 70%**
-of capacity, `reinforce()` sends the whole reserve onto the field at once and writes "🚩
-Reinforcement wave" to the battle log — in a wave, not a trickle. `checkEnd` counts reserves
-too, otherwise the battle would end once the first wave was done. Measured (45 troops vs 60
-marauders, a head-to-head sim): the field never exceeded 30, the enemy entered in four waves
-of **9+9+9+3** at 1.3 / 2.2 / 3.3 / 4.3s, the battle lasted 8.5s.
+#### Fleeing, auto-resolve, and waves
+- **Flee chance** (`fleeChance`): `clamp(0.1, 0.9, (speed ratio − 0.8) × 1.2)`; halved
+  (`AMBUSH_FLEE`=0.5) while ambushed.
+- **Auto-resolve** ("🎖️ Send Your Troops", available at 1.5× enemy strength): same engine, no
+  arena — `Battle.autoResolve()` feeds the normal `endBattle`. Loss rate `0.45 / strength ratio`
+  (as low as 40% with Management), ±15% luck. Player never dies here, only loses health.
+- **Waves**: at most `Battle.FIELD_CAP`(30) units/side on the field at once
+  (`splitReserves`/`Battle.reserves`); once the field drops below 70% capacity, `reinforce()`
+  sends the whole reserve on at once.
 
 #### Routing and pursuit
-An army doesn't fight to the last man. A side whose remaining count (reserves included) drops
-**below a quarter** stops fighting: `Battle.routCheck()` checks every frame from inside
-`checkEnd`, marks the broken side's survivors `u.routing`, **wipes its reserve**, and units run
-at `ROUT_SPEED` = **×1.2** toward *the edge they came from* (`routX`, derived from their spawn
-lane — even if you spawned in the middle during an ambush, they run back toward their own
-side). A routing unit doesn't fight, doesn't seek a target, doesn't hold a block.
-
-Thresholds are `ROUT_AT` 0.25 / `ROUT_MIN` 6: a clash **smaller than six people** has no rout
-phase at all (duels and the arena included — there the fight is already over anyway).
-
-**A fleeing unit's accounting closes in one line**: leaving the field removes it from
-`Battle.units`. Since loot (`!isPlayerTeam` sum), prisoners (`hp <= 0` scan), and player losses
-(matching against the `party` id) all walk that same list, a fleeing unit is never looted,
-never taken prisoner, never killed — no extra branch was written. If your own troop flees, it
-stays in the party **alive**: it used to be that in a lost battle, everyone died.
-
-**The player's choice**: once the enemy breaks, a single button appears on the battle strip —
-*🕊️ Let Them Go*. Doing nothing means "chase them down"; you cut down whoever you catch, and
-loot and prisoners come from that. Letting them go earns `Game.HONOR.spare` = **+3 honor** and
-the victory screen says what you gave up. What you can actually catch depends on your mount's
-speed: a fleeing unit runs at ×1.2, so a player on foot can't catch a fleeing rider — this is
-where the speed numbers actually matter.
-
-There are two deadlock guards: a routing unit **never collides with a rock** (a man running in
-a straight line couldn't be pushed aside by a rock without getting stuck), and a unit that's
-been running for **12 seconds** counts as having left the battle even if it never reaches the
-edge (a wall, a breach). `tools/test.js` asserts that a rout triggers, that a routing unit
-moves away from the player, and that the battle genuinely ends.
+A side whose remaining count (reserves included) drops below `ROUT_AT`(25%) breaks
+(`Battle.routCheck`, skipped under `ROUT_MIN`=6 people): survivors run at `ROUT_SPEED`(×1.2)
+toward their own spawn edge, don't fight, are never looted/captured/killed (removed from
+`Battle.units` on leaving the field — your own routed troops survive in the party). Once the
+enemy breaks, **🕊️ Let Them Go** (+3 honor) vs. doing nothing (chase down whoever you can catch
+— speed determines who that is).
 
 #### Enemy bands (`BAND_KINDS`)
-There's more than just marauders; every kind roams the map under its own name/color
-(`npc.band`) and spawns its own unit mix in battle. A band of 6+ gets a **leader**.
+**Population follows the player** (`Game.bandTarget`): target `10 + day/3 + renown/60`, clamped
+10–34 — the world starts quiet and fills in with the calendar and the player's own renown
+(not sight, which runs backward — smallest at day one). Refill is hourly
+(`BAND_REFILL_HOURS`=6), stateless.
 
-**Population follows the player, not their eyesight** (`Game.bandTarget`, #126). The target
-used to be derived from sight range, which runs the curve backwards: sight is at its smallest
-on day one, so the formula pinned itself to its own ceiling of 30 exactly when the player was
-weakest, then thinned to 14 as Spotting and Intelligence grew. The reported symptom —
-"swarming at the start, empty two minutes later" — was the formula working as written.
+**A band comes from a lair**: `LAIR_COUNT`=9 bandit lairs (`state.sites`, `kind:'lair'`), each
+spawned band bound to one; **the emptiest lair sends the next band** so population evens out
+instead of piling onto one unlucky lair. An undiscovered lair is invisible until it enters sight
+range. A lair grows daily (purse, headcount) and drains nearby settlements' prosperity
+(`LAIR_RANGE`, doesn't stack when ranges overlap) until assaulted (`assaultLair` → normal battle
+→ `Game.clearLair`); respawns every `LAIR_RESPAWN`=20 days.
 
-The target is now `10 + day/3 + renown/60`, clamped to **10–34**: the world starts quiet and
-fills in as the calendar turns and the player's name spreads. Renown rather than level,
-because renown is what a band of robbers would actually have heard about. A world **starts**
-at target population.
+| Band | Character |
+|---|---|
+| Çapulcular | balanced, weakest |
+| Orman Haydutları | archer-heavy, fast |
+| Dağ Eşkıyaları | armored/tough, from day 20 |
+| Kurt Sürüsü | very fast (104–112), `beast`: lunges from sight range ×1.6, never captured |
 
-Refill is **hourly**, not daily (`Game.bandRefillTick`, `BAND_REFILL_HOURS`=6 — one band every
-six hours while below target). A day is a long time on a map the player crosses in minutes: a
-daily batch left a region they had just cleared empty for the rest of the day, which is how
-the map came to look deserted right after the opening fight. The tick is **stateless** — the
-absolute hour decides — so nothing new enters the save.
+**No enemy scales with the calendar or your own strength** (#99, #132): every non-boss enemy —
+bandit, faction soldier, boss guard — is a fixed level forever; only its `TROOP_TREES`/band-row
+stats decide the fight. (It used to scale with `threatLevel()`, a wealth-proxy formula that
+punished *not* upgrading far harder than it rewarded progress — an unpromoted recruit fighting a
+day-200 lair band lost 77% of the time even at 25-vs-14 odds.) A lair's own `strength` still
+grows with time (8→24) — an old lair is a *bigger* fight, not a *stronger* enemy.
 
-Measured (seeds 1–5, playerless so renown stays 0): day 0 **10** bands (target 10), day 10
-**13–14** (14), day 30 **20** (20), day 60 **30** (30) — four spawns a day against a target
-that climbs by a third of one, so the gap never opens more than a band or two wide.
-`tools/test.js` asserts both that the target climbs over 60 days and that the refill keeps up.
+#### Battle
+2D top-down canvas arena, procedural terrain (hill/pit/forest/river; `worst()` — penalties don't
+stack). Player: WASD move, click/space swings (hits only the single closest enemy in a 300ms
+arc, `swingCd` recovery `max(0.45, 0.75−skill×0.005)`s). Mount (if `equipment.horse`): speed `95
++ agility×0.5 + (Riding−1)×3`; foot cap is `Battle.FOOT_MAX`=85 (below the slowest horse, so no
+amount of Athletics out-runs a horse). **Charge** (`chargeMult`): `1 + speed ratio × (spear 1.6 /
+other 0.6)`. A horse adds a flat +33% max-HP buffer (`baseMaxHp` stores the unbuffered value);
+dismount at `baseMaxHp` (buffer spent), plus a 10% flat chance the horse dies for good.
+**Charge stamina** (`chargeSpeed`): burns 2s, then 4s recovery at ×0.9, no passive regen (so
+tapping the charge can't beat holding it) — same budget for player and AI.
 
-**A band comes from a lair (#68)**. The map has `LAIR_COUNT`=9 **bandit lairs** (5 until #97),
-and every spawned band is bound to one (`npc.lairId`, spawning within 200–500 units of the lair);
-no new band spawns in a world with no lairs — that's clearing's payoff. **The emptiest lair sends
-the next band (#97)**: `spawnFromLair` picks, among the lairs outside `SPAWN_SAFE`, one with the
-fewest live bands (random among ties), so the population evens out instead of piling up where
-the dice happened to fall. Measured (1.29.1, seeds 1–5, 60 days, playerless): the busiest lair
-holds **14%** of the lair-born bands on average, **20%** at worst — with 5 lairs and a random pick
-it was **29–62%** on average, **78%** at worst. `tools/test.js` holds the worst at ≤30%. A lair sits in `state.sites`
-as `kind:'lair'`: since drawing, tooltip, clicking, targeting, and saving already run through
-that array, a separate `state.lairs` would have meant a second loop in five separate places
-(this is the deliberate deviation from the issue's own suggestion). A lair is **assaulted, not
-explored**: `enterSite` shows a lair a single button (⚔️ Assault Lair), `assaultLair` sets up
-`state.player.currentLair` and starts a normal battle, `endBattle`'s victory branch calls
-`Game.clearLair` — the same pattern as a village raid's `currentRaid`/`completeRaid`. An
-undiscovered lair is **absent** from the map (`lairSeen`: gets stamped `seen` once it enters
-sight range; drawing/tooltip/clicking all check this stamp).
+**Horses** (`ITEMS`, 8 `type:'horse'` entries): each carries its own `hSpd`/`hDef` — a cheap
+horse buys speed, an armored one survivability, price climbing faster than stats (diminishing
+return per tier). Only the player's mount has these stats; army cavalry has fixed per-unit
+stats.
 
-Daily: purse +15 (cap 1200), current 8–12 people +0.15/day (cap 24) — a lair left standing
-grows. A settlement within range (`LAIR_RANGE`=1100; 1500 with 5 lairs — shrunk with #97 so the
-share of settlements under decay holds: 54.5% before, **52.5%** after, 8 seeds) loses **0.5 prosperity a day**, and this
-**doesn't stack**: a village where two lairs' ranges overlapped used to lose 1.0 a day and die,
-same reasoning as the `worst()` rule for terrain penalties. At the initial 2500-unit range,
-22 of the map's 30 settlements sat inside a lair's range, leaving nothing "regional" about it.
+**Block**: hold right-click/Shift, half-angle 60° toward the mouse (`blockFactor`). A shield
+blocks front hits **entirely**, no shield reduces by 60%, side/behind is unblocked; can't swing
+while blocking, speed ×0.65 (applies to the AI too). The enemy blocks too (same gate, raised
+between swings).
 
-Measured (seed 3, 100 days, playerless): with no lairs, all settlements average **82.2**; with
-5 lairs, the ones in range average **54.1**, out of range **81.7**; if those same lairs are
-cleared on day 40, in-range recovers to **78.4**. So a lair is a regional, persistent, and
-**reversible** pressure. A missing lair respawns every `LAIR_RESPAWN`=20 days — the world
-never empties out.
+**Bow**: `24 + Archery×2` arrows, spread shrinking with skill (±0.04 rad standing → +0.10
+walking → +0.08 mounted).
 
-The guildmaster **knows** a lair (their own caravan gets robbed): accepting
-`QUESTS.clear_lair` stamps that lair `seen`, so the quest's real reward is the location itself.
-Completion is closed by the `lair_cleared` event `clearLair` fires — not the battle's outcome,
-the criterion is **the lair being removed**.
+**Damage types** (`Battle.afterArmor(type, raw, def, tgt)`, the single gate for melee and
+arrows):
 
-Seeing is one thing, finding *a specific* one is another: a quest that sends you hunting a band
-like "Brother in Chains" gives a **rumor** (`QUESTS.brother_in_chains.where`) — the settlement
-the band is *currently* closest to. As the band roams, both the 📍 line and the map's 📜 stamp
-move with it — you're tracking a trail, not an address.
-
-| Band | Map icon | Battle units | Character |
+| Type | Defense effect | Dmg mult | Weapon |
 |---|---|---|---|
-| Çapulcular | a spearman on foot, red | Çapulcu / Çapulcu Okçu / Atlı Çapulcu + Çapulcu Reisi | balanced, the weakest |
-| Orman Haydutları | a bowman on foot, light green | Haydut Okçusu (weighted) / Orman Haydudu + Haydut Başı | archer-heavy, fast |
-| Dağ Eşkıyaları | a spearman on foot, gold | Dağ Eşkıyası / Eşkıya Nişancısı / Atlı Eşkıya + Eşkıya Reisi | armored and tough, spawns after day 20 |
-| Kurt Sürüsü | a wolf silhouette, steel gray | Kurt / Yaşlı Kurt + Alfa Kurt | very fast (104–112), `beast`: lunges from sight range at ×1.6 (red ring), never taken prisoner, little loot |
-- **Battle**: a 2D top-down canvas arena, procedural terrain (hill / pit / forest / river).
-  - Terrain effects: in a forest, archers do ×0.7 damage & **mounted** units get ×0.6 speed; on
-    a hill, archers do ×1.3 damage; in a pit, ×0.8 speed; in a river, ×0.7 speed. **Speed
-    penalties don't multiply — the worst one applies** (`worst()`); they used to stack, so
-    forest+river+pit gave an unplayable ×0.34. "Mounted" is `u.mounted`, not `type` — wolves
-    show up as `infantry` in the tree, and Kergit Atlı Okçusu shows as `archer` — both were
-    tripping up a rule that checked `type`. `mounted` = `type==='cavalry' || speed >
-    Battle.FOOT_MAX` (85, below the slowest horse's 88).
-  - Player: WASD to move, left-click/space to swing a sword in an arc (300 ms). **The swing
-    hits only the SINGLE closest enemy inside the arc** — it used to hit everyone in the arc at
-    once (a group-mowing bug). There's also a `swingCd` recovery time
-    (`swingCooldown()` = `max(0.45, 0.75 − skill×0.005)` s), so clicking fast doesn't multiply
-    damage. Damage multiplier depends on skill: `0.35 + min(0.4, prof×0.004)`. A missed swing
-    shows "miss". Range depends on weapon: base 45, spear +15, mounted +8.
-  - **Mount** (if `equipment.horse` exists): the player enters battle as `type:'cavalry'` —
-    speed `95 + agility×0.5 + (Riding−1)×3` (on foot, `Battle.footSpeed()` =
-    `min(85, 56 + agility×0.5 + (Athletics−1)×2)`). The foot cap sits **below the slowest
-    horse (88)**: no amount of Athletics lets a human outrun a horse — if it could, it wouldn't
-    be realistic, and a maxed-out foot character would get flagged "mounted" by its own forest
-    rule.
-    **Charge** (`Battle.chargeMult`): damage is `1 + speed ratio × (spear 1.6 / other 0.6)`,
-    so a full gallop with a spear reaches ×2.6; at ≥1.8 "LANCE CHARGE!" appears. Measured
-    (mounted, same swing): standing 11 → galloping spear 22, galloping sword 16, on foot 11.
-    Once health drops to half, **a mounted troop is unhorsed too** (`dismounted`, icon 🧑‍🌾) —
-    this check runs before the player's own branch, applied to everyone from a single place.
-    **The player's own trigger is different (#132)**: a horse adds a flat `+33%` of max HP as a
-    buffer on top of whatever health the player already carries into the fight (`baseMaxHp` is
-    the unbuffered value, stored on the unit) — riding in already wounded still gets the full
-    cushion, not 33% of an already-small number. The player dismounts once hp drops back down to
-    `baseMaxHp` (the buffer spent), not at a flat 50% of the buffed max; the same 10% permanent
-    horse-death roll still applies at that moment, just gated on this new trigger. Once
-    dismounted you genuinely stay on foot: the player drops to `footSpeed()`, a troop drops to
-    `max(50, speed×0.55)`. It used to be −30, so a 174-speed knight still stayed at 144, faster
-    than even the best foot troop.
-  - **Horses (#132)**: `ITEMS` carries eight `type:'horse'` entries, each with its own `hSpd`/
-    `hDef` percent bonus (`speed × (1 + hSpd/100)`, `armorDef × (1 + hDef/100)`) instead of one
-    shared scalar — a cheap horse buys speed, an armored one buys survivability, none dominates
-    both axes. Price climbs faster than the stats do, so each tier is a smaller return per
-    dinar: Köylü Beygiri 500₺ (5/0), Bozkır Midillisi 800₺ (12/0), Savaş Atı 1250₺ (15/5), Rodok
-    Dağ Atı 1850₺ (10/8), Zırhsız Cenk Atı 2600₺ (20/8), Zırhlı Savaş Atı 3500₺ (12/18), Demir
-    Zırhlı Cenk Atı 4550₺ (17/22) — the priciest purchasable. Han Kısrağı (20/26), the Bozkır
-    Hanı boss drop, stays best-in-slot on both axes over every purchasable tier, matching the
-    other unique drops. Only the player's own mount carries these stats — army cavalry
-    (`TROOP_TREES`) has fixed per-unit stats and only spends a horse as a one-time promotion
-    cost, so troop horses can't die.
-  - **Losing the horse for good**: the same dismount check that unhorses the player for the
-    battle also rolls a flat 10% chance (`Math.random() < 0.10`, player only) to kill the horse
-    outright. `endBattle()` reads that flag once, clears `equipment.horse`, and folds a line into
-    the win summary or the defeat alert — folded into the same `alert()` call rather than a
-    second one, since `alert()` here doesn't block (1.21.5) and a second call can overwrite the
-    first. It fires on both win and loss, not in arena/duel/tournament.
-  - **Gait and hoofbeats (#132)**: a mounted unit's visual bounce (`drawUnit`'s `hop`/`sway`,
-    already there for every walking unit) now reads as a distinct gait instead of the same walk
-    cycle everyone gets — bigger amplitude, and its period tracks the unit's own current speed
-    (`6000 / speed`, floored at 85ms) instead of a flat 150ms, so a gallop visibly moves faster
-    than a trot and neither slides smoothly regardless of pace the way it used to. The player's
-    own mount also gets a sound: `Game.sfx('hoofbeat')` fires once per hop peak (hysteresis so
-    one peak fires once), the same short-envelope-oscillator approach as the market SFX — no
-    audio file, and it's silenced by the existing mute setting for free.
-  - **Real sprite art for infantry, archers, cavalry, and the player (#132)** — went through
-    several revisions during review. Rejected along the way: an emoji-based pass (player icon
-    swapped by weapon type, bandits got a weak/normal/armored emoji picked from live
-    `attack+defense` — combining two emoji glyphs read as disconnected floating icons, not a
-    person holding something, and power-derived tiers meant the same named unit could look
-    different from one spawn to the next, rejected on principle, not just looks); a procedural
-    canvas-drawn rider+horse silhouette for cavalry (looked bad); a bow drawn on top of a
-    cropped sprite for the archer (looked broken). Final version, all real sprite art, no
-    procedural shapes and no combined/overlaid glyphs:
-    - **Infantry** (`troops/infantry_weak/normal/armored.png`) and **archer**
-      (`troops/archer_weak/normal/armored.png`, one sprite recolored per tier — only one archer
-      pose was available) are real cropped pixel-art frames from two CraftPix.net freebies.
-      **Cavalry** (`troops/cavalry_weak/normal/armored.png`) is three real Battle for Wesnoth
-      unit sprites (horseman/cavalryman/grand-knight) — GPL v2, a copyleft license unlike the
-      CraftPix packs, attribution kept in `troops/LICENSE.txt` as required. All loaded via
-      `Battle.troopImage()`/cached-and-baked via `Battle.troopSprite()`/`bakeFitted()`
-      (aspect-preserving, centered, `imageSmoothingEnabled = false` to keep pixel art crisp);
-      cavalry bakes at a bigger size (`TROOP_SPRITE_SIZES`) since a horse+rider is wider than a
-      standing soldier.
-    - **Tier is fixed by identity, never by live stats** — `TROOP_TYPES[name].tier` (0/1/2) is
-      the troop's fixed recruit/mid/elite position in its own `TROOP_TREES` branch, carried onto
-      the spawned unit as `u.tier`; a bandit's tier comes from its fixed row position in
-      `BAND_KINDS[k].battle`/`.leader` (leader always tier 2). The same named troop always
-      renders identically regardless of day, player level, or its own `level` field.
-    - **The player** (`troops/player_melee.png` / `player_bow.png` / `player_horse.png`) picks
-      its sprite off `state.player.equipment.weapon.weaponType` on foot (bow → the archer look,
-      everything else → the knight look) via `Battle.playerSprite()`, or the Wesnoth Knight
-      sprite when mounted — real art in every case, not the plain 🐴 emoji this used to fall
-      back to. Not a distinct pose per exact weapon (no assets exist for that granularity).
-    - Companions/spouse keep their existing 🎖️/💍 emoji markers (identity accents, not "a
-      soldier's" appearance) via `u.icon` — checked before the real-sprite branch in `drawUnit`.
-  - **Charge stamina** (`Battle.chargeSpeed`): the speed bonus is no longer unlimited — it burns
-    for 2s while you hold the charge, then 4s of **recovery** (×0.9) follows, and it only
-    refills once you're fully rested. There's **no passive regen**: with one, tapping the charge
-    on and off would beat holding it continuously (measured: tapping 1-in-2 averages ×1.083 >
-    holding continuously's ×1.033). The same budget applies to both the player and the AI; the
-    player isn't asked which direction (closing in or fleeing both burn stamina), the AI's
-    threshold is 220 units to its target. The HUD shows "💨 Winded" and "🌲 Rough Ground" badges.
-  - **Block**: hold right-click or **Shift**. The shield's facing locks to the mouse, half-angle
-    60°. `Battle.blockFactor()` is the single gate — both melee (`dealMelee`) and arrow hits go
-    through it. A shield (`equipment.armor` = Shield) blocks damage from the front
-    **entirely**, blocking without one reduces it by 60%; from the side/behind, nothing is
-    blocked. Measured (30 raw damage, defense 0): with a shield, front 0, back 30; without a
-    shield, front 12, no block 30; same for arrows. Cost: you can't swing while blocking and
-    your speed drops to ×0.65 — **the same penalty applies to the AI**; it used to slow only
-    the player (to half — pulled to 0.65 so blocking doesn't make walking up impossible).
-    Since a shield takes up the armor slot, "block or armor" is a real trade-off.
-  - **Bow**: if the weapon is `bow`, left-click/space **shoots an arrow** instead of a sword
-    swing (`Battle.playerShoot`). Quiver is `24 + Archery×2` arrows per battle; running out
-    shows "out of arrows". Spread is ±0.04 rad standing, +0.10 walking, +0.08 mounted —
-    shrinking with skill. Measured (Archery 20): standing 2.1° → walking 7.2° → mounted 11.2°;
-    arrow speed 320, damage `attack × (0.5+…)`.
-  - **Damage types** (`DMG_TYPES`, Warband's cut/pierce/blunt): damage passes through a single
-    gate — `Battle.afterArmor(type, raw, defense)` = `raw × mult − defense × armor`, floor 1.
+| cutting | 100% | ×1.0 | Sword, War Axe |
+| piercing | 50% | ×0.9 | Spear, arrow |
+| blunt | 65% | ×0.8 | Mace — **stuns, doesn't kill**, 90% prisoner rate vs. 45% |
 
-    | Type | Defense effect | Damage multiplier | Weapon |
-    |---|---|---|---|
-    | cutting (`cut`) | 100% | ×1.0 | Sword, War Axe |
-    | piercing (`pierce`) | 50% | ×0.9 | Spear, arrow |
-    | blunt (`blunt`) | 65% | ×0.8 | Mace — **doesn't kill, stuns** |
+**Cadence**: every attack cooldown is dt-based, multiplied by `Battle.SWING_PACE`=1.6 — infantry
+1.36–2.0s, archers 2.24–2.72s in play. (Damage is a weak lever on fight length; slowing the
+*swing* is what makes armor and blocking matter — halving damage in a 20v20 only shaved 2s off
+12.5s, slowing cadence added 4s.)
 
-    Measured for 30 raw damage: at defense 0, cutting 30 / piercing 27 / blunt 24; at defense
-    12, 18 / 21 / 16; at defense 25, **5 / 15 / 8** — piercing pulls ahead as armor rises. The
-    player, at 120 health, can't bring down a defense-18 target with a sword in under 60s, with
-    a spear in 18.8s, with a mace in 44s (and stunning it). An enemy downed by blunt has a 90%
-    chance of being taken prisoner instead of 45% — measured: of 64 downed, sword gets 24
-    prisoners (38%), mace gets 59 (92%).
-    A weapon's damage type is shown as a tooltip in the inventory and market
-    (`Game.itemNote`). Troops' damage type goes through the same gate — see "Party & troops".
-  - **The enemy blocks too**: non-animal melee units raise their shield between swings — the
-    block urge refreshes every 0.6–1.4s at a rate of `min(0.45, defense/40)`, and the shield
-    drops right before a swing (`atkCd ≤ 0.2`). It goes through **the same `blockFactor` gate**
-    as the player, so only frontal hits are blocked; flanking around the side/behind still
-    lands. Since an enemy has no shield item, it's not a full block, just a 60% reduction.
-    Measured (12v12, symmetric): at defense 8, the battle went 11.0 → 12.8s; at defense 18,
-    37.6 → 45.3s — an armored unit is noticeably tougher, the fight doesn't lock up.
-  - Battle tooltip (HUD, bottom left): mount status, arrows left, block indicator.
-  - Every attack cooldown timer is **dt-based** (`u.atkCd`), not `performance.now()` — independent
-    of frame rate. Base cadence is infantry `0.85–1.25`s, archers `1.4–1.7`s, and every one of
-    them — the player's swing and bow included — is multiplied by **`Battle.SWING_PACE` = 1.6**,
-    so in play it is infantry `1.36–2.0`s, archers `2.24–2.72`s.
-  - **Why cadence and not speed or damage** (#6, #54). Damage is a weak lever on battle length:
-    a 20v20 measured 12.5 s, and halving every hit only reached 14.5 s — most of a battle is
-    closing distance and the rout cascade at the end, not the exchange. Slowing *movement* makes
-    the field feel like mud. Slowing the **swing** is what turns a hack-fest back into a fight,
-    and it pays off exactly where skill lives: with armor on, there is time to raise a shield.
-    **Measured** (12 worlds each): 1v1 duel 12.2 → **16.0 s**; 12v12 at defense 8 15.7 → **18.3 s**;
-    12v12 at defense 18 34.9 → **49.0 s**; 20v20 12.5 → **13.9 s**.
-  - Melee damage passes through a single place: `Battle.dealMelee(src, tgt, raw)` — drops
-    defense, produces knockback + blood + sparks + floating text, and on a kill calls `logKill`
-    + XP.
-  - Enemy mix depends on the band (`BAND_KINDS`, table above). **Faction armies** scale
-    (`enemyLvl`): +4 hp / +0.5 atk / +0.25 def per tier. **Bandits do not** (#99).
-  - **Impassable rocks** (`terrain.rocks`, 2–4 of them): a unit can't enter one, it gets pushed
-    out the same way the boundary check does. Never placed on spawn lanes, and **never inside a
-    river** — the rock is the only impassable thing on the field, and standing in the water it
-    reads as part of the river, so the player walks into the ford and stops dead against nothing
-    he can see (#21). The filter runs after river generation; rivers themselves are cosmetic.
-    *(Arrows pass over a rock — it isn't cover.)*
-  - **Bodies push each other apart** (`Battle.separate`, #55). Until 1.11 there was **no**
-    unit-vs-unit collision at all: two armies walked straight through each other and six men
-    stacked on one pixel took six times the damage in the same second. Each frame, every pair of
-    living, non-routing units closer than `(rA + rB) × 1.35` (shoulder room, not skin contact) is
-    pushed apart along the line between them, the overlap shared by weight — a mounted unit gives
-    `0.3` of the ground a foot soldier gives. Exactly coincident units get a jittered direction.
-    *ponytail*: O(n²) over the living; at the ~70 units a battle ever holds that is ~2.5k distance
-    checks a frame, far under the 16.7 ms budget — bucket by grid if the cap ever rises.
-  - Tactical orders **don't sit ready from the start of battle**: each one spawns as an
-    "opportunity" at its own random moment (`Battle.cmdSlots`; charge 1–2.5s, pursue 2.5–5s,
-    hold 4–7.5s). **No party, no orders** (#114): `cmdSlots` is empty when
-    `state.player.party` is, so a duel, an arena bout or a lone player caught on the road
-    draws no command strip and hides the touch command pad — the party is the gate rather than
-    an `isDuel` flag, which covers all three cases at once. Pressing a closed order gives a
-    warning, shouting the same order again is ignored. Closed orders draw faded in the HUD, an order opening up shows in the log and as
-    floating text over the player. The windows were narrowed by measurement: a 21-vs-25 battle
-    lasts 6.9s, and the first attempt's window (8–22s) never opened the third order at all.
-  - Archer AI: 250-unit range, 50% chance of leading the shot based on the target's speed.
-    **Kiting balance**: while retreating, speed is ×0.55 mounted, **×0.8 on foot** (a foot
-    archer is already slow, a second penalty was unnecessary); ×0.8 while walking to range;
-    melee units **rush in** once within 220 units of their target (×1.3, wolves ×1.6) — but now
-    against the stamina budget, see "Charge stamina". Used to be that an archer fled at the
-    same speed as its pursuer, so it hit risk-free — measured: 1v1 chase time 28.6s → 12s, the
-    infantry's remaining health 24 → 31.
-    The regression gate is `tools/test.js`'s three *"kite: …"* assertions: a mounted archer, a
-    foot archer, and a wolf pack must all resolve without hitting the 180s ceiling.
-  - **Battle log fits a phone in one line (#89)**: two corner stacks (`#battle-log-left/right`,
-    each 46vw × 20%) piled death lines, the enemy commander's line, and order announcements
-    into the arena's bottom half — the player couldn't see their own silhouette. On a
-    touch-played device, `Battle.log` writes everything to the **left** stack only, where
-    only the **latest** message stays (5 on desktop), and CSS pulls the strip under the power
-    bar, full width, one line (`white-space:nowrap` + ellipsis; the commander line's
-    `display:block` pieces are switched to `inline` too). The right stack closes — side
-    information is already in the color. For the same reason, an order-opportunity's floating
-    text **above the player's head** isn't drawn on touch; that text was exactly the text
-    covering the player, and the information is already in the strip.
-    Measured (375×812, a commander line): the strip is `top:62`, height **16px**, one line.
-  - **Everyone is locked to the arena** (12-unit edge margin) — retreating archers used to run
-    off the map and lock the battle forever.
-  - If the player dies, the battle doesn't end: **you're knocked out** (`Battle.knockedOut`),
-    your men keep fighting. A battle won this way gives **half** denars and XP.
-  - **Performance**: target search isn't a full scan every frame, it's once every 0.3–0.5s per
-    unit (`u.tgtId` + a `_byId` table built once per frame); particle caps (spark 120, floating
-    text 40, blood 200). Measured: a 121-unit battle costs update 0.31 ms + render 1.25 ms per
-    frame.
-  - **Visibility**: a unit's emoji is drawn with a dark outline, its team ring filled and fully
-    opaque; the baked ground gets an `rgba(6,10,6,0.16)` darkening layered over it — units used
-    to vanish against the grass.
-  - Blood pools, corpses (max 60), sparks, floating damage numbers, a two-sided kill log, a
-    random insult line + ping animation from the enemy commander.
-  - The surrender button is open at all times.
-- **Victory**: loot (`10 + level×5` per enemy, `6 + level×3` for an animal, ×0.85–1.15,
-  multiplied by the Looting skill) + 3 renown + XP. **The reward shrinks with the strength
-  ratio** (`Battle.rewardScale`): `clamp(0.2, 1, (enemy strength / your strength) × 1.6)` —
-  hunting marauders isn't profitable forever, the victory modal shows "Easy prey: reward cut
-  to X%". The boss fight is exempt. Weapon/riding/athletics skill XP applies, dead troops are
-  removed from the party, the NPC is removed from the map, the player's end-of-battle health is
-  written back to `state`.
-- **Defeat**: the whole party scatters, 60–90% of your money is gone, HP drops to 30%, **you're
-  taken prisoner**, and **renown burns** (`Game.defeatRenown(enemy strength)`):
-  `2 + 18×(1 − strength ratio) + renown×2%×(1 − ratio)`, capped by renown on hand. Losing to an
-  equal costs −2, losing to a 5-person marauder band costs −22 (measured with renown 200, a
-  20×lvl15 army). Surrendering (`Game.surrender`) takes the same penalty; the boss is exempt.
-- **Balance** (measured, the player wading in): 5 rookies vs 5 marauders → victory with 2–4
-  losses; 10 vs 15 → defeat; 20 rookies vs 20 marauders → a coin-flip; with leveled troops
-  (20×L10 vs 20) → an easy win. Battles run 8–30s.
+**Bodies collide** (`Battle.separate`): units closer than `(rA+rB)×1.35` push apart, weighted by
+mass (mounted gives 0.3 of a foot soldier's push). O(n²) over the ~70 units a battle ever holds
+— `// ponytail: bucket by grid if the unit cap ever rises`.
+
+**Tactical orders** spawn as timed windows (`Battle.cmdSlots`; charge 1–2.5s, pursue 2.5–5s,
+hold 4–7.5s) rather than sitting ready from the start; hidden entirely when `state.player.party`
+is empty (duel/arena/solo encounter).
+
+**Sprites**: real cropped pixel-art for infantry/archer (CraftPix freebies) and cavalry (Battle
+for Wesnoth, GPL v2, credited in `troops/LICENSE.txt`), baked once via `Battle.troopSprite()`.
+Tier (weak/normal/armored) is fixed by the troop's identity, never live stats — the same named
+troop always looks the same. Bosses get their own hand-drawn canvas silhouettes
+(`Battle.bossSprite`), bigger than a regular unit.
+
+**Performance**: target search runs every 0.3–0.5s per unit, not every frame; particle ceilings
+(sparks 120, floating text 40, blood 200, corpses 60); everyone is clamped to the arena (a
+12-unit edge margin) so a routing archer can't run off-map and lock the battle. If the player
+dies mid-battle, they're knocked out (not eliminated) and the fight continues at half reward on
+a win.
+
+**Victory**: `(10 + level×5)` loot per enemy × Looting skill, +3 renown, XP; **reward shrinks
+with the strength ratio** (`Battle.rewardScale`, exempt for bosses) so farming weak enemies
+stops paying past a point. **Defeat**: party scatters, 60–90% of money lost, HP→30%, taken
+prisoner, renown burns (`Game.defeatRenown`, scaled by how outmatched you were).
 
 ### Taking prisoners (the player's own prisoners)
-- **45% of downed enemies are taken prisoner** in a won battle (`state.player.prisoners`),
-  except the boss fight.
-- Capacity is `Game.prisonerCapacity()` = `5 + (Prisoner Management − 1) × 3`; every
-  taking/selling of a prisoner gives XP to this skill.
-- Value is `Game.prisonerValue()` = `(25 + level×12) × (cavalry 1.5 / archer 1.2 / infantry 1)`;
-  sold one at a time or in bulk from the town's **⛓️ Slave Trader** screen. Can be released from
-  the party screen.
-- Every day, `max(1%, 6% − skill×0.5%)` chance a prisoner escapes; nobles never do.
-- **"11+2" (#111)**: the prisoner heading and the top bar's party chip mark what arrived since
-  the player last looked — `11+2/16`, `23+4/30`, the `+N` in green. It is a **baseline count**
-  (`state.player.seenRoster`), not a per-unit flag: battle spoils, a village's volunteers, a
-  quest reward and a rescued companion all just push onto the array, and none of them has to
-  learn a counter exists (`Game.newCount`/`rosterTag`/`markRosterSeen`). Losses move the mark
-  down too, otherwise a party wiped out and rebuilt would owe a permanent `+N` it never earned.
-  Opening the party screen clears both marks — seen means seen.
-- **A noble prisoner**: when a lord's party is defeated, that lord is taken prisoner (removed
-  from the map). Demand ransom from the party screen (2500–4500 denars, −20 relation, −4 with
-  that kingdom's other lords) or release them honorably (+25 relation, +6 with the faction, +3
-  renown). Either way, `Game.respawnLordParty()` returns the lord to the map near their home in
-  a shrunken party.
-- If the player is defeated/surrenders, every prisoner they're holding goes free.
+45% of downed enemies are captured in a won battle (not the boss fight). Capacity `5 +
+(Prisoner Management−1)×3`; value `(25+level×12) × (cavalry 1.5/archer 1.2/infantry 1)`, sold at
+the town's ⛓️ Slave Trader. `max(1%, 6%−skill×0.5%)` daily escape chance (nobles never escape).
+A captured lord: demand ransom (2500–4500₺, −20 relation) or release honorably (+25 relation,
++3 renown); either way they respawn near home in a shrunken party.
 
 ### Captivity (the player's own captivity)
-- **A single data model**: however you get captured (defeat in battle, surrender), captivity
-  goes through `Game.beginCaptivity(npc, days)` and it all lives in `state.player.prisoner`:
-  `{npcId, npcName, troops, fellows[], daysLeft, ransomRequired, ransomRefusals,
-  escapeChance, isPlanning, lastAttemptDay}`. Ransom/escape/release all null this object.
-  `fellows` are the other prisoners dragged along with you (`Game.rollFellows`; an animal
-  pack never takes prisoners).
-- While captive, the player is locked to the captor's location; nothing else can be done.
-- **The captor's party is the only one that moves on the map**: the player's own party icon
-  and name aren't drawn, only a ⛓️ mark next to the captor. *(It used to be that the player's
-  icon + name + "Prisoner (Ng)" text landed on the same spot as the captor's own icon/label.)*
-- The captor's tooltip shows their own troops, you, and other prisoners
-  (`Game.npcTipHtml`).
-- `#prisoner-ui` (bottom right) shows who's holding you, guard count, days left, other
-  prisoners, and escape chance in a single panel. The separate giant ⛓️ icon was removed — it
-  was overlapping `#map-hud` in the bottom left.
-- The "plan an escape" toggle fills escape chance from 0 to 80 on a slowing curve.
-- "Attempt escape" once a day; on failure, chance −60 and the plan resets.
-- Once time runs out, 40% chance of a free escape, otherwise a ransom modal (75–90% of your
-  money).
+Single model: `Game.beginCaptivity(npc, days)` → `state.player.prisoner`. Locked to the captor's
+location; the captor's party is the only one that moves (the player's own icon isn't drawn).
+"Plan an escape" ramps escape chance 0→80 on a slowing curve; one attempt/day, failure costs −60
+and resets the plan. At the deadline: 40% free escape, else a ransom modal (75–90% of money).
 
 ### Diplomacy — war between kingdoms (#20)
-Single data: `state.wars = { 'a|b': the day the war started }` (an ordered faction-pair key).
-Helpers: `Game.atWar(a,b)` / `warsOf(f)` / `declareWar` / `makePeace` / `playerFaction()`; news
-lands in `state.warLog` (last 20 events), written by `Game.news(msg, mine)` — `mine` only pops
-a notification for an event concerning the player's own kingdom.
-
-**The player has a banner too (#48)**: `Game.playerFaction()` now returns **`'player'`**
-instead of `null` while not a vassal. It used to be that an independent player didn't count as
-at war with anyone — `atWar` returned false everywhere, an enemy town's market/inn stayed
-open, and an enemy lord just walked right by. `'player'` isn't a `FACTIONS` entry;
-`factionName` writes it as "<player name>'s Company", it never enters `diplomacyTick`'s "a
-kingdom down to two fiefs sues for peace" rule (it has no fiefs), but the war key
-(`player|rhodok`), the news feed, the closed enemy gate, and lord aggression all behave like a
-normal front. The way to enter a war while independent is **raiding a village**
-(`completeRaid` → `declareWar`); after 15 days the other side can sign peace on its own. The
-diplomacy screen shows an independent player their enemy list instead of vassalage.
-
-- `Game.initDiplomacy()` opens one front on entering the world (and, in a save from before
-  diplomacy existed, inside `Save.load`) — Calradia is never at rest.
-- `Game.diplomacyTick()` every day: a war past 15 days ends in peace with `0.06 + duration×0.004`
-  chance; 10% chance a new war is declared (a kingdom fights **at most two** fronts).
-- `Game.warTick()` resolves the front every day:
-  - Enemy lord parties within 700 units clash (`resolveFieldBattle`) — the winner loses ~20%
-    troops, the loser ~70%; a party that drops under 8 people scatters, respawning at home
-    4–10 days later via `state.lordRespawn`. These clashes don't pop a notification, only a
-    scattered party makes the news.
-  - A strong army within 500 units (`size > garrison × 1.3`) **besieges** a settlement for
-    **3 days** (`atk.siegeDays`), then takes it; a fallen settlement can't be retaken for 10
-    days (`loc.capturedDay`), the besieging army loses 40%. A town/keep changing hands takes
-    villages within 900 units with it.
-  - A kingdom at war doesn't sit at home: while `updateNPCs` picks a new target, there's a 35%
-    chance a lord walks toward one of the 3 nearest enemy settlements.
-- Effect on the player: a lord's party only attacks if **your kingdom is at war with theirs**
-  (`isHostile` → `atWar`); a town/keep is only besiegable if you're at war with it, a
-  peacetime neighbor's market and inn stay open to you (`enterSettlement`, `locTipHtml`). War
-  starts with that kingdom the moment you conquer one of their fiefs.
-- `Game.showDiplomacy()` (the 🌍 button in the map tooltip, or **K**): fief count per kingdom,
-  who's at war/allied with whom, ongoing campaigns, a news feed below.
-- Measured (200 days, playerless simulation): 8 settlements changed hands, ~290 front clashes,
-  13 war declarations, no kingdom got wiped out. Before the siege wait time was added, the same
-  sim produced 38 conquests and wiped two kingdoms off the map by day 150.
+`state.wars = { 'a|b': start day }`. **An independent player has a banner too**
+(`Game.playerFaction()` returns `'player'`, not `null`) — an enemy town's gates close, a lord
+attacks, exactly like any real front; raiding a village is how an independent player opens a
+war. `Game.warTick()` daily: nearby enemy lords clash (winner loses ~20%, loser ~70%, a
+scattered party respawns 4–10 days later), a strong-enough army besieges a settlement over 3
+days, and 35% of a wartime lord's movement targets an enemy settlement.
 
 ### Marshal, campaign call, and alliance (#36)
-Diplomacy isn't just "who's at war with whom" anymore: kingdoms **raise armies** and
-**take sides**.
+A kingdom at war has a 15%/day chance of picking a **marshal** (`pickMarshal`, biggest lord
+party excluding the king) with a target settlement; other lords of that kingdom then have a 70%
+chance of marching toward that target instead of scattering — this is what turns "at war" into
+an actual siege. A campaign ends on target-fall/peace/16 days, cooldown 7 days.
 
-**Campaign** (`state.campaigns[faction]` =
-`{marshalId, marshalName, targetLocId, day, pledged, helped}`, `Game.campaignTick()` runs
-daily):
-- A kingdom at war has a **`CAMPAIGN_CHANCE` = 15%** daily chance of picking a **marshal**
-  (`pickMarshal`: the biggest lord party on the map, excluding the king) and giving them the
-  nearest enemy town/keep as a target. (Was 25% before 1.20.0 — lords were perpetually on
-  campaign and routing each other, so the world never settled.)
-- **`updateNPCs` no longer scatters the army**: while a lord of a campaigning kingdom picks a
-  new target, there's a 70% chance they walk toward the marshal's target (it used to be 35%
-  chance of a random one of three enemy settlements). The army massing then resolves into a
-  siege via `warTick`'s own rule — the siege code itself wasn't touched.
-- A campaign ends via `endCampaign` once the target falls / peace happens / **`CAMPAIGN_MAX_DAYS`
-  = 16 days** pass; the same kingdom can't open a new campaign for **`CAMPAIGN_COOLDOWN` = 7 days**
-  (`state.campaignCooldown`) — otherwise a finished campaign's reward modal got clobbered by the
-  next call-to-arms modal. (Were 25 days / 3 days before 1.20.0.)
-
-**Campaign call** (if you're a vassal): the `summonToArms` modal appears with the king's name,
-the marshal, and the target.
-
-| Response | Result |
-|---|---|
-| ⚔️ Join + be within **1200 units** of the target (sampled once a day → `helped`) | **+15 renown, +8 with every lord** if the campaign succeeds; +5 renown / +3 relation if it fails |
-| ⚔️ Join but never show up | **King −8, other lords −3** — the most expensive option |
-| 🚪 Refuse | An immediate **−5** with every lord, no extra penalty once the campaign ends |
-
-Once you join, the target shows on the map as a dashed gold circle:
-`state.knownLocations['campaign']` refreshes every day, so it never gets caught by
-`Nobles.dailyTick`'s 3-day removal rule.
-
-**Alliance** (`state.allies` = `{'a|b': day}`, `Game.allied/alliesOf/makeAlliance/breakAlliance`):
-- `diplomacyTick` has a 5% daily chance of shaking hands between two peaceful kingdoms that
-  **share a common enemy**.
-- An alliance has a cost: the ally's every front opens to you too (`makeAlliance` fires mutual
-  `declareWar`s internally). `declareWar` doesn't declare war on an ally.
-- An alliance past 25 days has a 5% daily chance of dissolving.
-
-**A kingdom no longer gets wiped out** — since the campaign system massed armies onto a single
-target, conquest sped up, and in measurement, 3 of every 4 rounds wiped a kingdom off the map.
-Two rules brought this back: `warTick` never lets a faction's **last** town/keep be besieged,
-and a kingdom down to two fiefs has a 25% daily chance of signing peace after 5 days in
-`diplomacyTick` (normally 15 days / 6%).
-
-Measured (`node tools/sim.js --days 200 --seed 1-5`, playerless, **1.20.0**): **4–10 conquests**,
-22–31 campaigns, 0–2 alliances, 16–22 peace treaties, **no kingdom wiped out in any round**
-(`docs/measurements/2026-09-17-world-sim.md`). Before the 1.20.0 campaign tuning the same sim
-gave 5–15 conquests / 29–39 campaigns; lords now hold their lands longer instead of being
-perpetually routed. Before campaigns existed at all, 8 conquests.
+As a vassal, joining a call and showing up (within 1200 units) earns +15 renown/+8 relation on
+success; pledging and never showing costs king −8/lords −3 — the most expensive option.
+Alliances form (5%/day) between two peaceful kingdoms sharing an enemy and open every one of the
+ally's fronts to you too. A kingdom down to its last town/keep can't be besieged, and one down
+to 2 fiefs gets a much better peace chance — no kingdom gets wiped out.
 
 ### Sieges & founding a kingdom (#25)
-A siege isn't a field battle you open with one button, it's a **three-stage** affair: camp →
-preparation → assault at the wall. Garrison is `Game.garrisonOf(loc)`: **the real troop
-count there if it's your own fief**, otherwise town 30 / keep 15 base, ±30% by prosperity.
-
-**1. Camp** (`Game.besiegeLocation` → `beginSiege`): the settlement screen's *⚔️ Set Up Siege
-Camp* asks for a method. The choice sits as
-`state.player.siege = { locId, plan, daysLeft, weaken, foundingKingdom }` (saved alongside
-`state.player`), the player is pinned over the settlement and
-`state.player.status = 'besieging'` — **time flows in camp**, the world keeps running. The
-`#siege-ui` panel in the bottom right shows status and two buttons (⚔️ Begin Assault / 🚪 Lift
-Siege); the assault button is dimmed until preparation is done.
-
-| Method (`Game.SIEGE_PLANS`) | Preparation | Breach in the wall | Defender's advantage |
-|---|---|---|---|
-| 🪜 Ladder | **1 day** | gate only (74 units) | **+40%** health and attack |
-| 🗼 Siege Tower | **3 days** | gate + tower ramp (118 units) | **+15%** |
-
-**2. Preparation and starvation** (`Game.siegeTick`, `dailyUpdate`): `daysLeft` drops every
-day. Waiting on past preparation being done **is a deliberate starvation tactic** — the
-garrison erodes **7%** a day (cap 55%) and the settlement's prosperity drops 1.5 a day.
-Measured: a 34-person garrison drops to 26 in 3 days, prosperity drops from 65 to 61. The cost
-is that your own army eats through supplies at the gate too.
-**Relief army** (`Game.siegeRelief`): during both preparation and waiting days, there's a 25%
-chance the nearest enemy lord party within 2500 units shows up at the gate — either you fight
-them (a normal encounter) or you break camp. If you're defeated/surrender, the camp disperses
-on its own.
-
-**3. Assault** (`assaultSiege` → `startSiege` → `Battle.start(..., plan)`): the battle arena
-becomes a **siege variant** (`Battle.siege`). A vertical stone wall sits across 66% of the
-arena; no river or rocks are placed, hills/forest only appear on the attacker's side. The
-defender spawns behind the wall, the attacker spawns on the field.
-- The wall is impassable (inside `update`'s arena-boundary block); the breach narrows its
-  interior like a corridor.
-- Pathfinding runs through a single rule: a unit whose target is on the **other** side of the
-  wall walks to the nearest breach. The attacker targets a point 70 units past the breach (the
-  offset drops once through), **the defender never crosses it** — they hold the breach's mouth,
-  the bottleneck is their advantage. *(The target point has to sit outside melee range: at 30
-  units, the attacker thought it had "arrived" right at the breach's mouth and got cut down
-  standing there.)*
-- Arrows pass over the wall (like rocks) — a defending archer shoots through the battlement.
-- Measured (40 lvl-15 Svadya Milisi vs a 26-person Svadya garrison, 2 rounds, each round a
-  separate page load): a wall-less field battle costs **0–1 losses / 9–10s**, a siege tower
-  **3–4 losses / 9–10s**, a ladder **8–18 losses / 10–14s**. So the tower pays back its three
-  days, the ladder is fast but costly.
-
-Winning transfers the settlement to your liege's faction; if independent, you found **your own
-kingdom** (`FACTIONS.player_kingdom` is created at runtime). Either way, **war is declared**
-(`Game.declareWar`) on the conquered settlement's former owner and the settlement **becomes
-your fief** (`Game.grantFief` → the section below). Conquest news is written into the victory
-modal; `alert()` is never used, the victory screen would clobber it.
+Three stages: **camp** (pick a method: 🪜 Ladder 1-day prep/+40% defender advantage or 🗼 Siege
+Tower 3-day prep/+15%) → **preparation/starvation** (garrison erodes 7%/day while you wait, a
+25% daily chance of a relief army showing up) → **assault** (`Battle.siege`: a wall across 66%
+of the arena, the defender holds the breach's mouth, arrows pass over the wall like a rock).
+Winning transfers the settlement to your liege (or founds your own kingdom if independent) and
+declares war on the former owner.
 
 ### Fief management (#23)
-A conquered settlement is no longer just a flag change: `loc.owner === 'player'`
-(`Game.grantFief`, villages within 900 units come along with it) and it opens up three things.
-
-| What | Where | Rule |
-|---|---|---|
-| **Tax** | every day, `dailyUpdate` | `Game.fiefTax(loc)` = `prosperity × (town 2 / keep 0.7 / village 1)`. Measured: a prosperity-55 town gives +110, a prosperity-69 town +141, a typical keep ~+45 |
-| **Garrison** | settlement screen → 🛡️ Garrison | `loc.garrison[]` are real troop objects; they don't count against your party capacity but their **wage adds to `upkeep()`**. A companion can't stay in a garrison |
-| **Storage** | settlement screen → 📦 Storage | `loc.storage[]`; **food in storage doesn't spoil** (`spoilFood` only walks `state.player.inventory`) and isn't looted on defeat |
-
-- Wage is read from a single rule: `Game.troopWage(t)` (companion 20, lvl 20 elite 10, lvl 10+
-  2, below that free) — both `upkeep()` and `fiefIncome()` call it.
-- `Game.fiefIncome()` = `{tax, wage, troops, net}`. The treasury tooltip has a "Fief tax" line,
-  the diplomacy screen (**K**) shows the fief list + net income.
-- **Balance**: stuffing a garrison with elite troops is a loss — measured (1.29.0, seed 1),
-  12 knights (lvl 20; veterans no longer climb, #124) cost **120** denars/day against a
-  100-denar town tax, net **−20**. Filling it with cheap troops is the correct move, same as
-  in Warband.
-- **An undefended fief gets taken back**: `warTick`'s siege threshold looks at `garrisonOf`, so
-  a garrisonless fief falls the first time an enemy lord passes by. `captureSettlement` then
-  drops `owner`, **wipes the garrison**, and shows you the news as a modal; storage stays put.
-- `owner` / `garrison` / `storage` are saved (in `Save.save`'s `locations` array).
-- **Asking your liege for land** (#32). Conquest is the only other way in, and a village cannot be
-  besieged, so a sworn vassal who never storms a castle used to have no path to a fief at all. The
-  king's dialogue carries `🏰 Tımar iste` → `Game.askFief`: gates are `peakRenown() ≥ fiefGate()`
-  (`FIEF_GATE` 300, **+200 per fief you already hold**) and relation `≥ FIEF_REL` 20. The list is
-  the unowned settlements of your own faction, nearest first, capped at 6. `Game.takeFief`
-  **re-checks every gate** — the window can sit open while the world moves on — then sets `owner`
-  and drops every other lord of the faction 2 relation: land you get is land they didn't.
-- **The fief list is its own screen** (#48). It used to live only at the bottom of the diplomacy
-  modal, four scrolls past the wars. `Game.fiefListHtml(withTravel)` is one builder feeding two
-  screens: diplomacy (plain) and `Game.showFiefs()` from the ⋯ More menu (with a 🧭 travel button
-  per fief). Management itself stays in the settlement menu — garrison, storage and enterprise all
-  need you standing in the place.
+`loc.owner === 'player'` opens tax (`Game.fiefTax(loc)` = `prosperity × (town 2/keep 0.7/village
+1)`), garrison (`loc.garrison[]`, real troops that don't count against party capacity but do add
+wage to `upkeep()`), and storage (`loc.storage[]`, food here doesn't spoil and isn't looted on
+defeat). Stuffing a garrison with elite troops is usually a net loss — wage scales with level,
+tax doesn't. An undefended fief (garrison below the siege threshold) falls to the first passing
+enemy lord. A vassal can ask their liege for unowned land past a renown gate
+(`FIEF_GATE`=300, +200/fief already held) + relation ≥20.
 
 ### Vassals — granting fiefs as king (#40)
-Once you found your own kingdom (`state.player.vassalOf === 'player_kingdom'`,
-`Game.isKing()`), a fief stops being a burden you carry alone: **you grant land to keep
-lords.** The same rule as Warband applies exactly — no one swears fealty to a landless king.
-
-| What | Where | Rule |
-|---|---|---|
-| **Invite** | lord dialogue → 👑 Join my kingdom | Requires relation ≥ **25** and a fief on hand (non-village) to grant. The offer is a direct fief offer: the town/keep you choose becomes theirs |
-| **Granting a fief** | diplomacy screen (**K**) → 👑 Grant to vassal on the fief's row | `Game.grantFiefTo(locId, lordId)`; villages within 900 units change hands too |
-| **Tribute** | every day, `fiefIncome()` | **30%** of the vassal's fief tax (`Game.VASSAL_TRIBUTE`) comes to you, the rest and the garrison burden stay with them |
-
-- A vassal's **party fights under your banner**: `lord.faction` and their map party's
-  `faction`/color become `player_kingdom`, so `warTick`/`isHostile`/`pickMarshal` all
-  automatically count them as part of your army. Every lord of their old kingdom loses
-  **−10** relation.
-- Granting a fief hands its **garrison to the vassal's command** (`loc.garrison` empties, its
-  wage no longer comes out of `upkeep()`); defense falls back to `garrisonOf`'s formula branch.
-- Granting a fief gives **+20 relation**; other vassals still landless get **−5** (jealousy).
-- Since `LORDS` isn't saved, vassalage is stored as `state.vassals` (an id list);
-  `Game.applyVassals()` restores the lord's and their party's banner on load.
-- A player who is king **isn't summoned to their own campaign**: `campaignTick`'s
-  `summonToArms` call is skipped for `player_kingdom` (it still picks a marshal, vassals still
-  march to the target).
-- Measured: a king with 3 fiefs collects +205 tax a day; granting Praven (prosperity 55) to a
-  vassal drops their own tax to 96 but brings +33 tribute (net 129) — giving away land halves
-  the money, in exchange for a lord who'll fight for you and a town defended for free.
+Once you found your own kingdom, you grant fiefs to keep lords (no fief, no fealty, same rule as
+Warband). Inviting a lord needs relation ≥25 + a spare fief; a vassal's party then fights under
+your banner and their old kingdom's lords lose −10 relation. **Tribute**: 30% of the vassal's
+fief tax comes to you daily; granting a fief gives it its garrison too (no longer your wage
+burden) and +20 relation (other landless vassals −5, jealousy).
 
 ### Tournament, betting, and the arena (#26)
-A town has two non-battle fight offerings: the **tournament** (opens occasionally, has a
-prize, has betting) and the **arena** (always open, no prize, practice).
+**Tournament**: a real 8-fighter bracket (lords, 7 traveling regulars, companions, you) fought
+on the real `Battle` engine — wooden weapons, blunt damage, nobody dies. Rounds you're not in
+are rolled (`a.lv/(a.lv+b.lv)`); the city keeps a remembered champion even after you're
+eliminated. Prize: Çeyrek Final 50 / Yarı Final 150 / Final 500+20 renown. Betting odds read off
+the actual field strength (`tourneyOdds`, clamped 1.2–6), not a fixed table. Fought in a round
+sand-pit arena, not the open-field terrain generator.
 
-**Tournament** (#122) — a real bracket fought on the real `Battle` engine. Eight fighters
-(`Game.tourneyField`: lords of the city's own faction, the seven travelling `TOURNEY_REGULARS`
-who follow the circuit from town to town, your own companions, and you) are drawn into three
-rounds — Çeyrek Final, Yarı Final, Final. Every round **you** are in is an actual fight on the
-arena's rig (`Battle.startTourneyFight` → `soloFoe`, shared with `startArena`/`startDuel`):
-party stays out, wooden weapons, `dmgType = 'blunt'`, nobody dies. Rounds you are not in are
-rolled (`tourneyRoll`: `a.lv / (a.lv + b.lv)`), and the bracket keeps being rolled after you are
-knocked out so the city always has a champion to remember — `state.tourneyChampions[cityId]`,
-shown on the entry screen the next time you walk in.
+**The chicken-chase minigame** (`TournamentMinigame`) still exists but only as a quest
+encounter now — its tournament branch is unreachable, `start()` defaults to chicken mode.
 
-Pairings are seat order, not a table: your opponent is `seat ^ 1`, your match is `seat >> 1`.
-The board lives in `state.tourney` (not on `Game`) because each fight leaves the map screen and
-comes back, and a save taken between two rounds must not forget the paid-in bet. Each round costs
-2 hours. Stepping out of the city mid-bracket is allowed — the town's action list then offers
-**🏆 Cetvele Dön**, since the city is removed from `state.activeTournaments` the moment the
-bracket starts.
+**Arena** (`Battle.startArena`): always open, no party/loot/renown/prisoners — practice against
+a leveled foe, always infantry (an archer would kite a 1v1 forever). A win pays a small purse
+(`ARENA_PURSE`=10, scaled by town prosperity) with a 5-fight streak bonus; a loss pays **no XP**
+(it used to pay 40%, making deliberate losses the fastest weapon-skill grind in the game).
 
-| Round won | Çeyrek Final | Yarı Final | Final |
-|---|---|---|---|
-| Prize (`TOURNEY_PRIZE`) | 50 | 150 | **500** + 20 renown |
-
-**Betting** (at most `Game.ARENA_BET_MAX` = 1000 denars): money is taken on entry, the payout is
-`bet × odds[rounds won]`. The odds are read off the field rather than a fixed table
-(`Game.tourneyOdds`): champion odds are `2.4 × avgRivalLevel / playerLevel`, clamped to 1.2–6, and
-the two lower rungs are 12% and 34% of that. So a field of veterans pays, a field of boys does
-not — but no longer without limit. **Measured**: the old `3 ×` clamped to 1.5–12 turned the arena
-into an unlimited bank at low level (#53), so the field's own level spread was raised too —
-`tourneyField`'s `spread` is `[-1, 0, 1, 2, 3, 4, 6]` (was `[-4, -2, -1, 0, 2, 3, 5]`), i.e. the
-opening round is no longer a free win and the champion always stands above you.
-
-Winning also opens `state.pendingDedication` (you can dedicate the win to a lady) and counts
-towards `state.player.tourneyWins` (the ambition chain, #53). `Quests.emit('tournament_end',
-{ won, wins })` fires on every bracket that finishes — the `fixed_match` ("Şike") quest now asks
-you to win 1–2 rounds and then lose, since a bracket has no score to throw.
-
-`TournamentMinigame` (clicking targets, `ROUNDS`/`GEAR`/`ODDS`) is still in `battle.js` but its
-tournament branch is unreachable: `start()` defaults to `mode: 'chicken'` and the only caller left
-is the chicken-chasing quest (`goal: 16`, `time: 25`), which fires `chickens_caught`.
-
-**The ring itself is round (#132).** Both `isArena` and `isTourney` fights (not `isDuel` — a
-lady's-honor duel isn't fought in the town's arena building) skip the open-field terrain
-generation entirely and draw a circular sand pit instead (`Battle.buildArenaGround`): raked
-rings, a wooden post fence, a crowd of small "heads" packed around the outside, fading into the
-stand. `Battle.arenaRing(w,h)` (`r = min(w,h)×0.47 − 10`) is the one shared number — the same
-circle both draws the wall and clamps unit movement (`update`'s boundary clamp and `separate`'s
-post-collision clamp both switch from the rectangular field clamp to this circle when either flag
-is set), so nobody drifts past the fence the ground shows them. Player/enemy spawn points are
-likewise anchored to the ring's own center ± half its radius instead of the open-field offsets,
-which could land outside a small ring.
-
-`resizeCanvases()`'s generic `fit()` used to size `#battle-canvas` off `#battle-view.clientHeight`
-alone — the full box, `#battle-ui` included — while `Battle.start()` itself correctly sizes it as
-that same height *minus* `#battle-ui`'s own `offsetHeight` (the canvas and the UI bar stack, they
-don't overlap). The two only agreed at the exact moment a battle starts; any later resize (a
-phone's address bar hiding, the keyboard opening, rotation) re-ran the generic version and quietly
-grew the canvas by the UI bar's height, throwing off everything positioned from
-`canvas.width/height` — the minimap included, pinned to a corner that was no longer where the
-visible canvas ended. `fit()` now takes an optional reserved-height argument and the battle-canvas
-call passes `#battle-ui`'s `offsetHeight`, so a later resize lands on the same number `start()` did.
-
-**The chicken chase is a game now, not a formality** (#123). A 42px circle that sat still for
-1.2 seconds was a target you could not miss with 8 of 15 seconds to spare. The bird is **24px
-base** (`+0.8` per point of agility instead of 1.2), lives **0.8s** (`+0.12` per point of
-strength), spawns every **0.25–0.55s**, and **shrinks to ×0.75 in the last 5 seconds**. One
-spawn in four is a **goose** — drawn blue, and grabbing one costs you a caught chicken
-(floored at 0). 16 birds in 25 seconds, and the purse went 400 → **700 denars** to match.
-Measured (400 spawns): goose share **~25%**, radius 32 → **24** once the clock passes 5 s.
-
-**Arena** (`Game.openArena` → `Battle.startArena(idx)`) — a variant of the duel machinery: no
-party enters the arena, **no loot, renown, prisoners, or captivity**. The opponent is picked
-from `Battle.ARENA_FOES`, leveled relative to the player; since it's a wooden weapon,
-`dmgType = 'blunt'` (doesn't kill, stuns) and `type = 'infantry'` — *a single opponent must be
-infantry, since an archer drawn from the pool would kite you forever in a 1v1; the same fix was
-also applied to `startDuel`.*
-
-| Opponent | Level | Skill XP (on win) |
-|---|---|---|
-| Acemi Dövüşçü | player −3 | 80 |
-| Arena Gediklisi | player +2 | 180 |
-| Arena Şampiyonu | player +8 | 340 |
-
-**A win pays a purse** (`Game.ARENA_PURSE` **10**, #115). The sand used to pay only XP, so the
-arena was the one place in the game where a day's work bought nothing you could spend — and the
-town crowd betting on the bouts was paying somebody. The purse scales with the host town's
-prosperity (`arenaPurse()`, clamped to ×0.5–×1.5 around prosperity 50; `state.arenaLocId` is
-written by `openArena`, so the fight knows whose sand it's standing on). A series is **five
-fights**: the third carries **+25**, the fifth **+60**, and then the streak starts over — without
-the reset the fifth win's bonus would pay on every fight after it. A loss resets the streak to 0.
-Measured (prosperity 51 → purse 13, ten straight wins): `13, 13, 38, 13, 73` twice over.
-
-A loss gives **no XP** (#99). It used to pay 40%, which made throwing a match the fastest
-proficiency in the game: pick the champion — the one worth 340 — walk in, fall over, collect 136
-XP in a few seconds of real time, with no risk at all, because nobody dies in the arena and the
-player's HP is floored at 5 on the way out. The day in the sickbed was the only brake, and
-in-game time is the cheapest currency there is. The cost of a loss is now just that day. Weapon
-skill matches your equipped weapon's type, and an extra 60% of that amount is written to
-`riding`/`athletics` XP. Measured (One-Handed 1 → 10, always winning): the rookie takes
-**52 fights / 6.5 days**, the veteran **23 / 2.9 days**, the champion **13 / 1.6 days**.
-
-*(`Battle.surrender()` in a duel or the arena now drops straight into `endBattle(false)` — the
-old path didn't restore `_duelParty`, so a player withdrawing from the match had their party
-permanently deleted.)*
-
-### Bosses and relics (#37, #38, redesigned #132)
-Four unique bosses (`BOSSES` in `app.js`) surface on the map as peak renown climbs:
-Kurt Ana (60), Bozkır Hanı (130), Demirci Dev (200), Korsan Kral (280). `Game.ensureBosses()`
-(called from `lairTick` and on save-load) spawns a `kind:'boss'` site the day its renown gate
-is reached and never respawns a killed one (`state.bossKills`). The fifth entry, `savas_tanrisi`
-(`final:true`), is skipped by this renown loop entirely — it's only ever revealed by the
-`boss_map` item (see below).
-
-**No more guards (#132).** Every boss used to be a generic reskinned infantry unit
-(`hp = 100 + bossLevel×10`, `attack = 25 + bossLevel`, `defense = 20`) plus 7-11 fixed
-"Karanlık Muhafız" escorts — `guards` doubled as `Battle.start`'s total enemy headcount. Now each
-boss is a real solo unit with its own hp/attack/defense pulled straight from its `BOSSES` entry
-(`enemyCount` is always `1`): Kurt Ana 800/80/25, Bozkır Hanı 950/90/25 (**mounted**), Demirci Dev
-1100/100/35, Korsan Kral 1150/105/25, Savaş Tanrısı (final) 2600/130/40. HP was sized as
-*(old solo boss hp) + ~60% of the removed guard pool's hp* — most of the lost durability carries
-over, the rest is meant to come back through the boss's own AOE instead of guard headcount; attack
-only rose ~1.3-1.5× since the AOE already multiplies effective output. **Free side effect**: with
-headcount always 1, `Battle.routCheck()`'s `ROUT_MIN: 6` (any side starting at ≤6 never routs)
-means a boss can no longer flee — no separate exemption needed, just a comment at the spawn site.
-The player's own dismount check (`!u.isBoss`, `battle.js:~1000`) also skips a boss entirely, so
-Bozkır Hanı's mount is never separately unhorsed mid-fight — its own hp governs the whole thing.
-
-**Dodgable signature attacks.** `BOSSES.<key>.special` is a small config (`shape`, `radius` or
-`length`+`width`, `telegraph` duration, `dmgMult`, `cooldown`) shared by one generic state machine,
-`Battle.updateBossSpecial()`: idle → telegraph (a pulsing ground marker drawn by
-`drawBossSpecial()`, the actual dodge window) → strike (every enemy-side unit standing in the
-marked shape takes `attack × dmgMult` via the existing `dealMelee`/`afterArmor` choke point) →
-brief recovery → back to idle. One AOE system, five data-driven configs, not five bespoke ones —
-only Bozkır Hanı's line-shaped charge needs real geometry (`pointInOrientedRect`), the other four
-are a plain circle (distance check). Sürü Çağrısı (Kurt Ana), Bozkır Şarjı (Bozkır Hanı, a 260×70
-line), Örs Darbesi (Demirci Dev), Fırtına Yayı Yağmuru (Korsan Kral), Tanrı Gazabı (Savaş Tanrısı).
-
-**Hand-drawn boss art, not emoji (#132).** No image-generation tool is available and the game
-ships zero image assets (everything is drawn live on canvas) — `Battle.bossSprite(key)` bakes one
-bespoke silhouette per boss from basic canvas primitives (arcs/paths/rects: a crouched wolf, a
-mounted rider, a broad hammer-wielding giant, a tricorne-hatted pirate, a haloed war god), cached
-exactly like `unitSprite()` caches emoji, drawn through its own branch in `drawUnit` that skips the
-emoji pipeline entirely. Draw sizes are notably bigger than a regular unit's ~10-20px footprint:
-Kurt Ana 44px, Bozkır Hanı 46px, Korsan Kral 48px, Demirci Dev 64px (biggest of the 4 — "Dev" =
-Giant), Savaş Tanrısı 70px (the single largest sprite in the game).
-
-Each boss is beaten once and drops: a **unique item** (`unique:true, unsellable:true` — Kurt Dişi
-Hançer / Han Kısrağı / Dev Örsü Zırhı / Fırtına Yayı, never sold in the market, never buyable;
-the final boss has none, only its relic) and a **relic**.
-
-**Relics** (`RELICS`) are one-of-a-kind (`state.player.relics`, no stacking, kept through
-captivity). `Game.relicMod(name)` sums the owned relics' one modifier each, mirroring `perkMod`:
-Kurt Kanı `mapSpeed 15`, Bozkır Tuğu `moraleBonus 10`, Demir Yürek `maxHpPct 20`,
-Fırtına Tılsımı `loot 25`, Tüccar Mink `tradeEdge 10`, **Kalradya Sancağı**
-`atk 10, partyCap 50, cargoPct 50` (#132, the final boss's drop). Tüccar Mink is bought at the
-innkeeper for `RELIC_PRICE (6000)`; the rest drop from bosses. A duplicate (only via a save edit)
-pays 1500 coin instead of stacking. Kalradya Sancağı's three modifiers each wire into an existing
-single source of truth: `atk` adds to the player's battle `attack:` stat (`battle.js:~290`, one
-field already drives both melee and ranged damage), `partyCap` adds alongside the existing
-`perkMod('partyCap')` term in `Game.getPartyCapacity()`, `cargoPct` is a new multiply on
-`Game.cargoCap()`'s return (that function had no modifier hook before).
-
-**Boss of bosses.** The `boss_map` item (15000 denars) is doubly gated: all four boss relics
-(`bossRelicCount() === 4`) **and** `Game.BOSS_RENOWN = 300` peak renown. Using it no longer starts
-the **Savaş Tanrısı** fight directly (#132) — it calls `Game.spawnBossSite('savas_tanrisi')`,
-revealing it as an ordinary `kind:'boss'` map site exactly like the other 4; `state.finalBoss` is
-only set once the player actually walks up and attacks that site (`attackBoss()`). Killing it
-grants Kalradya Sancağı and sets `state.finalBoss` → `Game.showVictory()` (victory banner; the
-save survives so play continues).
+### Bosses and relics (#37, #38, #132)
+4 renown-gated bosses surface as unique solo units (Kurt Ana 60 renown, Bozkır Hanı 130, Demirci
+Dev 200, Korsan Kral 280) plus a 5th final boss (Savaş Tanrısı, only revealed by the `boss_map`
+item once all 4 relics + 300 peak renown are held). No escort troops any more — each boss is one
+tough unit with its own hp/attack/defense and a **dodgable signature attack**
+(`Battle.updateBossSpecial`: idle → telegraph → strike → recovery, one shared state machine, 5
+data-driven configs). Each drops a unique unsellable item and a **relic** (`RELICS`, one-of-a-
+kind permanent bonus, kept through captivity): Kurt Kanı (+map speed), Bozkır Tuğu (+morale),
+Demir Yürek (+max HP%), Fırtına Tılsımı (+loot%), Tüccar Mink (+trade edge, buyable for 6000₺
+instead of a drop), and the final boss's Kalradya Sancağı (+attack, +party cap, +cargo%).
 
 ### Daily event pool (#35)
-So a campaign isn't just staring at a silent table, `Game.dailyEvent()` rolls a die at the end
-of every day (at the very bottom of `dailyUpdate`, after the day's accounting is closed):
-`EVENT_CHANCE` **0.35**. If an event fires, it's told as a modal and its mechanical result is
-written in a line.
+`Game.dailyEvent()` rolls at day-end: `EVENT_CHANCE`=0.35. Pool is `Game.DAY_EVENTS` (mostly
+negative, contextual `when(ctx)` filters — near a settlement / mounted / near a village etc.).
+Costs are small (morale, a little food, a small fine, a wounded troop; theft capped at 250₺);
+positives are a small purse, food, morale, a road recruit.
 
-- The pool is `Game.DAY_EVENTS` (23 events, 15 negative / 8 positive — `deserter` moved to the
-  wanderers, #119). Every event has a
-  `when(ctx)` filter — `ctx` = party headcount, **the nearest settlement within 900 units**,
-  total food, morale. So "drunk soldier" only appears near a settlement, "lost a horseshoe"
-  only while mounted, "a village woman left cheese" only right by a village.
-- The die is rolled **twice**: first the tone (60% negative), then an event from that tone.
-  The last 4 events aren't repeated, but this filter runs **inside the tone** — applying it to
-  the whole pool used to starve the small positive pool against "recent events" and pushed the
-  negative share up to 71%. If the tone's own pool is completely empty, the filter drops —
-  otherwise a player wandering with no army and no town got no events at all.
-- Costs are small: morale ±2–4, 2–4 units of food, a 15–60 denar fine, a troop wounded for 2
-  days; theft is 2–5% of the treasury but **capped at 250 denars** (so it only annoys a rich
-  player too). The positive side: +30–90 denar purse, 2–4 meat, morale, a troop joining from
-  the road if there's capacity, two cheeses from a village.
-- Helpers: `Game.addMorale/addItem/takeFood`; no event fires during captivity or a siege camp.
-
-Measured (400 days, a roaming and growing 6-person party): **156 events — one every 2.6 days**,
-60% negative, 12 of 13 events appeared (the horseshoe event needs a horse) — this run predates
-the 11 events added in #132; the rate is set by `EVENT_CHANCE` alone and doesn't move when the
-pool grows, only the variety does.
-
-**Frequency re-check (#132)**: the original Phase 7 plan assumed the combined day+road rate was
-already "considerably more than once a day" and asked to retune it down toward ~1/day. Measured
-directly instead of assumed — `tools/harness.js`, 5 seeds × 40 days, `Game.dailyEvent()` and
-`Game.roadEvent()` both counted, `Game.roadTick()` fed a synthetic distance to stand in for
-actual travel (since the playerless harness never moves the map cursor): day-event rate lands
-at **0.35–0.38/day** regardless of travel (matches `EVENT_CHANCE` exactly, as expected), and
-road events add **0.10/day** at a modest 4h/day of travel up to **0.28/day** even at a generous
-12h/day of nonstop travel. Combined, the measured rate tops out around **0.6–0.65/day** —
-*under* one event per day even for an unusually road-heavy player, not over it. The plan's
-premise didn't hold up against measurement, so `EVENT_CHANCE`/`ROAD_CHANCE`/`ROAD_EVERY` were
-left unchanged rather than pushed down from an already-under-target baseline.
-
-### Who may stop you (#131, first half in 1.10)
-
-Two different things used to be called "an encounter", and only one of them was asked for.
-
-- **You chose it.** `setTarget` locks onto a settlement, a party (within 30, and only if
-  `Game.canSee` it) or a site, and `updatePlayer` calls `triggerEncounter` when you arrive.
-  This path never consults any gate — a thing you clicked always opens.
-- **It happened to you.** The collision loop in `updatePlayer` scans every party each tick and
-  fires at `d < 24`. This is the one that needs a rule, and the rule is
-  `Game.npcCanInitiateEncounter(npc)`:
-
-```js
-npcCanInitiateEncounter(npc) {
-    return this.isHostile(npc) || this.partiesTargetEachOther(npc);
-}
-```
-
-`partiesTargetEachOther` is intent on either side: `state.player.targetLocation` is this party,
-or `npc.playerTargetId === 'player'`. So:
-
-| crossing your path | stops you? |
-|---|---|
-| bandits, a lord at war, a blood feud, relation ≤ −50 | **yes** — `isHostile`; being intercepted is the point |
-| a friendly or neutral lord | no, unless one of you went looking for the other |
-| a caravan or villager train | no — `isHostile` is false for every trade party |
-
-Both exemptions were reported the same way: *"when I go over a party it shouldn't create the
-dialogue if I don't click on it."* The lord half shipped in 1.10. The caravan half took until
-#131 because `npcCanInitiateEncounter` had `|| npc.trade` in it — a trade party is never
-hostile, so that clause was the only thing letting one through, and it let *every* one through.
-Removing it costs no interaction: trade was already reachable by clicking, on the other path.
+### Who may stop you (#131)
+Two different things: **you chose it** (`setTarget`→arrival always opens, no gate) vs. **it
+happened to you** (collision at `d<24`, gated by `Game.npcCanInitiateEncounter(npc)` =
+`isHostile(npc) || partiesTargetEachOther(npc)`). A friendly/neutral lord or any trade party
+never interrupts you by merely crossing your path — only something hostile, or something either
+side was actually heading toward, does.
 
 ### Road events — encounters with a decision (#67)
-The day's event just *happens to* you; a road event **asks** you. `Game.ROAD_EVENTS` has 30
-events (34 until the four "take me along" stories moved to the wanderers, #119), each with 2–3 options, and every option has a real cost: money, hours, morale,
-honor, a troop getting wounded, or a straight battle.
-
-- **The die depends on distance, not the day.** `Game.roadTick(step)` accumulates distance
-  walked every frame inside the movement branch; every `ROAD_EVERY` **1200** units it rolls
-  `ROAD_CHANCE` **0.5**. The counter pauses during captivity and while `encounterCooldown`
-  runs — a player fresh out of a battle doesn't immediately get another decision thrown at them.
-- **After an event the road goes quiet** (`ROAD_QUIET` **2400**, #94). A memoryless roll can
-  fire twice in a row, and it did: two decisions inside a few seconds of travel read as a bug,
-  not as luck. The counter is set to `-ROAD_QUIET` after a hit, so the **shortest possible gap
-  is `ROAD_EVERY + ROAD_QUIET` = 3600 units** — back-to-back is impossible rather than merely
-  unlikely. `ROAD_CHANCE` was doubled to pay for the silence, so the *rate* is unchanged.
-  The issue also offered a ramped probability; the margin is one line and has a floor you can
-  state, a ramp has neither. Measured (seeds 1–5, 30 days of uninterrupted travel):
-  **15.6 events, mean gap 4968 units, minimum gap 3663** — no gap below the floor.
-- **The last twelve events are remembered**, not the last six: with a 20-event pool a window of
-  6 let the same story come back three times in a stretch of road.
-- **No second event system was built.** The day's event and a road event share the same three
-  pieces: context `Game.eventCtx()` (party/capacity, the nearest settlement within 900 units
-  and its faction, food, morale, purse, honor, whether it's night, terrain name, whether on a
-  road), selection `Game.pickEvent(pool, ctx, extra?)`, and a shared **last-6-events** window
-  (`state.recentEvents`, 12 deep). Two pools, one machine.
-- **Filters genuinely use context**: `pelt` only in a forest, `ford` only at a river crossing,
-  `lost_scout` only off-road, `peddler` only on a road, `night_fire`/`tracks` only at night,
-  `survivor` only right by a village raided within the last 10 days, `treat` only appears if
-  honor ≥10.
-- **Raw stays, translate at display.** The pool's `text` and every `label` are **functions**:
-  since the table is built before `I18N.load()`, a `T('…')` written at the top level would
-  freeze the translation. The string inside the function body is still a literal the static
-  extractor can see — the *"every T key exists in both dictionaries"* assertion covers this pool
-  too, no separate gate needed.
-- **One gate, two callers**: the result can return `{ html, then }`; `then` runs **after** the
-  modal closes (`Game.modalDone()`). Points-of-interest outcomes go through the same gate — a
-  battle screen opened before the modal closed used to get buried underneath it.
-- Shared helpers: `Game.spend(n)`, `Game.woundRandom(days)`, `Game.addRecruit(loc)` (`null` if
-  capacity is full), `addMorale/addItem/takeFood/addHonor/advanceTime`.
-
-Measured (seeds 1–5, 30 days of **uninterrupted** travel, a 6-person party ≈111 units/hour):
-**15.6 events on average**. In real play, since not the whole day is spent traveling, this
-shows up at about half that rate.
+`Game.ROAD_EVENTS` (30 options across ~2–3 choices each, real costs: money/hours/morale/honor/a
+wound/a fight). The roll is **distance-based**, not daily: every `ROAD_EVERY`=1200 units,
+`ROAD_CHANCE`=0.5, then a **quiet period** (`ROAD_QUIET`=2400) after a hit — so the shortest
+possible gap between two road events is 3600 units, never back-to-back. Shares its context
+(`Game.eventCtx()`), picker (`Game.pickEvent`), and last-12-events repeat filter with the daily
+event pool — one machine, two pools.
 
 ### Hail and winter (#121)
-**Hail** is the one road event with a clock: `storm.timer` **10** s. `showChoiceEvent` draws a
-bar and a seconds counter; while it runs `canDismiss()` is false (no ×, no Esc, no click-away).
-When it runs out `indecision()` costs **−8** morale and **×0.9** map speed for
-`INDECISION_HOURS` **6** (`state.player.indecisionUntil`, one factor in `getPlayerSpeed`), and
-a random visible choice is applied. The two choices both start `state.player.storm` for
-`STORM_HOURS` **8** game hours; `stormTick()` runs on every hour boundary in `advanceTime`:
-- every hour it eats **2 × upkeep().foodLow / 24** extra (three times the ration over the
-  storm); the first shortfall costs **−20** morale once.
-- **Shelter** passes the 8 hours at once through `roadDelay` (the world keeps moving).
-- **Walk** strikes `STORM_HITS` **2** unwounded men an hour: `STORM_KILL` **25%** die, the rest
-  are wounded 2 days; companions and a spouse are only wounded, as in battle. It ends at the
-  first `enterLocation` or after 8 hours, with a tally alert; the choice label shows the nearest
-  settlement and the hours to it (`hoursTo` = distance / map speed). The issue's "every second"
-  is a game hour here — a real second would wipe the army before the modal closed.
-- On the map: hail streaks in screen space and a 1.5 s canvas shake at the start (`drawHail`),
-  both off in lite mode and under reduced motion. The pause bar shows hours left and the tally.
+**Hail**: a 10-second timed road event (`storm.timer`), can't be dismissed. Choosing (or timing
+out into a random choice) starts an 8-hour storm: extra food burn, and either **shelter** (skips
+the hours) or **walk** (2 unwounded troops/hour take a hit, 25% die outright, companions only
+wounded).
 
-**Winter**: a year is `YEAR_DAYS` **120** days and its last `WINTER_DAYS` **20** are winter
-(days 101–120, 221–240, …; `isWinter`, `daysToWinter`). Five days before, an alert says so;
-the market strip shows "❄️ N days to winter · 🔥 coal: N days" from 15 days out, and the top
-bar's day gets ❄️ in winter. `winterTick()` runs once a day after the food alerts:
-- burns `coalNeed()` = **⌈(party + 1) / 10⌉** coal (`ITEMS.coal`, a trade good, base price 6);
-- short of it the day is **cold**: `morale()` returns at most `COLD_MORALE_CAP` **40** (read
-  live, so no event or victory lifts it past the cap), and after `COLD_SICK_AFTER` **3**
-  cold days **5%** of the troops (at least one; never a companion or spouse) die each day;
-- the alerts of a day are joined into one message, because `alert()` doesn't queue.
+**Winter**: last 20 of every 120-day year. Burns `coalNeed()` = `⌈(party+1)/10⌉` coal/day; short
+of it, the day is **cold** (morale capped at 40, and after 3 cold days 5% of troops die/day —
+never a companion/spouse).
 
 ### Wanderers — the only way a stranger joins (#119)
-Nobody is added to the party by a road or day die any more. A stranger who wants to join
-**walks the map as a sprite** (`type: 'wanderer'`, a lone figure on foot with its story's icon
-above it) and the player decides whether to go over — clicking it walks you there like any
-other party. The five stories that used to be events are `Game.WANDERERS`, text and choices
-moved unchanged (so the dictionaries didn't change): `deserter` 🚶 (was a day event), `runaway`
-👦, `chained` ⛓️, `deserters` 🛡️ (two of them), `orphan` 🗡️. `chained` and `deserters` sit
-still (a stake, a campfire); the rest loiter 150–550 units around their village.
-- `wandererTick()` (daily): strangers older than `WANDERER_LIFE` **4** days move on; below
-  `WANDERER_MAX` **4** a new one appears with `WANDERER_CHANCE` **0.6**, 250–600 units from a
-  random village and never within 500 of the player. These three numbers are a first guess.
-- Meeting (`triggerEncounter` → `meetWanderer`) takes the sprite off the map and opens the
-  same modal as a road event (`showChoiceEvent`), with `c.near` = the stranger's village.
-  An infamous player (`infamyPenalty() > 0.5`) gets a refusal instead, and so does a party
-  without room for `size` more — either way the stranger has had their say and is gone.
-- A wanderer has no faction and is not a bandit: never hostile, never a foe label, never in a
-  clash, never prey. Measured (8 seeds × 120 days, playerless): campaigns 130 vs 137 and peace
-  treaties 80 vs 95 with and without wanderers — noise, not an effect.
+No road/day event adds a troop directly any more — a stranger walks the map as its own sprite
+(`type: 'wanderer'`, 5 stories: deserter/runaway/chained/deserters/orphan) and you choose whether
+to approach. Daily upkeep keeps up to `WANDERER_MAX`=4 on the map, each living `WANDERER_LIFE`=4
+days before moving on. Never hostile, never a bandit, never prey.
 
 ### Debug report (#52)
-So there's more on hand than a screenshot when something breaks, there's a **🐞 Debug Report**
-button (`Debug.open()`; opened from the ⚙️ Settings panel and by clicking the error badge). The
-`Debug` object sits at the **very top** of `app.js` and `Debug.init()` is called right there —
-so even an error thrown while the game is booting gets caught.
+🐞 Debug Report (`Debug.open()`). `Debug.errors` is a 25-entry ring buffer catching
+`window.onerror`/`unhandledrejection`/wrapped `console.error`; the report (`Debug.report()`)
+bundles game state, rendering status (target/effective fps, frame divisor, canvas sizes),
+browser info, and the error list — every field wrapped in try/catch so the reporter itself can't
+throw. Copy-to-clipboard or download as JSON.
 
-- A ring buffer (`Debug.errors`, last 25): `window.onerror` (message + file:line + the stack's
-  first 3 lines), `unhandledrejection`, and a wrapped `console.error`.
-- `Game.skipFrame` calls `Debug.frame(d)` on every rAF — the last 30 frame intervals sit in the
-  report, evidence for a "black screen / freezing" complaint.
-- Report (`Debug.report()` → JSON): file date + address, game summary (day/hour, active
-  screen, whether a modal is open, health/denars/renown, location, `status`, party, prisoners,
-  faction, stamp, siege/raid/captivity, open battles, quest ids), rendering status
-  (`Battle.active`, loop ids, **target fps / frame divisor / effective fps**, measured refresh
-  rate, both canvases' size, last frames), browser/screen/DPR/memory, error list. *(The
-  divisor line used to assume 60 fps even in lite mode: with a real divisor of 16, the report
-  wrote 8 — this is what delayed diagnosing #85. The three fields are now written separately.)*
-  Every field goes through try/catch — the report itself can't blow up.
-- Modal text is selectable; **📋 Copy to Clipboard** (`navigator.clipboard`, an `execCommand`
-  fallback if permission is denied) and **💾 Download as File**
-  (`webband-debug-dayN.json`).
+### Save system
+Versioned, migratable, exportable (`webband_save_<slot>`: `1/2/3` manual + `a1..a5` autosave
+ring + `legacy`). `state.meta = { v, version, createdAt, playtime, autoIdx }`. `Save.auto()`
+fires at the start of every game day. A corrupt save is moved to `webband_broken_<time>`, never
+silently deleted. **The migration chain** `Save.migrate(d)` lives in one place, one `if` block
+per version bump — never scattered `if`s inside `load()`.
 
-Measured: `Game.nonexistentFunction()` and a rejected promise both showed up in the buffer as
-`error` and `promise`, the report was 1.6 KB, the average of the last 30 frames was 16.7 ms
-(68 Hz).
+### Error visibility: badge and loop shield
+`Debug.guard(where, fn)` wraps the body of all three rAF loops — an exception is swallowed and
+logged (deduped by signature), but `requestAnimationFrame` on the next line still runs, so the
+loop survives instead of freezing the screen. `#err-badge` (bottom-right) surfaces the count.
 
-**The "unlabeled yellow button" complaint's (#35)** single gate is `Game.btnLabelOk(text,
-where)`: if the label is empty/`undefined` or is nothing but the label, the button is **never
-drawn** and `Debug.log('emptybutton', …)` drops into the report along with the call's stack —
-which flow it came from is read from the JSON the player submits. It has two callers: `addBtn`
-(the settlement screen) and `showModal`, which — since modal HTML is generated from a template
-string — scans the buttons after they're written and sets an empty one to `display:none`.
-Measured: an `addBtn` with an empty label never drew, an empty button in a modal was hidden,
-a filled one was left untouched; not a single false positive across the market (36 buttons),
-the inn (11), the hall, diplomacy, and debug modals.
+### Settings screen
+One gate: `Game.opt(k)`/`setOpt(k,v)`, defaults in `Game.OPTS`, `state.settings` stores only
+deviations. Rows: sound/volume, reduce motion (System/On/Off), blood & corpses, frame-skip gate
+toggle, font size, autosave, 🖱️ edge panning (Device-dependent/On/Off), 📱 lite mode
+(Device-dependent/On/Off), ⚔️ difficulty.
 
-### Save system (#55 item 1)
-A versioned, migratable, exportable system in place of the single-slot `webband_save_v1`.
+### Accessibility pass
+Team rings are distinguished by **dash pattern**, not just color (enemy dashed, friendly solid —
+their gray values are only 13/255 apart, so shape carries the distinction on a grayscale
+screen). Modal keyboard: Esc closes (except an open encounter modal), Enter presses the primary
+button.
 
-| What | Rule |
-|---|---|
-| Key | `webband_save_<slot>`; slots are `1/2/3` (manual) + `a1..a5` (auto ring) + `legacy` (`webband_save_v1`, read-only) |
-| Version | `v: 2` at the save's root; `state.meta = { v, version, createdAt, playtime, autoIdx }` |
-| Autosave | `Save.auto()` at the start of every game day (`dailyUpdate`'s first line), ring `a1→a5→a1`; can be turned off in settings |
-| Corrupt save | On a JSON error, `Save.read()` **doesn't delete** the save, moves it to a `webband_broken_<time>` key, logs via `Debug.log` + a warning, returns `null` |
-| Export/import | `Save.exportSave()` copies the text to the clipboard, `Save.doImport()` validates the pasted text and writes it to slot 1 |
+### Touch and mobile
+Three separate questions, three separate knobs — never one "mobile mode" switch, because they
+diverge even on the same device (a tablet: coarse pointer + wide screen):
 
-**The migration chain** `Save.migrate(d)` lives in one place — it used to be one-off `if`s
-scattered inside `load()`. v1 → v2: `state.explored` is dropped, a troop name prefixed
-`Efsanevi ` is converted to a `legendary: true` flag, `state.muted` moves to
-`settings.muted`, `meta` is set up (`migrated: true`).
-If `d.v > Save.V`, the save doesn't open ("from a newer version").
-
-Measured: `Save.save('1')` **1.4 ms**, a save is **36 KB**; after 7 autosaves the ring
-`a1..a5` = days 15/16/12/13/14 (`autoIdx=2`); export → `localStorage.clear()` → import
-round-trip brought back day 42 / 9999 denars / 77 renown exactly; a corrupt JSON was moved
-from `webband_save_2` to `webband_broken_2026-09-09042327`, the game stayed open; loading a
-v1 save dropped `explored`, turned "Efsanevi Svadya Şövalyesi" into "Svadya Şövalyesi +
-legendary", moved `muted` into settings, `meta.v = 2`.
-
-### Error visibility: badge and loop shield (#55 item 2)
-An exception breaking the rAF chain froze the screen, and no one who hadn't opened the
-console could see why. Two pieces:
-
-- **`Debug.guard(where, fn)`** — wraps the body of all three loops (`map loop`, `battle
-  loop`, `tournament loop`). Swallows the exception, **the `requestAnimationFrame` on the
-  next line still runs**, so the loop survives. The same signature (`where|message`) is
-  logged once, a repeat is counted in `Debug._sig` and written into the report as
-  `swallowedRepeat` — a flood of errors doesn't sweep the buffer.
-- **`#err-badge`** — bottom-right "⚠️ N errors — click to copy", clicking opens `Debug.open()`.
-  `Debug.log` calls `badge()` on every call, so `onerror`/`unhandledrejection`/`guard` all go
-  through the same counter.
-
-Measured: 45 exceptions (40 with the same signature, 5 with a second) → **2 records, 0 leaked
-exceptions**, badge "⚠️ 2 errors", the report carries the lines `map loop|test blowup x40` and
-`battle loop|second signature x5`; a normally-returning body's value (`42`) is preserved. In
-the real loop, blowing up `renderMap` keeps `Game._loopId` alive and the badge shows 1 error.
-
-### Settings screen (#55 item 7)
-**⚙️ Settings** in the side menu (`Game.showSettings()`). One gate: `Game.opt(k)` /
-`setOpt(k,v)` — defaults live in `Game.OPTS`, `state.settings` stores only the
-**deviations** (it enters the save with `state`).
-
-| Setting | Effect |
-|---|---|
-| Sound / volume | `Game.sfx()` checks `opt('muted')`, scales the gain by `opt('volume')` |
-| Reduce motion (System/On/Off) | `Game.reduceMotion()`; `body.reduced-motion` turns off every CSS animation and transition, camera smoothing becomes **instant** (`snap = 1`), `Battle.spark()` produces no particles at all |
-| Blood and corpses | if `opt('gore')` is false, `Battle.blood()` returns early, corpses aren't pushed |
-| Frame-skip gate | if `opt('frameGate')` is false, `skipFrame` **never** skips a frame (measurement keeps running anyway) — the player's own escape hatch |
-| Font size | `opt('fontScale')` × the 16 px root font size; the UI is `rem`-based |
-| Autosave | turns off `Save.auto()` |
-| 🖱️ Edge panning (Device-dependent/On/Off) | `Game.edgePan()`; `'auto'` = `!isTouch()` — see "Edge panning is for the mouse" |
-| 📱 Lite mode (Device-dependent/On/Off) | `Game.lite()`; simplifies the whole game and drops the target to 30 fps — see "Lite mode" |
-
-The panel also carries 💾 Saves, 🐞 Debug Report, ⌨️ Keys (the `Game.KEYS` table), and the
-version line. Measured: font scale 0.9/1/1.15 → root **14.4 / 16 / 18.4 px**;
-`reducedMotion:true` adds the `body.reduced-motion` class, `'auto'` is false on this machine;
-with the frame gate `_step=4`, on it gives `[true,true,true,false]`, off gives
-`[false,false,false,false]`; `state.settings` holds only the three deviating keys.
-
-### Accessibility pass (#55 item 6)
-- **Team distinction isn't color alone**: `Battle.drawUnit` draws the enemy ring with
-  `setLineDash([4,3.2])`, the friendly ring stays solid. Measured: friendly ring **100%
-  coverage / 0 gaps**, enemy **75% / 6 gaps**; the two ring colors' gray value is 151 vs
-  138 — only **13/255** apart, so on a grayscale screen shape is now what carries the
-  distinction.
-- **Keyboard in a modal**: `Input.init` — while a modal is open, **Esc** closes it (except
-  the encounter modal — no escape key while `currentEncounterNpcId` is set) and **Enter**
-  presses `button.primary` in `#modal-body`, or the first button if there is none. Measured:
-  Esc closed it, Enter picked the primary button (2), with no primary it pressed the single
-  button (7), the encounter modal resisted Esc.
-- Font-size scale and reduce-motion are in the settings table above.
-- Touch/mobile got its own pass — see the section below.
-
-### Touch and mobile (#65)
-
-The game was completely unplayable without a mouse and keyboard. Three separate jobs:
-**input path**, **layout**, **hint text**. One rule: `pointer: coarse` decides the input
-path, `max-width` decides the layout — two separate questions, because a tablet's wide
-screen is still dragged with a finger.
-
-**1. One input gate.** `mousemove/mousedown/click` listeners were replaced with **pointer
-events** (`Game.onMapDown/onMapMove/onMapUp`); mouse and finger go through the same gate, two
-separate targeting paths aren't kept. The `e.pointerType === 'mouse'` branch calls the old
-behavior (`handleMapHover` / `startTargetDrag` / `endTargetDrag`) exactly as before.
-
-| Finger | What it does |
-|---|---|
-| One-finger drag | Pans the camera — the **same** gate as WASD (`camera.offset`), the ±9000 bound in `update` |
-| Two fingers | Zooms: `targetZoom × (new spread / old spread)`, between `minZoom()` and 3.0 |
-| Short tap (<450 ms, <10 px) | `handleMapClick` — sets a target / enters a settlement |
-| Long tap (≥450 ms) | `handleMapHover` — opens the tooltip, **doesn't set a target** |
-| Dragging over the target marker | Moves the target marker (its own code, #35) |
-
-Measured (375×812, zoom 0.8): a −60/−30 px drag panned the camera **+75 / +37.5** world
-units (= pixels/zoom); a two-finger spread going 100 → 200 px turned zoom **0.80 → 1.60**.
-A short tap set the target, a 600 ms tap opened the tooltip and **didn't set a target**.
-
-**A lost `pointerup` used to end the session (#100).** The tap/pinch distinction is
-`_ptr.size`, a Map of the touches currently down, so a touch whose `pointerup` *and*
-`pointercancel` both fail to arrive leaves a ghost finger in it — and from then on `onMapUp`
-reads every tap as multi-touch and drops it. The map still draws at 60 fps, the sidebar still
-works, nothing is logged: the party simply never takes another order. Both shells drop that
-event (WKWebView when the app is backgrounded mid-touch, the Android WebView when the system
-claims the gesture), and it was reported from an iOS sideload and an Android install alike.
-
-Writing and loading a save does **not** clear it — the ghost lives on `Game`, not in `state`,
-which is worth remembering when a player says a reload fixed something. Only a reload did.
-
-The fix is one line in `onMapDown`: a **primary** down clears `_ptr` (and `dragTarget`, which
-the same lost event strands, costing a tap and turning one-finger pans into marker drags). The
-browser marks a touch primary only when no other touch of its type is active, so it is an exact
-"nothing else is really down" signal rather than a timeout — a real second finger is never
-primary, and pinch survives untouched. Verified with real `PointerEvent`s in the browser: a
-dropped touch no longer kills the following taps, and two fingers still register as two.
-`Debug.report().render.input` now carries `{ ptr, drag, suppressClick }`, because this class of
-bug reads as a render freeze and the report had nothing to say about input.
-
-**2. Battle controls** (`#touch-ui`, `Game.initTouchUI`). Bottom-left a **movement stick**,
-bottom-right an **aim stick**, a 🛡️ block button between them, a single row of command
-buttons above. Sizes live in three `:root` variables (`--tui-stick` / `--tui-btn` /
-`--tui-lift`) — shrunk in #86. None of them opens a new input path into the battle engine:
-
-- The left stick writes `w/a/s/d` into `Input.keys` (threshold ±0.38) — the engine still
-  reads keys.
-- **The right stick aims the sword (#88)**: while dragging, `Input.aim`; on finger-lift,
-  `Battle.playerAttack()`. Tapping without dragging swings at the last aim direction, so the
-  old ⚔️ button's job still stands. If a bow is equipped, the same stick shoots an arrow
-  (`playerAttack` already checks the weapon).
-- Aim is derived via `Input.aimSync(u)` from `Input.aim || Input.stick`'s direction and
-  written into `Input.mouse` — the battle engine still only reads `Input.mouse`, two separate
-  aim paths aren't kept. If the right stick is never touched, aim is still the **movement**
-  direction, exactly as before (#65's behavior). If the mouse moves, both reset, aim goes
-  back to the mouse.
-- With a finger there's no cursor, so `Battle.render` draws an **aim arc** in front of the
-  player (a single outline, spanning `swingHalfAngle()`) — where the sword will go is only
-  visible if it's drawn.
-- The stick machinery lives in one place: the `mount(el, knob, onDir, onEnd)` closure inside
-  `initTouchUI` sets up both sticks.
-- Commands send a synthetic `KeyboardEvent('keydown')` via `Game.touchCommand(key)`;
-  `Input`'s own listener resolves it.
-
-**The bottom half of the screen belongs to fingers**, so drawing and panels moved up:
-`drawHud`'s base is `const B = Game.isTouch() ? 150 : H` — the tooltip and command strip sit
-**above** the power bar, near the top of the screen. The battle log's bottom position is
-derived from the same control variables.
-Measured (355×493 canvas): command strip 110–138, log 223–319, command buttons 325–359,
-sticks 367–483, ⚔️/🛡️ 409–483, Surrender 503–547 — **no pair overlaps**. The controls'
-`--tui-lift: calc(66px + env(safe-area-inset-bottom))` starts above the bottom strip
-(Surrender) and doesn't slide under the home bar on a notched phone.
-
-**3. Narrow-screen layout** (`@media (max-width: 820px)`): the side menu becomes a horizontal
-strip that opens at the bottom (icon on top, label below, shortcut badge hidden), campaign-bar
-badges wrap, the modal scrolls within itself via `calc(100vw - 20px)` + `max-height: 88vh`,
-the market's two columns stack (`#market-cols`), the start screen's absolutely-positioned
-buttons join the flow. On a landscape-held phone (`max-height: 480px`) badge subtitles and
-menu labels drop.
-
-- **A tooltip opens on tap**: there's no `:hover` on a finger. `pointerdown` toggles the
-  `.tip-open` class on `.tooltip-container`, the `:hover` rule is voided on a coarse device.
-  The overflow fix is gathered into one place (`Game.clampTip`) — a tooltip arriving via mouse
-  and one opened via touch both go through it. The map tooltip is also measured and clipped
-  into the screen (`handleMapHover`): measured, on a 375 px screen 132 → 361, **no overflow**.
-  *(A `rect` in the same body was undefined: it threw a `ReferenceError` every time near a
-  settlement, and the tooltip never opened.)*
-- **Touch targets** at least 44 px (WCAG 2.5.5). Measured: before the rule, `#map-hud` had
-  four buttons at 22/22/20/20 px, after it **0** of the visible on-screen buttons are under 44.
-- The three canvases carry `touch-action: none` (pan/pinch are ours), the `viewport` tag
-  carries `user-scalable=no, viewport-fit=cover`.
-- **Page height is `dvh`, not `vh` (#85).** On iOS, `100vh` is the height valid *while the
-  toolbars are hidden*. Measured (an iPhone debug report): `screen 390x844`,
-  `window 390x669` — so the layout stayed ~80 px taller than the visible area and the phone
-  "kept scrolling itself." `body` and `#game-container` now carry `height: 100dvh` right after
-  their `height: 100vh` line (the first is the fallback for a browser that doesn't support it),
-  `html`/`body` also cut rubber-banding with `overscroll-behavior: none`.
-- Hint text knows the device too (`Game.isTouch()`): in the battle log, "WASD move · Left
-  click attack" becomes "Left stick move · Right stick sword · 🛡️ block", in the tooltip
-  "[Right click/Shift]" becomes "🛡 button".
-
-#### Hint text learns the device too (#83)
-In the first pass only two strings looked at the device; the rest of the UI still spoke
-keyboard. Now it's a single gate again, `Game.isTouch()`:
-
-| Where | Keyboard | Finger |
+| Question | Knob | Default |
 |---|---|---|
-| Side menu | `<kbd>M</kbd>` badges | no badge (`body.touch .menu-btn kbd { display: none }`) |
-| Map tooltip | `🌍 Diplomacy <kbd>K</kbd>`, `🎯 Find Me <kbd>Space</kbd>` | no badge, no "(K)" / "(Space)" suffix in the tooltip title either |
-| Settings | `⌨️ Keys` → `Game.KEYS` (14 lines) | `🎮 Controls` → `Game.TOUCH_HELP` (12 lines: tap / hold / drag / two fingers / stick / ⚔️ / 🛡️ / 1-2-3) |
-
-The class is `body.touch`, not a media query: `@media (max-width: 820px)` was missing the
-tablet — a tablet is a wide screen but is dragged with a finger (#65's rule: `max-width`
-decides layout, `pointer: coarse` decides input). `Game.init` sets the class once.
-
-Measured: at 375×812 with `pointer: coarse`, `body.className = "lite touch"`, the menu
-badges' `display` value is `none`, the settings button reads `🎮 Controls`, the table has
-**12 rows**; at 1280×800 with a mouse, `isTouch() false`, `body.className` empty, badge
-`display: block`, button `⌨️ Keys`, table **14 rows**. 24 new keys landed in both
-dictionaries (1725 → 1749), `I18N.missing` is empty in tr/en/id alike.
-
-**The acceptance run was carried out with a finger only** (375×812, `pointer: coarse`):
-character-creation wizard → a bandit fight, **"⚔️ Perfect Victory!"** (all four directions
-used with the virtual stick, 6–7 swings, 0 losses) → shopping at the market
-(`🌾 Grain x1 bought · -3₺ · treasury 663₺`).
-
-#### The iPhone 14 tour: full-screen battle, four tabs, "⋯ More" (#86)
-
-#65 and #83 fixed the input path and the hint text; **layout** was still broken on a 390 px
-screen. Every screen was walked with a finger at 390×664 (an iPhone 14's visible window with
-toolbars shown), and nine flaws were measured and closed.
-
-**1. In battle the whole screen belongs to the arena.** The campaign bar (123 px) and menu
-strip (105 px) ate a third of the 664 px window; the remaining 345 px canvas had `drawHud`'s
-top strip, the battle log, and the controls stacked on top of each other. `showScreen` now
-toggles a `body.in-battle` class, and the CSS rule hides both **only inside** `pointer:
-coarse` (desktop untouched). No one taps them on a screen that isn't being played anyway; Esc
-/ Surrender leaving battle brings the strip back.
-
-**2. Controls are measured from `:root` variables.** `--tui-stick` 116 → **92**, `--tui-btn`
-74 → **60**, `--tui-lift` 72 → **66**. `.battle-logs`'s bottom position is no longer a fixed
-pixel value, it's derived from the same three variables — when the controls shrink, the log
-falls into place on its own.
-
-**3. Label size follows the screen** (`Game.uiScale()` = `max(0.68, min(1, short side/620))`).
-A fixed 19 px was right on a 1440 px canvas, a wall of text on a 370 px one. The second change
-at the collision point: if `mapLabel` can't find a spot in 8 tries, it **doesn't draw the
-label at all** (it used to draw it anyway). Which name gets dropped is read from the
-tooltip — two overlapping names used to erase both.
-
-**4. Four tabs + "⋯ More".** `#sidebar` with 8 buttons was `scrollWidth 530 / clientWidth
-372`: Saves, Sound, and Settings were off-screen with no scroll indicator. On a narrow
-screen those four are hidden with `.sb-extra`, an `.sb-more` button appears in their place,
-and `Game.showMoreMenu()` lists the same `onclick`s as a modal — **no second code path
-opens**. Since Quests sits behind "More", `showScreen` marks `.sb-more` active while that
-screen is showing.
-
-**5. The map tooltip was narrowed by font size, not text.** In the first attempt buttons were
-reduced to icons (`⏳ Wait` → `⏳`); the player's first reaction was *"some buttons had no
-text."* Rule: **text doesn't get stripped from a button.** Inside `@media (max-width: 430px)`,
-`#map-hud` gets `font-size: 0.66rem`, buttons `0.6rem` — the tooltip goes **137 → 77 px**, all
-four fit on one line, the touch target is still 44 px.
-
-**6. Command buttons carry no keyboard digit.** `1 Follow / 2 Charge / 3 Hold` →
-**`Follow / Charge / Hold`** (the dictionary keys changed too). On a finger, `drawHud` doesn't
-write the command list to the canvas **a second time** (`hudW` 360 → 150), and the battle
-start log doesn't get a `[1] Follow · [2] Charge · [3] Wait` line; the block hint also isn't
-written every frame, only the moment of a block shows.
-
-**7–9.** `#btn-wait` gets `pointer-events: auto` + the gold-button look (it was dead on every
-platform); the touch-target rule got `min-width: 44px` (including `#tcmds button`, 34 → 44);
-on a narrow phone, badges' `.hud-sub` subtitle drops (except the clock) → top bar **123 →
-73 px**.
-
-Measured (390×664, tr):
-
-| | before | after |
-|---|---|---|
-| Battle canvas | 370×345 | **390×602** |
-| Overlapping UI pairs (in battle) | 3 | **0** |
-| Menu strip | `scrollWidth 530 / clientWidth 372` | **372 / 372**, 5 tabs (71–75 px) |
-| `#map-hud` height | 137 px | **77 px** |
-| Top bar | 123 px (3 lines) | **73 px** |
-| Visible touch targets under 44 px | 6 | **0** |
-
-Layout measured in battle (390×664): canvas 0–602, log 385–450, command strip 450–494,
-sticks 506–598, ⚔️/🛡️ 538–598, Surrender 612–656 — **no pair overlaps**. At 390×844 (no
-toolbars) the same row is 0–782 / 565–630 / 630–674 / 686–778 / 718–778 / 792–836.
-
-**Badge tooltips open on tap** — #65's `pointerdown` hook was already correct, and it was
-confirmed: all 10 badges (clock, denars, food, renown, health, party, bag, morale, level,
-speed) get `tip-open`, become `visibility: visible`, and the tooltip box stays **fully
-inside** the 390×664 window (`Game.clampTip`).
-
-Screens scanned (390×664, every one with 0 targets under 44 px and 0 horizontal overflow):
-start, character-creation wizard, map, character, party, inventory, quests, settlement (9
-buttons, 342×52), market, tavern, the "⋯ More" page, battle. Desktop check (1280×800): all
-8 tabs visible, `.sb-more` hidden, shortcut badges in place, tooltip buttons full-text —
-**nothing changed**. `Debug.errors` is 0 and `I18N.missing` is 0 in tr/en/id alike.
-
-#### Edge panning is for the mouse, zooming isn't for the page
-Two separate things were broken on touch by the same cause: **there's no such thing as a
-cursor.**
-
-**1. Edge panning is mouse-only.** Resting the mouse at the screen's edge and having the map
-pan is correct behavior; but while playing with a finger, `Input.mouse` stays at the
-coordinates of the last **touch**, and if that point landed in the edge band (40 px) the map
-kept scrolling on its own — in the player's words, *"unplayable."* A single gate was put at
-the top of `update`'s edge block — `Game.edgePan()`; panning with a finger already happens via
-the one-finger drag (#65), so no capability is lost.
-
-The gate is **adjustable**: `Game.OPTS.edgePan` = `'auto' | true | false`, a **🖱️ Edge
-panning** row in ⚙️ Settings (Device-dependent / On / Off), the same triple pattern as
-`lite`. `'auto'` = `!isTouch()`. The device guess is a good default but not a verdict: edge
-panning isn't loved by everyone on desktop either, and on a tablet (coarse pointer + a mouse
-plugged in) someone might want it. The other two device knobs (`isTouch()` for the input
-path, `max-width` media queries for layout) weren't touched — see the note below.
-
-Measured (cursor 5 px inside the left edge, 10 frames of `update(0.016)`, `camera.offsetX`):
-
-| | Device-dependent | On | Off |
-|---|---|---|---|
-| Mouse | **−120** | −120 | **0** |
-| Touch | **0** | −120 | 0 |
-
-**2. Pinch-zooming the whole page is disabled.** Pinch-zooming the whole UI with two fingers
-breaks the panel (sizes are computed against the screen) and there was no way back. Two
-gates were needed, since neither alone is enough:
-
-| Browser | Gate |
-|---|---|
-| Chrome / Android | `style.css`: `html, body { touch-action: pan-x pan-y; }` — cuts both pinch **and** double-tap zoom |
-| iOS Safari | `Game.init`: `gesturestart` / `gesturechange` / `gestureend` → `preventDefault` (`{ passive: false }`) — Safari ignores `user-scalable=no` |
-
-**3. There is no single "desktop mode / mobile mode" switch — and there shouldn't be.** Three
-separate questions tie to three separate knobs, because their answers diverge even on the
-same device (a tablet: coarse pointer + a wide screen + a good GPU):
-
-| Question | Knob | Where |
-|---|---|---|
-| How is it entered? | `Game.isTouch()` = `pointer: coarse` | `app.js` (`body.touch`, hint text, `#touch-ui`) |
-| How does it lay out? | `@media (max-width: 820px / 430px)` | `style.css` |
-| How much is drawn? | `Game.lite()` (`'auto'` = `isTouch()`) | ⚙️ Settings → 📱 Lite mode |
-| Does it edge-pan? | `Game.edgePan()` (`'auto'` = `!isTouch()`) | ⚙️ Settings → 🖱️ Edge panning |
-
-Tying all three to one mode gives the wrong answer; a separate mobile codebase doubles every
-change. What was missing was **override**, and it's solved per knob: graphics (`lite`) and
-edge panning (`edgePan`) are now in the player's hands. There's still no switch that forces
-layout; if one's ever needed, the cost is adding a class to the selector list of
-`style.css`'s media queries (rule bodies aren't duplicated).
-
-The map's **own** two-finger zoom still works: the three canvases already carry
-`touch-action: none` (the item above), so the game claims the pinch over the canvas, the
-browser doesn't claim the page's.
-
-#### A bandit gang doesn't spawn in the player's lap (`SPAWN_SAFE`)
-The player starts at 4500,4500, while `createNPC` picked its radius starting from **0**: a
-bandit gang could appear right on top of them on the first frame and they'd be caught and
-taken captive before ever seeing the map. (The radius is now `√random × 3800` rather than a
-flat roll — #97: picking it uniformly packs points towards the middle, because the ring at
-radius *r* holds area proportional to *r*, so the continent came out measurably denser at its
-centre and thin at the coasts. Every respawn goes through here, so the bias was re-created
-daily rather than settling out. The NPC wander target uses the same √.) `Game.
-SPAWN_SAFE` = **1500**; `createNPC` tries up to 40 times to find a point outside that radius
-(accepting the last candidate if it can't — a flawed birth instead of a lockup). **One gate
-here**: `spawnNPCs`, `spawnBand`, `spawnTrader`, and the daily refresh all go through
-`createNPC`, so four separate patches weren't needed.
-
-Measured: at game start the nearest bandit is **1550** units away; when 400 new gangs are
-spawned, **the nearest is 1503**, average 2647; the six nearest NPCs at start are all a lord
-or a caravan (1267–1315 units) and **none are hostile**. `Debug.errors 0`.
-
-#### Tutorial — the UI is explained once, on the first playthrough (#87)
-
-Once character creation finished, the player dropped onto the map and nobody told them
-anything. `Game.startTutorial()` is called at the end of `enterWorld()` (with a 400 ms delay
-so the UI settles) — **not on loading a save**: `enterWorld`'s only caller is
-`finishCreation`, `Save.load` never goes through it, so it never fires on a returning player.
-The second gate is `localStorage` (`webband_tutor_done`); Skip or the Start marker on the
-last step sets it.
-
-The steps are data (`Game.TUTOR`, 6 records): `{ el, t, m, d }` — `el` is the CSS selector
-the light ring wraps, `t` the title, `m` the mouse text, `d` the finger text. Which one gets
-read is decided by `Game.isTouch()` (#83's rule, not a media query). **Raw stays, `T` is
-called at display** — writing `T` into the top-level table would freeze the translation.
-
-| Step | Target | What it explains |
-|---|---|---|
-| 1 | `#map-canvas` | Click/tap where you want to go; WASD and scroll wheel / drag and two fingers |
-| 2 | `#chip-food` | Your army eats every day, the badge says how many days it'll last, a starving soldier deserts |
-| 3 | `#chip-party` | Capacity is set by Leadership + Stewardship + renown; volunteers from a village, mercenaries from a tavern |
-| 4 | `#map-hud` | Terrain changes speed, ⏳ Wait makes camp |
-| 5 | `#sidebar` | The screens; keyboard shortcuts on a mouse (M C P I Q), behind "⋯ More" on a finger |
-| 6 | — (centered) | Your first job: go to the nearest village, recruit volunteers, buy supplies, hunt bandits |
-
-**The light ring wants no separate curtain element**: `#coach-ring` carries `box-shadow: 0 0
-0 9999px rgba(4,5,9,0.66)` — the same shadow both frames the target and darkens the rest of
-the screen. Since it has `pointer-events: none`, the UI underneath stays clickable. The box
-(`#coach-box`) sits below the ring, moves above if it doesn't fit, and is clipped inside the
-screen on both axes (`Game.placeCoach`; the same trouble as `clampTip`, except the target can
-also be at the screen's center). If the target is missing or hidden (`!el.offsetParent`) the
-**step is skipped** — drawing an empty ring in a corner isn't a tutorial, it looks like a bug.
-
-*(`#chip-party` was added this round: the party badge had no id, only the `#ui-party` inside
-it did — the ring would've been drawn around the number.)*
-
-Measured (390x664, `pointer: coarse`): **all 6** steps land inside the screen (1
-`30,459–360,656` · 2 `52,49–382,247` · 3 `8,80–338,258` · 4 `25,281–355,478` ·
-5 `30,402–360,580` · 6 `30,233–360,431`), Skip/Next buttons are **44 px** (WCAG 2.5.5),
-`Debug.errors 0`. On a 1280x800 mouse, the same six steps, text switches to "click. Explore
-the map with WASD", `isTouch() false`, the box stays inside 800 px at every step. Skip sets
-the marker (`webband_tutor_done = '1'`), a second `startTutorial()` call **never opens**,
-⚙️ Settings → 🎓 Tutorial forces it open. 20 new keys landed in both dictionaries
-(1765 → 1785); `I18N.missing` is empty in tr/en/id alike and the 6 steps read in their own
-language (en: *Step 1/6 · Skip/Next*, id: *Langkah 1/6 · Lewati/Berikutnya*).
-
-#### Battle tutorial and opening settings (#88)
-
-**The battle tutorial is the same machine, a different list.** `startTutorial(force, list,
-key)` takes three arguments; the map tutorial uses the defaults (`Game.TUTOR` / `TUTOR_KEY`),
-the battle tutorial passes `Game.BATTLE_TUTOR` (6 steps) and `BTUTOR_KEY`. The caller is a
-500 ms `setTimeout` at the end of `Battle.start` — after the arena is set up and the first
-frame is drawn. Since auto-resolve (`if(auto) return this.autoResolve()`) returns **before**
-the loop, it never fires there.
-
-| Step | Target | What it explains |
-|---|---|---|
-| 1 | `#battle-canvas` | Aim is the cursor (on a finger: right stick + yellow arc), left click swings, right click/Shift blocks |
-| 2 | `#tstick` | Left stick — movement *(skipped on desktop)* |
-| 3 | `#tastick` | Right stick — the sword's direction *(skipped on desktop)* |
-| 4 | — (centered) | Command opportunities are born inside the battle |
-| 5 | `#btn-surrender` | Surrender is always open; if you die you're knocked out, the battle doesn't end |
-| 6 | — (centered) | Against armor: spear/arrow/mace, blocking only protects from the front |
-
-**Device distinction comes for free**: `tutorStep` already skipped a step whose target was
-missing or hidden (`!el.offsetParent`), and `#touch-ui`'s children are also `display: none`
-on desktop — so steps 2 and 3 fall away on a mouse on their own, 6 steps become 4. No device
-branching was written.
-
-**Battle stops while the tutorial is open.** `Battle.paused` only skips `update`, `render`
-keeps running — nobody should get killed while there's something to read on screen, but the
-arena shouldn't disappear either. `startTutorial` sets the flag if `Battle.active`,
-`endTutorial()` clears it; between steps `endTutorial(true)` **doesn't clear it** (the box
-changes, battle stays paused). Since `dt` is already clamped to 0.05 and `last = t` is written
-every frame, resuming doesn't cause a jump.
-
-**Opening settings** live in the character-creation wizard's last step (`renderDiffStep`):
-difficulty and 📱 Lite mode. Both go through the `Game.setOpt` gate, so they share one code
-path with the rows in ⚙️ Settings; picking one doesn't close the step (the `pickDiff` step
-redraws), what advances it is the **Next** button (`diffStepDone`). Language doesn't enter
-this step — the `#lang-ask` curtain on first launch already asks.
-
-#### Small-text sizes from one place: `--fs-xs/sm/md` (#73)
-
-The UI's small text was scattered across 158 separate inline `font-size:` values (`0.68` –
-`0.92rem`), so "make the text bigger" meant editing 158 lines. Three variables now live in
-one place in `:root`:
-
-| Variable | Replaces | Value | at a 16 px root |
-|---|---|---|---|
-| `--fs-xs` | 0.68 / 0.7 / 0.72 / 0.75rem | **0.82rem** | 13.1 px |
-| `--fs-sm` | 0.78 / 0.8 / 0.82 / 0.85 / 0.86rem | **0.92rem** | 14.7 px |
-| `--fs-md` | 0.9 / 0.92rem | **1rem** | 16 px |
-
-Changed: `app.js` 119, `nobles.js` 27, `quests.js` 5, `battle.js` 2 (= **153** inline values)
-+ body text in `style.css` that needs to be readable (the four side panels, the battle log,
-the tutorial box, the version stamp, the language button). **The HUD chrome wasn't
-touched** — the campaign-bar badges, side menu, and map tooltip were hand-tuned for 390 px
-in #86.
-
-*Dictionaries go through the same pass too.* Three `T()` keys carry inline HTML with a
-`font-size` (e.g. `<span style="…font-size:var(--fs-xs)">a companion can't stay</span>`);
-since the key is the source text itself, if `lang-en.js`/`lang-id.js` don't go through the
-same `sed`, `tools/test.js`'s *"every T key in the code is in both dictionaries"* assertion
-turns red (it did, it was measured). This assertion is the regression test for this class of
-bug.
-
-The **font size** setting (#55 item 7) multiplies the root size by 0.9/1/1.15; since it's
-`rem`-based, the two gates work together (at the large scale `--fs-sm` = 16.9 px).
-
-Measured (1280×800 / 390×664, `Debug.errors 0`, no horizontal overflow):
-
-| | before | after |
-|---|---|---|
-| Character creation, option description | 12.8 px | **14.7 px** |
-| Version stamp | 11.5 px | **13.1 px** |
-| Start-screen subtitle (390 px) | 16.8 px | **20 px** |
-| Start-screen corner buttons (390 px) | 12 px | **14.7 px** (44 px tall) |
-| Language buttons (390 px) | 10.6 px | **12.8 px** |
-| Desktop: h1 / subtitle / label | — | 136 / 24 / 17.6 px |
-
-**The smallest text on screen is now the side menu's 9.6 px shortcut badge** (`kbd`) and a
-9.9 px section header — both are chrome, not text.
-
-#### A point of interest's name wasn't translated on the map (during the #73 pass)
-`SITE_KINDS` is a top-level table: the `T('Cave')` inside it runs while the script loads,
-i.e. before `I18N.load()`, and returns identity (CLAUDE.md's "raw stays, translate at
-display" rule). The table already kept raw Turkish; what was missing was the **display**
-side: `renderMap`'s `mapLabel(ctx, k.name, …)` call and the map tooltip's `… + site.name`
-title didn't go through `T()`. Both were wrapped in `T()`, and the table's dead `T()`
-wrappers (`SITE_KINDS`, `ROAD_KINDS`) were stripped. Measured (EN): map labels read
-`Ruins / Abandoned Farm / Watchtower / Cave / Abandoned Camp`, tooltip `🏚️ Ruins`, no
-Turkish leftover in any label drawn on the map.
-
-#### A settlement's name also wasn't translated on the map (same class, second round)
-
-**The exact same bug** as the points of interest, this time in `LOCATIONS`: the dictionary
-already had all six castles' translation ready (`"Tevarin Kalesi": "Tevarin Castle"`), the
-data table was correctly raw Turkish, but three **display** sites never went through `T` at
-all — `renderMap`'s label drawing, the map tooltip's title (`handleMapHover`), and the
-settlement screen's title (`enterLocation`). The remaining ~30 call sites (market, tavern,
-arena, siege, raid, fief, news feed) already called `T(loc.name)`; so the bug wasn't the
-table's, it was three lines'.
-
-The lesson again: **if a data field stays raw Turkish, EVERY path that draws it on screen
-must go through `T`.** The scan method was the same too — searching for the `\$\{…\.name\}`
-pattern in lines that don't contain `T(` found all three spots in one pass.
-
-Measured (EN and ID, tooltip + screen title + button list for every one of 25 settlements,
-14 points of interest, every party on the map, and the diplomacy screen scanned): **0**
-Turkish leftovers, `I18N.missing` carries only the version name (a documented false
-positive), `Debug.errors 0`. The castle title reads **"Tevarin Castle (Castle)"** in EN,
-**"Kastil Tevarin (Benteng)"** in ID.
-
-#### Difficulty — one pair of multipliers (Easy/Medium/Hard)
-
-The answer to "the wolves are too strong" isn't a new balance table, it's **one knob**.
-`Game.DIFFS` holds a `{taken, dealt}` pair per tier; nothing else moves — bow range, charge
-multiplier, armor math, troop trees, and the economy stay exactly as they are.
-
-| Tier | `taken` | `dealt` |
-|---|---|---|
-| 🙂 Easy | ×0.6 | ×1.25 |
-| ⚖️ Medium | ×1 | ×1 |
-| 💀 Hard | ×1.5 | ×0.85 |
-
-**The single choke point is `Battle.afterArmor(dmgType, raw, def, tgt)`**: melee
-(`dealMelee`) and arrow hits already both went through it, so adding a fourth argument
-(`tgt`) covered the whole battle. `Game.dmgMult(tgt)` looks at the target's side — "taken" if
-`tgt.isPlayerTeam`, otherwise "dealt". A wolf pack and a lord's army both go through the same
-gate, siege and arena included. The second and last hookup point is `Battle.autoResolve`: in
-a won auto-resolve, the loss rate is scaled by `taken`.
-
-The setting is `Game.OPTS.difficulty` (default `'normal'`), so only the deviation is written
-to `state.settings` and it enters the save with `state`. The panel row sits in ⚙️ Settings as
-`⚔️ Difficulty`, with the chosen tier's description written below it.
-`DIFFS` **stays raw, is translated at display** with `T(this.DIFFS[v].name)`; since it's
-dynamic, 7 keys (`⚔️ Difficulty`, three tier names, three descriptions) were added to both
-dictionaries **by hand**; `tools/test.js`'s i18n assertion is the regression test for this.
-
-Measured (30 raw `cut` hits, defense 10 — and 20 raw `pierce` arrows, defense 8):
-
-| | taken (cut) | dealt (cut) | taken arrow (pierce) |
-|---|---|---|---|
-| Easy | **12** | **25** | 8 |
-| Medium | 20 | 20 | 14 |
-| Hard | **30** | **17** | 21 |
-
-`state.settings.difficulty` is written to the save right after the choice, `Debug.errors 0`.
-
-**Difficulty is asked when entering the game.** The choice needed to be made before anyone
-opens the settings menu; the character-creation wizard is therefore 7 steps, not 6
-(`renderDiffStep`, after the banner, before the summary). There's no separate table — it
-reads from the same `Game.DIFFS` and writes through the same `Game.setOpt('difficulty', k)`
-gate, so it shares one code path with the row in ⚙️ Settings. It shows up as an
-`⚔️ Difficulty Hard` line in the summary screen.
-Measured: the step title reads `Step 7/7`, MEDIUM comes pre-selected, after picking
-`Game.opt('difficulty')` = `'hard'` and `Game.diff().name` = `Zor`, `Debug.errors 0`.
-
-**The knob's in-game effect was measured** (`tools/harness.js`, the real `Battle.update(1/60)`
-is stepped frame by frame; 24 rounds per cell, seed 100+i, `Battle.endBattle` stubbed out,
-player at 100 health and **an effective bot**: walks to the nearest enemy, aims, swings once
-the wind-up timer fills):
-
-| Scenario | Measure | Easy | Medium | Hard |
-|---|---|---|---|---|
-| 10× lvl10 Militia vs 12 Bandits | victory | **79%** | 13% | **0%** |
-| | player's health lost | 32.6 | 92.5 | 100 |
-| | troops lost | 3.7 | 9.1 | 10 |
-| 20× lvl10 Militia vs 20 Bandits | victory | **79%** | 13% | **0%** |
-| | troops lost | 7.8 | 18.5 | 20 |
-| Player alone vs 3 Wolves | survival time | **13.3 s** | 8.6 s | **6.7 s** |
-
-So the tier is monotonic and its effect matches the table one-to-one (survival on Easy ≈
-1/0.6 ≈ **×1.55**). **Easy alone doesn't save a lone player from 3 wolves** — it only buys
-~55% more time; the absolute victory rates look harsh because the scripted bot neither
-blocks nor retreats. The real player's two extra tools (a shield and running away) aren't in
-this measurement.
+| How is it entered? | `Game.isTouch()` = `pointer: coarse` | — |
+| How does it lay out? | `@media (max-width: 820px / 430px)` | — |
+| How much is drawn? | `Game.lite()` | `'auto'` = `isTouch()` |
+| Does it edge-pan? | `Game.edgePan()` | `'auto'` = `!isTouch()` |
+
+- **One input gate**: pointer events (not mouse-specific listeners) drive both mouse and touch.
+  One-finger drag pans the camera (same code path as WASD), two fingers pinch-zoom, a short tap
+  sets a target, a long tap (≥450ms) opens the tooltip without setting one.
+- **A dropped `pointerup`/`pointercancel`** (backgrounding mid-touch on iOS/Android) used to
+  leave a ghost finger that made every future tap read as multi-touch — fixed by clearing the
+  tracked-touch map on any *primary* pointerdown (a browser-guaranteed "nothing else is really
+  down" signal).
+- **Battle controls** (`#touch-ui`): left stick = movement (writes into `Input.keys`, same as
+  WASD), right stick = aim + swing on lift (same `Input.mouse` the engine already reads), 🛡️
+  block button, a row of command buttons. No second input path into the battle engine anywhere.
+- **Narrow layout** (`≤820px`): side menu becomes a bottom strip, HUD/modal/market reflow;
+  `≤430px` additionally shrinks HUD text and hides keyboard digits from command buttons.
+  `body.in-battle` (set only under `pointer: coarse`) hides the campaign bar and menu strip
+  during a fight so the whole screen is arena.
+- Touch targets ≥44px (WCAG 2.5.5). `100dvh` (not `100vh`) so iOS's toolbar-hide doesn't leave
+  the layout taller than the visible viewport. Tooltip hover becomes tap-to-toggle
+  (`.tip-open`) on a coarse pointer.
+- **Tutorial** (`Game.startTutorial()`, first playthrough only, gated by `localStorage
+  webband_tutor_done`): 6 steps, mouse/finger text picked by `isTouch()`; a battle tutorial
+  (`BATTLE_TUTOR`) fires the same way from `Battle.start`, pausing `Battle.update` but not
+  `render` while open.
 
 ### The language layer — Turkish, English, Indonesian
-
-The game is played in three languages. One rule: **the key is the Turkish source text
-itself** (`T('New Game')`). If the dictionary has no match, Turkish falls onto the screen —
-so a missing translation isn't an empty box or `missing.key`, it's a readable sentence; in
-Turkish mode `T` is the identity function and no lookup happens at all.
-
-Two call forms, one dictionary:
-
-| Form | Key |
-|---|---|
-| `T('In your purse')` | `In your purse` |
-| `` T`${n} troops joined` `` | `{0} troops joined` |
-
-In the tagged form, interpolated values are numbered, and a translation can use them in
-**whatever order** it likes (`{0}`/`{1}`) — sentence order differs by language. Since a
-template spanning multiple lines would mix a line break and indentation into the key, lookup
-goes through `I18N.norm(key)` (`/\s*\n\s*/g` → a single space); the dictionary generator
-applies the same transform.
-
-**Dictionaries are generated, not hand-written.** `lang-en.js` / `lang-id.js` are flat tables
-of 1785 keys (161 / 164 KB); their source is a hand-written Turkish→(EN, ID) dictionary kept
-outside the repo. Measured: `keys 1728, translated 1721, missing 0, placeholder mismatch 0`.
-
-#### Static text: the `prime()` / `applyDom()` split
-Static text in `index.html` gets its key stamped onto the node **once**, before the page has
-drawn anything (`I18N.prime()`, `n._trKey`); `applyDom` only touches a node that has a key.
-The split is necessary: a single-pass walk that captures every panel built with `innerHTML`
-(badge tooltips, screens, modal) **already translated**, records the English sentence as the
-key, and once TR→EN→ID is walked that node stays stuck in English. Measured: 40 nodes get
-stamped, `prime` **0.8 ms**, switching language (`set` + `applyDom`) **0.5–1.3 ms**.
-
-#### Raw stays, translate at display
-Writing `T(...)` **inside a top-level data table** freezes the translation: that line runs
-while the script loads, while `I18N.load()` is called from `Game.init()` (i.e. from
-`window.onload`) — the table is set up while the language is still `'tr'`. The rule is
-therefore singular: **the table stays raw Turkish, `T` is called at the display site.**
-`CHATTER`, `KEYS`, `WAIT_CHOICES`, `Battle.cmdSlots`, `COMPLIMENTS`/`POEMS` all work this way.
-
-The same rule keeps **name-based comparisons** like `getTerrainInfo().name === 'Orman'` or
-`BAND_KINDS[k].name === enemyName` working: since these fields stay raw, the comparison is
-language-independent. This is what to check when translating a new data field.
-
-Percentage formatting differs by language (`%50` / `50%`): one gate, `Game.pct(n, signed)`.
-
-#### Three classes of bug and how they're each caught
-| Class | Symptom | Caught by |
-|---|---|---|
-| **Missing translation** | A data field lands on screen without going through `T` | `I18N.missing` (key isn't in the dictionary) |
-| **Double translation** | An already-translated value goes through `T` a second time | `I18N.missing` (the English sentence gets recorded as a key) |
-| **Never translated at all** | Turkish text is embedded inside a template, never touches `T` | **No counter sees it** — the only evidence is the Turkish word left on screen |
-
-The third is the dangerous one and shows up two ways: (i) a stray literal inside the template
-(`'none'`, `<b>time</b>.`), (ii) an **early-closed `` T`...` `` template** — the rest of the
-sentence falls outside the template. Catching it: `showModal` / `setHtml` / `locTipHtml` /
-`npcTipHtml` / `alert` / `Battle.log` / `Game.news` are temporarily wrapped, the game is
-walked end to end in EN/ID mode, and the **rendered HTML** is scanned against Turkish
-leftovers. The first scan turned up 99 EN / 114 ID leftovers, narrowing to 8 distinct spots
-(siege, raid, and arena modals were early-closed templates).
-
-*The Turkish stop-word list doesn't work for Indonesian* — `para`, `dinar`, `sana`, `bir`
-exist in both languages (48 false positives). For ID the reliable signal is the
-`[ğşıİĞŞ]` diacritic class plus a Turkish-only word list.
-
-#### Language selection
-On first launch a flag-bearing curtain appears (`#lang-ask`): 🇹🇷 Türkçe · 🇬🇧 English ·
-🇮🇩 Bahasa Indonesia, the browser's language (`I18N.guess()`) comes pre-checked. The choice
-is written to `localStorage.webband_lang` and isn't asked again. Afterward, both the start
-screen's flag order and the row in ⚙️ Settings go through the same `Game.setLang()` gate; a
-screen that's open while playing rebuilds its own text — so **restarting the game isn't
-needed**.
-
-#### Measured
-A walk covering the whole game (character creation → 5 screens → 8 modals →
-town/village/castle → market/tavern/hall/arena/guild → dialogue/courtship/compliment/poem →
-quest offer → 14 daily events → a pitched battle, a siege, and a raid) was run in all three
-languages:
-
-| | errors | `I18N.missing` | Turkish leftover on screen |
-|---|---|---|---|
-| `tr` | 0 | 0 | — |
-| `en` | 0 | **0** | 0 (4 false positives: `I've`, `you've`, the version name, the language list itself) |
-| `id` | 0 | **0** | 0 (1 false positive: the version name) |
-
-A direct load was also checked separately: with `localStorage.webband_lang = 'en'` (and
-`'id'`), the page opened **without ever switching language** and the same walk ran —
-`missing 0`, so top-level data tables don't fall into double translation.
-
-**Known limit:** `state.warLog` news entries are stored **already translated at the moment
-they're written**. Changing language mid-game leaves old lines on the diplomacy screen in
-their old language; new news arrives in the new language. Storing news raw and translating
-at display would be the right fix, but news text is a sentence built at runtime (lord name +
-settlement name) — that needs a separate structured news format; for now it's an accepted gap.
-
-### Balance visibility (#55 item 9)
-What got fixed isn't the numbers themselves, it's whether the player **sees** them.
-
-| What | Rule | Measured |
-|---|---|---|
-| **Peak renown** | Every renown gate reads `Game.peakRenown()` (lady 80, feast 150, marriage 120, dowry quest 200, allegiance 50). `p.maxRenown` self-updates | Renown climbs to 350 then drops to 40, gates still see 350 — a single defeat doesn't close every gate |
-| **Easy-prey warning** | `Game.preyWarning(npc)` in the encounter modal and the map tooltip; calls `Battle.rewardScale` with enemy strength **before** the battle | With a 6-person party: a 1–3-person gang shows 20%, a 5-person one 25%, a 10-person one 50%, no warning at 20+ |
-| **Fief net** | `openGarrison`'s title shows `tax − wage = net`, "this fief is losing money" if negative | Praven (prosperity 83, tax 165): 12 knights **−15/day**, 12 peasants **+165/day** |
-| **Starving-troop marker** | On a row carrying a `debuff` in the party screen: "🍖 Couldn't find meat/cheese — health and attack ×0.7 in battle" | The line shows |
-| **Boss gate** | Using `boss_map` asks for `Game.BOSS_RENOWN = 300` peak renown; also written in the inventory tooltip | At renown 10 the map wasn't spent, the warning showed |
-| **Caravan load tied to guard count** | In `spawnTrader`, `w = size / the kind's average`; cargo and purse scale with `w`. The average is unchanged, **the distribution ties to risk** | Caravan: 6 guards avg **949**, 14 guards **2135** (avg. 1544). Convoy: 3 guards **221**, 7 guards **513** (avg. 374). Used to be that picking the weakest one was risk-free profit |
-
-### Time is a resource: camp (#53 item 1.1)
-
-Time used to flow only **while walking**: a wounded player circled the map to heal, unable to
-wait out a tournament opening / a volunteer refreshing / a feast being set up.
-`Game.startWait(hours)` opens this with a single primitive — Warband's "Make camp → Wait
-here."
-
-- The **⏳ Wait** button on the map tooltip (`askWait`) asks for a duration: 1 hour / 8 hours /
-  1 day / 3 days / **wait for dawn** (`hoursUntilDawn`).
-- `state.player.wait = { until }` (an absolute hour) + `status = 'waiting'`. It enters
-  `update`'s `timeFlows` list, `advanceTime`'s multiplier becomes `timeScale × WAIT_SCALE`
-  (**×4**).
-- A `#wait-ui` panel bottom-right: time left, health, morale, 🚶 *Break Camp*.
-- **Interruption goes through one gate**: `triggerEncounter`'s first line calls `stopWait()`.
-  So an NPC collision and a forest ambush (`checkAmbush` → `triggerEncounter`) alike break
-  camp; no separate patch is needed per encounter path.
-- Resting at a tavern isn't free anymore either: `restAtTavern` now costs **8 hours** on top
-  of the 10 denars.
-
-Measured (an NPC-free map, `dt = 0.05`): `startWait(24)` took **24.2 game hours / 6.05 real
-seconds** — the same 24 hours took 24 real seconds walking, i.e. exactly **×4**. With
-Endurance 10, health regenerates every 8 hours, so **+3 health** came in over 24 hours. A
-bandit gang 200 units away hit the camp after **10.8 hours**: `wait` went null, the encounter
-modal opened.
-
-### Honor — the second reputation axis (#53 item 1.5)
-
-Renown measures "how known you are"; honor (`state.player.honor`, **−100..100**) measures
-"how you're known." One axis: the old bandit-stain label is that axis's negative side.
-
-| Action (`Game.HONOR`) | Honor |
-|---|---|
-| Raiding a village (`raid`) | **−12** |
-| Robbing a caravan in peacetime (`robPeace`) | −5 |
-| Robbing a peasant convoy (`robPeasant`) | −8 |
-| Ransoming a noble captive (`ransom`) | −2 |
-| Releasing a noble with honor (`release`) | **+5** |
-| Abducting a lady (`abduct`) | **−20** |
-| Breaking a campaign oath (`oathBroken`) | −5 |
-| Finishing a quest (`questDone`) | +2 |
-| Lending a hand on the road (`roadKind`) | +2 |
-| Running over the weak on the road (`roadCruel`) | −2 |
-| Not chasing down a routed foe (`spare`) | **+3** |
-
-Tier (`honorTier` / `honorLabel`): ≥40 ⚜️ Honorable, ≥15 🕊️ True to Their Word, ≤−10 🔥
-Raider, ≤−36 💀 Village Burner. Honor decays **0.5** per day, **infamy only 0.15** — and not at
-all on a day you raided (`state.player.lastRaidDay`, #104). Washing one raid off takes **80
-days**; the old symmetric 0.5 washed it off in 24, so a raider could burn a village, ride two
-towns over, and recruit clean. Good behaviour still fades at the old rate: a reputation is
-faster to lose than to earn.
-
-| Effect | Rule |
-|---|---|
-| Volunteers and their wage | `volunteerTerms()` — see below |
-| Village market | with infamy, a village buys your goods at **×0.9** and sells at **×1.1** |
-| Mercenary | `mercPrice` scales by the same multiplier |
-| Weight with nobles | `Nobles.standing` now reads **personality**, not tier: `Game.honorWeight(personality)` — good-natured `honor/40`, cunning `−honor/60`, debauched `−honor/90`, others `honor/55` (clamped to ±2) |
-| Feast | `Feast.HONOR_REQ = −30`: renown opens the gate, honor holds it there |
-| Village elder | at tier 2, "get out quick" even in a friendly village (already existed in #50, now reads from honor) |
-
-**The recruiting tent** (`Game.volunteerTerms()` → `{ pen, cost, mult }`, #104). `infamyPenalty()`
-is `−honor/100`, clamped to **−0.3 .. +0.95**. The penalty side is cubed on volunteers and
-squared on the wage — `cost = 10·(1 + 4·pen)²`, `mult = (1 − pen)³` — while the **bonus side stays
-linear** (`cost = 10·(1 + pen)`, `mult = 1 − pen`). Cubing both ways was the issue's suggestion,
-but it would have handed an honourable player 2.2× volunteers for almost nothing; the thing that
-needed teeth was the punishment, not the reward. Measured (a village holding 12 volunteers):
-clean **12 men at 10₺**; −20 honor **6 at 32₺**; −40 honor **2 at 68₺**; −60 honor **0 at 116₺**;
-−100 honor **0 at 230₺**; +40 honor **15 at 7₺**. The empty tent says so in its own words — it used to tell a man with 5000 denars in his
-purse that he couldn't afford a single recruit.
-
-Measured: one raid −12 (🔥 Raider), **five raids −60** (💀 Village Burner); a lvl 12 mercenary
-204 → **326 denars**, honor +60 gives **143 denars**. That same −60 honor moves `standing` **−1**
-with a good-natured lord, **+1** with a cunning or debauched one — a dishonorable man's word
-carries further in a cunning lord's hall.
-
-### Blood feud — the world remembers you (#53 item 1.3)
-
-`state.grudges[lordId] = the day it started`; `GRUDGE_DAYS = 30`. The lord whose village you
-burned (`grantRaidLoot`), the nearest lord in the region whose caravan you robbed
-(`robTrader` → `addGrudgeNearest`), and the noble you ransomed (`ransomLord`) all open a
-blood feud on you. Releasing one with honor (`releaseLord`) **clears** it.
-
-- `isHostile(npc)`'s first line: a lord with a blood feud **attacks** regardless of
-  war/relation state.
-- In `updateNPCs`, a lord with a blood feud has a **50%** chance of heading not home but
-  **straight at you** when picking a new target; since `npc.hunting = the player's name`,
-  the map tooltip shows "🎯 Hunting: …". Once the feud ends, `hunting` is cleared.
-- Expired feuds are dropped from `state.grudges` in `dailyUpdate`; the diplomacy screen
-  (**K**)'s "🩸 Blood Feuds" heading shows how many days are left.
-
-Measured (a feud opened on one lord, 30-day sim, sampled hourly): the lord's party stayed
-within 1200 units for **674 of 720 hours**, distance dropped to **0** (an encounter in the
-real loop), `hunting` was set for 693 hours; the feud was cleared on **day 31**.
-
-### No enemy soldier scales with the calendar or your own strength (#53 item 1.3, #99, #132)
-
-This used to be wealth-scaled: `Game.threatLevel()` (`round(√(sum of troop levels + player
-level) / 2)`) fed a faction army's level (`max(5 + day/15, threat + 3)`) — the cheapest version
-of Rimworld's "raid points = colony wealth" rule. It's gone now, `threatLevel()` with it — a
-faction/lord soldier's stats are whatever `TROOP_TREES` says for that type, exactly like a
-bandit's are whatever its band-roster row says, and exactly like a boss guard is now a fixed
-elite tier regardless of which boss (#132). The type you're fighting is the only thing that
-decides how hard it hits; the calendar and your own progress don't quietly reweight the fight
-you already agreed to.
-
-**Bandits were pulled out of the old system first (#99).** They scaled as `max(1 + day/30, threat
-− 1)`, with no ceiling, so a looter reached level 12 by day 330 — while an un-upgraded recruit
-gained nothing ever, because a troop's only growth is the upgrade you pay for. Headcount
-therefore stopped meaning anything. Measured in the real engine (40 fights per point, 25 troops
-+ player against a 14-strong lair band):
-
-| day | 25 × Svadya Köylüsü | 25 × Svadya Milisi |
-|---|---|---|
-| 1 | %98 | %100 |
-| 60 | %98 | %100 |
-| 120 | %73 | %100 |
-| 200 | **%23** | %100 |
-
-One tier of upgrade wins every one of those days outright; the scaling was not difficulty, it
-was a tax on not upgrading, invisible in a modal that reports only a headcount. Every non-boss
-enemy is level 1 forever now (bandits since #99, faction/lord soldiers since #132) — `enemyLvl`
-stays at its default and the flat per-level HP/attack/defense bonus in `Battle.start` adds
-nothing, so `TROOP_TREES`/band-roster stats stand alone. The lair's own knob is untouched —
-`strength` still grows 8 → 24 — so an old lair is a bigger fight, not a stronger man. Reward
-follows automatically: `rewardScale` reads `level + 1` per enemy, so late-game looters (and now
-late-game lord armies too) pay like what they are, not like a scaled-up threat.
-
-Measured: a lone wandering player **1**, 10 recruits **2**, 20×lvl10 **7**, 40×lvl20 **14**,
-60×lvl30 **21**. On day 20, a 20×lvl10 army against 20 bandits in auto-resolve lost on
-average **0.6 → 1.7 troops** (15/15 victories) — it doesn't crush a weak player, and it
-doesn't bury a strong one in bandit-hunting.
-
-### The goal chain — `AMBITIONS` (#53 item 1.4)
-
-Battle Brothers' "ambition": a **single** active goal at a time, completing it gives a reward
-and opens new goals. It's all data (`Game.AMBITIONS`), conditions read `state` — no event
-listening, a daily `ambitionTick()` and the Quests tab both call the same `check`.
-
-| Goal | Condition | Reward | Opens |
-|---|---|---|---|
-| A small company | party ≥ 10 | +5 renown | Tournament champion, A lord's friend |
-| Tournament champion | `tourneyWins > 0` | +10 renown, +500 denars | A landholder |
-| A lord's friend | any relation ≥ 30 | +5 renown | Sworn |
-| Sworn | an oath of allegiance | +15 renown | Blood price, A landholder |
-| Blood price | every blood feud you opened has closed | +10 renown, +5 honor | — |
-| A landholder | fief ≥ 1 | +20 renown | — |
-
-Sits at the top of the **Quests** tab (Q): the chosen goal + give up, or the list of open
-goals. Measured: the chain walks start to finish — closing 4 goals gives **+35 renown**, the
-open-goal list changes on every completion (`band` → `champion`/`friend` → `sworn` →
-`feud`/`fief`).
-
-### Achievements (#127, rewards in #132)
-
-**50** one-time milestones (`ACHIEVEMENTS`; 31 until the top-up to the issue's 50), swept daily
-and on the Quests tab (`Game.checkAchievements`, state-based `cond()` like `AMBITIONS`). What
-state can't show later is tallied into `state.career` at its one choke point — `Game.tally(k, n)`
-(which also checks at once) or `Game.careerBattle(r)` from `Battle.endBattle`'s real-battle path:
-own kills (`logKill` with the `'player'` unit), enemies slain, battles, best winning odds
-(enemy count ÷ your fielded party + you), a 20+ win with no dead, surgery saves in one battle;
-plus elite promotions, prisoners sold/freed, the peddler caught/fooled, tower climbs, settlements
-visited, arena run (its own counter — the purse series resets at five), a warm winter, a hail
-walked without a death. "Ten different towers" became ten climbs: the map holds three and they
-renew. `tools/test.js` drives each of the 19 new ones through its real hook. The 19 add, if all
-earned, ≈ **18,650₺ + 120 renown** over a campaign (4 bronze, 9 silver, 6 gold). Used to pay nothing but a toast — now each tier is a one-time reward
-(`ACH_TIERS`): bronze 200₺, silver 650₺, gold 2000₺ + 20 renown. Deliberately **not** a permanent
-stat bonus stacking on top of the relic system (`RELICS` already owns "small permanent bonus");
-an achievement pays once and is done. A gold achievement's own name doubles as a cosmetic title
-(`Game.titlesHtml`) shown under the player's name on the character screen — no stat, just a row
-of pills for the ones you've earned. `Game.showAchievements()` (🏆 in "⋯ Daha") lists all 50,
-locked ones greyed with a 🔒, each showing its reward so the still-open ones stay motivating
-rather than mysterious.
-
-### Enterprise and the fief treasury (#53 item 1.6 / 1.2)
-
-**Enterprise** (`Game.buyEnterprise`, 🏭 in the town screen): **3000 denars**, `prosperity ×
-0.55` per day. It enters the daily flow as `fiefIncome()`'s `trade` line and shows up as a row
-in the treasury tooltip. If you're at war with the town the gate is closed, **earnings
-stop** (`enterpriseWorks`); the property isn't lost. Saved as `loc.enterprise`.
-Measured: Tulga at prosperity 87 gives **+52 denars/day, paid off in 58 days**; Narra at
-prosperity 51 gives **+28/day, 108 days**. So enterprise becomes a "which city" question.
-
-**Treasury** (`loc.treasury`, in the 📦 Storage screen): you deposit money into your fief,
-it isn't looted on defeat. Loss on defeat/surrender is now a decision, not a die roll:
-`Game.defeatLootRatio()` = `0.6 + 0.3 × (1 − share in the treasury)`, and it only touches
-the **purse on hand**. Measured (10,000 denars total): all of it on hand gives a ratio of
-0.90, leaving **1,000**; 90% in the treasury gives a ratio of 0.63, leaving **9,370**. The
-storage becomes real insurance this way.
-
-### Rumours — information has a price (#71)
-
-The tavern is the one place information costs something. **👂 Söylenti Dinle**: **20 denars**
-and **2-4 hours** of game time (`Game.listenRumor`, `RUMOR_COST` / `RUMOR_HOURS`). Skill buys
-two things and only two: **which stories reach you at all** and **how often they are wrong**.
-
-| Spotting | Tier | Lie chance | What you hear |
-|---|---|---|---|
-| 1-3 | 1 | 45% → 35% | a direction and nothing more ("a band to the north", "an army came through") |
-| 4-6 | 2 | 30% → 20% | who is where — a siege, a marshal's campaign, a lord's party and its size |
-| 7+ | 3 | 15% → 5% | numbers and dates — the best trade margin, a tournament/feast, a lair's purse |
-
-`rumorTier()` = 3 at Spotting ≥ 7, 2 at ≥ 4, else 1. `rumorLieChance()` =
-`max(0.05, 0.45 − (lvl−1) × 0.05)`. Generators below your tier stay in the bag, and each is
-weighted by its own tier — a trained ear doesn't just unlock the good stories, it hears them
-more often. Every draw grants 25 Spotting XP, so the skill trains itself by being used.
-
-**A false rumour is never an invented story** — it's a true story pinned to the wrong place.
-Each generator takes an `L` function and passes its subject through it before naming or
-marking it: the facts come from the real subject, the *place* comes from `L(subject)`, which
-is the subject itself when truthful and a random `LOCATIONS` entry when lying. One knob, no
-duplicated prose, and the lie costs you a three-day ride to a village nobody touched.
-
-Tier 2 and 3 stories drop a `state.knownLocations['rumor']` marker (3 days, the standard
-lifetime); tier 1 never does — a direction is not a map pin. The lair story sets `l.seen` on
-a **true** rumour, so paying for the right story genuinely puts a lair on the map.
-
-**The guild ledger** (`guildPrices`, 📈 in the town) used to hand over the whole trade map
-free and instantly. It now costs **50 denars** (`GUILD_FEE`), charged **once per town per
-day** (`state.guildPaid[locId]`) so paging back out of the table and in again is free.
-
-Measured (seed 3, 20 draws per level): Spotting **1** → tier 1, 45% lies, **0/20** markers,
-3.3 h/draw, story mix 400/0/0 · **4** → tier 2, 30%, 18/20, 2.9 h, 71/329/0 · **7** → tier 3,
-15%, 15/20, 2.9 h, 27/146/227 · **12** → tier 3, 5%, 17/20, 3.0 h, 31/148/221. Those 20 draws
-alone carry Spotting from 1 to 3. Guild fee: 50 denars charged on the first look, the second
-look the same day free.
-
-### Renown gates above 300 (#69, #53 item 1.4)
-
-`AMBITIONS` ended at "a landholder" and the game flattened into collecting the tax. Three
-gates open the late game's own ladder (`Game.RENOWN_GATES`), and the renown badge tooltip
-lists all five now (80 / 150 / 300 / 500 / 800). Gates read `peakRenown()`, so losing renown
-never takes a right back.
-
-**300 — hükmetme hakkı.** While **independent** (no `vassalOf`), stand in a village square
-with enough men and name a price: no siege, no sword. Needs the party to outweigh **80% of
-the militia** (`villageMilitia` = `max(4, prosperity/5)`). Costs the owner **−20 relation**,
-its kingdom's lords **−4**, the village **−5 prosperity**; pays **40% of `fiefTax`** daily
-(`TRIBUTE_CUT`) and **+3 right to rule**. War with the village's kingdom **zeroes** the
-payment the way an enterprise's gate closing stops its earnings; a new conqueror honours no
-old tribute (`captureSettlement` clears `tributeTo`). Shows up as `fiefIncome().levy`, its own
-treasury-tooltip row, and a `+N köy haracı` tail on the fief screen.
-
-**500 — yoldaş elçiliği.** Send a **companion** to a lord to negotiate relation or a truce
-(`envoyMenu` / `sendEnvoy` / `envoyTick`, `state.envoy`). The companion is **spliced out of
-the party for 3-6 days** — their skill leaves with them, which is the real cost. Chance =
-`0.25 + level × 0.02 + (Persuasion−1) × 0.03 + relation × 0.004`, clamped to 10-90%. Success
-gives +12..20 relation, or a truce via `makePeace`; failure −3 (−5 on a refused truce). One
-envoy at a time.
-
-**800 — mareşal adaylığı.** As a vassal, ask your king for the banner (`askMarshal`, needs
-relation ≥ 20 and the kingdom **at war**). `state.marshalOf` then makes the player the
-marshal in `campaignTick`: no lord is picked, and instead of being summoned to arms **you**
-choose the target (`chooseCampaignTarget` → `setCampaignTarget`). No new movement code —
-`updateNPCs` already walks lords toward `state.campaigns[f].targetLocId`. The post lasts
-**exactly one campaign**; `endCampaign` clears `marshalOf` (+10 renown, +5 right to rule if
-the target fell) and it has to be asked for again.
-
-Measured — **does the marshal's target actually pull lords?** 8 seeds, target picked
-*farthest from the lords* on purpose: **24/27 lords reached it within 20 days**, average
-distance to target **3788 → 2292**, arrival on a **median day 4** (range 1-11). Picking the
-target nearest the player instead: 15/27, 2629 → 2190, median day 3 (range 1-14). So the pen
-is real — pointing at the far side of the map still moves the army.
-
-Tribute per day (seed 3): Azgad (prosperity 56) **22** · Emirin (90) **36** · Pagundur (67)
-**27** · Yruma (65) **26** · Uslum (31) **12**; militia to outweigh 9/11 · 15/18 · 11/13 ·
-11/13 · 5/6.
-
-**Not measured**: the issue also asks which day each gate typically opens. `tools/sim.js` runs
-a **playerless** world — it has no renown curve to read — so that number would be invented,
-not measured. It needs a player-driving sim first.
-
-## Audio layer (SFX #95, recorded soundtrack #131)
-
-Two halves with nothing in common any more. The **transaction SFX** are still synthesised —
-five short oscillator envelopes in `Game.SFX`, no file, no dependency, and `Game.ac()` is still
-the one AudioContext they live in. The **music** used to be synthesised too; since 1.13 it is
-fifteen recorded pieces.
-
-**Why the generator went.** It was an honest generator: church modes over a drone, twenty
-arrangements, a motif varied three ways per phrase, and a documented list of the mistakes it
-had already stopped making. It still sounded like a generator. Modal writing holds up for about
-ten minutes, and the map is a screen you stare at for an hour — past that the ear stops hearing
-music and starts hearing the machine that makes it. A thousand lines of app.js went with it.
-
-**What replaced it.** 118 CC0 candidates were probed, filtered to 72 unique, curated to 34,
-transcoded to 60-second previews and put on an audition page; the player picked 15. Ten for the
-map, three for a fight, two stings. Credits and sources: `music/CREDITS.md`.
-
-**Measured — the set.** 96 kbps stereo MP3, 15 files, **20.8 MB**, ~30 minutes. Loudness is
-fixed at transcode time with two-pass EBU R128 — map **−19 LUFS**, fight and stings **−16** —
-and comes out inside **0.1 dB** across the set. Sources ranged from −8.5 to −22.5 LUFS, a 14 dB
-spread: Market Day would otherwise have been five times louder than Exploration. Because the
-files are levelled against each other, `Music` carries **no per-track gain and no mixer**; the
-only knob left is `gain()`, which is `0.9 × volume` and sits just under the SFX peak (0.12).
-
-**Not precached.** `sw.js`'s `FILES` list is the install download, and 20 MB before the game is
-playable is the wrong trade. Music is excluded and served by a second fetch branch instead:
-`music/*.mp3` goes to its own `webband-music` cache, filled on first play. So the first evening
-costs 2 MB at a time and the second is offline. `activate` deliberately spares that cache — a
-VERSION bump should invalidate the game, not the soundtrack. A test asserts all three: nothing
-in `FILES`, a runtime branch, and the cache surviving the sweep.
-
-**`<audio>`, not Web Audio.** A stream starts after a second; `decodeAudioData` wants the whole
-file first, and these are 1–3 MB each. It also deletes a whole bug class: #96's revive/wake
-machinery existed because an interrupted iOS AudioContext comes back reporting `running` while
-its clock stands still, and there is no context here to lie. One element is re-pointed rather
-than one element per track — a fresh `Audio` leaks a decoder per skip and iOS caps how many it
-hands out — so the listeners are bound exactly once, in `el()`.
-
-**The spinner (#131).** Because nothing is precached, the first play of a piece is a real
-download, and several seconds of silence with no explanation reads as a bug. `busy()` arms a
-**400 ms** delay on `loadstart`/`waiting` and `playing` cancels it, so a cached piece never
-flashes the badge. `#music-load` is a fixed pill in the bottom-right corner; its spin is an
-ordinary CSS animation, which the global `body.reduced-motion` rule already stops.
-
-**One switch point, still.** `Music.sync()` reads the screen (`#main-ui` active, the
-`in-battle` class), the settings (`muted`, `volume`, `music`) and `Game._chasing`, and picks
-`'map' | 'battle' | null`. `set(mode)` returns immediately when the mode has not changed, and
-**that** is what satisfies *"başlayınca devam etsin diyalog da olsa"* — a modal changes no
-screen, so nothing calls `set` with a new value and the piece simply keeps playing.
-
-**What counts as a fight.** A real battle, an arena bout and a tournament round are all
-`Game.showScreen('battle')`, so all three are already the `in-battle` stamp and need no
-separate trigger. The fourth is new:
-
-**The chase (#131).** *"Düşmancıl bir parti 10 saat boyunca ekranda görünür kalıyorsa."*
-`Game.chaseTick(hours)` runs from `advanceTime` — the one clock that only ticks while the map
-is live and no modal is open. It tests the visible world rect exactly as `renderMap` computes
-it (camera centre, half a canvas each way, over the zoom) against every `isHostile` party, adds
-the hours when one is in it and **resets to zero, not decays,** when none is. At
-`CHASE_HOURS = 10` it flips `Game._chasing` and calls `sync()` — only on the flip, not every
-tick. Because the count is frozen while a dialog is open, a conversation pauses a chase instead
-of ending one.
-
-**The stings.** Victory and defeat are the two pieces that are not a playlist. `sting(won)` is
-hooked at the top of `Battle.endBattle`, which is the single door out of every kind of fight —
-battle, arena, tournament round, honour duel. It plays over whatever screen the lines below it
-switch to: `set()` records the new scene but leaves the speakers alone while `_sting` is up,
-and `next()` starts the right playlist when the sting ends. Muting cancels it; so does 🎵
-Sıradaki.
-
-**Never the same piece twice running.** `pick(scene)` excludes the piece that just finished.
-With three fight tracks a plain roll repeats one time in three, and an immediate repeat is not
-heard as a shuffle — it is heard as the music having restarted.
-
-## Visual layer (renovation)
-
-All drawing lives inside `app.js` + `battle.js`, no library. Shared approach: **bake the
-expensive thing once, then stamp the picture every frame.**
-
-- `Game.buildGroundTexture()` — a 256px **seamless** grass tile (every blade/patch drawn at 9
-  wrapped positions), put into `Game.groundPattern` via `createPattern`. This is the map's
-  ground.
-- `Battle.buildGround()` — bakes the whole battle arena (grass gradient + 60 soft patches +
-  2600 grass tufts + river/pit/hill/forest) onto an offscreen canvas; `render()` stamps it
-  with a single `drawImage`.
-- `Battle.drawTree(ctx,x,y,r)` — shadow + trunk + a 3-gradient crown. Used in both battle and
-  on the map (map forests are cached inside `_forestTrees`).
-- `Battle.drawUnit()` — ground shadow, team ring (blue `#4fa8ff` / red `#ff5a4a`), a pulsing
-  gold ring for the player, dust, emoji + rank marker, a white hit flash, a gradient sword at
-  `currentWeaponAngle`, an HP bar **only if damaged**. Units are drawn sorted by y (a sense of
-  depth).
-- `Battle.drawHud()` — a width-adaptive command strip + a steel-framed tug-of-war bar
-  (notches, a jittering clash cursor, Cinzel status text).
-- `Game.mapLabel()` — a rounded plate + a faction-colored underline. Text size scales with
-  `1/camera.zoom` (the same on-screen size at any zoom), overlapping labels are pushed up.
-  Settlement labels sit above the icon, NPC labels below. **An NPC label is coloured by
-  hostility** (#108): red + a ⚔ prefix for a foe, blue for a friend, parchment for a neutral —
-  the marker ring already carries the faction colour, which answers "whose is it" but never
-  "will it attack me". The answer comes from `atWar`, not `isHostile`, because hostility there
-  depends on distance and relative strength and the label would flicker as the player closed
-  in; the ⚔ is there because red-on-parchment is exactly the pair colour-blind players lose.
-- `Game.drawPartyIcon()` / `drawRider()` / `drawFootman()` — the map's party silhouettes; not
-  emoji, a canvas path. See the "World map" section for detail.
-- `renderMap()`: a cached sea gradient + animated wave lines, the continent's shore (a sand
-  band → a shaded fill → an edge) then `ctx.clip()`, ground patches, rivers (bed + water +
-  glint + a flowing dashed line), roads (48/30/dashed-4 layers), forests, settlements
-  (shadow + emoji + faction pennant + tournament 🏆).
-- Gradients are cached in **world coordinates**; panning the camera doesn't shift them.
-
-The `RENOVATION` block at the end of `style.css`: body radial gradients, `.glass-panel`'s
-inner glow, campaign-bar badges (`.hud-chip` / `.hud-bar` / `.fill-hp|party|xp`), an iconed
-and shortcut-badged `.menu-btn`, the `#map-hud` tooltip, `.view > h2::after`'s gold line,
-`#map-view`/`#battle-view`'s gold frame, `.battle-logs`'s `min(330px, 50% - 28px)` width +
-`mask-image` fading toward the bottom.
-`#top-bar` has `position:relative; z-index:60` — otherwise the speed hint sat underneath the
-map canvas.
+One rule: **the key is the Turkish source text itself** (`T('New Game')` /
+`` T`${n} troops joined` ``, tagged-template placeholders numbered `{0}`/`{1}` so word order can
+differ by language). Missing translation → Turkish falls onto the screen (never an empty box).
+`lang-en.js`/`lang-id.js` are flat generated tables (currently ~2900 keys each; this grows with
+every feature — `tools/test.js`'s i18n assertions are the sync gate, not this number).
+
+**Raw stays, translate at display**: a `T(...)` call inside a top-level data table runs before
+`I18N.load()` and freezes to Turkish forever — tables (`BAND_KINDS`, `SITE_KINDS`, quest
+`title`s, etc.) stay raw, every **display** site calls `T()`. This also keeps name-based
+comparisons (`terrain.name === 'Orman'`) language-independent. Three bug classes and how they're
+caught: missing translation (`I18N.missing`), double translation (also `I18N.missing` — the
+English string gets recorded as a bogus key), and "never touches `T` at all" (**no counter sees
+this one** — only a manual scan for Turkish leftovers while playing in EN/ID catches it; this is
+why a data field's *every* display path needs checking by hand when it's added).
+
+Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
+changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
+**Known limit**: `state.warLog` news lines are stored already-translated, so switching language
+mid-game leaves old news in the old language (accepted gap — fixing it needs a structured news
+format).
+
+### Balance visibility
+What changed isn't the numbers, it's whether the player **sees** them before committing: peak
+renown gates (`Game.peakRenown()`, never drops even after losing renown), an easy-prey warning
+before a fight (`Game.preyWarning`), a fief's net income shown as `tax − wage = net`, a
+starving-troop marker on the party screen, the boss-map's renown requirement shown up front, and
+a caravan's cargo openly scaling with its guard count (more guards = richer, not a free-lunch
+weak target).
+
+### Time is a resource: camp
+`Game.startWait(hours)` — the ⏳ Wait button (1h/8h/1 day/3 days/until dawn) runs time at
+`timeScale × WAIT_SCALE`(×4) while `state.player.wait = { until }`/`status = 'waiting'` is set.
+Any encounter interrupts it (`triggerEncounter`'s first line calls `stopWait()`). Resting at a
+tavern also costs 8 hours now, not just 10 denars.
+
+### Honor — the second reputation axis
+`state.player.honor` (−100..100); the old "bandit stain"/infamy label is just its negative side
+(`Game.infamy()` = `−honor`). Raiding a village is −12, robbing peacetime trade is −5/−8,
+sparing a routed foe is +3, releasing a noble captive with honor is +5, abducting a lady −20.
+Decays 0.5/day (infamy only 0.15, and not at all on a day you raided) — good behavior fades
+faster than bad behavior does, on purpose. Tiers: ≥40 ⚜️Honorable, ≥15 🕊️True to Their Word,
+≤−10 🔥Raider, ≤−36 💀Village Burner. Affects: volunteer count/wage (`volunteerTerms()` — the
+penalty side is cubed, the bonus side stays linear, so dishonor has real teeth without making
+honor a farmable discount), village market rates, mercenary price, how nobles weigh your word
+(depends on *their* personality — a cunning lord respects infamy more than a good-natured one
+does), and the feast gate (`Feast.HONOR_REQ`=−30).
+
+### Blood feud — the world remembers you
+`state.grudges[lordId] = day opened`, `GRUDGE_DAYS`=30. Burning a lord's village, robbing their
+nearest caravan, or ransoming them opens a feud (releasing with honor clears it). A feuding lord
+**always** attacks regardless of war/relation state, and has a 50% chance of actively hunting you
+instead of going home.
+
+### The goal chain — `AMBITIONS`
+Battle Brothers-style: one active goal at a time, completing it rewards renown/honor and opens
+the next (party≥10 → tournament win / a friend lord → sworn oath → blood price / a landholder).
+Pure data + a daily `check()`, shown at the top of the Quests tab.
+
+### Achievements
+50 one-time milestones (`ACHIEVEMENTS`), swept daily and on the Quests tab
+(`Game.checkAchievements`). State-based conditions plus a `state.career` tally
+(`Game.tally`/`careerBattle`) for things state alone can't answer (kill counts, best winning
+odds, a no-losses win, etc). Each tier pays once (bronze 200₺, silver 650₺, gold 2000₺+20
+renown) — deliberately not a stacking permanent bonus (that's what `RELICS` is for). A gold
+achievement's name becomes a cosmetic title shown on the character screen.
+
+### Enterprise and the fief treasury
+**Enterprise** (`Game.buyEnterprise`, 3000₺): `prosperity × 0.55`/day, folded into `fiefIncome()`
+as a `trade` line; earnings stop (not lost) while at war with the town. **Treasury**
+(`loc.treasury`): money deposited here isn't looted on defeat — `Game.defeatLootRatio()` =
+`0.6 + 0.3 × (1 − share in treasury)` only touches the purse on hand, so storage is real
+insurance.
+
+### Rumours — information has a price
+👂 Listen at the tavern: 20₺, 2–4 hours. Spotting skill gates **which stories reach you** and
+**how often they're wrong** (tier 1 direction-only/45% lies → tier 3 numbers-and-dates/5% lies).
+A false rumor is always a true story pinned to the wrong place, not an invented one — one
+generator, one `L()` location-swap function, no duplicated prose. The guild price ledger costs
+50₺/town/day (free to re-check the same day).
+
+### Renown gates above 300
+Three late-game unlocks (`Game.RENOWN_GATES`, gated on `peakRenown()` so losing renown never
+revokes them):
+- **300 — tribute right** (independent only): outweigh 80% of a village's militia, no siege
+  needed; costs relation/prosperity, pays 40% of `fiefTax` daily.
+- **500 — envoy embassy**: send a companion to negotiate relation or a truce (they leave the
+  party for 3–6 days — their skill leaves with them, the real cost).
+- **800 — marshal candidacy** (vassal only): as marshal, *you* pick the campaign target instead
+  of being summoned to one.
+
+## Audio layer
+Two independent systems. **Transaction SFX** are still synthesized (WebAudio oscillator
+envelopes, `Game.SFX`, no files). **Music** is 15 recorded CC0 tracks (10 map / 3 fight / 2
+stings), loudness-normalized (EBU R128, map −19 LUFS / fight+stings −16) so no per-track mixer
+is needed. Not precached by the service worker — a second fetch branch caches each track on
+first play, so install stays light. Played via `<audio>` elements, not Web Audio (streams
+immediately, no decode-then-play stall, and sidesteps iOS's AudioContext-resume bugs entirely).
+`Music.sync()` picks `'map' | 'battle' | null` from the current screen + a 10-in-view-hours
+"chase" flag (`Game.chaseTick`) and only switches on an actual mode change, so a modal opening
+over the map doesn't restart the track. Victory/defeat stings play over `Battle.endBattle`
+(the single exit from every kind of fight) without interrupting whatever plays next.
+
+## Visual layer
+No canvas library — everything hand-drawn in `app.js`/`battle.js`. Shared approach: **bake the
+expensive thing once, stamp the picture every frame** (`buildGroundTexture`, `Battle.buildGround`,
+`unitSprite`, cached gradients). `Game.mapLabel()` scales with `1/zoom` so text stays the same
+screen size at any zoom and pushes overlapping labels up rather than overlapping them. An NPC's
+name label is colored by hostility (red+⚔ foe / blue friend / parchment neutral) rather than
+just the faction-colored ring, since "whose is it" and "will it attack me" are different
+questions. Gradients are cached in world coordinates so panning doesn't invalidate them.
 
 ## Performance
+The bottleneck is the **compositor**, not JS — a typical battle frame costs ~1.2ms of JS against
+a 16.7ms budget. Rules that follow from that:
 
-The bottleneck isn't JS, it's the **compositor**. Measured (1920×1080 canvas, 81 live units +
-60 corpses + 200 blood stains): `Battle.update` 0.27 ms per frame, `Battle.render` 0.97 ms —
-~1.2 ms total. So only ~7% of the frame budget (16.7 ms) goes to JS; everything else is
-drawing and compositing.
+- **No `backdrop-filter` above a moving canvas** (recomputes every frame the pixels under it
+  change) — panels over the map/battle canvas use an opaque background instead; panels over a
+  static background can keep the blur since the result caches.
+- `renderMap()` returns early while a modal is open — no point redrawing a frozen world under a
+  blurred curtain.
+- Canvases are opaque (`getContext('2d', {alpha:false})`) — nothing under them shows anyway.
+- Emoji/gradients/ground textures are baked once and stamped, never rebuilt per frame.
+- Particle ceilings (sparks/text/blood/corpses) and target-search throttling (every 0.3–0.5s/unit,
+  not every frame).
 
-**The frame budget depends on the screen's refresh rate**: on a 180 Hz monitor,
-`requestAnimationFrame` gives **5.5 ms** per frame, not 16.7 ms — the same drawing work fits
-into a 3× tighter budget, and dropped frames feel like stutter. That's why `Game.skipFrame(t)`
-skips excess frames at the top of all three loops. It doesn't use a fixed ms threshold
-(skipping every second frame at 90 Hz would give 45 fps); the refresh rate is measured from
-the first frames and the largest whole divisor that doesn't drop below 60 fps is chosen.
-Measured (a gate simulation in `node`): 60→60, 75→75, 90→90, 120→60, 144→72, 165→82, 180→60,
-240→60.
+**`Game.skipFrame(t)`** targets 60fps (30 in lite mode) regardless of the monitor's real refresh
+rate, by measuring the **median of the last 31 frame intervals** (not the smallest — a single
+short interval, e.g. iOS delivering two rAFs ~2ms apart during a scroll, used to permanently pin
+the estimate and starve the game to a few fps with no way to recover) and picking the largest
+whole divisor that doesn't drop below 60fps. The divisor decision is cached per-frame (not
+per-call) so the map loop and battle loop — which can both call it in the same frame — never see
+different parities and starve each other. Two safety nets on top: a shared canvas-context getter
+(`Game.battleCtx()`, since only the first `getContext` call on a shared canvas binds its flags)
+and a 700ms "did battle actually draw a frame" pulse check that rebuilds the loop once if not.
 
-**The refresh period is the MEDIAN of the last 31 frames, not the smallest (#85).** The old
-estimator was "the shortest interval I've ever seen," and its value could never go back up:
-**one** bad sample nailed `_step` down permanently. That's exactly what a player's iPhone
-debug report measured — iOS delivers two rAFs ~2 ms apart while the page is being scrolled,
-the estimate locks to 2 ms, the report reads "500 Hz," and the divisor `1000/30/2` becomes
-**16**: 15 of every 16 frames get dropped, the game ran at **3.79 fps** (that's what the
-report's `frameDivisor: 8` + `500 Hz` lines mean). The median resists both directions — a
-long jank spell and a double delivery alike stay a minority within the 31-frame window — and
-it **recovers on its own** as the window slides. A second safety net is the sample filter:
-consumer screens top out at 240 Hz, so an interval under `4 ms` can't be a real screen
-period; if the filter strains out everything, `_step` stays `Infinity` and the divisor becomes
-1, so the failure always falls toward **"draw too many frames"**. Measured (two 2 ms samples
-spliced into a 60 Hz stream, next 600 frames counted): **3.79 → 29.94 fps**.
-`tools/test.js`'s *"one bad sample doesn't lock the gate"* assertion is the regression test for
-this (confirmed to turn red run against the pre-fix code).
-
-**The decision is made per frame, not per call (#42).** If asked a second time in the same
-frame (`t === _prevT`), the cached answer is returned. It used to be that every call
-incremented `_frameNo`: when the map loop and battle loop ran together, the counter went up by
-**2** per frame, and on any screen where `n ≥ 2` (120 Hz and up) one loop's parity got stuck
-on the wrong number permanently and that loop **never ran once**. Measured (n=2, 2 seconds):
-before, the map loop got 60 frames, the battle loop **0** — battle froze, the canvas was
-never drawn so the screen went **pitch black** (see #42: "battle resolving in the
-background" — the save/load loops rebuilding and shifting parity made a battle end all of a
-sudden). After the fix, in the same setup the battle loop got **61 update + 61 render** (30
-fps), the map loop 0 (already stopped). Nothing changes at 60 Hz: map 60 fps, battle 60 fps,
-a wasted map render during battle is 0.
-
-Map input is also ignored while battle is open (`handleMapClick` / `handleMapHover`'s opening
-gate is `Battle.active || TournamentMinigame.active`).
-
-**Two safety nets** (#54) sit on top of the root fix — neither is the fix itself, they're
-sentries so a silent black screen doesn't last as long:
-- `Game.battleCtx()` — `battle-canvas` is shared by `Battle` and `TournamentMinigame`, and
-  **the first `getContext` call binds**: if one forgot the `{ alpha:false }` flag, the second
-  call would return `null` and the screen would stay black. Now both get it from the same
-  gate, and `Debug.log('canvas', …)` if the context can't be obtained.
-- **A pulse check** — 700 ms after `Battle.start` sets up the battle loop, it checks: if not
-  even one frame has been drawn (`this.lastRender` still 0), it rebuilds the loop once and
-  writes `Debug.log('pulse', …)`. Skipped while `document.hidden`, since
-  `requestAnimationFrame` already stops in a hidden tab — otherwise every player who alt-tabs
-  gets a false alarm. Measured: with `render` stubbed out and rAF cut, the warning fired at
-  700 ms; it never fired in a normal battle.
-
-So looking at JS in a profiler to hunt for stutter is misleading. Rules applied:
-
-- **No `backdrop-filter` over a moving canvas.** Blur recomputes every time the pixels
-  underneath change; since the map/battle canvas changes every frame, that's a full blur
-  pass every frame. Measured: even on a 344×513 battle canvas, 10 log messages went from
-  **54 fps / p95 33.3 ms → 60 fps / p95 18.2 ms** (repeated three times). `#map-hud`,
-  `#map-tooltip`, `#prisoner-ui`, `.battle-logs .log-msg` use a more opaque background
-  instead of blur. Panels over a static background (`#top-bar`, `#sidebar`, modal) can keep
-  the blur — since what's under them doesn't change, the result gets cached.
-- **`renderMap()` returns early while a modal is open.** Time is already frozen; continuing
-  to draw was recomputing the modal's 16 px glass blur every frame for nothing. Measured:
-  30 frames in 500 ms while a modal was open dropped to 0, and it comes back when it closes.
-- **Canvases are opaque** (`getContext('2d', { alpha: false })`): the map's sea, the battle
-  ground, and the tournament background all fill every pixel every frame anyway, the alpha
-  channel is wasted. Note: `battle-canvas` is shared by `Battle` and `TournamentMinigame` —
-  both must call `getContext` with the same flag (the first call binds).
-- **Every rAF loop has double-start protection** (`Game.startGameLoop`, `Battle.start`,
-  `TournamentMinigame.start`): `if(this.loopId) cancelAnimationFrame(this.loopId)`.
-  Otherwise a second loop doubles both speed and draw load.
-- **Unit emoji are cached as sprites** (`Battle.unitSprite`). Rasterizing a colored emoji
-  glyph with `strokeText` + `fillText` every frame is expensive: measured, per call **13 µs
-  → 3.4 µs (3.8×)**. `Battle.warmUp()` bakes all of `UNIT_ICONS` before battle starts — the
-  "the first seconds stutter, then it smooths out" complaint's source was glyph
-  rasterization in the first frames. Measured: battle's first `render()` went **32.6 ms →
-  21.1 ms**, the first frames went from `32.5 + 33.5 ms` to a single `33.3 ms`. A new unit
-  icon must also be added to `UNIT_ICONS`.
-- The expensive thing is baked once: `Game.buildGroundTexture()`, `Battle.buildGround()`,
-  `_seaGrad`, `_vignette`, `_forestTrees`, `_swordGrad`. No gradient is produced per frame.
-- Particle ceilings: sparks 120, floating text 40, blood stains 200, corpses 60.
-- Target search isn't a full scan per frame — once every 0.3–0.5 s per unit (`u.tgtId`).
-
-### Lite mode — one config, the whole game (#80)
-
-"Even on an iPhone 14, the map stutters after 2 minutes of walking around." Two separate
-jobs: a **root fix** (applies in every mode) and **lite mode** (one switch simplifies the
-whole game).
-
-**1. Root fix — the map was being redrawn from scratch every frame.** Measured (900×620
-canvas, zoom 0.8, per frame, via `CanvasRenderingContext2D` counters):
-
-| | before | after (vanilla) |
-|---|---|---|
-| `createRadialGradient` | **123** | **0** |
-| `fillText` | **239** | **43** |
-| `measureText` | **42** | **0** |
-| `shadowBlur > 0` | 1 *(a 70 px blur over the whole continent)* | **0** |
-| `renderMap` (JS) | 0.66 ms | 0.55 ms |
-
-The JS difference is small, and that's expected — the bottleneck is the compositor (see
-above). The real win is the ~250 short-lived gradient objects going to the GC on a phone and
-the ~157 mountain emoji re-rasterized every frame; the two combined with thermal throttling
-produced the "fine at first, stutters after two minutes" picture.
-
-Four caches, all on `Game`:
-
-| Gate | What it does |
-|---|---|
-| `Game.emoji(ctx, ch, x, y, size)` | Bakes an emoji once onto an offscreen canvas sized to a power of 2, then `drawImage`. Mountain rings, settlement/site icons, crown, and chain go through it |
-| `Game.radial(ctx, r, inner, outer)` | A radial gradient keyed by radius+color. **The cache lives on the context** (`ctx._grads`) — a `CanvasGradient` is tied to the context that created it |
-| `Game.textW(ctx, text)` | A label's width is measured once per text (`mapLabel`) |
-| `Battle.drawTree` | The crown gradient now depends only on radius, not position: drawing is set up at the origin and moved with `translate`, the gradient is produced once per radius (`c._treeGrad`) |
-
-The coastline's `shadowBlur = 70` was replaced with three transparent wide outlines: the same
-look, at the cost of a road drawing.
-
-**2. Lite mode.** One switch: `Game.opt('lite')` = `'auto' | true | false`, `Game.lite()`
-gives the answer and caches it within the frame (`_lite`, refreshed by `applySettings`).
-`'auto'` = `Game.isTouch()`, i.e. `pointer: coarse`. **📱 Lite mode** row in ⚙️ Settings; when
-it turns on by itself, the player is told once with `Game.liteNotice()`
-(`localStorage.webband_lite_told`) — graphics quietly dropping raises the question "why does
-the game look like this."
-
-| Area | What drops in lite mode |
-|---|---|
-| Map | Sea waves, ground patches, and campfire light aren't drawn; forest trees thin to **1 in 3** (not 0 — a forest is gameplay information: ambush, sight, speed), mountain ring 1-in-2 instead of 1-in-4. Full-screen layers also flatten — see "Fill rate" (#84) |
-| Battle | `buildGround` density drops (60→20 patches, 2600→700 grass tufts, forest trees halved); water glint and unit dust drop; `drawHud`'s text shadow drops; `spark()` gives 2 particles instead of 5 |
-| Particle ceilings | sparks 120→**40**, floating text 40→**14**, blood stains 200→**60**, corpses 60→**20** |
-| Screens | `Game.sceneBg` returns null: character/party/inventory/quest backgrounds and the tavern/hall modal image aren't drawn (the curtain stays) |
-| CSS (`body.lite`) | `backdrop-filter` drops, glass panels move to an opaque background, continuously spinning animations stop |
-| Frame rate | `skipFrame`'s target is **30 fps** instead of 60 — on a phone, halving the budget helps more than trimming drawing (and slows heat buildup) |
-
-Measured (the same canvas and frame, vanilla → lite):
-
-| | vanilla | lite |
-|---|---|---|
-| `renderMap` | 0.55 ms · arc 285 · fill 501 · drawImage 198 | **0.38 ms · arc 111 · fill 289 · drawImage 119** |
-| Map trees / frame | 59 | **21** |
-| `Battle.buildGround` (once per battle) | 2.3 ms | **0.3 ms** |
-| `Battle.render` (49 live units) | 0.39 ms · arc 131 · fill 235 · shadowBlur 1 | **0.29 ms · arc 69 · fill 173 · shadowBlur 0** |
-| First entry into 4 menu screens | 28.4 ms, ground data 38 KB | **4.7 ms, 63 bytes** |
-| Frame gate (60 Hz screen) | `[f,f,f,f,f,f,f,f]` = 60 fps | **`[t,f,t,f,…]` = 30 fps** |
-
-`applySettings` clears the `dataset.bg` stamp on screen backgrounds when the mode changes and
-rebuilds the open screen — otherwise a screen entered in lite mode stayed background-less
-when switching back to vanilla.
-
-#### Fill rate: in lite mode the map is flat-painted (#84)
-The map still stuttered on a phone even with lite mode on. Measurement cleared the JS: the
-30 fps gate is working, only `update` + `renderMap` run per frame, no per-frame DOM writes,
-the canvas's own background is already 1 CSS px (no DPR bloat), `sceneBg`'s JPEG decoding is
-already skipped in lite mode. The remaining bottleneck is **fill rate**: `renderMap` paints
-the screen and the continent on top of each other several times over. In lite mode those
-layers are swapped for flat counterparts:
-
-| Layer | vanilla | lite |
-|---|---|---|
-| Sea | a cached gradient, a `20000×20000`-unit rectangle | a single color `#123c58` |
-| Continent | flat green + a **second** texture (pattern) fill on top | flat green only |
-| Coast | a sand strip + a 90-unit halo + three shadow outlines at 130/86/48 units | just a 42-unit sand strip |
-| River | bed + water + glint + a dashed line sliding every frame | a single layer of water |
-| Road | shoulder + surface + a dashed centerline by kind | shoulder + surface (kind is already read from width) |
-
-Measured (1058×709 canvas, the same world, the same frame, A/B — `renderMap` per frame, two
-rounds):
-
-| zoom | 0.07 | 0.30 | 0.80 | 1.50 | 3.00 |
-|---|---|---|---|---|---|
-| vanilla | 1.16 / 0.99 ms | 1.02 / 0.82 | 0.97 / 0.75 | 0.90 / 0.79 | 0.85 / 0.77 |
-| lite | **0.49 / 0.49** | **0.46 / 0.38** | **0.40 / 0.37** | **0.44 / 0.34** | **0.39 / 0.43** |
-
-So ~2× less raster work at every zoom level. Measured via `ctx.getImageData(0,0,1,1)`: canvas
-commands are queued, looking only at JS time alone is misleading. *(Note: repeating the same
-`getImageData` call drops the canvas into software rasterization in Chrome and every number
-inflates ~10×  — vanilla and lite must always be measured back-to-back in the same window.)*
-
-A path tried and **rejected**: baking the whole world (sea + continent + road + river) once
-onto an offscreen canvas and stamping it with `drawImage` every frame. Baking alone took
-19.1 ms and the image blurs above ~zoom 1 — since the camera's zoom keeps changing, the cache
-invalidates constantly.
-
-On a machine that still stutters, the first place to look is `chrome://gpu`: if canvas
-acceleration is off (a driver blocklist), everything gets rasterized in software and nothing
-here helps.
+### Lite mode
+One switch (`Game.opt('lite')`, `'auto'` = `isTouch()`) that simplifies map density (sea
+waves/ground patches off, forest trees thin to 1-in-3), battle ground density, particle
+ceilings, and drops screen backdrop images — plus halves the frame-rate target to 30fps. A
+flat-color fallback additionally replaces gradient sea/coast/river/road layers in lite mode
+(`Fill rate`, #84) since raster fill rate, not JS, was still the bottleneck on a phone even with
+everything else trimmed.
 
 ## Known gaps / bugs
+None currently tracked here. Historical fixes (battle-arc hitting the whole group, frame-rate-
+dependent timers, save/load edge cases, the #41 `app.js`/`battle.js` split) are in git history
+and `CHANGELOG.md`, not repeated here once resolved.
 
-Fixed in phase 0 (no longer an issue): ransom buttons, a tournament softlock
-(`battle-log` → `battle-log-left`), duplicate definitions of
-`showLore`/`toggleEscapePlan`/`attemptEscape`, absolute portrait paths on Windows, a skill-key
-mismatch, `renderPartyScreen` capacity, save/load.
+## Measurement tools
+`tools/harness.js` is the shared rig: a fake DOM + all four game scripts run in one `vm`
+context (so `const Game` etc. resolve as they do in the browser), a seeded `mulberry32` stands
+in for `Math.random`. Everything else is built on it:
 
-Fixed in the battle pass: a single swing hitting **everyone** in its arc, damage stacking from
-rapid clicks because there was no recovery time, `enemyLvl` being computed and never used,
-`performance.now()`-based wait counters depending on frame rate, an archer fleeing the arena
-locking the battle forever, arrow damage being written as `-4.199999999999999`, the player's
-health being dropped to 30% on defeat and then immediately overwritten, the battle ending
-instantly when the player died.
+| Tool | What it measures |
+|---|---|
+| `tools/sim.js --days 200 --seed 1-5` | playerless world: conquest, campaigns, war/peace, prosperity |
+| `tools/duel.js --n 200` | 1v1 troop balance, real `Battle.update` stepped frame by frame |
+| `tools/economy.js --days 60 --troops 10` | a player script's net-worth curve |
+| `tools/framegate.js` | `Game.skipFrame` gate correctness + the #42 loop-parity regression |
+| `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
 
-Remaining: —
+`tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
+run it with `node`. None of `tools/` is loaded by `index.html`; `.github/workflows/test.yml`
+runs `test.js` + `framegate.js` on every push (no `npm install` step — the repo has no
+dependencies), and on green push to `main` a `release` job cuts a GitHub release from
+`VERSION.no` + that version's `CHANGELOG.md` section (skipped if the tag already exists, and it
+fails loudly if the bump forgot a CHANGELOG line).
 
-*(The battle engine was split out into `battle.js` in #41: `app.js` 6276 → 4581 lines,
-`battle.js` 1701 lines.)*
+## Two pipelines: the site and the app
+`test.yml` is the web pipeline (game logic + a release). `native.yml` wraps the same files in a
+Capacitor shell and leaves an installable `.apk` (debug-signed, sideloadable) + an unsigned iOS
+simulator build as CI artifacts — nothing is forked, `native/www/` is just a `cp` of the repo's
+own files, `ios/`/`android/` are regenerated every run rather than committed. A Capacitor shell
+runs the same WebView engine as the browser, so it's not a performance win — what it buys is
+full-screen (no address bar), no external font fetch, and no `dvh` toolbar dance.
 
-## Measurement tools (#62)
-
-The "Measured" numbers in CLAUDE.md used to come from one-off scripts typed by hand in the
-browser console: not repeatable, silently going stale across versions. The four tools under
-`tools/` run **the game's own code** (don't rewrite it) and drop output as
-`docs/measurements/<date>-<topic>.md`.
-
-`tools/harness.js` is the one gate: it sets up a tiny fake DOM, runs `app.js` → `battle.js` →
-`nobles.js` → `quests.js` in **a single `vm` context** (in a classic script, `const Game` is a
-lexical global, it can't be looked up as `window.Game`), and reads names back with
-`vm.runInContext`. Drawing calls land on a fake canvas context and become no-ops. A seeded
-generator (`mulberry32`) stands in for `Math.random`, so **the same seed gives the same
-world**. Shared flags: `--seed 1-5`, `--json`, `--report`.
-
-| Tool | What it measures | Example |
-|---|---|---|
-| `sim.js` | A playerless world: conquest, campaigns, war/peace, caravan raids, prosperity, erased kingdoms | `node tools/sim.js --days 200 --seed 1-5` |
-| `duel.js` | 1v1 troop balance — the real `Battle.update` is stepped frame by frame (block, kite, charge included) | `node tools/duel.js --n 200` |
-| `economy.js` | A player script's **net worth** curve: treasury + the sale value of trade goods on hand | `node tools/economy.js --days 60 --troops 10` |
-| `framegate.js` | The `Game.skipFrame` gate: Hz → passed fps and #42 parity | `node tools/framegate.js` |
-
-### Frame-skip gate — regression (`framegate.js`)
-The gate's own code is driven with fake timestamps. Measured (2 s):
-**60→60, 75→75, 90→90, 120→60, 144→72, 165→82.5, 180→60, 240→60** — so the rule ("the
-largest divisor that doesn't drop below 60 fps") held. The second table is #42's regression
-test: when two loops ask in the same frame, **the parity difference is 0**, the map and
-battle loop see the same fps. If the parity difference ever comes out above zero, one of the
-loops is permanently starved and the screen goes black; the tool **exits with 1** in that
-case, so it can be used as a CI gate.
-
-### Economy — is choosing a profession really a choice? (`economy.js`)
-Three player scripts are run in the same world, with the same army. So the army doesn't
-starve, supplies are bought every day (otherwise the measurement would be "does the army
-desert," not "the money curve"), and what's measured isn't the treasury but **net worth** —
-the trade script closes the day by unloading, so the treasury alone would mislead.
-
-Measured (`--days 60 --troops 10`, 10× lvl 10 Svadya Milisi, 1000-denar treasury):
-
-| Script | End | Per day | Daily wage | Daily food | Troops left |
-|---|---|---|---|---|---|
-| Idle army | 37 | **−16.1** | 20₺ | **12₺** | 0/10 |
-| Trade route | 8 | **−16.5** | 20₺ | **14₺** | 0/10 |
-| Fief holder | 6721 | **+95.3** | 20₺ | **31₺** | 11/10 |
-
-*(Measured after `FOOD_MAN`. The food line dropped in every script — 14→12, 18→14, 49→31 —
-but "per day" only improved **for the fief**: +79.1 → **+95.3**, so the ~18₺ saved went
-straight to profit. The other two scripts already end at zero denars; what's measured there
-isn't profitability but "how many days until bankrupt," so the −14.6 → −16.1 difference isn't
-meaningful. The takeaway is unchanged: **a 10-person army doesn't live without income** — but
-the bill is now in the same range as the wage, not double it.)*
-
-Takeaway: **a 10-person army doesn't live without income** (wage + food ≈ 35–50₺/day) and
-**trade alone doesn't feed an army**. The same trade script run without an army earns
-+11.8₺/day; growing the treasury doesn't help (`--purse 5000` → +2.3, `--purse 20000` →
-+0.2), because the bottleneck isn't money, it's **#46's supply curve**: draining more than a
-quarter of the target market's stock crashes the price. So trade scales by **route count**,
-not purse size — same as in Warband. A fief is steady income: +79₺/day even with no campaign
-or war.
-
-### Duel — why the tool's measurement differs from the hand measurement (`duel.js`)
-The durations in the "Party & troops" section were measured with `Battle.dealMelee` called
-**one-way** (the target doesn't hit back). `duel.js` is a real duel: both hit, block, flee,
-charge. Measured (200 fights per round; a duel is random, the rate moves ±3% across repeated
-rounds):
-
-| A | B | A wins | Avg. duration |
-|---|---|---|---|
-| Nord Baltacısı | Rodok Kalkanlısı | **96.9%** | 22.9 s |
-| Nord Baltacısı | Svadya Şövalyesi | **50.8%** | 15.1 s |
-| Rodok Mızraklısı | Nord Baltacısı | 0% | 8.8 s |
-| Svadya Milisi | Rodok Kalkanlısı | 0% | 10 s |
-| Kergit Atlı Okçusu | Rodok Tatar Yaylısı | 6.5% | 9.6 s |
-
-The two methods don't conflict, they ask a different question: the one-way measurement says
-"how fast does this weapon pierce this armor," the duel says "does this troop beat that
-troop." Elite balance holds up — the halberdier beats the shielded knight, but **in 23
-seconds**, and it's a coin flip against the cavalry knight. A mid-tier troop still loses to
-an elite (0%): the spear pierces the armor, but the health pool doesn't hold up.
-
-### Test and CI (#63)
-
-`tools/test.js` uses the same rig (`harness.js`) as its test runner. No framework, no
-dependency: `test(name, fn)` + `assert`. **67 assertions**, two sections:
-
-1. **Pure logic** — functions with a known input/output table: `Battle.afterArmor`,
-   `Game.troopWage`, `fiefTax`, `getPartyCapacity`, `prisonerValue`, `moraleTarget`,
-   `foodStock`, the `skipFrame` gate, `Save.migrate`, the language layer (#81). The expected
-   numbers are the "Measured" lines in CLAUDE.md themselves — if one changes, either the code
-   or the doc is wrong. There's also a **quest suite** here: **every** quest in `QUESTS` is
-   set up via `Quests.make`, `where`/`desc` are checked, then it's finished with real engine
-   events and its reward is paid. It's also asserted that the driver table covers
-   `Object.keys(QUESTS)` — adding a quest without writing its test turns red. Since quest
-   **titles** are raw data (`T(def.title)`, a form the static extractor can't see), their
-   presence in both dictionaries is gated by a separate assertion. The **road-events suite**
-   (#67) is here too: every option in the pool is actually run — `run`'s body is code, a
-   helper whose name changed blows up only when that option is picked, and only the player
-   would have seen it. Since the trigger depends on distance, `ROAD_CHANCE` is pulled to 1 to
-   test it; the engine's own `Math` lives in a separate vm context, so overriding
-   `Math.random` from outside does nothing.
-2. **Thresholds** — a 200-day playerless world (`sim.js`) and 60-day economy scripts
-   (`economy.js`). Since the world is random, an **exact number isn't expected, a range** is:
-   conquest 1–20, caravan raids 20–260, erased kingdoms 0; an idle army shouldn't turn a daily
-   profit, a fief should earn above 20₺/day.
-
-| Command | What it runs | Measured |
-|---|---|---|
-| `node tools/test.js` | everything | **4.9 s** (sim 200 days ~4.1 s, economy 3 scripts ~0.4 s) |
-| `node tools/test.js --fast` | pure logic only | **0.13 s** |
-
-**The acceptance path was measured**: with supply prices deliberately doubled, `node
-tools/test.js` turned red (`fief income collapsed: 18.8₺/day`) and exited with 1. *Known
-weakness:* the same sabotage isn't caught by the "a 10-person army's daily food bill"
-assertion — the `idle` script buys less grain as it gets poorer, so the cost stays within
-range. So the thresholds need to be read **together**.
-
-`.github/workflows/test.yml` runs `node tools/test.js` + `node tools/framegate.js` on every
-push to `main` and every PR (the second is the regression test for #42's loop parity). There's
-no `npm install` step — the repo has no dependencies.
-
-*(The tools add nothing to the browser game — `index.html` never loads them.)*
-
-### Versioning and release (#88 item 8)
-
-`VERSION` is bumped by hand; opening a release by hand gets forgotten — up through 0.74 the
-repo had **not a single tag**, even though an error report's first line is the version stamp
-and "what was in 0.68" needs somewhere to point to. Versions 0.55–0.75 were tagged
-retroactively: each version's **real** bump commit was found with
-`git log -S"no: '0.xx'" -- app.js`, notes were pulled from that section of CHANGELOG.
-0.40/0.50/0.54 weren't tagged — the `VERSION` constant was born in #55, before that there was
-no version in the code at all.
-
-Everything after that is left to `test.yml`'s `release` job: on every green build pushed to
-`main`, `VERSION.no` is read (from the test rig, not a grep), if the tag already exists it's
-silently skipped, otherwise a release opens with that version's CHANGELOG section as notes.
-The job depends on `needs: test` — a red build doesn't release. If the version was bumped
-without a CHANGELOG line, the job **breaks**; the same assertion also lives in the local test
-(*"version: VERSION.no finds a section inside CHANGELOG.md"*), where breaking is cheaper.
-
-## Two pipelines: the site and the app (#91)
-
-The same files are both. `test.yml` is the **web** pipeline — it runs the game's own code and
-cuts a release. `native.yml` is the **app** pipeline — it wraps those same files in a
-Capacitor shell and leaves an installable `.apk` (and a compiled iOS build) as run artifacts.
-Nothing was forked: the repo root is still build-free and dependency-free, and `tools/` and
-the test suite are untouched by either.
-
-### What was actually wrong on the phone
-
-**Double-tapping a button zoomed the page.** The rule was there
-(`html, body { touch-action: pan-x pan-y }`) and the value was right — `pan-x pan-y` is
-stricter than `manipulation`, so it closes the double-tap gesture as well as pinch. The bug
-was **where** it reached: `touch-action` is not an inherited property, so a rule on the body
-governs the body and nothing inside it. Every button, panel, modal and badge in the game
-computed the initial `auto` and kept the browser's own gesture.
-
-The fix is the selector, not the value: `*`. Measured on the start screen, before: **231
-elements** on `auto`, the three canvases and the two sticks on `none`. After: **0 elements**
-on `auto` — everything is `pan-x pan-y` except the six that own their own gestures
-(`#map-canvas`, `#battle-canvas`, `#scene-canvas`, `#tstick`, `#tastick`, `#tb-block`), whose
-id/class selectors outrank `*`. A modal injected by `showModal` after load lands on
-`pan-x pan-y` too, and its `input[type="range"]` still keeps `none`.
-
-Two smaller things travel with it, both inherited so `body` covers the tree:
-`-webkit-tap-highlight-color: transparent` (the grey box that flashed under every tap) and
-`-webkit-touch-callout: none` + `user-select: none` — a finger *holds* a button to open its
-tooltip, and iOS answered the same hold with its selection magnifier on top of the tooltip.
-`input`/`textarea` take selection back, so the name field and the save-import box still work.
-
-### The last network dependency
-
-Cinzel and Inter arrived from `fonts.googleapis.com`. Offline, under `file://` and inside the
-native WebView that link silently failed and the game fell back to serif — the installed app
-would not have looked like the site. The woff2 subsets now live in `fonts/` (both SIL OFL,
-~174 KB for four files) and the `@font-face` block at the top of `style.css` is Google's own
-with the URLs rewritten. **latin and latin-ext both**, because Turkish needs latin-ext; the
-`unicode-range` split is kept, so a page with no Turkish characters never fetches the ext
-file. Measured: `performance.getEntriesByType('resource')` lists **zero** non-same-origin
-entries, and `document.fonts` reports Cinzel and Inter loaded.
-
-### Installable from the browser (PWA)
-
-`manifest.webmanifest` + `sw.js`. The worker precaches the fixed file list on install and
-serves cache-first — there is no API behind the game, so nothing cleverer is warranted.
-
-Cache-first means a **stale cache is a way to ship nothing**: new code only lands when the
-cache *name* changes. `CACHE` therefore carries `VERSION.no` and is bumped in the same
-by-hand pass as `VERSION` and the CHANGELOG line. Hands forget, so `tools/test.js` asserts
-three things: the cache name tracks `VERSION.no`, every precached path exists (one 404 makes
-`cache.addAll` reject wholesale, leaving the install with no cache at all), and every
-`<script src>` in `index.html` is in the list.
-
-Registration is guarded with `!window.Capacitor`, not just a protocol check. With
-`androidScheme: https` the native app's origin is `https://localhost` — a protocol check
-alone would install a second, stale copy of every asset on top of the one already in the
-app bundle.
-
-### The notch — why two fixes did nothing (#95)
-
-`.screen` is `position: absolute` inside `#game-container`. The inset was written as
-**padding on the container**, on the reasoning that an absolutely positioned child is laid
-out against its containing block's padding box — true, but that box's *origin* is the border
-edge, so padding does not move such a child at all. Measured in the browser: 59px of
-`padding-top` on `#game-container` shifts `#top-bar` by **0px**; the same 59px as `top` on
-`.screen` shifts it by **59px**. Both 0.89's `env()` padding and 0.93's `max(env(), 59px)`
-floor were therefore no-ops on every platform, which also explains why the phone looked
-identical after each release.
-
-The inset now lives on `.screen` itself as `inset: env(top) env(right) 0 env(left)` — bottom
-stays 0 because `--tui-lift` already adds `safe-area-inset-bottom` and counting it twice
-lifts the touch controls off the screen. `Game.safeArea()` measures the four insets on a real
-box (a custom property holding `env()` computes to the unresolved token), and index.html adds
-`.native-shell` only when a native shell reports a top inset of **0** — a phone that reports
-its real notch keeps its own number instead of a blanket 59px.
-
-### The native shell (Capacitor)
-
-Everything npm touches lives under `native/`; the repo root gains no `package.json`.
-`native/www/` is assembled by one `cp` line from the repo's own files, so the web build
-still has no build step.
-
-`ios/` and `android/` are **not committed** — `cap add` regenerates both from
-`capacitor.config.json` on every CI run, and `@capacitor/assets` derives every icon and
-splash density from two 1024px source images. The cost of that choice is real and worth
-stating: a hand-edit to `Info.plist` or `AndroidManifest.xml` would not survive, so anything
-needed there has to go through the config file. Android immersive mode is the first thing
-that wants a manifest edit, and is deferred for exactly this reason.
-
-Android ships a debug-signed `.apk` that sideloads with no developer account anywhere. iOS
-builds for the simulator, unsigned: a device `.ipa` needs a paid Apple Developer membership,
-and until there is one, installing on a real iPhone is a local Xcode step with a free 7-day
-profile. The workflow names the three secrets to add when that changes.
-
-### What this does *not* fix
-
-A Capacitor shell runs the **same WebView engine** as the browser, so the canvas is not
-faster inside it. What the app gains is full-screen (no toolbar/`dvh` dance), no font fetch,
-and a launch that does not go through the address bar. The stutter question in
-`docs/PLAN-mobile-port.md` stays open, and its phase 0 — a debug report from the real
-device, compared between the browser and the installed app — is still the gate on whether
-the PixiJS renderer is ever worth building. Worth carrying into that reading:
-`resizeCanvases()` sets `canvas.width = parentElement.clientWidth`, so DPR is never applied
-and the backing store is already 1 CSS px per pixel. Raster cost is at the floor, which
-makes the DOM compositor the likelier suspect of the two.
+Mobile-specific fixes worth remembering because they're easy to reintroduce:
+- **`touch-action` doesn't inherit** — the gate is `* { touch-action: pan-x pan-y }` in
+  `style.css`, not a rule on `html, body` (a body-only rule leaves every button inside it on
+  `auto`, so the browser's own double-tap-zoom keeps firing). The six elements that own real
+  gestures (`#map-canvas`, `#battle-canvas`, `#scene-canvas`, `#tstick`, `#tastick`,
+  `#tb-block`) override it to `none`.
+- Fonts (Cinzel/Inter) are self-hosted in `fonts/`, not fetched from `fonts.googleapis.com` —
+  offline/`file://`/native WebView all silently lost that link and fell back to serif.
+- The notch inset lives on `.screen` itself (`inset: env(...)`), not as padding on its
+  containing block — an absolutely-positioned child's containing-block padding never moves it,
+  only `top`/`inset` do; two earlier attempts (`env()` padding, then a `max(env(), 59px)` floor)
+  were both no-ops for exactly this reason.
+- `sw.js` registration is guarded by `!window.Capacitor`, not just a protocol check — the native
+  shell's own origin (`https://localhost`) would otherwise install a second, stale asset cache
+  on top of the one already bundled in the app.
 
 ## Code style
-
-- English comments and variable/function names; UI text stays Turkish (see below).
-- The UI is built with `innerHTML` template strings, inline `style` is common. Button actions
-  bind to globals via `onclick="Game.xxx()"` — so `Game`/`Battle`/`Nobles`/`Quests`/`Feast`/
-  `Save` must stay global.
-- Open a modal with `Game.showModal(html, width?, bgImage?)`, close with `Game.closeModal()`.
-- `alert()` is fine for a notice (it's redirected to the modal). The override checks
-  `typeof Game`: `const Game` is a **lexical** global, it isn't found via `window.Game` — the
-  old guard checked `window.Game`, so every `alert()` call in the game was silently swallowed
-  (e.g. the "Interest 0/60" warning; the button looked like it did nothing). A `\n` in a
-  message becomes `<br>` in the modal.
+- English comments and identifiers; UI text stays Turkish, translated via `T()`.
+- `innerHTML` template strings + inline `style`; button actions bind to globals via
+  `onclick="Game.xxx()"`.
+- Modal: `Game.showModal(html, width?, bgImage?)` / `Game.closeModal()`. `alert()` is fine — it's
+  redirected to a modal, and a `\n` becomes `<br>`. The override checks `typeof Game` (`const
+  Game` is a lexical global, not reachable via `window.Game`).
