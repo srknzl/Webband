@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.31.4', date: '2026-09-25', name: 'Altmış Kare' };  // the version name is not translated
+const VERSION = { no: '1.31.5', date: '2026-09-26', name: 'Kendi Temposu' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -78,6 +78,9 @@ const Debug = {
                 battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active),
                 mapLoopId: g(() => Game._loopId), battleLoopId: g(() => Battle.loopId),
                 targetFps: g(() => Game.targetFps()), fpsSetting: g(() => Game.opt('fps')),
+                adaptive: g(() => { let p = Game.perfState();
+                    return { rung: Game.perfRung(), canStep: Game.perfCanStep(), strikes: p.strikes,
+                             lastWindowJank: p.lastRatio === null ? '-' : Math.round(p.lastRatio * 100) + '%', stepDowns: p.log }; }),
                 frameDivider: g(() => Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01))),
                 effectiveFps: g(() => Game._step === Infinity ? T('ölçülmedi')
                     : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01)))),
@@ -892,21 +895,99 @@ const Game = {
     // the same work eats the frame budget along with heating up the device. All
     // three are fixed by the same principle: **bake the expensive thing once, then just stamp the image** (the map's counterpart to Battle.buildGround).
 
-    // Lite mode: turns on by itself on touch devices, can be turned off in settings.
-    // 'auto' = ask the device. The answer is cached since it's asked several times per frame.
+    // Lite mode: 'auto' = the adaptive rung below (on from the start on touch devices, and
+    // switched on by itself on a device that keeps stuttering). Cached — it's asked several
+    // times per frame; applySettings() clears the cache.
     lite() {
         if(this._lite === undefined) {
             let v = this.opt('lite');
-            this._lite = v === 'auto' ? this.isTouch() : !!v;
+            this._lite = v === 'auto' ? this.perfState().lite : !!v;
         }
         return this._lite;
     },
-    // Frame-rate target, its own knob since 1.31.4: 'auto' keeps the old coupling (lite -> 30,
-    // otherwise 60), 60/30 pin it. A phone can now run lite mode's lighter drawing at 60 fps —
-    // the biggest single smoothness lever for how the game feels on a phone.
+    // Frame-rate target, its own knob since 1.31.4. 'auto' = 60 until the adaptive rung drops
+    // it to 30 (1.31.5; before that 'auto' simply meant lite -> 30).
     targetFps() {
         let v = this.opt('fps');
-        return v === 'auto' ? (this.lite() ? 30 : 60) : v;
+        return v === 'auto' ? (this.perfState().fps30 ? 30 : 60) : v;
+    },
+
+    // ---- Adaptive frame rate (1.31.5). With lite/fps on 'auto' the game starts at 60 fps —
+    // full drawing on desktop, lite drawing on touch — and steps DOWN one rung when frames
+    // keep arriving late: full -> lite, then 60 -> 30. It never climbs back within a session
+    // (bouncing between rungs is itself a stutter); the rung is remembered per device and
+    // retried once per new version. Only *irregular* frames count, measured against the
+    // refresh period the frame gate itself measures (the median, #85) — so iOS Low Power
+    // Mode's steady 30 Hz is not mistaken for a struggle. A steadily slow device isn't caught
+    // either; it also doesn't stutter, which is what this is for. A setting chosen by hand is
+    // never overridden.
+    PERF_WINDOW: 5000,    // ms of drawn frames per verdict
+    PERF_JANK: 0.1,       // a window is "bad" when more than 10% of its frames came late
+    PERF_STRIKES: 2,      // two bad windows in a row -> one rung down
+    PERF_GRACE: 1500,     // ms ignored after a screen change (loading hitches aren't the device)
+    perf: null,
+    perfState() {
+        if(!this.perf) {
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem('webband_perf') || 'null'); } catch(e) {}
+            let keep = saved && saved.v === VERSION.no;
+            this.perf = { lite: keep ? !!saved.lite : this.isTouch(), fps30: keep ? !!saved.fps30 : false,
+                log: keep && Array.isArray(saved.log) ? saved.log : [],
+                lastT: 0, win: 0, frames: 0, janks: 0, strikes: 0, graceUntil: 0, lastRatio: null };
+        }
+        return this.perf;
+    },
+    perfRung() { let p = this.perfState(); return (p.lite ? 'lite' : 'full') + '@' + (p.fps30 ? 30 : 60); },
+    perfCanStep() {
+        let p = this.perfState();
+        return (this.opt('lite') === 'auto' && !p.lite) || (this.opt('fps') === 'auto' && !p.fps30);
+    },
+    // Only frames that actually painted the world are evidence: a modal freezes the map
+    // (renderMap returns early), a hidden tab gets no frames at all.
+    perfDrawing() {
+        if(document.hidden) return false;
+        if(Battle.active || TournamentMinigame.active) return true;
+        let mv = document.getElementById('map-view'), mo = document.getElementById('modal-overlay');
+        return !!(mv && mv.classList.contains('active') && mo && mo.classList.contains('hidden'));
+    },
+    perfGrace(ms = this.PERF_GRACE) { let p = this.perfState(); p.graceUntil = performance.now() + ms; p.lastT = 0; },
+    // Called by skipFrame for every frame that is drawn; n = the gate's divisor for this frame.
+    perfObserve(t, n) {
+        let p = this.perfState();
+        let d = p.lastT ? t - p.lastT : 0;
+        p.lastT = t;
+        // > 250 ms is a loading hitch or a resumed tab, not a frame rate
+        if(!d || d > 250 || t < p.graceUntil || this._step === Infinity || !this.perfCanStep() || !this.perfDrawing()) return;
+        p.frames++; p.win += d;
+        if(d > this._step * n * 1.5) p.janks++;
+        if(p.win < this.PERF_WINDOW) return;
+        p.lastRatio = p.janks / p.frames;
+        p.strikes = p.lastRatio > this.PERF_JANK ? p.strikes + 1 : 0;
+        p.win = p.frames = p.janks = 0;
+        if(p.strikes >= this.PERF_STRIKES) this.perfStepDown(t);
+    },
+    perfStepDown(t) {
+        let p = this.perfState(), from = this.perfRung(), toLite = false;
+        if(this.opt('lite') === 'auto' && !p.lite) { p.lite = true; toLite = true; }
+        else if(this.opt('fps') === 'auto' && !p.fps30) p.fps30 = true;
+        else return;
+        p.strikes = 0;
+        p.graceUntil = t + 3000;
+        p.log.push({ day: state.time ? state.time.day : 0, from, to: this.perfRung(), jank: Math.round(p.lastRatio * 100) + '%' });
+        if(p.log.length > 10) p.log.shift();
+        try { localStorage.setItem('webband_perf', JSON.stringify({ v: VERSION.no, lite: p.lite, fps30: p.fps30, log: p.log })); } catch(e) {}
+        this.applySettings();   // clears the lite cache, toggles body.lite, re-applies backdrops
+        this.perfToast(toLite ? T`🎞️ Akıcılık için hafif moda geçildi` : T`🎞️ Akıcılık için kare hızı 30'a indirildi`);
+    },
+    perfToast(msg) {
+        let el = document.createElement('div');
+        el.style.cssText = `position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:9999;
+            padding:8px 14px;border-radius:10px;background:rgba(20,18,14,0.94);border:1px solid var(--panel-border);color:#f0e6d2;
+            font-size:var(--fs-sm);pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;text-align:center`;
+        el.innerHTML = `${msg}<div style="font-size:var(--fs-xs);opacity:.75">${T`⚙️ Ayarlar'dan değiştirebilirsin`}</div>`;
+        document.body.appendChild(el);
+        setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'translate(-50%,0)'; }, 30);
+        setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 350); }, 4000);
     },
 
     // Emoji glyph: baked once into a power-of-two bucket, then stamped at a smaller size.
@@ -2104,7 +2185,7 @@ const Game = {
             </button>`;
         }
         html += `</div><h4 style="margin:1.1rem 0 0.4rem">${T('📱 Hafif mod')}</h4>
-            <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:0.5rem">${T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.')}</div>
+            <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:0.5rem">${T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer. Telefonda ve takılan cihazda kendiliğinden açılır.')}</div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap">`;
         for(let v of ['auto', true, false]) {
             html += `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm)"
@@ -2275,13 +2356,15 @@ const Game = {
         }
         // The gate can be turned off from settings (#55 item 7): a player who doesn't trust
         // the gate should have an escape hatch. Measurement (Debug.frame) keeps running even while it's off.
-        if(!this.opt('frameGate')) return this._lastSkip = false;
+        if(!this.opt('frameGate')) { this.perfObserve(t, 1); return this._lastSkip = false; }
         // 'auto' targets 30 fps in lite mode: halving the frame budget on phones helps more
         // than trimming the drawing (and it also slows down thermal warm-up). The fps setting
         // can pin 60 or 30 regardless of lite mode.
         let fps = this.targetFps();
         let n = Math.max(1, Math.floor(1000 / fps / this._step + 0.01));
-        return this._lastSkip = ((++this._frameNo % n) !== 0);
+        this._lastSkip = ((++this._frameNo % n) !== 0);
+        if(!this._lastSkip) this.perfObserve(t, n);   // adaptive rung (1.31.5)
+        return this._lastSkip;
     },
 
     // battle-canvas is shared by Battle and TournamentMinigame. The first getContext call is
@@ -5521,6 +5604,7 @@ const Game = {
         // but never drawn to. Refusing the switch here is the single choke point for every
         // caller; leaving battle only ever happens through its own end-of-battle flow (#132).
         if(screenId !== 'battle' && (Battle.active || TournamentMinigame.active)) return;
+        this.perfGrace();   // the frames right after a switch are loading, not the device's pace
         let wasMap = document.getElementById('map-view').classList.contains('active');
         this.resetMapInteractionState();   // the map starts every screen from a clean input state (#96)
         // Returning from a menu/battle with an old free-pan offset made the player appear lost.
@@ -6400,7 +6484,7 @@ const Game = {
         if(!this.lite() || this.opt('lite') !== 'auto') return;
         try { if(localStorage.getItem('webband_lite_told')) return;
               localStorage.setItem('webband_lite_told', '1'); } catch(e) { return; }
-        setTimeout(() => alert(T`📱 Telefon/tablet algılandı — Hafif Mod açıldı.\nDeniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer; hedef 30 fps.\n⚙️ Ayarlar'dan kapatabilirsin.`), 600);
+        setTimeout(() => alert(T`📱 Telefon/tablet algılandı — Hafif Mod açıldı.\nDeniz dalgası, orman ağaçları, ocak ışığı ve savaş parçacıkları düşer. Oyun 60 fps ile başlar; takılırsa kendiliğinden 30'a iner.\n⚙️ Ayarlar'dan değiştirebilirsin.`), 600);
     },
 
     renderLangRow(id) {
@@ -8398,8 +8482,8 @@ const Game = {
             T('Ortaçağ kilise makamlarında, her seferinde yeniden bestelenir: haritada sakin, savaşta davullu')
             + `<br><span id="music-now">${this.Music.nowPlaying()}</span>`)}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
-        ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
-        ${row(T('🎯 Kare hızı hedefi'), fpsBtn, T('Cihaza göre: hafif modda 30, değilse 60. 60 daha akıcıdır ama pili daha çabuk tüketir ve telefonu ısıtabilir.'))}
+        ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer. Telefonda ve takılan cihazda kendiliğinden açılır.'))}
+        ${row(T('🎯 Kare hızı hedefi'), fpsBtn, T`Cihaza göre: 60 ile başlar, takılma ölçülürse önce hafif moda, sonra 30'a kendiliğinden iner. Şu an: ${this.targetFps()} fps.`)}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}

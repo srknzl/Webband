@@ -25,6 +25,13 @@ const Battle = {
     // where the same zoom shows less absolute area than on a desktop monitor) — still closer
     // than the old 1:1, just with more of the field visible around the player.
     CAM_ZOOM: 2.3,
+    // Touch screens (1.31.5 report: "far too close on the phone"): the zoom is picked so the
+    // screen's short side shows MOBILE_VIEW arena px — ~1.4 on a 390-px-wide iPhone instead of
+    // 2.3 — never closer than CAM_ZOOM, never below 1.2. Desktop keeps CAM_ZOOM.
+    MOBILE_VIEW: 280,
+    camZoomFor(W, H) {
+        return Game.isTouch() ? Math.max(1.2, Math.min(this.CAM_ZOOM, Math.min(W, H) / this.MOBILE_VIEW)) : this.CAM_ZOOM;
+    },
 
     // Rival suitor duel: 1-on-1, no group, no loot
     startDuel(lord) {
@@ -162,7 +169,7 @@ const Battle = {
         this.currentCommand = 'charge';
         // Camera (#4): recentered fresh every battle, otherwise it opens on wherever the
         // previous fight's player unit died.
-        this.camZoom = this.CAM_ZOOM;
+        this.camZoom = this.camZoomFor(W, H);
         this.cam = { x: W / 2, y: H / 2 };
         // Commands aren't ready at the start of battle: each one becomes available
         // as an "opportunity" at its own random moment. The horn call comes from inside the battle, not a menu.

@@ -735,7 +735,7 @@ diverge even on the same device (a tablet: coarse pointer + wide screen):
 |---|---|---|
 | How is it entered? | `Game.isTouch()` = `pointer: coarse` | — |
 | How does it lay out? | `@media (max-width: 820px / 430px)` | — |
-| How much is drawn? | `Game.lite()` | `'auto'` = `isTouch()` |
+| How much is drawn? | `Game.lite()` | `'auto'` = adaptive rung, starts at `isTouch()` (1.31.5) |
 | Does it edge-pan? | `Game.edgePan()` | `'auto'` = `!isTouch()` |
 
 - **One input gate**: pointer events (not mouse-specific listeners) drive both mouse and touch.
@@ -752,6 +752,9 @@ diverge even on the same device (a tablet: coarse pointer + wide screen):
   `≤430px` additionally shrinks HUD text and hides keyboard digits from command buttons.
   `body.in-battle` (set only under `pointer: coarse`) hides the campaign bar and menu strip
   during a fight so the whole screen is arena.
+- **Battle camera zoom** (`Battle.camZoomFor`, 1.31.5): desktop keeps `CAM_ZOOM` 2.3; on touch
+  the screen's short side shows `MOBILE_VIEW` = 280 arena px (clamped 1.2–2.3) — 1.39 on a
+  390px-wide iPhone, which shows ~1.65× the width 2.3 did.
 - Touch targets ≥44px (WCAG 2.5.5). `100dvh` (not `100vh`) so iOS's toolbar-hide doesn't leave
   the layout taller than the visible viewport. Tooltip hover becomes tap-to-toggle
   (`.tip-open`) on a coarse pointer.
@@ -886,8 +889,8 @@ a 16.7ms budget. Rules that follow from that:
 - Particle ceilings (sparks/text/blood/corpses) and target-search throttling (every 0.3–0.5s/unit,
   not every frame).
 
-**`Game.skipFrame(t)`** targets `Game.targetFps()` — the 🎯 setting; `'auto'` = 60fps, 30 in lite
-mode — regardless of the monitor's real refresh
+**`Game.skipFrame(t)`** targets `Game.targetFps()` — the 🎯 setting; `'auto'` = the adaptive
+rung below — regardless of the monitor's real refresh
 rate, by measuring the **median of the last 31 frame intervals** (not the smallest — a single
 short interval, e.g. iOS delivering two rAFs ~2ms apart during a scroll, used to permanently pin
 the estimate and starve the game to a few fps with no way to recover) and picking the largest
@@ -897,11 +900,25 @@ different parities and starve each other. Two safety nets on top: a shared canva
 (`Game.battleCtx()`, since only the first `getContext` call on a shared canvas binds its flags)
 and a 700ms "did battle actually draw a frame" pulse check that rebuilds the loop once if not.
 
+### Adaptive frame rate (1.31.5)
+With lite and/or fps on `'auto'`, the game starts at 60fps (full drawing on desktop, lite on
+touch) and steps **down** one rung — full@60 → lite@60 → lite@30 — when two consecutive 5s windows
+of drawn frames each have >10% frames later than 1.5× the expected interval (`_step × divisor`).
+`skipFrame` feeds `perfObserve` for every drawn frame; frames under a modal, in a hidden tab,
+within 1.5s of a `showScreen` (loading), or >250ms apart are no evidence. Because "late" is
+measured against the gate's own median refresh estimate, iOS Low Power Mode's steady 30Hz is
+not a stutter; a steadily slow device isn't caught either (it doesn't stutter). Never climbs
+back within a session; the rung is stored in `localStorage.webband_perf` with `VERSION.no` and
+retried from the top on a new version. A hand-picked lite/fps value is never touched. The debug
+report carries `render.adaptive` (rung, strikes, last window's jank %, step-down log).
+Measured (`tools/test.js`): 25% late frames → lite@60 after ~10s, lite@30 ~13s later; 5% late,
+steady 60Hz and steady 30Hz stay on full@60.
+
 ### Lite mode
-One switch (`Game.opt('lite')`, `'auto'` = `isTouch()`) that simplifies map density (sea
+One switch (`Game.opt('lite')`, `'auto'` = the adaptive rung — on from the start on touch) that simplifies map density (sea
 waves/ground patches off, forest trees thin to 1-in-3), battle ground density, particle
-ceilings, and drops screen backdrop images — plus halves the frame-rate target to 30fps while the
-🎯 frame-rate setting is on 'auto' (since 1.31.4 it can pin 60 with lite drawing kept). A
+ceilings, and drops screen backdrop images. Since 1.31.5 it no longer implies 30fps — the frame
+rate is its own (adaptive) knob. A
 flat-color fallback additionally replaces gradient sea/coast/river/road layers in lite mode
 (`Fill rate`, #84) since raster fill rate, not JS, was still the bottleneck on a phone even with
 everything else trimmed.

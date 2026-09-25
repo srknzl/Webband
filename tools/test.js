@@ -327,11 +327,12 @@ test('skipFrame: two loops in the same frame get the same answer (#42)', () => {
         assert.strictEqual(mismatch, 0, `${mismatch} mismatched answers at ${hz} Hz`);
     }
 });
-test('skipFrame: lite mode targets 30 fps (#80)', () => {
-    assert.strictEqual(gateFps(60, 2, { lite: true }), 30);
-    assert.strictEqual(gateFps(120, 2, { lite: true }), 30);
+test('skipFrame: lite mode no longer implies 30 fps; the fps setting does (#80 -> 1.31.5)', () => {
+    assert.strictEqual(gateFps(60, 2, { lite: true }), 60);              // lite drawing starts at 60
+    assert.strictEqual(gateFps(60, 2, { fps: 30 }), 30);
+    assert.strictEqual(gateFps(120, 2, { fps: 30 }), 30);
 });
-test('skipFrame: the fps setting overrides lite mode\'s 30 (1.31.4)', () => {
+test('skipFrame: the fps setting pins the target either way (1.31.4)', () => {
     assert.strictEqual(gateFps(60, 2, { lite: true, fps: 60 }), 60);     // lite drawing, 60 fps
     assert.strictEqual(gateFps(120, 2, { lite: true, fps: 60 }), 60);
     assert.strictEqual(gateFps(60, 2, { lite: false, fps: 30 }), 30);
@@ -343,13 +344,78 @@ test('skipFrame: one bad sample doesn\'t lock the gate', () => {
     // all time", the value gets PERMANENTLY stuck at 2 ms, the divisor becomes
     // 1000/30/2 = 16, and the game ran at 3.79 fps on a 60 Hz screen — unplayable.
     const { Game } = H.load({ seed: 1 });
-    Object.assign(Game.OPTS, { lite: true });            // lite mode: 30 fps target
+    Object.assign(Game.OPTS, { fps: 30 });                // 30 fps target
     let t = 0;
     for(let i = 0; i < 120; i++) { t += (i === 100 || i === 101) ? 2 : 1000 / 60; Game.skipFrame(t); }
     let t0 = t, drawn = 0;
     for(let i = 0; i < 600; i++) { t += 1000 / 60; if(!Game.skipFrame(t)) drawn++; }
     const fps = drawn / ((t - t0) / 1000);
     assert.ok(fps > 25, `${fps.toFixed(2)} fps after the bad sample — gate got stuck`);
+});
+// Adaptive rung (1.31.5): feed the gate synthetic rAF timestamps with the map on screen.
+function perfRun(G, hz, seconds, lateEvery = 0, t0 = 1000) {
+    G._sandbox.document.getElementById('map-view').classList.add('active');
+    G._sandbox.document.getElementById('modal-overlay').classList.add('hidden');
+    let t = t0;
+    for(let i = 1; i <= hz * seconds; i++) { t += (lateEvery && i % lateEvery === 0) ? 2000 / hz : 1000 / hz; G.Game.skipFrame(t); }
+    return t;
+}
+function perfGame(opts) {
+    const G = H.load({ seed: 1 });
+    if(opts) Object.assign(G.Game.OPTS, opts);
+    G.Game.perf = null; G.Game._lite = undefined;
+    return G;
+}
+test('adaptive fps: a steady 60 Hz device stays on full drawing at 60', () => {
+    const G = perfGame();
+    perfRun(G, 60, 40);
+    assert.strictEqual(G.Game.perfRung(), 'full@60');
+    assert.strictEqual(G.Game.targetFps(), 60);
+});
+test('adaptive fps: a stuttering device steps down full -> lite -> 30, one rung at a time', () => {
+    const G = perfGame();
+    let t = perfRun(G, 60, 11, 4);                        // every 4th frame late = 25% > 10%
+    assert.strictEqual(G.Game.perfRung(), 'lite@60', 'two bad 5 s windows -> lite drawing first');
+    assert.strictEqual(G.Game.lite(), true);
+    perfRun(G, 60, 14, 4, t);
+    assert.strictEqual(G.Game.perfRung(), 'lite@30');
+    assert.strictEqual(G.Game.targetFps(), 30);
+    const saved = JSON.parse(G._sandbox.localStorage.getItem('webband_perf'));
+    assert.strictEqual(saved.v, G.VERSION.no);
+    assert.strictEqual(saved.log.length, 2, 'each step is logged for the debug report');
+});
+test('adaptive fps: an occasional hitch is not a stutter', () => {
+    const G = perfGame();
+    perfRun(G, 60, 40, 20);                               // 5% late
+    assert.strictEqual(G.Game.perfRung(), 'full@60');
+});
+test('adaptive fps: iOS Low Power Mode (steady 30 Hz rAF) is not mistaken for a struggle', () => {
+    const G = perfGame();
+    perfRun(G, 30, 40);
+    assert.strictEqual(G.Game.perfRung(), 'full@60');
+});
+test('adaptive fps: a hand-picked setting is never overridden', () => {
+    const G = perfGame({ lite: false, fps: 60 });
+    perfRun(G, 60, 40, 3);
+    assert.strictEqual(G.Game.lite(), false);
+    assert.strictEqual(G.Game.targetFps(), 60);
+});
+test('adaptive fps: frames under a modal are no evidence', () => {
+    const G = perfGame();
+    G._sandbox.document.getElementById('map-view').classList.add('active');
+    G._sandbox.document.getElementById('modal-overlay').classList.remove('hidden');
+    let t = 1000;
+    for(let i = 1; i <= 60 * 30; i++) { t += i % 3 ? 1000 / 60 : 2000 / 60; G.Game.skipFrame(t); }
+    assert.strictEqual(G.Game.perfRung(), 'full@60');
+});
+test('adaptive fps: the learned rung survives a reload but is retried on a new version', () => {
+    const G = perfGame();
+    G._sandbox.localStorage.setItem('webband_perf', JSON.stringify({ v: G.VERSION.no, lite: true, fps30: true, log: [] }));
+    G.Game.perf = null;
+    assert.strictEqual(G.Game.perfRung(), 'lite@30');
+    G._sandbox.localStorage.setItem('webband_perf', JSON.stringify({ v: '0.0.1', lite: true, fps30: true, log: [] }));
+    G.Game.perf = null;
+    assert.strictEqual(G.Game.perfRung(), 'full@60');
 });
 test('skipFrame: no frame is dropped when the gate is turned off in settings', () => {
     assert.strictEqual(gateFps(240, 2, { frameGate: false }), 240);

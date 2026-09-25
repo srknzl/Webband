@@ -3,6 +3,16 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.31.5 — Kendi Temposu (2026-09-26)
+
+- **Oyun kare hızını cihazına göre kendisi ayarlıyor.** "Cihaza göre" ayarında telefonda da
+  60 fps ile başlıyor. Kareler düzensiz gelmeye başlarsa (ısınan ya da zayıf bir cihazda)
+  önce hafif moda, gerekirse 30 fps'e kendiliğinden iniyor ve bunu ekranın üstünde kısaca
+  söylüyor. Öğrendiğini hatırlıyor, her yeni sürümde bir kez yeniden 60'ı deniyor. Ayarlar'da
+  elle seçtiğin değere hiç dokunmuyor.
+- **Telefonda savaş kamerası geri çekildi.** Dar ekranda çok yakındı. Artık yaklaşık 1,6 kat
+  daha geniş bir alan görünüyor. Masaüstünde değişiklik yok.
+
 ## 1.31.4 — Altmış Kare (2026-09-25)
 
 - **Yeni ayar: ⚙️ Ayarlar → 🎯 Kare hızı hedefi** (Cihaza göre / 60 fps / 30 fps). Şimdiye
