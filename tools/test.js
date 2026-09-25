@@ -754,6 +754,28 @@ test('Anim: a tween lands exactly, calls done once, and a chained tween starts c
     for(let i = 0; i < 70; i++) Anim.tick(1 / 60);
     assert.strictEqual(o.x, -50); assert.strictEqual(Anim._tw.length, 0);
 });
+test('top bar: a number counts to its new value and lands exactly; the first write is immediate', () => {
+    const G = gw.Game, el = gw._sandbox.document.getElementById('ui-test-count');
+    G._counters['ui-test-count'] = undefined;
+    G.countTo('ui-test-count', 100);
+    assert.strictEqual(String(el.innerText), '100', 'first write sets the number');
+    G.countTo('ui-test-count', 600);
+    gw.Anim.tick(0.15);
+    const mid = Number(el.innerText);
+    assert.ok(mid > 100 && mid < 600, 'mid-count: ' + mid);
+    for(let i = 0; i < 40; i++) gw.Anim.tick(1 / 60);
+    assert.strictEqual(Number(el.innerText), 600);
+});
+test('map icons: facing follows the direction of travel and the walk eases in', () => {
+    const G = gw.Game;
+    G._icons.delete('t1');
+    let m;
+    for(let i = 0; i < 20; i++) m = G.iconMotion('t1', 100 + i * 3, true);
+    assert.ok(m.face > 0.9, 'walking east faces east: ' + m.face);
+    const t0 = m.last;
+    for(let i = 0; i < 30; i++) { m.last = t0 - 16 * (30 - i); m = G.iconMotion('t1', 160 - i * 3, true); }
+    assert.ok(m.face < 0, 'turned west: ' + m.face);
+});
 test('battle motion: swings, hits and falls start their clocks; the fallen are drawn while they fall', () => {
     gw.state.player.party = [{ id: 'p1', name: 'Svadya Köylüsü', level: 1 }];
     gw.Battle.start('Çapulcular', 4);

@@ -654,11 +654,11 @@ const Anim = {
     on() { return !(typeof Game !== 'undefined' && Game.reduceMotion && Game.reduceMotion()); },
 
     _tw: [],
-    to(obj, props, dur, ease = 'outCubic', done = null) {
+    to(obj, props, dur, ease = 'outCubic', done = null, step = null) {
         let from = {};
         for(let k in props) from[k] = obj[k];
         this._tw = this._tw.filter(w => !(w.obj === obj && Object.keys(props).some(k => k in w.props)));   // latest wins
-        let w = { obj, from, props, dur: Math.max(0.0001, dur), ease, t: 0, done };
+        let w = { obj, from, props, dur: Math.max(0.0001, dur), ease, t: 0, done, step };
         this._tw.push(w);
         return w;
     },
@@ -670,6 +670,7 @@ const Anim = {
             w.t += dt;
             let k = this.k(w.t, w.dur, w.ease);
             for(let p in w.props) w.obj[p] = this.lerp(w.from[p], w.props[p], k);
+            if(w.step) w.step(w.obj);
             if(w.t < w.dur) live.push(w);
             else if(w.done) w.done();
         }
@@ -2452,7 +2453,8 @@ const Game = {
             // worth pausing for if the player can still look at the frozen map.
             Debug.guard('map loop', () => {
                 if(this.towerReveal) this.towerRevealTick(t);
-                if(!this.clockStopped()) { Anim.tick(dt); this.update(dt); }
+                Anim.tick(dt);   // UI tweens run even while the clock is stopped (a purchase in a modal)
+                if(!this.clockStopped()) this.update(dt);
                 this.renderMap();
             });
             this._loopId = requestAnimationFrame(loop);
@@ -3055,9 +3057,14 @@ const Game = {
         let targetCamY = state.player.y + this.camera.offsetY;
         // With reduced motion on, there's no camera/zoom smoothing, it snaps instantly (#55 item 6)
         let snap = this.reduceMotion() ? 1 : 0;
-        this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * (snap || 8 * dt);
-        this.camera.x += (targetCamX - this.camera.x) * (snap || 5 * dt);
-        this.camera.y += (targetCamY - this.camera.y) * (snap || 5 * dt);
+        // Half-life smoothing (1.32.0): the same glide as the old "5·dt per frame" at 60 fps,
+        // but exact at 30 fps and never overshooting on a long frame.
+        if(snap) { this.camera.zoom = this.camera.targetZoom; this.camera.x = targetCamX; this.camera.y = targetCamY; }
+        else {
+            this.camera.zoom = Anim.damp(this.camera.zoom, this.camera.targetZoom, dt, 0.087);
+            this.camera.x = Anim.damp(this.camera.x, targetCamX, dt, 0.139);
+            this.camera.y = Anim.damp(this.camera.y, targetCamY, dt, 0.139);
+        }
 
         // WASD/arrows pan the camera FREELY — the keyboard counterpart to edge-of-screen mouse
         // panning (#44). It used to do the opposite, resetting the offset and locking the
@@ -5412,14 +5419,14 @@ const Game = {
         set('ui-day', T`${state.time.day}. Gün` + (this.isWinter() ? ' ❄️' : ''));
         set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
         set('ui-daypart', dp.icon);
-        set('ui-money', Math.floor(p.money));
+        this.countTo('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
         // Consumption is never zero anymore (the player eats too, #75) — the "no army" branch is gone.
         set('ui-food', fs.days);
         set('ui-food-sub', fs.total ? T('gün erzak') : T('erzak yok'));
         let fe = document.getElementById('chip-food');
         if(fe) fe.classList.toggle('warn', fs.days < 3);
-        set('ui-renown', p.renown);
+        this.countTo('ui-renown', Math.round(p.renown));
         this.setHtml('ui-party', this.rosterTag('party', cap));   // "23+4/30" (#111)
         let ccap = this.cargoCap(), cload = this.cargoLoad();
         set('ui-cargo', `${cload}/${ccap}`);
@@ -5439,6 +5446,23 @@ const Game = {
         this.updateTips(cap);
         this.updateMapHud();
 
+    },
+
+    // Top-bar numbers count to their new value instead of jumping, and the chip gives a short
+    // green/red bump (1.32.0). The first write and "reduce motion" set the number directly.
+    _counters: {},
+    countTo(id, value) {
+        let el = document.getElementById(id);
+        if(!el) return;
+        let c = this._counters[id];
+        if(!c || c.el !== el) { this._counters[id] = { el, v: value, to: value }; el.innerText = value; return; }
+        if(c.to === value) return;
+        let up = value > c.to;
+        c.to = value;
+        if(!Anim.on()) { c.v = value; el.innerText = value; return; }
+        Anim.to(c, { v: value }, 0.6, 'outCubic', null, o => { el.innerText = Math.round(o.v); });
+        let chip = el.closest && el.closest('.hud-chip');
+        if(chip) { chip.classList.remove('bump-up', 'bump-down'); void chip.offsetWidth; chip.classList.add(up ? 'bump-up' : 'bump-down'); }
     },
 
     // Top-bar tooltips: what each badge affects and by how much (thanks to setHtml,
@@ -5968,25 +5992,54 @@ const Game = {
     // A large army looks bigger on the map too (~+20% at 30 people, capped at +35% at 100)
     partyIconScale(size) { return 1 + Math.min(0.35, Math.max(0, size - 5) * 0.007); },
 
+    // Per-icon motion state (1.32.0), keyed by party id and kept OUT of `state` so it never
+    // lands in a save: facing (-1 left .. 1 right, eased — a turn squeezes the figure through 0),
+    // how much it's walking (0..1, eased — the bob fades in and out), when it came into view.
+    _icons: new Map(),
+    iconMotion(id, x, moving) {
+        let now = performance.now(), m = this._icons.get(id);
+        if(!m) { m = { face: 1, move: moving ? 1 : 0, lastX: x, seen: now, last: now }; this._icons.set(id, m); }
+        let dt = Math.min(0.1, (now - m.last) / 1000);
+        if(now - m.last > 400) m.seen = now;   // wasn't drawn for a while: it's coming back into view
+        m.last = now;
+        let dx = x - m.lastX; m.lastX = x;
+        if(Math.abs(dx) > 0.02) m.want = dx > 0 ? 1 : -1;
+        m.face = Anim.damp(m.face, m.want || m.face, dt, 0.06);
+        m.move = Anim.damp(m.move, moving ? 1 : 0, dt, 0.1);
+        return m;
+    },
+
     drawPartyIcon(ctx, x, y, o) {
         let sc = o.scale || 1;
         let kind = o.kind || (o.mounted ? 'rider' : 'foot');
         let cloak = o.dim ? '#3a3a42' : '#26262e';
+        // Motion (1.32.0): o.id turns it on; without one the icon is drawn still, as before.
+        let m = o.id !== undefined && Anim.on() ? this.iconMotion(o.id, x, o.moving) : null;
+        let now = performance.now();
 
         ctx.save();
         ctx.translate(x, y);
+        if(m) ctx.globalAlpha = Anim.k(now - m.seen, 400, 'outQuad');   // fades into view
 
         ctx.beginPath();                                               // ground shadow
         ctx.ellipse(0, 0, 26*sc, 9*sc, 0, 0, Math.PI*2);
         ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
 
         ctx.scale(sc, sc);
-        ctx.translate(0, o.bob || 0);
+        let bob = o.bob || 0;
+        if(m) {
+            bob = -Math.abs(Math.sin(now / 150 + (o.id.length || 0))) * (o.bobAmp || 5) * m.move;
+            let f = Math.max(0.12, Math.abs(m.face)) * (m.face < 0 ? -1 : 1);
+            ctx.rotate(0.06 * m.move * (m.face < 0 ? -1 : 1));   // leans into the march
+            ctx.scale(f, 1);
+        }
+        ctx.translate(0, bob);
+        let base = m ? ctx.globalAlpha : 1;
 
         // Crowd column: 1 companion figure at 10+ people, 2 at 30+
         let extra = o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0);
         let offsets = [[-17, -4], [16, -7]];
-        ctx.globalAlpha = 0.75;
+        ctx.globalAlpha = 0.75 * base;
         for(let i = 0; i < extra; i++) {
             ctx.save();
             ctx.translate(offsets[i][0], offsets[i][1]);
@@ -5994,7 +6047,7 @@ const Game = {
             this.drawFigure(ctx, kind, o.color, cloak);
             ctx.restore();
         }
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = base;
 
         this.drawFigure(ctx, kind, o.color, cloak);
 
@@ -6004,8 +6057,10 @@ const Game = {
         ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
         ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
         ctx.fillStyle = o.color;
+        // The pennant waves (1.32.0): its tip swings a few px, a little more on the march
+        let wave = m ? Math.sin(now / 260 + x * 0.01) * (1.5 + 2.5 * m.move) : 0;
         ctx.beginPath();
-        ctx.moveTo(-14, top); ctx.lineTo(-14 - 20, top + 6); ctx.lineTo(-14, top + 13);
+        ctx.moveTo(-14, top); ctx.quadraticCurveTo(-24, top + 1 + wave * 0.5, -14 - 20, top + 6 + wave); ctx.lineTo(-14, top + 13);
         ctx.closePath(); ctx.fill();
         ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
 
@@ -6330,6 +6385,7 @@ const Game = {
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
             let lone = npc.type === 'wanderer';
             this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
+                id: npc.id, moving: isMoving,
                 kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
                 mounted: npc.type !== 'bandit' && !lone,
                 size: npc.size || 1,
@@ -6397,6 +6453,7 @@ const Game = {
             } else {
                 // If we have a horse, we appear mounted on the map (like in Warband)
                 this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
+                    id: 'player', moving: state.player.status === 'moving', bobAmp: 6,
                     mounted: !!state.player.equipment.horse,
                     size: state.player.party.length + 1,
                     color: this.bannerColor(),

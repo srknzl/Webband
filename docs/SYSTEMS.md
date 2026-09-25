@@ -884,6 +884,15 @@ while the corpse fades in. Lean/fall/squash pivot on the feet. Damage numbers po
 a player hit shakes the camera 0.22s (sine, not random). The tug-of-war bar eases with a 0.14s
 half-life instead of 8%/frame (which was half as fast at 30fps).
 
+Map and UI motion: `Game.iconMotion(id, x, moving)` keeps per-party facing (eased −1..1; a turn
+squeezes the figure through 0), a walk amount (eased 0..1, scales the bob and a 0.06 rad lean) and
+the moment it came into view (400ms fade-in) in `Game._icons` — a Map outside `state`, so it
+never reaches a save. `drawPartyIcon` uses it when given `o.id`; the pennant tip waves. The map
+camera and zoom follow with `Anim.damp` half-lives 0.139s/0.087s (the old 5·dt / 8·dt at 60fps).
+`Game.countTo(id, n)` tweens the top bar's money and renown (0.6s `outCubic`, `Anim.to` with a
+`step` callback) and bumps the chip (`.bump-up/.bump-down`); views fade in (`viewIn`, 0.2s).
+`Anim.tick` runs even while the game clock is stopped, so a purchase inside a modal still counts.
+
 ### Soft pass (1.32.0)
 Not a theme — the default look. Corner radii come from `--r-xs/sm/md/lg/xl/pill` (6/10/14/18/22/999px)
 in style.css and in every inline style the JS builds; the cool slate neutrals (`--text-color`,

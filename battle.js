@@ -553,7 +553,7 @@ const Battle = {
             last = t;
             // While the tutorial is open the battle pauses but keeps rendering (#88) — so
             // the character can't be killed while there's something to read on screen.
-            Debug.guard('battle loop', () => { if(!this.paused) { Anim.tick(dt); this.update(dt); } this.render(); });
+            Debug.guard('battle loop', () => { Anim.tick(dt); if(!this.paused) this.update(dt); this.render(); });
             this.lastRender = performance.now();     // pulse (#54)
             this.loopId = requestAnimationFrame(loop);
         };

@@ -5,7 +5,7 @@ başlangıç ekranının sağ alt köşesinde yazar.
 
 ## 1.32.0 — Yumuşak Hamle (2026-09-26)
 
-Savaş artık kıpırdıyor, arayüz daha yumuşak.
+Savaş, harita ve arayüz artık kıpırdıyor; kenarlar daha yumuşak.
 
 - **Herkesin kılıcı görünüyor.** Şimdiye kadar yalnız senin savuruşun çiziliyordu. Diğer
   askerlerin vuruşu ekranda hiçbir şey olmadan iniyordu. Artık saldıran hedefine doğru atılıp
@@ -21,8 +21,14 @@ Savaş artık kıpırdıyor, arayüz daha yumuşak.
   Savaştaki güç çubuğu, komut kutusu ve can barları da. Soğuk mavi-gri yazılar sıcak parşömen
   tonuna kaydı, kırmızı ve yeşil biraz yumuşadı; altın aynı. Pencereler hafifçe kalkarak
   açılıyor, düğmeler basınca içe çöküyor.
-- **Savaştaki güç çubuğu** 30 fps'te 60'a göre yarı hızla akıyordu. Artık kare hızından
-  bağımsız.
+- **Haritada gruplar yola bakıyor.** Gittikleri yöne dönüyorlar (dönüşte kısaca daralarak),
+  yürümeye başlayınca zıplamaları yavaşça başlıyor ve bitiyor, hafifçe öne eğiliyorlar.
+  Sancakları dalgalanıyor. Görüş alanına giren gruplar bir anda belirmek yerine soluklaşarak
+  geliyor.
+- **Para ve nam sayıları akıyor.** Yeni değere sayarak ulaşıyorlar; çip artışta yeşil, düşüşte
+  kırmızı kısa bir nabız veriyor. Ekranlar arası geçiş hafif bir solmayla oluyor.
+- **Savaştaki güç çubuğu ve harita kamerası** 30 fps'te 60'a göre farklı hızda akıyordu. İkisi
+  de artık kare hızından bağımsız.
 - "Hareketi azalt" açıksa esneme, sallanma, pop ve sarsıntı kapanıyor; düşüş ve sönme kalıyor.
 
 ## 1.31.5 — Kendi Temposu (2026-09-26)
