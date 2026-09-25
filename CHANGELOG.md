@@ -3,6 +3,28 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.32.0 — Yumuşak Hamle (2026-09-26)
+
+Savaş artık kıpırdıyor, arayüz daha yumuşak.
+
+- **Herkesin kılıcı görünüyor.** Şimdiye kadar yalnız senin savuruşun çiziliyordu. Diğer
+  askerlerin vuruşu ekranda hiçbir şey olmadan iniyordu. Artık saldıran hedefine doğru atılıp
+  geri çekiliyor, arkasında kısa bir kılıç izi kalıyor. Okçular atışta hafifçe geri tepiyor ve
+  yaylarını gösteriyor.
+- **Darbe hissediliyor.** Vurulan asker ezilip geri itiliyor, yayılıp toparlanıyor. Beyaz
+  parlama bir anda kaybolmak yerine sönerek gidiyor. Sen vurulunca kamera kısaca sarsılıyor.
+- **Düşenler bir karede yok olmuyor.** Asker öldüren tarafın tersine devriliyor ve soluyor,
+  cesedi altında yavaşça beliriyor.
+- **Yürüyüş ve bekleyiş canlı.** Yürürken hafifçe esneyip öne eğiliyorlar, dururken nefes
+  alıyorlar. Hasar sayıları küçük bir "pop" ile beliriyor.
+- **Yumuşak kenarlar.** Paneller, pencereler, düğmeler, etiketler ve çubuklar daha yuvarlak.
+  Savaştaki güç çubuğu, komut kutusu ve can barları da. Soğuk mavi-gri yazılar sıcak parşömen
+  tonuna kaydı, kırmızı ve yeşil biraz yumuşadı; altın aynı. Pencereler hafifçe kalkarak
+  açılıyor, düğmeler basınca içe çöküyor.
+- **Savaştaki güç çubuğu** 30 fps'te 60'a göre yarı hızla akıyordu. Artık kare hızından
+  bağımsız.
+- "Hareketi azalt" açıksa esneme, sallanma, pop ve sarsıntı kapanıyor; düşüş ve sönme kalıyor.
+
 ## 1.31.5 — Kendi Temposu (2026-09-26)
 
 - **Oyun kare hızını cihazına göre kendisi ayarlıyor.** "Cihaza göre" ayarında telefonda da

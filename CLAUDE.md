@@ -15,7 +15,7 @@ after changing it, update the "Measured" lines.
 | File | Contents |
 |---|---|
 | `index.html` | DOM skeleton for every screen |
-| `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Game`, `Save` + `state` |
+| `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Anim`, `Game`, `Save` + `state` |
 | `battle.js` | `Battle`, `TournamentMinigame` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |

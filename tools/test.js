@@ -722,6 +722,62 @@ test('bandits do not scale with the calendar (#99)', () => {
     gw.state.time.day = 1;
 });
 
+// --- Animation core + battle motion (1.32.0) ---
+test('Anim: every curve starts at 0 and ends at 1; outBack overshoots, bump returns', () => {
+    const Anim = gw.Anim;
+    for(const [name, f] of Object.entries(Anim.ease)) {
+        assert.ok(Math.abs(f(0)) < 1e-9, `${name}(0) = ${f(0)}`);
+        if(name !== 'bump') assert.ok(Math.abs(f(1) - 1) < 1e-9, `${name}(1) = ${f(1)}`);
+    }
+    assert.ok(Math.max(...[0.6, 0.7, 0.8, 0.9].map(Anim.ease.outBack)) > 1.05, 'outBack pops past 1');
+    assert.ok(Math.abs(Anim.ease.bump(0.5) - 1) < 1e-9 && Math.abs(Anim.ease.bump(1)) < 1e-9, 'bump peaks mid-way and returns');
+    assert.strictEqual(Anim.k(-1, 1), 0); assert.strictEqual(Anim.k(5, 1), 1);
+    assert.strictEqual(Anim.decay(0, 0.3), 1); assert.strictEqual(Anim.decay(1, 0.3), 0);
+});
+test('Anim: damp closes half the gap per half-life, whatever the frame rate', () => {
+    const Anim = gw.Anim;
+    let a = 0, b = 0;
+    for(let i = 0; i < 30; i++) a = Anim.damp(a, 100, 1 / 60, 0.25);    // 0.5 s at 60 fps
+    for(let i = 0; i < 15; i++) b = Anim.damp(b, 100, 1 / 30, 0.25);    // 0.5 s at 30 fps
+    assert.ok(Math.abs(a - 75) < 1e-6 && Math.abs(b - 75) < 1e-6, `${a} / ${b} — two half-lives should leave 25 to go`);
+});
+test('Anim: a tween lands exactly, calls done once, and a chained tween starts cleanly', () => {
+    const Anim = gw.Anim;
+    const o = { x: 0, y: 5 }; let done = 0;
+    Anim.to(o, { x: 10 }, 0.3, 'outCubic', () => { done++; Anim.to(o, { y: 0 }, 0.2); });
+    for(let i = 0; i < 20; i++) Anim.tick(1 / 60);
+    assert.strictEqual(o.x, 10); assert.strictEqual(done, 1);
+    assert.ok(o.y > 0 && o.y < 5, 'the chained tween is under way: ' + o.y);
+    for(let i = 0; i < 20; i++) Anim.tick(1 / 60);
+    assert.strictEqual(o.y, 0);
+    Anim.to(o, { x: 50 }, 1); Anim.to(o, { x: -50 }, 1);                // latest wins
+    for(let i = 0; i < 70; i++) Anim.tick(1 / 60);
+    assert.strictEqual(o.x, -50); assert.strictEqual(Anim._tw.length, 0);
+});
+test('battle motion: swings, hits and falls start their clocks; the fallen are drawn while they fall', () => {
+    gw.state.player.party = [{ id: 'p1', name: 'Svadya Köylüsü', level: 1 }];
+    gw.Battle.start('Çapulcular', 4);
+    const B = gw.Battle, me = B.units.find(u => u.isPlayerTeam && u.id !== 'player'), foe = B.units.find(u => !u.isPlayerTeam);
+    foe.x = me.x + 20; foe.y = me.y; foe.defense = 0;
+    B.dealMelee(me, foe, 5);
+    assert.strictEqual(me.atkT, 0, 'the attacker lunges');
+    me.atkCd = 99;                                                      // no second swing to reset the clock
+    assert.ok(foe.hitT === 0 || foe.blockFlash > 0, 'the target reacts (or blocked)');
+    B.update(0.1);
+    assert.ok(Math.abs(me.atkT - 0.1) < 1e-9, 'clocks tick in update: ' + me.atkT);
+    B.dealMelee(me, foe, 1e6);
+    assert.ok(foe.hp <= 0 && foe.deadT !== undefined, 'the kill starts the fall');
+    B.render();                                                          // draws the falling unit without throwing
+    let drawn = 0;
+    const orig = B.drawUnit; B.drawUnit = function(ctx, u, now) { if(u === foe) drawn++; return orig.call(this, ctx, u, now); };
+    B.render();
+    for(let i = 0; i < 10; i++) B.update(0.1);
+    B.render();
+    B.drawUnit = orig;
+    assert.strictEqual(drawn, 1, 'drawn during the fall, gone after DIE_T');
+    B.active = false;
+});
+
 // --- Mounted battle speed (#132) ---
 // Nerfed ~20% (base and riding coefficient both cut) — mounted was overwhelmingly faster than
 // foot at every riding level, not just the top end. This pins the formula itself so a future

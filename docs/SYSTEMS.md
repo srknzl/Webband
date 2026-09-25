@@ -867,6 +867,31 @@ over the map doesn't restart the track. Victory/defeat stings play over `Battle.
 (the single exit from every kind of fight) without interrupting whatever plays next.
 
 ## Visual layer
+### Motion (1.32.0)
+`Anim` (app.js, before `Input`) is the one animation vocabulary: easing curves (`outCubic`,
+`outBack` pop, `bump` there-and-back…), `k(t, dur, ease)` / `decay(t, dur)` for "seconds since
+an event → eased 0..1", `damp(cur, target, dt, halfLife)` for frame-rate-independent smoothing,
+and a small tween list (`to`/`tick`, ticked by the map and battle loops) for UI. `Anim.on()` is
+the reduce-motion gate: exaggerations drop, fades stay.
+
+Battle motion is drawn-only — hit boxes, AI and collisions still use the unit's real x/y. Units
+carry clocks ticked in `update` (so a pause freezes them): `atkT/atkA` (set in `dealMelee` for
+every swing, AI included — AI hits used to land with nothing on screen), `hitT/hitA`, `shotT/shotA`
+(AI archers now show their bow), `deadT/fallDir` (set in `logKill`). `drawUnit` turns them into a
+6px lunge + swing trail, squash/lean/push-back with an eased flash, a 3px shot recoil, walk
+stretch + lean, idle breathing, and a `DIE_T` = 0.7s fall (tip over away from the killer, fade)
+while the corpse fades in. Lean/fall/squash pivot on the feet. Damage numbers pop in (`outBack`),
+a player hit shakes the camera 0.22s (sine, not random). The tug-of-war bar eases with a 0.14s
+half-life instead of 8%/frame (which was half as fast at 30fps).
+
+### Soft pass (1.32.0)
+Not a theme — the default look. Corner radii come from `--r-xs/sm/md/lg/xl/pill` (6/10/14/18/22/999px)
+in style.css and in every inline style the JS builds; the cool slate neutrals (`--text-color`,
+`--text-muted`, `--panel-bg`) moved toward warm parchment, `--danger`/`--success` softened; gold
+unchanged. Modals lift-and-fade in (`modalIn`, 0.22s), buttons scale 0.97 on press; the global
+reduced-motion rule flattens both. Canvas: `Battle.roundRect` (falls back to `rect` without
+Canvas2D roundRect) for the tug bar, command strip and health bars.
+
 No canvas library — everything hand-drawn in `app.js`/`battle.js`. Shared approach: **bake the
 expensive thing once, stamp the picture every frame** (`buildGroundTexture`, `Battle.buildGround`,
 `unitSprite`, cached gradients). `Game.mapLabel()` scales with `1/zoom` so text stays the same

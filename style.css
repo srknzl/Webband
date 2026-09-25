@@ -100,12 +100,24 @@
     --primary: #d4af37; /* Lüks Altın */
     --primary-hover: #f5d76e;
     --bg-dark: #0a0a0e;
-    --panel-bg: rgba(15, 20, 25, 0.7);
+    /* 1.32.0 soft pass: the cool slate neutrals (blue-grey text and panels) moved a few
+       degrees toward warm parchment so they sit with the gold instead of against it; red
+       and green softened a little. Gold, layout and contrast are unchanged. */
+    --panel-bg: rgba(20, 18, 16, 0.72);
     --panel-border: rgba(212, 175, 55, 0.3);
-    --text-color: #e2e8f0;
-    --text-muted: #94a3b8;
-    --danger: #ef4444;
-    --success: #22c55e;
+    --text-color: #ece6da;
+    --text-muted: #a8a194;
+    --danger: #e0605a;
+    --success: #4cc38a;
+    /* Corner radii from one place (1.32.0) — every panel, button, chip and bar reads one of
+       these; the in-JS inline styles use the same variables. */
+    --r-xs: 6px;
+    --r-sm: 10px;
+    --r-md: 14px;
+    --r-lg: 18px;
+    --r-xl: 22px;
+    --r-pill: 999px;
+    --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
     /* Açıklama puntoları tek yerden (#73). Arayüzün her yerine serpilmiş inline
        0.68–0.92rem değerleri bu üç değişkene bağlandı; taban yükseldi ve artık
        tek satır değiştirerek büyütülüyor. Ayarlardaki yazı ölçeği kök puntoyu
@@ -149,7 +161,7 @@ h1, h2, h3 {
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--panel-border);
-    border-radius: 12px;
+    border-radius: var(--r-lg);
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
 }
 
@@ -241,7 +253,7 @@ h1, h2, h3 {
 #start-screen .form-group {
     background: rgba(10, 10, 15, 0.6);
     padding: 2rem;
-    border-radius: 16px;
+    border-radius: var(--r-xl);
     border: 1px solid rgba(212, 175, 55, 0.2);
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     backdrop-filter: blur(10px);
@@ -295,7 +307,7 @@ input[type="text"]:focus {
     color: var(--text-color);
     border: 1px solid var(--panel-border);
     padding: 0.8rem 1.5rem;
-    border-radius: 8px;
+    border-radius: var(--r-md);
     cursor: pointer;
     font-family: 'Cinzel', serif;
     font-weight: bold;
@@ -400,7 +412,7 @@ input[type="text"]:focus {
     background: var(--bg-dark);
     border: 1px solid var(--primary);
     padding: 0.8rem;
-    border-radius: 8px;
+    border-radius: var(--r-md);
     box-shadow: 0 4px 15px rgba(0,0,0,0.8);
     width: max-content;
     z-index: 200;
@@ -444,7 +456,7 @@ input[type="text"]:focus {
     font-family: 'Cinzel', serif;
     font-weight: bold;
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: var(--r-md);
     transition: all 0.2s;
     border-left: 4px solid transparent;
 }
@@ -463,7 +475,7 @@ input[type="text"]:focus {
     flex: 1;
     position: relative;
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
 }
 
 .view {
@@ -477,7 +489,7 @@ input[type="text"]:focus {
 .view.active { display: block; }
 
 /* Map */
-#map-view { padding: 0; border-radius: 12px; overflow: hidden; border: 2px solid var(--panel-border); }
+#map-view { padding: 0; border-radius: var(--r-lg); overflow: hidden; border: 2px solid var(--panel-border); }
 #map-canvas {
     width: 100%;
     height: 100%;
@@ -571,7 +583,7 @@ input[type="text"]:focus {
     overflow-y: auto;
     padding: 2.5rem;
     text-align: center;
-    border-radius: 8px;
+    border-radius: var(--r-md);
 }
 /* Gövdesine kendi düğmesini koymayan pencere çıkışsız görünüyordu (#70): Esc ve dışa
    tıklama çalışıyordu ama ekranda "buradan çıkılır" diyen tek piksel yoktu. `sticky`,
@@ -583,7 +595,7 @@ input[type="text"]:focus {
     /* Uzun pencere kaydırılınca metin arkadan sızıp × üstüne biniyordu — sticky
        kalan düğme kendi zemini olmadan okunaksız oluyordu. */
     background: rgba(10, 10, 15, 0.85);
-    border: none; border-radius: 6px;
+    border: none; border-radius: var(--r-sm);
     color: var(--text-muted); font-size: 1.9rem; line-height: 2.2rem;
     cursor: pointer;
 }
@@ -622,7 +634,7 @@ input[type="text"]:focus {
     gap: 1.5rem;
     background: rgba(255,255,255,0.03);
     padding: 1rem;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
     border: 1px solid var(--panel-border);
 }
 .lore-item:nth-child(even) {
@@ -645,8 +657,8 @@ input[type="text"]:focus {
 .lore-content p { color: var(--text-color); font-size: 0.95rem; line-height: 1.5; }
 
 ::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: rgba(0,0,0,0.4); border-radius: 4px; }
-::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.4); border-radius: var(--r-xs); }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: var(--r-xs); }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary-hover); }
 
 /* ==========================================================================
@@ -687,7 +699,7 @@ body {
     align-items: center;
     gap: 0.45rem;
     padding: 0.3rem 0.7rem;
-    border-radius: 8px;
+    border-radius: var(--r-md);
     background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.015));
     border: 1px solid rgba(212,175,55,0.22);
     white-space: nowrap;
@@ -708,12 +720,12 @@ body {
 .hud-bar {
     display: block;
     height: 4px;
-    border-radius: 3px;
+    border-radius: var(--r-pill);
     background: rgba(0,0,0,0.55);
     box-shadow: inset 0 1px 2px rgba(0,0,0,.8);
     overflow: hidden;
 }
-.hud-bar > i { display: block; height: 100%; border-radius: 3px; transition: width .25s ease; }
+.hud-bar > i { display: block; height: 100%; border-radius: var(--r-pill); transition: width .25s ease; }
 .fill-hp    { background: linear-gradient(90deg, #7d2020, #e05353); }
 .fill-party { background: linear-gradient(90deg, #2b5f7a, #59b6e0); }
 .fill-xp    { background: linear-gradient(90deg, #8a6a1c, #f0cd5c); }
@@ -748,7 +760,7 @@ body.view-map #sidebar {
     position: fixed; left: 8px; top: 50%; transform: translateY(-50%);
     width: auto; height: auto; max-height: calc(100vh - 96px);
     overflow-y: auto; overflow-x: hidden;
-    border-radius: 12px; padding: 0.35rem 0.3rem; gap: 0.1rem; z-index: 40;
+    border-radius: var(--r-lg); padding: 0.35rem 0.3rem; gap: 0.1rem; z-index: 40;
     opacity: 0.9; transition: opacity .2s;
 }
 body.view-map #sidebar:hover { opacity: 1; }
@@ -786,7 +798,7 @@ body.view-map #map-hud { left: 66px; }
     font-size: 0.95rem;
     letter-spacing: 0.5px;
     border-left-width: 3px;
-    border-radius: 0 7px 7px 0;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
 }
 .mb-ico { font-size: 1.05rem; width: 1.3rem; text-align: center; filter: grayscale(0.4); transition: filter .2s, transform .2s; }
 .mb-lbl { flex: 1; text-align: left; }
@@ -795,7 +807,7 @@ body.view-map #map-hud { left: 66px; }
     font-size: 0.6rem;
     font-weight: 600;
     padding: 1px 5px;
-    border-radius: 4px;
+    border-radius: var(--r-xs);
     color: var(--text-muted);
     background: rgba(0,0,0,0.4);
     border: 1px solid rgba(255,255,255,0.09);
@@ -814,7 +826,7 @@ body.view-map #map-hud { left: 66px; }
     left: 14px; bottom: 14px;
     z-index: 12;
     padding: 0.5rem 0.7rem;
-    border-radius: 9px;
+    border-radius: var(--r-md);
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
@@ -835,7 +847,7 @@ body.view-map #map-hud { left: 66px; }
     pointer-events: auto; align-self: flex-start;
     background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.35);
     color: #f0e3c0; font-family: inherit; font-size: 0.72rem; font-weight: 600;
-    padding: 2px 10px; border-radius: 5px; cursor: pointer;
+    padding: 2px 10px; border-radius: var(--r-xs); cursor: pointer;
 }
 #btn-map-speed:hover { background: rgba(212,175,55,0.25); }
 
@@ -869,7 +881,7 @@ body.view-map #map-hud { left: 66px; }
     border-color: rgba(212,175,55,0.6);
     box-shadow: 0 6px 18px rgba(0,0,0,0.55), 0 0 14px rgba(212,175,55,0.18);
 }
-.btn:active { transform: translateY(0); }
+.btn:active { transform: translateY(0) scale(0.97); transition-duration: 0.08s; }
 
 /* --- Harita çerçevesi --- */
 #map-view {
@@ -878,7 +890,7 @@ body.view-map #map-hud { left: 66px; }
 }
 
 /* --- Savaş arayüzü --- */
-#battle-view { border-radius: 12px; border: 2px solid rgba(212,175,55,0.3); }
+#battle-view { border-radius: var(--r-lg); border: 2px solid rgba(212,175,55,0.3); }
 #battle-ui { padding: 0.5rem 0.8rem; }
 .battle-logs {
     position: absolute;
@@ -900,7 +912,7 @@ body.view-map #map-hud { left: 66px; }
 .battle-logs .log-msg {
     background: rgba(6,8,10,0.88) !important;
     border: 1px solid rgba(212,175,55,0.18);
-    border-radius: 6px;
+    border-radius: var(--r-sm);
 }
 /* Bozgun teklifi: savaş sürerken beliren tek düğme. Kovalamak varsayılan —
    hiçbir şey yapmazsan peşlerindesin; bu düğme onlara yol verir. */
@@ -928,11 +940,18 @@ body.view-map #map-hud { left: 66px; }
 }
 
 /* --- Modal --- */
+/* Opens with a short lift-and-fade instead of appearing (1.32.0). The overlay toggles
+   display, which restarts the animation on every open; reduced motion flattens it. */
+@keyframes modalIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+}
+#modal-overlay:not(.hidden) #modal-content { animation: modalIn 0.22s var(--ease-soft); }
 #modal-content {
     background:
         radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.10), transparent 60%),
         linear-gradient(180deg, #1b1b25 0%, #08080d 100%);
-    border-radius: 12px;
+    border-radius: var(--r-lg);
     max-width: min(700px, 92vw);
     min-width: min(450px, 88vw);
     max-height: 88vh;
@@ -956,7 +975,7 @@ body.view-map #map-hud { left: 66px; }
     border: 1px solid rgba(212,175,55,0.35);
     color: #f0e3c0;
     font-family: inherit; font-size: 0.72rem;
-    padding: 1px 7px; border-radius: 5px; cursor: pointer;
+    padding: 1px 7px; border-radius: var(--r-xs); cursor: pointer;
 }
 #map-comp button:hover { background: rgba(212,175,55,0.25); }
 
@@ -974,7 +993,7 @@ body.view-map #map-hud { left: 66px; }
    Dar ekran kuralı yetmiyordu: tablet geniş ama parmakla sürülür. */
 body.touch .menu-btn kbd { display: none; }
 #map-comp kbd {
-    font-size: 0.62rem; padding: 0 4px; border-radius: 3px;
+    font-size: 0.62rem; padding: 0 4px; border-radius: var(--r-pill);
     background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted);
 }
 
@@ -1070,8 +1089,8 @@ body:has(#wait-ui:not(.hidden)) #map-hud {
     0%   { background: rgba(200, 60, 50, 0.45); box-shadow: 0 0 12px rgba(200, 60, 50, 0.5); }
     100% { background: transparent; box-shadow: none; }
 }
-.fx-flash     { animation: fxFlash 0.6s ease-out; border-radius: 6px; }
-.fx-flash-bad { animation: fxFlashBad 0.6s ease-out; border-radius: 6px; }
+.fx-flash     { animation: fxFlash 0.6s ease-out; border-radius: var(--r-sm); }
+.fx-flash-bad { animation: fxFlashBad 0.6s ease-out; border-radius: var(--r-sm); }
 
 @keyframes fxFloat {
     0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.9); }
@@ -1098,7 +1117,7 @@ body:has(#wait-ui:not(.hidden)) #map-hud {
 #err-badge {
     position: fixed; right: 14px; bottom: 12px; z-index: 150; cursor: pointer;
     background: rgba(120, 20, 20, 0.92); border: 1px solid #e0463a; color: #ffd9d5;
-    padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.78rem;
+    padding: 0.35rem 0.7rem; border-radius: var(--r-sm); font-size: 0.78rem;
     box-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 #err-badge:hover { background: rgba(160, 30, 30, 0.95); }
@@ -1110,7 +1129,7 @@ body:has(#wait-ui:not(.hidden)) #map-hud {
     z-index: 1100; pointer-events: none;
     padding: 0.28rem 1.3rem;
     background: rgba(20, 20, 25, 0.93);
-    border: 1px solid var(--primary); border-top: none; border-radius: 0 0 8px 8px;
+    border: 1px solid var(--primary); border-top: none; border-radius: 0 0 var(--r-md) var(--r-md);
     color: var(--primary); font-family: 'Cinzel', serif; font-weight: 700;
     font-size: var(--fs-sm); letter-spacing: 0.16em;
     box-shadow: 0 2px 12px rgba(0,0,0,0.6);
@@ -1148,7 +1167,7 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
     height: auto;
     margin: 0 0 1rem;
     border: 1px solid var(--panel-border);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.55), 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
@@ -1324,7 +1343,7 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
     border: 1px solid rgba(212,175,55,0.4);
     background: rgba(20,18,14,0.62);
     color: #e8dcc0;
-    border-radius: 7px;
+    border-radius: var(--r-sm);
 }
 
 /* "Daha" düğmesi yalnız dar ekranın alt şeridinde işe yarar (#86) */
@@ -1342,7 +1361,7 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
         overflow-x: auto;
         gap: 0.35rem;
         padding: 0.35rem;
-        border-radius: 12px;
+        border-radius: var(--r-lg);
     }
     #sidebar .sb-title, #sidebar > div[style*="flex:1"] { display: none; }
     /* Alt şeritte 8 sekme çok: Harita/Karakter/Grup/Envanter kalır, gerisi
@@ -1354,7 +1373,7 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
         gap: 2px;
         border-left-width: 0;
         border-bottom: 3px solid transparent;
-        border-radius: 7px;
+        border-radius: var(--r-sm);
         padding: 0.4rem 0.55rem;
         min-width: 60px;
     }
@@ -1503,7 +1522,7 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
     min-width: 96px; min-height: 44px;
     padding: 0.7rem 0.9rem;
     border: 1px solid rgba(212,175,55,0.35);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     background: rgba(20,18,14,0.6);
     color: #e8dcc0;
     cursor: pointer;
@@ -1541,7 +1560,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 #coach-ring {
     position: fixed;
     border: 2px solid var(--primary, #d4af37);
-    border-radius: 10px;
+    border-radius: var(--r-md);
     box-shadow: 0 0 0 9999px rgba(4,5,9,0.66), 0 0 18px rgba(212,175,55,0.55);
     pointer-events: none;          /* halka tıklamayı yutmaz, altındaki arayüz görünür kalır */
     z-index: 300;
@@ -1552,7 +1571,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
     width: min(330px, calc(100vw - 24px));
     padding: 0.9rem 1rem;
     border: 1px solid rgba(212,175,55,0.55);
-    border-radius: 12px;
+    border-radius: var(--r-lg);
     background: rgba(18,19,26,0.97);
     box-shadow: 0 10px 30px rgba(0,0,0,0.6);
 }
@@ -1580,7 +1599,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 }
 .tbr-c {
     display: flex; align-items: center; gap: 0.4rem;
-    padding: 0.3rem 0.45rem; border: 1px solid var(--panel-border); border-radius: 5px;
+    padding: 0.3rem 0.45rem; border: 1px solid var(--panel-border); border-radius: var(--r-xs);
     background: rgba(255,255,255,0.03); font-size: var(--fs-xs); min-height: 30px;
 }
 .tbr-c .tbr-n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1609,7 +1628,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 .market-status-bar {
     display: flex; flex-wrap: wrap; gap: 0.5rem;
     margin-bottom: 1rem; padding: 0.6rem 0.8rem;
-    background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 8px;
+    background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: var(--r-md);
 }
 .market-status-chip {
     display: flex; flex-direction: column; align-items: center;
@@ -1626,7 +1645,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 .market-qty-btns { display: flex; gap: 0.3rem; }
 .market-qty-btn {
     min-width: 2.4rem; min-height: 2rem; padding: 0.2rem 0.5rem;
-    font-size: var(--fs-xs); border-radius: 6px;
+    font-size: var(--fs-xs); border-radius: var(--r-sm);
     background: rgba(212,175,55,0.1); border: 1px solid var(--panel-border);
     color: var(--text-color); cursor: pointer;
 }
@@ -1637,7 +1656,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 .inv-grid { display: flex; gap: 0.8rem; flex-wrap: wrap; }
 .inv-item {
     padding: 0.8rem; background: rgba(0,0,0,0.3);
-    border: 1px solid var(--panel-border); border-radius: 6px;
+    border: 1px solid var(--panel-border); border-radius: var(--r-sm);
     width: 120px; text-align: center;
 }
 
@@ -1653,7 +1672,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
     position: relative;
     width: 180px; height: 320px;
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--panel-border); border-radius: 10px;
+    border: 1px solid var(--panel-border); border-radius: var(--r-md);
 }
 .equip-figure::before {
     content: '🧍';
@@ -1669,7 +1688,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
     font-size: 1.4rem;
     background: rgba(0,0,0,0.4);
     border: 2px dashed var(--panel-border);
-    border-radius: 8px;
+    border-radius: var(--r-md);
     cursor: pointer;
 }
 .equip-slot:hover, .equip-slot.drag-over { border-color: var(--primary); background: rgba(212,175,55,0.16); }
@@ -1700,12 +1719,12 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
     display: flex; align-items: center; gap: 0.6rem;
     padding: 0.5rem 0.7rem 0.5rem 1rem;
     font-size: var(--fs-sm);
-    border-radius: 10px;
+    border-radius: var(--r-md);
 }
 #f11-hint.hidden { display: none; }
 #f11-hint kbd {
     font-family: inherit; font-size: var(--fs-xs);
-    padding: 0.1rem 0.4rem; border: 1px solid var(--panel-border); border-radius: 4px;
+    padding: 0.1rem 0.4rem; border: 1px solid var(--panel-border); border-radius: var(--r-xs);
     background: rgba(0,0,0,0.35);
 }
 #f11-hint-close {
@@ -1730,6 +1749,6 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 /* Timed decision (#121): the bar empties over the decision's seconds (duration set inline).
    No fill-mode on purpose — under reduced motion the animation ends at once and the bar
    stays full, while the seconds counter below it keeps the clock readable. */
-.ev-timer { height: 6px; margin-top: 1rem; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.ev-timer { height: 6px; margin-top: 1rem; border-radius: var(--r-pill); background: rgba(255,255,255,0.1); overflow: hidden; }
 .ev-timer > div { height: 100%; background: var(--danger); transform-origin: left; animation: evTimer linear; }
 @keyframes evTimer { from { transform: scaleX(1); } to { transform: scaleX(0); } }

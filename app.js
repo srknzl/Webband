@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.31.5', date: '2026-09-26', name: 'Kendi Temposu' };  // the version name is not translated
+const VERSION = { no: '1.32.0', date: '2026-09-26', name: 'Yumuşak Hamle' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -116,7 +116,7 @@ const Debug = {
         this.badge();
         Game.showModal(`<h3>${T`🐞 Debug Raporu`}</h3>
             <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.`}</p>
-            <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
+            <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:var(--r-sm);font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
             <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
                 <button class="btn primary" onclick="Debug.copy()">${T`📋 Panoya Kopyala`}</button>
                 <button class="btn" onclick="Debug.download()">${T`💾 Dosya Olarak İndir`}</button>
@@ -620,6 +620,63 @@ const state = {
     envoy: null,         // { compId, name, lordId, backDay, mission } — companion sent as envoy (#69)
 };
 
+// --- ANIMATION CORE (1.32.0) ---
+// One vocabulary for "how things move", renderer-independent: the same curves drive Canvas2D
+// today and would drive a GPU renderer later. Two ways to use it:
+//  - Timer + curve (the battle): the owner keeps `t` (seconds since the event) and asks
+//    `Anim.k(t, dur, ease)` for an eased 0..1 — no allocation, no list, freezes with the pause.
+//  - Tweens (UI, later): `Anim.to(obj, { x: 10 }, 0.3, 'outCubic')` animates a property and
+//    `Anim.tick(dt)` advances them all.
+// `Anim.on()` is the "reduce motion" gate: exaggerations (squash, lean, pop, shake) are
+// skipped when it's false; plain fades stay, they carry information.
+const Anim = {
+    ease: {
+        linear: t => t,
+        inQuad: t => t * t,
+        outQuad: t => 1 - (1 - t) * (1 - t),
+        inOutQuad: t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) * (-2 * t + 2) / 2,
+        outCubic: t => 1 - (1 - t) * (1 - t) * (1 - t),
+        inOutCubic: t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+        // Overshoots ~10% past 1 and settles: a "pop"
+        outBack: t => { const c = 1.70158, u = t - 1; return 1 + (c + 1) * u * u * u + c * u * u; },
+        // There and back within 0..1 (0 -> 1 at t=0.5 -> 0): lunges, recoils
+        bump: t => Math.sin(Math.PI * Math.max(0, Math.min(1, t))),
+    },
+    clamp01: t => t < 0 ? 0 : t > 1 ? 1 : t,
+    // Eased progress of an event that started `t` seconds ago and lasts `dur` seconds.
+    k(t, dur, ease = 'linear') { return this.ease[ease](this.clamp01(t / dur)); },
+    // Eased remaining strength (1 at the event, 0 when it's over) — flashes, recoils.
+    decay(t, dur, ease = 'outCubic') { return 1 - this.k(t, dur, ease); },
+    lerp: (a, b, k) => a + (b - a) * k,
+    // Frame-rate-independent smoothing toward a target: after `half` seconds half the gap is
+    // closed, whatever the frame rate (the usual `x += (target - x) * 0.1` is not).
+    damp(cur, target, dt, half) { return target + (cur - target) * Math.pow(2, -dt / half); },
+    on() { return !(typeof Game !== 'undefined' && Game.reduceMotion && Game.reduceMotion()); },
+
+    _tw: [],
+    to(obj, props, dur, ease = 'outCubic', done = null) {
+        let from = {};
+        for(let k in props) from[k] = obj[k];
+        this._tw = this._tw.filter(w => !(w.obj === obj && Object.keys(props).some(k => k in w.props)));   // latest wins
+        let w = { obj, from, props, dur: Math.max(0.0001, dur), ease, t: 0, done };
+        this._tw.push(w);
+        return w;
+    },
+    tick(dt) {
+        if(!this._tw.length) return;
+        let cur = this._tw, live = [];
+        this._tw = [];   // a `done` callback may start new tweens: they land here, untouched this tick
+        for(let w of cur) {
+            w.t += dt;
+            let k = this.k(w.t, w.dur, w.ease);
+            for(let p in w.props) w.obj[p] = this.lerp(w.from[p], w.props[p], k);
+            if(w.t < w.dur) live.push(w);
+            else if(w.done) w.done();
+        }
+        this._tw = live.concat(this._tw);
+    },
+};
+
 // --- INPUT ---
 const Input = {
     keys: {},
@@ -982,7 +1039,7 @@ const Game = {
     perfToast(msg) {
         let el = document.createElement('div');
         el.style.cssText = `position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:9999;
-            padding:8px 14px;border-radius:10px;background:rgba(20,18,14,0.94);border:1px solid var(--panel-border);color:#f0e6d2;
+            padding:8px 14px;border-radius:var(--r-md);background:rgba(20,18,14,0.94);border:1px solid var(--panel-border);color:#f0e6d2;
             font-size:var(--fs-sm);pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;text-align:center`;
         el.innerHTML = `${msg}<div style="font-size:var(--fs-xs);opacity:.75">${T`⚙️ Ayarlar'dan değiştirebilirsin`}</div>`;
         document.body.appendChild(el);
@@ -1511,7 +1568,7 @@ const Game = {
         this.showModal(`<h3>${b.icon} ${T(b.name)}</h3>
             <p style="font-style:italic;color:var(--text-muted)">${T(b.siteDesc)}</p>
             <p>${T`Bu benzersiz bir düşman — koruması yok, tek başına ve tek sefer yenilir. Asla kaçmaz. <b>${T(b.special.name)}</b> adlı bir alan saldırısı kullanır — yerdeki işareti görünce uzaklaş.`}</p>
-            <div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-radius:6px;padding:0.6rem;margin:0.6rem 0">
+            <div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-radius:var(--r-sm);padding:0.6rem;margin:0.6rem 0">
                 <div style="color:var(--primary);font-weight:bold;margin-bottom:0.3rem">${T`Ödül`}</div>
                 ${item ? `<div>${item.icon} <b>${T(item.name)}</b></div>` : ''}
                 <div>${relic.icon} <b>${T(relic.name)}</b> — ${T(relic.desc)}</div>
@@ -2142,7 +2199,7 @@ const Game = {
     bannerCss(i, size = 72) {
         let b = BANNERS[i] || BANNERS[0];
         return this.crestCss(b.crest, size,
-            `border:3px ridge ${b.color};border-radius:6px;box-shadow:inset 0 0 18px #000;`);
+            `border:3px ridge ${b.color};border-radius:var(--r-sm);box-shadow:inset 0 0 18px #000;`);
     },
 
     renderBannerStep() {
@@ -2152,7 +2209,7 @@ const Game = {
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
             html += `<button class="btn" aria-label="${T(b.name)}" onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
-                border-radius:8px;border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
+                border-radius:var(--r-md);border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
                 <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
                 <div style="font-size:var(--fs-sm);margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
             </button>`;
@@ -2395,7 +2452,7 @@ const Game = {
             // worth pausing for if the player can still look at the frozen map.
             Debug.guard('map loop', () => {
                 if(this.towerReveal) this.towerRevealTick(t);
-                if(!this.clockStopped()) this.update(dt);
+                if(!this.clockStopped()) { Anim.tick(dt); this.update(dt); }
                 this.renderMap();
             });
             this._loopId = requestAnimationFrame(loop);
@@ -2722,7 +2779,7 @@ const Game = {
         let a = this.ambition(), open = this.openAmbitions();
         let done = (state.player.ambitionsDone || []).length;
         return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid #e0b062;
-                border-radius:8px;padding:1rem;margin-bottom:1rem">
+                border-radius:var(--r-md);padding:1rem;margin-bottom:1rem">
             <b style="font-size:1.1rem">${T`🎯 Hedefin`}</b>
             <span style="float:right;color:var(--text-muted);font-size:var(--fs-sm)">${T`${done} hedef tamamlandı`}</span>
             ${a ? `<div style="margin-top:0.5rem"><b>${T(a.title)}</b> — ${T(a.desc)}</div>
@@ -7913,7 +7970,7 @@ const Game = {
     marketStatusHtml() {
         let cap = this.cargoCap(), load = this.cargoLoad(), over = load > cap;
         let fs = this.foodStock();
-        let chip = (txt, col) => `<span style="padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:5px;${col ? `color:${col}` : ''}">${txt}</span>`;
+        let chip = (txt, col) => `<span style="padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
         return `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;font-size:var(--fs-sm);margin-top:0.5rem">
             ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '')}
             ${chip(T`🍞 Yiyecek: ${isFinite(fs.days) ? fs.days : '∞'} gün`, fs.days < 3 ? '#e8a13a' : '')}
@@ -8369,7 +8426,7 @@ const Game = {
         list.forEach((a, k) => {
             let tier = ACH_TIERS[a.tier];
             let el = document.createElement('div');
-            el.style.cssText = `pointer-events:auto;min-width:220px;max-width:300px;padding:10px 14px;border-radius:10px;
+            el.style.cssText = `pointer-events:auto;min-width:220px;max-width:300px;padding:10px 14px;border-radius:var(--r-md);
                 background:rgba(20,18,14,0.94);border:1px solid ${tier.col};box-shadow:0 6px 24px rgba(0,0,0,0.5);
                 color:#f0e6d2;font-size:13px;opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s`;
             let rewardTxt = T`+${tier.money} dinar` + (tier.renown ? T` · +${tier.renown} nam` : '');
@@ -8391,7 +8448,7 @@ const Game = {
             (!!state.achievements[y.id] - !!state.achievements[x.id]) || (order[x.tier] - order[y.tier]))
         .map(a => {
             let tier = ACH_TIERS[a.tier], done = state.achievements[a.id];
-            return `<div style="display:flex;align-items:center;gap:0.7rem;padding:0.5rem 0.7rem;border-radius:8px;
+            return `<div style="display:flex;align-items:center;gap:0.7rem;padding:0.5rem 0.7rem;border-radius:var(--r-md);
                 background:${done ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.15)'};opacity:${done ? 1 : 0.5}">
                 <span style="font-size:1.5rem;filter:${done ? 'none' : 'grayscale(1)'}">${done ? tier.ico : '🔒'}</span>
                 <div style="flex:1">
@@ -8413,7 +8470,7 @@ const Game = {
         let titles = ACHIEVEMENTS.filter(a => a.tier === 'gold' && state.achievements[a.id]);
         if(!titles.length) return '';
         return `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin:0.3rem 0 0.5rem">
-            ${titles.map(a => `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;
+            ${titles.map(a => `<span style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:var(--r-md);
                 background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.4);color:#ffd700"
                 title="${T(a.desc)}">🥇 ${T(a.name)}</span>`).join('')}
         </div>`;
@@ -8752,7 +8809,7 @@ const Game = {
             let space = Math.max(0, this.getPartyCapacity() - state.player.party.length);
             let max = Math.min(m.count, space, Math.floor(state.player.money / price));
             let st = this.troopStats({ name: m.name });
-            html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.7rem;margin-bottom:0.5rem">
+            html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);padding:0.7rem;margin-bottom:0.5rem">
                 <b>${st.icon} ${T(m.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`· seviye ${m.level} · ${m.count} kişi · kişi başı ${price} dinar`}</span>`;
             html += max > 0
                 ? `<input type="range" id="merc-n-${i}" min="1" max="${max}" value="${max}" style="width:100%;margin:0.5rem 0"
@@ -8778,7 +8835,7 @@ const Game = {
                 <h4 style="color:var(--primary)">${T`🎖️ Köşedeki Yabancılar`}</h4>`;
             here.forEach(c => {
                 let rival = c.dislikes.map(d => state.player.party.find(t => t.companionId === d)).find(Boolean);
-                html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.8rem;margin-bottom:0.5rem">
+                html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);padding:0.8rem;margin-bottom:0.5rem">
                     <b>${c.icon} ${T(c.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">· ${this.profName(c.skill)} ${c.level}</span>
                     <div style="font-size:var(--fs-sm);font-style:italic;color:var(--text-muted);margin:0.3rem 0">${T(c.lore)}</div>
                     ${rival
@@ -9169,7 +9226,7 @@ const Game = {
         <p>${T`Sekiz dövüşçü, üç tur, tahta silahlar. Her turu <b>kendin</b> dövüşürsün; canın turlar arasında yenilenmez.`}</p>
         ${last ? `<p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Geçen turnuvayı <b>${T(last.name)}</b> kazanmıştı.`}</p>` : ''}
         ${this.tourneyBracketHtml()}
-        <div style="margin-top:0.9rem;padding:0.8rem;border:1px solid var(--panel-border);border-radius:8px">
+        <div style="margin-top:0.9rem;padding:0.8rem;border:1px solid var(--panel-border);border-radius:var(--r-md)">
             <b>${T`🎲 Bahis`}</b> <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`— kendine yatırırsın; oran cetveldeki rakiplerin gücünden çıkar.`}</span>
             <div style="display:flex;gap:0.5rem;margin:0.5rem 0;font-size:var(--fs-sm);color:var(--text-muted);flex-wrap:wrap">
                 ${odds.map((o, i) => `<span>${i === 3 ? T('🏆 Şampiyon') : i === 0 ? T('İlk turda elenme') : T`${i}. turu kazanma`}: <b style="color:${o >= 1 ? 'var(--success)' : 'var(--danger)'}">×${o}</b></span>`).join(' · ')}
@@ -9545,7 +9602,7 @@ const Game = {
             İkna kabiliyeti ve seviyesi işin sonucunu belirler.`}</p>`;
         comps.forEach(c => {
             let ch = Math.round(this.envoyChance(c, lordId) * 100);
-            html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;padding:0.7rem;margin-bottom:0.5rem">
+            html += `<div style="background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);padding:0.7rem;margin-bottom:0.5rem">
                 <b>${T(c.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`· seviye ${c.level} · başarı ${ch}%`}</span>
                 <div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap">
                 <button class="btn" style="font-size:var(--fs-sm)" onclick="Game.sendEnvoy('${lordId}','${c.id}','rel')">${T`🤝 İlişki pazarlığı`}</button>
@@ -10736,7 +10793,7 @@ const Game = {
             <div style="border:6px ridge #dca243;padding:4px;background:#1a0b02;box-shadow:inset 0 0 10px #000;">${inner}</div></div>`;
 
         const row = (imgHtml, color, name, sub, text) => `
-            <div style="display:flex;gap:2rem;align-items:center;background:rgba(0,0,0,0.6);padding:1.2rem 2rem;border-radius:8px;">
+            <div style="display:flex;gap:2rem;align-items:center;background:rgba(0,0,0,0.6);padding:1.2rem 2rem;border-radius:var(--r-md);">
                 ${imgHtml}
                 <div>
                     <h3 style="color:${color};font-size:1.6rem;margin-bottom:0.2rem;font-family:'Cinzel',serif;">${name}</h3>
@@ -10796,8 +10853,8 @@ const Game = {
             <span style="color:${done ? '#fff' : 'var(--primary)'};font-size:1.05rem">${eff.toFixed(1)}</span>
             <span style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
             ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:var(--fs-sm);margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
-            ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:3px;height:5px;margin:0.3rem 0;max-width:220px">
-                <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:3px"></div></div>`}
+            ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:var(--r-xs);height:5px;margin:0.3rem 0;max-width:220px">
+                <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:var(--r-xs)"></div></div>`}
             <div style="font-size:var(--fs-xs);color:var(--text-muted)">${this.attrEffect(k)}</div>
             ${done ? '' : `<div style="font-size:var(--fs-xs);color:#cbb26b">${T`Gelişimi: ${a.how}`}</div>`}
         </li>`;
@@ -10813,8 +10870,8 @@ const Game = {
             <h3 style="color:var(--primary)">${p.name}</h3>
             ${this.titlesHtml()}
             <p>${T`Seviye: ${s.level} (XP: ${s.xp}/${s.xpNext})`}</p>
-            <div style="background:rgba(0,0,0,0.3);border-radius:4px;height:8px;width:200px;margin:0.5rem 0;">
-                <div style="background:var(--primary);height:100%;width:${xpBar}%;border-radius:4px;"></div>
+            <div style="background:rgba(0,0,0,0.3);border-radius:var(--r-xs);height:8px;width:200px;margin:0.5rem 0;">
+                <div style="background:var(--primary);height:100%;width:${xpBar}%;border-radius:var(--r-xs);"></div>
             </div>
             <p>${T`Can: ${Math.round(s.hp)}/${Math.round(s.maxHp)}`}</p>
             <p>${T`Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}`}${this.honorTier()
@@ -10871,12 +10928,12 @@ const Game = {
             p.proficiencies[pr.id] = pData;
             let fill = (pData.xp / pData.next) * 100;
             let mult = 0.5 + (pData.focus||0);
-            profHtml += `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:6px;width:48%;display:flex;justify-content:space-between;align-items:center;">
+            profHtml += `<div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:var(--r-sm);width:48%;display:flex;justify-content:space-between;align-items:center;">
                 <div style="flex:1">
                     <div style="font-weight:bold">${T`${pr.name} (Seviye ${pData.level})`}</div>
                     <div style="font-size:var(--fs-xs);color:#cbb26b">${pr.d(pData.level)}</div>
                     <div style="font-size:var(--fs-xs);color:var(--text-muted)">${T`Öğrenme Hızı: x${mult} | Odak: ${pData.focus||0}/5`}</div>
-                    <div style="background:rgba(0,0,0,0.5);border-radius:2px;height:4px;margin-top:4px;width:90%;">
+                    <div style="background:rgba(0,0,0,0.5);border-radius:var(--r-xs);height:4px;margin-top:4px;width:90%;">
                         <div style="background:var(--primary);height:100%;width:${fill}%;"></div>
                     </div>
                 </div>
@@ -10911,7 +10968,7 @@ const Game = {
         <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;">`;
 
         PERKS.forEach(br => {
-            html += `<div style="background:rgba(0,0,0,0.28);border-radius:8px;padding:0.7rem;width:31%;min-width:230px;">
+            html += `<div style="background:rgba(0,0,0,0.28);border-radius:var(--r-md);padding:0.7rem;width:31%;min-width:230px;">
                 <div style="font-weight:bold;color:#cbb26b;margin-bottom:0.5rem;">${T(br.name)}
                 <span style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:normal">(${T(this.ATTRS[br.attr].name)})</span></div>`;
             br.tiers.forEach((pair, k) => {
@@ -10925,7 +10982,7 @@ const Game = {
                     let click = (!owned && !block) ? `onclick="Game.takePerk('${pk.id}')"` : '';
                     let cursor = (!owned && !block) ? 'pointer' : 'default';
                     html += `<div ${click} title="${owned ? T('Alındı') : (block || T('Almak için tıkla'))}"
-                        style="background:${bg};border:1px solid ${bd};border-radius:5px;padding:0.35rem 0.5rem;cursor:${cursor};color:${col};font-size:var(--fs-xs);line-height:1.35;">
+                        style="background:${bg};border:1px solid ${bd};border-radius:var(--r-xs);padding:0.35rem 0.5rem;cursor:${cursor};color:${col};font-size:var(--fs-xs);line-height:1.35;">
                         <b>${owned ? '✓ ' : ''}${T(pk.name)}</b> <span style="color:#8fb98f">${modLine(pk.mod)}</span>
                         <div style="color:var(--text-muted)">${T(pk.desc)}</div>
                         ${block && !owned ? `<div style="color:#e08a5a">🔒 ${block}</div>` : ''}
@@ -11098,7 +11155,7 @@ const Game = {
             for(let name in groups) {
                 let g = groups[name];
                 let typeInfo = this.troopStats(g.sample);
-                html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.2);margin-bottom:0.5rem;border-radius:6px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--panel-border);">
+                html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.2);margin-bottom:0.5rem;border-radius:var(--r-sm);display:flex;justify-content:space-between;align-items:center;border:1px solid var(--panel-border);">
                 <div>
                     <span style="font-size:1.2rem;margin-right:0.5rem;">${typeInfo.icon}</span>
                     <strong style="color:var(--primary)">${name}</strong> x${g.count}
@@ -11353,7 +11410,7 @@ const Game = {
         let rows = Object.keys(info).filter(k => info[k] !== 0)
             .map(k => `<div style="display:flex;justify-content:space-between"><span>${T(k)}</span><span style="color:${info[k] > 0 ? '#2ecc71' : '#e74c3c'}">${info[k] > 0 ? '+' : ''}${info[k]}</span></div>`).join('');
         return `<h3 style="color:var(--primary);margin-top:1.5rem">${T`🎺 Moral ${m}/100 — ${this.moraleLabel(m)}`}</h3>
-            <div style="background:rgba(0,0,0,0.25);padding:0.8rem;border-radius:6px;font-size:var(--fs-sm);line-height:1.6">
+            <div style="background:rgba(0,0,0,0.25);padding:0.8rem;border-radius:var(--r-sm);font-size:var(--fs-sm);line-height:1.6">
             ${rows || `<i>${T('Henüz hesaplanmadı (bir gün geçmeli).')}</i>`}
             <div style="color:var(--text-muted);margin-top:0.4rem">${T`Savaş gücü çarpanı: ×${this.moraleMult().toFixed(2)}${m < 25 ? T(' · <span style="color:#e74c3c">firar başladı!</span>') : ''}`}</div>
             </div>`;
@@ -11389,7 +11446,7 @@ const Game = {
             html += `<p style="color:var(--text-muted)">${T`Tüccar esirlerini tek tek süzüyor.`}</p><ul style="list-style:none;padding:0">`;
             for(let name in groups) {
                 let g = groups[name];
-                html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
+                html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                     <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(tanesi ${g.value} dinar)`}</span></span>
                     <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name).replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
@@ -11486,7 +11543,7 @@ const Game = {
         html += '<ul style="list-style:none;padding:0">';
         ps.forEach(p => {
             if(p.noble) {
-                html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:6px;margin-bottom:0.5rem">
+                html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:var(--r-sm);margin-bottom:0.5rem">
                     <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`${T((FACTIONS[p.faction]||{name:''}).name)} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
                     <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
                         <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">${T`💰 Fidye İste (${p.ransom} Dinar)`}</button>
@@ -11499,7 +11556,7 @@ const Game = {
         });
         for(let name in groups) {
             let g = groups[name];
-            html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.4rem">
+            html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                 <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
                 <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name).replace(/'/g,"\\'")}')">${T`Salıver`}</button>
             </li>`;
@@ -11583,7 +11640,7 @@ const Game = {
             html += `<div style="margin-top:1rem"><h3 style="color:var(--primary)">${T('Nişanlar')} <span style="font-size:var(--fs-sm);color:var(--text-muted)">${owned.length}/${Object.keys(RELICS).length}</span></h3>
                 <div style="display:flex;gap:0.8rem;flex-wrap:wrap;">`;
             owned.forEach(id => { let r = RELICS[id];
-                html += `<div style="padding:0.7rem;background:rgba(60,40,20,0.35);border:1px solid #7a5c2a;border-radius:6px;width:150px;text-align:center;">
+                html += `<div style="padding:0.7rem;background:rgba(60,40,20,0.35);border:1px solid #7a5c2a;border-radius:var(--r-sm);width:150px;text-align:center;">
                     <div style="font-size:1.5rem">${r.icon}</div>
                     <div style="font-weight:bold;font-size:var(--fs-md);margin-top:0.3rem;color:#e0c070">${T(r.name)}</div>
                     <div style="font-size:var(--fs-xs);color:#cbb26b;line-height:1.25;margin-top:0.2rem">${T(r.desc)}</div>
@@ -11680,7 +11737,7 @@ const Game = {
         this.showModal(`<div style="text-align:center">
             <h2 style="color:#ffcc00;font-size:2.2rem;text-shadow:0 0 14px rgba(255,204,0,0.5);margin-bottom:0.5rem">⚔️ ${T('Zafer!')} ⚔️</h2>
             <p style="color:var(--text-muted);margin-bottom:1rem">${T('Savaş Tanrısı\'nı dize getirdin. Adın destanlara geçti.')}</p>
-            <div style="background:rgba(0,0,0,0.3);padding:1.2rem;border-radius:10px;text-align:left;line-height:1.7;font-size:1.1rem;margin-bottom:1.2rem">
+            <div style="background:rgba(0,0,0,0.3);padding:1.2rem;border-radius:var(--r-md);text-align:left;line-height:1.7;font-size:1.1rem;margin-bottom:1.2rem">
                 <p><b>${T('Gün')}:</b> ${state.time.day}</p>
                 <p><b>${T('Nam')}:</b> ${Math.round(state.player.renown)} 👑</p>
                 <p><b>${T('Altın')}:</b> ${Math.round(state.player.money)} 💰</p>
@@ -11962,7 +12019,7 @@ const Save = {
         let txt = JSON.stringify(this.snapshot());
         Game.showModal(`<h3>${T`📤 Kaydı Dışa Aktar`}</h3>
         <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).`}</p>
-        <textarea id="save-text" readonly style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem">${txt.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
+        <textarea id="save-text" readonly style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:var(--r-sm);font:0.7rem/1.3 monospace;padding:0.5rem">${txt.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
         <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
             <button class="btn primary" onclick="Save.copyText()">${T`📋 Panoya Kopyala`}</button>
             <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
@@ -11977,7 +12034,7 @@ const Save = {
     importSave() {
         Game.showModal(`<h3>${T`📥 Kaydı İçe Aktar`}</h3>
         <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.`}</p>
-        <textarea id="save-text" style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:6px;font:0.7rem/1.3 monospace;padding:0.5rem"></textarea>
+        <textarea id="save-text" style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:var(--r-sm);font:0.7rem/1.3 monospace;padding:0.5rem"></textarea>
         <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
             <button class="btn primary" onclick="Save.doImport()">${T`Yükle`}</button>
             <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>

@@ -187,7 +187,7 @@ function load(opts = {}) {
         if(opts.lang && f === 'lang-id.js') vm.runInContext(`I18N.set(${JSON.stringify(opts.lang)});`, ctx);
     }
     // `const` stays in the context's lexical scope and isn't visible on the sandbox object — pull it out here
-    const names = ['VERSION', 'Debug', 'Input', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame', 'I18N', 'T',
+    const names = ['VERSION', 'Debug', 'Input', 'Anim', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame', 'I18N', 'T',
                    'Nobles', 'Feast', 'Quests', 'FACTIONS', 'LOCATIONS', 'ITEMS', 'TROOP_TYPES',
                    'TROOP_TREES', 'TROOP_UPGRADES', 'BAND_KINDS', 'LORDS', 'LADIES', 'COMPANIONS', 'QUESTS', 'BANNERS',
                    'PERKS', 'PERK_BY_ID', 'RELICS', 'BOSSES', 'ACHIEVEMENTS'];

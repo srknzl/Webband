@@ -25,6 +25,13 @@ const Battle = {
     // where the same zoom shows less absolute area than on a desktop monitor) — still closer
     // than the old 1:1, just with more of the field visible around the player.
     CAM_ZOOM: 2.3,
+    DIE_T: 0.7,   // seconds a fallen unit keeps being drawn while it tips over (1.32.0)
+    // A rounded-rectangle path (soft pass, 1.32.0). Falls back to a plain rectangle where
+    // Canvas2D has no roundRect (Safari < 16).
+    roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2)); else ctx.rect(x, y, w, h);
+    },
     // Touch screens (1.31.5 report: "far too close on the phone"): the zoom is picked so the
     // screen's short side shows MOBILE_VIEW arena px — ~1.4 on a 390-px-wide iPhone instead of
     // 2.3 — never closer than CAM_ZOOM, never below 1.2. Desktop keeps CAM_ZOOM.
@@ -171,6 +178,7 @@ const Battle = {
         // previous fight's player unit died.
         this.camZoom = this.camZoomFor(W, H);
         this.cam = { x: W / 2, y: H / 2 };
+        this.shakeT = undefined;
         // Commands aren't ready at the start of battle: each one becomes available
         // as an "opportunity" at its own random moment. The horn call comes from inside the battle, not a menu.
         // An order needs someone to obey it (#114). The duel and the arena empty the party
@@ -545,7 +553,7 @@ const Battle = {
             last = t;
             // While the tutorial is open the battle pauses but keeps rendering (#88) — so
             // the character can't be killed while there's something to read on screen.
-            Debug.guard('battle loop', () => { if(!this.paused) this.update(dt); this.render(); });
+            Debug.guard('battle loop', () => { if(!this.paused) { Anim.tick(dt); this.update(dt); } this.render(); });
             this.lastRender = performance.now();     // pulse (#54)
             this.loopId = requestAnimationFrame(loop);
         };
@@ -624,6 +632,7 @@ const Battle = {
         });
         p.angleToMouse = a;
         p.bowTimer = 0.25;
+        p.shotT = 0; p.shotA = a;   // recoil (1.32.0)
     },
 
     // Armor works by damage type: cut takes it in full, pierce takes half, blunt takes two-thirds
@@ -727,6 +736,9 @@ const Battle = {
 
     // Melee damage from one place: blood, knockback, damage text, kill logging
     dealMelee(src, tgt, raw) {
+        // Animation clock (1.32.0): every swing shows, blocked or not — AI swings used to be
+        // invisible, the hit simply landed. Purely visual: drawUnit turns it into a lunge + trail.
+        src.atkT = 0; src.atkA = Math.atan2(tgt.y - src.y, tgt.x - src.x);
         let bf = this.blockFactor(tgt, src.x, src.y);
         if(bf === 0) return this.blockedFx(tgt, src.x, src.y);
         // Bracing infantry bites harder into a charging horse — the counter to cavalry kiting
@@ -740,6 +752,8 @@ const Battle = {
         if(tgt.id === 'player') Game.trainAttr('vit', dmg / 60);
         tgt.hitFlash = 0.18;
         let a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
+        tgt.hitT = 0; tgt.hitA = a;
+        if(tgt.id === 'player') this.shakeT = 0;
         tgt.x += Math.cos(a) * 4; tgt.y += Math.sin(a) * 4; // geri tepme
         this.blood(tgt.x, tgt.y, 3 + Math.random()*3);
         this.spark(tgt.x, tgt.y, a, src.isPlayerTeam ? '#ffdd66' : '#ff8866');
@@ -952,6 +966,8 @@ const Battle = {
                     u.hp -= dmg;
                     hit = true;
                     u.hitFlash = 0.15;
+                    u.hitT = 0; u.hitA = Math.atan2(proj.vy, proj.vx);
+                    if(u.id === 'player') this.shakeT = 0;
                     this.blood(u.x, u.y, 2.5 + Math.random()*2);
                     this.spark(u.x, u.y, Math.atan2(proj.vy, proj.vx), '#ffeebb');
                     this.floatingTexts.push({ x: u.x, y: u.y - 12, text: `-${dmg}`, color: proj.isPlayerTeam ? '#ffdd55' : '#ff6666', life: 0.8 });
@@ -975,6 +991,7 @@ const Battle = {
         this.floatingTexts.forEach(f => {
             f.y -= 15 * dt;
             f.life -= dt;
+            f.age = (f.age || 0) + dt;   // drives the pop-in (1.32.0)
         });
         this.floatingTexts = this.floatingTexts.filter(f => f.life > 0);
 
@@ -993,7 +1010,16 @@ const Battle = {
         if(this.sparks.length > capSpark) this.sparks.splice(0, this.sparks.length - capSpark);
         if(this.floatingTexts.length > capText) this.floatingTexts.splice(0, this.floatingTexts.length - capText);
         if(this.bloodStains.length > capBlood) this.bloodStains.splice(0, this.bloodStains.length - capBlood);
-        this.units.forEach(u => { if(u.hitFlash > 0) u.hitFlash -= dt; });
+        this.units.forEach(u => {
+            if(u.hitFlash > 0) u.hitFlash -= dt;
+            // Animation clocks (1.32.0): seconds since the last hit / swing / shot / fall. They
+            // tick here, not in render, so a paused battle freezes mid-motion.
+            if(u.hitT !== undefined) u.hitT += dt;
+            if(u.atkT !== undefined) u.atkT += dt;
+            if(u.shotT !== undefined) u.shotT += dt;
+            if(u.deadT !== undefined) u.deadT += dt;
+        });
+        if(this.shakeT !== undefined) this.shakeT += dt;
 
         // id -> unit table (target lookups run through this)
         this._byId = {};
@@ -1270,6 +1296,7 @@ const Battle = {
                                     damage: uAttack, dmgType: 'pierce',
                                     isPlayerTeam: u.isPlayerTeam, sourceId: u.id
                                 });
+                                u.shotT = 0; u.shotA = Math.atan2(dy, dx);   // bow + recoil (1.32.0)
                             }
                         }
                     } else {
@@ -1829,6 +1856,12 @@ const Battle = {
         ctx.translate(W/2, H/2);
         ctx.scale(zoom, zoom);
         ctx.translate(-cam.x, -cam.y);
+        // Impact shake (1.32.0): only when the player is hit — it tells you, it doesn't decorate.
+        // A sine, not Math.random: the same frame draws the same picture.
+        if(this.shakeT !== undefined && this.shakeT < 0.22 && Anim.on()) {
+            let s = 2.2 * Anim.decay(this.shakeT, 0.22) / zoom;
+            ctx.translate(Math.sin(this.battleTime * 97) * s, Math.cos(this.battleTime * 71) * s);
+        }
 
         ctx.drawImage(this.ground, 0, 0);
 
@@ -1859,7 +1892,8 @@ const Battle = {
         this.corpses.forEach(cp => {
             ctx.save();
             ctx.translate(cp.x, cp.y); ctx.rotate(cp.rot);
-            ctx.globalAlpha = 0.5;
+            // fades in under the falling unit instead of popping into place (1.32.0)
+            ctx.globalAlpha = 0.5 * (cp.born === undefined ? 1 : Anim.k(this.battleTime - cp.born - 0.2, 0.5, 'outQuad'));
             ctx.fillStyle = cp.isPlayerTeam ? '#4a5a7a' : '#6a3a3a';
             ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.5, 0, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.stroke();
@@ -1869,7 +1903,7 @@ const Battle = {
 
         // Sword swing trail
         this.swings.forEach(sw => {
-            let a = sw.life / 0.3;
+            let a = Anim.ease.outQuad(Anim.clamp01(sw.life / 0.3));
             let half = this.swingHalfAngle();
             ctx.save();
             ctx.translate(sw.x, sw.y);
@@ -1897,8 +1931,10 @@ const Battle = {
         // under the units so it reads as a decal rather than an overlay on top of them.
         this.units.forEach(u => { if(u.hp > 0 && u.special) this.drawBossSpecial(ctx, u, now); });
 
-        // Units — sorted by y for a sense of depth
-        this.units.filter(u => u.hp > 0).sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));
+        // Units — sorted by y for a sense of depth. The just-fallen are drawn too, for the
+        // DIE_T seconds of their fall (1.32.0).
+        this.units.filter(u => u.hp > 0 || (u.deadT !== undefined && u.deadT < this.DIE_T))
+            .sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));
 
         // Arrows
         this.projectiles.forEach(p => {
@@ -1926,12 +1962,15 @@ const Battle = {
 
         // Floating damage text
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        let pop = Anim.on();
         this.floatingTexts.forEach(f => {
-            ctx.globalAlpha = Math.min(1, f.life / 0.4);
+            ctx.globalAlpha = Anim.ease.outQuad(Anim.clamp01(f.life / 0.4));
             ctx.font = `bold ${f.big ? 15 : 12}px Inter, sans-serif`;
             ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-            ctx.strokeText(f.text, f.x, f.y);
-            ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+            // Pops in: starts small, overshoots a touch, settles (1.32.0)
+            let age = f.age || 0, s = pop && age < 0.2 ? 0.55 + 0.45 * Anim.ease.outBack(age / 0.2) : 1;
+            if(s !== 1) { ctx.save(); ctx.translate(f.x, f.y); ctx.scale(s, s); ctx.strokeText(f.text, 0, 0); ctx.fillStyle = f.color; ctx.fillText(f.text, 0, 0); ctx.restore(); }
+            else { ctx.strokeText(f.text, f.x, f.y); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); }
         });
         ctx.globalAlpha = 1;
 
@@ -2312,64 +2351,111 @@ const Battle = {
         }
         let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
 
+        // ---- Motion layer (1.32.0): offsets, lean and squash read off the unit's animation
+        // clocks (atkT/hitT/shotT/deadT, ticked in update). Drawn-only: the unit's real x/y —
+        // hit boxes, AI, collisions — never move. "Reduce motion" keeps the fall, drops the rest.
+        let fx = Anim.on(), dead = u.hp <= 0;
+        let ox = 0, oy = 0, lean = 0, sx = 1, sy = 1, alpha = 1;
+        if(dead) {
+            // Tips over away from its killer and sinks, then fades while the corpse fades in
+            let k = Anim.k(u.deadT, this.DIE_T, 'inQuad');
+            lean = (u.fallDir || 1) * 1.45 * k; oy = 4 * k; hop = 0; sway = 0;
+            alpha = 1 - Anim.k(u.deadT - 0.3, this.DIE_T - 0.3, 'inOutQuad');
+        } else if(fx) {
+            // Swing: a lunge toward the target and back
+            if(u.atkT < 0.3) { let b = Anim.ease.bump(Anim.k(u.atkT, 0.3, 'outQuad')) * 6; ox += Math.cos(u.atkA) * b; oy += Math.sin(u.atkA) * b; }
+            // Shot: a small kick back along the arrow
+            if(u.shotT < 0.25) { let b = Anim.decay(u.shotT, 0.25) * 3; ox -= Math.cos(u.shotA) * b; oy -= Math.sin(u.shotA) * b; }
+            // Hit: squashed by the blow, pushed back, leaning away — then springs back
+            if(u.hitT < 0.3) {
+                let d = Anim.decay(u.hitT, 0.3);
+                sx += 0.16 * d; sy -= 0.14 * d;
+                ox += Math.cos(u.hitA) * 3 * d; oy += Math.sin(u.hitA) * 1.5 * d;
+                lean += Math.cos(u.hitA) * 0.22 * d;
+            }
+            // Walking: stretches on the stride and leans into the run; standing: breathes
+            if(isMoving) {
+                let c = Math.cos(2 * (now / strideMs + offset));
+                sy *= 1 + 0.05 * c; sx *= 1 - 0.04 * c;
+                lean += Math.max(-1, Math.min(1, u.vx / 140)) * 0.08;
+            } else sy *= 1 + 0.018 * Math.sin(now / 650 + offset);
+        }
+        let ux = u.x + ox, uy = u.y + oy;
+
         // Ground shadow + team ring (filled and fully opaque so it doesn't wash out against the ground)
+        ctx.globalAlpha = alpha;
         ctx.beginPath();
         ctx.ellipse(u.x, u.y + 9, 12, 5.5, 0, 0, Math.PI*2);
         ctx.fillStyle = `rgba(0,0,0,${0.5 - hop*0.03})`; ctx.fill();
 
-        ctx.beginPath();
-        ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
-        ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
-        ctx.fill();
-        // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
-        // the enemy's is dashed — still distinguishable on a grayscale screen.
-        ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
-        ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
-        ctx.setLineDash([]);
-
-        if(isPlayer) {
-            let pulse = 1 + Math.sin(now/300)*0.12;
+        if(!dead) {
             ctx.beginPath();
-            ctx.ellipse(u.x, u.y + 9, 14*pulse, 6.5*pulse, 0, 0, Math.PI*2);
-            ctx.strokeStyle = 'rgba(255,204,0,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
-        }
+            ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
+            ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
+            ctx.fill();
+            // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
+            // the enemy's is dashed — still distinguishable on a grayscale screen.
+            ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
+            ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
+            ctx.setLineDash([]);
 
-        if(isMoving && !Game.lite() && Math.random() < 0.25) {
-            ctx.fillStyle = 'rgba(196,186,150,0.35)';
-            ctx.beginPath(); ctx.arc(u.x + (Math.random()-0.5)*8, u.y + 9, 1.5+Math.random()*2.5, 0, Math.PI*2); ctx.fill();
+            if(isPlayer) {
+                let pulse = 1 + Math.sin(now/300)*0.12;
+                ctx.beginPath();
+                ctx.ellipse(u.x, u.y + 9, 14*pulse, 6.5*pulse, 0, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(255,204,0,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+            }
+
+            if(isMoving && !Game.lite() && Math.random() < 0.25) {
+                ctx.fillStyle = 'rgba(196,186,150,0.35)';
+                ctx.beginPath(); ctx.arc(u.x + (Math.random()-0.5)*8, u.y + 9, 1.5+Math.random()*2.5, 0, Math.PI*2); ctx.fill();
+            }
         }
 
         ctx.save();
-        ctx.translate(u.x, u.y - hop);
+        ctx.translate(ux, uy - hop);
         ctx.rotate(sway);
         // Nothing is rasterized/drawn from scratch every frame: emoji are baked into a sprite
         // once (measured: 13 us -> 3.4 us, 3.8x) and hand-drawn boss/troop art is baked the
         // same way at spawn/warmUp — this just blits whichever canvas applies to this unit.
-        let spr = bakedSpr || this.unitSprite(icon);
-        ctx.drawImage(spr, -spr.width/2, -spr.height/2);
+        let spr = bakedSpr || this.unitSprite(icon), h2 = spr.height / 2;
+        // Lean, fall and squash pivot on the feet, not the middle of the sprite (1.32.0)
+        ctx.translate(0, h2); ctx.rotate(lean); ctx.scale(sx, sy);
+        ctx.drawImage(spr, -spr.width/2, -spr.height);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
         if(u.level >= 5) {
             let rankStr = u.level >= 20 ? '^' : u.level >= 15 ? "'''" : u.level >= 10 ? "''" : "'";
             ctx.fillStyle = '#ffcc44';
             ctx.font = 'bold 15px Inter, sans-serif';
-            ctx.fillText(rankStr, -12, -12);
+            ctx.fillText(rankStr, -12, -12 - h2);
         }
         ctx.restore();
+        ctx.globalAlpha = 1;
+        if(dead) return;   // a falling unit has no flash, weapon, shield or health bar
 
-        // Hit flash
-        if(u.hitFlash > 0) {
-            ctx.globalAlpha = Math.min(0.75, u.hitFlash * 4);
+        // Hit flash — fades out on a curve rather than a straight line (1.32.0)
+        let flash = u.hitT !== undefined ? Anim.decay(u.hitT, 0.3) * 0.75 : 0;
+        if(flash > 0.01) {
+            ctx.globalAlpha = flash;
             ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(u.x, u.y - hop, 13, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(ux, uy - hop, 13, 0, Math.PI*2); ctx.fill();
             ctx.globalAlpha = 1;
+        }
+
+        // Swing trail for everyone but the player, whose own sword is drawn below (1.32.0):
+        // AI hits used to land without anything on screen to say a blow was struck.
+        if(!isPlayer && u.atkT < 0.22) {
+            let k = Anim.k(u.atkT, 0.22, 'outCubic'), a0 = u.atkA - 0.85;
+            ctx.beginPath(); ctx.arc(ux, uy - hop - 2, 20, a0, a0 + 1.7 * k);
+            ctx.strokeStyle = `rgba(255,245,215,${0.6 * (1 - k)})`; ctx.lineWidth = 1 + 2.5 * (1 - k); ctx.stroke();
         }
 
         // Shield (while blocking) — a 60° arc it faces, flashes white on a hit
         if(u.blocking) {
             let ba = u.blockAngle || 0;
             ctx.save();
-            ctx.translate(u.x, u.y - hop);
+            ctx.translate(ux, uy - hop);
             ctx.beginPath();
             ctx.arc(0, 0, 20, ba - Math.PI/3, ba + Math.PI/3);
             ctx.lineWidth = u.blockFlash > 0 ? 7 : 5;
@@ -2378,11 +2464,12 @@ const Battle = {
             ctx.restore();
         }
 
-        // Bow (right after firing an arrow)
-        if(u.bowTimer > 0) {
+        // Bow (right after firing an arrow) — AI archers show theirs too (1.32.0)
+        let bowUp = isPlayer ? u.bowTimer > 0 : u.shotT < 0.25;
+        if(bowUp) {
             ctx.save();
-            ctx.translate(u.x, u.y - hop);
-            ctx.rotate(u.angleToMouse || 0);
+            ctx.translate(ux, uy - hop);
+            ctx.rotate((isPlayer ? u.angleToMouse : u.shotA) || 0);
             ctx.beginPath();
             ctx.arc(12, 0, 11, -Math.PI/2.2, Math.PI/2.2);
             ctx.lineWidth = 2.5; ctx.strokeStyle = '#c8a24a'; ctx.stroke();
@@ -2396,7 +2483,7 @@ const Battle = {
         // Sword (while swinging)
         if(u.isAttacking) {
             ctx.save();
-            ctx.translate(u.x, u.y - hop);
+            ctx.translate(ux, uy - hop);
             ctx.rotate(u.currentWeaponAngle || 0);
             ctx.beginPath();
             ctx.moveTo(10,-2); ctx.lineTo(15,-2); ctx.lineTo(15,-6); ctx.lineTo(18,-6);
@@ -2418,9 +2505,9 @@ const Battle = {
             let bw = 26, r = Math.max(0, u.hp / u.maxHp);
             let by = u.y - 20 - hop;
             ctx.fillStyle = 'rgba(0,0,0,0.65)';
-            ctx.fillRect(u.x - bw/2 - 1, by - 1, bw + 2, 5);
+            this.roundRect(ctx, u.x - bw/2 - 1, by - 1, bw + 2, 5, 2.5); ctx.fill();
             ctx.fillStyle = r > 0.5 ? '#41d06a' : r > 0.25 ? '#e8c93a' : '#e0463a';
-            ctx.fillRect(u.x - bw/2, by, bw * r, 3);
+            if(bw * r > 0.5) { this.roundRect(ctx, u.x - bw/2, by, bw * r, 3, 1.5); ctx.fill(); }
             ctx.fillStyle = 'rgba(255,255,255,0.25)';
             ctx.fillRect(u.x - bw/2, by, bw * r, 1);
         }
@@ -2443,9 +2530,8 @@ const Battle = {
         // drawn for orders that could never be given.
         if(this.cmdSlots && this.cmdSlots.length) {
             ctx.fillStyle = 'rgba(12,14,10,0.72)';
-            ctx.fillRect(12, B - 40, hudW, 28);
-            ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1;
-            ctx.strokeRect(12, B - 40, hudW, 28);
+            this.roundRect(ctx, 12, B - 40, hudW, 28, 10); ctx.fill();
+            ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
             ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
             if(!touch) {
@@ -2493,14 +2579,19 @@ const Battle = {
 
         let ratio = playerAlive / total;
         if(this.tugRatio === undefined) this.tugRatio = ratio;
-        this.tugRatio += (ratio - this.tugRatio) * 0.08;
+        // Eases toward the live ratio with a 0.14 s half-life — the old "8% per frame" felt the
+        // same at 60 fps but crawled at half speed at 30 (1.32.0).
+        let hudDt = this._hudNow ? Math.min(0.1, (now - this._hudNow) / 1000) : 0;
+        this._hudNow = now;
+        this.tugRatio = Anim.damp(this.tugRatio, ratio, hudDt, 0.14);
 
         let barW = Math.min(460, W - 130), barH = 22, barX = W/2 - barW/2, barY = 30;
 
         ctx.fillStyle = 'rgba(10,12,9,0.75)';
-        ctx.fillRect(barX - 6, barY - 6, barW + 12, barH + 12);
-        ctx.strokeStyle = 'rgba(200,170,90,0.5)'; ctx.lineWidth = 1.5;
-        ctx.strokeRect(barX - 6, barY - 6, barW + 12, barH + 12);
+        this.roundRect(ctx, barX - 6, barY - 6, barW + 12, barH + 12, (barH + 12) / 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(200,170,90,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.save();
+        this.roundRect(ctx, barX, barY, barW, barH, barH / 2); ctx.clip();   // soft pill ends (1.32.0)
 
         let fill = barW * this.tugRatio;
         let gl = ctx.createLinearGradient(barX, 0, barX + barW, 0);
@@ -2517,6 +2608,7 @@ const Battle = {
             let x = barX + barW*i/10;
             ctx.beginPath(); ctx.moveTo(x, barY); ctx.lineTo(x, barY + barH); ctx.stroke();
         }
+        ctx.restore();
 
         let jitter = Math.sin(now/110) * 3;
         ctx.fillStyle = '#fff';
@@ -2540,8 +2632,12 @@ const Battle = {
         ctx.shadowBlur = 0;
     },
     logKill(victim, killer) {
+        // The fall (1.32.0): the unit keeps being drawn for DIE_T seconds, tipping over away
+        // from its killer and fading while its corpse fades in underneath (see drawUnit).
+        victim.deadT = 0;
+        victim.fallDir = killer && killer.x > victim.x ? -1 : 1;
         if(Game.opt('gore')) {
-            this.corpses.push({ x: victim.x, y: victim.y, isPlayerTeam: victim.isPlayerTeam, rot: Math.random()*Math.PI*2 });
+            this.corpses.push({ x: victim.x, y: victim.y, isPlayerTeam: victim.isPlayerTeam, rot: Math.random()*Math.PI*2, born: this.battleTime });
             // #114: a duel has only one kill in it — make that final blow read as heavier.
             if(this.isDuel) {
                 for(let i = 0; i < 4; i++) this.bloodStains.push({
@@ -2781,7 +2877,7 @@ const Battle = {
         let newPrisoners = captured > 0 ? state.player.prisoners.slice(-captured) : [];
         let prisTxt = newPrisoners.map(p => `${T(p.name)} (Lvl ${p.level})`).join(', ');
 
-        let block = (title, inner) => `<div style="background:rgba(0,0,0,0.25);padding:1rem;border-radius:8px;margin-bottom:1rem;text-align:left">
+        let block = (title, inner) => `<div style="background:rgba(0,0,0,0.25);padding:1rem;border-radius:var(--r-md);margin-bottom:1rem;text-align:left">
             <h3 style="color:var(--primary);margin-bottom:0.6rem;font-size:1rem">${title}</h3>${inner}</div>`;
 
         return `<div style="max-height:60vh;overflow-y:auto">
@@ -3049,7 +3145,7 @@ const Battle = {
                 ${this.autoLoss ? `<p style="color:#8fd6ff;margin-bottom:1rem">${T`Sen inmedin: adamların kendi başlarına dövüştü, beklenen kayıp %${Math.round(this.autoLoss*100)}.`}</p>` : ''}
                 ${this.knockedOut ? T('<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>') : ''}
                 ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">${T`Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.`}</p>` : ''}
-                <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:10px;margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
+                <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:var(--r-md);margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Dinar:`}</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Şan/Nam:`}</b> <span style="color:#3498db">+3</span> 👑</p>
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Tecrübe:`}</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
@@ -3064,7 +3160,7 @@ const Battle = {
                     ${nobleTaken ? `<p style="margin-top:0.8rem;color:#e59b3d"><b>${T`👑 ${nobleTaken} esir alındı!`}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Grup ekranından fidye iste ya da salıver.`}</span></p>` : ''}
                     ${assistTxt ? `<p style="margin-top:0.8rem;color:#9fe0a0">🤝 ${assistTxt}</p>` : ''}
                 </div>
-                <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:8px" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">${T`Kazanımları Al ve İlerle`}</button>
+                <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:var(--r-md)" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">${T`Kazanımları Al ve İlerle`}</button>
             </div>`;
             let resultHtml = `<div>
                 <div style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:1rem">

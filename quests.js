@@ -1270,7 +1270,7 @@ const Quests = {
     taskHtml(q) {
         let w = this.effectiveWhere(q);
         let gun = w ? this.daysTo(w) : null;
-        return `<div style="background:rgba(0,0,0,0.25);border-left:3px solid var(--primary);border-radius:6px;
+        return `<div style="background:rgba(0,0,0,0.25);border-left:3px solid var(--primary);border-radius:var(--r-sm);
                 padding:0.7rem 0.9rem;margin-top:1rem;line-height:1.55">
             <div>${this.descFor(q)}</div>
             ${w ? `<div style="margin-top:0.4rem;color:#e0b062;font-size:var(--fs-sm)">${
@@ -1344,7 +1344,7 @@ const Quests = {
             ${giver.isGuild ? '' : `<p id="lord-line" style="margin-top:1rem;font-style:italic;color:var(--primary);line-height:1.5;min-height:4.5em"></p>`}
             <p style="margin-top:1rem;line-height:1.6;font-style:italic">${def.offer(q, giver)}</p>
             ${this.taskHtml(q)}
-            <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px;margin-top:0.6rem;font-size:var(--fs-md)">
+            <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:var(--r-md);margin-top:0.6rem;font-size:var(--fs-md)">
                 ${T`Ödül:`} <b style="color:#ffcc00">${T`${def.reward.money} dinar`}</b> ·
                 <b style="color:${def.reward.renown < 0 ? 'var(--danger)' : '#3498db'}">${T`${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam`}</b>${def.reward.rel ? ` ·
                 <b style="color:#2ecc71">${T`+${def.reward.rel} ilişki`}</b>` : ''}
@@ -1548,7 +1548,7 @@ const Quests = {
             let left = q.deadline - state.time.day;
             let awaiting = q.state === 'awaiting';
             return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid ${awaiting ? '#2ecc71' : 'var(--primary)'};
-                    border-radius:8px;padding:1rem;margin-bottom:0.8rem">
+                    border-radius:var(--r-md);padding:1rem;margin-bottom:0.8rem">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                     <b style="font-size:1.1rem">${T(def.title)}</b>
                     <span style="font-size:var(--fs-sm);color:${awaiting ? '#2ecc71' : (left <= 3 ? 'var(--danger)' : 'var(--text-muted)')}">${

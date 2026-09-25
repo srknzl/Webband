@@ -191,7 +191,7 @@ const Nobles = {
         let col = (n.portraitIndex ?? 0) % 3, row = Math.floor((n.portraitIndex ?? 0) / 3);
         if(n.isGuild) {
             // The guild master has no portrait — a scale seal instead
-            return `<div style="width:${size}px;height:${size}px;border-radius:8px;flex:0 0 auto;
+            return `<div style="width:${size}px;height:${size}px;border-radius:var(--r-md);flex:0 0 auto;
                 background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
                 display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
         }
@@ -385,7 +385,7 @@ const Nobles = {
             ? `${T`İlgi:`} <b style="color:#ff9ec4">${this.aff(n.id)}</b>`
             : this.relLabel(this.rel(n.id));
         return `<button class="btn" aria-label="${T(n.name)}" onclick="Nobles.talk('${n.id}')" style="cursor:pointer;width:150px;text-align:center;
-            padding:0.6rem;background:rgba(0,0,0,0.35);border:1px solid var(--panel-border);border-radius:8px">
+            padding:0.6rem;background:rgba(0,0,0,0.35);border:1px solid var(--panel-border);border-radius:var(--r-md)">
             <div style="display:flex;justify-content:center">${this.portraitCss(n, 96)}</div>
             <div style="font-weight:bold;margin-top:0.5rem;font-size:var(--fs-md)">${T(n.name)}</div>
             <div style="font-size:var(--fs-xs);margin-top:0.2rem">${sub}</div>
@@ -1059,13 +1059,13 @@ const Nobles = {
                 <p style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:0.4rem;font-style:italic">${T(L.lore)}</p>
                 <div style="margin-top:0.8rem">
                     <div style="font-size:var(--fs-sm)">${T`İlgisi:`} <b style="color:#ff9ec4">${a}/100</b></div>
-                    <div style="background:rgba(0,0,0,0.4);height:8px;border-radius:4px;margin-top:4px">
-                        <div style="background:#ff9ec4;height:100%;width:${a}%;border-radius:4px"></div>
+                    <div style="background:rgba(0,0,0,0.4);height:8px;border-radius:var(--r-xs);margin-top:4px">
+                        <div style="background:#ff9ec4;height:100%;width:${a}%;border-radius:var(--r-xs)"></div>
                     </div>`;
         if(rival) {
             html += `<div style="font-size:var(--fs-sm);margin-top:0.6rem">${T`Rakip`} <b>${T(this.any(rival.lordId).name)}</b>: <b style="color:#e74c3c">${Math.floor(rival.affection)}/100</b></div>
-                     <div style="background:rgba(0,0,0,0.4);height:6px;border-radius:3px;margin-top:3px">
-                        <div style="background:#e74c3c;height:100%;width:${Math.floor(rival.affection)}%;border-radius:3px"></div>
+                     <div style="background:rgba(0,0,0,0.4);height:6px;border-radius:var(--r-xs);margin-top:3px">
+                        <div style="background:#e74c3c;height:100%;width:${Math.floor(rival.affection)}%;border-radius:var(--r-xs)"></div>
                      </div>`;
         }
         html += `</div></div></div><div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1.2rem">`;
@@ -1316,7 +1316,7 @@ const Nobles = {
         let ward = L.suitor ? T('vassalımı') : T('kızımı');
         let html = `<h3>${T`💍 ${T(g.name)} ile Görüşme`}</h3>
             <p style="font-style:italic">${T`"${T(L.name)}, öyle mi?" Seni tepeden tırnağa süzdü. "Üç şeye bakarım: adına, sözüne ve kesene."`}</p>
-            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;margin-top:1rem">`;
+            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--r-md);margin-top:1rem">`;
 
         let okRenown = Game.peakRenown() >= this.MIN_RENOWN;
         let okRel = this.rel(g.id) >= this.MIN_REL;
@@ -1343,7 +1343,7 @@ const Nobles = {
         let p = state.player;
         let dLabel = this.lady(ladyId).suitor ? T('Başlık') : T('Drahoma');
         let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`${dLabel} Hesabı`}</h4>
-            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:var(--fs-md);line-height:1.7">
+            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--r-md);font-size:var(--fs-md);line-height:1.7">
             <div>${T`Temel bedel: <b>${d.base}</b> dinar</div>
             <div>${T(FACTIONS[this.lady(ladyId).faction].name)}'nın ${d.fiefs} kalesi/şehri var:`} <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
             <div>${T`Namın (${p.renown}) sayesinde:`} <span style="color:var(--success)">−${d.renownCut}</span></div>
