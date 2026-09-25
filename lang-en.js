@@ -1875,6 +1875,8 @@ I18N.dicts.en = {
   "🖱️ Kenardan kaydırma": "🖱️ Edge scrolling",
   "Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.": "The camera pans when you move the mouse to the edge of the map. Off by default on touch devices, where there is no cursor.",
   "📱 Hafif mod": "📱 Lite mode",
+  "🎯 Kare hızı hedefi": "🎯 Frame-rate target",
+  "Cihaza göre: hafif modda 30, değilse 60. 60 daha akıcıdır ama pili daha çabuk tüketir ve telefonu ısıtabilir.": "By device: 30 in lite mode, otherwise 60. 60 is smoother but drains the battery faster and can warm up the phone.",
   "Cihaza göre": "By device",
   "Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.": "Simplifies the whole game: sea waves, forest trees, hearth glow, battle particles and glass blur are reduced, the target is 30 fps. Turns itself on for phones.",
   // Dokunmatik yardım metinleri (#65 turu 2) — sözlük üretildikten sonra eklendi

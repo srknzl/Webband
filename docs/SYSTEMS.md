@@ -718,7 +718,8 @@ loop survives instead of freezing the screen. `#err-badge` (bottom-right) surfac
 One gate: `Game.opt(k)`/`setOpt(k,v)`, defaults in `Game.OPTS`, `state.settings` stores only
 deviations. Rows: sound/volume, reduce motion (System/On/Off), blood & corpses, frame-skip gate
 toggle, font size, autosave, 🖱️ edge panning (Device-dependent/On/Off), 📱 lite mode
-(Device-dependent/On/Off), ⚔️ difficulty.
+(Device-dependent/On/Off), 🎯 frame-rate target (Device-dependent/60/30, `Game.targetFps()`),
+⚔️ difficulty.
 
 ### Accessibility pass
 Team rings are distinguished by **dash pattern**, not just color (enemy dashed, friendly solid —
@@ -885,7 +886,8 @@ a 16.7ms budget. Rules that follow from that:
 - Particle ceilings (sparks/text/blood/corpses) and target-search throttling (every 0.3–0.5s/unit,
   not every frame).
 
-**`Game.skipFrame(t)`** targets 60fps (30 in lite mode) regardless of the monitor's real refresh
+**`Game.skipFrame(t)`** targets `Game.targetFps()` — the 🎯 setting; `'auto'` = 60fps, 30 in lite
+mode — regardless of the monitor's real refresh
 rate, by measuring the **median of the last 31 frame intervals** (not the smallest — a single
 short interval, e.g. iOS delivering two rAFs ~2ms apart during a scroll, used to permanently pin
 the estimate and starve the game to a few fps with no way to recover) and picking the largest
@@ -898,7 +900,8 @@ and a 700ms "did battle actually draw a frame" pulse check that rebuilds the loo
 ### Lite mode
 One switch (`Game.opt('lite')`, `'auto'` = `isTouch()`) that simplifies map density (sea
 waves/ground patches off, forest trees thin to 1-in-3), battle ground density, particle
-ceilings, and drops screen backdrop images — plus halves the frame-rate target to 30fps. A
+ceilings, and drops screen backdrop images — plus halves the frame-rate target to 30fps while the
+🎯 frame-rate setting is on 'auto' (since 1.31.4 it can pin 60 with lite drawing kept). A
 flat-color fallback additionally replaces gradient sea/coast/river/road layers in lite mode
 (`Fill rate`, #84) since raster fill rate, not JS, was still the bottleneck on a phone even with
 everything else trimmed.

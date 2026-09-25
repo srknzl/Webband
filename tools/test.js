@@ -331,6 +331,12 @@ test('skipFrame: lite mode targets 30 fps (#80)', () => {
     assert.strictEqual(gateFps(60, 2, { lite: true }), 30);
     assert.strictEqual(gateFps(120, 2, { lite: true }), 30);
 });
+test('skipFrame: the fps setting overrides lite mode\'s 30 (1.31.4)', () => {
+    assert.strictEqual(gateFps(60, 2, { lite: true, fps: 60 }), 60);     // lite drawing, 60 fps
+    assert.strictEqual(gateFps(120, 2, { lite: true, fps: 60 }), 60);
+    assert.strictEqual(gateFps(60, 2, { lite: false, fps: 30 }), 30);
+    assert.strictEqual(gateFps(120, 2, { lite: false, fps: 'auto' }), 60);
+});
 test('skipFrame: one bad sample doesn\'t lock the gate', () => {
     // This test comes from an actual phone report: iOS delivers two rAFs ~2 ms
     // apart while scrolling the page. Since the predictor is "the smallest of

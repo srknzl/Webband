@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.31.4 — Altmış Kare (2026-09-25)
+
+- **Yeni ayar: ⚙️ Ayarlar → 🎯 Kare hızı hedefi** (Cihaza göre / 60 fps / 30 fps). Şimdiye
+  kadar telefonda hafif mod açıkken oyun her zaman 30 fps'e sabitleniyordu. Artık hafif modun
+  sade çizimi korunurken 60 fps seçilebiliyor, hareket belirgin biçimde akıcılaşıyor. Bedeli
+  pil ve ısınma. "Cihaza göre" eskisi gibi davranıyor.
+
 ## 1.31.3 — Emin misin? (2026-09-23)
 
 - **Savaşta "🏳️ Teslim Ol" artık önce soruyor** — tek dokunuş bütün orduyu kaybettiriyordu,

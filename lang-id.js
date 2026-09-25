@@ -1875,6 +1875,8 @@ I18N.dicts.id = {
   "🖱️ Kenardan kaydırma": "🖱️ Geser dari tepi",
   "Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.": "Kamera bergeser saat mouse didekatkan ke tepi peta. Mati secara otomatis di perangkat sentuh karena tidak ada kursor.",
   "📱 Hafif mod": "📱 Mode ringan",
+  "🎯 Kare hızı hedefi": "🎯 Target laju bingkai",
+  "Cihaza göre: hafif modda 30, değilse 60. 60 daha akıcıdır ama pili daha çabuk tüketir ve telefonu ısıtabilir.": "Sesuai perangkat: 30 dalam mode ringan, selain itu 60. 60 lebih mulus tetapi lebih cepat menguras baterai dan bisa membuat ponsel hangat.",
   "Cihaza göre": "Ikut perangkat",
   "Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.": "Menyederhanakan seluruh permainan: ombak laut, pohon hutan, cahaya perapian, partikel pertempuran dan buram kaca dikurangi, targetnya 30 fps. Menyala sendiri di ponsel.",
   // Dokunmatik yardım metinleri (#65 turu 2) — sözlük üretildikten sonra eklendi

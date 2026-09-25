@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.31.3', date: '2026-09-23', name: 'Emin misin?' };  // the version name is not translated
+const VERSION = { no: '1.31.4', date: '2026-09-25', name: 'Altmış Kare' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -77,10 +77,10 @@ const Debug = {
             render: {
                 battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active),
                 mapLoopId: g(() => Game._loopId), battleLoopId: g(() => Battle.loopId),
-                targetFps: g(() => Game.lite() ? 30 : 60),
-                frameDivider: g(() => Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01))),
+                targetFps: g(() => Game.targetFps()), fpsSetting: g(() => Game.opt('fps')),
+                frameDivider: g(() => Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01))),
                 effectiveFps: g(() => Game._step === Infinity ? T('ölçülmedi')
-                    : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / (Game.lite() ? 30 : 60) / Game._step + 0.01)))),
+                    : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01)))),
                 measuredRefresh: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
                 mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'),
                 // "The map stopped taking orders" reads as a render freeze and is usually input:
@@ -900,6 +900,13 @@ const Game = {
             this._lite = v === 'auto' ? this.isTouch() : !!v;
         }
         return this._lite;
+    },
+    // Frame-rate target, its own knob since 1.31.4: 'auto' keeps the old coupling (lite -> 30,
+    // otherwise 60), 60/30 pin it. A phone can now run lite mode's lighter drawing at 60 fps —
+    // the biggest single smoothness lever for how the game feels on a phone.
+    targetFps() {
+        let v = this.opt('fps');
+        return v === 'auto' ? (this.lite() ? 30 : 60) : v;
     },
 
     // Emoji glyph: baked once into a power-of-two bucket, then stamped at a smaller size.
@@ -2269,9 +2276,10 @@ const Game = {
         // The gate can be turned off from settings (#55 item 7): a player who doesn't trust
         // the gate should have an escape hatch. Measurement (Debug.frame) keeps running even while it's off.
         if(!this.opt('frameGate')) return this._lastSkip = false;
-        // Target 30 fps in lite mode: halving the frame budget on phones helps more
-        // than trimming the drawing (and it also slows down thermal warm-up).
-        let fps = this.lite() ? 30 : 60;
+        // 'auto' targets 30 fps in lite mode: halving the frame budget on phones helps more
+        // than trimming the drawing (and it also slows down thermal warm-up). The fps setting
+        // can pin 60 or 30 regardless of lite mode.
+        let fps = this.targetFps();
         let n = Math.max(1, Math.floor(1000 / fps / this._step + 0.01));
         return this._lastSkip = ((++this._frameNo % n) !== 0);
     },
@@ -8167,7 +8175,7 @@ const Game = {
     // ============ SETTINGS (#55 item 7) ============
     // One screen, one read gate: every setting's default lives in OPTS, and a deviating
     // key is written to state.settings (so it enters the save and stays blank in an old save).
-    OPTS: { muted: false, volume: 0.35, music: true, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', difficulty: 'normal', edgePan: 'auto' },
+    OPTS: { muted: false, volume: 0.35, music: true, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', fps: 'auto', difficulty: 'normal', edgePan: 'auto' },
 
     // Difficulty is a single pair of multipliers: damage **taken** and **dealt**. No other
     // number moves — a wolf pack and a lord's army pass through the same gate, so the
@@ -8369,6 +8377,9 @@ const Game = {
         let lt = this.opt('lite');
         let liteBtn = ['auto', true, false].map(v => `<button class="btn${lt === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('lite', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+        let fp = this.opt('fps');
+        let fpsBtn = ['auto', 60, 30].map(v => `<button class="btn${fp === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('fps', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v + ' fps'}</button>`).join(' ');
         let ep = this.opt('edgePan');
         let epBtn = ['auto', true, false].map(v => `<button class="btn${ep === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('edgePan', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
@@ -8388,6 +8399,7 @@ const Game = {
             + `<br><span id="music-now">${this.Music.nowPlaying()}</span>`)}
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer, hedef 30 fps. Telefonda kendiliğinden açılır.'))}
+        ${row(T('🎯 Kare hızı hedefi'), fpsBtn, T('Cihaza göre: hafif modda 30, değilse 60. 60 daha akıcıdır ama pili daha çabuk tüketir ve telefonu ısıtabilir.'))}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}
