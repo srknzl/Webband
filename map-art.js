@@ -1116,6 +1116,113 @@ const MapArt = (() => {
         return (ICON_URL[item.id] = g.c.toDataURL('image/png'));
     }
 
+    // --- portraits (visual refresh step 5): a 48x48 pixel bust for every lord and lady, drawn
+    // from their id (the same person always looks the same), their kingdom (Khergit hats and
+    // moustaches, Nord braids and fur, Vaegir fur caps), rank (a king is older, crowned, in
+    // ermine), personality (brows, mouth, a scar, a drinker's nose) and a lady's trait (tiara,
+    // veil, flower, wild hair). Replaces the painted lord_portraits.jpg and the SVG ladies.
+    const FACE = {
+        swadia:  { skin: ['#f0c9a8', '#d9a882', '#b98462'], hair: ['#4a2c18', '#2a1a10', '#8a5a2a', '#b07a3a'], bg: ['#3a1c1c', '#2a1414'] },
+        rhodok:  { skin: ['#e6bf98', '#cc9d74', '#a97a54'], hair: ['#3a2412', '#161616', '#5a3a1c'], bg: ['#1c3320', '#132417'] },
+        nord:    { skin: ['#f6dcc8', '#e2bca0', '#c49a7c'], hair: ['#d8b86a', '#b88a3a', '#8a5a2a', '#e6d08a'], bg: ['#1c2c3c', '#131e2a'] },
+        vaegir:  { skin: ['#f4d8c2', '#dcb698', '#bd9676'], hair: ['#c8a86a', '#6b4a24', '#3a2a1a', '#e0cf9c'], bg: ['#222a3a', '#171d29'] },
+        khergit: { skin: ['#dcae84', '#c2926a', '#9c704c'], hair: ['#1b1410', '#2a1a12', '#3a2416'], bg: ['#3a2c14', '#2a1f0e'] }
+    };
+    const PORTRAITS = {};
+    // Hair chosen by hand for a character, over the one their id would pick
+    const HAIR_OF = { nelda: '#5a3418' };                     // Lady Avrilia: brown
+    function portrait(n) {
+        if(!n || !n.id) return null;
+        if(PORTRAITS[n.id]) return PORTRAITS[n.id];
+        let h = 0; for(let i = 0; i < n.id.length; i++) h = Math.imul(h ^ n.id.charCodeAt(i), 16777619) >>> 0;
+        const r = k => ((h >>> (k % 24)) ^ (h >>> ((k * 7) % 29))) & 0xff, pick = (arr, k) => arr[r(k) % arr.length];
+        const fac = FACTIONS[n.faction] ? n.faction : 'swadia', F = FACE[fac], col = (FACTIONS[n.faction] || { color: '#8a6a3a' }).color;
+        const lady = n.guardianId !== undefined && !n.suitor, king = n.rank === 'king', vizier = n.rank === 'vizier';
+        const old = king || vizier || r(3) % 5 === 0, pers = n.personality || '', trait = n.trait || '';
+        const skin = F.skin, hair = HAIR_OF[n.id] || (old && !lady && r(4) % 3 ? ['#b8b4ac', '#8e8a84'][r(5) % 2] : pick(F.hair, 6));
+        const g = sheet(48, 48), P = (x, y, c, w = 1, hh = 1) => g.px(x, y, w, hh, c);
+        const dk = (hex, k) => '#' + rgb(hex).map(v => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join('');
+        // background: the kingdom's dark tone with a lighter halo behind the head
+        P(0, 0, F.bg[1], 48, 48);
+        for(let y = 0; y < 48; y++) for(let x = 0; x < 48; x++) { const d = Math.hypot(x - 24, (y - 22) * 1.1); if(d < 22 && dith(x, y) < (22 - d) / 16) P(x, y, F.bg[0]); }
+        // shoulders and clothes
+        const cloth = lady ? col : dk(col, 0.55), clothD = dk(cloth, 0.7), clothL = dk(cloth, 1.25);
+        for(let y = 36; y < 48; y++) { const hw = Math.min(23, 9 + Math.round((y - 36) * 1.35)); P(24 - hw, y, cloth, hw * 2, 1); P(24 - hw, y, clothL); P(24 + hw - 1, y, clothD); }
+        if(lady) { P(18, 36, skin[0], 12, 3); P(19, 39, skin[0], 10, 1); for(let x = 18; x < 30; x += 2) P(x, 39, '#e0b852'); }
+        else if(fac === 'khergit') { for(let i = 0; i < 11; i++) P(20 + i, 37 + i, '#e0b852'); P(20, 36, skin[1], 8, 2); }
+        else { P(20, 36, skin[1], 8, 1); P(21, 37, skin[1], 6, 1); P(22, 38, skin[1], 4, 1); }
+        if(!lady && (fac === 'nord' || fac === 'vaegir') && !king) for(let x = 12; x < 36; x++) { P(x, 36 + (x % 3 === 0 ? 1 : 0), x % 2 ? '#6b5a44' : '#8a7458', 1, 2); }
+        if(!lady && pers === 'martial' && !king) { for(let y = 38; y < 48; y += 2) for(let x = 26 - (y - 36); x < 22 + (y - 36); x += 2) P(x, y, '#9aa0a8'); }
+        if(king) { for(let x = 13; x < 35; x++) P(x, 36 + (x % 4 === 0 ? 1 : 0), x % 5 === 0 ? '#1a1a1a' : '#efe9dc', 1, 2); for(let x = 19; x < 30; x += 2) P(x, 40, '#e0b852'); P(23, 41, '#e0b852', 2, 2); }
+        if(vizier) { P(20, 36, '#e0b852', 8, 1); for(let y = 37; y < 48; y++) P(23, y, '#e0b852', 2, 1); }
+        // neck, head, ears
+        P(20, 30, skin[1], 8, 7); P(26, 30, skin[2], 2, 7);
+        const rx = (lady ? 7.4 : 8.2) + ((r(13) % 3) - 1) * 0.5, ry = (lady ? 9.4 : 10) + ((r(14) % 3) - 1) * 0.4;   // faces differ
+        for(let y = 12; y <= 32; y++) {
+            const dy = (y - 22) / ry; if(Math.abs(dy) > 1) continue;
+            let hw = rx * Math.sqrt(1 - dy * dy); if(y > 26) hw *= 1 - (y - 26) * (lady ? 0.06 : 0.045);
+            const x0 = Math.round(24 - hw), x1 = Math.round(24 + hw);
+            P(x0, y, skin[0], x1 - x0, 1); P(x1 - 3, y, skin[1], 3, 1); P(x1 - 1, y, skin[2], 1, 1); P(x0, y, skin[1], 1, 1);
+        }
+        P(15, 20, skin[1], 2, 5); P(32, 20, skin[2], 2, 5);
+        // eyes, brows, nose, mouth
+        const eye = pick(['#3c6e4a', '#4a6f9c', '#4a3220', '#2a2a30'], 7);
+        P(19, 21, '#f2eee6', 3, 2); P(26, 21, '#f2eee6', 3, 2); P(20, 21, eye, 1, 2); P(27, 21, eye, 1, 2); P(19, 20, dk(skin[2], 0.8), 3, 1); P(26, 20, dk(skin[2], 0.8), 3, 1);
+        const brow = lady ? dk(hair, 0.9) : dk(hair, 0.8);
+        if(pers === 'quarrelsome' || pers === 'martial') { P(18, 18, brow, 2, 1); P(20, 19, brow, 2, 1); P(26, 19, brow, 2, 1); P(28, 18, brow, 2, 1); }
+        else if(pers === 'cunning') { P(18, 18, brow, 4, 1); P(26, 17, brow, 2, 1); P(28, 18, brow, 2, 1); }
+        else if(pers === 'goodnatured') { P(19, 17, brow, 3, 1); P(18, 18, brow); P(26, 17, brow, 3, 1); P(29, 18, brow); }
+        else { P(18, 18, brow, 4, 1); P(26, 18, brow, 4, 1); }
+        P(24, 22, skin[1], 1, 4); P(25, 23, skin[2], 1, 3); P(23, 26, skin[2]); P(25, 26, skin[2]);
+        if(pers === 'debauched') P(23, 24, '#d0806a', 3, 3);                                   // a drinker's nose
+        const lip = lady ? pick(['#b8434c', '#a33a48', '#c25a55'], 8) : dk(skin[2], 0.85);
+        const mood = pers === 'goodnatured' || pers === 'debauched' || trait === 'romantic' ? 1 : pers === 'quarrelsome' ? -1 : 0;
+        P(22, 28, lip, 4, 1); if(lady) P(22, 29, dk(lip, 1.15), 4, 1);
+        if(mood > 0) { P(21, 27, lip); P(26, 27, lip); } else if(mood < 0) { P(21, 29, lip); P(26, 29, lip); }
+        if(old) { P(17, 22, skin[2]); P(30, 22, skin[2]); P(20, 15, skin[1], 8, 1); }
+        if(pers === 'martial' && r(9) % 2) for(let i = 0; i < 4; i++) P(18 + i, 23 + i, '#c8847a');   // a scar across the cheek
+        // beard
+        if(!lady) {
+            const bc = hair, style = fac === 'khergit' ? 'moustache' : fac === 'nord' ? 'braid' : king ? pick(['full', 'short'], 10) : pick(['none', 'short', 'full', 'full', 'stubble'], 10);
+            if(style === 'moustache') { P(19, 27, bc, 10, 1); P(19, 28, bc, 2, 4); P(27, 28, bc, 2, 4); P(23, 30, bc, 2, 2); }
+            else if(style === 'stubble') for(let y = 26; y < 32; y++) for(let x = 18; x < 30; x++) if((x + y) % 2 && !(y === 28 && x > 21 && x < 26)) P(x, y, dk(skin[1], 0.85));
+            else if(style !== 'none') {
+                P(20, 27, bc, 8, 1);
+                for(let y = 28; y < (style === 'braid' ? 40 : style === 'full' ? 35 : 32); y++) {
+                    const hw = y < 32 ? 7 - Math.max(0, y - 30) : Math.max(1, 5 - (y - 32) * (style === 'braid' ? 0.4 : 1.2));
+                    for(let x = Math.round(24 - hw); x < Math.round(24 + hw); x++) if(!(y === 28 && x > 21 && x < 26)) P(x, y, (x + y) % 5 ? bc : dk(bc, 0.75));
+                }
+                if(style === 'braid') { P(23, 38, '#e0b852', 2, 1); }
+            }
+        }
+        // hair
+        const hl = dk(hair, 1.25), hd = dk(hair, 0.75);
+        const hat = !lady && !king && (fac === 'khergit' ? r(11) % 3 : fac === 'vaegir' ? r(11) % 2 === 0 : false);
+        if(trait === 'pious' && lady) {                   // a veil over the head, her hair showing beside the face
+            for(let y = 10; y < 40; y++) { const hw = y < 20 ? 7 + (y - 10) * 0.45 : 11.5; P(Math.round(24 - hw) - 1, y, '#e8e2d4', 3, 1); P(Math.round(24 + hw) - 1, y, '#cfc7b4', 3, 1); }
+            P(15, 10, '#e8e2d4', 18, 4); P(16, 9, '#f2ede2', 16, 1);
+            for(let y = 14; y < 36; y++) { P(15, y, hair, 2, 1); P(31, y, hair, 2, 1); P(16, y, hd); }
+            P(17, 14, hair, 14, 2); P(18, 14, hl, 5, 1);
+        } else {
+            P(16, 12, hair, 16, 4); P(15, 14, hair, 2, 5); P(31, 14, hair, 2, 5); P(18, 11, hair, 12, 1); P(18, 12, hl, 6, 1);
+            if(!(old && !lady && r(12) % 3 === 0)) { P(17, 16, hair, 3, 1); P(28, 16, hair, 3, 1); }                   // a receding line for some old men
+            if(lady) {
+                for(let y = 16; y < (trait === 'wild' ? 42 : 39); y++) { P(14 + (trait === 'wild' && y % 3 === 0 ? -1 : 0), y, hair, 3, 1); P(31, y, hair, 3 + (trait === 'wild' && y % 4 === 0 ? 1 : 0), 1); P(15, y, hd); P(32, y, hd); }
+                P(23, 12, hd, 1, 3);                                                                                       // the parting
+                if(trait === 'wild') { P(29, 9, '#b8342a', 1, 4); P(30, 8, '#e0763a'); }                                   // a feather
+            } else if(fac === 'nord') { P(14, 16, hair, 2, 12); P(32, 16, hair, 2, 12); P(14, 27, '#e0b852', 2, 1); P(32, 27, '#e0b852', 2, 1); }
+        }
+        if(hat) {
+            if(fac === 'khergit') { for(let y = 3; y < 12; y++) { const hw = 2 + (y - 3) * 0.8; P(Math.round(24 - hw), y, col, Math.round(hw * 2), 1); } P(15, 11, '#6b5a44', 18, 3); for(let x = 15; x < 33; x += 2) P(x, 11, '#8a7458'); P(24, 2, '#e0b852'); }
+            else { P(15, 8, '#5a4632', 18, 7); for(let y = 8; y < 15; y++) for(let x = 15 + (y & 1); x < 33; x += 2) P(x, y, '#7a6248'); P(16, 7, '#5a4632', 16, 1); }
+        }
+        if(king) { P(16, 9, '#e0b852', 16, 3); for(const x of [16, 20, 24, 28, 31]) P(x, 6, '#e0b852', 1, 3); P(19, 10, '#b8342a'); P(24, 10, '#2e6fb8'); P(28, 10, '#b8342a'); P(16, 11, '#a8842e', 16, 1); }
+        if(lady && trait === 'ambitious') { P(18, 10, '#e0b852', 12, 2); P(23, 8, '#e0b852', 2, 2); P(23, 9, '#b8342a', 2, 1); }
+        if(lady && trait === 'romantic') { P(29, 13, '#e3a3b6', 3, 3); P(30, 14, '#fff0f4'); }
+        outline(g, '#0e0b08');
+        return (PORTRAITS[n.id] = g.c.toDataURL('image/png'));
+    }
+
     // --- the frame
     function render(G) {
         const c = G.mapCanvas, ctx = G.ctx, W = c.width, H = c.height, cam = G.camera, z = cam.zoom, now = performance.now();
@@ -1209,7 +1316,7 @@ const MapArt = (() => {
         G.drawHail(ctx, W, H);
     }
 
-    return { TEX, SPX, render, scene, march, itemIcon, site, terrain, settlement, party, partyLook, playerLook, label, culture, bakeMs: () => baked && baked.ms };
+    return { TEX, SPX, render, scene, march, itemIcon, portrait, site, terrain, settlement, party, partyLook, playerLook, label, culture, bakeMs: () => baked && baked.ms };
 })();
 // the start screen is up when the scripts run, and only a reload brings it back: the march starts here
 if(typeof requestAnimationFrame === 'function') MapArt.march();

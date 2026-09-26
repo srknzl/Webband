@@ -62,8 +62,18 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
 - **Eşyaların kendi ikonu var.** Dört kılıç artık aynı emoji değil. Silahın kademesi
   metalinden belli: demir, çelik, desenli Şam çeliği, altın kabzalı kraliyet. Atların donu,
   zırhların malzemesi, yiyecekler ve ticaret malları ayrı ayrı çizildi.
-- **Lord portreleri çerçevede.** Koyu altın çerçeve, krallığın renginde bir halka ve köşede
-  arması.
+- **Bütün portreler pixel.** Lordlar ve leydiler oyunun geri kalanıyla aynı pixel dünyasında.
+  Krallar taçlı ve kürklü, Kergitler kalpaklı ve bıyıklı, Nordlar örgü sakallı. Mizaç yüzde
+  okunuyor: kaşlar, gülümseme, savaşçının yara izi. Leydilerin tacı, duvağı, saçındaki çiçeği
+  var. Portreler koyu altın çerçevede, köşede krallığın arması.
+- **Pazar: önce seç, sonra kaç tane.** Al ve Sat sekmeleri tek bir eşya ızgarası gösteriyor.
+  Bir eşyaya dokununca yanında (telefonda ekranın altında) bir işlem paneli açılıyor. Panelde
+  eşyanın özellikleri, kuşandığınla farkı, adet ayarı (1, 5, 10, En çok) ve ödeyeceğin toplam
+  var. Toplam, alırken fiyatın nasıl artacağı hesaba katılarak önceden yazıyor. Neden daha
+  fazla alamadığını da söylüyor: çanta, stok ya da para.
+- **Lordla konuşma kartları.** Konuşma seçenekleri şehirdeki gibi ikonlu kartlar. Her birinin
+  altında ne işe yaradığı yazıyor: hediye günde bir kez verilir, hakaret ilişkiyi 15 düşürür.
+  Karşıdakinin sözü yazılırken kartlar yerinden oynamıyor.
 - **Yeni ana menü.** Başlığın altında oyunun askerleri bir kalenin önünden yürüyor. Turuncu
   altıgen düğmeler yerine çizgi ikonlu, koyu cam düğmeler var.
 

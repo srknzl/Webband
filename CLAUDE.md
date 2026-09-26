@@ -19,7 +19,7 @@ after changing it, update the "Measured" lines.
 | `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Anim`, `Game`, `Save` + `state` |
 | `battle.js` | `Battle`, `TournamentMinigame`; the Canvas2D battle drawing (`canvasGfx`) and the renderer seam |
 | `battle-gl.js` | `BattleGL` — the battle drawn with PixiJS/WebGL on `#battle-gl` (1.33.0) |
-| `map-art.js` | `MapArt` — pixel art outside battle (2.0.0): the campaign map (baked terrain, settlement/site sprites, parties, labels), the settlement scene, item icons, the start screen's march |
+| `map-art.js` | `MapArt` — pixel art outside battle (2.0.0): the campaign map (baked terrain, settlement/site sprites, parties, labels), the settlement scene, item icons, character portraits, the start screen's march |
 | `vendor/` | `pixi.min.js` (PixiJS 8.21 UMD, pinned) + `PIXI-LICENSE` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |

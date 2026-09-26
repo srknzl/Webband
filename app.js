@@ -6794,6 +6794,29 @@ const Game = {
         });
     },
 
+    // Dialogue buttons as cards (2.0.0), the town cards' look for any list of `.btn`s: a line icon
+    // by the label's leading emoji, the label, a hint of what it does. `table` maps emoji →
+    // [icon, hint, tone]. The button, its onclick, its disabled state and its label (kept in
+    // .sr-only) stay; the colour its inline border used to carry becomes a tone class.
+    cardButtons(box, table) {
+        if(!box) return;
+        box.classList.add('act-cards');
+        [...box.querySelectorAll(':scope > button')].forEach(b => {
+            let label = b.innerHTML, emo = this.sceneIcon(label).replace('\uFE0F', '');
+            let [icon, hint, tone] = table[emo] || table[''] || ['dots', '', ''];
+            let st = b.getAttribute('style') || '';
+            if(!tone) tone = /danger/.test(st) ? 'danger' : /ff9ec4/i.test(st) ? 'love' : /e0b062|--primary/.test(st) ? 'gold' : '';
+            let text = label.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').trim();
+            b.removeAttribute('style');
+            b.classList.add('act-card');
+            if(tone) b.classList.add('tone-' + tone);
+            if(b.classList.contains('primary')) { b.classList.remove('primary'); b.classList.add('tone-done'); }
+            b.innerHTML = `<span class="sr-only">${label}</span>`
+                + `<span class="ac-ic" aria-hidden="true">${this.icon(icon)}</span>`
+                + `<span class="ac-tx" aria-hidden="true"><b>${text}</b>${hint ? `<small>${T(hint)}</small>` : ''}</span>`;
+        });
+    },
+
     // ---------- SETTLEMENT SCENE (#60) ----------
     // The scene has no separate coordinate table: the settlement screen's own buttons
     // are drawn as buildings. Since addBtn is the single gate, a button added tomorrow
@@ -7700,20 +7723,66 @@ const Game = {
         this._marketCategory = id;
         this.refreshMarket();
     },
+    // The market (2.0.0): pick a good first, then how many. Buy/Sell tabs over one grid of tiles;
+    // the chosen tile opens a trade panel (a column on the right, pinned to the bottom on a phone)
+    // with a quantity stepper and the total priced unit by unit (`marketQuote`) before you commit.
     openMarket(loc) {
         this._marketCategory = 'all';
-        let html = `<h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
-        <div id="market-status"></div>
-        <div id="market-cats"></div>
-        <div id="market-cols" style="display:flex;flex-wrap:wrap;gap:2rem;margin-top:1rem;">
-        <div style="flex:1;min-width:220px;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
-        <div style="flex:1;min-width:220px;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
-        </div>
-        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:var(--fs-md)"></div>
-        <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>`;
-        this.showModal(html, '600px', this.sceneBg('market'));   // bazaar interior (#102)
+        this._mkt = { mode: 'buy', sel: null, qty: 1 };
+        this._mktMsg = '';
+        let html = `<div class="mkt">
+            <h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
+            <div id="market-status"></div>
+            <div id="market-tabs" class="mkt-tabs" role="tablist"></div>
+            <div id="market-cats"></div>
+            <div class="mkt-body">
+                <div id="market-buy" class="mkt-grid"></div>
+                <div id="market-panel" class="mkt-panel" aria-live="polite"></div>
+            </div>
+            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>
+        </div>`;
+        this.showModal(html, '900px', this.sceneBg('market'));   // bazaar interior (#102)
         this._marketLoc = loc;
         this.refreshMarket();
+    },
+    mktMode(mode) { this._mkt = { mode, sel: null, qty: 1 }; this._mktMsg = ''; this.refreshMarket(); },
+    mktSelect(id) {
+        if(this._mkt.sel !== id) this._mkt.qty = 1;
+        this._mkt.sel = id;
+        this.refreshMarket();
+    },
+    mktSetQty(n) { this._mkt.qty = Math.max(1, Math.floor(+n) || 1); this.refreshMarket(); },
+    mktQty(d) { this.mktSetQty(this._mkt.qty + d); },
+    mktGo() {
+        let m = this._mkt;
+        if(!m || !m.sel) return;
+        if(m.mode === 'buy') this.buyItem(m.sel, m.qty); else this.sellItem(m.sel, m.qty);
+        m.qty = 1;
+        if(m.mode === 'sell' && !state.player.inventory.some(i => i.id === m.sel)) m.sel = null;
+        this.refreshMarket();
+    },
+    // What n of a good would cost (or fetch) right now, priced one by one: each unit bought
+    // raises the next one's price (and each sold lowers it). The stock is walked and put back,
+    // so a quote changes nothing; buyItem/sellItem commit the same walk.
+    marketQuote(id, n, selling) {
+        let loc = this._marketLoc, had = !!(loc && loc.stock && Object.prototype.hasOwnProperty.call(loc.stock, id));
+        let saved = had ? loc.stock[id] : undefined, can = 0, cost = 0, full = false, out = false, poor = false;
+        if(selling) {
+            let it = state.player.inventory.find(i => i.id === id), max = Math.min(n, it ? it.qty : 0);
+            for(; can < max; can++) { cost += this.marketPrice(id, true); if(loc) this.addStock(loc, id, 1); }
+        } else {
+            let free = this.cargoCap() - this.cargoLoad();   // room left in the bag (#78)
+            for(; can < n; can++) {
+                if(can >= free) { full = true; break; }
+                if(loc && this.stock(loc, id) < 1) { out = true; break; }
+                let p = this.marketPrice(id);
+                if(state.player.money - cost < p) { poor = true; break; }
+                cost += p;
+                if(loc) this.addStock(loc, id, -1);
+            }
+        }
+        if(loc && loc.stock) { if(had) loc.stock[id] = saved; else delete loc.stock[id]; }
+        return { can, cost, full, out, poor };
     },
 
     // --- PER-GOOD SUPPLY/DEMAND (#24) ---
@@ -7858,68 +7927,80 @@ const Game = {
                                                 this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
         </div>`;
     },
-    // "Sende: N" next to the price (#103): deciding whether to sell shouldn't need a trip
-    // to the inventory screen and back.
-    haveTag(id) {
-        let it = state.player.inventory.find(i => i.id === id);
-        return it && it.qty > 0 ? `<span style="font-size:var(--fs-xs);color:#7ddc8a">${T`sende ${it.qty}`}</span> ` : '';
-    },
-    // 1x / 5x / All on one line. `.btn` is a block, so two of them in a plain `<li>` wrapped (#103);
-    // the inline-flex wrapper with `nowrap` is what keeps them side by side.
-    qtyBtns(html) { return `<span style="display:inline-flex;gap:4px;flex-wrap:nowrap;vertical-align:middle">${html}</span>`; },
-    qtyBtn(label, call) {
-        return `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm);white-space:nowrap" onclick="${call}">${label}</button>`;
-    },
     refreshMarket() {
         // A trade can finish a quest (bought_item → Quests.markDone), and that notice takes the
         // modal over before the trade redraws its rows: with the market gone there is nothing to redraw.
         if(!this.marketOpen()) return;
+        let m = this._mkt = this._mkt || { mode: 'buy', sel: null, qty: 1 }, loc = this._marketLoc;
         this.setHtml('market-status', this.marketStatusHtml());
         this.setHtml('market-cats', this.marketCatsHtml());
+        let sellable = state.player.inventory.filter(i => !i.unique && !i.unsellable && i.type !== 'special');
+        document.getElementById('market-tabs').innerHTML = [['buy', T('Satın Al')], ['sell', T('Sat') + ` <span class="mkt-n">${sellable.length}</span>`]]
+            .map(([k, l]) => `<button type="button" role="tab" aria-selected="${m.mode === k}" class="${m.mode === k ? 'on' : ''}" onclick="Game.mktMode('${k}')">${l}</button>`).join('');
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
         let matchesCat = type => !cat.types || cat.types.includes(type);
-        let buy = document.getElementById('market-buy'); buy.innerHTML = '';
-        Object.values(ITEMS).forEach(item => {
-            if(item.unique) return;   // unique boss drops are earned, never bought (#38)
-            if(!matchesCat(item.type)) return;
-            let price = this.marketPrice(item.id);
-            let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-            li.id = 'mrow-buy-' + item.id;   // the row is rebuilt on every refresh; the flash effect finds it by id
-            let note = this.itemNote(item);
-            // Stock (#46): how much of a limited good is left, no button once it's out
-            let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
-            let empty = st <= 0;
-            li.innerHTML = `${this.itemIco(item)} ${T(item.name)} - <b>${price}₺</b> `
-                + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                + (isFinite(st) ? `<span style="font-size:var(--fs-xs);color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${T`stok ${st}`}</span> ` : '')
-                + this.haveTag(item.id)
-                + (empty ? `<i style="font-size:var(--fs-sm);color:var(--text-muted)">${T`tükendi`}</i>`
-                    // "Tümü" is just a big count: buyItem already stops at the first of money,
-                    // stock and bag room, and says in the message which one it hit. Equipment
-                    // and horses dropped bulk-buy (#132) — a one-off purchase, no reason to
-                    // stock 5+; goods/food keep it since provisioning an army needs bulk buys.
-                    : (item.type === 'trade' || item.type === 'food')
-                        ? this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)
-                            + this.qtyBtn('x5', `Game.buyItem('${item.id}',5)`)
-                            + this.qtyBtn(T`Tümü`, `Game.buyItem('${item.id}',999)`))
-                        : this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)))
-                + (note ? `<div style="font-size:var(--fs-xs);color:#cbb26b">${note}</div>` : '');
-            buy.appendChild(li);
-        });
-        let sell = document.getElementById('market-sell'); sell.innerHTML = '';
-        state.player.inventory.forEach(item => {
-            if(!item.unique && !item.unsellable && item.type !== 'special' && matchesCat(item.type)) {
-                let price = this.marketPrice(item.id, true);
-                let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-                li.id = 'mrow-sell-' + item.id;
-                li.innerHTML = `${this.itemIco(item)} ${T(item.name)} x${item.qty} - <b>${price}₺</b> `
-                    + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                    + this.qtyBtns(this.qtyBtn(T`Sat`, `Game.sellItem('${item.id}')`)
-                        + (item.qty >= 5 ? this.qtyBtn('x5', `Game.sellItem('${item.id}',5)`) : '')
-                        + (item.qty >= 2 ? this.qtyBtn(T`Tümü`, `Game.sellItem('${item.id}',${item.qty})`) : ''));
-                sell.appendChild(li);
-            }
-        });
+        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && matchesCat(i.type))   // unique boss drops are earned, never bought (#38)
+                                    : sellable.filter(i => matchesCat(i.type));
+        let grid = document.getElementById('market-buy');
+        grid.innerHTML = list.length ? list.map(item => {
+            let price = this.marketPrice(item.id, m.mode === 'sell');
+            // Stock (#46): how much of a limited good is left
+            let st = m.mode === 'buy' && loc ? Math.floor(this.stock(loc, item.id)) : Infinity, empty = st <= 0;
+            let have = state.player.inventory.find(i => i.id === item.id);
+            let badges = (isFinite(st) ? `<span style="color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${empty ? T`tükendi` : T`stok ${st}`}</span>` : '')
+                + (have && have.qty > 0 ? `<span style="color:#7ddc8a">${m.mode === 'buy' ? T`sende ${have.qty}` : '×' + have.qty}</span>` : '');
+            let on = m.sel === item.id;
+            return `<button type="button" class="mkt-tile${on ? ' sel' : ''}${empty ? ' out' : ''}" id="mrow-${m.mode}-${item.id}" aria-pressed="${on}" onclick="Game.mktSelect('${item.id}')">
+                <span class="mt-ic">${this.itemIco(item, true)}</span><span class="mt-nm">${T(item.name)}</span>
+                <span class="mt-pr"><b>${price}₺</b> <small>${loc ? this.priceTag(loc, item.id) : ''}</small></span>
+                <span class="mt-bd">${badges}</span></button>`;
+        }).join('') : `<p class="mkt-empty">${m.mode === 'buy' ? T`Bu sırada satılık bir şey yok.` : T`Satacak bir şeyin yok.`}</p>`;
+        document.getElementById('market-panel').innerHTML = this.marketPanelHtml();
+    },
+    // The trade panel for the chosen good: what it is, how it compares with what you wear, how
+    // many, what that comes to, one button.
+    marketPanelHtml() {
+        let m = this._mkt, buy = m.mode === 'buy', msg = `<div id="market-msg" class="mp-msg">${this._mktMsg || ''}</div>`;
+        let item = m.sel && (buy ? ITEMS[m.sel] : state.player.inventory.find(i => i.id === m.sel));
+        if(!item) return `<p class="mp-hint">${buy ? T`Bir eşya seç; kaç tane alacağını burada ayarlarsın.` : T`Satmak istediğin eşyayı seç.`}</p>${msg}`;
+        let loc = this._marketLoc, stack = item.type === 'trade' || item.type === 'food';
+        let max = buy ? (stack ? this.marketQuote(item.id, 9999, false).can : Math.min(1, this.marketQuote(item.id, 1, false).can))
+                      : item.qty;
+        let qty = Math.max(1, Math.min(m.qty, Math.max(1, max)));
+        m.qty = qty;
+        let q = this.marketQuote(item.id, qty, !buy);
+        // why fewer than asked (or none): the bag, the market's stock, or the purse
+        let why = '';
+        if(buy && q.can < qty) {
+            let free = this.cargoCap() - this.cargoLoad(), st = loc ? Math.floor(this.stock(loc, item.id)) : 0;
+            why = q.full ? (free > 0 ? T`Çantada ${free} birimlik yer var` : T`Çantan dolu`)
+                : q.out ? (st > 0 ? T`Stokta ${st} tane var` : T`Stok tükendi`)
+                : (q.can > 0 ? T`Paran ${q.can} taneye yetiyor` : T`Paran yetmiyor`);
+        }
+        // a weapon, armour piece or horse against the one you're wearing
+        let cmp = '';
+        let worn = buy && state.player.equipment && state.player.equipment[item.type];
+        let stat = it => it.attack || it.defense || it.hSpd || 0;
+        if(worn && worn.id !== item.id) {
+            let d = stat(item) - stat(worn);
+            cmp = `<div class="mp-cmp">${T`Kuşandığın:`} ${this.itemIco(worn)} ${T(worn.name)} <b style="color:${d > 0 ? '#7ddc8a' : d < 0 ? '#e0463a' : 'var(--text-muted)'}">${d > 0 ? '+' : ''}${d}</b></div>`;
+        }
+        let unit = this.marketPrice(item.id, !buy);
+        let stepper = stack || (!buy && item.qty > 1) ? `<div class="mp-qty">
+                <button type="button" onclick="Game.mktQty(-1)" aria-label="−1" ${qty <= 1 ? 'disabled' : ''}>−</button>
+                <input id="mkt-qty" type="number" inputmode="numeric" min="1" max="${Math.max(1, max)}" value="${qty}" onchange="Game.mktSetQty(this.value)" aria-label="${T('Adet')}">
+                <button type="button" onclick="Game.mktQty(1)" aria-label="+1" ${qty >= max ? 'disabled' : ''}>+</button>
+            </div>
+            <div class="mp-chips">${[1, 5, 10].filter(v => v < max).map(v => `<button type="button" class="${v === qty ? 'on' : ''}" onclick="Game.mktSetQty(${v})">${v}</button>`).join('')}
+                <button type="button" class="${qty === max ? 'on' : ''}" onclick="Game.mktSetQty(${Math.max(1, max)})">${T`Maks`} ${max}</button></div>` : '';
+        let label = buy ? T`${q.can} al · ${q.cost}₺` : T`${q.can} sat · +${q.cost}₺`;
+        return `<div class="mp-head"><span class="mp-ic">${this.itemIco(item, true)}</span>
+                <div><b>${T(item.name)}</b><small>${T`adet başı ${unit}₺`} ${loc ? this.priceTag(loc, item.id) : ''}${!buy ? ` · ${T`sende ${item.qty}`}` : ''}</small></div></div>
+            ${this.itemNote(item) ? `<div class="mp-note">${this.itemNote(item)}</div>` : ''}
+            ${cmp}${stepper}
+            ${why ? `<div class="mp-why">${why}</div>` : ''}
+            <button type="button" class="btn primary mp-go" onclick="Game.mktGo()" ${q.can <= 0 ? 'disabled' : ''}>${label}</button>
+            ${msg}`;
     },
     // ============ TRANSACTION FEEDBACK (#45) ============
     // Single gate: sound + the relevant row flashing + a flying delta on the coin badge.
@@ -8623,7 +8704,10 @@ const Game = {
 
     // The result of a trade should show inside the modal: alert() would close the market.
     marketMsg(html, ok = true) {
-        this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
+        // kept, because the trade panel it sits in is redrawn after every trade
+        this._mktMsg = `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`;
+        let el = document.getElementById('market-msg');
+        if(el) el.innerHTML = this._mktMsg;
     },
     // A stale tap (iOS ghost click, a double tap that lands after closeModal) can still fire a
     // market button once the modal DOM is gone. Without the modal there is no row to flash and no
@@ -8632,18 +8716,11 @@ const Game = {
     buyItem(id, n = 1) {
         if(!this.marketOpen()) return;
         if(this.marketPrice(id) === null) return alert(T('Bu eşya pazarda yok.'));
-        let loc = this._marketLoc, out = false, full = false, cost = 0, can = 0;
-        let free = this.cargoCap() - this.cargoLoad();   // room left in the bag (#78)
-        // Price is computed unit by unit: each good bought lowers the stock, and the lowered stock
-        // makes the next one pricier. (Buying in bulk at one price would be too cheap — hence the one-by-one vs. bulk difference.)
-        for(; can < n; can++) {
-            if(can >= free) { full = true; break; }
-            if(loc && this.stock(loc, id) < 1) { out = true; break; }
-            let p = this.marketPrice(id);
-            if(state.player.money - cost < p) break;
-            cost += p;
-            if(loc) this.addStock(loc, id, -1);
-        }
+        let loc = this._marketLoc;
+        // Priced unit by unit (marketQuote): each good bought lowers the stock and the lowered
+        // stock makes the next one pricier — buying in bulk at one price would be too cheap.
+        let { can, cost, full, out } = this.marketQuote(id, n, false);
+        if(loc && can > 0) this.addStock(loc, id, -can);
         if(can <= 0) {
             this.feedback('error', document.getElementById('mrow-buy-' + id));
             // Instead of silently ignoring it, it says why: no room / no stock / no money.
@@ -8670,12 +8747,9 @@ const Game = {
         if(idx === -1) return;
         let item = state.player.inventory[idx];
         if(item.unique || item.unsellable || item.type === 'special') { this.sfx('error'); return alert(T('Bu eşya pazarda satılmıyor.')); }
-        let can = Math.min(n, item.qty), gain = 0;
         // What you sell enters the market's stock: each unit sold lowers the next one's price.
-        for(let i = 0; i < can; i++) {
-            gain += this.marketPrice(id, true);
-            if(this._marketLoc) this.addStock(this._marketLoc, id, 1);
-        }
+        let { can, cost: gain } = this.marketQuote(id, n, true);
+        if(this._marketLoc && can > 0) this.addStock(this._marketLoc, id, can);
         state.player.money += gain;
         this.addProficiencyXp('trade', 4 * can);
         item.qty -= can;

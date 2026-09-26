@@ -4,6 +4,15 @@
 // replaced by arriving at it — map travel has its own test.
 const { test, expect, L, modal, modalBtn, okAlert, openView, newGame, enter, actionBtn, quietCity } = require('../fixtures');
 
+/** The market (2.0.0): pick the good's tile, type how many, press the trade panel's buy button. */
+async function buy(page, id, n) {
+    await modal(page).locator(`#mrow-buy-${id}`).click();
+    const qty = modal(page).locator('#mkt-qty');
+    await qty.fill(String(n));
+    await qty.press('Tab');                       // the stepper applies on change
+    await modal(page).locator('.mp-go').click();
+}
+
 const strip = s => s.replace(/<[^>]+>/g, '');
 
 /** Pins the quest `id` as what `giverId` will offer, and returns what the test needs to know. */
@@ -65,8 +74,7 @@ test('lonca görevi: teklif, kabul, pazardan alım, teslim, ödül', async ({ pa
     // Objective: buy the goods at the market, then walk in through the gate with them
     await enter(page, city);
     await (await actionBtn(page, '🛒 Pazara Git')).click();
-    const row = modal(page).locator(`#mrow-buy-${q.data.item}`);
-    for(let got = 0; got < q.data.need; got += 5) await row.getByRole('button', { name: 'x5' }).click();
+    await buy(page, q.data.item, q.data.need);
     await expect(modal(page).locator(`#mrow-buy-${q.data.item}`)).toContainText(await L(page, 'sende {0}', q.data.need));
     await (await modalBtn(page, 'Kapat')).click();
     await (await actionBtn(page, '🚪 Ayrıl')).click();
@@ -129,8 +137,7 @@ test('lord görevi: salonda al, pazarda bitir, haritada karşılaşınca teslim 
     await (await actionBtn(page, '🚪 Ayrıl')).click();
     await enter(page, q.data.locId);
     await (await actionBtn(page, '🛒 Pazara Git')).click();
-    const row = () => modal(page).locator('#mrow-buy-cheese');
-    for(let got = 0; got < q.data.need; got += 5) await row().getByRole('button', { name: 'x5' }).click();
+    await buy(page, 'cheese', q.data.need);
     const done = await okAlert(page);
     expect(done).toContain(`✅ ${title}`);
     expect(done).toContain(await L(page, lord.name));

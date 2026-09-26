@@ -1056,6 +1056,21 @@ drawMapRoute`: what is on show, its colour, its label.
   - The sea-glint cell loop cost 5.8 ms at the continent view, so glints run only from zoom
     0.25. At 0.45–0.8 they cost nothing measurable, so phones get them too.
 
+### Market: pick, then how many (2.0.0)
+`openMarket` shows Buy/Sell tabs over one grid of tiles (`.mkt-tile`, id `mrow-buy-<id>` /
+`mrow-sell-<id>`): pixel icon, name, price with its regional tag, stock and "you have N". The chosen
+tile fills the trade panel (`marketPanelHtml`):
+- the good's note, and for equipment the difference from what you wear
+- a − / quantity / + stepper with 1 · 5 · 10 · Max chips, for goods, food and any stack you sell
+- why fewer than asked (bag room, the market's stock, the purse)
+- one button that says what it will do: "Buy 10 · 144₺"
+
+`marketQuote(id, n, selling)` walks the price unit by unit, the way the supply curve moves it, and
+puts the stock back. The panel's total and Max come from it, and `buyItem`/`sellItem` commit the
+same walk, so the preview is what you pay. On desktop the panel is a sticky 290 px column; under
+820 px it pins to the bottom of the window, solid, over a three-column grid. The last trade's
+message lives in the panel (`_mktMsg`) so a redraw keeps it.
+
 ### Settlement scene, item icons, portraits, start screen (2.0.0)
 - **Scene** (`MapArt.scene`, called from `Game.drawScene`): 300×94 pixels drawn 3× into the scene
   canvas's 900×280 units. Layers:
@@ -1082,6 +1097,27 @@ drawMapRoute`: what is on show, its colour, its label.
   empty slot shows the plainest item of its kind, faded), market lists and messages, and storage.
   Plain-text places (alerts, logs, tooltips) keep the emoji. An item without a drawing falls back
   to its emoji.
+- **Portraits** (`MapArt.portrait`, through `Nobles.portraitCss`): a 48×48 pixel bust per lord and
+  lady, seeded by id, cached as a data URL and shown `pixelated`. The painted `lord_portraits.jpg`
+  and the SVG ladies only stand in where MapArt isn't loaded.
+  - Kingdom: skin and hair palettes and the background tone; Khergit moustaches and fur-rimmed
+    cone hats, Nord braided beards and hair, Nord and Vaegir fur collars, Vaegir fur caps.
+  - Rank: kings are older, with a crown, an ermine collar and a beard; viziers get a gold
+    collar and chain.
+  - Personality: brows (angled for quarrelsome and martial, one raised for cunning, arched for
+    goodnatured), the mouth's mood, a scar on some martial lords, a red nose for the debauched.
+  - A lady's trait: ambitious → tiara, pious → a veil with hair beside the face, romantic →
+    a flower, wild → loose hair with a feather.
+  - `HAIR_OF` hand-picks a hair colour (Lady Avrilia brown).
+- **Lord dialogue cards** (`Game.cardButtons(box, table)`, `Nobles.TALK_CARD`): the conversation's
+  buttons become the town cards. Each gets a line icon by the label's leading emoji and a hint of
+  what it does, e.g. "once a day · relation rises if it suits their taste", or "relation −15,
+  renown +2 · lords of rival kingdoms are pleased" (the numbers `insult` applies). The colour a
+  button's inline border carried becomes `tone-danger/love/gold/done`. One column on a phone,
+  where the portrait shrinks to 88 px with the words flowing beside and under it. The typed
+  greeting reserves its final height before the first letter (`typeIn`), so the cards never
+  move. Measured: the first card's top stays on the same pixel for the whole line on desktop
+  and Pixel 7.
 - **Portrait frame** (`Nobles.framed`): a dark-gold mount, an outer ring in the kingdom's colour
   (`--fc`) and the crest (`Game.crestCss`) as a corner badge; round for a lady.
 - **Start screen**: the secondary buttons are `.start-act`, dark glass with a gold edge and a line
