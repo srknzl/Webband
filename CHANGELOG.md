@@ -30,6 +30,24 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
   geri çekilirken de ona sırtını dönmüyor, yüzü düşmana dönük geri geri yürüyor.
 - **Telefonda küçük harita güç çubuğunun üstüne binmiyor.** Artık çubuğun altında duruyor.
 
+### Harita
+
+- **Harita da pixel dünyasında.** Şehirler artık emoji gökdelen değil. Her krallığın kendi
+  mimarisinde kaleler var: Svadya'nın kırmızı çatılı taş surları, Rodok'un kum taşı kuleleri,
+  Nord'un ahşap çitleri, Veagir'in soğan kubbeleri, Kergit'in keçe çadırları. Kale el
+  değiştirince bayrağı değişir, duvarları kalır.
+- **Arazi kimin toprağı olduğunu söylüyor.** Svadya yeşil ova, Kergit bozkırı sarımsı, Veagir'in
+  kuzeyi karlı, Rodok taşlık. Kıyının bir kısmı sarp dağ, bir kısmı kumsal. Köylerin yanında
+  tarlalar, ormanlarda sık ağaçlar var. Bunlar sadece görüntü: hız ve pusu yine orman, nehir ve
+  yola bağlı.
+- **Haritada yürüyen birlikler savaştaki askerler.** Ne giyiyorsan haritada da o görünüyorsun.
+  Lordlar zırhlı süvari, haydutlar paçavralı. Terk edilmiş yerler de (kamp, çiftlik, mağara,
+  haydut ini) küçük pixel yapılar oldu.
+- **Yazılar birbirini ve şehri örtmüyor.** Önce senin adın, sonra şehirler, düşmanlar ve
+  lordlar yer buluyor. Hiçbir yazı bir şehrin çiziminin üstüne binmiyor.
+- **Gece pencereler yanıyor.** Gece biraz daha karanlık. Şehir ve köylerin pencereleri tek tek
+  yanıyor.
+
 ### Arayüz
 
 - **Yeni simgeler.** Üst çubuktaki, menüdeki ve alt şeritteki renkli emojiler yerini oyunun

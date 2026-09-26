@@ -19,6 +19,7 @@ after changing it, update the "Measured" lines.
 | `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Anim`, `Game`, `Save` + `state` |
 | `battle.js` | `Battle`, `TournamentMinigame`; the Canvas2D battle drawing (`canvasGfx`) and the renderer seam |
 | `battle-gl.js` | `BattleGL` — the battle drawn with PixiJS/WebGL on `#battle-gl` (1.33.0) |
+| `map-art.js` | `MapArt` — the campaign map in pixel art: baked terrain, settlement/site sprites, parties, labels (2.0.0) |
 | `vendor/` | `pixi.min.js` (PixiJS 8.21 UMD, pinned) + `PIXI-LICENSE` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |
@@ -42,9 +43,9 @@ after changing it, update the "Measured" lines.
 checks `typeof Game`).
 
 **Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `vendor/pixi.min.js` → `app.js` →
-`battle.js` → `battle-gl.js` → `nobles.js` → `quests.js`. The order only prevents `const`
-collisions. `tools/harness.js` loads neither Pixi file — in Node the battle always draws through
-Canvas2D.
+`battle.js` → `battle-gl.js` → `map-art.js` → `nobles.js` → `quests.js`. The order only prevents
+`const` collisions. `tools/harness.js` loads neither Pixi file nor `map-art.js` — in Node the
+battle always draws through Canvas2D and the map through the classic path.
 
 **One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
 `Save.migrate` is a single migration chain; a new field is usually enough with the

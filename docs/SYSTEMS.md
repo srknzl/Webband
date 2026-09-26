@@ -995,6 +995,58 @@ name label is colored by hostility (red+⚔ foe / blue friend / parchment neutra
 just the faction-colored ring, since "whose is it" and "will it attack me" are different
 questions. Gradients are cached in world coordinates so panning doesn't invalidate them.
 
+### Pixel map (2.0.0)
+`map-art.js` (`MapArt`) draws the campaign map in the battle's pixel world. `Game.renderMap()`
+hands over to `MapArt.render(Game)` unless `Game.mapStyle()` says `'classic'` (`?map=classic`,
+or `MapArt` not loaded, as in `tools/harness.js`). The old path stays for the round-2 comparison
+and goes once the pixel map is approved. The parts both styles share were split out of
+`renderMap`: `drawMapSites / drawMapParties / drawMapPlayer / drawMapRoute`, each with a `pixel`
+flag that swaps the figure and the label.
+- **Terrain bake.** The whole continent is baked once into one canvas, `TEX` = 8 world units
+  per pixel, 1275×1275 (the square −600…9600). Per texel: sea by depth, foam and beach, or
+  ground. Ground is four shades of the land's palette, picked by value noise with light Bayer
+  dithering. The land is a coarse grid (8 texels per cell) of palettes blended by distance to
+  each settlement's founding kingdom (σ 820): Swadia green, Rhodok olive with rock flecks,
+  Nord cool green, Vaegir grey-green with snow that thickens northward, Khergit steppe with dry
+  patches, plus a wild green. Then forest floor, a hedged patchwork of fields beside every
+  non-Khergit village and town, rivers (bank, water, glint), roads (kerbs first, then the
+  surface, so a junction has no kerb across it), a trodden square at each gate, bridges.
+  Last come stamped sprites, back to front: mountains on the rocky half of the coast (angular
+  noise decides cliff or beach), trees in forests (pine, birch or broadleaf by region) and
+  ~2600 bushes, rocks and lone trees on open ground. Two pre-shrunk copies (½, ¼) are made with
+  high-quality filtering. `key()` rebakes when settlements, roads or the border change.
+- **Decorative only.** Regional colour, snow, steppe and rocks change nothing in play: speed,
+  ambush and sight still read `getTerrainInfo`, which knows only forest, river, bridge and road.
+  The terrain panel says "Düzlük" on snow.
+- **Settlements** are sprites of `SPX` = 3 world units per pixel, built from primitives (block,
+  crenels, cone / onion / wooden / flat tower tops, gable house, palisade, yurt, tugh, flag),
+  outlined in dark brown. The style is the founding kingdom's (`CULTURE`, read from `LOCATIONS`
+  before any save or siege), the flag the current owner's. Sizes: city 40×42, castle 32×40,
+  village 28×18. They grow with `max(1, 0.35 / zoom)`, slower than parties (0.55), so a
+  kingdom's towns don't overlap at the continent view. Window pixels are recorded at build
+  time and lit after the day tint (`#ffd36a` + an additive halo off lite).
+- **Sites** (#58) have their own sprites: ruin, farm, tower, cave, camp, lair, boss keep.
+- **Parties** are the battle's soldiers: `MapArt.partyLook` gives lords, kings and viziers a
+  Mounted knight in their kingdom's cloth, bandits a tier-0/1 Swordsman in bandit brown, forest
+  bandits the Archer. Caravans and wolves keep their drawn figures. The player is
+  `Battle.spriteLook` of the player, so the map shows what they wear. Idle faces down, walking
+  faces the way it moves (`Game.iconMotion`), and 10+ / 30+ men add one or two followers.
+  `Swordsman.load()` / `Archer.load()` are called from the map, not only from a battle.
+- **Night** is the old `dayTint` a third deeper (alpha ×1.35, cap 0.64).
+- **Labels** are laid out in screen space after the world is drawn, so text stays crisp and
+  untinted. Priority order: player 0, cities 1, castles 2, villages 3, foes 3.5, lords 4, quest
+  lines 4, other parties 5, sites 6. Each tries eight spots: above, below, right, left, then
+  one row further out each way. Every settlement sprite is an obstacle. Cities and castles
+  always get a label, the rest only where one fits.
+- **Measured** (headless Chromium, software raster, ms per frame, desktop 1366×768 / Pixel 7):
+  close 0.8 → 0.4–0.9 / 0.3–0.5 (classic 1.3–2.0 / 0.7–1.1); mid 0.3 → 0.6–1.1 / 0.3–0.7
+  (classic 1.2–1.9 / 0.6–1.2); continent 0.12 → 2.5–5 / 2.6–4 (classic 1.1–2.4 / 0.7–0.9).
+  Bake 350 ms desktop, 430 ms phone, once per world. Two lessons from the measuring:
+  - A smoothed `drawImage` of the terrain cost 3.3 ms at any zoom and a nearest one 0.7 ms, so
+    the ground is always drawn nearest from the right copy.
+  - The sea-glint cell loop cost 5.8 ms at the continent view, so glints run only from zoom 0.25
+    and never in lite.
+
 ### Battle renderer (1.33.0)
 Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
 **sharpness** (`#battle-canvas` is one canvas pixel per CSS pixel, soft on a retina screen; Pixi

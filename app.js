@@ -6117,6 +6117,204 @@ const Game = {
         ctx.restore();
     },
 
+    // The pieces of the map both styles draw alike (2.0.0 split them out of renderMap):
+    // discovery sites, the parties in sight, the player, the marching route. `pixel` swaps the
+    // drawn figure and the label for MapArt's.
+    drawMapSites(ctx, pixel) {
+        // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
+        (state.sites || []).forEach(site => {
+            if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
+            let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = (k.boss ? 46 : 30) * ik;
+            let fresh = this.siteReady(site);
+            ctx.beginPath();
+            ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+            ctx.globalAlpha = fresh ? 0.95 : 0.45;
+            if(!(pixel && MapArt.site(ctx, site, big))) this.emoji(ctx, site.icon || k.icon, site.x, site.y + 10, big);
+            ctx.globalAlpha = 1;
+            // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
+            if(!((fresh || k.boss) && this.camera.zoom > 0.18)) return;
+            if(pixel) MapArt.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
+            else this.mapLabel(ctx, T(site.name || k.name), site.x, site.y - big*0.75 - 10, k.boss ? '#e0b0b0' : '#cbbf9a', k.boss ? '#7a2a2a' : '#8a7b52');
+        });
+    },
+    drawMapParties(ctx, pixel) {
+        // NPCs (only those in sight range)
+        state.npcParties.forEach(npc => {
+            let dx = npc.x - state.player.x;
+            let dy = npc.y - state.player.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if(dist > this.spotRange(npc) + 45) return; // Don't draw if out of sight (or hidden in a forest)
+
+            let nf = FACTIONS[npc.faction] || {};
+            let band = BAND_KINDS[npc.band] || null;
+            // A band travels in its own color and its own silhouette: a wolf pack doesn't look like bandits
+            let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
+
+            // Faction ring
+            ctx.beginPath();
+            ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
+            ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+
+            // A charge on top: one more red ring around the outside. A charge is now only
+            // launched from within visible range, so this marker always arrives on time.
+            if(npc.charging) {
+                ctx.beginPath();
+                ctx.ellipse(npc.x, npc.y + 22, 32, 13, 0, 0, Math.PI*2);
+                ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(performance.now() / 260));
+                ctx.stroke(); ctx.globalAlpha = 1;
+            }
+
+            // A gold ring for the one party a "find and defeat this exact gang" quest is locked
+            // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
+            // marker on a settlement, so it reads as "this one, specifically" among identical-
+            // looking bandit parties instead of just another red silhouette.
+            if(npc.questLocks) {
+                ctx.beginPath();
+                ctx.ellipse(npc.x, npc.y + 22, 28, 11, 0, 0, Math.PI*2);
+                ctx.strokeStyle = '#e0b062'; ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(performance.now() / 400));
+                ctx.stroke(); ctx.globalAlpha = 1;
+                this.emoji(ctx, '📜', npc.x, npc.y - 26, 20 * this.iconScale());
+            }
+
+            // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
+            let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
+            let lone = npc.type === 'wanderer';
+            let iconOpts = {
+                id: npc.id, moving: isMoving,
+                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
+                mounted: npc.type !== 'bandit' && !lone,
+                size: npc.size || 1,
+                color: nCol,
+                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * this.iconScale(),
+                bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
+                dim: npc.type === 'bandit'
+            };
+            if(!(pixel && MapArt.party(ctx, npc.x, npc.y + 22, Object.assign({ look: MapArt.partyLook(npc, band), banner: npc.type === 'bandit' ? null : nCol }, iconOpts))))
+                this.drawPartyIcon(ctx, npc.x, npc.y + 22, iconOpts);
+
+            if(lone) {                                      // what their story is, at a glance (#119)
+                let w = this.WANDERERS.find(x => x.id === npc.wanderer);
+                if(w) this.emoji(ctx, w.icon, npc.x, npc.y - 30, 22 * this.iconScale());
+            }
+            // Crown: king/vizier
+            if(npc.type === 'king' || npc.type === 'vizier') {
+                let cs = npc.type === 'king' ? 30 : 24;
+                this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
+            }
+            
+            // The label used to be trimmed to the first word to keep the map readable, but
+            // a band's name is a qualifier plus a noun and the first word is the throwaway
+            // half: "Orman Haydutları" showed as "Orman", "Forest Bandits" as "Forest" (#94).
+            // The full name is short enough in all three languages; the only thing worth
+            // dropping is a lord's army suffix, which repeats on every lord on screen.
+            let shortName = this.npcName(npc);
+            if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
+                shortName = shortName.replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
+            }
+            // The label used to be white for everyone, so a lord of a kingdom we are at war
+            // with read exactly like an allied one — the marker ring carries the faction's
+            // colour, which answers "whose is it", never "will it attack me" (#108). The
+            // answer comes from `atWar`, not from `isHostile`: hostility there depends on
+            // distance and relative strength, which would make the label flicker as you close in.
+            // Colour is not the only cue — a foe's name is prefixed with a blade for the
+            // colour-blind, since red against parchment is exactly the pair that fails.
+            let pf = this.playerFaction();
+            // `npc.type === 'bandit'` covers every roaming band -- bandit, wolf, forest and
+            // mountain all come out of `spawnBand` with that type; `npc.band` does not, because
+            // caravans and villagers carry a `BAND_KINDS` entry of their own.
+            let foe = this.mapPartyIsFoe(npc);
+            let friend = !foe && !!npc.faction && (npc.faction === pf || this.allied(pf, npc.faction));
+            let txtCol = foe ? '#ff6b5a' : friend ? '#7fd4ff' : '#d8d2c4';
+            let txt = `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`;
+            // who gets a label when there's no room for all: foes, then lords, then the rest
+            let lordly = npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier';
+            if(pixel) MapArt.label(npc.x, npc.y + 22, txt, { prio: foe ? 3.5 : lordly ? 4 : 5, color: txtCol, dot: nCol, foe, up: 62, down: 10, side: 24 });
+            else this.mapLabel(ctx, txt, npc.x, npc.y + 50, txtCol, nCol);
+        });
+    },
+    drawMapPlayer(ctx, pixel) {
+        // Player
+        // While captive, the only party moving on the map is the one holding you; you have
+        // no separate group. The player icon + name + "Captive" text used to be drawn at the
+        // same point as the captor's icon and label (overlapping text).
+        let isPrisoner = !!state.player.prisoner;
+        if(isPrisoner) {
+            this.emoji(ctx, '⛓️', state.player.x - 30, state.player.y - 30, 30);
+        } else {
+            // Player base — a pulsing gold ring
+            let pp = 1 + Math.sin(performance.now()/450) * 0.1;
+            ctx.beginPath();
+            ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(255,204,0,0.9)';
+            ctx.lineWidth = 4; ctx.stroke();
+
+            if(state.player.wait) {
+                // The party is stationary while time accelerates: the map should say camp,
+                // not show a rider apparently standing in the middle of nowhere.
+                this.emoji(ctx, '⛺', state.player.x, state.player.y + 28, 54 * this.iconScale());
+            } else {
+                // If we have a horse, we appear mounted on the map (like in Warband)
+                let iconOpts = {
+                    id: 'player', moving: state.player.status === 'moving', bobAmp: 6,
+                    mounted: !!state.player.equipment.horse,
+                    size: state.player.party.length + 1,
+                    color: this.bannerColor(),
+                    scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
+                    bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
+                };
+                if(!(pixel && MapArt.party(ctx, state.player.x, state.player.y + 28, Object.assign({ look: MapArt.playerLook(), banner: this.bannerColor() }, iconOpts))))
+                    this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, iconOpts);
+            }
+
+            let txt = `${state.player.wait ? '⛺ ' : ''}${state.player.name} (${state.player.party.length + 1})`;
+            if(pixel) MapArt.label(state.player.x, state.player.y + 28, txt, { prio: 0, color: '#ffcc00', dot: this.bannerColor(), up: 74, down: 12, side: 28, must: true, edge: 'rgba(255,204,0,0.6)' });
+            else this.mapLabel(ctx, txt, state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
+        }
+    },
+    drawMapRoute(ctx) {
+        // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
+        // removed — the line itself already told the direction. A drag route is pale and white,
+        // a confirmed route is gold: which one is active is clear at a glance.
+        let route = (t, live) => {
+            let z = this.camera.zoom;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(performance.now() / 55) % (19 / z) : 0;
+            ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
+            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+            ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
+            ctx.lineWidth = 1.6 / z;
+            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
+            let r = 6 / z, pulse = live ? 1 + Math.sin(performance.now()/380) * 0.12 : 1.15;
+            ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
+            ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
+            ctx.stroke();
+            ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
+            ctx.lineWidth = 1.2 / z;
+            ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+        };
+        if(state.player.targetLocation && state.player.status === 'moving') route(state.player.targetLocation, true);
+        if(this.dragTarget) route(this.dragTarget, false);
+    },
+
+    // 'pixel' (2.0.0) or 'classic', which the mock compares against; `?map=classic` asks for it.
+    mapStyle() {
+        if(this._mapStyle === undefined) {
+            let q = null;
+            try { q = new URLSearchParams(location.search).get('map'); } catch(e) {}
+            this._mapStyle = q === 'classic' || typeof MapArt === 'undefined' ? 'classic' : 'pixel';
+        }
+        return this._mapStyle;
+    },
+
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
         // Time stops while a modal is open; continuing to draw made the modal's glass panel
@@ -6128,6 +6326,7 @@ const Game = {
         // replace full-screen expensive layers with flat equivalents.
         let lite = this.lite();
         this._labelRects = [];
+        if(this.mapStyle() === 'pixel') return MapArt.render(this);
         ctx.clearRect(0,0,W,H);
         ctx.save();
         ctx.scale(this.camera.zoom, this.camera.zoom);
@@ -6304,20 +6503,7 @@ const Game = {
 
         ctx.restore(); // continent clip ends
 
-        // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
-        (state.sites || []).forEach(site => {
-            if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
-            let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = (k.boss ? 46 : 30) * ik;
-            let fresh = this.siteReady(site);
-            ctx.beginPath();
-            ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
-            ctx.globalAlpha = fresh ? 0.95 : 0.45;
-            this.emoji(ctx, site.icon || k.icon, site.x, site.y + 10, big);
-            ctx.globalAlpha = 1;
-            // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
-            if((fresh || k.boss) && this.camera.zoom > 0.18) this.mapLabel(ctx, T(site.name || k.name), site.x, site.y - big*0.75 - 10, k.boss ? '#e0b0b0' : '#cbbf9a', k.boss ? '#7a2a2a' : '#8a7b52');
-        });
+        this.drawMapSites(ctx, false);
 
         // Draw locations
         // A quest's "where" also shows on the map: it comes from the same source
@@ -6391,159 +6577,11 @@ const Game = {
             }
         });
 
-        // NPCs (only those in sight range)
-        state.npcParties.forEach(npc => {
-            let dx = npc.x - state.player.x;
-            let dy = npc.y - state.player.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > this.spotRange(npc) + 45) return; // Don't draw if out of sight (or hidden in a forest)
+        this.drawMapParties(ctx, false);
 
-            let nf = FACTIONS[npc.faction] || {};
-            let band = BAND_KINDS[npc.band] || null;
-            // A band travels in its own color and its own silhouette: a wolf pack doesn't look like bandits
-            let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
+        this.drawMapPlayer(ctx, false);
 
-            // Faction ring
-            ctx.beginPath();
-            ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
-            ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
-
-            // A charge on top: one more red ring around the outside. A charge is now only
-            // launched from within visible range, so this marker always arrives on time.
-            if(npc.charging) {
-                ctx.beginPath();
-                ctx.ellipse(npc.x, npc.y + 22, 32, 13, 0, 0, Math.PI*2);
-                ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
-                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(performance.now() / 260));
-                ctx.stroke(); ctx.globalAlpha = 1;
-            }
-
-            // A gold ring for the one party a "find and defeat this exact gang" quest is locked
-            // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
-            // marker on a settlement, so it reads as "this one, specifically" among identical-
-            // looking bandit parties instead of just another red silhouette.
-            if(npc.questLocks) {
-                ctx.beginPath();
-                ctx.ellipse(npc.x, npc.y + 22, 28, 11, 0, 0, Math.PI*2);
-                ctx.strokeStyle = '#e0b062'; ctx.lineWidth = 2.5;
-                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(performance.now() / 400));
-                ctx.stroke(); ctx.globalAlpha = 1;
-                this.emoji(ctx, '📜', npc.x, npc.y - 26, 20 * this.iconScale());
-            }
-
-            // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
-            let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
-            let lone = npc.type === 'wanderer';
-            this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
-                id: npc.id, moving: isMoving,
-                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
-                mounted: npc.type !== 'bandit' && !lone,
-                size: npc.size || 1,
-                color: nCol,
-                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * this.iconScale(),
-                bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
-                dim: npc.type === 'bandit'
-            });
-
-            if(lone) {                                      // what their story is, at a glance (#119)
-                let w = this.WANDERERS.find(x => x.id === npc.wanderer);
-                if(w) this.emoji(ctx, w.icon, npc.x, npc.y - 30, 22 * this.iconScale());
-            }
-            // Crown: king/vizier
-            if(npc.type === 'king' || npc.type === 'vizier') {
-                let cs = npc.type === 'king' ? 30 : 24;
-                this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
-            }
-            
-            // The label used to be trimmed to the first word to keep the map readable, but
-            // a band's name is a qualifier plus a noun and the first word is the throwaway
-            // half: "Orman Haydutları" showed as "Orman", "Forest Bandits" as "Forest" (#94).
-            // The full name is short enough in all three languages; the only thing worth
-            // dropping is a lord's army suffix, which repeats on every lord on screen.
-            let shortName = this.npcName(npc);
-            if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
-                shortName = shortName.replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
-            }
-            // The label used to be white for everyone, so a lord of a kingdom we are at war
-            // with read exactly like an allied one — the marker ring carries the faction's
-            // colour, which answers "whose is it", never "will it attack me" (#108). The
-            // answer comes from `atWar`, not from `isHostile`: hostility there depends on
-            // distance and relative strength, which would make the label flicker as you close in.
-            // Colour is not the only cue — a foe's name is prefixed with a blade for the
-            // colour-blind, since red against parchment is exactly the pair that fails.
-            let pf = this.playerFaction();
-            // `npc.type === 'bandit'` covers every roaming band -- bandit, wolf, forest and
-            // mountain all come out of `spawnBand` with that type; `npc.band` does not, because
-            // caravans and villagers carry a `BAND_KINDS` entry of their own.
-            let foe = this.mapPartyIsFoe(npc);
-            let friend = !foe && !!npc.faction && (npc.faction === pf || this.allied(pf, npc.faction));
-            let txtCol = foe ? '#ff6b5a' : friend ? '#7fd4ff' : '#d8d2c4';
-            this.mapLabel(ctx, `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`, npc.x, npc.y + 50, txtCol, nCol);
-        });
-
-        // Player
-        // While captive, the only party moving on the map is the one holding you; you have
-        // no separate group. The player icon + name + "Captive" text used to be drawn at the
-        // same point as the captor's icon and label (overlapping text).
-        let isPrisoner = !!state.player.prisoner;
-        if(isPrisoner) {
-            this.emoji(ctx, '⛓️', state.player.x - 30, state.player.y - 30, 30);
-        } else {
-            // Player base — a pulsing gold ring
-            let pp = 1 + Math.sin(performance.now()/450) * 0.1;
-            ctx.beginPath();
-            ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
-            ctx.strokeStyle = 'rgba(255,204,0,0.9)';
-            ctx.lineWidth = 4; ctx.stroke();
-
-            if(state.player.wait) {
-                // The party is stationary while time accelerates: the map should say camp,
-                // not show a rider apparently standing in the middle of nowhere.
-                this.emoji(ctx, '⛺', state.player.x, state.player.y + 28, 54 * this.iconScale());
-            } else {
-                // If we have a horse, we appear mounted on the map (like in Warband)
-                this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
-                    id: 'player', moving: state.player.status === 'moving', bobAmp: 6,
-                    mounted: !!state.player.equipment.horse,
-                    size: state.player.party.length + 1,
-                    color: this.bannerColor(),
-                    scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
-                    bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
-                });
-            }
-
-            this.mapLabel(ctx, `${state.player.wait ? '⛺ ' : ''}${state.player.name} (${state.player.party.length + 1})`,
-                          state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
-        }
-
-        // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
-        // removed — the line itself already told the direction. A drag route is pale and white,
-        // a confirmed route is gold: which one is active is clear at a glance.
-        let route = (t, live) => {
-            let z = this.camera.zoom;
-            ctx.save();
-            ctx.lineCap = 'round';
-            ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(performance.now() / 55) % (19 / z) : 0;
-            ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
-            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-            ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
-            ctx.lineWidth = 1.6 / z;
-            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
-            let r = 6 / z, pulse = live ? 1 + Math.sin(performance.now()/380) * 0.12 : 1.15;
-            ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
-            ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
-            ctx.stroke();
-            ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
-            ctx.lineWidth = 1.2 / z;
-            ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
-            ctx.restore();
-        };
-        if(state.player.targetLocation && state.player.status === 'moving') route(state.player.targetLocation, true);
-        if(this.dragTarget) route(this.dragTarget, false);
+        this.drawMapRoute(ctx);
 
         // Location markers learned from lords
         Nobles.drawMarkers(ctx);

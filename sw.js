@@ -26,7 +26,7 @@ const MUSIC = 'webband-music';
 
 const FILES = [
     './', 'index.html', 'style.css', 'manifest.webmanifest',
-    'i18n.js', 'lang-en.js', 'lang-id.js', 'vendor/pixi.min.js', 'app.js', 'battle.js', 'battle-gl.js', 'nobles.js', 'quests.js',
+    'i18n.js', 'lang-en.js', 'lang-id.js', 'vendor/pixi.min.js', 'app.js', 'battle.js', 'battle-gl.js', 'map-art.js', 'nobles.js', 'quests.js',
     'bg_hdr.jpg', 'kingdom_crests.jpg', 'lord_portraits.jpg',
     'fonts/cinzel-latin.woff2', 'fonts/cinzel-latin-ext.woff2',
     'fonts/inter-latin.woff2', 'fonts/inter-latin-ext.woff2',
