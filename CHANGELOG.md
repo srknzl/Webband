@@ -34,7 +34,8 @@ kutlanıyor.
 ### Savaş
 
 - **Pixel zemin.** Savaş alanının çimeni ve toprağı da artık pixel pixel, askerlerle aynı dünyada.
-- **Kadın kahramanın uzun saçı var.** Aynı beden, farklı yüz ve omuzlara dökülen saç.
+- **Kadın kahramanın saçı at kuyruğu.** Aynı beden, düzgün taranmış saç ve arkada kırmızı bağlı
+  bir at kuyruğu. Yürürken sallanıyor.
 - **Silahın ne ise o görünüyor.** Balta, topuz, gürz, çekiç ve mızrak ellerde kendi başıyla
   görünüyor, sapları ahşap.
 - **Plaka zırh parlıyor.** Ağır zırh giyen askerin gövdesi çelik levhalarla çiziliyor.

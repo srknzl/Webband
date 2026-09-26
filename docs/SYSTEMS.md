@@ -1176,8 +1176,10 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
   wizard shows the hero sprite wearing what the choices so far (plus the hovered one) give. It is
   the same `heroLook` the battle uses. One rAF loop with a `_heroId` guard; it stops once
   `#cr-hero` is gone.
-- **Sprite looks** (Swordsman bake): `fem` adds long hair (`longHair`, not on the death frames),
-  and `wpn` gives an axe / mace / spiked mace / hammer / spear head at the blade tip, with the
+- **Sprite looks** (Swordsman bake): `fem` trims the pack's spiky crop to a smooth dome
+  (`headBox`, `smoothDome`) and draws a hairstyle by code (`femHair`: `'tail'` ponytail by default,
+  `'bun'`; the parts that hang behind the head are drawn before it; not on the death frames).
+  The first attempt, two side strands, was turned down in review. `wpn` gives an axe / mace / spiked mace / hammer / spear head at the blade tip, with the
   blade pixels recoloured to wood (`weapon()`). `plate` (defense ≥ 30) draws steel plates on the
   body (`plateArmour`). All three are part of the frame-cache key in `Swordsman.art` and
   `Mounted.art`. `Battle.teamRing(u)` draws the ground ring only for units with no sprite look:
