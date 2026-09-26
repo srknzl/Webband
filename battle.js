@@ -4257,42 +4257,86 @@ const Swordsman = (() => {
         }
     }
 
-    // ---- a woman's long hair and face (2.1, round 1's "same body, long hair, a different face") ----
-    // Drawn by code over the composed frame, placed by the head layer's own box so it follows
-    // every frame's bob and turn: strands down to the shoulders on both sides facing the camera,
-    // down the back of the head in profile, over the nape seen from behind. It is painted in the
-    // pack's own hair palette, so colourMap recolours it with the rest of the hair; a softer
-    // mouth sits on the face.
-    function longHair(x, hx, dir) {
-        const id = hx.getImageData(0, 0, F, F).data;
-        let x0 = F, y0 = F, x1 = -1, y1 = -1;
-        for(let i = 0; i < F * F; i++) if(id[i * 4 + 3]) { const px = i % F, py = (i / F) | 0; if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py; }
-        if(x1 < 0) return;
-        const P = (a, b, w, h, c) => { x.fillStyle = c; x.fillRect(a, b, w, h); };
-        const strand = (sx, top, len, w) => {           // a lock of hair: dark edge, lighter middle, a rounded tip
-            P(sx - 1, top, 1, len, HAIR_LINE); P(sx + w, top, 1, len, HAIR_LINE);
-            P(sx, top, w, len, HAIR[1]); if(w > 1) P(sx + (w >> 1), top, 1, len - 1, HAIR[3]);
-            P(sx, top + len, w, 1, HAIR_LINE);
-        };
-        const len = Math.max(6, (y1 - y0) >> 1);
-        if(dir === 'down') {
-            strand(x0 + 1, y0 + 6, len + 2, 2); strand(x1 - 1, y0 + 6, len + 2, 2);
-            P((x0 + x1 + 1) >> 1, y1 - 2, 1, 1, '#c9706a');                       // the mouth
-        } else if(dir === 'left') {
-            strand(x1 - 3, y0 + 5, len + 3, 3);
-            P(x0 + 3, y1 - 2, 1, 1, '#c9706a');
-        } else if(dir === 'right') {
-            strand(x0 + 1, y0 + 5, len + 3, 3);
-            P(x1 - 3, y1 - 2, 1, 1, '#c9706a');
-        } else {                                        // from behind: a fall of hair over the nape
-            for(let r = 0; r < len; r++) {
-                const inset = 2 + (r >> 1), a = x0 + inset, b = x1 - inset;
-                if(b <= a) break;
-                P(a - 1, y1 - 2 + r, 1, 1, HAIR_LINE); P(b + 1, y1 - 2 + r, 1, 1, HAIR_LINE);
-                P(a, y1 - 2 + r, b - a + 1, 1, r % 3 === 1 ? HAIR[3] : HAIR[2]);
-            }
+    // ---- a woman's hair (2.1, round 1's "same body, long hair, a different face") ----
+    // The pack only has a man's spiky crop, so for a woman the head layer is first trimmed to a
+    // smooth dome (spikes outside an ellipse over the face go, the edge is re-outlined), then a
+    // style is drawn by code: parts that hang behind the head before it, the rest after. Placed
+    // by the head layer's own box, so it follows every frame's bob and turn; painted in the pack's
+    // hair palette, so colourMap recolours it with the rest of the hair. Styles under review
+    // (tur 5): 'tail' ponytail and 'bun'; a braid and shoulder-length hair were tried and dropped.
+    const HAIR_SET = new Set([...HAIR, HAIR_LINE].map(hkey)), SKIN_SET = new Set(SKIN.map(hkey));
+    function headBox(hx) {
+        const d = hx.getImageData(0, 0, F, F).data;
+        let x0 = F, y0 = F, x1 = -1, y1 = -1, s0 = F, s1 = -1, sy = F;
+        for(let i = 0; i < F * F; i++) {
+            if(!d[i * 4 + 3]) continue;
+            const px = i % F, py = (i / F) | 0;
+            if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py;
+            if(SKIN_SET.has(key(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]))) { if(px < s0) s0 = px; if(px > s1) s1 = px; if(py < sy) sy = py; }
         }
+        if(x1 < 0) return null;
+        if(s1 < 0) {                                    // seen from behind: no face, so the skull's width comes from
+            const mid = y0 + ((y1 - y0) >> 1);          // the lower half, which the spikes never reach
+            s0 = F; s1 = -1;
+            for(let i = mid * F; i < F * F; i++) if(d[i * 4 + 3]) { const px = i % F; if(px < s0) s0 = px; if(px > s1) s1 = px; }
+            s0 += 2; s1 -= 2; sy = y0 + Math.round((y1 - y0) * 0.55);
+        }
+        return { x0, y0, x1, y1, s0, s1, sy };
     }
+    function smoothDome(hx, hb) {
+        const id = hx.getImageData(0, 0, F, F), d = id.data;
+        const cx = (hb.s0 + hb.s1) / 2, rx = (hb.s1 - hb.s0) / 2 + 2.2, cy = hb.sy + 2, ry = Math.max(6, cy - hb.y0 - 1);
+        const hair = i => d[i * 4 + 3] && HAIR_SET.has(key(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]));
+        for(let i = 0; i < F * F; i++) {
+            if(!hair(i)) continue;
+            const px = i % F, py = (i / F) | 0, ex = (px + 0.5 - cx) / rx, ey = py < cy ? (py + 0.5 - cy) / ry : 0;
+            if(ex * ex + ey * ey > 1) d[i * 4 + 3] = 0;
+        }
+        const [lr, lg, lb] = [1, 3, 5].map(k => parseInt(HAIR_LINE.slice(k, k + 2), 16));
+        const edge = [];
+        for(let i = 0; i < F * F; i++) {
+            if(!hair(i)) continue;
+            const px = i % F, py = (i / F) | 0;
+            if([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const qx = px + dx, qy = py + dy; return qx < 0 || qy < 0 || qx >= F || qy >= F || !d[(qy * F + qx) * 4 + 3]; })) edge.push(i);
+        }
+        edge.forEach(i => { d[i * 4] = lr; d[i * 4 + 1] = lg; d[i * 4 + 2] = lb; });
+        hx.putImageData(id, 0, 0);
+    }
+    function femHair(x, hb, dir, stage, style, sway) {
+        const P = (a, b, w, h, c) => { x.fillStyle = c; x.fillRect(a, b, w, h); };
+        const cx = (hb.s0 + hb.s1 + 1) >> 1, top = hb.y0, back = hb.y1;
+        const ball = (bx, by, r) => {
+            for(let yy = -r - 1; yy <= r + 1; yy++) for(let xx = -r - 1; xx <= r + 1; xx++) {
+                const q = xx * xx + yy * yy;
+                if(q <= r * r) P(bx + xx, by + yy, 1, 1, xx + yy < -1 ? HAIR[4] : HAIR[2]);
+                else if(q <= (r + 1) * (r + 1)) P(bx + xx, by + yy, 1, 1, HAIR_LINE);
+            }
+        };
+        const side = dir === 'left' ? 1 : -1;            // the back of the head in profile
+        const nape = side > 0 ? hb.x1 - 2 : hb.x0 + 2;
+        // a ponytail: gathered at the tie, swelling a little, then narrowing to a point; in profile it
+        // arcs out from the back of the head before it falls
+        const tail = (sx, y, len, arc) => {
+            for(let r = 0; r <= len; r++) {
+                const f = r / len, ox = Math.round(sx + arc * Math.sin(Math.PI * Math.min(1, f * 1.25)) * 0.9 + sway * f);
+                const w = r < 2 ? 2 : f < 0.7 ? 3 : f < 0.88 ? 2 : 1;
+                P(ox - 1, y + r, w + 2, 1, HAIR_LINE); P(ox, y + r, w, 1, HAIR[2]);
+                if(w > 1) P(ox + (arc < 0 ? w - 1 : 0), y + r, 1, 1, HAIR[4]);
+            }
+        };
+        if(style === 'tail') {
+            if(stage === 'back' && (dir === 'left' || dir === 'right')) tail(nape + side, hb.sy - 3, 11, side * 2.2);
+            if(stage === 'front' && dir === 'up') tail(cx - 1, hb.sy - 2, 11, 0);
+            if(stage === 'front' && dir !== 'down') P(dir === 'up' ? cx - 1 : nape + (side > 0 ? 0 : -1), hb.sy - 4, 2 + (dir === 'up'), 2, '#b3413a');   // the tie
+        } else if(style === 'bun') {
+            if(stage === 'back' && dir === 'down') ball(cx, top + 1, 3);
+            if(stage === 'front' && dir === 'up') ball(cx, top + 4, 3);
+            if(stage === 'front' && (dir === 'left' || dir === 'right')) ball(nape - side, top + 5, 3);
+        }
+        if(stage === 'front' && dir === 'down') P(cx, hb.y1 - 2, 1, 1, '#c9706a');                    // a softer mouth
+    }
+    const FEM_SWAY = [0, 1, 0, -1];
+    let femStyle = 'tail';
 
     // ---- composed frames ----
     const mapCache = {};
@@ -4321,7 +4365,7 @@ const Swordsman = (() => {
     function art(look, anim, dir, t) {
         if(!ready()) return null;
         const f = frameIndex(anim, t), row = ROW[dir];
-        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, look.fem ? 'f' : '', look.wpn || '', look.plate ? 'p' : '', anim, row, f].join('|');
+        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, look.fem ? 'f' + (look.hairStyle || femStyle) : '', look.wpn || '', look.plate ? 'p' : '', anim, row, f].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }   // keep recently used frames
         c = bake(look, anim, row, f, dir);
@@ -4341,13 +4385,17 @@ const Swordsman = (() => {
         const wl = hasAnim(look.weapon, a) ? look.weapon : 2;
         const head = cell(), hx = head.getContext('2d');
         layer(hx, look.armor, a, 'head', fr, row);
+        const fem = look.fem && a !== 'Death', hb = fem ? headBox(hx) : null, style = look.hairStyle || femStyle;
+        const sway = a === 'Walk' || a === 'Run' ? FEM_SWAY[fr % 4] : 0;
+        if(hb) smoothDome(hx, hb);
         if(look.helm) { const id = hx.getImageData(0, 0, F, F); helmet(id, look.helm, a, row, fr, look.armor); hx.putImageData(id, 0, 0); }
         const comp = cell(), x = comp.getContext('2d');
         weapon(x, wl, a, 'sword_back', fr, row, look.wpn);
         if(look.plate) { const b = cell(), bx = b.getContext('2d'); layer(bx, look.armor, a, 'body', fr, row); plateArmour(bx, dir, a); x.drawImage(b, 0, 0); }
         else layer(x, look.armor, a, 'body', fr, row);
+        if(hb) femHair(x, hb, dir, 'back', style, sway);
         x.drawImage(head, 0, 0);
-        if(look.fem && a !== 'Death') longHair(x, hx, dir);
+        if(hb) femHair(x, hb, dir, 'front', style, sway);
         weapon(x, wl, a, 'sword', fr, row, look.wpn);
         const id = x.getImageData(0, 0, F, F), d = id.data, m = colourMap(look);
         let x0 = F, y0 = F, x1 = -1, y1 = -1;
@@ -4533,7 +4581,7 @@ const Mounted = (() => {
         const hf = s.dead ? Horse.frameOf('gallop', s.deadT * 1000) : Horse.frameOf(s.gait, s.gt);
         const fade = s.dead ? Math.min(4, Math.floor(s.deadT / 0.2)) : 0;
         const rf = Swordsman.frameIndex(s.anim, s.t);
-        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.rider.fem ? 'f' : '', look.rider.wpn || '', look.rider.plate ? 'p' : '', look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
+        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.rider.fem ? 'f' + (look.rider.hairStyle || '') : '', look.rider.wpn || '', look.rider.plate ? 'p' : '', look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }
         c = document.createElement('canvas'); c.width = CW; c.height = CH;
