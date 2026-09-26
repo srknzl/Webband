@@ -459,7 +459,17 @@ const MapArt = (() => {
             }
         }
         outline(g);
-        return { cv: g.c, win: g.win };
+        // the windows' glow, drawn once here: at night a frame stamps this one image instead of
+        // a radial gradient per window (that was +1.1 ms a frame on the phone profile)
+        const P = 4, glow = document.createElement('canvas');
+        glow.width = g.w + P * 2; glow.height = g.h + P * 2;
+        const gx = glow.getContext('2d');
+        for(const [wx, wy] of g.win) {
+            const cx = wx + 0.5 + P, cy = wy + 0.5 + P, gr = gx.createRadialGradient(cx, cy, 0, cx, cy, 2.6);
+            gr.addColorStop(0, 'rgba(255,190,90,0.9)'); gr.addColorStop(1, 'rgba(255,160,60,0)');
+            gx.fillStyle = gr; gx.fillRect(cx - 3, cy - 3, 6, 6);
+        }
+        return { cv: g.c, win: g.win, glow, pad: P };
     }
     function settlement(loc) {
         const k = loc.id + '|' + loc.faction;
@@ -610,7 +620,7 @@ const MapArt = (() => {
 
     // --- the frame
     function render(G) {
-        const c = G.mapCanvas, ctx = G.ctx, W = c.width, H = c.height, cam = G.camera, z = cam.zoom, lite = G.lite(), now = performance.now();
+        const c = G.mapCanvas, ctx = G.ctx, W = c.width, H = c.height, cam = G.camera, z = cam.zoom, now = performance.now();
         const T0 = terrain();
         Swordsman.load(); Archer.load();          // the map's parties are the battle's soldiers
         ctx.save();
@@ -623,9 +633,10 @@ const MapArt = (() => {
         const px = TEX * z, lvl = px < 0.5 ? 2 : px < 1 ? 1 : 0;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(T0.mips[lvl], X0, Y0, N * TEX, N * TEX);
-        // the sea glints: a few pale texel dashes drifting — not on a phone, and not so far out
-        // that a dash is under a pixel (at the continent view the cell loop alone cost 5.8 ms)
-        if(!lite && z >= 0.25) {
+        // the sea glints: a few pale texel dashes drifting, not so far out that a dash is under a
+        // pixel (at the continent view the cell loop alone cost 5.8 ms); on a phone profile they
+        // measured no cost at 0.45-0.8, so a phone gets them too
+        if(z >= 0.25) {
             ctx.fillStyle = 'rgba(200,230,245,0.18)';
             const vx0 = cam.x - W / (2 * z), vy0 = cam.y - H / (2 * z), vx1 = vx0 + W / z, vy1 = vy0 + H / z;
             for(let gx = Math.floor(vx0 / 160); gx <= vx1 / 160; gx++) for(let gy = Math.floor(vy0 / 160); gy <= vy1 / 160; gy++) {
@@ -644,9 +655,11 @@ const MapArt = (() => {
         // against 0.55): at the continent view the towns of a kingdom sat on top of each other
         const ik = G.iconScale(), sk = Math.max(1, 0.35 / z), blocked = [], lit = [], questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
         const order = LOCATIONS.slice().sort((a, b) => a.y - b.y);
+        const vx0 = cam.x - W / (2 * z), vy0 = cam.y - H / (2 * z), vx1 = vx0 + W / z, vy1 = vy0 + H / z;
         for(const loc of order) {
             const s = settlement(loc), k = SPX * sk, w = s.cv.width * k, h = s.cv.height * k;
             const x = loc.x - w / 2, y = loc.y + 22 * sk - h;
+            if(x > vx1 || x + w < vx0 || y > vy1 + 40 / z || y + h < vy0 - 40 / z) continue;   // off screen
             ctx.drawImage(s.cv, x, y, w, h);
             blocked.push({ x: loc.x, y: loc.y + 22 * sk, w, h });
             lit.push({ s, x, y, k });
@@ -670,27 +683,24 @@ const MapArt = (() => {
         }
         const glow = G.nightGlow();
         if(glow > 0.02) {
-            // windows: a lit pixel with a soft warm halo round it
+            // windows: a lit pixel with a soft warm halo round it (the halo is one pre-drawn
+            // image per settlement, so a phone gets it too)
             ctx.globalAlpha = Math.min(1, glow * 1.2);
             ctx.fillStyle = '#ffd36a';
             for(const L of lit) for(const [wx, wy] of L.s.win) ctx.fillRect(L.x + wx * L.k, L.y + wy * L.k, L.k, L.k);
-            if(!lite) {
-                ctx.globalCompositeOperation = 'lighter';
-                ctx.globalAlpha = 0.5 * glow;
-                const halo = G.radial(ctx, 16, 'rgba(255,190,90,0.9)', 'rgba(255,160,60,0)');
-                ctx.fillStyle = halo;
-                for(const L of lit) for(const [wx, wy] of L.s.win) {
-                    const hx = L.x + (wx + 0.5) * L.k, hy = L.y + (wy + 0.5) * L.k, r = L.k * 2.2;
-                    ctx.save(); ctx.translate(hx, hy); ctx.scale(r / 16, r / 16); ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-                }
-                ctx.globalCompositeOperation = 'source-over';
-            }
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.5 * glow;
+            for(const L of lit) ctx.drawImage(L.s.glow, L.x - L.s.pad * L.k, L.y - L.s.pad * L.k, L.s.glow.width * L.k, L.s.glow.height * L.k);
+            ctx.globalCompositeOperation = 'source-over';
             ctx.globalAlpha = 1;
-            if(!lite) {
+            {   // hearth light spilling out of every settlement on screen
                 ctx.globalCompositeOperation = 'lighter';
                 ctx.globalAlpha = 0.22 * glow;
                 ctx.fillStyle = G.radial(ctx, 110, 'rgba(255,170,70,1)', 'rgba(255,140,50,0)');
-                LOCATIONS.forEach(loc => { ctx.save(); ctx.translate(loc.x, loc.y); ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI * 2); ctx.fill(); ctx.restore(); });
+                LOCATIONS.forEach(loc => {
+                    if(loc.x + 110 < vx0 || loc.x - 110 > vx1 || loc.y + 110 < vy0 || loc.y - 110 > vy1) return;
+                    ctx.save(); ctx.translate(loc.x, loc.y); ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                });
                 ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
             }
         }

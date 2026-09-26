@@ -1024,7 +1024,12 @@ flag that swaps the figure and the label.
   before any save or siege), the flag the current owner's. Sizes: city 40×42, castle 32×40,
   village 28×18. They grow with `max(1, 0.35 / zoom)`, slower than parties (0.55), so a
   kingdom's towns don't overlap at the continent view. Window pixels are recorded at build
-  time and lit after the day tint (`#ffd36a` + an additive halo off lite).
+  time and lit after the day tint: a `#ffd36a` pixel each, plus one pre-drawn halo image per
+  settlement stamped with `lighter`. Only settlements on screen are drawn, lit or glowing. The
+  pixel map has no `lite` branch. On the Pixel 7 profile a night frame with halos, hearth glow
+  and sea glints costs what a day frame costs (0.9 / 0.7 ms at 0.45 / 0.8). The first
+  proposal's per-window radial halo over every settlement cost +1.1 ms, and that is why it was
+  desktop-only there.
 - **Sites** (#58) have their own sprites: ruin, farm, tower, cave, camp, lair, boss keep.
 - **Parties** are the battle's soldiers: `MapArt.partyLook` gives lords, kings and viziers a
   Mounted knight in their kingdom's cloth, bandits a tier-0/1 Swordsman in bandit brown, forest
@@ -1044,8 +1049,8 @@ flag that swaps the figure and the label.
   Bake 350 ms desktop, 430 ms phone, once per world. Two lessons from the measuring:
   - A smoothed `drawImage` of the terrain cost 3.3 ms at any zoom and a nearest one 0.7 ms, so
     the ground is always drawn nearest from the right copy.
-  - The sea-glint cell loop cost 5.8 ms at the continent view, so glints run only from zoom 0.25
-    and never in lite.
+  - The sea-glint cell loop cost 5.8 ms at the continent view, so glints run only from zoom
+    0.25. At 0.45–0.8 they cost nothing measurable, so phones get them too.
 
 ### Battle renderer (1.33.0)
 Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
