@@ -1,4 +1,4 @@
-// Lifted from battle.js (SWORDSMAN_INDEX + the Swordsman composer), unchanged — the game's own soldiers.
+// Lifted from battle.js (SWORDSMAN_INDEX, the Swordsman composer and the code-drawn Horse), unchanged — the game's own soldiers and horses.
 const SWORDSMAN_INDEX = {"1":{"size":[1024,332],"parts":{"Death":{"head":[0,0,14,19,36,27],"body":[208,200,22,31,19,15],"sword_back":[0,264,17,35,31,10],"sword":[698,264,16,37,25,8]},"attack":{"head":[252,0,20,17,24,25],"sword":[444,0,11,25,42,25],"sword_back":[0,108,11,21,36,23],"body":[0,200,19,30,26,16]},"Run":{"head":[780,0,23,17,18,24],"body":[518,108,23,27,17,17],"sword":[656,200,19,33,18,11],"sword_back":[800,200,23,34,20,10]},"Walk":{"head":[288,108,22,17,20,21],"body":[341,200,25,30,14,14],"sword_back":[217,264,22,34,22,9],"sword":[204,304,20,37,21,7]},"Hurt":{"head":[408,108,20,19,22,19],"body":[581,200,24,31,15,13],"sword":[613,264,19,37,17,8],"sword_back":[330,304,21,36,23,7]},"Idle":{"head":[654,108,23,19,18,16],"body":[425,200,25,31,13,13],"sword_back":[349,264,22,36,22,8],"sword":[0,304,19,37,17,7]}},"red":{"Hurt":[0,0,0.48,0.97,0.53,0,0,0.49,0.95,0.52,0,0,0.49,0.95,0.5,0,0,0.52,1,0.49],"Death":[0,0,0,0.36,0.86,0.41,0,0,0,0,0.43,1,0.49,0,0,0,0,0.44,0.99,0.49,0,0,0,0,0.49,0.92,0.45,0]}},"2":{"size":[1024,344],"parts":{"attack":{"sword":[0,0,13,24,40,27],"sword_back":[572,0,11,20,35,24],"head":[0,108,20,17,24,24],"body":[0,204,19,30,26,16]},"Death":{"head":[320,0,14,19,36,27],"body":[208,204,22,31,19,15],"sword_back":[0,268,18,35,30,11],"sword":[794,268,15,37,26,9]},"Run":{"head":[192,108,23,17,18,20],"body":[566,108,22,27,18,17],"sword_back":[692,204,24,32,19,13],"sword":[844,204,19,33,18,13]},"Walk":{"head":[336,108,22,17,20,19],"body":[341,204,24,30,16,14],"sword_back":[462,268,22,35,22,9],"sword":[192,312,20,37,20,8]},"Hurt":{"head":[456,108,20,19,22,19],"body":[437,204,24,31,15,14],"sword_back":[594,268,21,35,23,9],"sword":[709,268,19,37,17,9]},"Idle":{"head":[710,108,23,19,18,16],"body":[512,204,24,31,15,13],"sword_back":[210,268,22,36,21,9],"sword":[0,312,20,37,16,8]}},"red":{"Hurt":[0,0,0.48,0.96,0.53,0,0,0.49,0.94,0.51,0,0,0.5,0.96,0.51,0,0,0.52,1,0.5],"Death":[0,0,0,0.39,0.93,0.45,0,0,0,0,0.43,1,0.49,0,0,0,0,0.43,0.97,0.48,0,0,0,0,0.52,0.99,0.49,0]}},"3":{"size":[1024,304],"parts":{"attack":{"sword":[0,0,13,24,40,27],"sword_back":[572,0,11,20,35,25],"head":[0,108,20,17,24,24],"body":[592,108,19,29,26,17]},"Death":{"head":[320,0,14,19,36,27],"body":[0,204,22,31,19,15],"sword":[468,264,15,36,26,10],"sword_back":[650,264,18,35,30,9]},"Run":{"head":[192,108,23,17,18,20],"body":[456,108,23,27,17,17],"sword_back":[229,204,23,32,20,14],"sword":[569,204,19,33,18,13]},"Walk":{"head":[336,108,22,17,20,19],"body":[133,204,24,30,16,14],"sword_back":[713,204,22,34,22,11],"sword":[845,204,20,35,21,11]},"Idle":{"head":[800,108,23,19,18,16],"body":[389,204,24,31,15,13],"sword_back":[0,264,22,36,22,10],"sword":[264,264,19,36,17,10]}},"red":{"Death":[0,0,0,0.4,0.94,0.45,0,0,0,0,0.43,1,0.49,0,0,0,0,0.43,0.97,0.48,0,0,0,0,0.5,0.96,0.47,0]}}};
 const Swordsman = (() => {
     const F = 64, FOOT = { x: 32, y: 44 };
@@ -619,4 +619,98 @@ const Swordsman = (() => {
     const dyeRgb = (hex, dye) => viaHsl(hex, (h, s, l) => [dye.h, dye.s, l + dye.dl]);
     const dyeHex = cloth => { const d = DYE[cloth]; if(!d) return null; const [r, g, b] = hsl2rgb(d.h, d.s * 0.9, 0.42 + d.dl); return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join(''); };
     return { ANIM, K, load, ready, art, frameIndex, DYE, dyeRgb, dyeHex };
+})();
+const Horse = (() => {
+    const W = 48, H = 36, GROUND = 33, SADDLE = { x: 21, y: 13 };
+    const COATS = {
+        bay:   { o: '#24160f', c: ['#4a2a18', '#6b3f22', '#8c5530', '#ad7143'], mane: '#261710', sock: '#d8c7a8' },
+        grey:  { o: '#23232b', c: ['#5b5b67', '#83838f', '#a7a7b1', '#cbcbd3'], mane: '#3d3d47', sock: '#e9e9ee' },
+        black: { o: '#121015', c: ['#262229', '#38323c', '#4b4450', '#655c6b'], mane: '#141117', sock: '#8d8490' },
+    };
+    const ease = u => u * u * (3 - 2 * u);
+    // [upper, lower] leg angles, absolute, degrees from vertical (+ = toward the head)
+    function legAt(p, fore, g) {
+        if(p < g.stance) {
+            const th = g.reach - 2 * g.reach * (p / g.stance);
+            return fore ? [th, th] : [th - 12, th + 8];
+        }
+        const u = (p - g.stance) / (1 - g.stance), th = -g.reach + 2 * g.reach * ease(u), flex = Math.sin(Math.PI * u);
+        return fore ? [th + flex * g.knee, th - flex * g.fold] : [th - 12 - flex * g.hock, th + 8 + flex * g.fold * 0.9];
+    }
+    const GAITS = {
+        // rotary gallop: near hind, far hind, near fore, far fore, then all four in the air
+        gallop: { n: 8, ms: 70, stance: 0.42, reach: 28, knee: 22, fold: 78, hock: 14, phase: { nh: 0, fh: 0.12, nf: 0.4, ff: 0.52 }, bob: t => Math.round(-Math.sin(2 * Math.PI * (t - 0.15))) },
+        // four-beat walk: hind, fore on the same side, then the other side; always three feet down
+        walk:   { n: 8, ms: 115, stance: 0.62, reach: 16, knee: 14, fold: 46, hock: 8, phase: { nh: 0, nf: 0.25, fh: 0.5, ff: 0.75 }, bob: t => Math.round(-Math.sin(4 * Math.PI * t) * 0.6) },
+    };
+    const POSES = {};
+    for(const g in GAITS) {
+        const G = GAITS[g];
+        POSES[g] = Array.from({ length: G.n }, (_, i) => {
+            const t = i / G.n, f = {};
+            for(const k in G.phase) f[k] = legAt((t + 1 - G.phase[k]) % 1, k[1] === 'f', G);
+            f.bob = G.bob(t); f.tail = 1 + Math.round(Math.sin(2 * Math.PI * t) * (g === 'gallop' ? 1 : 0.5));
+            return f;
+        });
+    }
+    POSES.stand = [{ nf: [3, 3], ff: [-2, -2], nh: [-14, 6], fh: [-10, 9], bob: 0, tail: 1 }];
+    const frameOf = (gait, t) => gait === 'stand' ? 0 : Math.floor(Math.max(0, t) / GAITS[gait].ms) % GAITS[gait].n;
+    const shade = (hex, k) => {
+        const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
+        const f = v => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k)));
+        return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2, '0')).join('');
+    };
+    const cache = {};
+    function bake(coatName, gait, fi, cloth) {
+        const key = coatName + gait + fi + (cloth || '');
+        if(cache[key]) return cache[key];
+        const coat = COATS[coatName] || COATS.bay, P = POSES[gait][fi] || POSES.stand[0], b = P.bob;
+        const m = new Uint8Array(W * H);          // 1 body · 2 far leg · 3 mane/tail · 4 hoof · 6 cloth · 7 saddle · 8 eye · 9 sock
+        const set = (x, y, v) => { x = Math.round(x); y = Math.round(y); if(x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = v; };
+        const ell = (cx, cy, rx, ry, v) => { for(let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for(let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) { const dx = (x - cx) / rx, dy = (y - cy) / ry; if(dx * dx + dy * dy <= 1) set(x, y, v); } };
+        const line = (x0, y0, x1, y1, r, v) => { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2) + 1; for(let i = 0; i <= n; i++) { const t = i / n; ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, v); } };
+        const leg = (hx, hy, [a1, a2], v, sock) => {
+            const r1 = a1 * Math.PI / 180, r2 = a2 * Math.PI / 180;
+            const kx = hx + Math.sin(r1) * 6, ky = hy + Math.cos(r1) * 6, fx = kx + Math.sin(r2) * 6, fy = ky + Math.cos(r2) * 6;
+            line(hx, hy, kx, ky, 1.25, v); line(kx, ky, fx, fy, 0.75, v);
+            if(sock) line(kx + (fx - kx) * 0.6, ky + (fy - ky) * 0.6, fx, fy, 0.7, 9);
+            set(fx, fy, 4);
+        };
+        leg(27, 21 + b, P.ff, 2); leg(14, 21 + b, P.fh, 2);                    // far legs, behind the body
+        const tw = [[9, 15], [6, 18], [5, 22], [5, 25]].map(([x, y], i) => [x - (i ? P.tail * 0.6 * i : 0), y + b]);
+        for(let i = 0; i < tw.length - 1; i++) line(tw[i][0], tw[i][1], tw[i + 1][0], tw[i + 1][1], 1, 3);
+        ell(22, 18 + b, 9.5, 5, 1); ell(29, 17 + b, 5, 5, 1); ell(14, 17 + b, 5.5, 5, 1);
+        line(29, 15 + b, 34, 8 + b, 2.4, 1);
+        ell(37, 8 + b, 4, 2.4, 1); ell(40, 10 + b, 2, 1.8, 1);
+        set(35, 3 + b, 1); set(35, 4 + b, 1); set(36, 4 + b, 1);
+        leg(28, 21 + b, P.nf, 1, true); leg(15, 21 + b, P.nh, 1, false);
+        line(28, 12 + b, 33, 5 + b, 0.8, 3); set(34, 5 + b, 3); set(35, 6 + b, 3);
+        set(37, 7 + b, 8);
+        for(let y = 14; y <= 20; y++) for(let x = 17; x <= 25; x++) if(m[(y + b) * W + x] === 1) set(x, y + b, cloth ? 6 : 7);
+        for(let x = 18; x <= 23; x++) { set(x, 12 + b, 7); set(x, 13 + b, 7); }
+        set(17, 12 + b, 7); set(24, 11 + b, 7);
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const x = c.getContext('2d'), id = x.createImageData(W, H), d = id.data;
+        const rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+        const ramp = cloth ? [shade(cloth, -0.35), shade(cloth, -0.15), cloth, shade(cloth, 0.2)] : null;
+        const put = (i, h) => { const [r, g, bb] = rgb(h); d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = bb; d[i * 4 + 3] = 255; };
+        const at = (xx, yy) => xx < 0 || yy < 0 || xx >= W || yy >= H ? 0 : m[yy * W + xx];
+        for(let yy = 0; yy < H; yy++) for(let xx = 0; xx < W; xx++) {
+            const v = m[yy * W + xx], i = yy * W + xx; if(!v) continue;
+            const up = at(xx, yy - 1), dn = at(xx, yy + 1);
+            if(v === 1) put(i, coat.c[!up || up === 3 ? 3 : !dn ? 1 : 2]);
+            else if(v === 2) put(i, coat.c[!up ? 1 : 0]);
+            else if(v === 3) put(i, coat.mane);
+            else if(v === 4) put(i, '#1a1412');
+            else if(v === 6) put(i, ramp[!up || up === 7 ? 3 : !dn || dn === 2 ? 0 : (xx === 17 || xx === 25) ? 1 : 2]);
+            else if(v === 7) put(i, !up ? '#9a6a3a' : '#6e4527');
+            else if(v === 8) put(i, '#0e0b0a');
+            else if(v === 9) put(i, coat.sock);
+        }
+        for(let yy = 0; yy < H; yy++) for(let xx = 0; xx < W; xx++)
+            if(!m[yy * W + xx] && (at(xx - 1, yy) || at(xx + 1, yy) || at(xx, yy - 1) || at(xx, yy + 1))) put(yy * W + xx, coat.o);
+        x.putImageData(id, 0, 0);
+        return (cache[key] = c);
+    }
+    return { W, H, GROUND, SADDLE, GAITS, bake, frameOf, bob: (gait, fi) => (POSES[gait][fi] || POSES.stand[0]).bob };
 })();
