@@ -45,7 +45,7 @@ checks `typeof Game`).
 **Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `vendor/pixi.min.js` → `app.js` →
 `battle.js` → `battle-gl.js` → `map-art.js` → `nobles.js` → `quests.js`. The order only prevents
 `const` collisions. `tools/harness.js` loads neither Pixi file nor `map-art.js` — in Node the
-battle always draws through Canvas2D and the map through the classic path.
+battle always draws through Canvas2D and the map draws nothing.
 
 **One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
 `Save.migrate` is a single migration chain; a new field is usually enough with the

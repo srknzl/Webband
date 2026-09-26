@@ -530,11 +530,59 @@ const MapArt = (() => {
         return true;
     }
 
+    // --- a caravan's covered wagon behind a walking horse, and the wolf pack's wolf
+    const BEASTS = new Map();
+    function cart(coat, moving, t, left) {
+        const gait = moving ? 'walk' : 'stand', fi = Horse.frameOf(gait, t);
+        const k = 'cart|' + coat + gait + fi + (left ? 'L' : 'R');
+        let c = BEASTS.get(k);
+        if(c) return c;
+        const g = sheet(76, 36), gy = Horse.GROUND;
+        g.px(2, gy - 13, 30, 5, '#7a5a36'); g.px(2, gy - 13, 30, 1, '#94703f'); g.px(2, gy - 9, 30, 1, '#5c4226');    // bed
+        for(let x = 4; x < 30; x++) {                                          // the canvas cover's arch
+            const u = (x - 4) / 25, top = Math.round(gy - 25 + 5 * (2 * u - 1) ** 2);
+            g.px(x, top, 1, gy - 13 - top, x < 9 ? '#efe6cf' : x > 25 ? '#b9ad8f' : '#d9ceb1');
+        }
+        for(const x of [9, 17, 25]) g.px(x, gy - 24, 1, 11, '#a39778');         // hoops under the cover
+        g.px(30, gy - 11, 14, 1, '#5c4226');                                   // the shaft to the horse
+        const spin = moving ? (fi & 1) : 0;
+        for(const cx of [8, 25]) {                                             // wheels, spokes turning
+            for(let a = 0; a < 16; a++) { const r = a / 16 * Math.PI * 2; g.px(Math.round(cx + Math.cos(r) * 4), Math.round(gy - 4 + Math.sin(r) * 4), 1, 1, '#3e2c1a'); }
+            if(spin) { g.px(cx - 3, gy - 4, 7, 1, '#6b4e2e'); g.px(cx, gy - 7, 1, 7, '#6b4e2e'); }
+            else { for(let d = -2; d <= 2; d++) { g.px(cx + d, gy - 4 + d, 1, 1, '#6b4e2e'); g.px(cx + d, gy - 4 - d, 1, 1, '#6b4e2e'); } }
+        }
+        outline(g);
+        g.x.drawImage(Horse.bake(coat, gait, fi, null), 28, 0);
+        if(left) { const m = sheet(76, 36); m.x.translate(76, 0); m.x.scale(-1, 1); m.x.drawImage(g.c, 0, 0); c = m.c; } else c = g.c;
+        c._ax = 0.5; c._ay = gy / 36;
+        BEASTS.set(k, c);
+        return c;
+    }
+    function wolf(moving, t, left) {
+        const f = moving ? Math.floor(t / 110) % 4 : 0, k = 'wolf' + f + (left ? 'L' : 'R');
+        let c = BEASTS.get(k);
+        if(c) return c;
+        const g = sheet(24, 15), gy = 14, fur = ['#a9afb8', '#7c828c', '#5b6068'];
+        g.px(5, gy - 9, 13, 5, fur[1]); g.px(6, gy - 10, 10, 1, fur[0]); g.px(5, gy - 5, 13, 1, fur[2]);   // body
+        g.px(17, gy - 11, 4, 4, fur[1]); g.px(17, gy - 12, 1, 1, fur[1]); g.px(19, gy - 12, 1, 1, fur[1]);   // head, ears
+        g.px(21, gy - 9, 2, 2, fur[1]); g.px(22, gy - 9, 1, 1, '#2a2a2e'); g.px(19, gy - 10, 1, 1, '#e8c85a'); // muzzle, eye
+        g.px(1, gy - 10, 4, 2, fur[1]); g.px(0, gy - 11, 2, 1, fur[0]);                                     // tail
+        const legs = [[[6, 0], [9, 1], [14, 0], [17, 1]], [[7, 1], [8, 0], [15, 1], [16, 0]], [[6, 1], [9, 0], [14, 1], [17, 0]], [[5, 0], [10, 1], [13, 0], [18, 1]]][f];
+        for(const [x, up] of legs) g.px(x, gy - 5, 1, 5 - up, up ? fur[2] : fur[1]);
+        outline(g, '#15161a');
+        if(left) { const m = sheet(24, 15); m.x.translate(24, 0); m.x.scale(-1, 1); m.x.drawImage(g.c, 0, 0); c = m.c; } else c = g.c;
+        c._ax = 0.5; c._ay = gy / 15;
+        BEASTS.set(k, c);
+        return c;
+    }
+
     // --- parties: the battle's own soldiers
     function partyLook(npc, band) {
-        if(band && (band.icon === 'wolf' || band.icon === 'cart')) return null;   // they keep their own figure
         const h = Battle.idHash({ id: npc.id });
         const cloth = npc.type === 'bandit' ? 'bandit' : Swordsman.DYE[npc.faction] ? npc.faction : 'player';
+        if(band && band.icon === 'wolf') return { kind: 'wolf' };
+        if(band && band.icon === 'cart') return { kind: 'cart', coat: ['bay', 'grey'][h % 2], cloth,
+                                                  guard: { kind: 'foot', armor: 2, weapon: 2, helm: 'cap', skin: (h >>> 3) % 4, hair: (h >>> 5) % 6, cloth } };
         if(band && band.icon === 'archer') return { kind: 'archer', cloth };
         const lordly = npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier';
         const tier = lordly ? 2 : npc.type === 'bandit' ? (band && band === BAND_KINDS.mountain ? 1 : 0) : 1;
@@ -551,6 +599,8 @@ const MapArt = (() => {
     function figure(ctx, look, x, y, k, face, moving, t) {
         let spr = null, left = face < 0;
         if(look.kind === 'horse') spr = Mounted.art(look, { gait: moving ? 'walk' : 'stand', gt: t, facing: left ? 'left' : 'right', anim: 'Idle', t, dead: false });
+        else if(look.kind === 'cart') spr = cart(look.coat, moving, t, left);
+        else if(look.kind === 'wolf') spr = wolf(moving, t, left);
         else if(look.kind === 'archer') spr = Archer.art(look.cloth, moving ? 'Walk' : 'Idle', moving ? (left ? 'left' : 'right') : 'down', t);
         else spr = Swordsman.art(look, moving ? 'Walk' : 'Idle', moving ? (left ? 'left' : 'right') : 'down', t);
         if(!spr) return false;
@@ -561,20 +611,24 @@ const MapArt = (() => {
     function party(ctx, x, y, o) {
         if(!o.look || !Swordsman.ready()) return false;
         const now = performance.now(), m = o.id !== undefined ? Game.iconMotion(o.id, x, o.moving) : { face: 1, move: o.moving ? 1 : 0, seen: 0 };
-        const k = (o.look.kind === 'horse' ? 1.35 : 1.7) * (o.scale || 1), face = m.face < 0 ? -1 : 1, moving = m.move > 0.5;
+        const big = o.look.kind === 'horse' || o.look.kind === 'cart';
+        const k = (big ? 1.35 : 1.7) * (o.scale || 1), face = m.face < 0 ? -1 : 1, moving = m.move > 0.5;
         const t = now + (Battle.idHash({ id: o.id }) % 997) * 41;
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         if(o.id !== undefined && Anim.on()) ctx.globalAlpha = Anim.k(now - m.seen, 400, 'outQuad');
-        ctx.beginPath(); ctx.ellipse(x, y, (o.look.kind === 'horse' ? 30 : 20) * (o.scale || 1), 7 * (o.scale || 1), 0, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.ellipse(x, y, (big ? 30 : 20) * (o.scale || 1), 7 * (o.scale || 1), 0, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
         // a crowd walks in a column: one follower at 10+ men, two at 30+
         const extra = o.size >= 30 ? 2 : o.size >= 10 ? 1 : 0, back = -face;
-        for(let i = extra; i >= 1; i--) figure(ctx, o.look, x + back * 16 * i * (o.scale || 1), y - 5 * i * (o.scale || 1), k * 0.82, face, moving, t + i * 130);
+        // (a caravan's column is its guards, walking behind the wagon)
+        const fl = o.look.guard || o.look, gap = o.look.kind === 'cart' ? 62 : 16;
+        for(let i = extra; i >= 1; i--) figure(ctx, fl, x + back * (gap + 16 * (i - 1)) * (o.scale || 1), y - 5 * i * (o.scale || 1), (fl === o.look ? k : 1.7 * (o.scale || 1)) * 0.82, face, moving, t + i * 130);
         const ok = figure(ctx, o.look, x, y, k, face, moving, t);
         // the party's banner, one sprite pixel wide, in its colour
         if(ok && o.banner) {
-            const s = 2.2 * (o.scale || 1), bx = x - face * (o.look.kind === 'horse' ? 10 : 9) * (o.scale || 1), top = y - (o.look.kind === 'horse' ? 64 : 50) * (o.scale || 1);
+            const s = 2.2 * (o.scale || 1), bx = x - face * (o.look.kind === 'horse' ? 10 : o.look.kind === 'cart' ? 20 : 9) * (o.scale || 1),
+                  top = y - (o.look.kind === 'horse' ? 64 : o.look.kind === 'cart' ? 58 : 50) * (o.scale || 1);
             ctx.fillStyle = '#5a4a36'; ctx.fillRect(bx - s / 2, top, s, y - top);
             const wave = Math.sin(now / 260 + x * 0.01) > 0 ? 1 : 0;
             ctx.fillStyle = o.banner;
@@ -648,7 +702,7 @@ const MapArt = (() => {
         }
         ctx.imageSmoothingEnabled = false;
 
-        G.drawMapSites(ctx, true);
+        G.drawMapSites(ctx);
 
         // settlements
         // settlements keep a readable size far out, but grow slower than parties (0.35 / zoom
@@ -671,8 +725,8 @@ const MapArt = (() => {
                   { prio: 4, color: qDone ? '#7ddc8a' : '#e0b062', up: 30 / z, down: h + 30 / z, side: w / 2 });
         }
 
-        G.drawMapParties(ctx, true);
-        G.drawMapPlayer(ctx, true);
+        G.drawMapParties(ctx);
+        G.drawMapPlayer(ctx);
 
         // time of day over the world, then what gives off light, then the words
         // (the pixel map reads brighter than the old one, so night goes a third deeper)

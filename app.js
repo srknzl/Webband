@@ -5634,14 +5634,16 @@ const Game = {
         if(e) e.innerHTML = html;
     },
 
+    TERRAIN_ICON: { 'Düzlük': 'wheat', 'Orman': 'tree', 'Nehir Geçidi': 'wave', 'Köprü': 'bridge', 'Taş Yol': 'road', 'Toprak Yol': 'road', 'Keçi Yolu': 'boot' },
     // Map tooltip: the terrain you're on + troop composition
     updateMapHud() {
         let t = document.getElementById('map-terrain-txt');
         if(!t) return;
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
         t.innerText = T(terrain.name) + (terrain.mult !== 1 ? T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
-        document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
-        document.getElementById('btn-map-speed').textContent = '⏱️ ×' + this.timeScale();
+        // line icons, not emoji (2.0.0): the terrain's own, and a clock on the speed button
+        this.setHtml('map-terrain-ico', this.icon(this.TERRAIN_ICON[terrain.name] || 'compass'));
+        this.setHtml('btn-map-speed', this.icon('clock') + ' ×' + this.timeScale());
 
         let c = this.getPartyComposition();
         // Unspent points should show from the map and open the character screen (#35)
@@ -5650,14 +5652,17 @@ const Game = {
         let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
                 + ` title="${touch ? T('Harcanmamış puanların var — karakter ekranına git')
                                     : T('Harcanmamış puanların var — karakter ekranına git (C)')}">`
-                + `✨ ${ap ? T`${ap} nitelik` : ''}${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
+                + `${this.icon('spark')} ${ap ? T`${ap} nitelik` : ''}${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
+        // the labels' keys still carry their old emoji (the dictionaries stay as they are): the
+        // emoji is cut off at display and a line icon takes its place
+        let lbl = (ic, s) => `${this.icon(ic)} ${s.replace(/^[^\p{L}\p{N}]+/u, '')}`;
         this.setHtml('map-comp',
-            `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
+            `<span title="${T('Piyade')}">${this.icon('helm')} <b>${c.infantry}</b></span><span title="${T('Okçu')}">${this.icon('bow')} <b>${c.archer}</b></span><span title="${T('Süvari')}">${this.icon('horse')} <b>${c.cavalry}</b></span>`
             + pts
-            + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${T`⏳ Bekle`}</button>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul`}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
-            + `<button id="btn-track" onclick="Game.Music.skip()" title="${touch ? T('Sıradaki parçaya geç') : T('Sıradaki parçaya geç (N)')}">${T`🎵 Sıradaki`}${touch ? '' : ' <kbd>N</kbd>'}</button>`
-            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
+            + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${lbl('glass', T`⏳ Bekle`)}</button>`
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${lbl('target', T`🎯 Beni Bul`)}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
+            + `<button id="btn-track" onclick="Game.Music.skip()" title="${touch ? T('Sıradaki parçaya geç') : T('Sıradaki parçaya geç (N)')}">${lbl('note', T`🎵 Sıradaki`)}${touch ? '' : ' <kbd>N</kbd>'}</button>`
+            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${lbl('globe', T`🌍 Diplomasi`)}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
     },
 
     renderPrisonerUI() {
@@ -5817,75 +5822,13 @@ const Game = {
 
     // --- MAP RENDER ---
     // Ground texture: a 256px repeating pattern, generated once
-    buildGroundTexture() {
-        let sz = 256;
-        let c = document.createElement('canvas'); c.width = c.height = sz;
-        let x = c.getContext('2d');
-        x.fillStyle = '#32472d'; x.fillRect(0, 0, sz, sz);
-        // Draw wrapping across the edges — otherwise tiling the pattern leaves a grid seam
-        let wrap = (px, py, draw) => {
-            for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) draw(px + ox*sz, py + oy*sz);
-        };
-        for(let i = 0; i < 26; i++) {
-            let px = Math.random()*sz, py = Math.random()*sz, r = 18 + Math.random()*40;
-            let col = Math.random() > 0.5 ? 'rgba(84,112,64,0.22)' : 'rgba(26,42,26,0.22)';
-            wrap(px, py, (qx, qy) => {
-                let g = x.createRadialGradient(qx, qy, 0, qx, qy, r);
-                g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
-                x.fillStyle = g; x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill();
-            });
-        }
-        for(let i = 0; i < 2600; i++) {
-            let px = Math.random()*sz, py = Math.random()*sz, r = 0.5 + Math.random()*1.2;
-            x.fillStyle = Math.random() > 0.5 ? 'rgba(86,116,66,0.35)' : 'rgba(28,44,26,0.35)';
-            wrap(px, py, (qx, qy) => { x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill(); });
-        }
-        this.groundPattern = this.ctx.createPattern(c, 'repeat');
-    },
-
-    // Map name labels — a legible plate instead of bare shadowed text.
-    // Overlapping ones shift upward (so names in a crowded area don't eat each other).
-    // Label size scales with the screen: a fixed 19px is correct on a 1440px canvas,
-    // but labels ran into each other on a 370px phone (#86). The short side's
-    // 620px is the reference; a screen below that shrinks down to 68%.
+    // Map label size scales with the screen: a fixed size is right on a 1440px canvas, but
+    // labels ran into each other on a 370px phone (#86). The short side's 620px is the
+    // reference; a screen below that shrinks down to 68% (MapArt's labels read it).
     uiScale() {
         let cv = this.mapCanvas;
         if(!cv || !cv.width) return 1;
         return Math.max(0.68, Math.min(1, Math.min(cv.width, cv.height) / 620));
-    },
-
-    mapLabel(ctx, text, x, y, color, accent) {
-        // Text size is independent of zoom: it reads at the same on-screen size at every zoom level
-        let s = this.uiScale(), k = s / this.camera.zoom;
-        let w = this.textW(ctx, text) * k + 18*k, h = 25*k;
-        ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-
-        if(!this._labelRects) this._labelRects = [];
-        let free = false;
-        for(let tries = 0; tries < 8; tries++) {
-            let hit = this._labelRects.some(r =>
-                Math.abs(r.x - x) < (r.w + w)/2 && Math.abs(r.y - y) < (r.h + h)/2 + 3);
-            if(!hit) { free = true; break; }
-            y -= h + 5;
-        }
-        // If no room opened up, the label just isn't drawn: printing it anyway after
-        // 8 tries produced a wall of overlapping text on a narrow screen (#86). Whose
-        // name got dropped can be read from the tooltip — two overlapping names, both are hidden.
-        if(!free) return;
-        this._labelRects.push({ x, y, w, h });
-
-        ctx.fillStyle = 'rgba(8,10,14,0.72)';
-        ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(x - w/2, y - h/2, w, h, 5*k);
-        else ctx.rect(x - w/2, y - h/2, w, h);
-        ctx.fill();
-        if(accent) {
-            ctx.fillStyle = accent;
-            ctx.fillRect(x - w/2, y + h/2 - 2.5*k, w, 2.5*k);
-        }
-        ctx.fillStyle = color;
-        ctx.fillText(text, x, y);
     },
 
     // --- MAP PARTY ICONS ---
@@ -6117,10 +6060,9 @@ const Game = {
         ctx.restore();
     },
 
-    // The pieces of the map both styles draw alike (2.0.0 split them out of renderMap):
-    // discovery sites, the parties in sight, the player, the marching route. `pixel` swaps the
-    // drawn figure and the label for MapArt's.
-    drawMapSites(ctx, pixel) {
+    // The game's side of the map that MapArt draws (split out of renderMap in 2.0.0): which
+    // discovery sites, parties and route are on show, how they're labelled and coloured.
+    drawMapSites(ctx) {
         // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
         (state.sites || []).forEach(site => {
             if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
@@ -6130,15 +6072,14 @@ const Game = {
             ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
             ctx.globalAlpha = fresh ? 0.95 : 0.45;
-            if(!(pixel && MapArt.site(ctx, site, big))) this.emoji(ctx, site.icon || k.icon, site.x, site.y + 10, big);
+            MapArt.site(ctx, site, big);
             ctx.globalAlpha = 1;
             // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
             if(!((fresh || k.boss) && this.camera.zoom > 0.18)) return;
-            if(pixel) MapArt.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
-            else this.mapLabel(ctx, T(site.name || k.name), site.x, site.y - big*0.75 - 10, k.boss ? '#e0b0b0' : '#cbbf9a', k.boss ? '#7a2a2a' : '#8a7b52');
+            MapArt.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
         });
     },
-    drawMapParties(ctx, pixel) {
+    drawMapParties(ctx) {
         // NPCs (only those in sight range)
         state.npcParties.forEach(npc => {
             let dx = npc.x - state.player.x;
@@ -6192,7 +6133,8 @@ const Game = {
                 bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
                 dim: npc.type === 'bandit'
             };
-            if(!(pixel && MapArt.party(ctx, npc.x, npc.y + 22, Object.assign({ look: MapArt.partyLook(npc, band), banner: npc.type === 'bandit' ? null : nCol }, iconOpts))))
+            // the drawn silhouette only stands in until the soldiers' sprite sheets have loaded
+            if(!MapArt.party(ctx, npc.x, npc.y + 22, Object.assign({ look: MapArt.partyLook(npc, band), banner: npc.type === 'bandit' ? null : nCol }, iconOpts)))
                 this.drawPartyIcon(ctx, npc.x, npc.y + 22, iconOpts);
 
             if(lone) {                                      // what their story is, at a glance (#119)
@@ -6231,11 +6173,10 @@ const Game = {
             let txt = `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`;
             // who gets a label when there's no room for all: foes, then lords, then the rest
             let lordly = npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier';
-            if(pixel) MapArt.label(npc.x, npc.y + 22, txt, { prio: foe ? 3.5 : lordly ? 4 : 5, color: txtCol, dot: nCol, foe, up: 62, down: 10, side: 24 });
-            else this.mapLabel(ctx, txt, npc.x, npc.y + 50, txtCol, nCol);
+            MapArt.label(npc.x, npc.y + 22, txt, { prio: foe ? 3.5 : lordly ? 4 : 5, color: txtCol, dot: nCol, foe, up: 62, down: 10, side: 24 });
         });
     },
-    drawMapPlayer(ctx, pixel) {
+    drawMapPlayer(ctx) {
         // Player
         // While captive, the only party moving on the map is the one holding you; you have
         // no separate group. The player icon + name + "Captive" text used to be drawn at the
@@ -6265,13 +6206,12 @@ const Game = {
                     scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
                     bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
                 };
-                if(!(pixel && MapArt.party(ctx, state.player.x, state.player.y + 28, Object.assign({ look: MapArt.playerLook(), banner: this.bannerColor() }, iconOpts))))
+                if(!MapArt.party(ctx, state.player.x, state.player.y + 28, Object.assign({ look: MapArt.playerLook(), banner: this.bannerColor() }, iconOpts)))
                     this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, iconOpts);
             }
 
             let txt = `${state.player.wait ? '⛺ ' : ''}${state.player.name} (${state.player.party.length + 1})`;
-            if(pixel) MapArt.label(state.player.x, state.player.y + 28, txt, { prio: 0, color: '#ffcc00', dot: this.bannerColor(), up: 74, down: 12, side: 28, must: true, edge: 'rgba(255,204,0,0.6)' });
-            else this.mapLabel(ctx, txt, state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
+            MapArt.label(state.player.x, state.player.y + 28, txt, { prio: 0, color: '#ffcc00', dot: this.bannerColor(), up: 74, down: 12, side: 28, must: true, edge: 'rgba(255,204,0,0.6)' });
         }
     },
     drawMapRoute(ctx) {
@@ -6305,289 +6245,15 @@ const Game = {
         if(this.dragTarget) route(this.dragTarget, false);
     },
 
-    // 'pixel' (2.0.0) or 'classic', which the mock compares against; `?map=classic` asks for it.
-    mapStyle() {
-        if(this._mapStyle === undefined) {
-            let q = null;
-            try { q = new URLSearchParams(location.search).get('map'); } catch(e) {}
-            this._mapStyle = q === 'classic' || typeof MapArt === 'undefined' ? 'classic' : 'pixel';
-        }
-        return this._mapStyle;
-    },
-
+    // The campaign map is MapArt's (map-art.js, 2.0.0): a baked pixel terrain, settlement and
+    // party sprites, labels laid out on top. Without it (tools/harness.js runs in Node and does
+    // not load it) there is simply nothing to draw.
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
         // Time stops while a modal is open; continuing to draw made the modal's glass panel
         // recompute its backdrop blur every frame.
         if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
-        let c = this.mapCanvas, ctx = this.ctx;
-        let W = c.width, H = c.height;
-        // On a phone the bottleneck isn't JS but fill rate (#84): the `lite` branches below
-        // replace full-screen expensive layers with flat equivalents.
-        let lite = this.lite();
-        this._labelRects = [];
-        if(this.mapStyle() === 'pixel') return MapArt.render(this);
-        ctx.clearRect(0,0,W,H);
-        ctx.save();
-        ctx.scale(this.camera.zoom, this.camera.zoom);
-        ctx.translate(-this.camera.x + W/(2*this.camera.zoom), -this.camera.y + H/(2*this.camera.zoom));
-
-        // --- Sea
-        if(!this._seaGrad) {
-            let g = ctx.createLinearGradient(0, -2000, 0, 11000);
-            g.addColorStop(0, '#0a1c2e');
-            g.addColorStop(0.5, '#123c58');
-            g.addColorStop(1, '#0a1c2e');
-            this._seaGrad = g;
-        }
-        // The gradient is cached but every pixel is still sampled: measured 0.99ms -> 0.06ms
-        ctx.fillStyle = lite ? '#123c58' : this._seaGrad;
-        ctx.fillRect(-5000, -5000, 20000, 20000);
-
-        // Sea waves — 26 polylines × 45 points; the sea stays flat in lite mode
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.lineWidth = 6;
-        let wt = performance.now() / 4000;
-        for(let i = -4; i < 22 && !this.lite(); i++) {
-            let y = i * 600 + Math.sin(wt + i) * 40;
-            ctx.beginPath();
-            for(let x = -4000; x < 14000; x += 400) ctx.lineTo(x, y + Math.sin((x/900) + wt*2 + i) * 30);
-            ctx.stroke();
-        }
-
-        // --- Continent
-        ctx.save();
-        ctx.beginPath();
-        for(let i=0; i<state.mapBorder.length; i++) {
-            let pt = state.mapBorder[i];
-            if(i===0) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.closePath();
-
-        // Beach + coastal shadow
-        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        if(!lite) { ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke(); }
-        ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
-        // Coastal shadow: `shadowBlur = 70` blurred the whole continent pixel by pixel
-        // every frame. Three wide transparent outlines give the same halo, the cost is a path stroke.
-        // In lite mode the beach strip stays, the halo drops: 6 wide outlines is 0.48ms, 1 is 0.12ms.
-        if(!lite) {
-            ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-            for(let bw of [130, 86, 48]) { ctx.lineWidth = bw; ctx.stroke(); }
-        }
-        ctx.fillStyle = '#2f452c'; ctx.fill();
-        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
-
-        ctx.clip(); // Nothing after this spills outside the continent
-
-        // Ground texture (generated once and tiled as a pattern). Filling the whole
-        // continent a second time, sampling a texture on top, costs 2.06ms on its own —
-        // the single most expensive thing on the map. In lite mode the flat green underneath stays.
-        if(!lite) {
-            if(!this.groundPattern) this.buildGroundTexture();
-            ctx.fillStyle = this.groundPattern;
-            ctx.fill();
-        }
-
-        // Dirt patches — soft-edged
-        if(!state.dirtPatches) {
-            state.dirtPatches = [];
-            for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
-        }
-        if(!this.lite()) state.dirtPatches.forEach(d => {
-            ctx.save(); ctx.translate(d.x, d.y);
-            ctx.fillStyle = this.radial(ctx, Math.round(d.r), 'rgba(30,44,28,0.55)', 'rgba(30,44,28,0)');
-            ctx.beginPath(); ctx.arc(0, 0, d.r, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-        });
-
-        // Rivers — bed, water, current
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        RIVERS.forEach(riv => {
-            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2);
-            if(lite) { ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.9)'; ctx.stroke(); return; }
-            ctx.lineWidth = riv.width + 22; ctx.strokeStyle = 'rgba(96,110,70,0.55)'; ctx.stroke();
-            ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.85)'; ctx.stroke();
-            ctx.lineWidth = riv.width * 0.45; ctx.strokeStyle = 'rgba(120,200,235,0.5)'; ctx.stroke();
-        });
-        if(!lite) {   // flowing shimmer: lineDashOffset changes every frame, so it's a new stroke each frame
-            ctx.setLineDash([50, 90]);
-            ctx.lineDashOffset = -(performance.now() / 25);
-            ctx.strokeStyle = 'rgba(255,255,255,0.30)';
-            RIVERS.forEach(riv => {
-                ctx.lineWidth = Math.max(3, riv.width * 0.18);
-                ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2); ctx.stroke();
-            });
-            ctx.setLineDash([]);
-        }
-
-        // Roads — a separate texture per kind (#56): paved main road, dirt road,
-        // an unmaintained goat path. Same-kind roads collect into one path (3 stroke sets per frame).
-        if(state.roads) {
-            const STYLE = {
-                stone: { w: 52, shoulder: 'rgba(78,72,60,0.45)', top: 36, surf: 'rgba(150,146,134,0.48)',
-                         mark: 'rgba(226,222,208,0.26)', dash: [26, 20], mw: 5 },
-                dirt:  { w: 44, shoulder: 'rgba(92,68,38,0.45)', top: 28, surf: 'rgba(158,124,74,0.42)',
-                         mark: 'rgba(214,186,132,0.30)', dash: [70, 55], mw: 4 },
-                track: { w: 26, shoulder: 'rgba(84,72,44,0.30)', top: 14, surf: 'rgba(150,132,88,0.28)',
-                         mark: 'rgba(198,180,132,0.22)', dash: [22, 46], mw: 3 }
-            };
-            for(let kind of ['stone', 'dirt', 'track']) {
-                let st = STYLE[kind];
-                ctx.beginPath();
-                let any = false;
-                state.roads.forEach(r => {
-                    if((r.kind || 'dirt') !== kind) return;
-                    any = true;
-                    ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2);
-                });
-                if(!any) continue;
-                ctx.lineWidth = st.w;   ctx.strokeStyle = st.shoulder; ctx.stroke();
-                ctx.lineWidth = st.top; ctx.strokeStyle = st.surf;     ctx.stroke();
-                if(lite) continue;               // the center-line marking is decorative: the road's kind already reads from its width
-                ctx.setLineDash(st.dash);
-                ctx.lineWidth = st.mw;  ctx.strokeStyle = st.mark;     ctx.stroke();
-                ctx.setLineDash([]);
-            }
-            // The road opens into a square at a settlement's mouth
-            ctx.fillStyle = 'rgba(120,98,62,0.35)';
-            LOCATIONS.forEach(l => {
-                let r = l.type === 'city' ? 70 : l.type === 'castle' ? 52 : 40;
-                ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI*2); ctx.fill();
-            });
-            // Bridges — planks crossing over the river
-            (state.bridges || []).forEach(b => {
-                let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // the road's own width
-                ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a || 0);
-                ctx.fillStyle = 'rgba(70,52,30,0.92)';
-                ctx.fillRect(-w * 1.3, -w, w * 2.6, w * 2);
-                ctx.strokeStyle = 'rgba(186,152,96,0.95)'; ctx.lineWidth = 4;
-                for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // planks perpendicular to the road
-                    ctx.beginPath(); ctx.moveTo(i, -w + 2); ctx.lineTo(i, w - 2); ctx.stroke();
-                }
-                ctx.restore();
-            });
-        }
-
-        // Forests — actual trees (positions generated once and stored)
-        if(!this._forestTrees) {
-            this._forestTrees = FORESTS.map(f => {
-                let arr = [];
-                let n = Math.max(14, Math.floor(f.radius / 11));
-                for(let i=0;i<n;i++) {
-                    let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.radius * 0.95;
-                    arr.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 18 + Math.random()*20 });
-                }
-                arr.sort((p,q) => p.y - q.y);
-                return arr;
-            });
-        }
-        // The forest patch stays fixed: its gradient is generated once. The trees (4 forests ×
-        // ~15 trees, each 6 path segments + 1 gradient) drop in lite mode, the patch stays.
-        if(!this._forestGrad) this._forestGrad = FORESTS.map(f => {
-            let g = ctx.createRadialGradient(f.x, f.y, f.radius*0.2, f.x, f.y, f.radius);
-            g.addColorStop(0, 'rgba(16,38,18,0.85)');
-            g.addColorStop(1, 'rgba(16,38,18,0)');
-            return g;
-        });
-        // In lite mode the trees are thinned but not switched off: a darkening disc alone
-        // doesn't stand out from the ground, the forest became invisible — but a forest is
-        // gameplay information (ambush, spotting, speed). With a third left the patch still reads.
-        let step = this.lite() ? 3 : 1;
-        FORESTS.forEach((f, i) => {
-            ctx.fillStyle = this._forestGrad[i];
-            ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI*2); ctx.fill();
-            this._forestTrees[i].forEach((t, j) => { if(j % step === 0) Battle.drawTree(ctx, t.x, t.y, t.r); });
-        });
-
-        ctx.restore(); // continent clip ends
-
-        this.drawMapSites(ctx, false);
-
-        // Draw locations
-        // A quest's "where" also shows on the map: it comes from the same source
-        // as the 📍 in the quest screen (QUESTS[].where), so the two lists can't drift apart.
-        let questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
-        LOCATIONS.forEach(loc => {
-            let fc = FACTIONS[loc.faction] || {color:'#888'};
-            let ik = this.iconScale();
-            let big = (loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32) * ik;
-            let icon = loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️';
-
-            // Ground shadow
-            ctx.beginPath();
-            ctx.ellipse(loc.x, loc.y + 18, big*0.55, big*0.22, 0, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
-
-            this.emoji(ctx, icon, loc.x, loc.y + 15, big);
-
-            // Faction pennant
-            let px = loc.x + big*0.42, py = loc.y - big*0.45;
-            ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3 * ik;
-            ctx.beginPath(); ctx.moveTo(px, py + 34*ik); ctx.lineTo(px, py - 26*ik); ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(px, py - 26*ik); ctx.lineTo(px + 30*ik, py - 17*ik); ctx.lineTo(px, py - 8*ik);
-            ctx.closePath();
-            ctx.fillStyle = fc.color; ctx.fill();
-            ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
-
-            let qm = questMarks[loc.id], qDone = qm && qm.some(x => x.done);
-            if(qm) this.emoji(ctx, qDone ? '✅' : '📜', loc.x - big*0.55, loc.y - 15 - 34*ik, 36*ik);
-
-            this.mapLabel(ctx, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
-            if(qm && this.camera.zoom > 0.18)
-                this.mapLabel(ctx, qm.map(x => (x.done ? '✅ ' : '') + x.title).join(' · '), loc.x, loc.y - big*0.82 - 34,
-                              qDone ? '#7ddc8a' : '#e0b062', qDone ? '#2a7a3a' : '#8a6a2a');
-        });
-
-        // --- TIME OF DAY ---
-        // Night is blue, dawn/dusk warm-toned. At night, settlements have hearth light.
-        let tint = this.dayTint();
-        if(tint) {
-            ctx.fillStyle = tint;
-            ctx.fillRect(-1000, -1000, 11000, 11000);
-        }
-        // Hearth light: one gradient, intensity via globalAlpha (0 gradients/frame instead of 25)
-        let glow = this.nightGlow();
-        if(glow > 0.02 && !this.lite()) {
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.globalAlpha = 0.30 * glow;
-            ctx.fillStyle = this.radial(ctx, 110, 'rgba(255,170,70,1)', 'rgba(255,140,50,0)');
-            LOCATIONS.forEach(loc => {
-                ctx.save(); ctx.translate(loc.x, loc.y);
-                ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI*2); ctx.fill();
-                ctx.restore();
-            });
-            ctx.globalAlpha = 1;
-            ctx.globalCompositeOperation = 'source-over';
-        }
-
-        // No fog of war: terrain, roads, and settlements are always visible (like Warband).
-        // The only thing hidden is parties — those are filtered by Game.canSee().
-
-        // Draw a mountain range along the borders
-        // Half of the 315 border points were mountains: ~157 emoji rasterizations per frame.
-        // Now a baked sprite is stamped, and in lite mode it's also thinned to one in four.
-        let mStep = this.lite() ? 4 : 2;
-        state.mapBorder.forEach((pt, index) => {
-            if(index % mStep === 0) {
-                let sz = 42 + ((index * 37) % 24); // a broken silhouette instead of a regular repeat
-                this.emoji(ctx, '🏔️', pt.x, pt.y + 20 + (index % 3) * 6, sz);
-            }
-        });
-
-        this.drawMapParties(ctx, false);
-
-        this.drawMapPlayer(ctx, false);
-
-        this.drawMapRoute(ctx);
-
-        // Location markers learned from lords
-        Nobles.drawMarkers(ctx);
-
-        ctx.restore();
-        this.drawHail(ctx, W, H);
+        if(typeof MapArt !== 'undefined') MapArt.render(this);
     },
 
     handleMapHover(e) {

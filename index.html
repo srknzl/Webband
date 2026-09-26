@@ -76,7 +76,15 @@
         <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5S14.5 17.9 12 20.5C9.5 17.9 8.5 15.1 8.5 12S9.5 6.1 12 3.5z"/></symbol>
         <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
         <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/></symbol>
-        <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+        <symbol id="i-bow" viewBox="0 0 24 24"><path d="M7 3c6 3.5 6 14.5 0 18"/><path d="M7 3v18"/><path d="M4 12h15M16 9l3 3-3 3"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24"><path d="M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8z"/><path d="M19 15v5M16.5 17.5h5"/></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol>
+<symbol id="i-wheat" viewBox="0 0 24 24"><path d="M12 21V7"/><path d="M12 8C9 7 8 5 8 3c3 0 4 2 4 5zm0 0c3-1 4-3 4-5-3 0-4 2-4 5zM12 13c-3-1-4-3-4-5 3 0 4 2 4 5zm0 0c3-1 4-3 4-5-3 0-4 2-4 5z"/></symbol>
+<symbol id="i-tree" viewBox="0 0 24 24"><path d="M12 3l5 7h-3l4 6H6l4-6H7z"/><path d="M12 16v5"/></symbol>
+<symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 9c3-3 6 3 9 0s6 3 9 0M3 15c3-3 6 3 9 0s6 3 9 0"/></symbol>
+<symbol id="i-bridge" viewBox="0 0 24 24"><path d="M2 9h20"/><path d="M4 9v10M20 9v10"/><path d="M4 17c3-5 13-5 16 0"/></symbol>
+<symbol id="i-road" viewBox="0 0 24 24"><path d="M9 3L6 21M15 3l3 18"/><path d="M12 4v3M12 10.5v3M12 17v3"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
     </defs></svg>
 
     <div id="game-container">
@@ -249,9 +257,9 @@
                         <div id="map-tooltip" class="glass-panel hidden"></div>
                         <!-- Grup künyesi: arazi + birlik dağılımı (Warband'ın grup penceresi gibi) -->
                         <div id="map-hud" class="glass-panel">
-                            <div id="map-terrain"><span class="mh-ico"><svg class="i"><use href="#i-compass"/></svg></span><span id="map-terrain-txt">Düzlük</span></div>
+                            <div id="map-terrain"><span class="mh-ico" id="map-terrain-ico"><svg class="i"><use href="#i-compass"/></svg></span><span id="map-terrain-txt">Düzlük</span></div>
                             <div id="map-comp"></div>
-                            <button id="btn-map-speed" onclick="Game.cycleTimeScale()" title="Zaman akış hızı (Z)">⏱️ ×1</button>
+                            <button id="btn-map-speed" onclick="Game.cycleTimeScale()" title="Zaman akış hızı (Z)"><svg class="i"><use href="#i-clock"/></svg> ×1</button>
                         </div>
                     </div>
 

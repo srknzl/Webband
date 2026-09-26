@@ -45,6 +45,11 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
   haydut ini) küçük pixel yapılar oldu.
 - **Yazılar birbirini ve şehri örtmüyor.** Önce senin adın, sonra şehirler, düşmanlar ve
   lordlar yer buluyor. Hiçbir yazı bir şehrin çiziminin üstüne binmiyor.
+- **Kervanlar ve kurtlar.** Kervan artık atın çektiği, tekerlekleri dönen üstü örtülü bir
+  araba. Muhafızları arkasından yürüyor. Kurt sürüsü tırıs giden pixel kurtlar.
+- **Harita panelinde çizgi ikonlar.** Sol alttaki arazi kutusundaki emojiler (birlik sayıları,
+  Bekle, Beni Bul, Sıradaki, Diplomasi, hız) üst çubuktaki gibi çizgi ikon oldu. Arazinin
+  ikonu da bulunduğun yere göre değişiyor: ova, orman, nehir, köprü, yol.
 - **Gece pencereler yanıyor.** Gece biraz daha karanlık. Şehir ve köylerin pencereleri tek tek
   yanıyor.
 

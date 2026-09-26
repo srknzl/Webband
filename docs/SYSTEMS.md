@@ -219,8 +219,10 @@ daily (newest first). In battle, `Game.moraleMult()` = `0.8 + morale/250` scales
 - Tooltip overflow is solved once (`Game.initTooltipClamp()`), never per-badge.
 - Side menu: `M/C/P/I/Q` shortcuts, **K** diplomacy, **Esc** to map, **WASD**/arrows pan,
   **Space** recenters — all via `Input.init`, disabled during a modal/battle.
-- Map HUD: terrain + speed, troop composition, ⏳ Wait / 🎯 Find Me / 🎵 Next / 🌍 Diplomacy,
-  time-speed button. Collapses to two rows + "⋯ Daha" under 820px.
+- Map HUD: terrain + speed, troop composition, Wait / Find Me / Next / Diplomacy, time-speed
+  button. Since 2.0.0 all of them use line icons (`Game.icon`); the terrain's icon comes from
+  `Game.TERRAIN_ICON` by name. The labels' dictionary keys still carry their old emoji, which
+  is cut off at display. Collapses to two rows + "⋯ Daha" under 820px.
 - `Game.setHtml(id, html)` only writes `innerHTML` when the text actually changed.
 - **Icons (2.0.0)**: one inline SVG sprite (`#icon-sprite`, 50 line symbols) at the top of
   `index.html`; `Game.icon(name)` → `<svg class="i"><use href="#i-name"/></svg>`, colored
@@ -997,11 +999,10 @@ questions. Gradients are cached in world coordinates so panning doesn't invalida
 
 ### Pixel map (2.0.0)
 `map-art.js` (`MapArt`) draws the campaign map in the battle's pixel world. `Game.renderMap()`
-hands over to `MapArt.render(Game)` unless `Game.mapStyle()` says `'classic'` (`?map=classic`,
-or `MapArt` not loaded, as in `tools/harness.js`). The old path stays for the round-2 comparison
-and goes once the pixel map is approved. The parts both styles share were split out of
-`renderMap`: `drawMapSites / drawMapParties / drawMapPlayer / drawMapRoute`, each with a `pixel`
-flag that swaps the figure and the label.
+hands over to `MapArt.render(Game)`. In `tools/harness.js` MapArt isn't loaded and the map draws
+nothing. The emoji-and-vector map it replaced was removed after round 2 approved this one. The
+game's side of the drawing lives in `drawMapSites / drawMapParties / drawMapPlayer /
+drawMapRoute`: what is on show, its colour, its label.
 - **Terrain bake.** The whole continent is baked once into one canvas, `TEX` = 8 world units
   per pixel, 1275×1275 (the square −600…9600). Per texel: sea by depth, foam and beach, or
   ground. Ground is four shades of the land's palette, picked by value noise with light Bayer
@@ -1033,7 +1034,10 @@ flag that swaps the figure and the label.
 - **Sites** (#58) have their own sprites: ruin, farm, tower, cave, camp, lair, boss keep.
 - **Parties** are the battle's soldiers: `MapArt.partyLook` gives lords, kings and viziers a
   Mounted knight in their kingdom's cloth, bandits a tier-0/1 Swordsman in bandit brown, forest
-  bandits the Archer. Caravans and wolves keep their drawn figures. The player is
+  bandits the Archer. A caravan is a covered wagon behind a walking `Horse` (spokes turning), its
+  column capped-and-armed guards walking behind. A wolf pack is a pixel wolf with a four-frame
+  trot. The old drawn silhouettes (`drawPartyIcon`) only stand in until the sprite sheets have
+  loaded. The player is
   `Battle.spriteLook` of the player, so the map shows what they wear. Idle faces down, walking
   faces the way it moves (`Game.iconMotion`), and 10+ / 30+ men add one or two followers.
   `Swordsman.load()` / `Archer.load()` are called from the map, not only from a battle.
