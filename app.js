@@ -2198,12 +2198,13 @@ const Game = {
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
-        let html = `${this.creationSteps(step)}<h3>${T(q.q)}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>
+        let html = `${this.creationSteps(step)}${this.heroHead(`<h3>${T(q.q)}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>`)}
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn cr-opt${sel === o.id ? ' sel' : ''}"
                 aria-label="${T(o.label)}"
+                onmouseenter="Game.crHover('${q.key}','${o.id}')" onmouseleave="Game.crHover()" onfocus="Game.crHover('${q.key}','${o.id}')" onblur="Game.crHover()"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
                 <b>${T(o.label)}</b>
                 <span class="cr-desc">${T(o.desc)}</span>
@@ -2213,6 +2214,87 @@ const Game = {
         html += `</div>`;
         if(step > 0) html += `<button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
+        this.startHeroPreview();
+    },
+
+    // ---- The hero as the wizard builds them (2.1) ----
+    // Round 1 put the player's own sprite where a portrait would be: the soldier stands on a patch
+    // of the battle's meadow in the unsworn warband's gold, and every choice shows on it — a
+    // background's sword, axe or horse, a woman's long hair, the chosen banner's colour on the
+    // pennant. Pointing at an option (hover or keyboard focus) previews it before it's picked.
+    heroHead(inner) {
+        return `<div class="cr-head"><div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>
+            <span class="cr-hero-nm" id="cr-hero-nm"></span></div><div class="cr-head-tx">${inner}</div></div>`;
+    },
+    crHover(key, id) { this._crHover = key ? { key, id } : null; },
+    // what the choices so far (plus the one being pointed at) would put on the hero
+    heroPreview() {
+        let sel = Object.assign({}, this.creation.sel), h = this._crHover;
+        if(h) sel[h.key] = h.key === 'banner' ? +h.id : h.id;
+        let eq = {};
+        BACKGROUND.forEach(q => {
+            let o = q.opts.find(x => x.id === sel[q.key]);
+            if(o && o.item && ITEMS[o.item]) eq[ITEMS[o.item].type] = ITEMS[o.item];
+        });
+        let fem = sel.gender === 'female', banner = sel.banner !== undefined ? (BANNERS[sel.banner] || BANNERS[0]).color : '#8a8173';
+        let look = typeof Battle !== 'undefined' && Swordsman.ready() ? Battle.heroLook(eq, fem, 'player', !!eq.horse) : null;
+        return { look, banner };
+    },
+    startHeroPreview() {
+        let cv = document.getElementById('cr-hero');
+        if(!cv) return;
+        let nm = document.getElementById('cr-hero-nm');
+        if(nm) nm.textContent = state.player.name || '';
+        if(typeof Swordsman !== 'undefined') { Swordsman.load(); if(typeof Archer !== 'undefined') Archer.load(); }
+        let dpr = Math.min(3, window.devicePixelRatio || 1), css = cv.clientWidth || 112;
+        cv.width = cv.height = Math.round(css * dpr);
+        this._crHover = null;
+        if(this._heroId) return;                        // one loop, whichever step started it
+        const tick = t => {
+            let c = document.getElementById('cr-hero');
+            if(!c) { this._heroId = null; return; }      // the wizard closed: the loop ends with it
+            this.drawHero(c, Anim.on() ? t : 0);
+            this._heroId = requestAnimationFrame(tick);
+        };
+        this._heroId = requestAnimationFrame(tick);
+    },
+    drawHero(cv, t) {
+        let x = cv.getContext('2d'), W = cv.width, s = W / 112, { look, banner } = this.heroPreview();
+        x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, W);
+        x.imageSmoothingEnabled = false;
+        x.scale(s, s);
+        x.drawImage(this.heroGround(), 0, 0, 112, 112);
+        let fx = 56, fy = 90, k = 3;                    // the feet, and 3 CSS px per sprite pixel
+        x.fillStyle = 'rgba(0,0,0,0.3)'; x.beginPath(); x.ellipse(fx, fy, look && look.kind === 'horse' ? 30 : 16, 5, 0, 0, Math.PI * 2); x.fill();
+        // the pennant behind the hero: a pole and three rows of cloth in the chosen banner's colour
+        let px = look && look.kind === 'horse' ? fx - 34 : fx - 20, top = fy - 70, wave = ((t / 260) | 0) % 2;
+        x.fillStyle = '#5a4a36'; x.fillRect(px, top, 3, fy - top);
+        x.fillStyle = banner;
+        for(let r = 0; r < 4; r++) x.fillRect(px + 3, top + r * 3, (7 - r - (r ? wave : 0)) * 3, 3);
+        x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 3, top + 9, 12, 2);
+        if(!look) return;
+        let spr = look.kind === 'horse' ? Mounted.art(look, { gait: 'stand', gt: t, facing: 'right', anim: 'Idle', t, dead: false })
+                : look.kind === 'archer' ? Archer.art(look.cloth, 'Idle', 'down', t)
+                : Swordsman.art(look, 'Idle', 'down', t);
+        if(!spr) return;
+        let kk = look.kind === 'horse' ? 2.2 : k, w = spr.width * kk, h = spr.height * kk;
+        x.drawImage(spr, Math.round(fx - spr._ax * w), Math.round(fy - spr._ay * h), w, h);
+    },
+    // a round patch of the battle's pixel meadow for the hero to stand on, baked once
+    heroGround() {
+        if(this._heroGround) return this._heroGround;
+        let c = document.createElement('canvas'); c.width = c.height = 38;
+        let x = c.getContext('2d'), img = x.createImageData(38, 38), d = img.data, h = 7;
+        const BASE = [76, 116, 57], TONES = [[85, 128, 63], [70, 105, 58], [63, 96, 52], [91, 136, 68]];
+        for(let y = 0; y < 38; y++) for(let xx = 0; xx < 38; xx++) {
+            let dx = (xx - 18.5) / 18.5, dy = (y - 30) / 8, i = (y * 38 + xx) * 4;
+            if(y < 22 || dx * dx + dy * dy > 1) continue;              // an oval under the feet
+            h = (h * 1103515245 + 12345) >>> 0;
+            let col = (h >>> 16) % 100 < 16 ? TONES[(h >>> 8) % 4] : BASE;
+            d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+        }
+        x.putImageData(img, 0, 0);
+        return (this._heroGround = c);
     },
 
     pickCreation(key, id) {
@@ -2245,12 +2327,12 @@ const Game = {
     },
 
     renderBannerStep() {
-        let html = `${this.creationSteps(BACKGROUND.length)}<h3>${T`Sancağını seç`}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
+        let html = `${this.creationSteps(BACKGROUND.length)}${this.heroHead(`<h3>${T`Sancağını seç`}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>`)}
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
-            html += `<button class="btn" aria-label="${T(b.name)}" onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
+            html += `<button class="btn" aria-label="${T(b.name)}" onclick="Game.pickBanner(${i})" onmouseenter="Game.crHover('banner',${i})" onmouseleave="Game.crHover()" onfocus="Game.crHover('banner',${i})" onblur="Game.crHover()" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
                 border-radius:var(--r-md);border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
                 <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
                 <div style="font-size:var(--fs-sm);margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
@@ -2258,6 +2340,7 @@ const Game = {
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
+        this.startHeroPreview();
     },
 
     pickBanner(i) {
@@ -2316,7 +2399,8 @@ const Game = {
         let b = BANNERS[sel.banner || 0];
         let html = `<h3>${state.player.name}</h3>
             <div style="display:flex;gap:1.2rem;align-items:flex-start;margin-top:0.6rem">
-                ${this.bannerCss(sel.banner || 0, 96)}
+                <div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>
+                    <div style="display:flex;justify-content:center;margin-top:0.4rem">${this.bannerCss(sel.banner || 0, 56)}</div></div>
                 <div style="flex:1;font-size:var(--fs-md);line-height:1.5">
                     <div style="color:${b.color};font-weight:bold">${T`${T(b.name)} sancağı`}</div>
                     ${rows}
@@ -2328,6 +2412,7 @@ const Game = {
                 <button class="btn" onclick="Game.creationBack()">${T`← Geri`}</button>
             </div>`;
         this.showModal(html, '660px');
+        this.startHeroPreview();
     },
 
     // Applies the chosen background to the character. Single application point — the summary

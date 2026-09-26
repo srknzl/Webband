@@ -381,7 +381,7 @@ const BattleGL = {
         }
         if(this.groundFor !== b.ground) {
             let old = this.ground.texture;
-            this.ground.texture = this.texOf(b.ground);
+            this.ground.texture = this.texOf(b.ground, true);   // pixel ground (2.1): hard edges at any zoom
             this.ground.scale.set(1 / b.ground._s);
             if(old && old !== PIXI.Texture.EMPTY) old.destroy(true);
             this.groundFor = b.ground;

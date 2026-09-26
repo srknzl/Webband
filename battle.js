@@ -1605,40 +1605,66 @@ const Battle = {
     // --- Ground: grass + terrain is drawn once to an offscreen canvas, never regenerated every frame
     // `scale` (1.33.0): the WebGL renderer bakes the same field at more pixels per unit so the
     // zoomed camera doesn't magnify a 1x bitmap; every coordinate below stays in field units.
+    // The field is pixel art at the soldiers' own pixel size (2.1): everything below is drawn
+    // into a small canvas, one pixel per GROUND_PX field units (the Swordsman sprite's K), then
+    // blown up without smoothing — so the grass, the river, the trees and the walls share the
+    // soldiers' pixel grid instead of being a soft painting under crisp sprites. `scale` is the
+    // WebGL path's sharper bake (screen density × zoom); the pixels stay the same size.
+    GROUND_PX: 1.25,
     buildGround(scale = 1) {
-        let W = this.canvas.width, H = this.canvas.height;
+        let W = this.canvas.width, H = this.canvas.height, P = this.GROUND_PX;
+        let lw = Math.ceil(W / P), lh = Math.ceil(H / P);
+        let low = document.createElement('canvas');
+        low.width = lw; low.height = lh;
+        let c = low.getContext('2d');
+        if(this.isArena || this.isTourney) { c.scale(1 / P, 1 / P); this.buildArenaGround(c, W, H); }
+        else this.buildField(c, lw, lh, W, H, P);
         let g = document.createElement('canvas');
         g.width = Math.round(W * scale); g.height = Math.round(H * scale);
         g._w = W; g._h = H; g._s = scale;
-        let c = g.getContext('2d');
-        c.scale(scale, scale);
-
-        if(this.isArena || this.isTourney) return this.buildArenaGround(c, g, W, H);
-
-        let base = c.createLinearGradient(0, 0, 0, H);
-        base.addColorStop(0, '#35532f');
-        base.addColorStop(1, '#233b21');
-        c.fillStyle = base; c.fillRect(0, 0, W, H);
-
-        // Lite mode: the ground bakes only once, but on a phone even that "once" is felt
-        // as a stutter (2600 strokes + 60 gradients). Density drops to a third.
+        let gx = g.getContext('2d');
+        gx.imageSmoothingEnabled = false;
+        gx.drawImage(low, 0, 0, lw * P * scale, lh * P * scale);
+        this.ground = g;
+    },
+    // A pastel meadow, pixel by pixel (round 1's field): the base green, one of four tones on
+    // about a sixth of the pixels, a slow light/dark mottling so it doesn't read as noise, grass
+    // tufts and the odd flower. Written as ImageData — a phone bakes it in a few milliseconds.
+    // Its own seeded generator: one draw from the game's dice, not a hundred thousand.
+    buildField(c, lw, lh, W, H, P) {
+        let seed = (Math.random() * 4294967296) >>> 0;
+        let rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+        let img = c.createImageData(lw, lh), d = img.data;
+        const BASE = [76, 116, 57], TONES = [[85, 128, 63], [70, 105, 58], [63, 96, 52], [91, 136, 68]];
+        // the mottling: a coarse random grid, bilinearly blended (cells of ~48 pixels)
+        let gw = Math.ceil(lw / 48) + 2, gh = Math.ceil(lh / 48) + 2, grid = [];
+        for(let i = 0; i < gw * gh; i++) grid.push(rnd() * 2 - 1);
+        let mot = (x, y) => {
+            let fx = x / 48, fy = y / 48, ix = fx | 0, iy = fy | 0, tx = fx - ix, ty = fy - iy;
+            let a = grid[iy * gw + ix], b = grid[iy * gw + ix + 1], cc = grid[(iy + 1) * gw + ix], dd = grid[(iy + 1) * gw + ix + 1];
+            return (a * (1 - tx) + b * tx) * (1 - ty) + (cc * (1 - tx) + dd * tx) * ty;
+        };
+        for(let y = 0; y < lh; y++) for(let x = 0; x < lw; x++) {
+            let col = rnd() < 0.16 ? TONES[(rnd() * 4) | 0] : BASE;
+            // mottling as a dither: a lighter or darker tone where the patch leans that way
+            let m = mot(x, y) + (rnd() - 0.5) * 0.5;
+            let k = m > 0.45 ? 1.07 : m < -0.45 ? 0.92 : 1;
+            let i = (y * lw + x) * 4;
+            d[i] = Math.min(255, col[0] * k); d[i + 1] = Math.min(255, col[1] * k); d[i + 2] = Math.min(255, col[2] * k); d[i + 3] = 255;
+        }
+        let put = (x, y, r, g, b) => { if(x < 0 || y < 0 || x >= lw || y >= lh) return; let i = (y * lw + x) * 4; d[i] = r; d[i + 1] = g; d[i + 2] = b; };
+        for(let n = 0, N = lw * lh * 0.004; n < N; n++) {              // tufts: two dark blades, a light one between
+            let x = (rnd() * lw) | 0, y = (rnd() * lh) | 0;
+            put(x, y, 58, 90, 48); put(x, y + 1, 58, 90, 48); put(x + 2, y, 58, 90, 48); put(x + 2, y + 1, 58, 90, 48);
+            put(x + 1, y - 1, 98, 146, 74); put(x + 1, y, 98, 146, 74); put(x + 1, y + 1, 98, 146, 74);
+        }
+        for(let n = 0, N = lw * lh * 0.0009; n < N; n++) {             // flowers
+            let x = (rnd() * lw) | 0, y = (rnd() * lh) | 0;
+            if(rnd() < 0.5) put(x, y, 232, 211, 106); else put(x, y, 233, 228, 214);
+        }
+        c.putImageData(img, 0, 0);
+        c.scale(1 / P, 1 / P);                                       // terrain below is in field units
         let lite = Game.lite();
-
-        // Soft color blotches — a mottled meadow instead of a flat green ground
-        for(let i = 0, n = lite ? 20 : 60; i < n; i++) {
-            let x = Math.random()*W, y = Math.random()*H, r = 60 + Math.random()*140;
-            let rg = c.createRadialGradient(x, y, 0, x, y, r);
-            rg.addColorStop(0, Math.random() > 0.5 ? 'rgba(96,134,72,0.16)' : 'rgba(18,38,18,0.18)');
-            rg.addColorStop(1, 'rgba(0,0,0,0)');
-            c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
-        }
-        // Tufts of grass
-        for(let i = 0, n = lite ? 700 : 2600; i < n; i++) {
-            let x = Math.random()*W, y = Math.random()*H;
-            c.strokeStyle = Math.random() > 0.5 ? 'rgba(126,166,92,0.30)' : 'rgba(28,52,26,0.35)';
-            c.lineWidth = 1;
-            c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random()-0.5)*3, y - 2 - Math.random()*3); c.stroke();
-        }
 
         let TR = this.terrain || {};
 
@@ -1716,18 +1742,16 @@ const Battle = {
             }
         }
 
-        // A slight darkening: keeps units more readable against the ground
-        c.fillStyle = 'rgba(6,10,6,0.16)';
+        // A slight darkening: keeps units readable against the brighter pixel meadow
+        c.fillStyle = 'rgba(6,10,6,0.08)';
         c.fillRect(0, 0, W, H);
-
-        this.ground = g;
     },
 
     // The arena/tournament ring (#132): round sand pit, wooden boundary, a crowd packed around
     // the outside — seen from above, so the crowd is just a mottled ring of "heads", not figures.
     // The circle matches `arenaRing()`, the same one the boundary clamp uses: nobody can wander
     // past the wall the ground shows them.
-    buildArenaGround(c, g, W, H) {
+    buildArenaGround(c, W, H) {
         let { cx, cy, r } = this.arenaRing(W, H);
         let lite = Game.lite();
 
@@ -1789,8 +1813,6 @@ const Battle = {
 
         c.fillStyle = 'rgba(6,10,6,0.12)';
         c.fillRect(0, 0, W, H);
-
-        this.ground = g;
     },
     // Deterministic dot placement for the crowd texture — no state kept, just needs to not be pure Math.random
     // per band/index or the rings would shimmer if buildArenaGround ever re-ran mid-battle.
@@ -1996,8 +2018,11 @@ const Battle = {
             ctx.translate(Math.sin(this.battleTime * 97) * s, Math.cos(this.battleTime * 71) * s);
         }
 
+        // pixel ground (2.1): zoomed in, its pixels stay hard-edged like the soldiers'
+        ctx.imageSmoothingEnabled = false;
         if(this.ground._s === 1) ctx.drawImage(this.ground, 0, 0);
         else ctx.drawImage(this.ground, 0, 0, W, H);   // baked sharper for the WebGL path, then the setting flipped
+        ctx.imageSmoothingEnabled = true;
 
         // Water shimmer (the only animated terrain effect)
         if(this.terrain && this.terrain.rivers && !Game.lite()) {
@@ -2489,21 +2514,8 @@ const Battle = {
         if(!Swordsman.ready() || u.isBoss || u.beast) return null;
         let side = u.cloth && Swordsman.DYE[u.cloth] ? u.cloth : u.isPlayerTeam ? (this.playerCloth || 'player') : (this.enemyCloth || 'bandit');
         let mounted = u.mounted || u.type === 'cavalry';
-        if(u.id === 'player') {
-            let eq = state.player.equipment, w = eq.weapon, ar = eq.armor, hm = eq.helmet;
-            let fem = state.player.background && state.player.background.gender === 'female';
-            let rider = {
-                armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
-                helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
-                skin: 0, hair: fem ? 3 : 0, cloth: side
-            };
-            if(mounted) {
-                let hp = (eq.horse && eq.horse.basePrice) || 0;
-                return { kind: 'horse', rider, cloth: side, coat: hp < 1000 ? 'bay' : hp < 2000 ? 'grey' : 'black' };
-            }
-            if(w && w.weaponType === 'bow') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
-            return Object.assign({ kind: 'foot' }, rider);
-        }
+        if(u.id === 'player')
+            return this.heroLook(state.player.equipment, state.player.background && state.player.background.gender === 'female', side, mounted);
         if(u.icon === '🎖️' || u.icon === '💍') return null;
         let tier = Math.max(0, Math.min(2, u.tier || 0)), h = this.idHash(u), lite = Game.lite();
         let rider = {
@@ -2513,6 +2525,22 @@ const Battle = {
         if(mounted) return { kind: 'horse', rider, cloth: side, coat: ['bay', 'grey', 'black'][tier] };
         if(u.type === 'archer') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
         if(u.type !== 'infantry') return null;
+        return Object.assign({ kind: 'foot' }, rider);
+    },
+    // The player's look from what they wear — shared by the battle and the character creation
+    // preview (2.1), which feeds it the equipment the chosen background would give
+    heroLook(eq, fem, side, mounted) {
+        let w = eq.weapon, ar = eq.armor, hm = eq.helmet;
+        let rider = {
+            armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
+            helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
+            skin: 0, hair: fem ? 3 : 0, cloth: side
+        };
+        if(mounted) {
+            let hp = (eq.horse && eq.horse.basePrice) || 0;
+            return { kind: 'horse', rider, cloth: side, coat: hp < 1000 ? 'bay' : hp < 2000 ? 'grey' : 'black' };
+        }
+        if(w && w.weaponType === 'bow') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
         return Object.assign({ kind: 'foot' }, rider);
     },
     idHash(u) {

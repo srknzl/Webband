@@ -2059,3 +2059,18 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 #curtain .ct-ic { color: var(--primary); } #curtain .ct-ic svg.i { width: 2.6rem; height: 2.6rem; filter: drop-shadow(0 0 10px rgba(212,175,55,0.5)); }
 #curtain b { font: 700 clamp(1.7rem, 6vw, 2.8rem)/1 'Cinzel', serif; color: #f2d27a; text-shadow: 0 0 18px rgba(212,175,55,0.45), 0 3px 8px #000; letter-spacing: 0.14em; }
 #curtain small { font: 500 var(--fs-sm)/1.3 'Inter', sans-serif; color: #cfc4a8; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Character creation: the hero as it is being built (2.1, Game.drawHero) */
+.cr-head { display: flex; gap: 1rem; align-items: center; }
+.cr-head-tx { flex: 1; min-width: 0; }
+.cr-head-tx h3 { margin-top: 0; }
+.cr-hero { flex: none; width: 112px; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
+.cr-hero canvas { width: 112px; height: 112px; image-rendering: pixelated; border-radius: var(--r-md);
+    background: radial-gradient(ellipse at 50% 80%, rgba(76,116,57,0.25), rgba(0,0,0,0) 70%), #14120e;
+    border: 1px solid rgba(212,175,55,0.3); box-shadow: inset 0 0 18px rgba(0,0,0,0.6); }
+.cr-hero-nm { font: 600 var(--fs-xs)/1.2 'Cinzel', serif; color: var(--primary); max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 430px) {
+    .cr-head { gap: 0.7rem; }
+    .cr-hero, .cr-hero-nm { width: 84px; max-width: 84px; }
+    .cr-hero canvas { width: 84px; height: 84px; }
+}
