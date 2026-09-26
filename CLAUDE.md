@@ -115,6 +115,12 @@ The bottleneck isn't JS, it's the **compositor**: battle JS runs ~1.2 ms per fra
 
 ## Measurement and tests
 
+**Dev servers stay silent.** Whenever you run the game yourself — the preview pane, a local
+server, Playwright/e2e, a screenshot or measurement script — switch sound off before anything
+can play (`Game.setOpt('muted', true)`, the ⚙️ Settings sound on/off). The only exception is a
+task that tests sound itself. Someone is using this PC; a game suddenly playing music or battle
+noise must never disturb them.
+
 `tools/harness.js` is the single entry point: it builds a fake DOM, runs the four game scripts in
 **one `vm` context**, and the same seed gives the same world via seeded `mulberry32`. It
 exports: `{ load, world, run, mulberry32, args, seeds, writeReport }` — there's no `boot`.
