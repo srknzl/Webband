@@ -575,6 +575,37 @@ Tier (weak/normal/armored) is fixed by the troop's identity, never live stats �
 troop always looks the same. Bosses get their own hand-drawn canvas silhouettes
 (`Battle.bossSprite`), bigger than a regular unit.
 
+**Animated foot soldiers (1.34.0)**: the player on foot with a melee weapon and every regular
+infantry unit are drawn with the CraftPix Swordsman 1–3 (idle 12 / walk 6 / run 8 / attack 8 /
+hurt 5 / death 7 frames, 4 facings). `tools/build-swordsman.js` crops each body/head/sword layer
+sheet to its content and packs one atlas per level (`troops/swordsman_{1,2,3}.png`, the index
+block in battle.js); the pack's red hurt overlay is not shipped, only its per-frame strength.
+`Swordsman.art(look, anim, dir, t)` composes a frame — body and head from the armour level,
+sword from the weapon level — recolours skin/hair/cloth by exact palette entry, paints the
+helmet, crops to content and caches the canvas (LRU, 2500 frames); `Battle.unitArt` returns it
+to both renderers with `_k` (1.25 field units per pixel, ~32 tall like the old tile), `_ax/_ay`
+(feet anchor, placed `SPRITE_FOOT` = 14 below the unit's point) and `_pixel`.
+- **Look** (`Battle.spriteLook`, pure): player armour none/<20 def/≥20 → level 1/2/3, weapon
+  none/<400/≥400 dinars → 1/2/3, helmet def <5 cap, <12 nasal, else great helm — a new game
+  starts in rags with a stick. Infantry: fixed `tier` → armour and weapon, helmet/hair/skin from
+  an FNV hash of the unit id (no hair/skin variety under `Game.lite()`). Cloth: the side's
+  kingdom (`playerCloth`/`enemyCloth` at `start`, allies their lord's), gold for an unsworn
+  warband, brown for bandits. Archers, riders, bosses, beasts and the marked companions keep
+  their old art (steps 2–3).
+- **Anim** (`Battle.spriteAnim`, pure): death from `deadT`, the player's swing mapped onto
+  `attackTimer`, an AI swing from its striking frame on `atkT`, hurt for 0.42 s of `hitT`, walk /
+  run (> 95 u/s) while moving, else idle; facing from mouse (player), velocity, last swing,
+  last velocity. `unitPose` drops hop/sway/lean/squash for these units (the frames carry them) and
+  fades the fallen out between 0.9 and `SPRITE_DIE_T` = 1.3 s (`Battle.dieT`).
+- **Helmets** are drawn by hand once per facing (plus a half-turned side pose) and placed per
+  frame at the offset that best matches the frame's head to the reference; a fallen head is
+  matched against the reference turned ±45/±90/180°. Fits are cached per (level, anim, facing,
+  frame, helmet).
+
+Measured (headless Chromium, 1366×768): first bake 0.24 ms per frame, a cached lookup 2 µs; a
+death frame with a turned helmet 7.8 ms the first time (once per combination). Atlases 69–73 KB
+each, 1024×304–344 px — about 4 MB decoded for all three, against ~35 MB for the raw sheets.
+
 **Performance**: target search runs every 0.3–0.5s per unit, not every frame; particle ceilings
 (sparks 120, floating text 40, blood 200, corpses 60); everyone is clamped to the arena (a
 12-unit edge margin) so a routing archer can't run off-map and lock the battle. If the player
@@ -933,7 +964,7 @@ draws at `min(devicePixelRatio, 3)` with `autoDensity`) and a GPU scene graph to
   Canvas2D code, moved as-is into `drawCanvas`) or `BattleGL` (`battle-gl.js`), both
   `{ resize, render(battle, now), info, destroy }`. Battle owns all state and clocks; both
   renderers read the same pure helpers — `unitPose` (lunge, recoil, squash, walk stretch,
-  breathing, the `DIE_T` fall), `gait` (1.32.1 mounted stride), `unitArt`, `dustPuff`,
+  breathing, the `DIE_T` fall), `gait` (1.32.1 mounted stride), `unitArt` / `spriteAnim`, `dustPuff`,
   `hudLayout`/`drawCmdStrip`/`statusLine`/`tugBox`/`tugStatus` — so motion can't drift apart.
 - **Drawing writes nothing.** The tug bar's easing (`tickTug`) and the hoofbeats (`tickHooves`)
   moved from the draw path into `update()`; the dust puffs' dice became `Battle.hash01`

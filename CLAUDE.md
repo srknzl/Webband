@@ -28,7 +28,7 @@ after changing it, update the "Measured" lines.
 | `sw.js`, `manifest.webmanifest`, `fonts/`, `icon-*.png` | PWA: offline cache, install metadata, self-hosted Cinzel/Inter |
 | `native/` | Capacitor shell — npm lives here and in `e2e/` only. `ios/`/`android/` are generated, never committed |
 | `e2e/` | Playwright end-to-end tests: the real game in Chromium, desktop + phone layout, TR/EN/ID |
-| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node` |
+| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node`; `build-swordsman.js` is a one-off asset build (needs the CraftPix pack + Playwright) that writes `troops/swordsman_*.png` and the index block in `battle.js` |
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
 | `CHANGELOG.md` | Change list in player-facing language |

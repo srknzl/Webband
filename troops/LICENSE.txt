@@ -8,7 +8,15 @@ source files may not be resold or redistributed on their own).
 infantry_weak.png / infantry_normal.png / infantry_armored.png
   From "Free Swordsman 1-3 Level Pixel Top-Down Sprite Character" —
   https://craftpix.net/freebies/free-swordsman-1-3-level-pixel-top-down-sprite-character-pack/
-  One idle frame per level (1/2/3), cropped to content.
+  One idle frame per level (1/2/3), cropped to content — now only the loading
+  placeholder for the animated sprites below.
+
+swordsman_1.png / swordsman_2.png / swordsman_3.png
+  The same pack, every animation (idle, walk, run, attack, hurt, death) in all
+  four facings, as separate body/head/sword layers so armour and weapon can
+  come from different levels. Each layer sheet is cropped to its content and
+  packed into one atlas per level by tools/build-swordsman.js; pixels are not
+  altered (recolouring and the helmets are drawn at runtime by battle.js).
 
 archer_weak.png / archer_normal.png / archer_armored.png
 player_bow.png
@@ -18,9 +26,6 @@ player_bow.png
   One idle frame, cropped to content. The three archer tiers are the same
   sprite recolored (weak/normal/armored) since only one archer pose exists
   in the pack.
-
-player_melee.png
-  From the same Roguelike Kit, the knight character (character slot 2).
 
 --- Battle for Wesnoth (GPL v2 or later) ---
 https://www.wesnoth.org/ — a copyleft license, unlike the two packs above:

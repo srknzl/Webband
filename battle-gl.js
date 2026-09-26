@@ -455,7 +455,7 @@ const BattleGL = {
         // Units, y-sorted; the just-fallen too, for DIE_T seconds of their fall (1.32.0)
         let gTr = this.L.trails.clear();
         this.pulse.visible = false;
-        b.units.filter(u => u.hp > 0 || (u.deadT !== undefined && u.deadT < b.DIE_T))
+        b.units.filter(u => u.hp > 0 || (u.deadT !== undefined && u.deadT < b.dieT(u)))
             .sort((a, c) => a.y - c.y).forEach(u => this.unit(b, u, now, S, lite, gTr));
 
         b.projectiles.forEach(p => {
@@ -525,14 +525,18 @@ const BattleGL = {
             if(dp) { s = P.dust.next(); s.position.set(dp.x, dp.y); s.scale.set(dp.r / 4 * inv); s.tint = 0xc4ba96; s.alpha = 0.35; }
         }
 
-        let o = P.units.next(), art = b.unitArt(u, S), lh = art.height / S;
+        // A Swordsman frame is baked at its own pixel size (`_k` field units per pixel) and
+        // anchored on its feet (`_ax/_ay`); every other art is baked at S and anchored bottom-centre.
+        let o = P.units.next(), art = b.unitArt(u, S, now), sprite = art._ay !== undefined;
+        let k = art._k || inv, lh = art.height * k, foot = sprite ? b.SPRITE_FOOT : lh / 2;
         o.position.set(p.ux, p.uy - hop); o.rotation = p.sway; o.alpha = p.alpha;
-        o.inner.position.set(0, lh / 2); o.inner.rotation = p.lean; o.inner.scale.set(p.sx, p.sy);
-        o.body.texture = this.artTex(art); o.body.scale.set(inv);
+        o.inner.position.set(0, foot); o.inner.rotation = p.lean; o.inner.scale.set(p.sx, p.sy);
+        o.body.texture = this.artTex(art); o.body.scale.set(k);
+        o.body.anchor.set(sprite ? art._ax : 0.5, sprite ? art._ay : 1);
         o.rank.visible = u.level >= 5;
         if(o.rank.visible) {
             let e = this.text(u.level >= 20 ? '^' : u.level >= 15 ? "'''" : u.level >= 10 ? "''" : "'", 'bold 15px Inter, sans-serif', '#ffcc44', S);
-            this.putText(o.rank, e, -12, -12 - lh / 2, 'center', S);
+            this.putText(o.rank, e, -12, sprite ? -36 : -12 - lh / 2, 'center', S);
             if(P.ranks.items.indexOf(o.rank) < 0) P.ranks.items.push(o.rank);
         }
         if(p.dead) return;   // a falling unit has no flash, weapon, shield or health bar
@@ -555,7 +559,13 @@ const BattleGL = {
         if(isPlayer ? u.bowTimer > 0 : u.shotT < 0.25) {
             s = P.bows.next(); s.position.set(ux, uy); s.rotation = (isPlayer ? u.angleToMouse : u.shotA) || 0; s.scale.set(inv);
         }
-        if(u.isAttacking) { s = P.swords.next(); s.position.set(ux, uy); s.rotation = u.currentWeaponAngle || 0; s.scale.set(inv); }
+        // A Swordsman player swings the sprite's own sword; the trail still shows where it cuts.
+        if(u.isAttacking && isPlayer && sprite) {
+            let a1 = u.currentWeaponAngle || 0, k2 = 1 - Math.max(0, u.attackTimer) / 0.3, a0 = a1 - 1.2 * Math.min(1, k2 + 0.2);
+            gTr.moveTo(ux + Math.cos(a0) * 24, uy - 2 + Math.sin(a0) * 24).arc(ux, uy - 2, 24, a0, a1)
+               .stroke({ width: 3, color: 0xfff5d7, alpha: 0.7 * (1 - k2 * 0.6) });
+        }
+        else if(u.isAttacking) { s = P.swords.next(); s.position.set(ux, uy); s.rotation = u.currentWeaponAngle || 0; s.scale.set(inv); }
 
         // Health bar — only when wounded, always for the player
         if(u.hp < u.maxHp || isPlayer) {

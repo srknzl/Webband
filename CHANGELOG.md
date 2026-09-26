@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.34.0 — Paçavradan Zırha (2026-09-26)
+
+Savaştaki piyadeler ve sen artık gerçekten yürüyor, kılıç sallıyor, darbe alıp yere düşüyorsun.
+
+- **Canlanan askerler.** Piyadelerin tek bir duran resmi vardı, kayarak ve zıplayarak hareket
+  ediyorlardı. Artık bekleme, yürüme, koşma, saldırı, darbe alma ve ölüm animasyonları var,
+  dört yöne de bakıyorlar.
+- **Ne giyersen o görünürsün.** İlk gün parlak zırhlı bir şövalye değil, paçavralı ve sopalı
+  bir köylüsün. Deri zırh, zincir zırh, kılıç, çelik kılıç ve miğferler (deri başlık,
+  burunluklu miğfer, büyük miğfer) üstünde görünüyor.
+- **Krallık renkleri.** Askerlerin kıyafeti krallığının renginde: Svadya kırmızı, Rodok yeşil,
+  Veagir gri, Nord mavi, Kergit mor, haydutlar kahverengi. Kendi başına dolaşan bir çetenin
+  rengi altın. Aynı takımda bile herkesin saçı ve teni farklı.
+- Okçular, süvariler ve boss'lar şimdilik eskisi gibi. Onların sırası sonra geliyor.
+
 ## 1.33.0 — Keskin Meydan (2026-09-26)
 
 Savaş artık ekran kartıyla çiziliyor. Görüntü ve hareketler aynı, sadece daha keskin.
