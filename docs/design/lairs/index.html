@@ -383,6 +383,8 @@ const LEVELS = {
 // ---------- state ----------
 let L = null, G = null;        // level def, live game
 const opts = { level: 'house', scout: 4, lead: 4, time: 'night', amb: 'random' };
+try { Object.assign(opts, JSON.parse(localStorage.getItem('lair-opts') || '{}')); } catch(e) {}
+const saveOpts = () => { try { localStorage.setItem('lair-opts', JSON.stringify(opts)); } catch(e) {} };
 const canvas = $('#game'), ctx = canvas.getContext('2d');
 let DPR = 1, Z = 2, VW = 0, VH = 0;   // device px per world unit, view size in world units
 
@@ -650,8 +652,9 @@ function newGame(approach) {
     const st = grp.find(([a, b]) => tile(a, b) === '@') || grp[grp.length >> 1];
     G.exitSigns.push({ x: st[0] * T + 16, y: st[1] * T + 30 });
   }
-  G.msg = approach === 'army' ? 'Ön kapıdan giriyorsunuz. Haydutlar silaha sarıldı!' : 'Sessiz ol. Eğilirsen daha az görünürsün.';
-  G.msgT = 4;
+  G.msg = (approach === 'army' ? 'Ön kapıdan giriyorsunuz. Haydutlar silaha sarıldı!' : 'Sessiz ol. Eğilirsen daha az görünürsün.')
+    + (approach === 'army' ? '' : ' · Pusu ayarı: ' + { off: 'yok', on: 'var', random: 'rastgele' }[opts.amb]);
+  G.msgT = 5;
 }
 // the n nearest walkable tiles to (tx, ty), breadth first, the start itself first
 function freeTilesNear(tx, ty, n) {
@@ -930,7 +933,12 @@ function findInteraction() {
     }
     if(o.search && !o.searched) add(d + 4, 'Ara', o, () => busy(1, 'Aranıyor…', () => searchCover(o)));
     if(o.lever && !o.pulled) add(d, 'Kolu çek', o, () => pullLever(o));
-    if(o.hide) add(d + 2, 'Saklan', o, () => hide(o));
+    if(o.hide) {
+      // with an alert bandit close and looking at you there's nowhere to vanish to: break his sight first
+      const seen = G.chars.some(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - p.x, g.y - p.y) < 8 * T && los(g.x, g.y - 14, p.x, p.y - 10, false));
+      if(seen) add(d + 2, 'Peşindeler!', o, () => say('Seni görürken saklanamazsın. Önce gözden kaybol, sonra saklan.'));
+      else add(d + 2, 'Saklan', o, () => hide(o));
+    }
     if(o.torch && o.lit !== false) add(d + 3, 'Meşaleyi söndür', o, () => douseTorch(o));
     if(o.pen && !o.used) add(d, 'Atları ürküt', o, () => spookHorses(o));
     if(o.cage && !o.open) add(d, 'Kilidi zorla', o, () => busy(2.5, 'Kilit zorlanıyor…', () => { o.open = true; o.solid = false; noise(o.cx, o.cy, 80, 'Kilit gıcırdayarak açıldı.'); floatText(o.cx, o.cy - 30, 'Kafes açık', '#9fe0a0'); }));
@@ -1192,7 +1200,8 @@ function nearestFoe(g) {
 }
 function hasToken(g) {
   const squadUp = G.chars.filter(c => c.kind === 'squad' && c.state !== 'down').length;
-  const tokens = G.approach === 'army' ? 99 : (G.ambushState === 1 && squadUp === 0) ? 1 : 2 + squadUp;
+  // alone: three press in at once (two in an ambush, whose bandits hit softer); each soldier with you adds one
+  const tokens = G.approach === 'army' ? 99 : (G.ambushState === 1 && squadUp === 0) ? 2 : 3 + squadUp;
   const alert = G.chars.filter(c => c.kind === 'guard' && c.state === 'alert').sort((a, b) => Math.hypot(a.x - G.player.x, a.y - G.player.y) - Math.hypot(b.x - G.player.x, b.y - G.player.y));
   return alert.indexOf(g) < tokens;
 }
@@ -1260,7 +1269,7 @@ function updateAmbush() {
       G.chars.push(g);
     }
     G.banner = { t: 3, text: A.block ? 'Pusu! Tünel çöktü' : 'Pusu! Kapı kapandı' };
-    say(G.solo ? 'Pusu! Teker teker geliyorlar, sakin ol.' : 'Pusu! Askerlerin yanında.');
+    say(G.solo ? 'Pusu! İkişer ikişer saldırıyorlar, sakin ol.' : 'Pusu! Askerlerin yanında.');
     if(!G.alarm) G.alarms++;
     G.alarm = 12;
   }
@@ -1764,7 +1773,8 @@ function endGame(kind) {
   $('#resTable').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
   setTimeout(() => show('#result'), kind === 'lost' ? 0 : 150);
 }
-$('#resAgain').onclick = () => start(G.approach);
+// a retry rolls the ambush afresh — reusing the briefing's roll set one in every retry once it came up
+$('#resAgain').onclick = () => { G_AMB_PREVIEW = opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4); start(G.approach); };
 $('#resBrief').onclick = () => openBrief();
 
 // the scouting card: what you know depends on İzcilik
@@ -1812,16 +1822,20 @@ function drawSketch(lv, s) {
 }
 function openBrief() {
   show('#brief');
+  saveOpts();
+  // the controls show what's remembered
+  $('#scout').value = opts.scout; $('#scoutV').textContent = opts.scout; $('#lead').value = opts.lead; $('#leadV').textContent = opts.lead;
+  for(const [seg, key] of [['#timeSeg', 'time'], ['#ambSeg', 'amb']]) $(seg).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === opts[key]));
   $('#levelTabs').innerHTML = Object.entries(LEVELS).map(([k, v]) => `<button class="tab" data-k="${k}" aria-pressed="${k === opts.level}"><b>${v.name}</b><span>${v.kind} · ${v.blurb}</span></button>`).join('');
-  $('#levelTabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { opts.level = b.dataset.k; openBrief(); });
+  $('#levelTabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { opts.level = b.dataset.k; saveOpts(); openBrief(); });
   // a sharp scout can tell an ambush is being laid — decide it now so the warning is honest
   G_AMB_PREVIEW = opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4);
   intel();
 }
-$('#scout').oninput = e => { opts.scout = +e.target.value; $('#scoutV').textContent = opts.scout; intel(); };
-$('#lead').oninput = e => { opts.lead = +e.target.value; $('#leadV').textContent = opts.lead; intel(); };
+$('#scout').oninput = e => { opts.scout = +e.target.value; $('#scoutV').textContent = opts.scout; saveOpts(); intel(); };
+$('#lead').oninput = e => { opts.lead = +e.target.value; $('#leadV').textContent = opts.lead; saveOpts(); intel(); };
 for(const [seg, key] of [['#timeSeg', 'time'], ['#ambSeg', 'amb']]) $(seg).querySelectorAll('button').forEach(b => b.onclick = () => {
-  opts[key] = b.dataset.v; $(seg).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); if(key === 'amb') G_AMB_PREVIEW = opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4); intel();
+  opts[key] = b.dataset.v; saveOpts(); $(seg).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); if(key === 'amb') G_AMB_PREVIEW = opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4); intel();
 });
 $('#apSolo').onclick = () => start('solo');
 $('#apSquad').onclick = () => start('squad');
