@@ -565,6 +565,23 @@ img.ico-px.big { width: 40px; height: 40px; vertical-align: middle; }
 @keyframes chipDown { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(224,96,90,0); } 30% { transform: scale(0.96); box-shadow: 0 0 0 3px rgba(224,96,90,0.45); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(224,96,90,0); } }
 .hud-chip.bump-up   { animation: chipUp 0.6s var(--ease-soft); }
 .hud-chip.bump-down { animation: chipDown 0.6s var(--ease-soft); }
+/* 2.1.1: a gain says how much — "+N" drops out under the badge and the icon pops (Game.gainFx) */
+.hud-plus {
+    position: fixed; z-index: 90; pointer-events: none; transform: translate(-50%, 0);
+    font: 700 0.8rem/1 'Inter', sans-serif; color: #9fe0a0; padding: 2px 6px; border-radius: 999px; background: rgba(10,12,9,.72); letter-spacing: .02em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 0 8px rgba(76,195,138,.55);
+    animation: hudPlus 1.2s var(--ease-soft) forwards;
+}
+@keyframes hudPlus {
+    0%   { opacity: 0; transform: translate(-50%, -8px) scale(0.8); }
+    18%  { opacity: 1; transform: translate(-50%, 0) scale(1.12); }
+    70%  { opacity: 1; transform: translate(-50%, 6px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, 12px) scale(1); }
+}
+.hud-chip.bump-up .hud-ico { animation: icoPop 0.6s var(--ease-soft); }
+@keyframes icoPop { 30% { transform: scale(1.3) rotate(-8deg); } 60% { transform: scale(0.95) rotate(4deg); } }
+.hud-bar i.bar-gain { animation: barGain 0.9s ease-out; }
+@keyframes barGain { 0% { filter: brightness(1); } 25% { filter: brightness(1.9) saturate(1.3); box-shadow: 0 0 6px rgba(245,215,110,.8); } 100% { filter: brightness(1); } }
 
 /* Map */
 #map-view { padding: 0; border-radius: var(--r-lg); overflow: hidden; border: 2px solid var(--panel-border); }
@@ -929,10 +946,10 @@ body.view-map #sidebar {
 }
 body.view-map #sidebar:hover { opacity: 1; }
 body.view-map #sidebar .sb-title { display: none; }
-body.view-map #sidebar .mb-lbl, body.view-map #sidebar kbd { display: none; }
-body.view-map #sidebar .menu-btn { justify-content: center; padding: 0.5rem; }
+/* 2.1.1: on the map the strip keeps its words and keys, the same rows as on every other screen.
+   The icon-only strip took nearly the same width and left the player guessing. */
 body.view-map #sidebar > div[style*="flex"] { display: none; }
-body.view-map #map-hud { left: 66px; }
+body.view-map #map-hud { left: 212px; }   /* clear of the labelled strip (2.1.1: ~190 px in EN) */
 
 /* ============ KENAR MENÜSÜ ============ */
 #sidebar {
@@ -2081,10 +2098,13 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 .cr-hero canvas { width: 112px; height: 112px; image-rendering: pixelated; border-radius: var(--r-md);
     background: radial-gradient(ellipse at 50% 80%, rgba(76,116,57,0.25), rgba(0,0,0,0) 70%), #14120e;
     border: 1px solid rgba(212,175,55,0.3); box-shadow: inset 0 0 18px rgba(0,0,0,0.6); }
+.cr-hair { margin-top: 0.35rem; width: 112px; min-height: 40px; padding: 0.25rem 0.35rem; font-size: var(--fs-xs); line-height: 1.15; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; white-space: normal; text-align: left; }
+.cr-hair svg.i { width: 13px; height: 13px; flex: none; }
 .cr-hero-nm { font: 600 var(--fs-xs)/1.2 'Cinzel', serif; color: var(--primary); max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 430px) {
     .cr-head { gap: 0.7rem; }
     .cr-hero, .cr-hero-nm { width: 84px; max-width: 84px; }
+    .cr-hair { width: 84px; padding: 0.25rem 0.2rem; font-size: 0.62rem; white-space: normal; line-height: 1.1; }
     .cr-hero canvas { width: 84px; height: 84px; }
 }
 

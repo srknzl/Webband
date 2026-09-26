@@ -3028,5 +3028,11 @@ I18N.dicts.id = {
   "{0} ve {1} soylu kalede": "{0} dan {1} bangsawan lain ada di benteng",
   "Kalede soylu yok": "Tidak ada bangsawan di benteng",
   "Sahibi: {0}": "Dipegang oleh {0}",
-  "Duraklat": "Jeda"
+  "Duraklat": "Jeda",
+  "At kuyruğu": "Kuncir kuda",
+  "Örgü": "Kepang",
+  "Uzun saç": "Rambut panjang",
+  "Saçını değiştir": "Ganti rambutmu",
+  "Saç: {0}": "Rambut: {0}",
+  "Saç topuzu": "Sanggul"
 };

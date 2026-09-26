@@ -14,7 +14,11 @@ function band(page, dx = 70) {
 }
 
 for(const renderer of ['pixi', 'canvas']) {
-    test(`savaş çizimi: ${renderer} — tuval boyanır, birlikler yürür, sonuç ekranı gelir`, async ({ page }) => {
+    test(`savaş çizimi: ${renderer} — tuval boyanır, birlikler yürür, sonuç ekranı gelir`, async ({ page, isMobile }) => {
+        // CI's Chromium has only SwiftShader: forced WebGL at a phone's 2.6x density renders on
+        // the CPU and starves the page for whole seconds (red on main since 1.34.0) — more time,
+        // not a weaker check
+        test.slow(renderer === 'pixi' && isMobile);
         await newGame(page);
         await page.evaluate(r => Game.setOpt('renderer', r), renderer);
         if(renderer === 'pixi') await page.waitForFunction(() => BattleGL.ready);
@@ -77,7 +81,8 @@ for(const renderer of ['pixi', 'canvas']) {
 // see-through #map-canvas that still takes every tap; switching back to Canvas at runtime
 // tears the WebGL map down and the 2d canvas shows again.
 for(const renderer of ['pixi', 'canvas']) {
-    test(`harita çizimi: ${renderer} — harita boyanır, dokunuş hâlâ hedef verir`, async ({ page }) => {
+    test(`harita çizimi: ${renderer} — harita boyanır, dokunuş hâlâ hedef verir`, async ({ page, isMobile }) => {
+        test.slow(renderer === 'pixi' && isMobile);   // as above: software WebGL at phone density
         await newGame(page);
         await page.evaluate(r => Game.setOpt('renderer', r), renderer);
         if(renderer === 'pixi') await page.waitForFunction(() => MapGL.ready && Game._mapSurface === 'gl');

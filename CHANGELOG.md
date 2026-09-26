@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.1.1 — Canlanış (2026-09-26)
+
+- **Kadın kahramana dört saç.** Karakteri yaratırken kahramanın altındaki düğmeyle at kuyruğu,
+  topuz, örgü ya da omuzlara inen uzun saç seçiliyor. Hepsi yürürken sallanıyor, arkadan ve
+  yandan da doğal görünüyor.
+- **Savaş alanında kocaman yuvarlak gölgeler yok.** Ormanlar artık zemine düşen siyah bir daire
+  değil, sık ağaçlar ve kenarlarında çalılar. Çukurlar da siyah leke yerine dağınık çamur ve
+  çiğnenmiş toprak. Ağır zeminin etkisi aynı.
+- **Kazandığın şey üstte görünüyor.** Para, nam, moral, seviye ya da grubuna yeni biri gelince
+  üst çubuktaki rozet parlıyor, simgesi zıplıyor ve altından "+120" gibi küçük bir sayı süzülüyor.
+  Tecrübe kazanınca seviye çubuğu parlıyor.
+- **Masaüstünde haritadaki sol menü yazılı.** Haritadayken menüde sadece simgeler vardı, artık
+  diğer ekranlardaki gibi adları ve kısayol tuşları da yazıyor.
+
 ## 2.1.0 — Canlanış (2026-09-26)
 
 Yeni görüntü kıpırdamaya başladı: şehirler yaşıyor, ekranlar süzülerek açılıyor, önemli anlar
