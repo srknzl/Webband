@@ -830,6 +830,7 @@ function updatePlayer(dt) {
   }
   if(crouchToggle) { p.crouch = !p.crouch; crouchToggle = false; }
   if(throwPressed) { throwPressed = false; if(!p.busy) throwPebble(); }
+  if(p.busy && chaser()) { p.busy = null; say('Peşindeler! Yarım kaldı.'); }
   if(p.busy) { p.busy.t -= dt; p.vx = p.vy = 0; if(p.busy.t <= 0) { const b = p.busy; p.busy = null; b.done(); } return; }
   let mx = 0, my = 0, run = false;
   if(keys.w || keys.arrowup) my -= 1; if(keys.s || keys.arrowdown) my += 1;
@@ -900,6 +901,10 @@ function hurt(c, dmg, by) {
   }
 }
 
+// an alert bandit within 8 tiles: while one is on you nothing can be used — no chest, no lever, no
+// hiding, no door out. Get rid of him or get away first
+function chaser() { const p = G.player; return G.chars.find(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - p.x, g.y - p.y) < 8 * T); }
+
 // what the action button would do right now: every candidate in reach, the nearest wins
 // (a trapdoor beside a chest used to take the button because it came first in the scan)
 function findInteraction() {
@@ -933,12 +938,7 @@ function findInteraction() {
     }
     if(o.search && !o.searched) add(d + 4, 'Ara', o, () => busy(1, 'Aranıyor…', () => searchCover(o)));
     if(o.lever && !o.pulled) add(d, 'Kolu çek', o, () => pullLever(o));
-    if(o.hide) {
-      // with an alert bandit close and looking at you there's nowhere to vanish to: break his sight first
-      const seen = G.chars.some(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - p.x, g.y - p.y) < 8 * T && los(g.x, g.y - 14, p.x, p.y - 10, false));
-      if(seen) add(d + 2, 'Peşindeler!', o, () => say('Seni görürken saklanamazsın. Önce gözden kaybol, sonra saklan.'));
-      else add(d + 2, 'Saklan', o, () => hide(o));
-    }
+    if(o.hide) add(d + 2, 'Saklan', o, () => hide(o));
     if(o.torch && o.lit !== false) add(d + 3, 'Meşaleyi söndür', o, () => douseTorch(o));
     if(o.pen && !o.used) add(d, 'Atları ürküt', o, () => spookHorses(o));
     if(o.cage && !o.open) add(d, 'Kilidi zorla', o, () => busy(2.5, 'Kilit zorlanıyor…', () => { o.open = true; o.solid = false; noise(o.cx, o.cy, 80, 'Kilit gıcırdayarak açıldı.'); floatText(o.cx, o.cy - 30, 'Kafes açık', '#9fe0a0'); }));
@@ -947,13 +947,12 @@ function findInteraction() {
   }
   for(const [dx, dy] of [[1, 0], [-1, 0]]) if(tile(tx + dx, ty) === 'W')
     add(Math.abs((tx + dx) * T + 16 - p.x), 'Pencereden geç', { cx: (tx + dx) * T + 16, cy: ty * T + 16 }, () => busy(1.1, 'Pencereden geçiliyor…', () => { p.x += dx * T * 2; noise(p.x, p.y, 45, null); }));
-  if(isExit(tx, ty)) {
-    const chaser = G.chars.find(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - p.x, g.y - p.y) < 8 * T);
-    if(chaser) add(20, 'Peşindeler!', null, () => say('Peşinde haydutlar varken kaçamazsın. Önce onlardan kurtul ya da uzaklaş.'));
-    else add(20, 'İnden ayrıl', null, () => endGame('out'));
-  }
+  if(isExit(tx, ty)) add(20, 'İnden ayrıl', null, () => endGame('out'));
   cand.sort((a, b) => a.d - b.d);
-  return cand[0] || null;
+  const best = cand[0] || null;
+  // chased: the button says why it won't work instead of doing it
+  if(best && chaser()) return { label: 'Peşindeler!', at: best.at, blocked: true, run: () => say('Peşinde haydutlar varken hiçbir şeyle uğraşamazsın. Önce onlardan kurtul ya da uzaklaş.') };
+  return best;
 }
 function searchCover(o) {
   o.searched = true;
@@ -1489,11 +1488,11 @@ function drawMarkers() {
   }
   if(at && !p.busy) {
     const x = at.cx ?? at.x, top = at.kind ? at.y - 50 : (objGeom(at) ? objGeom(at)[6] - 8 : at.cy - 30);
-    const label = (isTouch ? '' : 'E · ') + G.ctx.label;
+    const label = (isTouch || G.ctx.blocked ? '' : 'E · ') + G.ctx.label;
     ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center';
     const w = ctx.measureText(label).width + 12;
     ctx.fillStyle = 'rgba(10,9,8,.88)'; ctx.fillRect(Math.round(x - w / 2), Math.round(top - 11), Math.round(w), 14);
-    ctx.fillStyle = '#8dffa8'; ctx.fillText(label, Math.round(x), Math.round(top));
+    ctx.fillStyle = G.ctx.blocked ? '#ff8a70' : '#8dffa8'; ctx.fillText(label, Math.round(x), Math.round(top));
   }
 }
 function drawCone(g) {
@@ -1843,7 +1842,7 @@ $('#apArmy').onclick = () => start('army');
 $('#controlsTxt').innerHTML = isTouch
   ? 'Telefonda: ekranın solunda parmağını sürükle, sonuna kadar itersen koşarsın. Sağda Etkileşim, Eğil, Taş (baktığın yöne çakıl atar) ve Saldır.'
   : 'Klavye: <kbd>WASD</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>C</kbd> eğil · <kbd>E</kbd> etkileşim (bayılt, aç, ara, saklan, kurtar, çık) · <kbd>Q</kbd> çakıl taşı at (fareyle nişan al) · <kbd>Boşluk</kbd> saldır · <kbd>Esc</kbd> duraklat';
-$('#controlsTxt').innerHTML += '<br><b style="color:#8dffa8">Yeşil çerçeveli</b> her şey kullanılabilir: sandık, kol, kapak, kese; sandıklar, variller ve çuvallar aranabilir. Kullanılınca çerçeve kalkar. <b>Bayıltmak</b> için seni görmemiş bir haydudun <b>arkasına</b> sokul (eğilirsen daha kolay), başında "Bayılt" yazınca <kbd>E</kbd>. Uyuyanları ve zar oynayanları her yönden bayıltabilirsin.<br><b>Saman, dolap, kaya kovuğu</b>: içine saklanırsan yanına gelmedikçe seni göremezler. <b>Çakıl taşı</b> attığın yere giderler; <b>meşaleyi söndürürsen</b> biri yakmaya gelir; kampta <b>atları ürkütmek</b> birkaçını birden çeker.';
+$('#controlsTxt').innerHTML += '<br><b style="color:#8dffa8">Yeşil çerçeveli</b> her şey kullanılabilir: sandık, kol, kapak, kese; sandıklar, variller ve çuvallar aranabilir. Kullanılınca çerçeve kalkar. <b>Bayıltmak</b> için seni görmemiş bir haydudun <b>arkasına</b> sokul (eğilirsen daha kolay), başında "Bayılt" yazınca <kbd>E</kbd>. Uyuyanları ve zar oynayanları her yönden bayıltabilirsin.<br><b>Saman, dolap, kaya kovuğu</b>: içine saklanırsan yanına gelmedikçe seni göremezler. <b>Çakıl taşı</b> attığın yere giderler; <b>meşaleyi söndürürsen</b> biri yakmaya gelir; kampta <b>atları ürkütmek</b> birkaçını birden çeker.<br><b style="color:#ff8a70">Peşindeler!</b> yazıyorsa hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Önce kovalayanlardan kurtul ya da uzaklaş.';
 
 // the ambush roll the briefing promised is the one the game uses
 const _newGame = newGame;
