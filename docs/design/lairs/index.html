@@ -1,0 +1,1422 @@
+<title>Haydut İni</title>
+<meta name="description" content="WebBand haydut ini denemesi: haydut evi ve mağara, gerçek zamanlı sızma.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* The game's own dark-and-gold world: one look, whatever the host theme. */
+:root {
+  color-scheme: dark;
+  --bg: #0d0c0b; --panel: rgba(18,16,13,.94); --panel2: #1e1a15;
+  --line: rgba(212,175,55,.28); --line2: rgba(236,230,218,.1);
+  --ink: #ece6da; --muted: #a8a194; --faint: #736c61;
+  --gold: #d4af37; --gold2: #f5d76e; --green: #6cc98a; --red: #e0605a; --warn: #f0b64a;
+  --display: 'Cinzel', Georgia, serif; --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--body); overflow: hidden;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; touch-action: manipulation; }
+#game { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; background: #000; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; left: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px 0; display: flex; flex-direction: column; gap: 6px;
+  align-items: flex-start; pointer-events: none; z-index: 5; max-width: calc(100% - 170px); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; background: rgba(10,9,8,.78);
+  border: 1px solid var(--line2); font: 600 12px/1.2 var(--body); white-space: nowrap; }
+.chip b { color: var(--gold2); font-variant-numeric: tabular-nums; }
+.hp { width: 92px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+.hp i { display: block; height: 100%; background: linear-gradient(90deg, #b8423c, #e0605a); transition: width .2s; }
+.chip.stance-crouch { border-color: rgba(108,201,138,.5); color: #b9ecc9; }
+.chip.stance-run { border-color: rgba(240,182,74,.6); color: #ffd99a; }
+#objective { font: 500 12px/1.35 var(--body); color: var(--muted); max-width: 380px; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+#objective b { color: var(--ink); font-weight: 600; }
+#mini { position: fixed; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 5; border-radius: 8px;
+  border: 1px solid var(--line); background: rgba(8,7,6,.82); image-rendering: pixelated; pointer-events: none; }
+#pause { position: fixed; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 112px); z-index: 6; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line);
+  background: rgba(10,9,8,.8); color: var(--gold2); display: grid; place-items: center; cursor: pointer; font-weight: 700; }
+#banner { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 86px); transform: translateX(-50%); z-index: 6;
+  padding: 7px 16px; border-radius: 999px; font: 700 13px/1 var(--body); letter-spacing: .06em; text-transform: uppercase;
+  background: rgba(120,24,20,.9); border: 1px solid #ff8a7a; color: #fff; pointer-events: none; white-space: nowrap; }
+#banner.calm { background: rgba(60,48,18,.9); border-color: var(--gold); }
+#prompt { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); transform: translateX(-50%); z-index: 6;
+  padding: 7px 14px; border-radius: 10px; background: rgba(10,9,8,.86); border: 1px solid var(--line); font: 600 13px/1.2 var(--body);
+  pointer-events: none; white-space: nowrap; }
+#prompt kbd { font: 700 11px/1 var(--body); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--gold2); margin-right: 6px; }
+#keys { position: fixed; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); z-index: 5; font: 500 11px/1.6 var(--body);
+  color: var(--faint); pointer-events: none; }
+#keys kbd { font: 700 10px/1 var(--body); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--line2); color: var(--muted); }
+body.touch #keys, body.touch #prompt kbd { display: none; }
+
+/* ---------- touch controls ---------- */
+#touch { display: none; }
+body.touch #touch { display: block; }
+#stickZone { position: fixed; left: 0; bottom: 0; width: 55%; height: 55%; z-index: 4; touch-action: none; }
+#stick { position: fixed; width: 116px; height: 116px; margin: -58px 0 0 -58px; border-radius: 50%; z-index: 4; pointer-events: none;
+  border: 2px solid rgba(212,175,55,.45); background: radial-gradient(circle, rgba(212,175,55,.1), rgba(0,0,0,.35)); opacity: .75; }
+#stick::before { content: ''; position: absolute; inset: 14px; border-radius: 50%; border: 1px dashed rgba(240,182,74,.4); }
+#knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f0e3c0, #8a6a1c); box-shadow: 0 3px 10px rgba(0,0,0,.7); }
+#tbtns { position: fixed; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); z-index: 5; display: grid;
+  grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 12px; align-items: end; }
+.tb { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); background: rgba(12,11,9,.72); color: var(--ink);
+  font: 700 11px/1.1 var(--body); display: grid; place-items: center; text-align: center; padding: 4px; touch-action: none; }
+.tb.big { width: 78px; height: 78px; font-size: 12px; border-color: rgba(224,96,90,.6); }
+.tb.on { background: rgba(60,120,80,.55); border-color: #9fe0b0; }
+.tb.ctx { border-color: rgba(245,215,110,.7); color: var(--gold2); }
+.tb.ctx[disabled] { opacity: .35; }
+#tbCrouch { grid-column: 1; grid-row: 2; } #tbAct { grid-column: 1; grid-row: 1; } #tbAtk { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+/* ---------- screens ---------- */
+.screen { position: fixed; inset: 0; z-index: 20; overflow-y: auto; background: radial-gradient(ellipse at 50% 0%, #2a2116 0%, #0d0c0b 70%);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px calc(env(safe-area-inset-bottom, 0px) + 28px); }
+.wrap { max-width: 880px; margin: 0 auto; display: grid; gap: 18px; }
+.eyebrow { font: 600 11px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+h1 { font: 700 clamp(26px, 6vw, 40px)/1.1 var(--display); color: var(--gold2); margin: 4px 0 0; text-wrap: balance; }
+h2 { font: 700 18px/1.2 var(--display); color: var(--gold); margin: 0; }
+.lead { color: var(--muted); max-width: 64ch; margin: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab { flex: 1 1 200px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line2); background: var(--panel2); cursor: pointer; display: grid; gap: 2px; }
+.tab b { font: 700 15px/1.2 var(--display); color: var(--ink); }
+.tab span { font-size: 12px; color: var(--muted); }
+.tab[aria-pressed="true"] { border-color: var(--gold); background: #2b2416; }
+.tab[aria-pressed="true"] b { color: var(--gold2); }
+.setup { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); background: var(--panel);
+  border: 1px solid var(--line2); border-radius: 12px; padding: 14px; }
+.setup label { display: grid; gap: 6px; font: 600 12px/1.2 var(--body); color: var(--muted); }
+.setup label b { color: var(--gold2); font-variant-numeric: tabular-nums; }
+.setup .hint { font: 500 11px/1.3 var(--body); color: var(--faint); }
+input[type=range] { width: 100%; accent-color: var(--gold); }
+.seg { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: #120f0c; border: 1px solid var(--line2); }
+.seg button { border: 0; background: none; color: var(--muted); padding: 6px 12px; border-radius: 999px; font: 600 12px/1 var(--body); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--gold); color: #1a1406; }
+.intel { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); background: #16130f; border: 1px solid var(--line);
+  border-radius: 12px; padding: 16px; }
+@media (max-width: 680px) { .intel { grid-template-columns: 1fr; } }
+.intel ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink); }
+.intel li.unk { color: var(--faint); font-style: italic; }
+.intel li b { color: var(--gold2); }
+.sketch { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line2); background: #0a0908; image-rendering: pixelated; }
+.approach { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+.ap { text-align: left; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; display: grid; gap: 4px; }
+.ap:hover { border-color: var(--gold); }
+.ap b { font: 700 15px/1.2 var(--display); color: var(--gold2); }
+.ap span { font-size: 12px; color: var(--muted); }
+.ap[disabled] { opacity: .45; cursor: default; }
+.controls { color: var(--faint); font-size: 12px; }
+.controls kbd { font: 700 11px/1 var(--body); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line2); color: var(--muted); }
+.res { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
+.res table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.res td { padding: 6px 0; border-bottom: 1px solid var(--line2); }
+.res td:last-child { text-align: right; color: var(--gold2); font-weight: 600; }
+.res tr:last-child td { border-bottom: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { padding: 11px 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; font-weight: 600; }
+.btn.primary { background: var(--gold); color: #1a1406; border-color: var(--gold); }
+.note { font-size: 12px; color: var(--faint); }
+[hidden] { display: none !important; }
+</style>
+
+<canvas id="game"></canvas>
+
+<div id="hud" hidden>
+  <div class="chips">
+    <span class="chip"><span class="hp"><i id="hpBar" style="width:100%"></i></span></span>
+    <span class="chip" id="stanceChip">Ayakta</span>
+    <span class="chip">Altın <b id="goldTxt">0</b></span>
+    <span class="chip" id="prisChip" hidden>Tutsak <b id="prisTxt">0</b></span>
+  </div>
+  <div id="objective"></div>
+</div>
+<canvas id="mini" width="150" height="96" hidden></canvas>
+<button id="pause" hidden aria-label="Duraklat">II</button>
+<div id="banner" hidden></div>
+<div id="prompt" hidden></div>
+<div id="keys" hidden><kbd>WASD</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>C</kbd> eğil · <kbd>E</kbd> etkileşim · <kbd>Boşluk</kbd> saldır · <kbd>Esc</kbd> duraklat</div>
+
+<div id="touch" hidden>
+  <div id="stickZone"></div>
+  <div id="stick" hidden><div id="knob"></div></div>
+  <div id="tbtns">
+    <button class="tb ctx" id="tbAct" disabled>—</button>
+    <button class="tb" id="tbCrouch">Eğil</button>
+    <button class="tb big" id="tbAtk">Saldır</button>
+  </div>
+</div>
+
+<section class="screen" id="brief">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">WebBand · Haydut inleri · Deneme 1</div>
+      <h1>Haydut İni</h1>
+      <p class="lead">Kalradya'da haydutların saklandığı bir ev ya da mağara. Önce keşif, sonra yolunu sen seç: tek başına sız, birkaç askerinle sız ya da bütün ordunla bas. Sızarsan in yerinde kalır; aldığını alıp <b>çıkışa dönmen</b> gerekir.</p>
+    </div>
+    <div class="tabs" id="levelTabs"></div>
+    <div class="setup">
+      <label>İzcilik <b id="scoutV">4</b>
+        <input type="range" id="scout" min="0" max="10" value="4">
+        <span class="hint">Ne kadar yüksekse ini o kadar iyi tanırsın.</span></label>
+      <label>Liderlik <b id="leadV">4</b>
+        <input type="range" id="lead" min="0" max="10" value="4">
+        <span class="hint">Yanında gizlice kaç asker getirebileceğini belirler.</span></label>
+      <label>Saat
+        <span class="seg" id="timeSeg"><button data-v="day" aria-pressed="false">Gündüz</button><button data-v="night" aria-pressed="true">Gece</button></span>
+        <span class="hint">Gece karanlık ve nöbetçilerin bir kısmı uyur.</span></label>
+      <label>Pusu (deneme için)
+        <span class="seg" id="ambSeg"><button data-v="random" aria-pressed="true">Rastgele</button><button data-v="on" aria-pressed="false">Var</button><button data-v="off" aria-pressed="false">Yok</button></span>
+        <span class="hint">Oyunda rastgele olacak; burada sabitleyebilirsin.</span></label>
+    </div>
+    <div class="intel">
+      <div>
+        <h2 id="intelTitle">Keşif</h2>
+        <ul id="intelList"></ul>
+      </div>
+      <canvas class="sketch" id="sketch" width="300" height="140"></canvas>
+    </div>
+    <div class="approach">
+      <button class="ap" id="apSolo"><b>Tek başına sız</b><span>Karanlıkta, sessizce. Yakalanırsan kısa bir dövüş ya da kapıya kaçış.</span></button>
+      <button class="ap" id="apSquad"><b id="apSquadT">Askerlerinle sız</b><span>Seni sessizce takip ederler. Fark edildiğiniz an dövüşe girerler.</span></button>
+      <button class="ap" id="apArmy"><b>Bütün orduyla bas</b><span>Ön kapıdan, açıkça. Herkes seni bekliyor olacak.</span></button>
+    </div>
+    <p class="controls" id="controlsTxt"></p>
+  </div>
+</section>
+
+<section class="screen" id="result" hidden>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow" id="resEyebrow">Sonuç</div>
+      <h1 id="resTitle">Çıktın</h1>
+      <p class="lead" id="resLead"></p>
+    </div>
+    <div class="res"><table id="resTable"></table></div>
+    <div class="row">
+      <button class="btn primary" id="resAgain">Aynı ini tekrar dene</button>
+      <button class="btn" id="resBrief">Keşfe dön</button>
+    </div>
+    <p class="note">Bu bir deneme. Gerçek oyunda altın ve tutsaklar sefere eklenir, yenilgi esarete düşmek demektir.</p>
+  </div>
+</section>
+
+<section class="screen" id="pausedScr" hidden>
+  <div class="wrap">
+    <div><div class="eyebrow">Duraklatıldı</div><h1>Nefes al</h1></div>
+    <div class="row">
+      <button class="btn primary" id="resume">Devam et</button>
+      <button class="btn" id="quit">Keşfe dön</button>
+    </div>
+  </div>
+</section>
+
+<script src="sprites.js"></script>
+<script>
+'use strict';
+// ============================================================================================
+// Haydut İni — a stand-alone prototype of the bandit lairs (houses, caves) for WebBand.
+// Real-time top-down stealth: guards see in cones that shrink in the dark, hear running and
+// splashing, and raise the alarm; the player can take them down from behind, hide behind
+// cover, free prisoners, steal the lair's purse and must get back out. The characters are the
+// game's own Swordsman sprites (sprites.js is lifted unchanged from battle.js); props are the
+// CraftPix Roguelike kit at 2x. One world unit = one sprite pixel; a tile is 32 units.
+// ============================================================================================
+const T = 32;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rnd = (a, b) => a + Math.random() * (b - a);
+let seed = 1;
+const srand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+
+// ---------- assets ----------
+const IMG = {};
+const ASSETS = ['barrel', 'chest', 'chest2', 'crate', 'crate2', 'fire', 'lever', 'meat', 'pot', 'potgold', 'purse',
+  'rubble', 'rubble2', 'sack', 'sack2', 'shadow', 'spikes', 'stool', 'table', 'torch', 'trapdoor', 'bottles', 'bench'];
+function loadAssets() {
+  Swordsman.load();
+  return Promise.all(ASSETS.map(n => new Promise(r => { const i = new Image(); i.onload = i.onerror = () => r(); i.src = 'a/' + n + '.png'; IMG[n] = i; })))
+    .then(() => new Promise(r => { const w = () => Swordsman.ready() ? r() : setTimeout(w, 30); w(); }));
+}
+
+// ---------- levels ----------
+// Tiles: # wall · . floor · O outside ground · E exit ground · W window · D door · X rubble (a lever clears it)
+// ~ water · ' ' rock/void. Objects on a floor: b crate · B barrel · s sack · k table · h stool · T torch · F fire
+// C chest · c trapped chest · L lever · t trapdoor (pairs) · P prisoner · $ the lair's purse · S hidden spikes
+// v bats · @ start (also an exit). Guards live in the list, not in the map.
+const LEVELS = {
+  house: {
+    name: 'Değirmencinin Evi', kind: 'Haydut evi', theme: 'house',
+    blurb: 'Köyün dışında haydutların el koyduğu bir ev. Ön kapı, yan pencere ve bodruma inen bir kapak.',
+    map: [
+      'OOOOOOOOOOOOOOOOOOOOOOOO      ',
+      'O######################O######',
+      'O#b.k..#......b#b.b...#O#PP.s#',
+      'O#.kkk.#..kk$..#.....C#O#....#',
+      'O#..h..#...h...#b.....#O#....#',
+      'O#....s#B......#...B.s#O#t..C#',
+      'O###D#####D#######D####O######',
+      'O#T..................T#O      ',
+      'OW....................#O      ',
+      'O#B.........#.S...t.c.#O      ',
+      'O#bb...s....#b........#O      ',
+      'O##########D###########O      ',
+      'EEEEEEEEEEE@EEEEEEEEEEEE      '],
+    ambient: { day: .34, night: .07 }, outside: { day: .95, night: .26 },
+    lights: [{ x: 4, y: 3, r: 110, i: .8, kind: 'candle' }, { x: 10.5, y: 3, r: 120, i: .85, kind: 'candle' },
+             { x: 27, y: 3, r: 95, i: .7, kind: 'candle' }],
+    dayLights: [{ x: 1.5, y: 8, r: 150, i: .6, kind: 'window' }],
+    guards: [
+      { x: 2, y: 3, type: 'dice', face: 'right', night: 'sleep', name: 'Zarcı Hasan' },
+      { x: 6, y: 3, type: 'dice', face: 'left', night: 'sleep', name: 'Topal Veli' },
+      { x: 11, y: 4, type: 'leader', face: 'up', night: 'sleep', name: 'Reis Kara Yusuf', look: 'leader' },
+      { x: 3, y: 8, type: 'patrol', route: [[3, 8], [20, 8], [20, 10], [15, 10], [20, 8]], name: 'Nöbetçi' },
+      { x: 27, y: 4, type: 'sleep', face: 'left', name: 'Sarhoş Gardiyan' }],
+    ambush: { room: [16, 2, 21, 5], doors: [[18, 6]], spawns: [[20, 2], [17, 5]], where: 'depo odası' },
+    purse: 420, chests: { C: [55, 95], c: [140, 180] },
+    exitText: 'Evin önündeki yola çık.',
+    intel: {
+      entrances: 'Ön kapı (yolun tarafında), batıda bir pencere',
+      secret: 'Arka koridordaki zemin kapağı bodruma iniyor; tutsaklar orada.',
+      leader: { day: 'Reis kendi odasında, sırtı kapıya dönük kese sayıyor.', night: 'Reis gece odasında uyuyor.' },
+      traps: 'Arka koridorda gizli diken, sağdaki sandık tuzaklı.'
+    }
+  },
+  cave: {
+    name: 'Yarasa İni', kind: 'Mağara', theme: 'cave',
+    blurb: 'Zifiri bir mağara. Kamp ateşinin başında zar oynayanlar, yeraltı deresi ve taşlarla kapatılmış bir niş.',
+    map: [
+      '################################',
+      '##b..c.b######.......T#P.P######',
+      '##......######.....b..X...######',
+      '##.L..s.######........#..$######',
+      '##B.....######........#C.s######',
+      '#####v#####.b.........#####~~~##',
+      '#####.#####...........#####~~~##',
+      '###.....###...........#####~~~##',
+      '###.............F..........~~~##',
+      '###.....###................~~~##',
+      '###.....###...........####.~~~##',
+      '#####..####s........B.####.~~~##',
+      '######..##################.~~~.#',
+      '#######..#################.~~~.E',
+      '########..#################~~~.E',
+      '#########@#################~~~.#',
+      '#########E######################'],
+    ambient: { day: .05, night: .03 }, outside: { day: .5, night: .12 },
+    lights: [{ x: 24, y: 2, r: 100, i: .75, kind: 'candle' }],
+    dayLights: [{ x: 9, y: 15.5, r: 130, i: .5, kind: 'mouth' }],
+    guards: [
+      { x: 14, y: 8, type: 'dice', face: 'right', night: 'sleep', name: 'Zarcı' },
+      { x: 18, y: 8, type: 'dice', face: 'left', night: 'sleep', name: 'Kör Ali' },
+      { x: 16, y: 10, type: 'dice', face: 'up', night: 'sleep', name: 'Çırak' },
+      { x: 15, y: 3, type: 'post', face: 'right', sweep: 1.1, name: 'Gözcü' },
+      { x: 12, y: 6, type: 'patrol', route: [[12, 6], [21, 6], [25, 9], [26, 12], [25, 9], [21, 6]], name: 'Nöbetçi' },
+      { x: 24, y: 3, type: 'leader', face: 'right', night: 'sleep', name: 'Reis Yarasa', look: 'leader' }],
+    ambush: { room: [2, 1, 7, 4], doors: [], block: [[5, 6]], spawns: [[4, 1], [7, 4]], where: 'erzak mağarası', lever: true },
+    purse: 460, chests: { C: [60, 110], c: [150, 200] },
+    lever: { opens: [[22, 2]] },
+    exitText: 'Mağaranın ağzına ya da dere çıkışına dön.',
+    intel: {
+      entrances: 'Mağara ağzı (güneybatı), dereden sağ alta ikinci bir çıkış',
+      secret: 'Batıdaki erzak mağarasında bir kol var; nişi kapatan taşları indiriyor. Tutsaklar ve reis orada.',
+      leader: { day: 'Reis taşların ardındaki nişte, tutsakların başında keseyle oyalanıyor.', night: 'Reis nişte uyuyor.' },
+      traps: 'Erzak mağarasındaki sandık tuzaklı; tünelde yarasalar var, geçerken ses çıkar.'
+    }
+  }
+};
+
+// ---------- state ----------
+let L = null, G = null;        // level def, live game
+const opts = { level: 'house', scout: 4, lead: 4, time: 'night', amb: 'random' };
+const canvas = $('#game'), ctx = canvas.getContext('2d');
+let DPR = 1, Z = 2, VW = 0, VH = 0;   // device px per world unit, view size in world units
+
+// ---------- tile helpers ----------
+const WALLS = new Set(['#', ' ']);
+function tile(x, y) { if(y < 0 || y >= G.h || x < 0 || x >= G.w) return ' '; return G.grid[y][x]; }
+function obj(x, y) { return G.objs[y * G.w + x]; }
+function solidTile(x, y) {
+  const c = tile(x, y);
+  if(WALLS.has(c) || c === 'W') return true;
+  if(c === 'X') return !G.opened.has(x + ',' + y);
+  if(c === 'D') { const d = G.doors[x + ',' + y]; return !d || !d.open; }
+  const o = obj(x, y);
+  return !!(o && o.solid && !o.gone);
+}
+// vision is blocked by walls, shut doors, rubble and tall cover (crates, barrels, sacks); not by tables, water or windows
+function opaque(x, y) {
+  const c = tile(x, y);
+  if(WALLS.has(c)) return true;
+  if(c === 'X') return !G.opened.has(x + ',' + y);
+  if(c === 'D') { const d = G.doors[x + ',' + y]; return !d || !d.open; }
+  const o = obj(x, y);
+  return !!(o && o.cover && !o.gone);
+}
+function los(ax, ay, bx, by, ignoreEnd) {
+  const dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy), n = Math.ceil(d / 8);
+  const ex = Math.floor(bx / T), ey = Math.floor(by / T), sx = Math.floor(ax / T), sy = Math.floor(ay / T);
+  for(let i = 1; i < n; i++) {
+    const tx = Math.floor((ax + dx * i / n) / T), ty = Math.floor((ay + dy * i / n) / T);
+    if((tx === sx && ty === sy) || (ignoreEnd && tx === ex && ty === ey)) continue;
+    if(opaque(tx, ty)) return false;
+  }
+  return true;
+}
+const isOutside = (x, y) => { const c = tile(x, y); return c === 'O' || c === 'E' || c === '@'; };
+
+// ---------- lighting ----------
+function buildLight() {
+  const amb = L.ambient[opts.time], out = L.outside[opts.time];
+  G.light = new Float32Array(G.w * G.h);
+  const lights = G.lights.filter(l => !l.off);
+  for(let y = 0; y < G.h; y++) for(let x = 0; x < G.w; x++) {
+    let v = isOutside(x, y) ? out : amb;
+    const cx = x * T + 16, cy = y * T + 16;
+    for(const l of lights) {
+      const d = Math.hypot(cx - l.px, cy - l.py);
+      if(d < l.r && (d < 24 || los(l.px, l.py, cx, cy, true))) v += l.i * (1 - d / l.r);
+    }
+    G.light[y * G.w + x] = Math.min(1.2, v);
+  }
+  // the dark layer: one pixel per tile, drawn smoothed and big — soft light for nothing
+  const c = G.darkCanvas || (G.darkCanvas = document.createElement('canvas'));
+  c.width = G.w; c.height = G.h;
+  const x2 = c.getContext('2d'), id = x2.createImageData(G.w, G.h);
+  for(let i = 0; i < G.w * G.h; i++) {
+    const v = clamp(G.light[i], 0, 1), a = Math.round(255 * Math.pow(1 - v, 1.15) * .94);
+    id.data[i * 4] = 4; id.data[i * 4 + 1] = 5; id.data[i * 4 + 2] = 12; id.data[i * 4 + 3] = a;
+  }
+  x2.putImageData(id, 0, 0);
+}
+function lightAt(px, py) {
+  const x = clamp(Math.floor(px / T), 0, G.w - 1), y = clamp(Math.floor(py / T), 0, G.h - 1);
+  return G.light[y * G.w + x];
+}
+
+// ---------- baking the ground ----------
+const PAL = {
+  house: { f: ['#6a4a30', '#5d412a', '#74523a', '#65462e'], seam: '#3b2819', nail: '#2a1c12', top: '#2a1f18', topHi: '#3c2d22',
+           face: '#7a6754', faceHi: '#8c7862', faceLo: '#5b4b3c', beam: '#46311f' },
+  cave:  { f: ['#2f2b28', '#292522', '#35302c', '#26221f'], seam: '#1d1a18', nail: '#3d3833', top: '#141211', topHi: '#221e1b',
+           face: '#3a342e', faceHi: '#4a423a', faceLo: '#27221e', beam: '#1d1916' }
+};
+function bakeGround() {
+  const c = document.createElement('canvas'); c.width = G.w * 16; c.height = G.h * 16;   // 16 px per tile, drawn at 2x
+  const x = c.getContext('2d'), P = PAL[L.theme];
+  const px = (X, Y, col) => { x.fillStyle = col; x.fillRect(X, Y, 1, 1); };
+  seed = 7;
+  for(let ty = 0; ty < G.h; ty++) for(let tx = 0; tx < G.w; tx++) {
+    const ch = tile(tx, ty), X = tx * 16, Y = ty * 16;
+    if(ch === ' ') { x.fillStyle = '#060508'; x.fillRect(X, Y, 16, 16); continue; }
+    if(ch === 'O' || ch === 'E' || ch === '@') {
+      const road = ch !== 'O';
+      x.fillStyle = road ? '#6d5a3e' : (L.theme === 'cave' ? '#3a3f2c' : '#3d5a2c'); x.fillRect(X, Y, 16, 16);
+      for(let i = 0; i < 22; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), road ? (srand() < .5 ? '#7c6747' : '#5f4d35') : (srand() < .5 ? '#48673a' : '#334c25'));
+      continue;
+    }
+    if(ch === '~') {
+      x.fillStyle = '#16323f'; x.fillRect(X, Y, 16, 16);
+      for(let i = 0; i < 10; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), srand() < .5 ? '#1c3d4c' : '#122a35');
+      continue;
+    }
+    if(ch === '#' || ch === 'W') {
+      x.fillStyle = P.top; x.fillRect(X, Y, 16, 16);
+      for(let i = 0; i < 8; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.topHi);
+      const below = tile(tx, ty + 1);
+      if(below !== '#' && below !== ' ' && below !== 'W') {           // the wall's face toward the room
+        x.fillStyle = P.face; x.fillRect(X, Y + 9, 16, 7);
+        x.fillStyle = P.faceHi; x.fillRect(X, Y + 9, 16, 1);
+        x.fillStyle = P.faceLo; x.fillRect(X, Y + 15, 16, 1);
+        if(L.theme === 'house') { x.fillStyle = P.beam; x.fillRect(X, Y + 8, 16, 1); if(tx % 3 === 0) x.fillRect(X + 7, Y + 9, 2, 7); }
+        else for(let i = 0; i < 6; i++) px(X + (srand() * 16 | 0), Y + 10 + (srand() * 5 | 0), srand() < .5 ? P.faceHi : P.faceLo);
+        if(L.theme === 'cave') for(let i = 0; i < 16; i += 2) if(srand() < .5) px(X + i, Y + 8, P.face);
+      }
+      if(ch === 'W') {
+        x.fillStyle = '#3b2a1c'; x.fillRect(X + 2, Y + 3, 12, 11);
+        x.fillStyle = opts.time === 'day' ? '#8fb8cf' : '#22384a'; x.fillRect(X + 3, Y + 4, 10, 9);
+        x.fillStyle = '#3b2a1c'; x.fillRect(X + 7, Y + 4, 2, 9); x.fillRect(X + 3, Y + 8, 10, 1);
+      }
+      continue;
+    }
+    // floor
+    if(L.theme === 'house') {
+      for(let r = 0; r < 4; r++) {
+        x.fillStyle = P.f[(r + tx * 3 + ty) % 4]; x.fillRect(X, Y + r * 4, 16, 4);
+        x.fillStyle = P.seam; x.fillRect(X, Y + r * 4 + 3, 16, 1);
+        const cut = ((tx * 7 + ty * 3 + r * 5) % 16); x.fillRect(X + cut, Y + r * 4, 1, 3);
+        if(srand() < .4) px(X + (cut + 3) % 16, Y + r * 4 + 1, P.nail);
+      }
+    } else {
+      x.fillStyle = P.f[0]; x.fillRect(X, Y, 16, 16);
+      for(let i = 0; i < 26; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.f[1 + (srand() * 3 | 0)]);
+      if(srand() < .25) { const a = srand() * 12 | 0, b = srand() * 12 | 0; x.fillStyle = P.seam; x.fillRect(X + a, Y + b, 3, 1); }
+    }
+    // a wall above casts a short shadow onto the floor
+    if(WALLS.has(tile(tx, ty - 1)) || tile(tx, ty - 1) === 'W') { x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(X, Y, 16, 3); }
+  }
+  G.ground = c;
+}
+
+// ---------- entities ----------
+const LOOKS = {
+  player: { armor: 2, weapon: 2, helm: '', skin: 0, hair: 0, cloth: 'player' },
+  squad: i => ({ armor: 1 + (i % 2), weapon: 1 + (i % 2), helm: ['cap', '', 'nasal', 'cap'][i % 4], skin: (i * 2) % 4, hair: (i * 3) % 6, cloth: 'player' }),
+  bandit: i => ({ armor: 1 + (i % 2), weapon: 1 + ((i >> 1) % 2), helm: ['', 'cap', '', 'cap', 'nasal'][i % 5], skin: (i * 3) % 4, hair: (i * 5) % 6, cloth: 'bandit' }),
+  leader: { armor: 2, weapon: 3, helm: 'nasal', skin: 1, hair: 1, cloth: 'bandit', wpn: 'axe' },
+  prisoner: i => ({ armor: 1, weapon: 1, helm: '', skin: (i * 2 + 1) % 4, hair: (i * 2 + 2) % 6, cloth: 'vaegir' })
+};
+const OBJDEF = {
+  b: { img: 'crate', solid: true, cover: true }, B: { img: 'barrel', solid: true, cover: true }, s: { img: 'sack', solid: true, cover: true },
+  k: { table: true, solid: true }, h: { img: 'stool' }, T: { img: 'torch', solid: true, light: { r: 170, i: .95 } },
+  F: { fire: true, solid: true, light: { r: 250, i: 1.1 } }, C: { chest: true, solid: true }, c: { chest: true, trapped: true, solid: true },
+  L: { lever: true, solid: true }, t: { trapdoor: true }, $: { purse: true }, S: { spikes: true }, v: { bats: true }
+};
+
+function newGame(approach) {
+  L = LEVELS[opts.level];
+  const map = L.map, h = map.length, w = map[0].length;
+  G = { w, h, grid: map.map(r => r.split('')), objs: new Array(w * h).fill(null), doors: {}, opened: new Set(), lights: [], t: 0,
+        chars: [], fx: [], texts: [], gold: 0, items: [], freed: 0, kos: 0, downs: 0, alarms: 0, alarm: 0, searchT: 0,
+        approach, seen: new Uint8Array(w * h), ambushOn: false, ambushState: 0, done: false, trapdoors: [], msgs: [], noiseT: 0, stepAcc: 0 };
+  seed = 3;
+  // objects and specials from the map
+  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++) {
+    const ch = G.grid[y][x];
+    if(ch === 'D') G.doors[x + ',' + y] = { x, y, open: false, locked: false, anim: 0 };
+    if(OBJDEF[ch]) {
+      const d = OBJDEF[ch], o = Object.assign({ ch, x, y, cx: x * T + 16, cy: y * T + 16, frame: 0 }, d);
+      if(ch === 't') G.trapdoors.push(o);
+      if(d.light) G.lights.push({ px: o.cx, py: o.cy - 6, r: d.light.r, i: d.light.i, kind: ch === 'F' ? 'fire' : 'torch' });
+      if(d.spikes) o.known = opts.scout >= 6;
+      if(d.trapped) o.known = opts.scout >= 6;
+      G.objs[y * w + x] = o;
+      G.grid[y][x] = '.';
+    }
+    if(ch === 'P') { G.grid[y][x] = '.'; G.chars.push(makeChar('prisoner', x, y, { look: LOOKS.prisoner(G.chars.length), face: 'down', tied: true })); }
+    if(ch === '@') G.start = { x, y };
+  }
+  for(const l of L.lights) G.lights.push({ px: l.x * T + 16, py: l.y * T + 16, r: l.r, i: l.i, kind: l.kind });
+  if(opts.time === 'day') for(const l of L.dayLights || []) G.lights.push({ px: l.x * T + 16, py: l.y * T + 16, r: l.r, i: l.i, kind: l.kind });
+
+  // the player (and whoever came along) at the start
+  G.player = makeChar('player', G.start.x, G.start.y, { look: LOOKS.player, hp: 100, maxHp: 100, face: 'up' });
+  G.player.y -= 4;
+  G.chars.push(G.player);
+  const squadN = approach === 'army' ? 8 : approach === 'squad' ? squadSize() : 0;
+  for(let i = 0; i < squadN; i++) {
+    const s = makeChar('squad', G.start.x, G.start.y, { look: LOOKS.squad(i), hp: 60, maxHp: 60, idx: i, face: 'up' });
+    s.x += (i % 3 - 1) * 12; s.y += 10 + (i / 3 | 0) * 10;
+    G.chars.push(s);
+  }
+  G.trail = [];
+  const prs = G.chars.filter(c => c.kind === 'prisoner');
+  if(prs[0]) prs[0].news = L.theme === 'cave' ? 'Tüccar: "Beni kurtardın! Nehir yolundaki kervan yarın pusuya düşecek, duydum."' : 'Köylü: "Sağ ol! Reis keseyi masada sayar, sırtı hep kapıya dönük."';
+  if(prs[1] && Math.random() < .5) prs[1].loud = true;
+  // the guards
+  L.guards.forEach((gd, i) => {
+    let type = gd.type;
+    if(opts.time === 'night' && gd.night) type = gd.night;
+    const g = makeChar('guard', gd.x, gd.y, { look: gd.look === 'leader' ? LOOKS.leader : LOOKS.bandit(i), hp: gd.look === 'leader' ? 80 : 45,
+      maxHp: gd.look === 'leader' ? 80 : 45, role: type, face: gd.face || 'down', route: gd.route, sweep: gd.sweep || 0, name: gd.name, leader: gd.look === 'leader' });
+    g.home = { x: g.x, y: g.y, a: g.a };
+    g.state = type === 'sleep' ? 'sleep' : 'calm';
+    G.chars.push(g);
+  });
+  // the ambush is decided up front (and told to a sharp scout)
+  G.ambushOn = !!L.ambush && (opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4));
+  if(approach === 'army') { G.ambushOn = false; raiseAlarm(null, true); }
+  buildLight();
+  bakeGround();
+  // an army walks in the front door: open it
+  if(approach === 'army') for(const k in G.doors) { const d = G.doors[k]; if(Math.abs(d.x - G.start.x) + Math.abs(d.y - G.start.y) <= 1) d.open = true; }
+  if(approach === 'army') buildLight();
+  G.revealAll = opts.scout >= 6;
+  G.msg = approach === 'army' ? 'Ön kapıdan giriyorsunuz. Haydutlar silaha sarıldı!' : 'Sessiz ol. Eğilirsen daha az görünürsün.';
+  G.msgT = 4;
+}
+function squadSize() { return 1 + Math.floor(opts.lead / 3); }
+
+function makeChar(kind, tx, ty, o) {
+  const face = o.face || 'down';
+  return Object.assign({ kind, x: tx * T + 16, y: ty * T + 20, vx: 0, vy: 0, a: faceAngle(face), dir: face, anim: 'Idle', animT: Math.random() * 2000,
+    hp: 40, maxHp: 40, state: 'calm', sus: 0, atkT: 0, cd: 0, crouch: false, running: false, hurtT: 0 }, o);
+}
+function faceAngle(f) { return { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[f] ?? Math.PI / 2; }
+function dirOf(a) { const c = Math.cos(a), s = Math.sin(a); return Math.abs(c) > Math.abs(s) * .9 ? (c < 0 ? 'left' : 'right') : (s < 0 ? 'up' : 'down'); }
+const angDiff = (a, b) => { let d = a - b; while(d > Math.PI) d -= 2 * Math.PI; while(d < -Math.PI) d += 2 * Math.PI; return d; };
+
+// ---------- movement ----------
+const RAD = 9;
+function moveChar(c, dx, dy) {
+  const tryAxis = (nx, ny) => {
+    const x0 = Math.floor((nx - RAD) / T), x1 = Math.floor((nx + RAD) / T), y0 = Math.floor((ny - RAD * .6) / T), y1 = Math.floor((ny + RAD * .4) / T);
+    for(let y = y0; y <= y1; y++) for(let x = x0; x <= x1; x++) if(solidTile(x, y)) return false;
+    return true;
+  };
+  if(dx && tryAxis(c.x + dx, c.y)) c.x += dx;
+  else if(dx && c.kind === 'player') bump(c, Math.floor((c.x + dx + Math.sign(dx) * RAD) / T), Math.floor(c.y / T));
+  if(dy && tryAxis(c.x, c.y + dy)) c.y += dy;
+  else if(dy && c.kind === 'player') bump(c, Math.floor(c.x / T), Math.floor((c.y + dy + Math.sign(dy) * RAD * .6) / T));
+}
+// walking into a shut door opens it (with a creak)
+function bump(c, tx, ty) {
+  const d = G.doors[tx + ',' + ty];
+  if(d && !d.open && !d.locked) { d.open = true; noise(tx * T + 16, ty * T + 16, 70, 'Kapı gıcırdadı'); buildLight(); }
+  else if(d && d.locked && !c.lockedToldT) { say('Kapı kilitli!'); c.lockedToldT = 1.5; }
+}
+
+// grid path for guards (BFS, 4-way, doors are passable — guards open them)
+function path(from, to) {
+  const W = G.w, sx = Math.floor(from.x / T), sy = Math.floor(from.y / T), ex = Math.floor(to.x / T), ey = Math.floor(to.y / T);
+  if(sx === ex && sy === ey) return [];
+  const prev = new Int32Array(W * G.h).fill(-1), q = [sy * W + sx]; prev[sy * W + sx] = sy * W + sx;
+  const pass = (x, y) => { const c = tile(x, y); if(c === 'D') { const d = G.doors[x + ',' + y]; return !d.locked; } return !solidTile(x, y) && c !== '~' || c === '~'; };
+  for(let qi = 0; qi < q.length; qi++) {
+    const cur = q[qi], cx = cur % W, cy = cur / W | 0;
+    if(cx === ex && cy === ey) break;
+    for(const [ddx, ddy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + ddx, ny = cy + ddy, ni = ny * W + nx;
+      if(nx < 0 || ny < 0 || nx >= W || ny >= G.h || prev[ni] !== -1) continue;
+      if(!pass(nx, ny) && !(nx === ex && ny === ey)) continue;
+      prev[ni] = cur; q.push(ni);
+    }
+  }
+  const end = ey * W + ex; if(prev[end] === -1) return null;
+  const out = []; for(let c = end; c !== sy * W + sx; c = prev[c]) out.push({ x: (c % W) * T + 16, y: (c / W | 0) * T + 20 });
+  return out.reverse();
+}
+function walkTo(c, tx, ty, speed, dt) {
+  const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+  if(d < 2) return true;
+  const s = Math.min(d, speed * dt);
+  // a guard reaching a shut door opens it
+  const nx = Math.floor((c.x + dx / d * 14) / T), ny = Math.floor((c.y + dy / d * 14) / T), door = G.doors[nx + ',' + ny];
+  if(door && !door.open && !door.locked && c.kind !== 'player') { door.open = true; buildLight(); }
+  moveChar(c, dx / d * s, dy / d * s);
+  c.a = Math.atan2(dy, dx);
+  return false;
+}
+function followPath(c, target, speed, dt) {
+  c.repath = (c.repath || 0) - dt;
+  if(!c.path || c.repath <= 0 || !c.pathTo || Math.hypot(c.pathTo.x - target.x, c.pathTo.y - target.y) > 24) {
+    c.path = path(c, target) || []; c.pathTo = { x: target.x, y: target.y }; c.repath = .45;
+  }
+  if(!c.path.length) return walkTo(c, target.x, target.y, speed, dt);
+  const n = c.path[0];
+  if(walkTo(c, n.x, n.y, speed, dt) || Math.hypot(n.x - c.x, n.y - c.y) < 6) c.path.shift();
+  return false;
+}
+
+// ---------- noise, alarm, messages ----------
+function noise(x, y, r, label) {
+  G.fx.push({ kind: 'ring', x, y, r, t: 0 });
+  for(const g of G.chars) {
+    if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down') continue;
+    const d = Math.hypot(g.x - x, g.y - y), rr = g.state === 'sleep' ? r * .45 : r;
+    if(d > rr) continue;
+    if(g.state === 'sleep') { g.state = 'calm'; g.woke = 1; g.role = g.role === 'sleep' ? 'post' : g.role; }
+    if(g.state === 'calm' || g.state === 'search') { g.state = 'suspicious'; g.lastSeen = { x, y }; g.sus = Math.max(g.sus, .4); g.investigate = 3; }
+  }
+  if(label && r > 60) say(label);
+}
+function raiseAlarm(by, silent) {
+  if(!G.alarm) G.alarms++;
+  G.alarm = 12;
+  const p = G.player;
+  for(const g of G.chars) {
+    if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down') continue;
+    const d = by ? Math.hypot(g.x - by.x, g.y - by.y) : 0;
+    if(!by || d < 11 * T || g.state === 'alert') {
+      if(g.state === 'sleep') { g.wakeT = .9; }
+      g.state = g.state === 'sleep' ? 'sleep' : 'alert'; g.lastSeen = { x: p.x, y: p.y }; g.sus = 1;
+    }
+  }
+  if(!silent) say('Fark edildin! Alarm!');
+}
+function say(t) { G.msg = t; G.msgT = 2.6; }
+function floatText(x, y, t, col) { G.texts.push({ x, y, t, col: col || '#fff', life: 1.1 }); }
+
+// ---------- input ----------
+const keys = {};
+let touchMove = { x: 0, y: 0, mag: 0 }, actPressed = false, atkPressed = false, crouchToggle = false;
+addEventListener('keydown', e => {
+  if(!G || G.done) return;
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if(k === 'c' || k === 'control') crouchToggle = true;
+  if(k === 'e') actPressed = true;
+  if(k === ' ' || k === 'j') { atkPressed = true; e.preventDefault(); }
+  if(k === 'escape') togglePause();
+  if(['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
+const isTouch = matchMedia('(pointer: coarse)').matches;
+if(isTouch) document.body.classList.add('touch');
+(function touchSetup() {
+  const zone = $('#stickZone'), stick = $('#stick'), knob = $('#knob');
+  let id = null, cx = 0, cy = 0;
+  zone.addEventListener('pointerdown', e => { id = e.pointerId; cx = e.clientX; cy = e.clientY; stick.hidden = false;
+    stick.style.left = cx + 'px'; stick.style.top = cy + 'px'; zone.setPointerCapture(id); e.preventDefault(); });
+  zone.addEventListener('pointermove', e => {
+    if(e.pointerId !== id) return;
+    let dx = e.clientX - cx, dy = e.clientY - cy; const d = Math.hypot(dx, dy), R = 50;
+    if(d > R) { dx *= R / d; dy *= R / d; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    const m = Math.min(1, d / R);
+    touchMove = m < .15 ? { x: 0, y: 0, mag: 0 } : { x: dx / Math.max(1, Math.hypot(dx, dy)), y: dy / Math.max(1, Math.hypot(dx, dy)), mag: m };
+  });
+  const end = e => { if(e.pointerId !== id) return; id = null; stick.hidden = true; knob.style.transform = ''; touchMove = { x: 0, y: 0, mag: 0 }; };
+  zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end);
+  const hold = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+  hold($('#tbAct'), () => actPressed = true);
+  hold($('#tbAtk'), () => atkPressed = true);
+  hold($('#tbCrouch'), () => crouchToggle = true);
+})();
+
+// ---------- the player ----------
+function updatePlayer(dt) {
+  const p = G.player;
+  if(p.state === 'down') return;
+  if(crouchToggle) { p.crouch = !p.crouch; crouchToggle = false; }
+  if(p.busy) { p.busy.t -= dt; p.vx = p.vy = 0; if(p.busy.t <= 0) { const b = p.busy; p.busy = null; b.done(); } return; }
+  let mx = 0, my = 0, run = false;
+  if(keys.w || keys.arrowup) my -= 1; if(keys.s || keys.arrowdown) my += 1;
+  if(keys.a || keys.arrowleft) mx -= 1; if(keys.d || keys.arrowright) mx += 1;
+  run = !!keys.shift;
+  if(touchMove.mag) { mx = touchMove.x; my = touchMove.y; run = touchMove.mag > .92; }
+  const m = Math.hypot(mx, my);
+  const inWater = tile(Math.floor(p.x / T), Math.floor(p.y / T)) === '~';
+  if(run && p.crouch) p.crouch = false;
+  let speed = p.crouch ? 46 : run ? 128 : 78;
+  if(inWater) speed *= .55;
+  if(p.atkT > 0) speed *= .35;
+  p.running = run && m > 0;
+  if(m > 0) {
+    mx /= m; my /= m;
+    moveChar(p, mx * speed * dt, my * speed * dt);
+    if(p.atkT <= 0) p.a = Math.atan2(my, mx);
+    // footsteps are noise: running is loud, walking quiet, crouching silent; water always splashes
+    G.stepAcc += speed * dt;
+    if(G.stepAcc > 38) {
+      G.stepAcc = 0;
+      if(inWater) noise(p.x, p.y, p.crouch ? 70 : 115, null);
+      else if(p.running) noise(p.x, p.y, 150, null);
+      else if(!p.crouch) noise(p.x, p.y, 40, null);
+    }
+    p.anim = p.running ? 'Run' : 'Walk';
+  } else p.anim = 'Idle';
+  if(p.atkT > 0) p.anim = 'attack';
+  // the trail the squad follows
+  const last = G.trail[0];
+  if(!last || Math.hypot(last.x - p.x, last.y - p.y) > 10) { G.trail.unshift({ x: p.x, y: p.y, crouch: p.crouch }); if(G.trail.length > 120) G.trail.pop(); }
+  // traps underfoot
+  const o = obj(Math.floor(p.x / T), Math.floor(p.y / T));
+  if(o && o.spikes && !o.sprung) { o.sprung = true; o.known = true; o.frame = 0; hurt(p, 16, null); noise(o.cx, o.cy, 110, 'Diken tuzağı!'); }
+  if(o && o.bats && !o.flown) { o.flown = true; noise(o.cx, o.cy, p.crouch ? 90 : 170, 'Yarasalar havalandı!'); G.fx.push({ kind: 'bats', x: o.cx, y: o.cy, t: 0 }); }
+  // attack
+  p.cd -= dt; p.atkT -= dt;
+  if(atkPressed && p.cd <= 0) { atkPressed = false; playerAttack(); }
+  atkPressed = false;
+  // interact
+  G.ctx = findInteraction();
+  if(actPressed) { actPressed = false; if(G.ctx) G.ctx.run(); }
+}
+function playerAttack() {
+  const p = G.player; p.cd = .55; p.atkT = .42; p.animT = 0;
+  let hit = false;
+  for(const g of G.chars) {
+    if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down') continue;
+    const dx = g.x - p.x, dy = g.y - p.y, d = Math.hypot(dx, dy);
+    if(d > 40 || Math.abs(angDiff(Math.atan2(dy, dx), p.a)) > 1.1) continue;
+    const unaware = g.state !== 'alert' && !(g.sees && g.sees.player);
+    hurt(g, Math.round(rnd(20, 28) * (unaware ? 3 : 1)), p);
+    hit = true;
+  }
+  noise(p.x, p.y, hit ? 200 : 60, null);
+}
+function hurt(c, dmg, by) {
+  if(c.state === 'down' || c.state === 'ko') return;
+  c.hp -= dmg; c.hurtT = .25;
+  floatText(c.x, c.y - 34, '-' + dmg, c.kind === 'guard' ? '#ffd28a' : '#ff8a7a');
+  if(by) { const a = Math.atan2(c.y - by.y, c.x - by.x); moveChar(c, Math.cos(a) * 6, Math.sin(a) * 6); }
+  if(c.kind === 'guard' && c.state !== 'alert' && c.hp > 0) { c.state = 'alert'; c.lastSeen = by ? { x: by.x, y: by.y } : c.lastSeen; raiseAlarm(c); }
+  if(c.hp <= 0) {
+    c.hp = 0; c.state = 'down'; c.anim = 'Death'; c.animT = 0; c.body = true;
+    if(c.kind === 'guard') { G.downs++; if(c.ambusher) checkAmbushOver(); }
+    if(c.kind === 'player') setTimeout(() => endGame('lost'), 1400);
+    if(c.kind === 'squad') floatText(c.x, c.y - 40, 'Yaralandı', '#ffb3a8');
+  }
+}
+
+// what the action button would do right now
+function findInteraction() {
+  const p = G.player, tx = Math.floor(p.x / T), ty = Math.floor(p.y / T);
+  const near = (o, r = 40) => Math.hypot(o.cx - p.x, o.cy - p.y) < r;
+  // takedown: a guard who hasn't seen you, from behind (or asleep)
+  for(const g of G.chars) {
+    if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down' || g.state === 'alert') continue;
+    const d = Math.hypot(g.x - p.x, g.y - p.y);
+    if(d > 34) continue;
+    const behind = Math.abs(angDiff(Math.atan2(p.y - g.y, p.x - g.x), g.a)) > 1.9;
+    if(g.state === 'sleep' || behind || g.role === 'dice' && g.state === 'calm')
+      return { label: 'Bayılt', run: () => takedown(g) };
+  }
+  // free a prisoner
+  for(const c of G.chars) if(c.kind === 'prisoner' && c.tied && Math.hypot(c.x - p.x, c.y - p.y) < 34)
+    return c.shushed || !c.loud ? { label: 'Çözüp kurtar', run: () => freePrisoner(c) } : { label: 'Sus işareti ver', run: () => { c.shushed = true; say('Tutsak başını salladı.'); } };
+  for(let y = ty - 1; y <= ty + 1; y++) for(let x = tx - 1; x <= tx + 1; x++) {
+    const o = obj(x, y);
+    if(!o || o.gone) continue;
+    if(o.chest && !o.open && near(o, 46)) {
+      if(o.trapped && o.known && !o.disarmed) return { label: 'Tuzağı sök', run: () => busy(2, 'Tuzak sökülüyor…', () => { o.disarmed = true; say('Tuzak söküldü.'); }) };
+      return { label: 'Sandığı aç', run: () => busy(1.1, 'Açılıyor…', () => openChest(o)) };
+    }
+    if(o.lever && !o.pulled && near(o, 46)) return { label: 'Kolu çek', run: () => pullLever(o) };
+    if(o.purse && near(o, 46)) return { label: 'Keseyi al', run: () => busy(.8, 'Kese alınıyor…', () => { o.gone = true; G.gold += L.purse; floatText(o.cx, o.cy - 20, '+' + L.purse + ' altın', '#f5d76e'); say('İnin kesesi senin!'); }) };
+    if(o.trapdoor && near(o, 46)) return { label: 'Kapaktan geç', run: () => busy(.9, 'Kapaktan geçiliyor…', () => useTrapdoor(o)) };
+  }
+  // climb a window
+  for(const [dx, dy] of [[1, 0], [-1, 0]]) if(tile(tx + dx, ty) === 'W') {
+    return { label: 'Pencereden geç', run: () => busy(1.1, 'Pencereden geçiliyor…', () => { p.x += dx * T * 2; noise(p.x, p.y, 45, null); }) };
+  }
+  // leave
+  if(isExit(tx, ty)) return { label: 'İnden ayrıl', run: () => endGame('out') };
+  return null;
+}
+function freeSpotNear(tx, ty) {
+  for(const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]])
+    if(!solidTile(tx + dx, ty + dy)) return { x: (tx + dx) * T + 16, y: (ty + dy) * T + 20 };
+  return { x: tx * T + 16, y: ty * T + 20 };
+}
+function isExit(tx, ty) { const c = tile(tx, ty); return c === 'E' || c === '@'; }
+function busy(t, label, done) { const p = G.player; p.busy = { t, label, done, total: t }; p.anim = 'Idle'; }
+function takedown(g) {
+  const p = G.player;
+  g.state = 'grabbed'; g.grabT = .9;
+  busy(.9, 'Bayıltılıyor…', () => { g.state = 'ko'; g.anim = 'Death'; g.animT = 0; g.body = true; G.kos++; floatText(g.x, g.y - 36, 'Baygın', '#cfe8ff'); noise(g.x, g.y, 45, null); });
+  p.a = Math.atan2(g.y - p.y, g.x - p.x);
+}
+function freePrisoner(c) {
+  busy(1.4, 'İpler çözülüyor…', () => {
+    c.tied = false; c.following = true; G.freed++;
+    floatText(c.x, c.y - 36, 'Kurtarıldı', '#9fe0a0');
+    say(c.news || 'Tutsak peşine takıldı. Onu dışarı çıkar!');
+  });
+}
+function openChest(o) {
+  if(o.trapped && !o.disarmed) { hurt(G.player, 20, null); noise(o.cx, o.cy, 130, 'Sandık tuzaklıymış!'); o.known = true; o.sprungT = .6; }
+  const [a, b] = L.chests[o.ch]; const g = Math.round(rnd(a, b));
+  o.open = true; o.frame = 3; G.gold += g;
+  const item = o.trapped ? (L.theme === 'cave' ? 'Çelik kılıç' : 'Deri zırh') : null;
+  if(item) G.items.push(item);
+  floatText(o.cx, o.cy - 24, '+' + g + ' altın' + (item ? ' · ' + item : ''), '#f5d76e');
+  noise(o.cx, o.cy, 35, null);
+}
+function pullLever(o) {
+  o.pulled = true; o.frame = 3;
+  busy(.6, 'Kol çekiliyor…', () => {
+    const opens = (L.lever && L.lever.opens) || [];
+    for(const [x, y] of opens) G.opened.add(x + ',' + y);
+    // the lever also lifts an ambush's rockfall
+    for(const k of G.ambushBlock || []) G.opened.add(k);
+    buildLight();
+    G.fx.push({ kind: 'dust', x: opens[0] ? opens[0][0] * T + 16 : o.cx, y: opens[0] ? opens[0][1] * T + 16 : o.cy, t: 0 });
+    noise(opens[0] ? opens[0][0] * T + 16 : o.cx, opens[0] ? opens[0][1] * T + 16 : o.cy, 160, 'Taşlar gürültüyle yuvarlandı!');
+  });
+}
+function useTrapdoor(o) {
+  const other = G.trapdoors.find(t => t !== o);
+  if(!other) return;
+  const p = G.player, spot = freeSpotNear(other.x, other.y);
+  p.x = spot.x; p.y = spot.y;
+  // whoever follows comes down too
+  for(const c of G.chars) if((c.kind === 'squad' && c.state !== 'down') || (c.kind === 'prisoner' && c.following)) { c.x = spot.x + rnd(-6, 6); c.y = spot.y + rnd(-4, 4); }
+  G.trail = [];
+}
+
+// ---------- guards ----------
+const FOV = .95, BASE_RANGE = 220;
+function guardSight(g) {
+  // shorter in the dark; a guard who knows something's wrong looks harder
+  return { fov: g.role === 'dice' && g.state === 'calm' ? .6 : FOV, range: (g.role === 'dice' && g.state === 'calm' ? .62 : 1) * (g.state === 'alert' || g.state === 'search' ? 1.25 : 1) };
+}
+function canSee(g, c) {
+  if(c.state === 'down' && !c.body) return false;
+  const dx = c.x - g.x, dy = (c.y - 10) - (g.y - 14), d = Math.hypot(dx, dy);
+  const s = guardSight(g), light = lightAt(c.x, c.y);
+  const range = BASE_RANGE * s.range * (.3 + .7 * Math.min(1, light)) * (c.crouch ? .78 : 1);
+  if(d > range) return false;
+  if(d > 26 && Math.abs(angDiff(Math.atan2(dy, dx), g.a)) > s.fov) return false;
+  if(!los(g.x, g.y - 14, c.x, c.y - 10, false)) return false;
+  return { d, range, light };
+}
+function updateGuard(g, dt) {
+  if(g.state === 'down' || g.state === 'ko') return;
+  if(g.state === 'grabbed') { g.anim = 'Hurt'; return; }
+  if(g.wakeT) { g.wakeT -= dt; if(g.wakeT <= 0) { g.wakeT = 0; g.state = 'alert'; floatText(g.x, g.y - 40, 'Uyandı!', '#ffb36b'); } return; }
+  if(g.state === 'sleep') { g.anim = 'Idle'; return; }
+  const p = G.player;
+  g.sees = null;
+  // eyes: the player, the squad, freed prisoners — and fallen friends
+  const targets = G.chars.filter(c => (c.kind === 'player' || c.kind === 'squad' || (c.kind === 'prisoner' && c.following)) && c.state !== 'down');
+  let best = null;
+  for(const c of targets) {
+    const v = canSee(g, c);
+    if(v && (!best || v.d < best.v.d)) best = { c, v };
+  }
+  if(best) {
+    g.sees = { player: best.c === p };
+    g.lastSeen = { x: best.c.x, y: best.c.y }; g.target = best.c;
+    if(g.state !== 'alert') {
+      const moving = best.c.kind === 'player' ? (best.c.anim !== 'Idle') : true;
+      const rate = 1.35 * (.35 + Math.min(1, best.v.light)) * (1.25 - best.v.d / best.v.range) * (best.c.crouch ? .55 : 1) * (moving ? 1 : .6)
+        * (best.c.kind === 'player' ? 1 : .7) * (best.v.d < 40 ? 2.5 : 1);
+      g.sus = Math.min(1, g.sus + rate * dt);
+      if(g.sus > .35 && g.state === 'calm') { g.state = 'suspicious'; g.investigate = 3; }
+      if(g.sus >= 1) { g.state = 'alert'; raiseAlarm(g); }
+    } else G.alarm = 12;
+  } else if(g.state !== 'alert') g.sus = Math.max(0, g.sus - .22 * dt);
+  // a body on the floor is an alarm
+  if(g.state !== 'alert') for(const c of G.chars) {
+    if(!c.body || c === g || c.kind !== 'guard' || c.foundBy) continue;
+    if(canSee(g, { x: c.x, y: c.y, crouch: false, state: 'x' })) { c.foundBy = g; g.state = 'alert'; g.lastSeen = { x: c.x, y: c.y }; say('Bir haydut yerde yatan arkadaşını buldu!'); raiseAlarm(g, true); }
+  }
+
+  const walk = 44, runS = 108;
+  if(g.state === 'alert') {
+    if(g.react === undefined) g.react = .5;
+    const t = g.target && g.target.state !== 'down' ? g.target : nearestFoe(g);
+    if(!t) { g.state = 'search'; g.searchT = 6; return; }
+    g.target = t;
+    const d = Math.hypot(t.x - g.x, t.y - g.y);
+    const seesT = canSee(g, t);
+    if(!seesT && g.lastSeen && Math.hypot(g.lastSeen.x - g.x, g.lastSeen.y - g.y) < 20 && G.alarm <= 0) { g.state = 'search'; g.searchT = 6; }
+    // fairness: only so many of them press in at once
+    const engaged = g.engaged = hasToken(g);
+    const goal = seesT ? t : (g.lastSeen || t);
+    if(engaged) {
+      if(d > 30) { followPath(g, goal, runS, dt); g.anim = 'Run'; }
+      else { g.a = Math.atan2(t.y - g.y, t.x - g.x); g.anim = 'Idle'; }
+    } else {
+      if(d > 110) { followPath(g, goal, walk * 1.3, dt); g.anim = 'Walk'; }
+      else if(d < 80) { walkTo(g, g.x - (t.x - g.x) / d * 20, g.y - (t.y - g.y) / d * 20, walk, dt); g.anim = 'Walk'; g.a = Math.atan2(t.y - g.y, t.x - g.x); }
+      else { g.a = Math.atan2(t.y - g.y, t.x - g.x); g.anim = 'Idle'; }
+    }
+    // attacks are telegraphed: a wind-up, then the blow lands if you're still there
+    g.cd -= dt;
+    if(g.windup > 0) {
+      g.windup -= dt; g.anim = 'attack';
+      if(g.windup <= 0) {
+        g.cd = g.ambusher && G.solo ? 1.6 : 1.2;
+        const dd = Math.hypot(t.x - g.x, t.y - g.y);
+        if(dd < 40 && Math.abs(angDiff(Math.atan2(t.y - g.y, t.x - g.x), g.a)) < 1.2) hurt(t, Math.round(rnd(7, 13) * (g.leader ? 1.4 : 1) * (g.weak ? .7 : 1)), g);
+      }
+    } else if(engaged && d < 34 && g.cd <= 0 && (g.react || 0) <= 0) { g.windup = .45; g.animT = 0; }
+    g.react -= dt;
+    return;
+  }
+  if(g.state === 'suspicious') {
+    g.investigate -= dt;
+    const to = g.lastSeen;
+    if(to) {
+      const d = Math.hypot(to.x - g.x, to.y - g.y);
+      if(d > 20 && g.sus > .45) { followPath(g, to, walk * .8, dt); g.anim = 'Walk'; }
+      else { g.a = Math.atan2(to.y - g.y, to.x - g.x) + Math.sin(G.t * 2) * .5; g.anim = 'Idle'; }
+    }
+    if(g.investigate <= 0 && g.sus < .3) { g.state = 'return'; }
+    return;
+  }
+  if(g.state === 'search') {
+    g.searchT -= dt;
+    const to = g.lastSeen || g.home;
+    if(Math.hypot(to.x - g.x, to.y - g.y) > 20) { followPath(g, to, walk, dt); g.anim = 'Walk'; }
+    else { g.a += dt * 1.6; g.anim = 'Idle'; }
+    if(g.searchT <= 0) { g.state = 'return'; g.wary = true; }
+    return;
+  }
+  if(g.state === 'return') {
+    const home = g.route ? { x: g.route[g.ri || 0][0] * T + 16, y: g.route[g.ri || 0][1] * T + 20 } : g.home;
+    if(followPath(g, home, walk, dt) || Math.hypot(home.x - g.x, home.y - g.y) < 6) { g.state = 'calm'; if(!g.route) g.a = g.home.a; }
+    g.anim = 'Walk';
+    return;
+  }
+  // calm routines
+  if(g.role === 'patrol' && g.route) {
+    g.ri = g.ri || 0;
+    if(g.pause > 0) { g.pause -= dt; g.anim = 'Idle'; g.a += Math.sin(G.t * 1.3) * dt * 1.2; return; }
+    const [rx, ry] = g.route[g.ri], tgt = { x: rx * T + 16, y: ry * T + 20 };
+    followPath(g, tgt, walk, dt);
+    if(Math.hypot(tgt.x - g.x, tgt.y - g.y) < 5) { g.ri = (g.ri + 1) % g.route.length; g.pause = 1.4; g.path = null; }
+    g.anim = 'Walk';
+  } else {
+    g.anim = 'Idle';
+    if(g.sweep) g.a = g.home.a + Math.sin(G.t * .6) * g.sweep;
+  }
+}
+function nearestFoe(g) {
+  let best = null, bd = 1e9;
+  for(const c of G.chars) if((c.kind === 'player' || c.kind === 'squad') && c.state !== 'down') { const d = Math.hypot(c.x - g.x, c.y - g.y); if(d < bd) { bd = d; best = c; } }
+  return best;
+}
+function hasToken(g) {
+  const squadUp = G.chars.filter(c => c.kind === 'squad' && c.state !== 'down').length;
+  const tokens = G.approach === 'army' ? 99 : (G.ambushState === 1 && squadUp === 0) ? 1 : 2 + squadUp;
+  const alert = G.chars.filter(c => c.kind === 'guard' && c.state === 'alert').sort((a, b) => Math.hypot(a.x - G.player.x, a.y - G.player.y) - Math.hypot(b.x - G.player.x, b.y - G.player.y));
+  return alert.indexOf(g) < tokens;
+}
+
+// ---------- squad and freed prisoners ----------
+function updateFollower(c, dt, i) {
+  if(c.state === 'down') return;
+  const p = G.player;
+  if(c.kind === 'squad' && G.alarm > 0) {
+    // fight: the nearest alert bandit
+    let t = null, bd = 1e9;
+    for(const g of G.chars) if(g.kind === 'guard' && g.state === 'alert') { const d = Math.hypot(g.x - c.x, g.y - c.y); if(d < bd && d < 12 * T) { bd = d; t = g; } }
+    if(t) {
+      c.crouch = false;
+      if(bd > 30) { followPath(c, t, 100, dt); c.anim = 'Run'; }
+      else {
+        c.a = Math.atan2(t.y - c.y, t.x - c.x); c.anim = c.atkT > 0 ? 'attack' : 'Idle';
+        c.cd -= dt; c.atkT -= dt;
+        if(c.cd <= 0) { c.cd = .95; c.atkT = .4; c.animT = 0; hurt(t, Math.round(rnd(11, 17)), c); }
+      }
+      return;
+    }
+  }
+  // follow the trail, a few steps apart; crouch when the leader crouches
+  const slot = Math.min(G.trail.length - 1, 3 + i * 3);
+  const tgt = slot >= 0 ? G.trail[slot] : null;
+  c.crouch = p.crouch;
+  if(!tgt) { c.anim = 'Idle'; return; }
+  const d = Math.hypot(tgt.x - c.x, tgt.y - c.y);
+  if(d > 14) {
+    const sp = Math.min(p.crouch ? 50 : 135, d * 3);
+    walkTo(c, tgt.x, tgt.y, c.kind === 'prisoner' ? sp * .9 : sp, dt);
+    c.anim = sp > 100 ? 'Run' : 'Walk';
+  } else { c.anim = 'Idle'; c.a = p.a; }
+}
+
+// ---------- ambush ----------
+function updateAmbush() {
+  if(!G.ambushOn || G.ambushState) return;
+  const A = L.ambush, p = G.player, tx = p.x / T, ty = p.y / T;
+  if(tx >= A.room[0] + .2 && tx <= A.room[2] + .8 && ty >= A.room[1] + .3 && ty <= A.room[3] + .9) {
+    G.ambushState = 1;
+    G.solo = !G.chars.some(c => c.kind === 'squad' && c.state !== 'down');
+    for(const [x, y] of A.doors || []) { const d = G.doors[x + ',' + y]; if(d) { d.open = false; d.locked = true; } }
+    G.ambushBlock = (A.block || []).map(([x, y]) => x + ',' + y);
+    for(const [x, y] of A.block || []) { G.grid[y][x] = 'X'; G.opened.delete(x + ',' + y); G.fx.push({ kind: 'dust', x: x * T + 16, y: y * T + 16, t: 0 }); }
+    buildLight();
+    const n = G.solo ? 2 : 3;
+    for(let i = 0; i < n; i++) {
+      const [sx, sy] = A.spawns[i % A.spawns.length];
+      const g = makeChar('guard', sx, sy, { look: LOOKS.bandit(10 + i), hp: G.solo ? 30 : 45, maxHp: G.solo ? 30 : 45, role: 'post', ambusher: true, weak: G.solo, name: 'Pusucu' });
+      if(i >= A.spawns.length) g.x += 14;
+      g.home = { x: g.x, y: g.y, a: 0 }; g.state = 'alert'; g.sus = 1; g.react = G.solo ? 1.2 : .6; g.lastSeen = { x: p.x, y: p.y };
+      G.chars.push(g);
+    }
+    G.banner = { t: 3, text: A.block ? 'Pusu! Tünel çöktü' : 'Pusu! Kapı kapandı' };
+    say(G.solo ? 'Pusu! Teker teker geliyorlar, sakin ol.' : 'Pusu! Askerlerin yanında.');
+    if(!G.alarm) G.alarms++;
+    G.alarm = 12;
+  }
+}
+function checkAmbushOver() {
+  if(G.chars.some(c => c.ambusher && c.state !== 'down' && c.state !== 'ko')) return;
+  G.ambushState = 2;
+  for(const [x, y] of L.ambush.doors || []) { const d = G.doors[x + ',' + y]; if(d) { d.locked = false; d.open = true; } }
+  for(const [x, y] of L.ambush.block || []) { G.opened.add(x + ',' + y); }
+  buildLight();
+  say('Pusu bitti. Yol açıldı.');
+}
+
+// ---------- the loop ----------
+let last = 0, running = false, paused = false;
+function frame(t) {
+  if(!running) return;
+  requestAnimationFrame(frame);
+  const dt = Math.min(.05, (t - (last || t)) / 1000); last = t;
+  if(paused || !G) return;
+  if(!G.done) update(dt);
+  render();
+}
+function update(dt) {
+  G.t += dt;
+  updatePlayer(dt);
+  let fi = 0;
+  for(const c of G.chars) {
+    c.animT += dt * 1000; c.hurtT = Math.max(0, c.hurtT - dt);
+    if(c.lockedToldT) c.lockedToldT = Math.max(0, c.lockedToldT - dt);
+    if(c.kind === 'guard') updateGuard(c, dt);
+    else if(c.kind === 'squad' || (c.kind === 'prisoner' && c.following)) updateFollower(c, dt, fi++);
+    else if(c.kind === 'prisoner' && c.loud && c.tied && !c.shushed) {
+      // an excited prisoner calls out if you hang about near him without hushing him
+      const d = Math.hypot(c.x - G.player.x, c.y - G.player.y);
+      if(d < 100) {
+        c.yellT = (c.yellT || 0) + dt;
+        if(c.yellT > 1.2 && !c.warned) { c.warned = true; floatText(c.x, c.y - 44, 'Mmh! Mmmh!', '#ffd28a'); say('Bu tutsak heyecanlı. Önce sus işareti ver, yoksa bağıracak.'); }
+        if(c.yellT > 4.5) { c.yellT = 1.5; noise(c.x, c.y, 180, 'Tutsak bağırdı: "Buradayım! Kurtarın beni!"'); floatText(c.x, c.y - 44, 'Kurtarın!', '#ffb3a8'); }
+      }
+    }
+    if(c.state !== 'down' && c.state !== 'ko') c.dir = dirOf(c.a);
+  }
+  updateAmbush();
+  if(G.alarm > 0) {
+    G.alarm -= dt;
+    if(G.chars.some(g => g.kind === 'guard' && g.state === 'alert' && g.sees)) G.alarm = Math.max(G.alarm, 6);
+    if(G.alarm <= 0) { for(const g of G.chars) if(g.kind === 'guard' && g.state === 'alert') { g.state = 'search'; g.searchT = 7; g.sus = .5; } say('Seni kaybettiler. Arıyorlar…'); }
+  }
+  // discovered tiles for the minimap
+  if(((G.t * 10) | 0) !== G.seenTick) {
+    G.seenTick = (G.t * 10) | 0;
+    const p = G.player, px = Math.floor(p.x / T), py = Math.floor(p.y / T);
+    for(let y = py - 5; y <= py + 5; y++) for(let x = px - 6; x <= px + 6; x++)
+      if(x >= 0 && y >= 0 && x < G.w && y < G.h && !G.seen[y * G.w + x] && los(p.x, p.y - 8, x * T + 16, y * T + 16, true)) G.seen[y * G.w + x] = 1;
+  }
+  for(const f of G.fx) f.t += dt; G.fx = G.fx.filter(f => f.t < (f.kind === 'bats' ? 1.6 : f.kind === 'dust' ? 1.2 : .7));
+  for(const x of G.texts) { x.life -= dt; x.y -= 18 * dt; } G.texts = G.texts.filter(x => x.life > 0);
+  if(G.msgT > 0) G.msgT -= dt;
+  if(G.banner) { G.banner.t -= dt; if(G.banner.t <= 0) G.banner = null; }
+  updateHud();
+}
+
+// ---------- rendering ----------
+function resize() {
+  DPR = Math.min(3, devicePixelRatio || 1);
+  canvas.width = Math.round(innerWidth * DPR); canvas.height = Math.round(innerHeight * DPR);
+  // integer zoom keeps the pixel art crisp: ~16 tiles across a phone, ~22 on a desktop
+  Z = Math.max(1, Math.round(canvas.width / (isTouch ? 11 * T : 22 * T)));
+  if(isTouch && canvas.height / Z < 9 * T) Z = Math.max(1, Math.floor(canvas.height / (9 * T)));
+  VW = canvas.width / Z; VH = canvas.height / Z;
+}
+addEventListener('resize', resize);
+const shadowCache = {};
+function drawSprite(img, sx, sy, sw, sh, x, y, w, h) { ctx.drawImage(img, sx, sy, sw, sh, Math.round(x), Math.round(y), w, h); }
+function render() {
+  const p = G.player;
+  let camX = clamp(p.x - VW / 2, -40, G.w * T - VW + 40), camY = clamp(p.y - VH / 2 - 10, -40, G.h * T - VH + 40);
+  if(G.w * T < VW) camX = (G.w * T - VW) / 2; if(G.h * T < VH) camY = (G.h * T - VH) / 2;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#050407'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(Z, 0, 0, Z, -Math.round(camX * Z), -Math.round(camY * Z));
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(G.ground, 0, 0, G.w * T, G.h * T);
+  // water shimmer
+  for(let y = Math.max(0, camY / T | 0); y < Math.min(G.h, (camY + VH) / T + 1); y++) for(let x = Math.max(0, camX / T | 0); x < Math.min(G.w, (camX + VW) / T + 1); x++) {
+    if(tile(x, y) !== '~') continue;
+    const s = (G.t * 1.6 + x * .7 + y * 1.3) % 2;
+    ctx.fillStyle = 'rgba(120,180,200,.18)'; ctx.fillRect(x * T + ((s * 8) | 0) * 2, y * T + 10, 10, 2); ctx.fillRect(x * T + 18 - ((s * 5) | 0) * 2, y * T + 24, 8, 2);
+  }
+  // floor-level things: spikes, trapdoors, purses, rubble
+  const sprites = [];
+  for(const o of G.objs) {
+    if(!o || o.gone) continue;
+    if(o.spikes) { if(o.known) { const f = o.sprung ? Math.min(5, ((G.t * 12) | 0) % 6) : 0; drawSprite(IMG.spikes, f * 17, 0, 17, 17, o.cx - 17, o.cy - 17, 34, 34); } continue; }
+    if(o.trapdoor) { drawSprite(IMG.trapdoor, 0, 0, 17, 17, o.cx - 17, o.cy - 17, 34, 34); continue; }
+    if(o.bats) continue;
+    sprites.push(o);
+  }
+  for(const k in G.doors) sprites.push({ door: G.doors[k], cy: G.doors[k].y * T + 30 });
+  for(let y = 0; y < G.h; y++) for(let x = 0; x < G.w; x++) if(tile(x, y) === 'X' && !G.opened.has(x + ',' + y)) sprites.push({ rubble: true, x, y, cy: y * T + 28 });
+  // vision cones under the people
+  for(const g of G.chars) if(g.kind === 'guard' && ['calm', 'suspicious', 'alert', 'search', 'return'].includes(g.state) && Math.hypot(g.x - p.x, g.y - p.y) < 12 * T) drawCone(g);
+  for(const c of G.chars) sprites.push({ char: c, cy: c.y });
+  sprites.sort((a, b) => (a.cy ?? a.y * T) - (b.cy ?? b.y * T));
+  for(const s of sprites) {
+    if(s.char) drawChar(s.char);
+    else if(s.door) drawDoor(s.door);
+    else if(s.rubble) drawSprite(IMG.rubble, 0, 0, 16, 16, s.x * T, s.y * T, 32, 32);
+    else drawObj(s);
+  }
+  // darkness, with the player's own eyes cutting a small hole (sight only — it doesn't light you up)
+  const dk = G.darkLayer || (G.darkLayer = document.createElement('canvas'));
+  if(dk.width !== canvas.width || dk.height !== canvas.height) { dk.width = canvas.width; dk.height = canvas.height; }
+  const d2 = dk.getContext('2d');
+  d2.setTransform(1, 0, 0, 1, 0, 0); d2.globalCompositeOperation = 'source-over'; d2.clearRect(0, 0, dk.width, dk.height);
+  d2.imageSmoothingEnabled = true;
+  d2.setTransform(Z, 0, 0, Z, -Math.round(camX * Z), -Math.round(camY * Z));
+  d2.drawImage(G.darkCanvas, 0, 0, G.w * T, G.h * T);
+  d2.globalCompositeOperation = 'destination-out';
+  const rg = d2.createRadialGradient(p.x, p.y - 10, 8, p.x, p.y - 10, 96);
+  rg.addColorStop(0, 'rgba(0,0,0,.62)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+  d2.fillStyle = rg; d2.fillRect(p.x - 100, p.y - 110, 200, 200);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(dk, 0, 0);
+  ctx.setTransform(Z, 0, 0, Z, -Math.round(camX * Z), -Math.round(camY * Z));
+  // warm glow on the lights
+  ctx.globalCompositeOperation = 'lighter';
+  for(const l of G.lights) {
+    if(l.kind === 'window' || l.kind === 'mouth') continue;
+    const fl = .85 + Math.sin(G.t * 9 + l.px) * .08 + Math.sin(G.t * 23 + l.py) * .05;
+    const r = (l.kind === 'fire' ? 90 : l.kind === 'torch' ? 60 : 40) * fl;
+    const g = ctx.createRadialGradient(l.px, l.py, 2, l.px, l.py, r);
+    g.addColorStop(0, l.kind === 'candle' ? 'rgba(255,190,110,.32)' : 'rgba(255,160,70,.38)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g; ctx.fillRect(l.px - r, l.py - r, r * 2, r * 2);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  // effects over the dark: noise rings, dust, bats, guard marks, floating text
+  for(const f of G.fx) {
+    if(f.kind === 'ring') { ctx.strokeStyle = `rgba(245,215,110,${.35 * (1 - f.t / .7)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * Math.min(1, f.t / .5), 0, 7); ctx.stroke(); }
+    if(f.kind === 'dust') { ctx.fillStyle = `rgba(180,170,150,${.5 * (1 - f.t / 1.2)})`; for(let i = 0; i < 12; i++) { const a = i * .52, r = 8 + f.t * 40; ctx.fillRect(f.x + Math.cos(a) * r, f.y + Math.sin(a) * r * .6, 4, 4); } }
+    if(f.kind === 'bats') { ctx.fillStyle = '#0c0a0e'; for(let i = 0; i < 7; i++) { const a = i * .9 + f.t * 3, r = f.t * 70 + i * 6; const bx = f.x + Math.cos(a) * r, by = f.y - f.t * 50 + Math.sin(a * 2) * 10; ctx.fillRect(bx - 4, by, 8, 2); ctx.fillRect(bx - 1, by - 1, 2, 3); } }
+  }
+  for(const g of G.chars) if(g.kind === 'guard') drawGuardMark(g);
+  for(const c of G.chars) if(c.kind === 'prisoner' && c.tied) { ctx.fillStyle = '#f5d76e'; ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center'; if(Math.hypot(c.x - p.x, c.y - p.y) < 5 * T) ctx.fillText('?', c.x, c.y - 42); }
+  ctx.textAlign = 'center';
+  for(const x of G.texts) { ctx.globalAlpha = Math.min(1, x.life * 2); ctx.font = 'bold 11px Inter, sans-serif'; ctx.fillStyle = '#000'; ctx.fillText(x.t, x.x + 1, x.y + 1); ctx.fillStyle = x.col; ctx.fillText(x.t, x.x, x.y); }
+  ctx.globalAlpha = 1;
+  // the busy bar over the player
+  if(p.busy) { const f = 1 - p.busy.t / p.busy.total; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(p.x - 16, p.y - 48, 32, 5); ctx.fillStyle = '#f5d76e'; ctx.fillRect(p.x - 15, p.y - 47, 30 * f, 3); }
+  // exits glow faintly so you know where out is
+  if(G.gold || G.freed) for(let y = 0; y < G.h; y++) for(let x = 0; x < G.w; x++) if(isExit(x, y) && ((x + y + ((G.t * 3) | 0)) % 4 === 0)) { ctx.fillStyle = 'rgba(245,215,110,.16)'; ctx.fillRect(x * T + 4, y * T + 4, 24, 24); }
+  drawMini();
+}
+function drawCone(g) {
+  const s = guardSight(g), rays = 22, pts = [];
+  const range = BASE_RANGE * s.range;
+  for(let i = 0; i <= rays; i++) {
+    const a = g.a - s.fov + (2 * s.fov * i) / rays;
+    let r = 0;
+    for(; r < range; r += 8) {
+      const x = g.x + Math.cos(a) * r, y = g.y - 8 + Math.sin(a) * r;
+      if(opaque(Math.floor(x / T), Math.floor(y / T))) break;
+      // the cone fades where it's dark: what it reaches depends on the light out there
+      if(r > range * (.3 + .7 * Math.min(1, lightAt(x, y)))) break;
+    }
+    pts.push([g.x + Math.cos(a) * r, g.y - 8 + Math.sin(a) * r]);
+  }
+  const col = g.state === 'alert' ? '255,80,70' : g.state === 'suspicious' || g.state === 'search' ? '255,200,80' : '235,230,210';
+  ctx.fillStyle = `rgba(${col},${g.state === 'calm' || g.state === 'return' ? .11 : .18})`;
+  ctx.beginPath(); ctx.moveTo(g.x, g.y - 8); for(const [x, y] of pts) ctx.lineTo(x, y); ctx.closePath(); ctx.fill();
+}
+function drawChar(c) {
+  let anim = c.anim, t = c.animT, dir = c.dir;
+  if(c.kind === 'prisoner' && c.tied) { anim = 'Idle'; dir = 'down'; }
+  if(c.state === 'down' || c.state === 'ko') { anim = 'Death'; t = Math.min(c.animT, 900); }
+  if(c.state === 'sleep') anim = 'Idle';
+  if(anim === 'attack') t = c.kind === 'guard' && c.windup > 0 ? (1 - c.windup / .45) * 280 : c.animT * 1.3;
+  const look = c.look;
+  const fr = Swordsman.art(look, anim, dir, anim === 'Walk' && c.crouch ? t * .6 : t);
+  if(!fr) return;
+  const w = fr.width, h = fr.height, sq = c.crouch && c.state !== 'down' ? .84 : 1;
+  // a soft shadow at the feet
+  ctx.globalAlpha = .45; ctx.drawImage(IMG.shadow, Math.round(c.x - 13), Math.round(c.y - 5), 26, 10); ctx.globalAlpha = 1;
+  const x = c.x - fr._ax * w, y = c.y - fr._ay * h * sq;
+  if(c.hurtT > 0) ctx.filter = 'brightness(1.8)';
+  ctx.drawImage(fr, Math.round(x), Math.round(y), w, Math.round(h * sq));
+  ctx.filter = 'none';
+  if(c.kind === 'prisoner' && c.tied) { ctx.fillStyle = '#8a6a3a'; ctx.fillRect(Math.round(c.x - 7), Math.round(c.y - 18), 14, 2); ctx.fillRect(Math.round(c.x - 6), Math.round(c.y - 13), 12, 2); }
+  if(c.state === 'sleep') { const b = (G.t * 1.2 + c.x) % 1.5; ctx.fillStyle = 'rgba(210,225,255,.85)'; ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('z', c.x + 8 + b * 6, c.y - 36 - b * 10); }
+  if(c.state === 'ko') { ctx.fillStyle = '#cfe8ff'; ctx.font = 'bold 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('✶', c.x + Math.cos(G.t * 4) * 8, c.y - 18); }
+  if((c.kind === 'squad' || c.kind === 'player') && c.hp < c.maxHp && c.state !== 'down') {
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(Math.round(c.x - 12), Math.round(c.y - 44), 24, 3);
+    ctx.fillStyle = c.kind === 'player' ? '#e0605a' : '#6cc98a'; ctx.fillRect(Math.round(c.x - 12), Math.round(c.y - 44), Math.round(24 * c.hp / c.maxHp), 3);
+  }
+}
+function drawGuardMark(g) {
+  if(g.state === 'down' || g.state === 'ko' || g.state === 'sleep') return;
+  const x = Math.round(g.x), y = Math.round(g.y - 44);
+  if(g.state === 'alert') { ctx.fillStyle = '#ff5a4a'; ctx.font = 'bold 14px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', x, y); }
+  else if(g.sus > .02) {
+    ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(x - 9, y - 10, 18, 4);
+    ctx.fillStyle = g.sus > .6 ? '#ff9a4a' : '#f5d76e'; ctx.fillRect(x - 8, y - 9, Math.round(16 * g.sus), 2);
+    ctx.font = 'bold 12px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('?', x, y + 2);
+  }
+  if(g.windup > 0) { ctx.strokeStyle = 'rgba(255,90,70,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(g.x, g.y - 10, 22, g.a - .9, g.a + .9); ctx.stroke(); }
+}
+function drawDoor(d) {
+  // drawn in code: a plank door filling the doorway when shut; open, a dark gap with the leaf swung back
+  const X = d.x * T, Y = d.y * T, cave = L.theme === 'cave';
+  ctx.fillStyle = cave ? '#241f1b' : '#3b2a1c'; ctx.fillRect(X, Y + 4, 3, 28); ctx.fillRect(X + T - 3, Y + 4, 3, 28);   // the frame
+  if(!d.open) {
+    ctx.fillStyle = '#7a5232'; ctx.fillRect(X + 3, Y + 6, T - 6, 26);
+    ctx.fillStyle = '#5e3e25'; for(let i = 0; i < 4; i++) ctx.fillRect(X + 3 + i * 6.5, Y + 6, 1, 26);
+    ctx.fillStyle = '#3e2816'; ctx.fillRect(X + 3, Y + 12, T - 6, 2); ctx.fillRect(X + 3, Y + 25, T - 6, 2);
+    ctx.fillStyle = '#c9b07a'; ctx.fillRect(X + T - 9, Y + 18, 2, 3);
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(X + 3, Y + 6, T - 6, 26);
+    ctx.fillStyle = '#7a5232'; ctx.fillRect(X + 3, Y + 6, 5, 26); ctx.fillStyle = '#5e3e25'; ctx.fillRect(X + 7, Y + 6, 1, 26);
+  }
+  if(d.locked) { ctx.fillStyle = '#b3413a'; ctx.fillRect(X + 4, Y + 17, T - 8, 3); ctx.fillStyle = '#ffd0c8'; ctx.fillRect(X + 14, Y + 15, 4, 7); }
+}
+function drawObj(o) {
+  const x = o.cx, y = o.cy;
+  if(o.table) {
+    const L2 = obj(o.x - 1, o.y), R2 = obj(o.x + 1, o.y), U2 = obj(o.x, o.y - 1), D2 = obj(o.x, o.y + 1);
+    const tl = s => s && s.table;
+    ctx.fillStyle = '#7a4f2e'; ctx.fillRect(o.x * T, o.y * T + 4, T, T - 4);
+    ctx.fillStyle = '#946038';
+    for(let i = 0; i < 4; i++) ctx.fillRect(o.x * T, o.y * T + 6 + i * 7, T, 5);
+    ctx.fillStyle = '#4a2f1b';
+    if(!tl(L2)) ctx.fillRect(o.x * T, o.y * T + 4, 3, T - 4);
+    if(!tl(R2)) ctx.fillRect(o.x * T + T - 3, o.y * T + 4, 3, T - 4);
+    if(!tl(U2)) ctx.fillRect(o.x * T, o.y * T + 4, T, 3);
+    if(!tl(D2)) { ctx.fillRect(o.x * T, o.y * T + T - 3, T, 3); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(o.x * T, o.y * T + T, T, 4); }
+    // dice, mugs and coins on the dice table; a candle where the level lights one
+    if(G.lights.some(l => Math.abs(l.px - x) < 20 && Math.abs(l.py - y) < 20 && l.kind === 'candle')) { ctx.fillStyle = '#efe2c0'; ctx.fillRect(x - 2, y - 8, 4, 8); ctx.fillStyle = '#ffcf6a'; ctx.fillRect(x - 1, y - 12 + (Math.sin(G.t * 12) > 0 ? 0 : 1), 2, 3); }
+    if((o.x + o.y) % 2 === 0) { ctx.fillStyle = '#f0ece2'; ctx.fillRect(x + 6, y + 2, 4, 4); ctx.fillRect(x - 10, y + 8, 4, 4); }
+    return;
+  }
+  if(o.img) { const im = IMG[o.img]; ctx.drawImage(im, Math.round(x - im.width), Math.round(y + 14 - im.height * 2), im.width * 2, im.height * 2); if(o.ch === 'T') { const fl = (G.t * 10 | 0) % 2; ctx.fillStyle = '#ffd36a'; ctx.fillRect(x - 2, y + 14 - 30 - 4 + fl, 4, 4); } return; }
+  if(o.fire) { const f = (G.t * 10 | 0) % 8; drawSprite(IMG.fire, f * 16, 0, 16, 16, x - 16, y - 22, 32, 32); ctx.fillStyle = '#3a2a1c'; ctx.fillRect(x - 12, y + 8, 24, 4); return; }
+  if(o.chest) { drawSprite(o.trapped ? IMG.chest2 : IMG.chest, (o.open ? 3 : 0) * 16, 0, 16, 24, x - 16, y - 30, 32, 48); if(o.trapped && o.known && !o.disarmed && !o.open) { ctx.fillStyle = '#e0605a'; ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('⚠', x, y - 30); } return; }
+  if(o.lever) { drawSprite(IMG.lever, (o.pulled ? 3 : 0) * 16, 0, 16, 18, x - 16, y - 20, 32, 36); return; }
+  if(o.purse) { ctx.drawImage(IMG.purse, x - 11, y - 18, 22, 28); if((G.t * 2 | 0) % 3 === 0) { ctx.fillStyle = '#fff6c8'; ctx.fillRect(x + 4, y - 14, 2, 2); } return; }
+}
+function drawMini() {
+  const m = $('#mini'), x = m.getContext('2d'), s = Math.min(m.width / G.w, m.height / G.h) | 0 || 1;
+  const ox = (m.width - G.w * s) / 2 | 0, oy = (m.height - G.h * s) / 2 | 0;
+  x.clearRect(0, 0, m.width, m.height);
+  for(let y = 0; y < G.h; y++) for(let xx = 0; xx < G.w; xx++) {
+    if(!G.revealAll && !G.seen[y * G.w + xx]) continue;
+    const c = tile(xx, y);
+    x.fillStyle = WALLS.has(c) ? (c === ' ' ? 'transparent' : '#4a4036') : c === '~' ? '#2a5a70' : isOutside(xx, y) ? '#34452a' : c === 'X' && !G.opened.has(xx + ',' + y) ? '#6a5f52' : '#211d18';
+    x.fillRect(ox + xx * s, oy + y * s, s, s);
+  }
+  for(const c of G.chars) {
+    if(c.state === 'down' && c.kind !== 'guard') continue;
+    const vis = c.kind !== 'guard' || G.revealAll || G.seen[(c.y / T | 0) * G.w + (c.x / T | 0)];
+    if(!vis) continue;
+    x.fillStyle = c.kind === 'player' ? '#f5d76e' : c.kind === 'squad' ? '#9fe0a0' : c.kind === 'prisoner' ? '#8fc8ff' : c.state === 'alert' ? '#ff5a4a' : c.state === 'ko' || c.state === 'down' ? '#6a5a50' : '#e0a080';
+    x.fillRect(ox + (c.x / T) * s - 1.5, oy + (c.y / T) * s - 1.5, 3, 3);
+  }
+}
+
+// ---------- HUD ----------
+function updateHud() {
+  const p = G.player;
+  $('#hpBar').style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
+  const st = $('#stanceChip');
+  const inWater = tile(Math.floor(p.x / T), Math.floor(p.y / T)) === '~';
+  const stance = p.crouch ? 'crouch' : p.running ? 'run' : 'walk';
+  const txt = (p.crouch ? 'Eğilmiş · sessiz' : p.running ? 'Koşuyor · gürültülü' : 'Ayakta') + (inWater ? ' · suda' : '');
+  if(st.textContent !== txt) st.textContent = txt;
+  st.className = 'chip stance-' + stance;
+  $('#goldTxt').textContent = G.gold;
+  const pris = G.chars.filter(c => c.kind === 'prisoner').length;
+  $('#prisChip').hidden = !pris || (!G.freed && !G.revealAll && opts.scout < 3);
+  $('#prisTxt').textContent = G.freed + '/' + pris;
+  const obj = $('#objective');
+  const hasPurse = G.objs.some(o => o && o.purse && !o.gone);
+  const goals = [];
+  if(G.approach === 'army') goals.push(G.chars.some(g => g.kind === 'guard' && g.state !== 'down' && g.state !== 'ko') ? '<b>İni temizle</b>' : '<b>İn temizlendi.</b> Çıkışa dön.');
+  else {
+    goals.push(hasPurse ? 'Reisin <b>kesesini</b> al' : '<s>Kese</s> alındı');
+    if(pris) goals.push('<b>Tutsakları</b> kurtar (' + G.freed + '/' + pris + ')');
+    goals.push('Sonra <b>çıkışa</b> dön');
+  }
+  const html = goals.join(' · ') + (G.msgT > 0 ? '<br><span style="color:#f5d76e">' + G.msg + '</span>' : '');
+  if(obj.innerHTML !== html) obj.innerHTML = html;
+  const ban = $('#banner');
+  if(G.banner) { ban.hidden = false; ban.className = ''; ban.textContent = G.banner.text; }
+  else if(G.alarm > 0 && G.approach !== 'army') { ban.hidden = false; ban.className = ''; ban.textContent = 'Alarm · ' + Math.ceil(G.alarm) + ' sn'; }
+  else if(G.chars.some(g => g.kind === 'guard' && g.state === 'search')) { ban.hidden = false; ban.className = 'calm'; ban.textContent = 'Seni arıyorlar'; }
+  else ban.hidden = true;
+  const pr = $('#prompt'), ctxBtn = $('#tbAct');
+  const c = G.ctx, label = p.busy ? p.busy.label : c ? c.label : '';
+  pr.hidden = !label || isTouch;
+  if(label) { const h = p.busy ? label : '<kbd>E</kbd>' + label; if(pr.innerHTML !== h) pr.innerHTML = h; }
+  ctxBtn.disabled = !c || !!p.busy; ctxBtn.textContent = p.busy ? '…' : c ? c.label : 'Etkileşim';
+  $('#tbCrouch').classList.toggle('on', p.crouch);
+}
+
+// ---------- screens ----------
+function show(id) { for(const s of ['#brief', '#result', '#pausedScr']) $(s).hidden = s !== id; const inGame = !id; for(const s of ['#hud', '#mini', '#pause']) $(s).hidden = !inGame; $('#keys').hidden = !inGame || isTouch; $('#touch').hidden = !inGame; if(!inGame) $('#prompt').hidden = $('#banner').hidden = true; }
+function togglePause() { if(!G || G.done) return; paused = !paused; show(paused ? '#pausedScr' : null); }
+$('#pause').onclick = togglePause; $('#resume').onclick = togglePause;
+$('#quit').onclick = () => { paused = false; G.done = true; openBrief(); };
+function start(approach) { newGame(approach); paused = false; show(null); resize(); if(!running) { running = true; requestAnimationFrame(frame); } }
+function endGame(kind) {
+  if(G.done) return;
+  G.done = true;
+  const pris = G.chars.filter(c => c.kind === 'prisoner'), out = pris.filter(c => c.following && c.state !== 'down').length;
+  const title = kind === 'lost' ? 'Yenildin' : G.approach === 'army' ? 'Baskın bitti' : G.alarm > 0 ? 'Kaçtın' : 'Sessizce çıktın';
+  $('#resEyebrow').textContent = L.name + ' · ' + { solo: 'Tek başına', squad: 'Askerlerinle', army: 'Bütün ordu' }[G.approach] + ' · ' + (opts.time === 'day' ? 'Gündüz' : 'Gece');
+  $('#resTitle').textContent = title;
+  const guardsLeft = G.chars.filter(c => c.kind === 'guard' && c.state !== 'down' && c.state !== 'ko').length;
+  $('#resLead').textContent = kind === 'lost'
+    ? 'Haydutlar seni yere serdi. Gerçek oyunda bu esarete düşmek demek.'
+    : guardsLeft ? 'İn yerinde duruyor. Haydutlar dönünce eksikleri fark edecek; bir sonraki çete daha öfkeli olacak.'
+      : 'İnde ayakta kimse kalmadı. Gerçek oyunda bu in dağılır, bölge rahatlar.';
+  const rows = [['Altın', kind === 'lost' ? 0 : G.gold], ['Eşya', G.items.join(', ') || '—'], ['Kurtarılan tutsak', kind === 'lost' ? 0 : out + ' / ' + pris.length],
+    ['Bayıltılan', G.kos], ['Yere serilen', G.downs], ['Alarm', G.alarms ? G.alarms + ' kez' : 'hiç'], ['Pusu', G.ambushOn ? (G.ambushState ? 'kuruldu' : 'kurulmuştu, girmedin') : 'yoktu'],
+    ['Süre', Math.floor(G.t / 60) + ':' + String(Math.floor(G.t % 60)).padStart(2, '0')]];
+  $('#resTable').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+  setTimeout(() => show('#result'), kind === 'lost' ? 0 : 150);
+}
+$('#resAgain').onclick = () => start(G.approach);
+$('#resBrief').onclick = () => openBrief();
+
+// the scouting card: what you know depends on İzcilik
+function intel() {
+  const lv = LEVELS[opts.level], s = opts.scout;
+  const guards = lv.guards.length, pris = lv.map.join('').split('P').length - 1, night = opts.time === 'night';
+  const sleepers = lv.guards.filter(g => g.type === 'sleep' || (night && g.night === 'sleep')).length;
+  const li = [];
+  const lo = Math.max(1, guards - 2 + ((s * 7) % 3) - 1), hi = guards + 3;
+  li.push(s >= 3 ? `<b>${guards}</b> haydut` + (sleepers ? `, ${night ? 'gece olduğu için ' : ''}<b>${sleepers}</b> tanesi uyuyor olmalı` : '') : `Tahminen <b>${lo}–${hi}</b> haydut`);
+  li.push(s >= 3 ? `Girişler: ${lv.intel.entrances}` : `Görünen tek giriş: ${lv.intel.entrances.split(',')[0]}`);
+  li.push(s >= 3 ? (pris ? `<b>${pris}</b> tutsak tutuluyor` : 'Tutsak yok') : '<span>Tutsak var mı bilmiyorsun</span>');
+  li.push(s >= 6 ? `Kroki çıkarıldı: nöbetçilerin yerleri ve yolları belli. ${lv.intel.traps}` : 'Nöbetçilerin yerini bilmiyorsun');
+  li.push(s >= 9 ? lv.intel.secret : '<span>Gizli bir yol olup olmadığını bilmiyorsun</span>');
+  li.push(s >= 9 ? lv.intel.leader[opts.time] : '<span>Reisin alışkanlıklarını bilmiyorsun</span>');
+  if(s >= 7) li.push(lv.ambush ? (G_AMB_PREVIEW ? `<b>Uyarı:</b> ${lv.ambush.where} için pusu hazırlığı var gibi` : 'Pusu belirtisi yok') : 'Pusu belirtisi yok');
+  $('#intelTitle').textContent = 'Keşif · İzcilik ' + s;
+  $('#intelList').innerHTML = li.map(t => t.includes('<span>') ? `<li class="unk">${t.replace(/<\/?span>/g, '')}</li>` : `<li>${t}</li>`).join('');
+  drawSketch(lv, s);
+  const n = squadSize();
+  $('#apSquadT').textContent = n + ' askerinle sız';
+}
+let G_AMB_PREVIEW = false;
+function drawSketch(lv, s) {
+  const c = $('#sketch'), x = c.getContext('2d'), map = lv.map, h = map.length, w = map[0].length;
+  const sc = Math.floor(Math.min(c.width / w, c.height / h)); const ox = (c.width - w * sc) / 2 | 0, oy = (c.height - h * sc) / 2 | 0;
+  x.fillStyle = '#0a0908'; x.fillRect(0, 0, c.width, c.height);
+  if(s < 6) {
+    x.fillStyle = '#6a5f52'; x.font = '600 12px Inter, sans-serif'; x.textAlign = 'center';
+    x.fillText(s < 3 ? 'Kroki yok — içerisi hakkında bir şey bilmiyorsun' : 'Kroki yok — İzcilik 6 ile çıkar', c.width / 2, c.height / 2);
+    return;
+  }
+  for(let y = 0; y < h; y++) for(let xx = 0; xx < w; xx++) {
+    const ch = map[y][xx];
+    if(ch === ' ') continue;
+    x.fillStyle = ch === '#' ? '#4a4036' : ch === '~' ? '#2a5a70' : 'OE@'.includes(ch) ? '#26331f' : ch === 'X' ? (s >= 9 ? '#8a6a3a' : '#4a4036') : '#1c1814';
+    x.fillRect(ox + xx * sc, oy + y * sc, sc, sc);
+    const mark = { C: '#f5d76e', c: '#e0605a', P: '#8fc8ff', $: '#f5d76e', L: s >= 9 ? '#c9a0ff' : null, S: '#e0605a', t: '#c8b090' }[ch];
+    if(mark) { x.fillStyle = mark; x.fillRect(ox + xx * sc + sc * .25, oy + y * sc + sc * .25, sc * .5, sc * .5); }
+  }
+  for(const g of lv.guards) {
+    x.fillStyle = '#ff7a5a'; x.fillRect(ox + g.x * sc + 1, oy + g.y * sc + 1, sc - 2, sc - 2);
+    if(g.route) { x.strokeStyle = 'rgba(255,122,90,.6)'; x.setLineDash([3, 3]); x.beginPath(); g.route.forEach(([a, b], i) => i ? x.lineTo(ox + a * sc + sc / 2, oy + b * sc + sc / 2) : x.moveTo(ox + a * sc + sc / 2, oy + b * sc + sc / 2)); x.stroke(); x.setLineDash([]); }
+  }
+}
+function openBrief() {
+  show('#brief');
+  $('#levelTabs').innerHTML = Object.entries(LEVELS).map(([k, v]) => `<button class="tab" data-k="${k}" aria-pressed="${k === opts.level}"><b>${v.name}</b><span>${v.kind} · ${v.blurb}</span></button>`).join('');
+  $('#levelTabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { opts.level = b.dataset.k; openBrief(); });
+  // a sharp scout can tell an ambush is being laid — decide it now so the warning is honest
+  G_AMB_PREVIEW = opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4);
+  intel();
+}
+$('#scout').oninput = e => { opts.scout = +e.target.value; $('#scoutV').textContent = opts.scout; intel(); };
+$('#lead').oninput = e => { opts.lead = +e.target.value; $('#leadV').textContent = opts.lead; intel(); };
+for(const [seg, key] of [['#timeSeg', 'time'], ['#ambSeg', 'amb']]) $(seg).querySelectorAll('button').forEach(b => b.onclick = () => {
+  opts[key] = b.dataset.v; $(seg).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); if(key === 'amb') G_AMB_PREVIEW = opts.amb === 'on' || (opts.amb === 'random' && Math.random() < .4); intel();
+});
+$('#apSolo').onclick = () => start('solo');
+$('#apSquad').onclick = () => start('squad');
+$('#apArmy').onclick = () => start('army');
+$('#controlsTxt').innerHTML = isTouch
+  ? 'Telefonda: ekranın solunda parmağını sürükle, sonuna kadar itersen koşarsın. Sağda Eğil, Etkileşim ve Saldır düğmeleri.'
+  : 'Klavye: <kbd>WASD</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>C</kbd> eğil · <kbd>E</kbd> etkileşim (bayılt, aç, kurtar, çık) · <kbd>Boşluk</kbd> saldır · <kbd>Esc</kbd> duraklat';
+
+// the ambush roll the briefing promised is the one the game uses
+const _newGame = newGame;
+newGame = function(approach) { _newGame(approach); if(approach !== 'army' && L.ambush) G.ambushOn = opts.amb === 'on' || (opts.amb === 'random' && G_AMB_PREVIEW); };
+
+resize();
+loadAssets().then(openBrief);
+</script>

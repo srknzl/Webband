@@ -4454,7 +4454,9 @@ const Swordsman = (() => {
     // look: { armor 1..3, weapon 1..3, helm ''|'cap'|'nasal'|'greathelm', skin 0..3, hair 0..5, cloth }
     function art(look, anim, dir, t) {
         if(!ready()) return null;
-        const f = frameIndex(anim, t), row = ROW[dir];
+        // the pack's Idle row facing up has 4 frames, not 12: frames 4-11 are empty and a unit
+        // standing still with its back to the camera vanished for 1 s in every 1.4
+        const f = anim === 'Idle' && dir === 'up' ? frameIndex(anim, t) % 4 : frameIndex(anim, t), row = ROW[dir];
         const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, look.fem ? 'f' + (look.hairStyle || femStyle) : '', look.wpn || '', look.plate ? 'p' : '', anim, row, f].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }   // keep recently used frames
