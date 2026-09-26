@@ -1150,6 +1150,55 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
   a single still frame under reduced motion. The start screen only comes back on a reload, so the
   march starts once, at load.
 
+### Motion polish and round-1 leftovers (2.1.0)
+- **Living scene** (`MapArt.sceneLife`, `Game.tickScene`): chimney smoke, flags (`FLAG_F`), torch
+  and hearth flames (`FLAME`), birds and a villager on the road, drawn over the cached still scene.
+  `sheet()`/`building()`/`sceneBase()` collect the anchor points (`fx`) once per base. The map loop
+  calls `tickScene` after `renderMap` behind an 83 ms gate (~12 fps: pixel art needs no more). It
+  skips under reduced motion, behind a modal and off the settlement screen. The map's settlement
+  flags wave the same way per frame. Measured (Chromium, Praven): a whole scene redraw costs
+  0.23 ms on desktop and 0.29 ms at Pixel 7 density.
+- **Entrance / fly / banner / curtain** (`Game.playEntrance`, `fly`, `flourish`, `curtain`,
+  style.css "2.1 motion"):
+  - screens and cards slide up into place (`.entering`), and an action card lifts on hover
+  - a bought item flies to the bag chip and sale money to the purse (`mktGo`, `#mst-bag`/`#mst-gold`)
+  - a level-up or finished quest rises as a gold banner (`#flourish`, `role=status`); **since
+    tur 4 q4 a level-up is the banner alone — no alert**, and the character screen explains target
+    points
+  - a battle opens with a 1.3 s curtain ('Savaş!' / 'Kuşatma' / 'Son savaş'), but not in auto-resolve
+  Everything is off under `Anim.on() === false`.
+- **Pixel battle ground** (`Battle.buildGround`, `GROUND_PX 1.25`): the meadow is painted into a
+  low-res `ImageData` field (its own mulberry, seeded by one `Math.random`), then upscaled
+  nearest-neighbour. Both renderers draw it unsmoothed (`imageSmoothingEnabled = false`,
+  `texOf(ground, true)`). Measured: 45 ms for a 1366×715 field and 24 ms for a 412×915 one, once
+  per battle.
+- **Hero in character creation** (`heroPreview`, `startHeroPreview`, `Battle.heroLook`): the
+  wizard shows the hero sprite wearing what the choices so far (plus the hovered one) give. It is
+  the same `heroLook` the battle uses. One rAF loop with a `_heroId` guard; it stops once
+  `#cr-hero` is gone.
+- **Sprite looks** (Swordsman bake): `fem` adds long hair (`longHair`, not on the death frames),
+  and `wpn` gives an axe / mace / spiked mace / hammer / spear head at the blade tip, with the
+  blade pixels recoloured to wood (`weapon()`). `plate` (defense ≥ 30) draws steel plates on the
+  body (`plateArmour`). All three are part of the frame-cache key in `Swordsman.art` and
+  `Mounted.art`. `Battle.teamRing(u)` draws the ground ring only for units with no sprite look:
+  clothing already says the team.
+- **Settlement header** (`settlementSubline`): faction dot and name · prosperity · lords in the
+  keep (or 'Kalede soylu yok'); for a village, its owner. **Card keys** (`settlementKey`): cards
+  are numbered 1-9 in reading order and Esc leaves. The `<kbd>` chips are hidden on `body.touch`.
+  A card whose dinar price is above the purse gets `.act-poor` (dimmed, price in red).
+- **Phone battle** (`@media (pointer: coarse)`): `#battle-ui` is a see-through overlay over the
+  whole field (`inset: 0`, `Game.floatsOver` → `uiHeight = 0`). `#btn-bpause` (top left) opens
+  `Battle.pauseMenu` — Resume / Surrender, the battle paused under it. `#btn-surrender` is hidden,
+  and the rout prompt sits under the power bar. Measured (Pixel 7): the sticks' `--tui-lift`
+  dropped from 66 px + inset to 24 px + inset. The battle spec asserts both sticks and the block
+  button sit in the screen's lower half.
+- **Phone map capsule** (≤430 px): the terrain sits in the button row (a gold divider after it).
+  The troop count is hidden (it's on the party screen), and the terrain's speed shows as
+  `Game.pct` only (`.mt-short`; `.mt-long` on wider screens). The points button drops its icon, not
+  its words. Measured: the panel is 56 px tall at 412 px (76 before), and one row from 390 px up
+  in TR/EN/ID with unspent points showing. At 360 px ID it wraps to two rows. `ux.spec` asserts
+  one row on Pixel 7.
+
 ### Battle renderer (1.33.0)
 Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
 **sharpness** (`#battle-canvas` is one canvas pixel per CSS pixel, soft on a retina screen; Pixi

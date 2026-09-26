@@ -3,6 +3,53 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.1.0 — Canlanış (2026-09-26)
+
+Yeni görüntü kıpırdamaya başladı: şehirler yaşıyor, ekranlar süzülerek açılıyor, önemli anlar
+kutlanıyor.
+
+### Şehirler ve köyler
+
+- **Sahne yaşıyor.** Bacalardan duman tütüyor, bayraklar dalgalanıyor, meşaleler ve ocaklar
+  titriyor, gökyüzünden kuşlar geçiyor, yolda bir köylü yürüyor.
+- **Başlığın altında bir satır daha.** Şehrin hangi krallığa ait olduğu, refahı ve kalede hangi
+  soyluların oturduğu bir bakışta görünüyor. Köyde sahibi yazıyor.
+- **Kartların tuşu var.** Masaüstünde her kartın köşesinde 1-9 arası bir rakam yazıyor, o tuşa
+  basınca kart açılıyor. Esc şehirden çıkarır.
+- **Paran yetmeyen kart soluk.** İşletme ya da benzeri bir şey cebindekinden pahalıysa kart
+  soluklaşıyor, fiyatı kırmızı yazıyor.
+
+### Hareket
+
+- **Ekranlar süzülerek açılıyor.** Kartlar ve pencereler bir anda belirmiyor, hafifçe kayıp
+  yerine oturuyor. Kartın üstüne gelince kart hafifçe kalkıyor.
+- **Aldığın eşya çantana uçuyor.** Pazarda bir şey alınca eşya çantaya, satınca para keseye
+  süzülüyor.
+- **Önemli anlar altın bir bantla geliyor.** Seviye atlayınca ya da bir görevi bitirince ekranın
+  üstünde parıltılı bir bant beliriyor. Seviye atlamak artık kapatman gereken bir pencere
+  açmıyor, yalnızca bant çıkıyor.
+- **Savaşa perde açılarak giriliyor.** Savaş başlarken ekran kararıyor, "Savaş!" yazısı yükselip
+  kayboluyor.
+
+### Savaş
+
+- **Pixel zemin.** Savaş alanının çimeni ve toprağı da artık pixel pixel, askerlerle aynı dünyada.
+- **Kadın kahramanın uzun saçı var.** Aynı beden, farklı yüz ve omuzlara dökülen saç.
+- **Silahın ne ise o görünüyor.** Balta, topuz, gürz, çekiç ve mızrak ellerde kendi başıyla
+  görünüyor, sapları ahşap.
+- **Plaka zırh parlıyor.** Ağır zırh giyen askerin gövdesi çelik levhalarla çiziliyor.
+- **Ayak altındaki takım halkaları kalktı.** Takımlar zaten kıyafetin renginden belli.
+- **Telefonda savaş alanı tam ekran.** Alttaki siyah şerit kalktı, çubuklar sahanın üstünde yarı
+  saydam duruyor. "Teslim Ol" köşedeki duraklatma düğmesinin menüsüne taşındı, yanlışlıkla
+  basılmıyor.
+
+### Karakter ve harita
+
+- **Karakterini yaratırken onu görüyorsun.** Seçtiğin geçmiş ve eşyalar sağdaki küçük sahnede
+  kahramanın üstüne giyiliyor, savaşta nasıl görüneceksen öyle.
+- **Telefonda harita paneli tek satır.** Arazi, düğmeler ve hız aynı kapsülde. Asker sayısı
+  grup ekranında, arazinin hız etkisi yalnızca yüzde olarak yazıyor.
+
 ## 2.0.0 — Yeni Yüz (2026-09-26)
 
 Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehirler aynı pixel dünyada.
