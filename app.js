@@ -728,6 +728,8 @@ const Input = {
                document.getElementById('main-ui').classList.contains('active')) {
                 let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[k];
                 if(scr) Game.showScreen(scr);
+                // 1-9 press a settlement card (2.1): digits belong to nothing else outside battle
+                else if(/^[1-9]$/.test(e.key) && Game.settlementKey(e.key)) e.preventDefault();
                 // Esc returns to the map from any screen; a second Esc — already on the map,
                 // nothing left to back out of — pauses the game (#113).
                 else if(e.key === 'Escape') {
@@ -2494,8 +2496,11 @@ const Game = {
         // re-stretch the canvas over the UI bar's space too, throwing off everything drawn from
         // canvas.width/height — including the minimap, pinned to the now-wrong corner.
         let battleUi = document.getElementById('battle-ui');
-        fit(document.getElementById('battle-canvas'), battleUi ? battleUi.offsetHeight : 0);
+        // (on a phone the bar floats over the field, 2.1, and takes nothing from it)
+        fit(document.getElementById('battle-canvas'), battleUi && !this.floatsOver(battleUi) ? battleUi.offsetHeight : 0);
     },
+    // Is this element laid over its neighbours rather than taking room (the phone battle bar)?
+    floatsOver(el) { return !!el && typeof getComputedStyle === 'function' && getComputedStyle(el).position === 'absolute'; },
 
     // At 144/180 Hz, rAF gives 5-7 ms budget per frame; the game looks the same at 60 fps
     // too, but it costs the GPU 2-3x the work, and dropped frames feel like stutter.
@@ -5734,7 +5739,12 @@ const Game = {
         let t = document.getElementById('map-terrain-txt');
         if(!t) return;
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
-        t.innerText = T(terrain.name) + (terrain.mult !== 1 ? T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
+        // the long "(+30% speed)" reads on wide screens; a narrow phone's one-row capsule
+        // keeps only the bare percentage (style.css picks one of the two)
+        let mod = terrain.mult !== 1
+            ? `<span class="mt-long">${T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)`}</span>`
+              + `<span class="mt-short">${this.pct(Math.round((terrain.mult-1)*100), true)}</span>` : '';
+        t.innerHTML = T(terrain.name) + mod;
         // line icons, not emoji (2.0.0): the terrain's own, and a clock on the speed button
         this.setHtml('map-terrain-ico', this.icon(this.TERRAIN_ICON[terrain.name] || 'compass'));
         this.setHtml('btn-map-speed', this.icon('clock') + ' ×' + this.timeScale());
@@ -6780,6 +6790,8 @@ const Game = {
         // action button instead of making room for them in flow (#132 mobile report).
         this.showScreen('settlement');
         document.getElementById('settlement-name').innerText = T(loc.name) + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
+        let sub = document.getElementById('settlement-sub');
+        if(sub) sub.innerHTML = this.settlementSubline(loc);
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
@@ -6891,6 +6903,23 @@ const Game = {
         '🚪': ['door', 'camp', 'Haritaya dön'],
     },
     TOWN_GROUPS: [['trade', 'Ticaret'], ['places', 'Mekânlar'], ['army', 'Ordu'], ['war', 'Savaş'], ['camp', 'Kamp']],
+    // The line under a settlement's name (2.1, round 1's town screen): whose it is, how rich,
+    // and who is in the keep right now — so the hall isn't a guess
+    settlementSubline(loc) {
+        let f = FACTIONS[loc.faction] || { name: '?', color: '#888' };
+        let pr = Math.round(loc.prosperity || 50), prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul');
+        let parts = [`<span class="ss-dot" style="background:${f.color}"></span>${T(f.name)}`, T`Refah: ${prLbl}`];
+        if(loc.type !== 'village' && typeof Nobles !== 'undefined') {
+            let here = Nobles.lordsAt(loc.id).sort((a, b) => (b.rank === 'king') - (a.rank === 'king'));
+            if(here.length === 1) parts.push(T`${T(here[0].name)} kalede`);
+            else if(here.length > 1) parts.push(T`${T(here[0].name)} ve ${here.length - 1} soylu kalede`);
+            else parts.push(T('Kalede soylu yok'));
+        } else {
+            let lord = this.ownerLord(loc);
+            if(lord) parts.push(T`Sahibi: ${T(lord.name)}`);
+        }
+        return parts.join(' · ');
+    },
     cardSettlementActions(ac, loc) {
         let groups = {};
         [...ac.querySelectorAll(':scope > button')].forEach(b => {
@@ -6903,6 +6932,10 @@ const Game = {
             if(m && m[1]) { text = m[1]; meta = m[2]; }
             b.classList.add('act-card');
             if(group === 'camp') b.classList.add('act-quiet');
+            if(emo === '🚪') b.classList.add('act-leave');
+            // a price you can't pay: the card is dimmed and its price red (round 1's town screen)
+            let cost = /(dinar|denar)/i.test(meta) && (meta.match(/\d[\d.,]*/) || [])[0];
+            if(cost && parseInt(cost.replace(/[.,]/g, ''), 10) > state.player.money) b.classList.add('act-poor');
             b.innerHTML = `<span class="sr-only">${label}</span>`
                 + `<span class="ac-ic" aria-hidden="true">${this.icon(icon)}</span>`
                 + `<span class="ac-tx" aria-hidden="true"><b>${text}</b>${hint ? `<small>${T(hint)}</small>` : ''}</span>`
@@ -6918,6 +6951,21 @@ const Game = {
             groups[g].forEach(b => sec.lastChild.appendChild(b));
             ac.appendChild(sec);
         });
+        // keyboard: the cards are numbered 1-9 in reading order, Esc leaves (Game.settlementKey)
+        let n = 0;
+        ac.querySelectorAll('.act-card').forEach(b => {
+            let key = b.classList.contains('act-leave') ? 'Esc' : ++n <= 9 ? String(n) : '';
+            if(key) b.insertAdjacentHTML('beforeend', `<kbd class="ac-kbd" aria-hidden="true">${key}</kbd>`);
+        });
+    },
+    // 1-9 on the settlement screen press that card (numbered by cardSettlementActions)
+    settlementKey(k) {
+        if(!document.getElementById('settlement-view').classList.contains('active')) return false;
+        let cards = [...document.querySelectorAll('#settlement-actions .act-card:not(.act-leave)')];
+        let b = cards[+k - 1];
+        if(!b || b.disabled) return false;
+        b.click();
+        return true;
     },
 
     // Dialogue buttons as cards (2.0.0), the town cards' look for any list of `.btn`s: a line icon
@@ -11883,9 +11931,9 @@ const Game = {
             s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord-style 3 focus points per level
             this.updateStatsFromEquip(); // +10 max HP per level — from the one formula
             s.hp = s.maxHp;
+            // 2.1: the gold banner alone — no window to click away; the map's glowing points
+            // button and the character screen carry the rest (what a target point means)
             this.flourish(T`Seviye ${s.level}!`, T('1 nitelik, 3 odak puanı'), 'up');
-            alert(`${T`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.`}<br>` +
-                  `${T`Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`}`);
         }
         this.updateTopBar();
     },

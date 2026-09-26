@@ -1005,6 +1005,7 @@ body.view-map #map-hud { left: 66px; }
     color: #f0e3c0; letter-spacing: .5px;
 }
 #map-comp { display: flex; gap: 0.5rem; }
+#map-terrain .mt-short { display: none; }
 #map-comp span { display: inline-flex; align-items: center; gap: 3px; color: var(--text-muted); }
 #map-comp b { color: #e8dcbb; font-weight: 600; }
 #btn-map-speed {
@@ -1665,7 +1666,8 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
        "Sıradaki" "⋯ Daha"ya taşındı (aynı onclick), hız düğmesi kendi satırı yerine düğme
        sırasının sonuna oturur. Düğmeler yazılı kalır (#86: yalnız ikon, "yazısız düğme" demekti). */
     #map-hud { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 0.3rem; }
-    #map-terrain { flex-basis: 100%; }
+    /* 2.1: the place sits in the same row as the buttons — one capsule, not two rows */
+    #map-terrain { flex: none; padding-right: 0.3rem; border-right: 1px solid rgba(212,175,55,0.22); }
     #map-comp #btn-diplo, #map-comp #btn-track { display: none; }
     #btn-map-speed { align-self: center; }
     #map-comp { flex-wrap: wrap; }
@@ -1707,9 +1709,20 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
        "düğmede yazı yok" demekti). Dokunma hedefi yine 44 px. */
     #map-hud { font-size: 0.66rem; padding: 0.3rem 0.4rem; }
     #map-comp { gap: 1px; }
+    /* One capsule row at 412 px (2.1): the troop count lives on the party screen, and the
+       terrain's speed shrinks to its bare percentage */
+    #map-comp > span, #map-terrain .mt-long { display: none; }
+    #map-terrain { letter-spacing: 0; gap: 0.25rem; }
+    #map-terrain .mt-short { display: inline; margin-left: 0.25rem; font-family: 'Inter', sans-serif; font-weight: 600; color: var(--text-muted); }
     #map-comp button {
         font-size: 0.6rem; margin-left: 0.15rem; padding: 1px 4px; gap: 2px;
     }
+    #map-hud { column-gap: 0.2rem; padding: 0.3rem; }
+    #map-comp { gap: 3px; }
+    #map-comp button { margin-left: 0; }
+    #map-terrain { padding-right: 0.25rem; }
+    #map-comp #btn-points .i { display: none; }   /* its glow already marks it; the words stay */
+    #btn-map-speed { font-size: 0.62rem; padding: 1px 6px; }
 }
 
 /* Yatay tutulan telefon: dikey yer çok az, üst çubuk daha da incelir */
@@ -2073,4 +2086,35 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
     .cr-head { gap: 0.7rem; }
     .cr-hero, .cr-hero-nm { width: 84px; max-width: 84px; }
     .cr-hero canvas { width: 84px; height: 84px; }
+}
+
+/* Round 1's town screen, finished (2.1): the line under the name, numbered cards, prices you can't pay */
+#settlement-name { margin-bottom: 0.2rem; }
+.set-sub { margin: 0 0 0.9rem; font: 500 var(--fs-sm)/1.4 'Inter', sans-serif; color: var(--text-muted); }
+.set-sub .ss-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; margin-right: 0.4em; vertical-align: 0.05em; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
+.act-card { position: relative; }
+.ac-kbd { position: absolute; top: 6px; right: 8px; font: 600 0.62rem/1 'Inter', sans-serif; color: #8a8173;
+    border: 1px solid rgba(236,230,218,0.14); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: rgba(0,0,0,0.25); }
+body.touch .ac-kbd { display: none; }
+.act-card.act-poor { opacity: 0.62; }
+.act-card.act-poor .ac-mt { color: var(--danger); }
+
+/* Phone battle (2.1, round 1): no black strip under the field. The bar floats over the canvas,
+   see-through; Surrender moved into the corner pause button's menu (Battle.pauseMenu); the
+   "enemy flees" prompt sits under the power bar; the sticks go half-transparent until touched. */
+#btn-bpause { display: none; }
+@media (pointer: coarse) {
+    #battle-view { position: relative; }
+    #battle-ui { position: absolute; left: 0; right: 0; top: 0; padding: 0; background: none; border: 0; pointer-events: none; z-index: 31; }
+    #battle-ui > * { pointer-events: auto; }
+    #battle-ui > .battle-logs { pointer-events: none; }
+    #btn-surrender { display: none; }
+    #btn-bpause { display: grid; place-items: center; position: absolute; left: 8px; top: 10px; width: 44px; height: 44px; min-width: 44px; padding: 0;
+        border-radius: 50%; background: rgba(12,12,16,0.72); border: 1px solid rgba(212,175,55,0.5); color: var(--primary); }
+    #btn-bpause svg.i { width: 18px; height: 18px; }
+    #rout-prompt { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap;
+        background: rgba(12,14,10,0.82); border: 1px solid rgba(159,224,160,0.45); border-radius: 999px; padding: 0.3rem 0.4rem 0.3rem 0.8rem; }
+    #tstick, #tastick, #tbtns button, #tcmds button { transition: opacity 0.2s; }
+    #tstick:not(:active), #tastick:not(:active) { opacity: 0.72; }
+    #tcmds button, #tbtns button:not(:active) { opacity: 0.82; }
 }

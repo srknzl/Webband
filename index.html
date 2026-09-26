@@ -89,6 +89,7 @@
 <symbol id="i-gift" viewBox="0 0 24 24"><path d="M4 9h16v4H4zM5.5 13v7.5h13V13M12 9v11.5"/><path d="M12 9C9 9 7.5 7.8 7.5 6.3S9 4 10.2 5.1 12 9 12 9zm0 0c3 0 4.5-1.2 4.5-2.7S15 4 13.8 5.1 12 9 12 9z"/></symbol>
 <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5.5"/><path d="M9.5 5.5L12 3l2.5 2.5L12 9.5z"/></symbol>
 <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M8.5 5v14M15.5 5v14"/></symbol>
 <symbol id="i-swipe" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></symbol>
     </defs></svg>
 
@@ -276,6 +277,7 @@
                     <!-- Settlement View (City/Castle/Village) -->
                     <div id="settlement-view" class="view glass-panel">
                         <h2 id="settlement-name">Şehir Adı</h2>
+                        <p id="settlement-sub" class="set-sub"></p>
                         <!-- Yerleşim sahnesi (#60): düğmelerin kendisi burada bina olarak çizilir -->
                         <!-- Telefonda sahne okunur boyda kalır ve yana kayar (2.0.0); oklar, kenar gölgeleri,
                              alt çubuk ve ilk girişteki ipucu bunu söyler. Etiketleri renderScene T() ile yazar. -->
@@ -324,6 +326,8 @@
                             <div id="battle-log-left" class="battle-logs" style="left:20px; text-align:left;"></div>
                             <div id="battle-log-right" class="battle-logs" style="right:20px; text-align:right;"></div>
                             <button class="btn" id="btn-surrender" onclick="Battle.askSurrender()">🏳️ Teslim Ol</button>
+                            <!-- Telefonda alt şerit yok (2.1): teslim olmak köşedeki duraklatma menüsünde -->
+                            <button class="btn" id="btn-bpause" onclick="Battle.pauseMenu()" title="Duraklat" aria-label="Duraklat"><svg class="i"><use href="#i-pause"/></svg></button>
                             <!-- Dokunmatik savaş kumandası (#65): CSS `pointer: coarse`
                                  olmayan cihazda gizler, yani fare kullanıcısı hiç görmez. -->
                             <div id="touch-ui">

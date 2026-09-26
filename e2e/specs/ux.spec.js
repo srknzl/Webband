@@ -56,12 +56,12 @@ test('yerleşim denetimi: bütün ekranlar ve pencereler', async ({ page, isMobi
     await page.evaluate(() => Game.closeModal());
     await newGame(page);
     await look('harita');
-    // The map badge takes two rows at most: place + troops, then one row of buttons (the
-    // narrow layout moved diplomacy and the music skip into "⋯ Daha" for that)
+    // The map badge is one capsule row (2.1): the place, then the buttons (the narrow layout
+    // moved diplomacy and the music skip into "⋯ Daha" and folds the troop count away)
     if(await page.locator('#sidebar .sb-more').isVisible()) {
-        const tops = await page.evaluate(() => [...document.querySelectorAll('#map-hud button')]
-            .filter(b => b.offsetParent).map(b => b.getBoundingClientRect().top));
-        expect(Math.max(...tops) - Math.min(...tops), 'map badge buttons sit on one row').toBeLessThan(10);
+        const mids = await page.evaluate(() => [...document.querySelectorAll('#map-terrain, #map-hud button')]
+            .filter(b => b.offsetParent).map(b => { const r = b.getBoundingClientRect(); return (r.top + r.bottom) / 2; }));
+        expect(Math.max(...mids) - Math.min(...mids), 'map badge sits on one row').toBeLessThan(10);
     }
     for(const v of ['character', 'party', 'inventory', 'quests']) { await openView(page, v); await look(v); }
     await openView(page, 'map');

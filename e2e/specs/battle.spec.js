@@ -26,7 +26,10 @@ test('çeteye tıkla, savaş, kazan, sonuçları al, haritaya dön', async ({ pa
     await expect(page.locator('body')).toHaveClass(/\bin-battle\b/);
     await expect(page.locator('#top-bar')).toBeHidden();
     await expect(page.locator('#sidebar')).toBeHidden();
-    await expect(page.locator('#btn-surrender')).toBeVisible();
+    // Surrender: a button on the bar with a mouse; on a phone the bar is gone and it sits in the
+    // corner pause button's menu (2.1)
+    if(isMobile) { await expect(page.locator('#btn-bpause')).toBeVisible(); await expect(page.locator('#btn-surrender')).toBeHidden(); }
+    else await expect(page.locator('#btn-surrender')).toBeVisible();
     // The virtual sticks exist exactly where there is no mouse (#65)
     if(isMobile) await expect(page.locator('#tstick')).toBeVisible();
     else await expect(page.locator('#touch-ui')).toBeHidden();
@@ -79,6 +82,13 @@ test('köyde gönüllü topla, askerlerini gönder (otomatik savaş)', async ({ 
     await page.waitForFunction(() => Game._loopId && !Battle.active);
 });
 
+// The way to the surrender question: the bar's button, or on a phone the pause menu's entry
+async function askSurrender(page) {
+    if(await page.evaluate(() => Game.isTouch())) {
+        await page.locator('#btn-bpause').click();
+        await (await modalBtn(page, '🏳️ Teslim Ol')).click();
+    } else await page.locator('#btn-surrender').click();
+}
 test('teslim ol önce sorar: savaşa dönmek savaşı sürdürür, onay esarete düşürür', async ({ page }) => {
     await newGame(page);
     const b = await band(page);
@@ -88,7 +98,7 @@ test('teslim ol önce sorar: savaşa dönmek savaşı sürdürür, onay esarete 
     await expect.poll(() => page.evaluate(() => Battle.battleTime)).toBeGreaterThan(0.2);
 
     // A stray tap only asks — with the price named and the fight frozen meanwhile
-    await page.locator('#btn-surrender').click();
+    await askSurrender(page);
     await expect(modal(page)).toContainText(await L(page, 'Bütün birliğin dağılır ve esir düşersin.'));
     const t = await page.evaluate(() => Battle.battleTime);
     await page.waitForTimeout(400);
@@ -111,7 +121,7 @@ test('teslim ol önce sorar: savaşa dönmek savaşı sürdürür, onay esarete 
     }
 
     // Asked and answered yes: captivity
-    await page.locator('#btn-surrender').click();
+    await askSurrender(page);
     await (await modalBtn(page, '🏳️ Teslim Ol')).click();
     await expect(page.locator('#map-view')).toHaveClass(/\bactive\b/);
     const said = await L(page, 'Teslim oldun! Tüm birliğini kaybettin ve köle olarak sürükleneceksin.<br>-{0} Dinar', 0);

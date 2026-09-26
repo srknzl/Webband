@@ -223,8 +223,9 @@ const Battle = {
         if(!auto) Game.curtain(bossLevel ? T('Son savaş') : siegePlan ? T('Kuşatma') : T('Savaş!'), T`${enemyCount} düşmana karşı`);
         this.isBossFight = !!bossLevel;
         
-        let vc = document.getElementById('view-container');
-        let uiHeight = document.getElementById('battle-ui').offsetHeight || 50;
+        let vc = document.getElementById('view-container'), bui = document.getElementById('battle-ui');
+        // on a phone the bar floats over the field (2.1) and takes no height from it
+        let uiHeight = Game.floatsOver(bui) ? 0 : ((bui && bui.offsetHeight) || 50);
         
         let clientH = vc.clientHeight || window.innerHeight;
         let W = vc.clientWidth || 800;
@@ -3598,6 +3599,19 @@ const Battle = {
     // enough. The button now asks, with the fight paused, and names the price; "back to the
     // fight" is the primary answer, so Enter, Esc and × all land on the safe side (canDismiss
     // lets this one window close mid-battle). Every way out resumes the fight (Game.closeModal).
+    // Phone battle (2.1, round 1): no bottom strip; the pause button in the corner opens this —
+    // back to the fight, or give up (which still asks, as the button always did). It rides the
+    // surrender prompt's own door: closing the window resumes the fight.
+    pauseMenu() {
+        if(!this.active) return;
+        this.paused = true;
+        this._askingSurrender = true;
+        Game.showModal(`<h3>${T`⏸ Duraklatıldı`}</h3>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.6rem">
+                <button class="btn primary" onclick="Game.closeModal()">${T`⚔️ Savaşa Dön`}</button>
+                <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Battle.askSurrender()">${T`🏳️ Teslim Ol`}</button>
+            </div>`, '340px');
+    },
     askSurrender() {
         if(!this.active) return this.surrender();
         this.paused = true;

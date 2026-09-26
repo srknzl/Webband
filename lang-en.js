@@ -3023,5 +3023,10 @@ I18N.dicts.en = {
   "Son savaş": "The final battle",
   "Kuşatma": "Siege",
   "Savaş!": "Battle!",
-  "{0} düşmana karşı": "Against {0} foes"
+  "{0} düşmana karşı": "Against {0} foes",
+  "{0} kalede": "{0} is in the keep",
+  "{0} ve {1} soylu kalede": "{0} and {1} more nobles are in the keep",
+  "Kalede soylu yok": "No nobles in the keep",
+  "Sahibi: {0}": "Held by {0}",
+  "Duraklat": "Pause"
 };

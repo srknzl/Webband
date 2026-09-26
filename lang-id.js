@@ -3023,5 +3023,10 @@ I18N.dicts.id = {
   "Son savaş": "Pertempuran terakhir",
   "Kuşatma": "Pengepungan",
   "Savaş!": "Bertempur!",
-  "{0} düşmana karşı": "Melawan {0} musuh"
+  "{0} düşmana karşı": "Melawan {0} musuh",
+  "{0} kalede": "{0} ada di benteng",
+  "{0} ve {1} soylu kalede": "{0} dan {1} bangsawan lain ada di benteng",
+  "Kalede soylu yok": "Tidak ada bangsawan di benteng",
+  "Sahibi: {0}": "Dipegang oleh {0}",
+  "Duraklat": "Jeda"
 };
