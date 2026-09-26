@@ -765,7 +765,12 @@ function hurt(c, dmg, by) {
 // (a trapdoor beside a chest used to take the button because it came first in the scan)
 function findInteraction() {
   const p = G.player, tx = Math.floor(p.x / T), ty = Math.floor(p.y / T), cand = [];
-  const add = (d, label, at, run) => cand.push({ d, label, at, run });
+  // what you face comes first: a thing behind you counts as further away than it is
+  const add = (d, label, at, run) => {
+    const ax = at ? (at.cx ?? at.x) : p.x, ay = at ? (at.cy ?? at.y) : p.y;
+    const off = at && Math.hypot(ax - p.x, ay - p.y) > 8 ? Math.abs(angDiff(Math.atan2(ay - p.y, ax - p.x), p.a)) : 0;
+    cand.push({ d: d + (off > 1.6 ? 40 : off > .8 ? 10 : 0), label, at, run });
+  };
   // takedown: a guard who hasn't seen you, from behind (or asleep, or bent over the dice)
   for(const g of G.chars) {
     if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down' || g.state === 'alert' || g.state === 'grabbed') continue;
