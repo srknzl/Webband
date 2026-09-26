@@ -278,6 +278,11 @@ h1, h2, h3 {
     display: inline-block;
     filter: drop-shadow(2px 0px 0px #ff8c00) drop-shadow(-2px 0px 0px #ff8c00) drop-shadow(0px 2px 0px #ff8c00) drop-shadow(0px -2px 0px #ff8c00);
 }
+/* "Write a name first" (1.32.1) */
+.field-err { margin-top: 0.45rem; font-size: var(--fs-sm); color: var(--danger); text-align: center; }
+.field-err[hidden] { display: none; }
+@keyframes shakeX { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+#char-name.shake { animation: shakeX 0.35s var(--ease-soft); }
 .input-container:focus-within {
     filter: drop-shadow(2px 0px 0px #ffcc00) drop-shadow(-2px 0px 0px #ffcc00) drop-shadow(0px 2px 0px #ffcc00) drop-shadow(0px -2px 0px #ffcc00) drop-shadow(0px 0px 15px rgba(255, 204, 0, 0.8));
 }

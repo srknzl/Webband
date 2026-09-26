@@ -29,6 +29,30 @@ test('başlangıç ekranı sürümü gösterir', async ({ page }) => {
     await expect(page.locator('#ver-tag')).toContainText(v);
 });
 
+test('isim alanı boş gelir; isim yazmadan oyun başlamaz', async ({ page }) => {
+    await page.goto('/');
+    const name = page.locator('#char-name'), note = page.locator('#char-name-err');
+    await expect(name).toHaveValue('');
+    await expect(name).toHaveAttribute('placeholder', await L(page, 'İsmini gir...'));
+    await expect(note).toBeHidden();
+
+    // An empty press explains itself and starts nothing; whitespace counts as empty
+    await page.locator('#start-btn').click();
+    await expect(note).toBeVisible();
+    await expect(note).toHaveText(await L(page, 'Önce bir isim yaz.'));
+    await expect(name).toBeFocused();
+    await name.fill('   ');
+    await page.locator('#start-btn').click();
+    await expect(page.locator('#modal-overlay')).toHaveClass(/\bhidden\b/);
+
+    // Typing clears the note; Enter in the field starts, like the button
+    await name.fill('Deneme');
+    await expect(note).toBeHidden();
+    await name.press('Enter');
+    await expect(modal(page).locator('[onclick^="Game.pickCreation"]').first()).toBeVisible();
+    expect(await page.evaluate(() => state.player.name)).toBe('Deneme');
+});
+
 test('karakter sihirbazı haritaya indirir', async ({ page }) => {
     await page.goto('/');
     await page.locator('#char-name').fill('Deneme');

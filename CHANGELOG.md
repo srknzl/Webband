@@ -3,6 +3,23 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.32.1 — Omuz Omuza (2026-09-26)
+
+- **Destek verdiğin lordun askerleri artık yanında savaşıyor.** Haritada kapışan iki partiden
+  birine "🤝 Destek Ver" deyince savaşa yalnız kendi grubunla giriyordun, lordun adamları hiç
+  sahaya çıkmıyordu. Artık ordusunun üçte biri kadarı (en az 3, en çok 20) senin tarafında
+  savaşıyor; kaç kişi katılacağı destek penceresinde yazıyor. Onların kayıpları senin grubundan
+  değil lordun ordusundan düşüyor.
+- **Esir düşünce yardım ettiğin lord seni götürenlerin peşinden yürümüyor.** Yenilip esir
+  düşünce, devriyedeki bir lord seni tutan çeteye takılıp bütün esaret boyunca yanında
+  yürüyordu. Hiçbir lord artık seni esir tutan partiyi kovalamıyor, onunla çatışmaya da girmiyor.
+- **Destekli savaşta teslim olunca** lord sonraki, ilgisiz bir zaferinde sana yine de teşekkür
+  ediyordu. Artık etmiyor.
+- **İsim alanı boş geliyor.** "Maceracı" hazır yazılı gelmiyor. İsim yazmadan "Maceraya Başla"ya
+  basınca oyun başlamıyor, alanın altında "Önce bir isim yaz." yazıyor. Enter da başlatıyor.
+- **Savaşta at daha az sallanıyor.** Dörtnala saniyede neredeyse dört kez sekiyordu, titreme
+  gibi görünüyordu; ritim yarıya indi, yalpa ve zıplama azaldı.
+
 ## 1.32.0 — Yumuşak Hamle (2026-09-26)
 
 Savaş, harita ve arayüz artık kıpırdıyor; kenarlar daha yumuşak.

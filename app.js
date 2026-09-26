@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.32.0', date: '2026-09-26', name: 'Yumuşak Hamle' };  // the version name is not translated
+const VERSION = { no: '1.32.1', date: '2026-09-26', name: 'Omuz Omuza' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1126,6 +1126,10 @@ const Game = {
         this.renderVerTag();
         this.applySettings();
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
+        // Typing clears the "write a name first" note; Enter in the field starts, like the button
+        let nameIn = document.getElementById('char-name');
+        nameIn.addEventListener('input', () => { let e = document.getElementById('char-name-err'); if(e) e.hidden = true; });
+        nameIn.addEventListener('keydown', e => { if(e.key === 'Enter') { e.preventDefault(); this.startGame(); } });
         this.mapCanvas = document.getElementById('map-canvas');
         // Opaque canvas: the sea fills every frame edge to edge, no alpha channel needed.
         // alpha:false lets the browser skip the blending pass (noticeable on weak GPUs).
@@ -1967,10 +1971,15 @@ const Game = {
     // one clash resolves per day: the six-hour refill can replace those losses without the
     // band population oscillating between an empty map and a sudden swarm.
     LORD_BAND_BATTLES: 1,
+    // The party carrying you off in chains (#32 report, 1.32.1). Lords neither hunt it nor
+    // fight it while you're its prisoner: a patrolling lord used to lock onto it and walk
+    // beside it for the whole captivity, and the daily clash could whittle it down to one man
+    // with you still in its chains.
+    holdsPlayer(npc) { return !!(npc && state.player.prisoner && state.player.prisoner.npcId === npc.id); },
     lordBanditTick() {
         let lords = state.npcParties.filter(n => n.lordId && n.size > 0);
         let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0
-                                              && (n.patrolSafeUntil || 0) <= state.time.day);
+                                              && (n.patrolSafeUntil || 0) <= state.time.day && !this.holdsPlayer(n));
         let used = new Set(), fought = 0;
         for(let lord of lords) {
             if(fought >= this.LORD_BAND_BATTLES) break;
@@ -2130,9 +2139,20 @@ const Game = {
     // the banner, then the summary. Choices are applied from one place, in applyCreation().
     creation: { step: 0, sel: {} },
 
+    // No name, no game (1.32.1): the field used to arrive pre-filled with "Maceracı" and an
+    // emptied field silently fell back to it. Now it starts empty and an empty press explains
+    // itself instead of starting — a disabled button would say nothing on a phone.
     startGame() {
-        const n = document.getElementById('char-name').value.trim();
-        if(n) state.player.name = n;
+        const input = document.getElementById('char-name'), err = document.getElementById('char-name-err');
+        const n = input.value.trim();
+        if(!n) {
+            if(err) err.hidden = false;
+            input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake');
+            input.focus();
+            return false;
+        }
+        if(err) err.hidden = true;
+        state.player.name = n;
         this.creation = { step: 0, sel: {} };
         this.renderCreation();
     },
@@ -3279,9 +3299,11 @@ const Game = {
     showAssistModal(clash) {
         let ally = clash.ally, foe = clash.foe;
         let reduced = Math.max(3, Math.round(foe.size * 0.7));
+        let lent = Battle.allyShare(ally.size);
         this.showModal(`<h3>${T`⚔️ Çarpışma`}</h3>
             <p style="margin-top:0.5rem">${T`${this.npcName(ally)} ile ${this.npcName(foe)} kapışıyor.`}</p>
             <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.3rem">${T`Yanında savaşa girersen adamları düşmanı çoktan hırpalamış olur — karşına ${reduced} kişi çıkar. Kazanırsan lord sana minnettar kalır.`}</p>
+            <p style="font-size:var(--fs-sm);margin-top:0.3rem">${T`${this.npcName(ally)} sana ${lent} askerini katar.`}</p>
             <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
             <button class="btn primary" onclick="Game.assistFight('${ally.lordId || ''}','${foe.id}')">${T`🤝 Destek Ver`}</button>
             <button class="btn" style="border-color:#cc8800;color:#cc8800" onclick="Game.closeModal(); state.encounterCooldown = 5;">${T`Karışma`}</button>
@@ -3292,7 +3314,9 @@ const Game = {
         let foe = state.npcParties.find(n => n.id === foeId);
         if(!foe) return;
         let ally = allyLordId ? Nobles.lord(allyLordId) : null;
-        state.player.assistAlly = ally ? { lordId: ally.id, faction: ally.faction } : null;
+        // npcId: the map party whose men join the battle (#32 report, 1.32.1)
+        let allyParty = allyLordId ? state.npcParties.find(n => n.lordId === allyLordId && n.size > 0) : null;
+        state.player.assistAlly = ally ? { lordId: ally.id, faction: ally.faction, npcId: allyParty ? allyParty.id : null } : null;
         state.player.currentEncounterNpcId = foe.id;
         let reduced = Math.max(3, Math.round(foe.size * 0.7));
         Battle.start(foe.name, reduced, null, foe.faction || '', null, false, foe.band || '');
@@ -3608,12 +3632,17 @@ const Game = {
                 npc.targetY = campaignTarget.y;
             } else if(npc.lordId && !hostile && !npc.siegeLocId) {
                 npc.bandScanCd = (npc.bandScanCd || 0) - dt;
+                // Its quarry just took you prisoner: drop the chase at once rather than walk on to
+                // the last point it was aimed at (the next tick picks a fresh wander target)
+                if(npc.bandTargetId && state.npcParties.some(b => b.id === npc.bandTargetId && this.holdsPlayer(b))) {
+                    npc.bandTargetId = null; npc.targetX = npc.x; npc.targetY = npc.y;
+                }
                 let outlaw = state.npcParties.find(b => b.id === npc.bandTargetId && b.type === 'bandit' && b.size > 0
-                                                    && (b.patrolSafeUntil || 0) <= state.time.day);
+                                                    && (b.patrolSafeUntil || 0) <= state.time.day && !this.holdsPlayer(b));
                 if(!outlaw && npc.bandScanCd <= 0) {
                     let best = 900;
                     state.npcParties.forEach(b => {
-                        if(b.type !== 'bandit' || b.size <= 0 || (b.patrolSafeUntil || 0) > state.time.day) return;
+                        if(b.type !== 'bandit' || b.size <= 0 || (b.patrolSafeUntil || 0) > state.time.day || this.holdsPlayer(b)) return;
                         let d2 = this.dist(b, npc);
                         if(d2 < best) { best = d2; outlaw = b; }
                     });
@@ -8947,6 +8976,13 @@ const Game = {
 
     // The settlement's faction gives which villager; an unknown faction falls back to the Swadian tree
     tree(faction) { return TROOP_TREES[faction] || TROOP_TREES.swadia; },
+    // The troops a lord's host fields when it fights beside you (#32 report): the recruit and
+    // the first rung of every branch, plus the second rung once the lord is level 10+.
+    allyRoster(faction, level) {
+        let t = this.tree(faction), names = [t.recruit[0]];
+        t.branches.forEach(b => { names.push(b[0][0]); if(level >= 10 && b[1]) names.push(b[1][0]); });
+        return names;
+    },
     recruitName(loc) { return this.tree(loc && loc.faction).recruit[0]; },
     // Faction army pool: 2 shares of mid-tier per branch, 1 share of elite
     factionTroopPool(faction) {

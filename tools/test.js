@@ -722,6 +722,104 @@ test('bandits do not scale with the calendar (#99)', () => {
     gw.state.time.day = 1;
 });
 
+// --- Start screen (1.32.1) ---
+test('start: no name, no game — an empty or blank name opens nothing', () => {
+    const g = H.load({ seed: 1 }), G = g.Game, doc = g._sandbox.document;
+    const input = doc.getElementById('char-name'), err = doc.getElementById('char-name-err');
+    let opened = 0;
+    G.renderCreation = () => { opened++; };
+    err.hidden = true;
+    for(const v of ['', '   ']) {
+        input.value = v;
+        assert.strictEqual(G.startGame(), false, `started with ${JSON.stringify(v)}`);
+        assert.strictEqual(err.hidden, false, 'the note says why');
+    }
+    assert.strictEqual(opened, 0);
+    input.value = '  Deneme ';
+    G.startGame();
+    assert.strictEqual(opened, 1);
+    assert.strictEqual(g.state.player.name, 'Deneme', 'trimmed');
+    assert.strictEqual(err.hidden, true);
+});
+
+// --- Backing a lord in a map clash (#32 report) ---
+// A lord at peace with you and a bandit band, side by side next to your party: the clash the
+// map offers to join. Each test builds its own world — they end in captivity.
+function assistSetup() {
+    const w = H.world({ seed: 1 }), G = w.Game, s = w.state;
+    const ally = s.npcParties.find(n => n.lordId && n.size > 0 && !G.isHostile(n) && !G.atWar(G.playerFaction(), n.faction));
+    const foe = s.npcParties.find(n => n.type === 'bandit' && n.size > 0 && !(w.BAND_KINDS[n.band] || {}).beast);
+    foe.size = 12;
+    foe.x = ally.x + 100; foe.y = ally.y;
+    Object.assign(s.player, { x: ally.x + 40, y: ally.y + 60, status: 'idle', targetLocation: null });
+    s.player.party = [1, 2, 3].map(i => ({ id: 'as' + i, name: 'Svadya Köylüsü', level: 1 }));
+    // As on the live map, the lord has already locked onto the band by the time you arrive
+    ally.bandScanCd = 0;
+    G.updateNPCs(G.npcWorldDelta(0.05));
+    assert.strictEqual(ally.bandTargetId, foe.id, 'setup: the lord is on the band before you join');
+    return { w, G, s, ally, foe };
+}
+test('assist: the map offers the clash with the lord as ally and the band as foe', () => {
+    const { G, ally, foe } = assistSetup();
+    const clash = G.clashContext(foe);
+    assert.ok(clash, 'no clash offered');
+    assert.strictEqual(clash.ally, ally);
+    assert.strictEqual(clash.foe, foe);
+});
+test('assist: the lord you back fights beside you, not just your own party', () => {
+    const { w, G, s, ally, foe } = assistSetup();
+    G.assistFight(ally.lordId, foe.id);
+    const own = s.player.party.length + 1;
+    const mine = w.Battle.units.filter(u => u.isPlayerTeam).length;
+    w.Battle.active = false;
+    assert.ok(mine > own,
+        `only your own ${own} are on your side (${mine} player-team units) — ${ally.name}'s ${ally.size} men never join the fight`);
+});
+test('assist: after losing, the lord you backed does not march alongside your captor', () => {
+    const { w, G, s, ally, foe } = assistSetup();
+    G.assistFight(ally.lordId, foe.id);
+    w.Battle.active = false;
+    w.Battle.endBattle(false);
+    assert.strictEqual(s.player.status, 'prisoner');
+    assert.strictEqual(s.player.prisoner.npcId, foe.id, 'captured by the band you fought');
+    // A few in-game hours of the world moving on (the same step update() gives the NPCs)
+    let locked = 0;
+    for(let i = 0; i < 600; i++) {
+        G.updateNPCs(G.npcWorldDelta(0.1));
+        // a chase is exact: the target IS the band's position, or bandTargetId names it
+        if(ally.bandTargetId === foe.id || Math.hypot(ally.targetX - foe.x, ally.targetY - foe.y) < 1) locked++;
+    }
+    assert.strictEqual(locked, 0, `${ally.name} kept marching on your captor for ${locked} of 600 ticks`);
+});
+test('assist: the lord pays for his own dead, win or lose', () => {
+    const { w, G, ally, foe } = assistSetup();
+    const before = ally.size;
+    G.assistFight(ally.lordId, foe.id);
+    const his = w.Battle.units.filter(u => u.allyOf === ally.id);
+    his.slice(0, 4).forEach(u => { u.hp = 0; });
+    w.Battle.active = false;
+    w.Battle.endBattle(true);
+    assert.strictEqual(ally.size, before - 4, `${before} -> ${ally.size}, 4 of his men fell`);
+});
+test('assist: surrendering an assisted fight earns no gratitude later', () => {
+    const { w, G, s, ally, foe } = assistSetup();
+    G.assistFight(ally.lordId, foe.id);
+    assert.ok(s.player.assistAlly, 'the assist is on record while the fight runs');
+    w.Battle.surrender();
+    assert.strictEqual(s.player.assistAlly, null, 'a surrendered assist would thank you after the next unrelated win');
+});
+test('assist: no lord hunts, or fights, the band that holds you prisoner', () => {
+    const { w, G, s, ally, foe } = assistSetup();
+    G.beginCaptivity(foe, 5);
+    s.npcParties.filter(n => n.lordId && n !== ally).forEach(n => { n.x += 5000; });   // one lord in range
+    ally.size = 200; foe.size = 10;                         // a lord that would crush the band
+    for(let i = 0; i < 20; i++) G.updateNPCs(G.npcWorldDelta(0.1));
+    assert.notStrictEqual(ally.bandTargetId, foe.id, 'the lord picked your captor as its patrol target');
+    G.lordBanditTick();
+    assert.strictEqual(foe.size, 10, 'the daily lord-vs-band clash was fought with you in the band\'s chains');
+    assert.strictEqual(s.player.prisoner.npcId, foe.id);
+});
+
 // --- Animation core + battle motion (1.32.0) ---
 test('Anim: every curve starts at 0 and ends at 1; outBack overshoots, bump returns', () => {
     const Anim = gw.Anim;

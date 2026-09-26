@@ -39,6 +39,8 @@ Global data constants: `app.js` — `FACTIONS`, `LOCATIONS`, `RIVERS`, `FORESTS`
 ## Current features
 
 ### Character creation
+The name field starts empty (1.32.1): an empty or blank name doesn't start the game, it shows
+"Önce bir isim yaz." under the field and shakes it; Enter in the field starts like the button.
 `Game.startGame()` opens a 7-step wizard on a modal (`Game.creation = { step, sel }`): gender +
 4 background questions + a banner + a difficulty step, then a summary. `applyCreation()` applies
 every choice from one place; `enterWorld()` runs the old `startGame` body.
@@ -450,8 +452,17 @@ the nearest trade party if it's a winnable fight.
 No NPC-vs-NPC battle engine — a "clash" is detected at the moment of encounter
 (`Game.clashContext(npc)`, another hostile party within `CLASH_RANGE`=260 units). Choosing to
 help (`assistFight`) starts the battle against the foe at **70% of its roster** (already worn
-down by the ally). A win: +6 relation with the ally, +2 with their faction, +4 renown; a loss
-grants nothing.
+down by the ally), and **the lord's men fight beside you** (1.32.1): `Battle.allyShare(size)` =
+35% of his host, min 3, max `ALLY_CAP` 20, drawn from `Game.allyRoster(faction, level)` (recruit +
+first rung of each branch, second rung at level 10+), tagged `allyOf` — they never touch your
+party's XP or casualties, and `endBattle` takes his dead off his map party (floor 5). A win: +6
+relation with the ally, +2 with their faction, +4 renown; a loss or a surrender grants nothing
+(surrender now clears `assistAlly`, which used to leak into the next unrelated win).
+
+**The band holding you prisoner** (`Game.holdsPlayer(npc)`) is off-limits to lords: patrols
+neither pick it nor keep chasing it (a lord already on it drops the target on the spot), and the
+daily `lordBanditTick` skips it — a patrolling lord used to walk beside your captor for the whole
+captivity.
 
 ### Encounters & combat
 - **Hostility** (`isHostile()`): marauders attack within 120 units, flee if you're 1.5× stronger

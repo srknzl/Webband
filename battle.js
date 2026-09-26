@@ -25,6 +25,10 @@ const Battle = {
     // where the same zoom shows less absolute area than on a desktop monitor) — still closer
     // than the old 1:1, just with more of the field visible around the player.
     CAM_ZOOM: 2.3,
+    // How many of a backed lord's men join your side (#32 report): a third of his host, at
+    // least 3, at most 20 — his other men are still busy with the rest of the enemy.
+    ALLY_SHARE: 0.35, ALLY_CAP: 20,
+    allyShare(size) { return Math.min(size, this.ALLY_CAP, Math.max(3, Math.round(size * this.ALLY_SHARE))); },
     DIE_T: 0.7,   // seconds a fallen unit keeps being drawn while it tips over (1.32.0)
     // A rounded-rectangle path (soft pass, 1.32.0). Falls back to a plain rectangle where
     // Canvas2D has no roundRect (Safari < 16).
@@ -462,6 +466,28 @@ const Battle = {
                 isBoss: !!bossData, bossKey: bossData ? state.player.currentBoss : null,
                 special: bossData ? { ...bossData.special, state: 'idle', t: 1.5 + Math.random() } : null
             });
+        }
+
+        // The lord you came to back fights beside you (#32 report, 1.32.1): a share of his host,
+        // drawn from his kingdom's troop tree, joins your side. Until 1.32.1 only your own party
+        // stood there while his men never took the field.
+        let aa = state.player.assistAlly;
+        let allyParty = aa && aa.npcId ? state.npcParties.find(n => n.id === aa.npcId && n.size > 0) : null;
+        if(allyParty) {
+            let names = Game.allyRoster(allyParty.faction, allyParty.level || 1);
+            for(let i = 0, n = this.allyShare(allyParty.size); i < n; i++) {
+                let nm = names[i % names.length], ti = Game.troopStats({ name: nm });
+                this.units.push({
+                    id: 'ally_' + i, isPlayerTeam: true, allyOf: allyParty.id, name: nm,
+                    hp: ti.hp, maxHp: ti.hp,
+                    x: startPlayerX - 20 + Math.random()*60, y: 50 + Math.random()*(H-100),
+                    speed: ti.speed, attack: ti.attack, defense: ti.defense, type: ti.type,
+                    mounted: ti.type === 'cavalry' || ti.speed > this.FOOT_MAX,
+                    dmgType: ti.dmgType, brace: ti.brace, color: '#7ec8a0',
+                    radius: ti.type === 'cavalry' ? 7 : 5, atkCd: Math.random() * 0.6,
+                    level: allyParty.level || 1, icon: ti.icon, tier: ti.tier
+                });
+            }
         }
 
         // Auto-resolve: the same units are set up but the arena never opens, the result is just computed (#30)
@@ -2337,8 +2363,13 @@ const Battle = {
         // bounce/tilt is bigger, so covering ground at speed looks like running, not sliding.
         let mountedGait = u.mounted || u.type === 'cavalry';
         let speedMag = mountedGait ? Math.hypot(u.vx, u.vy) : 0;
-        let strideMs = mountedGait ? Math.max(85, 6000 / Math.max(25, speedMag)) : 150;
-        let hopAmp = mountedGait ? 7 : 4, swayAmp = mountedGait ? 0.24 : 0.15;
+        // Half the old cadence (1.32.1 report: "it rocks too fast"): the 85 ms floor meant ~3.7
+        // bounces a second at a gallop, which read as jitter. Now ~1.9 at full tilt, the same
+        // rhythm the hoofbeats below follow.
+        let strideMs = mountedGait ? Math.max(170, 12000 / Math.max(25, speedMag)) : 150;
+        // Mounted bob toned down (1.32.1 report: "the horse rocks too much"): 7 px / 0.24 rad
+        // read as a boat in a storm once 1.32.0's stretch and lean stacked on top.
+        let hopAmp = mountedGait ? 3.5 : 4, swayAmp = mountedGait ? 0.07 : 0.15;
         let hop = isMoving ? Math.abs(Math.sin(now/strideMs + offset)) * hopAmp : 0;
         let sway = isMoving ? Math.sin(now/strideMs + offset) * swayAmp : 0;
 
@@ -2376,8 +2407,9 @@ const Battle = {
             // Walking: stretches on the stride and leans into the run; standing: breathes
             if(isMoving) {
                 let c = Math.cos(2 * (now / strideMs + offset));
-                sy *= 1 + 0.05 * c; sx *= 1 - 0.04 * c;
-                lean += Math.max(-1, Math.min(1, u.vx / 140)) * 0.08;
+                let g = mountedGait ? 0.4 : 1;   // a horse carries its rider level; a man on foot bounces
+                sy *= 1 + 0.05 * g * c; sx *= 1 - 0.04 * g * c;
+                lean += Math.max(-1, Math.min(1, u.vx / 140)) * 0.08 * g;
             } else sy *= 1 + 0.018 * Math.sin(now / 650 + offset);
         }
         let ux = u.x + ox, uy = u.y + oy;
@@ -2893,6 +2925,9 @@ const Battle = {
     },
 
     endBattle(won) {
+        // The lord you backed pays for his own dead, win or lose (1.32.1)
+        let aa = state.player.assistAlly, ap = aa && aa.npcId ? state.npcParties.find(n => n.id === aa.npcId) : null;
+        if(ap) ap.size = Math.max(5, ap.size - this.units.filter(u => u.allyOf === ap.id && u.hp <= 0).length);
         // Every exit from a fight is here — real battle, arena, tournament round, duel —
         // so the victory/defeat sting is hooked once (#131). It plays over the screen the
         // lines below switch to, and hands the playlist back when it ends.
@@ -3256,6 +3291,9 @@ const Battle = {
 
         let captorId = state.player.currentEncounterNpcId;
         let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
+        // A surrendered assist earns no gratitude: left set, the lord thanked you after your next,
+        // unrelated victory (1.32.1)
+        state.player.assistAlly = null;
         // Ongoing state must be cleaned up even in battles with nobody to capture, like a siege or
         // boss fight; otherwise a currentSiege left set would make the next battle won
         // count as having conquered that city.

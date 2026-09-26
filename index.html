@@ -45,8 +45,9 @@
             <div class="form-group">
                 <label>Karakter Adı:</label>
                 <div class="input-container">
-                    <input type="text" id="char-name" data-tr-value="Maceracı" value="Maceracı" placeholder="İsmini gir...">
+                    <input type="text" id="char-name" value="" placeholder="İsmini gir..." maxlength="24" autocomplete="off" aria-describedby="char-name-err">
                 </div>
+                <div id="char-name-err" class="field-err" role="alert" hidden>Önce bir isim yaz.</div>
                 <button id="start-btn" class="btn primary">Maceraya Başla</button>
             </div>
             
