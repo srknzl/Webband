@@ -263,6 +263,91 @@ textarea { width: 100%; min-height: 110px; resize: vertical; font: 400 .92rem/1.
 .btn:hover { background: var(--gold2); }
 .btn:disabled { opacity: .5; cursor: default; }
 #saveState { font-size: .86rem; color: var(--muted); }
+/* phone mocks: the screen scales with its own width (container units), like a real device */
+.phones { display: grid; gap: 30px 22px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); align-items: start; }
+.pcol { display: grid; gap: 12px; justify-items: center; align-content: start; }
+.pcol h3 { justify-self: stretch; }
+.pcol .seg { justify-self: center; }
+.pcol ul { justify-self: stretch; margin: 0; padding-left: 18px; color: var(--muted); font-size: .86rem; display: grid; gap: 4px; }
+.phone { width: min(100%, 300px); aspect-ratio: 412 / 860; border-radius: 36px; padding: 9px; background: #050505; border: 1px solid #2c2824; box-shadow: 0 24px 50px rgba(0,0,0,.55), inset 0 0 0 2px #151311; }
+.scr { position: relative; width: 100%; height: 100%; border-radius: 28px; overflow: hidden; background: #0d0c0b; container-type: inline-size; font-family: var(--body); color: #efe9dd; }
+.scr > .view { position: absolute; inset: 0; }
+.scr > .view[hidden] { display: none; }
+.scr .shot-full { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.scr svg.i { width: 5.6cqw; height: 5.6cqw; flex: none; color: var(--gold); stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.scr canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+/* compact HUD row */
+.ph-hud { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; gap: 1.4cqw; align-items: center; padding: 2.6cqw 2.6cqw 2.2cqw; background: linear-gradient(180deg, rgba(13,12,11,.97), rgba(13,12,11,.88)); border-bottom: 1px solid rgba(212,175,55,.22); }
+.ph-hud .c { display: flex; align-items: center; gap: 1.2cqw; padding: 1.3cqw 2cqw; border-radius: 2.6cqw; background: rgba(255,255,255,.04); font: 600 3.5cqw/1 var(--body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ph-hud .c small { font-weight: 500; color: #9e9789; font-size: 2.7cqw; }
+.ph-hud .c.warn { background: rgba(224,96,90,.14); color: #ff9a92; }
+.ph-hud .c.warn svg.i { color: var(--red); }
+.ph-hud .more { margin-left: auto; width: 7.5cqw; height: 7.5cqw; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.05); color: #bdb5a6; font-size: 3.4cqw; }
+/* bottom nav */
+.ph-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: grid; grid-template-columns: repeat(5, 1fr); padding: 1.8cqw 2cqw 3.4cqw; background: rgba(13,12,11,.97); border-top: 1px solid rgba(212,175,55,.2); }
+.ph-nav span { display: grid; justify-items: center; gap: 1cqw; font: 500 2.6cqw/1 var(--body); color: #8e877a; padding: 1.4cqw 0; border-radius: 3cqw; }
+.ph-nav span svg.i { color: #8e877a; width: 6cqw; height: 6cqw; }
+.ph-nav span.on { color: var(--gold2); background: rgba(212,175,55,.1); }
+.ph-nav span.on svg.i { color: var(--gold2); }
+/* battle */
+.pb-top { position: absolute; left: 0; right: 0; top: 0; z-index: 2; padding: 3cqw 3cqw 0; display: grid; gap: 2cqw; }
+.pb-row { display: flex; align-items: center; gap: 2.4cqw; }
+.pb-menu { width: 9cqw; height: 9cqw; flex: none; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.12); color: #e8e2d4; font: 700 4cqw/1 var(--body); }
+.pb-tug { flex: 1; height: 6.4cqw; border-radius: 99px; overflow: hidden; display: flex; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.14); font: 700 3cqw/6.4cqw var(--body); font-variant-numeric: tabular-nums; position: relative; }
+.pb-tug i { display: block; height: 100%; transition: width .3s; }
+.pb-tug .us { background: linear-gradient(90deg, #2d6fb8, #3f8ee0); }
+.pb-tug .them { background: linear-gradient(90deg, #d04545, #a62f2f); flex: 1; }
+.pb-tug b { position: absolute; top: 0; padding: 0 2.6cqw; text-shadow: 0 1px 2px #000; }
+.pb-tug b:last-child { right: 0; }
+.pb-mini { width: 14cqw; height: 14cqw; flex: none; border-radius: 2.4cqw; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.14); position: relative; overflow: hidden; }
+.pb-mini i { position: absolute; width: 1.4cqw; height: 1.4cqw; border-radius: 50%; }
+.pb-toast { justify-self: start; max-width: 78%; padding: 2cqw 3cqw; border-radius: 3cqw; background: rgba(0,0,0,.6); font: 400 3cqw/1.35 var(--body); color: #e8e2d4; border-left: 2px solid var(--red); animation: toast 7s infinite; }
+.pb-toast b { color: #ff9a92; font-weight: 600; }
+@keyframes toast { 0%, 4% { opacity: 0; transform: translateY(-2cqw); } 8%, 55% { opacity: 1; transform: none; } 62%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pb-toast { animation: none; } }
+.pb-ctl { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; height: 38%; pointer-events: none; }
+.pb-stick { position: absolute; left: 5cqw; bottom: 7cqw; width: 27cqw; height: 27cqw; border-radius: 50%; border: 1.5px solid rgba(212,175,55,.35); background: radial-gradient(circle, rgba(212,175,55,.08), rgba(0,0,0,.15)); }
+.pb-stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 11cqw; height: 11cqw; margin: -5.5cqw; border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgba(245,215,110,.75), rgba(160,120,40,.6)); }
+.pb-cmds { position: absolute; left: 4cqw; bottom: 38cqw; display: flex; gap: 1.4cqw; }
+.pb-cmds span { font: 600 2.7cqw/1 var(--body); padding: 1.8cqw 2.4cqw; border-radius: 99px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); color: #d9d2c4; }
+.pb-cmds span.on { border-color: var(--gold); color: var(--gold2); }
+.pb-atk { position: absolute; right: 5cqw; bottom: 8cqw; width: 22cqw; height: 22cqw; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, rgba(224,96,90,.55), rgba(120,30,30,.55)); border: 1.5px solid rgba(255,160,150,.5); }
+.pb-atk svg.i, .pb-blk svg.i { width: 10cqw; height: 10cqw; color: #fff; }
+.pb-blk { position: absolute; right: 28cqw; bottom: 5cqw; width: 14cqw; height: 14cqw; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.45); border: 1.5px solid rgba(212,175,55,.4); }
+.pb-blk svg.i { width: 7cqw; height: 7cqw; color: #e8e2d4; }
+.pb-hp { position: absolute; left: 3cqw; top: 33cqw; z-index: 2; display: flex; align-items: center; gap: 2cqw; padding: 1.4cqw 2.4cqw 1.4cqw 1.4cqw; border-radius: 99px; background: rgba(0,0,0,.5); font: 600 2.8cqw/1 var(--body); }
+.pb-hp i { display: block; width: 18cqw; height: 1.6cqw; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.pb-hp i::after { content: ''; display: block; width: 72%; height: 100%; background: var(--green); }
+/* town */
+.pt-body { position: absolute; left: 0; right: 0; top: 13.5cqw; bottom: 19cqw; overflow: hidden; }
+.pt-scene { position: relative; height: 38cqw; overflow: hidden; }
+.pt-scene img { position: absolute; width: 126.5%; max-width: none; left: -22.7%; top: -12.5cqw; }
+.pt-scene::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(13,12,11,0) 40%, rgba(13,12,11,.96)); }
+.pt-scene div { position: absolute; left: 3.4cqw; bottom: 2.4cqw; z-index: 1; }
+.pt-scene h4 { margin: 0; font: 700 6.4cqw/1 var(--display); color: var(--gold2); text-shadow: 0 2px 8px #000; }
+.pt-scene p { font: 500 2.8cqw/1.3 var(--body); color: #cfc8ba; margin-top: 1.2cqw; }
+.pt-scene p i { display: inline-block; width: 1.8cqw; height: 1.8cqw; border-radius: 50%; background: #ff4d4d; margin-right: 1cqw; }
+.pt-grp { padding: 2.6cqw 3.4cqw 0; }
+.pt-grp h5 { margin: 0 0 1.8cqw; font: 600 2.4cqw/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: #7a7266; }
+.pt-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 2cqw; }
+.pt-tile { display: grid; grid-template-columns: auto 1fr; gap: 2.2cqw; align-items: center; padding: 2.6cqw; border-radius: 3.2cqw; background: #1b1813; border: 1px solid rgba(236,230,218,.07); min-height: 14cqw; }
+.pt-tile .ic { width: 9cqw; height: 9cqw; border-radius: 2.6cqw; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #3a3020, #1a1610); border: 1px solid rgba(212,175,55,.25); }
+.pt-tile b { display: block; font: 600 3.3cqw/1.15 var(--body); }
+.pt-tile span { display: block; font: 400 2.5cqw/1.25 var(--body); color: #9e9789; margin-top: .6cqw; }
+.pt-tile.lock { opacity: .55; }
+.pt-tile.lock span { color: #f08f88; }
+.pt-leave { margin: 2.6cqw 3.4cqw 0; padding: 2.8cqw; border-radius: 3cqw; border: 1px solid rgba(212,175,55,.28); text-align: center; font: 600 3.2cqw/1 var(--body); color: var(--gold2); }
+/* map */
+.pm-labels span { position: absolute; transform: translate(-50%, -100%); z-index: 1; white-space: nowrap; font: 600 2.8cqw/1 var(--body); padding: 1.2cqw 1.8cqw; border-radius: 99px; background: rgba(10,9,8,.78); color: #efe9dd; border: 1px solid rgba(255,255,255,.1); display: inline-flex; align-items: center; gap: 1.2cqw; }
+.pm-labels span i { width: 1.8cqw; height: 1.8cqw; border-radius: 50%; display: inline-block; }
+.pm-labels span.you { color: var(--gold2); border-color: rgba(245,215,110,.5); }
+.pm-labels span.foe { border-color: rgba(224,96,90,.6); color: #ffb0a9; }
+.pm-labels span.small { font-size: 2.4cqw; padding: .9cqw 1.5cqw; }
+.pm-bar { position: absolute; left: 3cqw; right: 3cqw; bottom: 21cqw; z-index: 3; display: flex; align-items: center; gap: 2cqw; padding: 2cqw 2cqw 2cqw 3cqw; border-radius: 99px; background: rgba(13,12,11,.9); border: 1px solid rgba(212,175,55,.25); }
+.pm-bar .t { font: 600 3cqw/1.2 var(--body); }
+.pm-bar .t small { display: block; font-weight: 500; font-size: 2.4cqw; color: var(--gold); }
+.pm-bar .b { margin-left: auto; display: flex; gap: 1.6cqw; }
+.pm-bar .b span { width: 10cqw; height: 10cqw; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); font: 700 2.8cqw/1 var(--body); color: #e8e2d4; }
 footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; border-top: 1px solid var(--line2); margin-top: 56px; }
 </style>
 
@@ -287,6 +372,12 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
     <symbol id="i-glass" viewBox="0 0 24 24"><path d="M7 3h10M7 21h10"/><path d="M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/></symbol>
     <symbol id="i-door" viewBox="0 0 24 24"><path d="M6 21V4.5a1 1 0 0 1 1-1h8.5l2.5 2V21"/><path d="M3.5 21h17"/><path d="M14 12.5v1.5"/></symbol>
     <symbol id="i-helm" viewBox="0 0 24 24"><path d="M5 15a7 7 0 0 1 14 0v2H5z"/><path d="M12 8v9M3.5 17h17"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3.5 6.5l5-2 7 2.5 5-2v13l-5 2-7-2.5-5 2z"/><path d="M8.5 4.5v13M15.5 7v13"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5l7 2.5v5.5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5S14.5 17.9 12 20.5C9.5 17.9 8.5 15.1 8.5 12S9.5 6.1 12 3.5z"/></symbol>
+    <symbol id="i-sword" viewBox="0 0 24 24"><path d="M19.5 4.5l-9 9M19.5 4.5h-3.5M19.5 4.5V8"/><path d="M8 11l5 5M9.5 14.5 5 19M4 18l2 2"/></symbol>
   </defs>
 </svg>
 
@@ -298,8 +389,9 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
   <a href="#oyuncu"><b>4</b>Oyuncu PoC</a>
   <a href="#savas"><b>5</b>Savaş PoC</a>
   <a href="#arayuz"><b>6</b>Arayüz</a>
-  <a href="#yol"><b>7</b>Yol haritası</a>
-  <a href="#karar"><b>8</b>Kararların</a>
+  <a href="#telefon"><b>7</b>Telefonda</a>
+  <a href="#yol"><b>8</b>Yol haritası</a>
+  <a href="#karar"><b>9</b>Kararların</a>
 </div></nav>
 
 <main class="wrap">
@@ -390,7 +482,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
         <span>Bekleme <b>12</b> kare</span><span>Yürüme <b>6</b></span><span>Koşu <b>8</b></span><span>Saldırı <b>8</b></span>
         <span>Yürürken / koşarken saldırı <b>6 / 8</b></span><span>Hasar <b>5</b></span><span>Ölüm <b>7</b></span><span>Yön <b>4</b></span><span>Kare <b>64×64</b></span>
       </div>
-      <p>Tek eksik: 3. seviyenin hasar animasyonu katmanlı değil, sadece birleşik hâli var. PoC'de onu kullandım.</p>
+      <p>Tek eksik: 3. seviyenin hasar animasyonu katmanlı gelmiyor. PoC'de onu bekleme karesinden kodla ürettim: geri sekme ve kırmızı flaş. Böylece miğfer ve silah seçimi hasar anında da korunuyor.</p>
     </div>
     <div class="card">
       <h3>Top-Down Roguelike Kit <span class="v part">Kısmen</span></h3>
@@ -500,7 +592,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
   </div>
   <div class="notes" style="margin-top:18px">
     <div class="rule"><b>Önerdiğim kural</b>Zırh gövdeyi, silah kılıcı, miğfer başı belirler. Oyun başında paçavra, sopa ve açık baş. Zincir ve plaka zırh şimdilik aynı görünüyor. Plakaya omuzluk ve göğüs katmanını Tur 2'de çizerim.</div>
-    <div class="note"><b>Miğferler nasıl yapıldı</b>Pakette miğfer yok. Her karede kafa katmanındaki saçı, yüzü ve gözleri buluyorum. Saçın üstünü silip miğferi piksel piksel çiziyorum. 4 yön ve bütün kareler için otomatik çalışıyor. Ölüm karelerinde kafa yan yattığı için orada saçı çeliğe boyuyorum.</div>
+    <div class="note"><b>Miğferler nasıl yapıldı</b>Pakette miğfer yok. Her karede kafa katmanındaki saçı buluyorum, dikenlerini kırpıyorum ve geriye kalan kafatası şeklini miğfere çeviriyorum. Açık miğferler kaş hizasında bitiyor, altında saç kalıyor. Bu yüzden miğfer hiçbir zaman kafadan büyük olmuyor. Kafa yere yatsa da çalışıyor, hasar ve ölüm karelerinde de miğfer duruyor. Paketin kırmızı hasar katmanı çıplak kafanın silüetini taşıdığı için onu kullanmıyorum. Kırmızılığı, giyilen her şeyin üstüne kendim uyguluyorum.</div>
     <div class="note"><b>Balta ve topuz</b>Pakette sadece kılıç var. Balta ve topuz kafasını kılıç katmanının ucuna kodla çizmek mümkün. Bunu Tur 2'de denerim.</div>
   </div>
 </section>
@@ -622,9 +714,95 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
   </div>
 </section>
 
+<section id="telefon">
+  <div class="sec-head">
+    <span class="eyebrow">7 · Telefonda</span>
+    <h2>Telefon ayrı bir ekran, küçültülmüş masaüstü değil</h2>
+    <p>Oyunun büyük kısmı telefonda oynanıyor ve en belirgin farklar savaşta, şehirde ve haritada. Her telefonun üstündeki düğmeyle bugünkü hâli (bu oturumda Pixel 7 boyutunda aldığım ekran görüntüsü) ile önerilen hâli arasında geçiş yapabilirsin. Önerilen savaş ekranında dikey sahada gerçek bir mini savaş dönüyor.</p>
+  </div>
+  <div class="phones">
+    <div class="pcol">
+      <h3>Savaş</h3>
+      <div class="seg" data-phone="pb"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div>
+      <div class="phone"><div class="scr" id="pb">
+        <div class="view" data-v="now" hidden><img class="shot-full" src="a/shots/phone-08-battle.webp" alt="Bugünkü telefon savaş ekranı" loading="lazy"></div>
+        <div class="view" data-v="new">
+          <canvas id="pbattle" width="144" height="300"></canvas>
+          <div class="pb-top">
+            <div class="pb-row"><span class="pb-menu" title="Duraklat, teslim ol">II</span><div class="pb-tug"><i class="us" id="pbUs" style="width:50%"></i><i class="them"></i><b id="pbUsN">Biz 6</b><b id="pbThemN">6 Düşman</b></div><span class="pb-mini" id="pbMini"></span></div>
+            <div class="pb-toast"><b>Düşman komutanı:</b> Kılıçlarımız bugün kan içecek!</div>
+          </div>
+          <div class="pb-hp"><svg class="i" style="color:var(--red)"><use href="#i-heart"/></svg>36/50<i></i></div>
+          <div class="pb-ctl">
+            <div class="pb-cmds"><span>Takip</span><span class="on">Hücum</span><span>Mevzi</span></div>
+            <div class="pb-stick"></div>
+            <div class="pb-blk"><svg class="i"><use href="#i-shield"/></svg></div>
+            <div class="pb-atk"><svg class="i"><use href="#i-sword"/></svg></div>
+          </div>
+        </div>
+      </div></div>
+      <ul>
+        <li>Alttaki siyah "Teslim Ol" şeridi kalktı. Teslim olma, sol üstteki duraklat menüsüne taşındı. Ekranın altındaki yaklaşık %7'lik boş şerit sahaya katıldı.</li>
+        <li>Güç barı ince tek satır oldu. Mini harita artık onun üstüne binmiyor.</li>
+        <li>Komutanın sözü birkaç saniye görünüp kayboluyor, kalıcı olarak yer kaplamıyor.</li>
+        <li>Çubuklar yarı saydam oldu, ordu emirleri başparmağın yanında duruyor.</li>
+      </ul>
+    </div>
+    <div class="pcol">
+      <h3>Şehir</h3>
+      <div class="seg" data-phone="pt"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div>
+      <div class="phone"><div class="scr" id="pt">
+        <div class="view" data-v="now" hidden><img class="shot-full" src="a/shots/phone-06-town.webp" alt="Bugünkü telefon şehir ekranı" loading="lazy"></div>
+        <div class="view g" data-v="new">
+          <div class="ph-hud"><span class="c"><svg class="i"><use href="#i-sun"/></svg>1. Gün <small>08:00</small></span><span class="c"><svg class="i"><use href="#i-coin"/></svg>450</span><span class="c warn"><svg class="i"><use href="#i-bread"/></svg>0 <small>gün</small></span><span class="c"><svg class="i"><use href="#i-men"/></svg>0<small>/22</small></span><span class="more">⌄</span></div>
+          <div class="pt-body">
+            <div class="pt-scene"><img src="a/shots/desk-06-town.webp" alt=""><div><h4>Praven</h4><p><i></i>Svadya başkenti · Kral Harlaus kalede</p></div></div>
+            <div class="pt-grp"><h5>Ticaret ve mekânlar</h5><div class="pt-tiles">
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-stall"/></svg></span><span><b>Pazar</b><span>Al-sat</span></span></div>
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-mug"/></svg></span><span><b>Han</b><span>Asker, yoldaş</span></span></div>
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-swords"/></svg></span><span><b>Arena</b><span>Talim, turnuva</span></span></div>
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-crown"/></svg></span><span><b>Kale</b><span>Kral burada</span></span></div>
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-helm"/></svg></span><span><b>Gönüllü topla</b><span>6 gönüllü</span></span></div>
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-glass"/></svg></span><span><b>Bekle</b><span>Yaralılar iyileşir</span></span></div>
+              <div class="pt-tile lock"><span class="ic"><svg class="i"><use href="#i-anvil"/></svg></span><span><b>İşletme</b><span>3000 dinar</span></span></div>
+              <div class="pt-tile"><span class="ic"><svg class="i"><use href="#i-chain"/></svg></span><span><b>Köle tüccarı</b><span>0 esir</span></span></div>
+            </div></div>
+            <div class="pt-leave">Şehirden ayrıl</div>
+          </div>
+          <div class="ph-nav"><span class="on"><svg class="i"><use href="#i-map"/></svg>Harita</span><span><svg class="i"><use href="#i-shield"/></svg>Karakter</span><span><svg class="i"><use href="#i-swords"/></svg>Grup</span><span><svg class="i"><use href="#i-sack"/></svg>Envanter</span><span><svg class="i"><use href="#i-dots"/></svg>Daha</span></div>
+        </div>
+      </div></div>
+      <ul>
+        <li>Dokuz eylemin hepsi ilk ekrana sığıyor. Bugün yedisi sığıyor, gerisi için kaydırmak gerekiyor, üstelik gönüllü toplama ve bekleme en altta.</li>
+        <li>İki sütunlu kutucuklar başparmakla rahat seçiliyor, durum bilgisi de kutucuğun içinde.</li>
+        <li>Üst bar tek satıra indi. En önemli dört değer görünüyor, gerisi "⌄" ile açılıyor.</li>
+      </ul>
+    </div>
+    <div class="pcol">
+      <h3>Harita</h3>
+      <div class="seg" data-phone="pm"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div>
+      <div class="phone"><div class="scr" id="pm">
+        <div class="view" data-v="now" hidden><img class="shot-full" src="a/shots/phone-04-map.webp" alt="Bugünkü telefon harita ekranı" loading="lazy"></div>
+        <div class="view g" data-v="new">
+          <canvas id="pmap" width="144" height="300"></canvas>
+          <div class="pm-labels" id="pmLabels"></div>
+          <div class="ph-hud"><span class="c"><svg class="i"><use href="#i-sun"/></svg>1. Gün <small>08:00</small></span><span class="c"><svg class="i"><use href="#i-coin"/></svg>450</span><span class="c warn"><svg class="i"><use href="#i-bread"/></svg>0 <small>gün</small></span><span class="c"><svg class="i"><use href="#i-men"/></svg>0<small>/22</small></span><span class="more">⌄</span></div>
+          <div class="pm-bar"><span class="t">Düzlük<small>5 nitelik puanı</small></span><span class="b"><span title="Bekle"><svg class="i" style="width:4.6cqw;height:4.6cqw"><use href="#i-glass"/></svg></span><span title="Beni bul"><svg class="i" style="width:4.6cqw;height:4.6cqw"><use href="#i-target"/></svg></span><span title="Diplomasi"><svg class="i" style="width:4.6cqw;height:4.6cqw"><use href="#i-globe"/></svg></span><span title="Hız">×1</span></span></div>
+          <div class="ph-nav"><span class="on"><svg class="i"><use href="#i-map"/></svg>Harita</span><span><svg class="i"><use href="#i-shield"/></svg>Karakter</span><span><svg class="i"><use href="#i-swords"/></svg>Grup</span><span><svg class="i"><use href="#i-sack"/></svg>Envanter</span><span><svg class="i"><use href="#i-dots"/></svg>Daha</span></div>
+        </div>
+      </div></div>
+      <ul>
+        <li>Arazi paneli iki satırdan tek satırlık bir kapsüle indi. Harita daha çok alan kazanıyor, düğmeler yine başparmak boyunda.</li>
+        <li>Etiketler krallık renkli nokta taşıyan küçük kapsüller oldu. Düşman çetesi kırmızı çerçeveyle ayrılıyor.</li>
+        <li>Arazinin kendisi (yol, nehir, ağaç, kale) Tur 2'nin işi. Buradaki çizim sadece yön vermek için.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
 <section id="yol">
   <div class="sec-head">
-    <span class="eyebrow">7 · Yol haritası</span>
+    <span class="eyebrow">8 · Yol haritası</span>
     <h2>Yavaş yavaş, her tur onayla</h2>
     <p>Her tur aynı sırayla ilerler: mock ve PoC hazırlanır, sen onaylarsın, sonra oyuna uygulanır (ayrı branch, testler, sürüm notu). Sıra senin önceliklerine göre değişebilir.</p>
   </div>
@@ -638,7 +816,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
 
 <section id="karar">
   <div class="sec-head">
-    <span class="eyebrow">8 · Kararların</span>
+    <span class="eyebrow">9 · Kararların</span>
     <h2>Tur 2'ye geçmeden önce</h2>
     <p>Seçimlerini burada işaretleyip kaydedebilirsin, ben buradan okurum. İstersen sohbete de yazabilirsin. Önerdiğim seçenekler işaretli geliyor.</p>
   </div>

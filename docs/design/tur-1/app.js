@@ -152,7 +152,6 @@
   }
 
   // ---- mini battle ----
-  const B = { mode: 'new', opt: {}, units: [], fx: [], nums: [], arrows: [], stop: 0, over: 0, t: 0 };
   const ARC = { anchor: { x: 16, y: 27 }, n: { S_Idle: 4, S_Walk: 6, S_Attack: 4, S_Hurt: 2, S_Death: 8 }, ms: { S_Idle: 160, S_Walk: 110, S_Attack: 150, S_Hurt: 120, S_Death: 110 } };
   const arcImg = {}, bloodImg = new Image(), arrowImg = new Image();
   bloodImg.src = 'a/arc/S_Blood.png'; arrowImg.src = 'a/arc/Arrow.png';
@@ -165,171 +164,282 @@
     for (let i = 0; i < n; i++) { x.save(); x.translate(i * 32 + 32, 0); x.scale(-1, 1); x.drawImage(s, i * 32, 0, 32, 32, 0, 0, 32, 32); x.restore(); }
     return (arcImg[key] = c);
   }
-  function resetBattle() {
-    const r = rng((Math.random() * 1e9) | 0);
-    B.units = []; B.fx = []; B.nums = []; B.arrows = []; B.over = 0; B.stop = 0;
-    const W = 320;
-    for (let team = 0; team < 2; team++) {
-      for (let i = 0; i < 5; i++) {
-        const lvl = 1 + ((r() * 3) | 0);
-        B.units.push({
-          team, x: team ? W - 60 - r() * 30 : 60 + r() * 30, y: 52 + i * 19 + r() * 6, hp: 3, arc: false,
-          look: { armor: lvl, weapon: Math.min(3, lvl + (r() < 0.3 ? 1 : 0)), helm: ['', 'cap', 'nasal', 'greathelm'][Math.min(3, (r() * (lvl + 1)) | 0)], hair: (r() * 6) | 0, skin: (r() * 4) | 0 },
-          anim: 'Idle', t: r() * 500, dir: team ? 'left' : 'right', cd: 0.4 + r() * 0.8, flash: 0, kx: 0, hitDone: false, dead: false, deadT: 0,
-        });
-      }
-      B.units.push({ team, x: team ? W - 22 : 22, y: 88, hp: 2, arc: true, anim: 'S_Idle', t: 0, dir: team ? 'left' : 'right', cd: 1 + r(), flash: 0, kx: 0, dead: false, deadT: 0 });
-    }
-  }
-  const alive = u => !u.dead && (B.opt.archers || !u.arc);
-  function nearestFoe(u) {
-    let best = null, bd = 1e9;
-    for (const o of B.units) if (o.team !== u.team && alive(o)) { const d = Math.hypot(o.x - u.x, (o.y - u.y) * 1.4); if (d < bd) { bd = d; best = o; } }
-    return [best, bd];
-  }
-  function hit(tgt, dmg, fromX) {
-    if (tgt.dead) return;
-    tgt.hp -= dmg;
-    tgt.flash = 1; tgt.kx = (tgt.x > fromX ? 1 : -1) * 38;
-    if (B.opt.numbers) B.nums.push({ x: tgt.x, y: tgt.y - 30, t: 0, s: '-' + (dmg * 7 + ((Math.random() * 5) | 0)) });
-    if (B.opt.blood) B.fx.push({ x: tgt.x, y: tgt.y - 10, t: 0, flip: tgt.x < fromX });
-    if (B.opt.hitstop) B.stop = 0.07;
-    if (tgt.hp <= 0) { tgt.dead = true; tgt.anim = tgt.arc ? 'S_Death' : 'Death'; tgt.t = 0; }
-    else if (!tgt.arc) { if (tgt.anim !== 'attack') { tgt.anim = 'Hurt'; tgt.t = 0; } }
-    else { tgt.anim = 'S_Hurt'; tgt.t = 0; }
-  }
-  function faceTo(u, o) {
-    const dx = o.x - u.x, dy = o.y - u.y;
-    if (u.arc) { u.dir = dx < 0 ? 'left' : 'right'; return; }
-    u.dir = Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
-  }
-  function stepBattle(dt) {
-    if (B.stop > 0) { B.stop -= dt; return; }
-    B.t += dt;
-    for (const u of B.units) {
-      u.t += dt * 1000;
-      u.flash = Math.max(0, u.flash - dt * 7);
-      if (u.kx) { u.x += u.kx * dt; u.kx *= Math.pow(0.0005, dt); if (Math.abs(u.kx) < 1) u.kx = 0; }
-      if (u.dead) { u.deadT += dt; continue; }
-      if (u.arc && !B.opt.archers) continue;
-      const [foe, d] = nearestFoe(u);
-      if (!foe) { u.anim = u.arc ? 'S_Idle' : 'Idle'; continue; }
-      if (u.arc) {
-        u.cd -= dt; faceTo(u, foe);
-        if (u.anim === 'S_Attack') {
-          if (u.t > ARC.n.S_Attack * ARC.ms.S_Attack) { u.anim = 'S_Idle'; u.t = 0; }
-          else if (!u.shot && u.t > 2 * ARC.ms.S_Attack) {
-            u.shot = true; const ang = Math.atan2(foe.y - 12 - (u.y - 14), foe.x - u.x);
-            B.arrows.push({ x: u.x, y: u.y - 14, vx: Math.cos(ang) * 150, vy: Math.sin(ang) * 150, team: u.team, life: 3 });
-          }
-        } else if (u.anim === 'S_Hurt') { if (u.t > 240) { u.anim = 'S_Idle'; u.t = 0; } }
-        else if (u.cd <= 0) { u.anim = 'S_Attack'; u.t = 0; u.shot = false; u.cd = 2 + Math.random(); }
-        continue;
-      }
-      const A = SW.ANIM[u.anim];
-      if (u.anim === 'attack') {
-        if (!u.hitDone && u.t >= 4 * A.ms) { u.hitDone = true; if (u.tgt && !u.tgt.dead && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < 24) hit(u.tgt, 1, u.x); }
-        if (u.t >= A.n * A.ms) { u.anim = 'Idle'; u.t = 0; }
-        continue;
-      }
-      if (u.anim === 'Hurt') { if (u.t >= A.n * A.ms) { u.anim = 'Idle'; u.t = 0; } continue; }
-      u.cd -= dt;
-      if (d > 16) {
-        const sp = 24, dx = foe.x - u.x, dy = (foe.y - u.y);
-        let mx = dx / d * sp, my = dy / d * sp;
-        for (const o of B.units) if (o !== u && !o.dead && Math.abs(o.x - u.x) < 10 && Math.abs(o.y - u.y) < 8) { my += (u.y - o.y >= 0 ? 1 : -1) * 14; mx += (u.x - o.x >= 0 ? 1 : -1) * 6; }
-        u.x += mx * dt; u.y = Math.max(44, Math.min(142, u.y + my * dt));
-        if (u.anim !== 'Walk') { u.anim = 'Walk'; u.t = 0; }
-        faceTo(u, foe);
-      } else {
-        if (u.anim !== 'Idle') { u.anim = 'Idle'; u.t = 0; }
-        faceTo(u, foe);
-        if (u.cd <= 0) { u.anim = 'attack'; u.t = 0; u.hitDone = false; u.tgt = foe; u.cd = 0.9 + Math.random() * 0.7; }
-      }
-    }
-    for (const a of B.arrows) {
-      a.x += a.vx * dt; a.y += a.vy * dt; a.life -= dt;
-      for (const o of B.units) if (o.team !== a.team && alive(o) && Math.abs(o.x - a.x) < 6 && a.y > o.y - 22 && a.y < o.y - 2) { hit(o, 1, a.x - a.vx); a.life = 0; break; }
-    }
-    B.arrows = B.arrows.filter(a => a.life > 0 && a.x > -10 && a.x < 330);
-    B.fx.forEach(f => f.t += dt); B.fx = B.fx.filter(f => f.t < 0.36);
-    B.nums.forEach(n => n.t += dt); B.nums = B.nums.filter(n => n.t < 0.8);
-    const teamsAlive = [0, 1].map(tm => B.units.some(u => u.team === tm && alive(u)));
-    if (!teamsAlive[0] || !teamsAlive[1]) { B.over += dt; if (B.over > 2.6) resetBattle(); }
-  }
-  function drawBattle(x, g) {
-    x.drawImage(g, 0, 0);
-    const oldMode = B.mode === 'old';
-    const order = B.units.filter(u => B.opt.archers || !u.arc).slice().sort((a, b) => (a.dead ? -1 : 0) - (b.dead ? -1 : 0) || a.y - b.y);
-    for (const u of order) {
-      const px = Math.round(u.x), py = Math.round(u.y);
-      if (u.dead && !B.opt.blood && (oldMode || u.deadT > 0.9)) continue;
-      if (oldMode && u.dead) {
-        if (u.deadT > 0.5) continue;
-        x.globalAlpha = 1 - u.deadT / 0.5;
-      }
-      if (B.opt.rings && !u.dead) { x.fillStyle = u.team ? 'rgba(255,77,77,.9)' : 'rgba(51,153,255,.9)'; for (let i = -5; i <= 5; i += 2) { x.fillRect(px + i, py + 2, 1, 1); } x.fillRect(px - 6, py + 1, 1, 1); x.fillRect(px + 6, py + 1, 1, 1); }
-      if (!u.dead) shadow(x, px, py - 1);
-      if (u.arc) {
-        const face = u.dir, k = oldMode ? 'S_Idle' : u.anim;
-        const img = face === 'left' ? arcFlipped(k) : arcImg[k];
-        if (img && (img.naturalWidth || img.width)) {
-          const n = ARC.n[k], ms = ARC.ms[k];
-          let f = oldMode ? 0 : Math.floor(u.t / ms); f = (k === 'S_Idle' || k === 'S_Walk') ? f % n : Math.min(n - 1, f);
-          const hop = oldMode && u.anim === 'S_Attack' ? -1 : 0;
-          x.drawImage(img, f * 32, 0, 32, 32, px - ARC.anchor.x, py - ARC.anchor.y + hop, 32, 32);
-          if (u.flash > 0.05) flashRect(x, img, f * 32, px - ARC.anchor.x, py - ARC.anchor.y + hop, u.flash);
+  function createBattle(cfg) {
+    const B = { mode: cfg.mode || 'new', opt: cfg.opt, units: [], fx: [], nums: [], arrows: [], stop: 0, over: 0, t: 0 };
+    function resetBattle() {
+      const r = rng((Math.random() * 1e9) | 0);
+      B.units = []; B.fx = []; B.nums = []; B.arrows = []; B.over = 0; B.stop = 0;
+      const W = cfg.W, H = cfg.H, V = cfg.vertical;
+      for (let team = 0; team < 2; team++) {
+        for (let i = 0; i < 5; i++) {
+          const lvl = 1 + ((r() * 3) | 0);
+          const along = V ? 16 + i * ((W - 32) / 4) + r() * 4 : 52 + i * 19 + r() * 6;
+          const depth = V ? (team ? cfg.top + r() * 22 : cfg.bottom - r() * 22) : (team ? W - 60 - r() * 30 : 60 + r() * 30);
+          B.units.push({
+            team, x: V ? along : depth, y: V ? depth : along, hp: 3, arc: false,
+            look: { armor: lvl, weapon: Math.min(3, lvl + (r() < 0.3 ? 1 : 0)), helm: ['', 'cap', 'nasal', 'greathelm'][Math.min(3, (r() * (lvl + 1)) | 0)], hair: (r() * 6) | 0, skin: (r() * 4) | 0 },
+            anim: 'Idle', t: r() * 500, dir: V ? (team ? 'down' : 'up') : (team ? 'left' : 'right'), cd: 0.4 + r() * 0.8, flash: 0, kx: 0, hitDone: false, dead: false, deadT: 0,
+          });
         }
-      } else {
-        const look = { ...u.look, cloth: B.opt.colors ? (u.team ? 'swadia' : 'nord') : null };
-        if (!B.opt.variety) { look.hair = 0; look.skin = 0; }
-        let unit;
-        if (oldMode) {
-          const moving = u.anim === 'Walk';
-          const hop = moving ? -Math.round(Math.abs(Math.sin(u.t / 90)) * 2) : (u.anim === 'attack' ? -Math.round(Math.sin(Math.min(1, u.t / 400) * Math.PI) * 3) : 0);
-          unit = { ...look, anim: 'Idle', dir: 'down', t: 0 };
-          SW.drawUnit(x, unit, px, py + hop, { frame: 0, flash: u.flash > 0.05 ? u.flash : 0 });
+        B.units.push({ team, x: V ? (team ? W - 26 : 26) : (team ? W - 22 : 22), y: V ? (team ? cfg.top - 16 : cfg.bottom + 18) : 88, hp: 2, arc: true, anim: 'S_Idle', t: 0, dir: team ? 'left' : 'right', cd: 1 + r(), flash: 0, kx: 0, dead: false, deadT: 0 });
+      }
+    }
+    const alive = u => !u.dead && (B.opt.archers || !u.arc);
+    function nearestFoe(u) {
+      let best = null, bd = 1e9;
+      for (const o of B.units) if (o.team !== u.team && alive(o)) { const d = Math.hypot(o.x - u.x, (o.y - u.y) * 1.4); if (d < bd) { bd = d; best = o; } }
+      return [best, bd];
+    }
+    function hit(tgt, dmg, fromX, fromY = tgt.y) {
+      if (tgt.dead) return;
+      tgt.hp -= dmg;
+      tgt.flash = 1; { const kx = tgt.x - fromX, ky = (tgt.y - fromY) * 1.5, kl = Math.hypot(kx, ky) || 1; tgt.kx = kx / kl * 38; tgt.ky = ky / kl * 38; }
+      if (B.opt.numbers) B.nums.push({ x: tgt.x, y: tgt.y - 30, t: 0, s: '-' + (dmg * 7 + ((Math.random() * 5) | 0)) });
+      if (B.opt.blood) B.fx.push({ x: tgt.x, y: tgt.y - 10, t: 0, flip: tgt.x < fromX });
+      if (B.opt.hitstop) B.stop = 0.07;
+      if (tgt.hp <= 0) { tgt.dead = true; tgt.anim = tgt.arc ? 'S_Death' : 'Death'; tgt.t = 0; }
+      else if (!tgt.arc) { if (tgt.anim !== 'attack') { tgt.anim = 'Hurt'; tgt.t = 0; } }
+      else { tgt.anim = 'S_Hurt'; tgt.t = 0; }
+    }
+    function faceTo(u, o) {
+      const dx = o.x - u.x, dy = o.y - u.y;
+      if (u.arc) { u.dir = dx < 0 ? 'left' : 'right'; return; }
+      u.dir = Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    }
+    function stepBattle(dt) {
+      if (B.stop > 0) { B.stop -= dt; return; }
+      B.t += dt;
+      for (const u of B.units) {
+        u.t += dt * 1000;
+        u.flash = Math.max(0, u.flash - dt * 7);
+        if (u.kx || u.ky) { const k = Math.pow(0.0005, dt); u.x += (u.kx || 0) * dt; u.y += (u.ky || 0) * dt; u.kx *= k; u.ky = (u.ky || 0) * k; if (Math.hypot(u.kx, u.ky) < 1) u.kx = u.ky = 0; }
+        if (u.dead) { u.deadT += dt; continue; }
+        if (u.arc && !B.opt.archers) continue;
+        const [foe, d] = nearestFoe(u);
+        if (!foe) { u.anim = u.arc ? 'S_Idle' : 'Idle'; continue; }
+        if (u.arc) {
+          u.cd -= dt; faceTo(u, foe);
+          if (u.anim === 'S_Attack') {
+            if (u.t > ARC.n.S_Attack * ARC.ms.S_Attack) { u.anim = 'S_Idle'; u.t = 0; }
+            else if (!u.shot && u.t > 2 * ARC.ms.S_Attack) {
+              u.shot = true; const ang = Math.atan2(foe.y - 12 - (u.y - 14), foe.x - u.x);
+              B.arrows.push({ x: u.x, y: u.y - 14, vx: Math.cos(ang) * 150, vy: Math.sin(ang) * 150, team: u.team, life: 3 });
+            }
+          } else if (u.anim === 'S_Hurt') { if (u.t > 240) { u.anim = 'S_Idle'; u.t = 0; } }
+          else if (u.cd <= 0) { u.anim = 'S_Attack'; u.t = 0; u.shot = false; u.cd = 2 + Math.random(); }
+          continue;
+        }
+        const A = SW.ANIM[u.anim];
+        if (u.anim === 'attack') {
+          if (!u.hitDone && u.t >= 4 * A.ms) { u.hitDone = true; if (u.tgt && !u.tgt.dead && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < 24) hit(u.tgt, 1, u.x, u.y); }
+          if (u.t >= A.n * A.ms) { u.anim = 'Idle'; u.t = 0; }
+          continue;
+        }
+        if (u.anim === 'Hurt') { if (u.t >= A.n * A.ms) { u.anim = 'Idle'; u.t = 0; } continue; }
+        u.cd -= dt;
+        if (d > 16) {
+          const sp = 24, dx = foe.x - u.x, dy = (foe.y - u.y);
+          let mx = dx / d * sp, my = dy / d * sp;
+          for (const o of B.units) if (o !== u && !o.dead && Math.abs(o.x - u.x) < 10 && Math.abs(o.y - u.y) < 8) { my += (u.y - o.y >= 0 ? 1 : -1) * 14; mx += (u.x - o.x >= 0 ? 1 : -1) * 6; }
+          u.x += mx * dt; u.x = Math.max(8, Math.min(cfg.W - 8, u.x)); u.y = Math.max(cfg.ymin, Math.min(cfg.ymax, u.y + my * dt));
+          if (u.anim !== 'Walk') { u.anim = 'Walk'; u.t = 0; }
+          faceTo(u, foe);
         } else {
-          unit = { ...look, anim: u.anim, dir: u.dir, t: u.t };
-          SW.drawUnit(x, unit, px, py, { flash: u.flash > 0.05 ? u.flash * 0.9 : 0, noRed: true });
+          if (u.anim !== 'Idle') { u.anim = 'Idle'; u.t = 0; }
+          faceTo(u, foe);
+          if (u.cd <= 0) { u.anim = 'attack'; u.t = 0; u.hitDone = false; u.tgt = foe; u.cd = 0.9 + Math.random() * 0.7; }
         }
       }
-      x.globalAlpha = 1;
+      for (const a of B.arrows) {
+        a.x += a.vx * dt; a.y += a.vy * dt; a.life -= dt;
+        for (const o of B.units) if (o.team !== a.team && alive(o) && Math.abs(o.x - a.x) < 6 && a.y > o.y - 22 && a.y < o.y - 2) { hit(o, 1, a.x - a.vx, a.y - a.vy); a.life = 0; break; }
+      }
+      B.arrows = B.arrows.filter(a => a.life > 0 && a.x > -10 && a.x < cfg.W + 10 && a.y > -10 && a.y < cfg.H + 10);
+      B.fx.forEach(f => f.t += dt); B.fx = B.fx.filter(f => f.t < 0.36);
+      B.nums.forEach(n => n.t += dt); B.nums = B.nums.filter(n => n.t < 0.8);
+      const teamsAlive = [0, 1].map(tm => B.units.some(u => u.team === tm && alive(u)));
+      if (!teamsAlive[0] || !teamsAlive[1]) { B.over += dt; if (B.over > 2.6) resetBattle(); }
     }
-    for (const a of B.arrows) {
-      x.save(); x.translate(Math.round(a.x), Math.round(a.y)); x.rotate(Math.atan2(a.vy, a.vx)); x.drawImage(arrowImg, -6, -1); x.restore();
+    function drawBattle(x, g) {
+      x.drawImage(g, 0, 0);
+      const oldMode = B.mode === 'old';
+      const order = B.units.filter(u => B.opt.archers || !u.arc).slice().sort((a, b) => (a.dead ? -1 : 0) - (b.dead ? -1 : 0) || a.y - b.y);
+      for (const u of order) {
+        const px = Math.round(u.x), py = Math.round(u.y);
+        if (u.dead && !B.opt.blood && (oldMode || u.deadT > 0.9)) continue;
+        if (oldMode && u.dead) {
+          if (u.deadT > 0.5) continue;
+          x.globalAlpha = 1 - u.deadT / 0.5;
+        }
+        if (B.opt.rings && !u.dead) { x.fillStyle = u.team ? 'rgba(255,77,77,.9)' : 'rgba(51,153,255,.9)'; for (let i = -5; i <= 5; i += 2) { x.fillRect(px + i, py + 2, 1, 1); } x.fillRect(px - 6, py + 1, 1, 1); x.fillRect(px + 6, py + 1, 1, 1); }
+        if (!u.dead) shadow(x, px, py - 1);
+        if (u.arc) {
+          const face = u.dir, k = oldMode ? 'S_Idle' : u.anim;
+          const img = face === 'left' ? arcFlipped(k) : arcImg[k];
+          if (img && (img.naturalWidth || img.width)) {
+            const n = ARC.n[k], ms = ARC.ms[k];
+            let f = oldMode ? 0 : Math.floor(u.t / ms); f = (k === 'S_Idle' || k === 'S_Walk') ? f % n : Math.min(n - 1, f);
+            const hop = oldMode && u.anim === 'S_Attack' ? -1 : 0;
+            x.drawImage(img, f * 32, 0, 32, 32, px - ARC.anchor.x, py - ARC.anchor.y + hop, 32, 32);
+            if (u.flash > 0.05) flashRect(x, img, f * 32, px - ARC.anchor.x, py - ARC.anchor.y + hop, u.flash);
+          }
+        } else {
+          const look = { ...u.look, cloth: B.opt.colors ? (u.team ? 'swadia' : 'nord') : null };
+          if (!B.opt.variety) { look.hair = 0; look.skin = 0; }
+          let unit;
+          if (oldMode) {
+            const moving = u.anim === 'Walk';
+            const hop = moving ? -Math.round(Math.abs(Math.sin(u.t / 90)) * 2) : (u.anim === 'attack' ? -Math.round(Math.sin(Math.min(1, u.t / 400) * Math.PI) * 3) : 0);
+            unit = { ...look, anim: 'Idle', dir: 'down', t: 0 };
+            SW.drawUnit(x, unit, px, py + hop, { frame: 0, flash: u.flash > 0.05 ? u.flash : 0 });
+          } else {
+            unit = { ...look, anim: u.anim, dir: u.dir, t: u.t };
+            SW.drawUnit(x, unit, px, py, { flash: u.flash > 0.05 ? u.flash * 0.9 : 0, noRed: true });
+          }
+        }
+        x.globalAlpha = 1;
+      }
+      for (const a of B.arrows) {
+        x.save(); x.translate(Math.round(a.x), Math.round(a.y)); x.rotate(Math.atan2(a.vy, a.vx)); x.drawImage(arrowImg, -6, -1); x.restore();
+      }
+      if (B.opt.blood && bloodImg.complete) for (const f of B.fx) {
+        const fr = Math.min(3, Math.floor(f.t / 0.09));
+        x.save(); x.translate(Math.round(f.x), Math.round(f.y)); if (f.flip) x.scale(-1, 1);
+        x.drawImage(bloodImg, fr * 32, 0, 32, 32, -16, -16, 32, 32); x.restore();
+      }
+      for (const n of B.nums) digits(x, n.s, Math.round(n.x), Math.round(n.y - n.t * 14), n.t < 0.12 ? '#ffffff' : '#ffd166');
     }
-    if (B.opt.blood && bloodImg.complete) for (const f of B.fx) {
-      const fr = Math.min(3, Math.floor(f.t / 0.09));
-      x.save(); x.translate(Math.round(f.x), Math.round(f.y)); if (f.flip) x.scale(-1, 1);
-      x.drawImage(bloodImg, fr * 32, 0, 32, 32, -16, -16, 32, 32); x.restore();
+    let _fl;
+    function flashRect(x, img, sx, dx, dy, a) {
+      if (!_fl) { _fl = document.createElement('canvas'); _fl.width = _fl.height = 32; }
+      const fx = _fl.getContext('2d'); fx.clearRect(0, 0, 32, 32); fx.drawImage(img, sx, 0, 32, 32, 0, 0, 32, 32);
+      fx.globalCompositeOperation = 'source-atop'; fx.fillStyle = '#fff'; fx.globalAlpha = a; fx.fillRect(0, 0, 32, 32);
+      fx.globalCompositeOperation = 'source-over'; fx.globalAlpha = 1; x.drawImage(_fl, dx, dy);
     }
-    for (const n of B.nums) digits(x, n.s, Math.round(n.x), Math.round(n.y - n.t * 14), n.t < 0.12 ? '#ffffff' : '#ffd166');
-  }
-  let _fl;
-  function flashRect(x, img, sx, dx, dy, a) {
-    if (!_fl) { _fl = document.createElement('canvas'); _fl.width = _fl.height = 32; }
-    const fx = _fl.getContext('2d'); fx.clearRect(0, 0, 32, 32); fx.drawImage(img, sx, 0, 32, 32, 0, 0, 32, 32);
-    fx.globalCompositeOperation = 'source-atop'; fx.fillStyle = '#fff'; fx.globalAlpha = a; fx.fillRect(0, 0, 32, 32);
-    fx.globalCompositeOperation = 'source-over'; fx.globalAlpha = 1; x.drawImage(_fl, dx, dy);
+    resetBattle();
+    return { B, reset: resetBattle, step: stepBattle, draw: drawBattle };
   }
   function battle() {
-    const c = $('#arena'), x = ctx2d(c), g = grass(c.width, c.height, 21);
-    document.querySelectorAll('#b-opts input').forEach(i => { B.opt[i.dataset.k] = i.checked; i.addEventListener('change', () => { B.opt[i.dataset.k] = i.checked; }); });
+    const c = $('#arena'), x = ctx2d(c), g = grass(c.width, c.height, 21), opt = {};
+    document.querySelectorAll('#b-opts input').forEach(i => { opt[i.dataset.k] = i.checked; i.addEventListener('change', () => { opt[i.dataset.k] = i.checked; }); });
+    const bt = createBattle({ W: c.width, H: c.height, ymin: 44, ymax: 142, opt });
     $('#b-mode').addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return; B.mode = b.dataset.v;
+      const b = e.target.closest('button'); if (!b) return; bt.B.mode = b.dataset.v;
       $('#b-mode').querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
     });
-    c.addEventListener('click', resetBattle);
-    resetBattle();
+    c.addEventListener('click', bt.reset);
+    runLoop(c, dt => { if (opt.slow) dt *= 0.3; bt.step(dt); bt.draw(x, g); });
+  }
+  // One rAF per canvas, paused while it is off screen.
+  function runLoop(c, frame) {
     let last = performance.now(), visible = true;
     new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe(c);
     (function f(now) {
-      let dt = Math.min(0.05, (now - last) / 1000); last = now;
-      if (B.opt.slow) dt *= 0.3;
-      if (visible) { stepBattle(dt); drawBattle(x, g); }
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (visible) frame(dt, now);
       requestAnimationFrame(f);
     })(last);
+  }
+
+  // ---- phone mocks ----
+  function phoneToggles() {
+    document.querySelectorAll('[data-phone]').forEach(seg => seg.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+      document.querySelectorAll(`#${seg.dataset.phone} > .view`).forEach(v => { v.hidden = v.dataset.v !== b.dataset.v; });
+    }));
+  }
+  function phoneBattle() {
+    const c = $('#pbattle'), x = ctx2d(c), g = grass(c.width, c.height, 33);
+    const opt = { colors: true, variety: true, rings: false, hitstop: true, numbers: true, blood: true, archers: true };
+    const bt = createBattle({ W: c.width, H: c.height, vertical: true, top: 92, bottom: 196, ymin: 60, ymax: 250, opt });
+    const us = $('#pbUs'), usN = $('#pbUsN'), themN = $('#pbThemN'), mini = $('#pbMini');
+    let lastKey = '';
+    runLoop(c, dt => {
+      bt.step(dt); bt.draw(x, g);
+      const live = bt.B.units.filter(u => !u.dead), a = live.filter(u => !u.team).length, b = live.length - a;
+      const k = a + ':' + b;
+      if (k !== lastKey) {
+        lastKey = k; us.style.width = (a + b ? a / (a + b) * 100 : 50) + '%';
+        usN.textContent = 'Biz ' + a; themN.textContent = b + ' Düşman';
+      }
+      mini.innerHTML = live.map(u => `<i style="left:${u.x / c.width * 90 + 3}%;top:${u.y / c.height * 90 + 3}%;background:${u.team ? '#ff6b6b' : '#5aa9ff'}"></i>`).join('');
+    });
+  }
+  function phoneMap() {
+    const c = $('#pmap'), x = ctx2d(c), W = c.width, H = c.height;
+    const base = grass(W, H, 5), bx = base.getContext('2d'), r = rng(9);
+    const stamp = (pts, w, fill, edge, dot) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], n = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
+        for (let k = 0; k <= n; k++) {
+          const px = Math.round(x0 + (x1 - x0) * k / n), py = Math.round(y0 + (y1 - y0) * k / n);
+          bx.fillStyle = edge; bx.fillRect(px - w, py - w, w * 2 + 1, w * 2 + 1);
+        }
+      }
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], n = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
+        for (let k = 0; k <= n; k++) {
+          const px = Math.round(x0 + (x1 - x0) * k / n), py = Math.round(y0 + (y1 - y0) * k / n);
+          bx.fillStyle = fill; bx.fillRect(px - w + 1, py - w + 1, w * 2 - 1, w * 2 - 1);
+          if (dot && r() < 0.25) { bx.fillStyle = dot; bx.fillRect(px + ((r() * 3) | 0) - 1, py + ((r() * 3) | 0) - 1, 2, 1); }
+        }
+      }
+    };
+    const road = [[22, 300], [34, 262], [58, 236], [82, 200], [78, 164], [92, 130], [106, 96], [112, 70]];
+    stamp([[0, 150], [30, 146], [60, 156], [96, 140], [144, 128]], 3, '#3f7fb0', '#2b5d85', '#8cc3e6');
+    stamp(road, 2, '#b8a06c', '#7f6a44', '#cdb886');
+    for (let i = 0; i < 7; i++) { bx.fillStyle = i % 2 ? '#7a5a36' : '#9c7648'; bx.fillRect(84 + i, 140 - 3, 1, 8); }   // bridge
+    const tree = (tx, ty) => {
+      bx.fillStyle = 'rgba(15,30,10,.35)'; bx.fillRect(tx - 3, ty + 3, 8, 2);
+      bx.fillStyle = '#1e3a1c'; bx.fillRect(tx - 3, ty - 3, 7, 7); bx.fillRect(tx - 2, ty - 4, 5, 9); bx.fillRect(tx - 4, ty - 2, 9, 5);
+      bx.fillStyle = '#2f5a2b'; bx.fillRect(tx - 2, ty - 3, 5, 6); bx.fillRect(tx - 3, ty - 2, 7, 4);
+      bx.fillStyle = '#4f8a3f'; bx.fillRect(tx - 2, ty - 2, 2, 2); bx.fillRect(tx - 1, ty - 3, 2, 1);
+    };
+    [[14, 70], [24, 62], [20, 82], [32, 76], [10, 96], [124, 206], [132, 220], [116, 230], [128, 240], [44, 190], [52, 180], [120, 176], [8, 200], [16, 214]].forEach(([a, b]) => tree(a, b));
+    const castle = (cx, cy) => {
+      bx.fillStyle = 'rgba(15,30,10,.35)'; bx.fillRect(cx - 9, cy + 7, 20, 3);
+      bx.fillStyle = '#3d3a3a'; bx.fillRect(cx - 9, cy - 6, 19, 14);
+      bx.fillStyle = '#8a8f98'; bx.fillRect(cx - 8, cy - 5, 17, 12);
+      bx.fillStyle = '#b3b8c0'; bx.fillRect(cx - 8, cy - 5, 17, 2);
+      for (let i = -8; i <= 8; i += 3) { bx.fillStyle = '#3d3a3a'; bx.fillRect(cx + i, cy - 8, 2, 3); bx.fillStyle = '#9ca1a9'; bx.fillRect(cx + i, cy - 7, 1, 2); }
+      bx.fillStyle = '#3d3a3a'; bx.fillRect(cx - 3, cy - 13, 7, 8); bx.fillStyle = '#8a8f98'; bx.fillRect(cx - 2, cy - 12, 5, 7);
+      bx.fillStyle = '#241c18'; bx.fillRect(cx - 1, cy + 2, 3, 5);
+      bx.fillStyle = '#5a4a3a'; bx.fillRect(cx, cy - 20, 1, 8); bx.fillStyle = '#ff4d4d'; bx.fillRect(cx + 1, cy - 20, 4, 3);
+    };
+    const hut = (hx, hy) => {
+      bx.fillStyle = 'rgba(15,30,10,.35)'; bx.fillRect(hx - 4, hy + 4, 10, 2);
+      bx.fillStyle = '#3a2618'; bx.fillRect(hx - 4, hy - 1, 9, 6); bx.fillStyle = '#b8966a'; bx.fillRect(hx - 3, hy, 7, 4);
+      bx.fillStyle = '#5a2a1c'; bx.fillRect(hx - 5, hy - 3, 11, 3); bx.fillStyle = '#9c4a2e'; bx.fillRect(hx - 4, hy - 4, 9, 2);
+      bx.fillStyle = '#3a2618'; bx.fillRect(hx, hy + 2, 1, 2);
+    };
+    castle(110, 70); hut(30, 240); hut(42, 246); hut(36, 232);
+    const labels = [
+      { x: 110, y: 49, html: '<i style="background:#ff4d4d"></i>Praven' },
+      { x: 37, y: 224, html: '<i style="background:#33cc33"></i>Azgad', cls: 'small' },
+      { x: 104, y: 166, html: 'Çapulcular (14)', cls: 'foe small' },
+    ];
+    $('#pmLabels').innerHTML = labels.map(l => `<span class="${l.cls || ''}" style="left:${l.x / W * 100}%;top:${l.y / H * 100}%">${l.html}</span>`).join('') + '<span class="you" id="pmYou">Serkan (1)</span>';
+    const you = $('#pmYou');
+    // walk the party along the road and back
+    const path = road.slice(1, 6), lens = [];
+    let total = 0; for (let i = 0; i < path.length - 1; i++) { const l = Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]); lens.push(l); total += l; }
+    let dist = 0, dirn = 1, t = 0;
+    runLoop(c, dt => {
+      t += dt * 1000; dist += dirn * dt * 9;
+      if (dist > total) { dist = total; dirn = -1; } if (dist < 0) { dist = 0; dirn = 1; }
+      let d = dist, i = 0; while (i < lens.length - 1 && d > lens[i]) { d -= lens[i]; i++; }
+      const [x0, y0] = path[i], [x1, y1] = path[i + 1], k = Math.min(1, d / lens[i]);
+      const px = x0 + (x1 - x0) * k, py = y0 + (y1 - y0) * k, vx = (x1 - x0) * dirn, vy = (y1 - y0) * dirn;
+      const dir = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 'left' : 'right') : (vy < 0 ? 'up' : 'down');
+      x.drawImage(base, 0, 0);
+      // the bandit band idles by the river
+      SW.drawUnit(x, { armor: 1, weapon: 1, helm: '', hair: 1, skin: 2, cloth: 'bandit', anim: 'Idle', dir: 'left', t }, 100, 184);
+      SW.drawUnit(x, { armor: 2, weapon: 2, helm: 'cap', hair: 3, skin: 0, cloth: 'bandit', anim: 'Idle', dir: 'left', t: t + 300 }, 110, 188);
+      shadow(x, Math.round(px), Math.round(py) - 1);
+      SW.drawUnit(x, { armor: 1, weapon: 1, helm: '', hair: 0, skin: 0, cloth: 'nord', anim: 'Walk', dir, t }, px, py);
+      you.style.left = (px / W * 100) + '%'; you.style.top = ((py - 26) / H * 100) + '%';
+    });
   }
 
   // ---- decisions (shared db doc; the page works without it) ----
@@ -365,10 +475,13 @@
 
   // ---- boot ----
   decisions();
+  phoneToggles();
   SW.preload().then(() => {
     hero();
     workbench();
     battle();
+    phoneBattle();
+    phoneMap();
     spinner('#lineupNew', { armor: 1, weapon: 1, helm: '', hair: 0, skin: 0, cloth: null }, 34);
     spinner('#prevA', { armor: 3, weapon: 3, helm: 'nasal', hair: 1, skin: 0, cloth: 'swadia' }, 28);
     stillImage('#oldKnight', 'a/player_melee.png');

@@ -83,7 +83,7 @@
   async function preload(levels = [1, 2, 3]) {
     const jobs = [];
     for (const l of levels) for (const a in ANIM) {
-      if (!hasParts(l, a)) { jobs.push(load(`${BASE}sw3/Hurt_full.png`)); continue; }
+      if (!hasParts(l, a)) continue;
       for (const p of ['body', 'head', 'sword', 'sword_back']) jobs.push(load(partUrl(l, a, p)));
       if (a === 'Hurt' || a === 'Death') jobs.push(load(partUrl(l, a, 'red')));
       if (a === 'attack') jobs.push(load(partUrl(l, a, 'swing')));
@@ -136,99 +136,128 @@
   const EYESET = new Set(EYES.map(hkey));
   const STEEL = ['#1d1a22', '#3d4552', '#5f6b7d', '#8795a8', '#b9c6d4', '#e4ecf2'];
   const LEATHER = ['#1f130d', '#4a2c1a', '#6e4527', '#8f5d33', '#b07a45', '#c99a62'];
+  // Helmets are derived from the hair itself: the hair mask is "opened" (8-neighbour
+  // erode, then dilate) so the 1–2 px spikes fall away and the skull-shaped mass stays;
+  // that mass becomes the helmet. It never grows past the hair, fits every frame and
+  // works on a fallen, sideways head as well as a standing one.
   function paintHelmets(id, type, anim) {
     const W = id.width, H = id.height, d = id.data;
     const lying = anim === 'Death';
+    const ramp = type === 'cap' ? LEATHER : STEEL;
+    const N = F * F;
     for (let cy = 0; cy < H; cy += F) for (let cx = 0; cx < W; cx += F) {
-      const row = (cy / F) | 0;
-      let hx0 = 99, hx1 = -1, hy0 = 99, hy1 = -1, sx0 = 99, sx1 = -1, sy0 = 99, sy1 = -1, ey = 99;
+      const row = (cy / F) | 0, f = (cx / F) | 0;
+      const hair = new Uint8Array(N), face = new Uint8Array(N);
+      let any = false, eyeY = 99, sx0 = 99, sx1 = -1, sy1 = -1, sN = 0, sSum = 0;
       for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
         const i = ((cy + y) * W + cx + x) * 4;
         if (!d[i + 3]) continue;
         const k = key(d[i], d[i + 1], d[i + 2]);
-        if (HAIRSET.has(k)) { hx0 = Math.min(hx0, x); hx1 = Math.max(hx1, x); hy0 = Math.min(hy0, y); hy1 = Math.max(hy1, y); }
-        else if (SKINSET.has(k)) { sx0 = Math.min(sx0, x); sx1 = Math.max(sx1, x); sy0 = Math.min(sy0, y); sy1 = Math.max(sy1, y); }
-        else if (EYESET.has(k)) ey = Math.min(ey, y);
+        if (HAIRSET.has(k)) { hair[y * F + x] = 1; any = true; }
+        else if (EYESET.has(k)) { face[y * F + x] = 1; eyeY = Math.min(eyeY, y); }
+        else if (SKINSET.has(k)) { face[y * F + x] = 1; sx0 = Math.min(sx0, x); sx1 = Math.max(sx1, x); sy1 = Math.max(sy1, y); sN++; sSum += x; }
       }
-      if (hx1 < 0) continue;
+      if (!any) continue;
+      const at = (m, x, y) => x >= 0 && y >= 0 && x < F && y < F && m[y * F + x];
+      const morph = (m, keepIf) => {
+        const o = new Uint8Array(N);
+        for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
+          let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) n += at(m, x + dx, y + dy) ? 1 : 0;
+          o[y * F + x] = keepIf(n, m[y * F + x]) ? 1 : 0;
+        }
+        return o;
+      };
+      const erode = m => morph(m, (n, v) => v && n === 9);
+      const dilate = m => morph(m, n => n > 0);
+      const opaque = new Uint8Array(N);
+      for (let i = 0; i < N; i++) opaque[i] = d[((cy + ((i / F) | 0)) * W + cx + (i % F)) * 4 + 3] ? 1 : 0;
+      const count = mm => mm.reduce((a, v) => a + v, 0);
+      // radius 1 keeps an open helmet organic; the closed helm wants radius 2 so it reads as one block
+      let m = type === 'greathelm' ? dilate(dilate(erode(erode(hair)))) : dilate(erode(hair));
+      if (count(m) < 14) m = dilate(erode(hair));
+      for (let i = 0; i < N; i++) m[i] &= hair[i];               // an opening never grows past the hair
+      const rowFill = mm => {                                      // smooth, convex rows inside the head
+        for (let y = 0; y < F; y++) {
+          let a = -1, b = -1; for (let x = 0; x < F; x++) if (mm[y * F + x]) { if (a < 0) a = x; b = x; }
+          for (let x = a + 1; x < b; x++) if (opaque[y * F + x]) mm[y * F + x] = 1;
+        }
+        return mm;
+      };
+      if (type === 'greathelm') m = rowFill(m);
+      // An open helmet stops at the brow; the hair below it (sideburns, nape) stays hair,
+      // which is what makes it read as a helmet and not as a grey haircut.
+      let cut = 99;
+      if (!lying && type !== 'greathelm') {
+        let t0 = 99, t1 = -1; for (let i = 0; i < N; i++) if (m[i]) { const y = (i / F) | 0; t0 = Math.min(t0, y); t1 = Math.max(t1, y); }
+        cut = eyeY < 99 && row !== ROW.up ? eyeY - 2 : t0 + Math.round((t1 - t0) * 0.68);
+        for (let i = 0; i < N; i++) if (((i / F) | 0) > cut) m[i] = 0;
+      }
+      if (type === 'greathelm') {                                 // a closed helm swallows the face too
+        for (let i = 0; i < N; i++) m[i] |= face[i];
+        m = rowFill(m);
+      }
+      for (let i = 0; i < N; i++) {                               // fill pin-holes
+        const x = i % F, y = (i / F) | 0;
+        if (!m[i] && at(m, x - 1, y) && at(m, x + 1, y) && at(m, x, y - 1) && at(m, x, y + 1)) m[i] = 1;
+      }
+      // round the corners (only the crown's when standing, all of them on a fallen head):
+      // a pixel with three or fewer of its eight neighbours is a convex corner
+      {
+        let t0 = 99, t1 = -1; for (let i = 0; i < N; i++) if (m[i]) { const y = (i / F) | 0; t0 = Math.min(t0, y); t1 = Math.max(t1, y); }
+        const lim = lying ? 99 : t0 + (t1 - t0) * 0.5;
+        for (let pass = 0; pass < (type === 'greathelm' ? 1 : 2); pass++) {
+          const drop = [];
+          for (let i = 0; i < N; i++) if (m[i]) {
+            const x = i % F, y = (i / F) | 0; if (y > lim) continue;
+            let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && at(m, x + dx, y + dy)) n++;
+            if (n <= 3) drop.push(i);
+          }
+          drop.forEach(i => m[i] = 0);
+        }
+      }
+      let bx0 = 99, bx1 = -1, by0 = 99, by1 = -1;
+      for (let i = 0; i < N; i++) if (m[i]) { const x = i % F, y = (i / F) | 0; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
       const put = (x, y, hex) => {
         if (x < 0 || y < 0 || x >= F || y >= F) return;
         const i = ((cy + y) * W + cx + x) * 4, [r, g, b] = hex2rgb(hex);
         d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = 255;
       };
-      if (lying) {   // a fallen head is sideways: tint the hair into the helmet instead of a dome
-        const ramp = type === 'cap' ? LEATHER : STEEL;
-        for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
-          const i = ((cy + y) * W + cx + x) * 4;
-          if (!d[i + 3]) continue;
-          const k = key(d[i], d[i + 1], d[i + 2]);
-          const hi = HAIR.findIndex(h => hkey(h) === k);
-          if (hi >= 0) put(x, y, ramp[Math.min(5, hi + 1)]);
-        }
-        continue;
+      // spikes that did not make it into the helmet go
+      for (let i = 0; i < N; i++) if (hair[i] && !m[i] && ((i / F) | 0) <= cut) d[((cy + ((i / F) | 0)) * W + cx + (i % F)) * 4 + 3] = 0;
+      if (bx1 < 0) continue;
+      const bw = Math.max(1, bx1 - bx0), bh = Math.max(1, by1 - by0);
+      const edge = (x, y) => !at(m, x - 1, y) || !at(m, x + 1, y) || !at(m, x, y - 1) || !at(m, x, y + 1);
+      for (let i = 0; i < N; i++) if (m[i]) {
+        const x = i % F, y = (i / F) | 0;
+        if (edge(x, y)) { put(x, y, ramp[0]); continue; }
+        const u = (x - bx0) / bw, v = (y - by0) / bh;
+        let t = 3;
+        if (u + v < 0.62) t = 4;
+        if (u > 0.74 || v > 0.8) t = 2;
+        put(x, y, ramp[t]);
       }
-      const face = sx1 >= 0 && row !== ROW.up;
-      const side = row === ROW.left || row === ROW.right;
-      const facing = row === ROW.right ? 1 : row === ROW.left ? -1 : 0;
-      let top = hy0 + 2, bottom, x0, x1;
-      if (face) {
-        bottom = ey < 99 ? ey - 2 : sy0 + 1;
-        if (side) { x0 = hx0 + 1; x1 = hx1 - 1; if (facing > 0) x1 = Math.min(x1, sx1 + 1); else x0 = Math.max(x0, sx0 - 1); }
-        else { x0 = sx0 - 1; x1 = sx1 + 1; }
-      } else { bottom = hy1 - 3; x0 = hx0 + 1; x1 = hx1 - 1; }
-      if (type === 'greathelm' && face) { bottom = Math.max(bottom, sy1 - 2); top += 1; if (!side) { x0 += 1; x1 -= 1; } }
-      if (type === 'greathelm' && !face) top += 1;
-      if (type === 'cap') { top += 1; x0 += 1; x1 -= 1; }
-      // lift the hair that the helmet covers
-      const cut = type === 'greathelm' ? bottom : bottom;
-      for (let y = 0; y <= cut; y++) for (let x = 0; x < F; x++) {
-        const i = ((cy + y) * W + cx + x) * 4;
-        if (d[i + 3] && HAIRSET.has(key(d[i], d[i + 1], d[i + 2]))) d[i + 3] = 0;
+      // specular glint on the crown, upper left
+      for (let y = by0 + 1; y <= by1; y++) { const x = Math.round(bx0 + bw * 0.32); if (at(m, x, y) && !edge(x, y)) { put(x, y, ramp[5]); break; } }
+      const standing = !lying, faceOn = standing && row !== ROW.up && sN > 0;
+      const side = row === ROW.left || row === ROW.right, facing = row === ROW.right ? 1 : row === ROW.left ? -1 : 0;
+      if (standing && type !== 'greathelm') {                    // rim: the lowest inner pixel of each column
+        for (let x = bx0 + 1; x < bx1; x++) { let yb = -1; for (let y = by1; y >= by0; y--) if (at(m, x, y)) { yb = y; break; } if (yb > 0 && at(m, x, yb - 1) && !edge(x, yb - 1)) put(x, yb - 1, ramp[type === 'cap' ? 1 : 2]); }
       }
-      const ramp = type === 'cap' ? LEATHER : STEEL;
-      const mid = (x0 + x1) / 2, hw = (x1 - x0) / 2 + 0.5, hgt = Math.max(3, bottom - top);
-      const shape = [];
-      for (let y = top; y <= bottom; y++) {
-        const t = (y - top) / hgt;                                   // 0 at crown
-        const w = type === 'greathelm' ? hw * (t < 0.2 ? 0.8 + t : 1) : hw * Math.sqrt(Math.min(1, 0.25 + t * 1.6));
-        const a = Math.round(mid - w), b = Math.round(mid + w - 1);
-        shape.push([y, a, b]);
+      if (type === 'nasal' && faceOn) {
+        const nx = side ? (facing > 0 ? sx1 - 1 : sx0 + 1) : Math.round(sSum / sN - 0.5);
+        let yb = -1; for (let y = by1; y >= by0; y--) if (at(m, nx, y)) { yb = y; break; }
+        if (yb > 0) { put(nx, yb + 1, ramp[3]); put(nx, yb + 2, ramp[3]); put(nx, yb + 3, ramp[1]); }
+        if (!side) for (let y = by0 + 1; y < by1 - 1; y++) if (at(m, nx, y) && !edge(nx, y)) put(nx, y, ramp[4]);
       }
-      for (const [y, a, b] of shape) for (let x = a; x <= b; x++) {
-        const u = (x - a) / Math.max(1, b - a);                      // 0 = left edge
-        const v = (y - top) / hgt;
-        let tone = 3 + (u < 0.35 ? 1 : 0) - (u > 0.75 ? 1 : 0) - (v > 0.8 ? 1 : 0);
-        if (facing > 0) tone = 3 + (u < 0.3 ? -1 : 0) + (u > 0.55 && u < 0.8 ? 1 : 0) - (v > 0.8 ? 1 : 0);
-        if (facing < 0) tone = 3 + (u > 0.7 ? -1 : 0) + (u > 0.2 && u < 0.45 ? 1 : 0) - (v > 0.8 ? 1 : 0);
-        put(x, y, ramp[Math.max(1, Math.min(5, tone))]);
+      if (type === 'cap' && standing) { const mx = Math.round((bx0 + bx1) / 2); for (let y = by0 + 1; y < by1 - 1; y += 2) if (at(m, mx, y) && !edge(mx, y)) put(mx, y, ramp[2]); }
+      if (type === 'greathelm' && faceOn && eyeY < 99) {
+        let a = 99, b = -1; for (let x = 0; x < F; x++) if (at(m, x, eyeY) && !edge(x, eyeY)) { a = Math.min(a, x); b = Math.max(b, x); }
+        if (side) { if (facing > 0) a = Math.max(a, Math.round((bx0 + bx1) / 2)); else b = Math.min(b, Math.round((bx0 + bx1) / 2)); }
+        else { a += 1; b -= 1; }
+        for (let x = a; x <= b; x++) put(x, eyeY, '#0d0b10');
+        for (let x = a + 1; x < b; x += 2) if (at(m, x, eyeY + 2) && !edge(x, eyeY + 2)) put(x, eyeY + 2, ramp[1]);
+        if (!side) { const mx = Math.round((a + b) / 2); for (let y = eyeY + 1; y < by1; y++) if (at(m, mx, y) && !edge(mx, y)) put(mx, y, ramp[4]); }
       }
-      // specular pixel on the crown
-      if (shape.length > 2) { const [y, a, b] = shape[1]; put(Math.round(a + (b - a) * (facing > 0 ? 0.65 : 0.3)), y, ramp[5]); }
-      // brim / rim band
-      if (type !== 'greathelm') { const [y, a, b] = shape[shape.length - 1]; for (let x = a; x <= b; x++) put(x, y, ramp[2]); }
-      if (type === 'nasal' && face) {
-        const nx = side ? (facing > 0 ? x1 - 1 : x0 + 1) : Math.round(mid - 0.5);
-        for (let y = bottom + 1; y <= bottom + 3; y++) put(nx, y, ramp[y === bottom + 3 ? 1 : 3]);
-        // a riveted ridge down the crown tells the nasal helm from a plain kettle dome
-        if (!side) for (const [y] of shape.slice(1, -1)) put(Math.round(mid - 0.5), y, ramp[4]);
-      }
-      if (type === 'greathelm' && face && ey < 99) {
-        const [, a, b] = shape.find(s => s[0] === ey) || shape[shape.length - 2];
-        const sa = side ? (facing > 0 ? Math.round(mid) : a + 1) : a + 2, sb = side ? (facing > 0 ? b - 1 : Math.round(mid)) : b - 2;
-        for (let x = sa; x <= sb; x++) put(x, ey, '#0d0b10');
-        for (let x = sa + 1; x <= sb - 1; x += 2) put(x, ey + 2, '#2a2f3a');
-        if (!side) for (let y = ey + 1; y <= bottom; y++) put(Math.round(mid - 0.5), y, ramp[4]);
-      }
-      // outline the helmet where it meets empty space
-      const outline = [];
-      for (const [y, a, b] of shape) for (let x = a - 1; x <= b + 1; x++) for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0]]) {
-        const X = x + dx, Y = y + dy;
-        if (x < a || x > b) continue;
-        if (X < 0 || Y < 0 || X >= F || Y >= F) continue;
-        const i = ((cy + Y) * W + cx + X) * 4;
-        if (!d[i + 3]) outline.push([X, Y]);
-      }
-      outline.forEach(([x, y]) => put(x, y, ramp[0]));
     }
   }
 
@@ -239,31 +268,59 @@
     let f = Math.floor(u.t / A.ms);
     return A.loop ? f % A.n : Math.min(A.n - 1, f);
   }
-  function drawUnit(ctx, u, x, y, opts = {}) {
-    const A = ANIM[u.anim], f = opts.frame != null ? opts.frame : frameOf(u), row = ROW[u.dir];
-    const sx = f * F, sy = row * F, dx = Math.round(x - ANCHOR.x), dy = Math.round(y - ANCHOR.y);
-    const v = { skin: u.skin, hair: u.hair, cloth: u.cloth };
-    const layers = [];
-    if (!hasParts(u.armor, u.anim)) {
-      layers.push(sheet(`${BASE}sw3/Hurt_full.png`, v, 3, '', u.anim));
-    } else {
-      const wl = hasParts(u.weapon, u.anim) ? u.weapon : 2;
-      layers.push(sheet(partUrl(wl, u.anim, 'sword_back'), {}, 0, '', u.anim));
-      layers.push(sheet(partUrl(u.armor, u.anim, 'body'), v, u.armor, '', u.anim));
-      layers.push(sheet(partUrl(u.armor, u.anim, 'head'), v, 0, u.helm, u.anim));
-      layers.push(sheet(partUrl(wl, u.anim, 'sword'), {}, 0, '', u.anim));
-      if ((u.anim === 'Hurt' || u.anim === 'Death') && !opts.noRed) layers.push(sheet(partUrl(u.armor, u.anim, 'red'), {}, 0, '', u.anim));
-      if (u.anim === 'attack' && !opts.noSwing) layers.push(sheet(partUrl(wl, u.anim, 'swing'), {}, 0, '', u.anim));
+  // How red the pack paints each Hurt/Death frame, read once off its red overlay layer.
+  // The overlay itself is not drawn: its silhouette is the bare-headed one, so the tint is
+  // re-applied over whatever the unit is actually wearing.
+  const redCache = {};
+  function redAt(lvl, anim, f, row) {
+    const url = partUrl(lvl, anim, 'red'), img = imgs[url] && imgs[url].__img;
+    if (!img) return 0;
+    let t = redCache[url];
+    if (!t) {
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const dd = x.getImageData(0, 0, c.width, c.height).data, cols = img.width / F, rows = img.height / F;
+      const n = new Float32Array(cols * rows); let mx = 1;
+      for (let y = 0; y < img.height; y++) for (let xx = 0; xx < img.width; xx++) {
+        const a = dd[(y * img.width + xx) * 4 + 3]; if (a) n[((y / F) | 0) * cols + ((xx / F) | 0)] += a / 255;
+      }
+      n.forEach(v => mx = Math.max(mx, v));
+      t = redCache[url] = { cols, n: Array.from(n, v => v / mx) };
     }
-    if (opts.flash) {   // white hit flash, baked per call into a scratch cell
+    return t.n[row * t.cols + f] || 0;
+  }
+  // Level 3 ships no layered Hurt; it is built from its idle frame: knocked back, then flushed red.
+  const HURT3 = [[1, 0], [2, 0], [2, 0.9], [1, 0.8], [0, 0.3]];
+  const KNOCK = { right: [-1, 0], left: [1, 0], down: [0, -1], up: [0, 1] };
+  function drawUnit(ctx, u, x, y, opts = {}) {
+    const f = opts.frame != null ? opts.frame : frameOf(u), row = ROW[u.dir];
+    let anim = u.anim, fr = f, ox = 0, oy = 0, red = 0;
+    if (!hasParts(u.armor, anim)) {
+      const [k, r] = HURT3[Math.min(f, HURT3.length - 1)];
+      anim = 'Idle'; fr = 0; ox = KNOCK[u.dir][0] * k; oy = KNOCK[u.dir][1] * k; red = r;
+    } else if (anim === 'Hurt' || anim === 'Death') red = redAt(u.armor, anim, f, row);
+    if (opts.noRed) red = 0;
+    const sx = fr * F, sy = row * F, dx = Math.round(x - ANCHOR.x + ox), dy = Math.round(y - ANCHOR.y + oy);
+    const v = { skin: u.skin, hair: u.hair, cloth: u.cloth };
+    const wl = hasParts(u.weapon, anim) ? u.weapon : 2;
+    const layers = [
+      sheet(partUrl(wl, anim, 'sword_back'), {}, 0, '', anim),
+      sheet(partUrl(u.armor, anim, 'body'), v, u.armor, '', anim),
+      sheet(partUrl(u.armor, anim, 'head'), v, 0, u.helm, anim),
+      sheet(partUrl(wl, anim, 'sword'), {}, 0, '', anim),
+    ];
+    const swing = anim === 'attack' && !opts.noSwing ? sheet(partUrl(wl, anim, 'swing'), {}, 0, '', anim) : null;
+    const flash = opts.flash || 0;
+    if (flash > 0 || red > 0.02) {
       const s = scratch(); s.x.clearRect(0, 0, F, F);
       for (const L of layers) if (L) s.x.drawImage(L, sx, sy, F, F, 0, 0, F, F);
-      s.x.globalCompositeOperation = 'source-atop'; s.x.fillStyle = '#fff'; s.x.globalAlpha = opts.flash;
-      s.x.fillRect(0, 0, F, F); s.x.globalCompositeOperation = 'source-over'; s.x.globalAlpha = 1;
+      s.x.globalCompositeOperation = 'source-atop';
+      if (red > 0.02) { s.x.fillStyle = '#d42a3a'; s.x.globalAlpha = Math.min(0.85, red * 0.8); s.x.fillRect(0, 0, F, F); }
+      if (flash > 0) { s.x.fillStyle = '#fff'; s.x.globalAlpha = flash; s.x.fillRect(0, 0, F, F); }
+      s.x.globalCompositeOperation = 'source-over'; s.x.globalAlpha = 1;
       ctx.drawImage(s.c, dx, dy);
-      return f;
-    }
-    for (const L of layers) if (L) ctx.drawImage(L, sx, sy, F, F, dx, dy, F, F);
+    } else for (const L of layers) if (L) ctx.drawImage(L, sx, sy, F, F, dx, dy, F, F);
+    if (swing) ctx.drawImage(swing, sx, sy, F, F, dx, dy, F, F);
     return f;
   }
   let _scratch;
