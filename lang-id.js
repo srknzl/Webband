@@ -3016,5 +3016,17 @@ I18N.dicts.id = {
   "Sahneyi sola kaydır": "Geser pemandangan ke kiri",
   "Sahneyi sağa kaydır": "Geser pemandangan ke kanan",
   "Yerleşim sahnesi, yana kaydırılır": "Pemandangan permukiman, dapat digeser ke samping",
-  "Sahneyi yana kaydır": "Geser ke samping"
+  "Sahneyi yana kaydır": "Geser ke samping",
+  "Seviye {0}!": "Level {0}!",
+  "1 nitelik, 3 odak puanı": "1 atribut, 3 poin fokus",
+  "Görev tamamlandı": "Misi selesai",
+  "Son savaş": "Pertempuran terakhir",
+  "Kuşatma": "Pengepungan",
+  "Savaş!": "Bertempur!",
+  "{0} düşmana karşı": "Melawan {0} musuh",
+  "{0} kalede": "{0} ada di benteng",
+  "{0} ve {1} soylu kalede": "{0} dan {1} bangsawan lain ada di benteng",
+  "Kalede soylu yok": "Tidak ada bangsawan di benteng",
+  "Sahibi: {0}": "Dipegang oleh {0}",
+  "Duraklat": "Jeda"
 };

@@ -3016,5 +3016,17 @@ I18N.dicts.en = {
   "Sahneyi sola kaydır": "Slide the scene left",
   "Sahneyi sağa kaydır": "Slide the scene right",
   "Yerleşim sahnesi, yana kaydırılır": "Settlement scene, slides sideways",
-  "Sahneyi yana kaydır": "Slide the scene sideways"
+  "Sahneyi yana kaydır": "Slide the scene sideways",
+  "Seviye {0}!": "Level {0}!",
+  "1 nitelik, 3 odak puanı": "1 attribute, 3 focus points",
+  "Görev tamamlandı": "Quest complete",
+  "Son savaş": "The final battle",
+  "Kuşatma": "Siege",
+  "Savaş!": "Battle!",
+  "{0} düşmana karşı": "Against {0} foes",
+  "{0} kalede": "{0} is in the keep",
+  "{0} ve {1} soylu kalede": "{0} and {1} more nobles are in the keep",
+  "Kalede soylu yok": "No nobles in the keep",
+  "Sahibi: {0}": "Held by {0}",
+  "Duraklat": "Pause"
 };

@@ -1005,6 +1005,7 @@ body.view-map #map-hud { left: 66px; }
     color: #f0e3c0; letter-spacing: .5px;
 }
 #map-comp { display: flex; gap: 0.5rem; }
+#map-terrain .mt-short { display: none; }
 #map-comp span { display: inline-flex; align-items: center; gap: 3px; color: var(--text-muted); }
 #map-comp b { color: #e8dcbb; font-weight: 600; }
 #btn-map-speed {
@@ -1665,7 +1666,8 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
        "Sıradaki" "⋯ Daha"ya taşındı (aynı onclick), hız düğmesi kendi satırı yerine düğme
        sırasının sonuna oturur. Düğmeler yazılı kalır (#86: yalnız ikon, "yazısız düğme" demekti). */
     #map-hud { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 0.3rem; }
-    #map-terrain { flex-basis: 100%; }
+    /* 2.1: the place sits in the same row as the buttons — one capsule, not two rows */
+    #map-terrain { flex: none; padding-right: 0.3rem; border-right: 1px solid rgba(212,175,55,0.22); }
     #map-comp #btn-diplo, #map-comp #btn-track { display: none; }
     #btn-map-speed { align-self: center; }
     #map-comp { flex-wrap: wrap; }
@@ -1707,9 +1709,20 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
        "düğmede yazı yok" demekti). Dokunma hedefi yine 44 px. */
     #map-hud { font-size: 0.66rem; padding: 0.3rem 0.4rem; }
     #map-comp { gap: 1px; }
+    /* One capsule row at 412 px (2.1): the troop count lives on the party screen, and the
+       terrain's speed shrinks to its bare percentage */
+    #map-comp > span, #map-terrain .mt-long { display: none; }
+    #map-terrain { letter-spacing: 0; gap: 0.25rem; }
+    #map-terrain .mt-short { display: inline; margin-left: 0.25rem; font-family: 'Inter', sans-serif; font-weight: 600; color: var(--text-muted); }
     #map-comp button {
         font-size: 0.6rem; margin-left: 0.15rem; padding: 1px 4px; gap: 2px;
     }
+    #map-hud { column-gap: 0.2rem; padding: 0.3rem; }
+    #map-comp { gap: 3px; }
+    #map-comp button { margin-left: 0; }
+    #map-terrain { padding-right: 0.25rem; }
+    #map-comp #btn-points .i { display: none; }   /* its glow already marks it; the words stay */
+    #btn-map-speed { font-size: 0.62rem; padding: 1px 6px; }
 }
 
 /* Yatay tutulan telefon: dikey yer çok az, üst çubuk daha da incelir */
@@ -1994,4 +2007,117 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
    few dozen pixels only puts an arrow over a building, so from here up it fits the width. */
 @media (min-width: 660px) and (max-width: 820px) {
     #scene-canvas { width: 100%; height: auto; }
+}
+
+/* ============================================================
+   2.1 — MOTION POLISH. Every one of these is a CSS animation (or a Web Animation started from
+   Game.fly/flourish/curtain), so body.reduced-motion above stops them all; none takes a tap.
+   ============================================================ */
+/* Walking into a settlement: the scene rises into view, the cards follow one by one */
+#settlement-view.entering #scene-wrap { animation: sceneRise 0.55s var(--ease-soft) both; }
+@keyframes sceneRise { from { opacity: 0; transform: translateY(10px) scale(0.985); filter: brightness(1.35); } to { opacity: 1; transform: none; filter: none; } }
+#settlement-view.entering .act-card { animation: cardIn 0.42s var(--ease-soft) both; animation-delay: calc(var(--i, 0) * 40ms + 140ms); }
+#settlement-view.entering .act-group h4 { animation: cardIn 0.4s var(--ease-soft) both 0.1s; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* Cards answer the pointer: a lift and a gold edge on hover (a mouse), a give on press */
+.act-card { transition: transform 0.16s var(--ease-soft), box-shadow 0.16s, border-color 0.16s, background-color 0.16s; }
+.act-card .ac-ic { transition: transform 0.2s var(--ease-soft), box-shadow 0.2s; }
+@media (hover: hover) {
+    .act-card:not(:disabled):hover { transform: translateY(-2px); border-color: rgba(212,175,55,0.55);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 0 16px rgba(212,175,55,0.14); }
+    .act-card:not(:disabled):hover .ac-ic { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 10px rgba(212,175,55,0.35); }
+}
+.act-card:not(:disabled):active { transform: translateY(0) scale(0.975); transition-duration: 0.07s; }
+
+/* Something flying across the screen (Game.fly), and the pop where it lands */
+.fx-fly { position: fixed; z-index: 2200; pointer-events: none; width: 34px; height: 34px; display: grid; place-items: center;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.7)); color: var(--primary); }
+.fx-fly img, .fx-fly .ii { width: 30px; height: 30px; image-rendering: pixelated; }
+.fx-fly svg.i { width: 24px; height: 24px; }
+@keyframes fxPop { 0% { transform: scale(1); } 35% { transform: scale(1.14); box-shadow: 0 0 0 3px rgba(212,175,55,0.45); } 100% { transform: scale(1); } }
+.fx-pop { animation: fxPop 0.45s var(--ease-soft); }
+
+/* A gold banner from the top: a level, a finished quest (Game.flourish) */
+#flourish { position: fixed; z-index: 2100; left: 50%; top: calc(var(--safe-top, 0px) + 14px); pointer-events: none;
+    display: none; align-items: center; gap: 0.7rem; padding: 0.6rem 1.2rem 0.6rem 0.7rem; border-radius: 999px;
+    background: linear-gradient(180deg, #2a2112, #15110a); border: 1px solid rgba(240,200,90,0.8);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 26px rgba(212,175,55,0.35), inset 0 1px 0 rgba(255,236,170,0.25);
+    transform: translateX(-50%); max-width: calc(100vw - 24px); }
+#flourish.on { display: flex; animation: flIn 3s var(--ease-soft) forwards; }
+@keyframes flIn { 0% { opacity: 0; transform: translate(-50%, -30px) scale(0.9); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1.03); }
+    18% { transform: translate(-50%, 0) scale(1); } 82% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -14px); } }
+#flourish .fl-ic { width: 2.3rem; height: 2.3rem; border-radius: 50%; display: grid; place-items: center; flex: none; color: #1a1406;
+    background: radial-gradient(circle at 35% 30%, #ffe9a0, #d4af37 60%, #8a6a1a); box-shadow: 0 0 14px rgba(255,210,100,0.6); }
+#flourish .fl-ic svg.i { width: 1.3rem; height: 1.3rem; }
+#flourish .fl-tx { display: flex; flex-direction: column; min-width: 0; }
+#flourish b { font: 700 1.05rem/1.15 'Cinzel', serif; color: #ffe08a; letter-spacing: 0.04em; }
+#flourish small { font: 500 var(--fs-xs)/1.3 'Inter', sans-serif; color: #d8ccb0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* six sparks thrown off the medal */
+#flourish i { position: absolute; left: 1.85rem; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: #ffe08a; opacity: 0; }
+#flourish.on i { animation: flSpark 0.9s ease-out 0.25s both; }
+#flourish i:nth-of-type(1) { --dx: -26px; --dy: -22px; } #flourish i:nth-of-type(2) { --dx: 18px; --dy: -26px; }
+#flourish i:nth-of-type(3) { --dx: 30px; --dy: 4px; }    #flourish i:nth-of-type(4) { --dx: -30px; --dy: 10px; }
+#flourish i:nth-of-type(5) { --dx: 6px; --dy: 28px; }    #flourish i:nth-of-type(6) { --dx: -12px; --dy: -34px; }
+@keyframes flSpark { 0% { opacity: 1; transform: translate(0, 0) scale(1.4); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.4); } }
+
+/* Into battle: dark on the field, a title that rises and fades (Game.curtain) */
+#curtain { position: fixed; inset: 0; z-index: 1500; pointer-events: none; display: none; place-items: center;
+    background: radial-gradient(ellipse at center, rgba(8,6,4,0.55) 0%, rgba(4,3,2,0.97) 72%); }
+#curtain.on { display: grid; animation: ctOut 1.25s ease-in forwards; }
+@keyframes ctOut { 0%, 38% { opacity: 1; } 100% { opacity: 0; } }
+#curtain .ct-box { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; animation: ctTitle 1.25s var(--ease-soft) forwards; }
+@keyframes ctTitle { 0% { opacity: 0; transform: scale(1.3); letter-spacing: 0.5em; } 28% { opacity: 1; transform: scale(1); letter-spacing: 0.14em; }
+    75% { opacity: 1; } 100% { opacity: 0; transform: scale(0.97); } }
+#curtain .ct-ic { color: var(--primary); } #curtain .ct-ic svg.i { width: 2.6rem; height: 2.6rem; filter: drop-shadow(0 0 10px rgba(212,175,55,0.5)); }
+#curtain b { font: 700 clamp(1.7rem, 6vw, 2.8rem)/1 'Cinzel', serif; color: #f2d27a; text-shadow: 0 0 18px rgba(212,175,55,0.45), 0 3px 8px #000; letter-spacing: 0.14em; }
+#curtain small { font: 500 var(--fs-sm)/1.3 'Inter', sans-serif; color: #cfc4a8; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Character creation: the hero as it is being built (2.1, Game.drawHero) */
+.cr-head { display: flex; gap: 1rem; align-items: center; }
+.cr-head-tx { flex: 1; min-width: 0; }
+.cr-head-tx h3 { margin-top: 0; }
+.cr-hero { flex: none; width: 112px; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
+.cr-hero canvas { width: 112px; height: 112px; image-rendering: pixelated; border-radius: var(--r-md);
+    background: radial-gradient(ellipse at 50% 80%, rgba(76,116,57,0.25), rgba(0,0,0,0) 70%), #14120e;
+    border: 1px solid rgba(212,175,55,0.3); box-shadow: inset 0 0 18px rgba(0,0,0,0.6); }
+.cr-hero-nm { font: 600 var(--fs-xs)/1.2 'Cinzel', serif; color: var(--primary); max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 430px) {
+    .cr-head { gap: 0.7rem; }
+    .cr-hero, .cr-hero-nm { width: 84px; max-width: 84px; }
+    .cr-hero canvas { width: 84px; height: 84px; }
+}
+
+/* Round 1's town screen, finished (2.1): the line under the name, numbered cards, prices you can't pay */
+#settlement-name { margin-bottom: 0.2rem; }
+.set-sub { margin: 0 0 0.9rem; font: 500 var(--fs-sm)/1.4 'Inter', sans-serif; color: var(--text-muted); }
+.set-sub .ss-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; margin-right: 0.4em; vertical-align: 0.05em; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
+@media (max-width: 430px) { .set-sub { font-size: var(--fs-xs); margin-bottom: 0.6rem; } }
+.act-card { position: relative; }
+.ac-kbd { position: absolute; top: 6px; right: 8px; font: 600 0.62rem/1 'Inter', sans-serif; color: #8a8173;
+    border: 1px solid rgba(236,230,218,0.14); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: rgba(0,0,0,0.25); }
+body.touch .ac-kbd { display: none; }
+.act-card.act-poor { opacity: 0.62; }
+.act-card.act-poor .ac-mt { color: var(--danger); }
+
+/* Phone battle (2.1, round 1): no black strip under the field. The bar floats over the canvas,
+   see-through; Surrender moved into the corner pause button's menu (Battle.pauseMenu); the
+   "enemy flees" prompt sits under the power bar; the sticks go half-transparent until touched. */
+#btn-bpause { display: none; }
+@media (pointer: coarse) {
+    #battle-view { position: relative; }
+    #battle-ui { position: absolute; inset: 0; padding: 0; background: none; border: 0; pointer-events: none; z-index: 31; }
+    /* the sticks no longer have a 59 px strip to clear: they drop to the thumb's natural rest */
+    #touch-ui { --tui-lift: calc(24px + env(safe-area-inset-bottom)); }
+    #battle-ui > * { pointer-events: auto; }
+    #battle-ui > .battle-logs { pointer-events: none; }
+    #btn-surrender { display: none; }
+    #btn-bpause { display: grid; place-items: center; position: absolute; left: 8px; top: 10px; width: 44px; height: 44px; min-width: 44px; padding: 0;
+        border-radius: 50%; background: rgba(12,12,16,0.72); border: 1px solid rgba(212,175,55,0.5); color: var(--primary); }
+    #btn-bpause svg.i { width: 18px; height: 18px; }
+    #rout-prompt { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap;
+        background: rgba(12,14,10,0.82); border: 1px solid rgba(159,224,160,0.45); border-radius: 999px; padding: 0.3rem 0.4rem 0.3rem 0.8rem; }
+    #tstick, #tastick, #tbtns button, #tcmds button { transition: opacity 0.2s; }
+    #tstick:not(:active), #tastick:not(:active) { opacity: 0.72; }
+    #tcmds button, #tbtns button:not(:active) { opacity: 0.82; }
 }

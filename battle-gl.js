@@ -381,7 +381,7 @@ const BattleGL = {
         }
         if(this.groundFor !== b.ground) {
             let old = this.ground.texture;
-            this.ground.texture = this.texOf(b.ground);
+            this.ground.texture = this.texOf(b.ground, true);   // pixel ground (2.1): hard edges at any zoom
             this.ground.scale.set(1 / b.ground._s);
             if(old && old !== PIXI.Texture.EMPTY) old.destroy(true);
             this.groundFor = b.ground;
@@ -513,10 +513,12 @@ const BattleGL = {
         let s = P.shadows.next();
         s.position.set(u.x, u.y + 9); s.scale.set(inv); s.alpha = p.alpha * (0.5 - hop * 0.03);
         if(!p.dead) {
-            s = P.rings.next();
-            let rk = u.isPlayerTeam ? 'ring1' : 'ring0';
-            if(s.texture !== this.shapes[rk].tex) s.texture = this.shapes[rk].tex;
-            s.position.set(u.x, u.y + 9); s.scale.set(inv);
+            if(b.teamRing(u)) {                           // only a unit without clothes to show (Battle.teamRing)
+                s = P.rings.next();
+                let rk = u.isPlayerTeam ? 'ring1' : 'ring0';
+                if(s.texture !== this.shapes[rk].tex) s.texture = this.shapes[rk].tex;
+                s.position.set(u.x, u.y + 9); s.scale.set(inv);
+            }
             if(isPlayer) {
                 this.pulse.visible = true;
                 this.pulse.position.set(u.x, u.y + 9); this.pulse.scale.set((1 + Math.sin(now/300)*0.12) * inv);

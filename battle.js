@@ -219,10 +219,13 @@ const Battle = {
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = Game.battleCtx();   // single gate to the shared canvas (#54)
         Game.showScreen('battle');
+        // into the field through a short curtain (2.1); an auto-resolved fight is never shown
+        if(!auto) Game.curtain(bossLevel ? T('Son savaş') : siegePlan ? T('Kuşatma') : T('Savaş!'), T`${enemyCount} düşmana karşı`);
         this.isBossFight = !!bossLevel;
         
-        let vc = document.getElementById('view-container');
-        let uiHeight = document.getElementById('battle-ui').offsetHeight || 50;
+        let vc = document.getElementById('view-container'), bui = document.getElementById('battle-ui');
+        // on a phone the bar floats over the field (2.1) and takes no height from it
+        let uiHeight = Game.floatsOver(bui) ? 0 : ((bui && bui.offsetHeight) || 50);
         
         let clientH = vc.clientHeight || window.innerHeight;
         let W = vc.clientWidth || 800;
@@ -1603,40 +1606,66 @@ const Battle = {
     // --- Ground: grass + terrain is drawn once to an offscreen canvas, never regenerated every frame
     // `scale` (1.33.0): the WebGL renderer bakes the same field at more pixels per unit so the
     // zoomed camera doesn't magnify a 1x bitmap; every coordinate below stays in field units.
+    // The field is pixel art at the soldiers' own pixel size (2.1): everything below is drawn
+    // into a small canvas, one pixel per GROUND_PX field units (the Swordsman sprite's K), then
+    // blown up without smoothing — so the grass, the river, the trees and the walls share the
+    // soldiers' pixel grid instead of being a soft painting under crisp sprites. `scale` is the
+    // WebGL path's sharper bake (screen density × zoom); the pixels stay the same size.
+    GROUND_PX: 1.25,
     buildGround(scale = 1) {
-        let W = this.canvas.width, H = this.canvas.height;
+        let W = this.canvas.width, H = this.canvas.height, P = this.GROUND_PX;
+        let lw = Math.ceil(W / P), lh = Math.ceil(H / P);
+        let low = document.createElement('canvas');
+        low.width = lw; low.height = lh;
+        let c = low.getContext('2d');
+        if(this.isArena || this.isTourney) { c.scale(1 / P, 1 / P); this.buildArenaGround(c, W, H); }
+        else this.buildField(c, lw, lh, W, H, P);
         let g = document.createElement('canvas');
         g.width = Math.round(W * scale); g.height = Math.round(H * scale);
         g._w = W; g._h = H; g._s = scale;
-        let c = g.getContext('2d');
-        c.scale(scale, scale);
-
-        if(this.isArena || this.isTourney) return this.buildArenaGround(c, g, W, H);
-
-        let base = c.createLinearGradient(0, 0, 0, H);
-        base.addColorStop(0, '#35532f');
-        base.addColorStop(1, '#233b21');
-        c.fillStyle = base; c.fillRect(0, 0, W, H);
-
-        // Lite mode: the ground bakes only once, but on a phone even that "once" is felt
-        // as a stutter (2600 strokes + 60 gradients). Density drops to a third.
+        let gx = g.getContext('2d');
+        gx.imageSmoothingEnabled = false;
+        gx.drawImage(low, 0, 0, lw * P * scale, lh * P * scale);
+        this.ground = g;
+    },
+    // A pastel meadow, pixel by pixel (round 1's field): the base green, one of four tones on
+    // about a sixth of the pixels, a slow light/dark mottling so it doesn't read as noise, grass
+    // tufts and the odd flower. Written as ImageData — a phone bakes it in a few milliseconds.
+    // Its own seeded generator: one draw from the game's dice, not a hundred thousand.
+    buildField(c, lw, lh, W, H, P) {
+        let seed = (Math.random() * 4294967296) >>> 0;
+        let rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+        let img = c.createImageData(lw, lh), d = img.data;
+        const BASE = [76, 116, 57], TONES = [[85, 128, 63], [70, 105, 58], [63, 96, 52], [91, 136, 68]];
+        // the mottling: a coarse random grid, bilinearly blended (cells of ~48 pixels)
+        let gw = Math.ceil(lw / 48) + 2, gh = Math.ceil(lh / 48) + 2, grid = [];
+        for(let i = 0; i < gw * gh; i++) grid.push(rnd() * 2 - 1);
+        let mot = (x, y) => {
+            let fx = x / 48, fy = y / 48, ix = fx | 0, iy = fy | 0, tx = fx - ix, ty = fy - iy;
+            let a = grid[iy * gw + ix], b = grid[iy * gw + ix + 1], cc = grid[(iy + 1) * gw + ix], dd = grid[(iy + 1) * gw + ix + 1];
+            return (a * (1 - tx) + b * tx) * (1 - ty) + (cc * (1 - tx) + dd * tx) * ty;
+        };
+        for(let y = 0; y < lh; y++) for(let x = 0; x < lw; x++) {
+            let col = rnd() < 0.16 ? TONES[(rnd() * 4) | 0] : BASE;
+            // mottling as a dither: a lighter or darker tone where the patch leans that way
+            let m = mot(x, y) + (rnd() - 0.5) * 0.5;
+            let k = m > 0.45 ? 1.07 : m < -0.45 ? 0.92 : 1;
+            let i = (y * lw + x) * 4;
+            d[i] = Math.min(255, col[0] * k); d[i + 1] = Math.min(255, col[1] * k); d[i + 2] = Math.min(255, col[2] * k); d[i + 3] = 255;
+        }
+        let put = (x, y, r, g, b) => { if(x < 0 || y < 0 || x >= lw || y >= lh) return; let i = (y * lw + x) * 4; d[i] = r; d[i + 1] = g; d[i + 2] = b; };
+        for(let n = 0, N = lw * lh * 0.004; n < N; n++) {              // tufts: two dark blades, a light one between
+            let x = (rnd() * lw) | 0, y = (rnd() * lh) | 0;
+            put(x, y, 58, 90, 48); put(x, y + 1, 58, 90, 48); put(x + 2, y, 58, 90, 48); put(x + 2, y + 1, 58, 90, 48);
+            put(x + 1, y - 1, 98, 146, 74); put(x + 1, y, 98, 146, 74); put(x + 1, y + 1, 98, 146, 74);
+        }
+        for(let n = 0, N = lw * lh * 0.0009; n < N; n++) {             // flowers
+            let x = (rnd() * lw) | 0, y = (rnd() * lh) | 0;
+            if(rnd() < 0.5) put(x, y, 232, 211, 106); else put(x, y, 233, 228, 214);
+        }
+        c.putImageData(img, 0, 0);
+        c.scale(1 / P, 1 / P);                                       // terrain below is in field units
         let lite = Game.lite();
-
-        // Soft color blotches — a mottled meadow instead of a flat green ground
-        for(let i = 0, n = lite ? 20 : 60; i < n; i++) {
-            let x = Math.random()*W, y = Math.random()*H, r = 60 + Math.random()*140;
-            let rg = c.createRadialGradient(x, y, 0, x, y, r);
-            rg.addColorStop(0, Math.random() > 0.5 ? 'rgba(96,134,72,0.16)' : 'rgba(18,38,18,0.18)');
-            rg.addColorStop(1, 'rgba(0,0,0,0)');
-            c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
-        }
-        // Tufts of grass
-        for(let i = 0, n = lite ? 700 : 2600; i < n; i++) {
-            let x = Math.random()*W, y = Math.random()*H;
-            c.strokeStyle = Math.random() > 0.5 ? 'rgba(126,166,92,0.30)' : 'rgba(28,52,26,0.35)';
-            c.lineWidth = 1;
-            c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random()-0.5)*3, y - 2 - Math.random()*3); c.stroke();
-        }
 
         let TR = this.terrain || {};
 
@@ -1714,18 +1743,16 @@ const Battle = {
             }
         }
 
-        // A slight darkening: keeps units more readable against the ground
-        c.fillStyle = 'rgba(6,10,6,0.16)';
+        // A slight darkening: keeps units readable against the brighter pixel meadow
+        c.fillStyle = 'rgba(6,10,6,0.08)';
         c.fillRect(0, 0, W, H);
-
-        this.ground = g;
     },
 
     // The arena/tournament ring (#132): round sand pit, wooden boundary, a crowd packed around
     // the outside — seen from above, so the crowd is just a mottled ring of "heads", not figures.
     // The circle matches `arenaRing()`, the same one the boundary clamp uses: nobody can wander
     // past the wall the ground shows them.
-    buildArenaGround(c, g, W, H) {
+    buildArenaGround(c, W, H) {
         let { cx, cy, r } = this.arenaRing(W, H);
         let lite = Game.lite();
 
@@ -1787,8 +1814,6 @@ const Battle = {
 
         c.fillStyle = 'rgba(6,10,6,0.12)';
         c.fillRect(0, 0, W, H);
-
-        this.ground = g;
     },
     // Deterministic dot placement for the crowd texture — no state kept, just needs to not be pure Math.random
     // per band/index or the rings would shimmer if buildArenaGround ever re-ran mid-battle.
@@ -1994,8 +2019,11 @@ const Battle = {
             ctx.translate(Math.sin(this.battleTime * 97) * s, Math.cos(this.battleTime * 71) * s);
         }
 
+        // pixel ground (2.1): zoomed in, its pixels stay hard-edged like the soldiers'
+        ctx.imageSmoothingEnabled = false;
         if(this.ground._s === 1) ctx.drawImage(this.ground, 0, 0);
         else ctx.drawImage(this.ground, 0, 0, W, H);   // baked sharper for the WebGL path, then the setting flipped
+        ctx.imageSmoothingEnabled = true;
 
         // Water shimmer (the only animated terrain effect)
         if(this.terrain && this.terrain.rivers && !Game.lite()) {
@@ -2487,21 +2515,8 @@ const Battle = {
         if(!Swordsman.ready() || u.isBoss || u.beast) return null;
         let side = u.cloth && Swordsman.DYE[u.cloth] ? u.cloth : u.isPlayerTeam ? (this.playerCloth || 'player') : (this.enemyCloth || 'bandit');
         let mounted = u.mounted || u.type === 'cavalry';
-        if(u.id === 'player') {
-            let eq = state.player.equipment, w = eq.weapon, ar = eq.armor, hm = eq.helmet;
-            let fem = state.player.background && state.player.background.gender === 'female';
-            let rider = {
-                armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
-                helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
-                skin: 0, hair: fem ? 3 : 0, cloth: side
-            };
-            if(mounted) {
-                let hp = (eq.horse && eq.horse.basePrice) || 0;
-                return { kind: 'horse', rider, cloth: side, coat: hp < 1000 ? 'bay' : hp < 2000 ? 'grey' : 'black' };
-            }
-            if(w && w.weaponType === 'bow') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
-            return Object.assign({ kind: 'foot' }, rider);
-        }
+        if(u.id === 'player')
+            return this.heroLook(state.player.equipment, state.player.background && state.player.background.gender === 'female', side, mounted);
         if(u.icon === '🎖️' || u.icon === '💍') return null;
         let tier = Math.max(0, Math.min(2, u.tier || 0)), h = this.idHash(u), lite = Game.lite();
         let rider = {
@@ -2511,6 +2526,30 @@ const Battle = {
         if(mounted) return { kind: 'horse', rider, cloth: side, coat: ['bay', 'grey', 'black'][tier] };
         if(u.type === 'archer') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
         if(u.type !== 'infantry') return null;
+        return Object.assign({ kind: 'foot' }, rider);
+    },
+    // Round 1 chose "the kingdom's colours on the clothes" to tell the sides apart (2.1): a
+    // soldier drawn as a sprite wears his side, so only a unit without clothes to show (a beast,
+    // the boss, a figure still waiting for its sheet) keeps the ground ring. The player's gold
+    // pulse is not a team mark and stays.
+    teamRing(u) { return !this.spriteLook(u); },
+    // The player's look from what they wear — shared by the battle and the character creation
+    // preview (2.1), which feeds it the equipment the chosen background would give
+    heroLook(eq, fem, side, mounted) {
+        let w = eq.weapon, ar = eq.armor, hm = eq.helmet;
+        let rider = {
+            armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
+            helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
+            skin: 0, hair: fem ? 3 : 0, cloth: side, fem: !!fem,
+            // what's in the hand and on the chest beyond the pack's sword and chain (2.1)
+            wpn: !w ? '' : /^axe/.test(w.id) ? 'axe' : w.id === 'mace_warhammer' ? 'hammer' : w.id === 'mace_spiked' ? 'spiked' : /^mace/.test(w.id) ? 'mace' : w.weaponType === 'polearm' ? 'spear' : '',
+            plate: !!ar && (ar.defense || 0) >= 30
+        };
+        if(mounted) {
+            let hp = (eq.horse && eq.horse.basePrice) || 0;
+            return { kind: 'horse', rider, cloth: side, coat: hp < 1000 ? 'bay' : hp < 2000 ? 'grey' : 'black' };
+        }
+        if(w && w.weaponType === 'bow') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
         return Object.assign({ kind: 'foot' }, rider);
     },
     idHash(u) {
@@ -2662,15 +2701,17 @@ const Battle = {
         ctx.fillStyle = `rgba(0,0,0,${0.5 - hop*0.03})`; ctx.fill();
 
         if(!dead) {
-            ctx.beginPath();
-            ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
-            ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
-            ctx.fill();
-            // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
-            // the enemy's is dashed — still distinguishable on a grayscale screen.
-            ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
-            ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
-            ctx.setLineDash([]);
+            if(this.teamRing(u)) {
+                ctx.beginPath();
+                ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
+                ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
+                ctx.fill();
+                // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
+                // the enemy's is dashed — still distinguishable on a grayscale screen.
+                ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
+                ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
+                ctx.setLineDash([]);
+            }
 
             if(isPlayer) {
                 let pulse = 1 + Math.sin(now/300)*0.12;
@@ -3558,6 +3599,19 @@ const Battle = {
     // enough. The button now asks, with the fight paused, and names the price; "back to the
     // fight" is the primary answer, so Enter, Esc and × all land on the safe side (canDismiss
     // lets this one window close mid-battle). Every way out resumes the fight (Game.closeModal).
+    // Phone battle (2.1, round 1): no bottom strip; the pause button in the corner opens this —
+    // back to the fight, or give up (which still asks, as the button always did). It rides the
+    // surrender prompt's own door: closing the window resumes the fight.
+    pauseMenu() {
+        if(!this.active) return;
+        this.paused = true;
+        this._askingSurrender = true;
+        Game.showModal(`<h3>${T`⏸ Duraklatıldı`}</h3>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.6rem">
+                <button class="btn primary" onclick="Game.closeModal()">${T`⚔️ Savaşa Dön`}</button>
+                <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Battle.askSurrender()">${T`🏳️ Teslim Ol`}</button>
+            </div>`, '340px');
+    },
     askSurrender() {
         if(!this.active) return this.surrender();
         this.paused = true;
@@ -4129,6 +4183,161 @@ const Swordsman = (() => {
         }
     }
 
+    // ---- other weapons and plate (2.1, round 1's promise: the pack only has swords) ----
+    // An axe, a mace or a spear is the sword layer made into a haft — its steel greys turned to
+    // wood — with a head drawn at the far end, pointing the way the blade pointed. The grip is the
+    // layer's pixel nearest the body, the tip the farthest, so it follows every swing.
+    const WOOD = ['#4a3420', '#6b4e2e', '#8a6a40'], STEEL_H = ['#2a2d33', '#6e7680', '#9aa3ad', '#c9d0d6', '#eef2f4'];
+    function weapon(x, lvl, anim, part, f, row, kind) {
+        if(!kind) return layer(x, lvl, anim, part, f, row);
+        const t = cell(), tx = t.getContext('2d');
+        layer(tx, lvl, anim, part, f, row);
+        const id = tx.getImageData(0, 0, F, F), d = id.data, BX = 32, BY = 33;
+        let grip = null, tip = null, gd = 1e9, td = -1;
+        for(let i = 0; i < F * F; i++) {
+            const o = i * 4;
+            if(!d[o + 3]) continue;
+            const px = i % F, py = (i / F) | 0, dist = (px - BX) ** 2 + (py - BY) ** 2;
+            if(dist < gd) { gd = dist; grip = [px, py]; }
+            if(dist > td) { td = dist; tip = [px, py]; }
+            const r = d[o], g = d[o + 1], b = d[o + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            if(mx > 90 && b >= r - 8 && mx - mn < 90) {     // blade steel (grey to steel-blue) -> haft wood, by brightness
+                const w = WOOD[mx > 190 ? 2 : mx > 140 ? 1 : 0]; d[o] = parseInt(w.slice(1, 3), 16); d[o + 1] = parseInt(w.slice(3, 5), 16); d[o + 2] = parseInt(w.slice(5, 7), 16);
+            }
+        }
+        tx.putImageData(id, 0, 0);
+        if(tip && grip && td > 16) {
+            let dx = tip[0] - grip[0], dy = tip[1] - grip[1], L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+            const nx = -dy, ny = dx, P = (a, b, c) => { tx.fillStyle = c; tx.fillRect(Math.round(a), Math.round(b), 1, 1); };
+            if(kind === 'axe') {                           // a bearded blade on one side of the haft
+                const W = [3, 5, 6, 6, 4, 2];
+                W.forEach((w, s) => {
+                    const cx = tip[0] - dx * s, cy = tip[1] - dy * s;
+                    for(let k = 1; k <= w; k++) P(cx + nx * k, cy + ny * k, k === w ? STEEL_H[4] : STEEL_H[s === 0 || s === W.length - 1 ? 1 : 2]);
+                    P(cx + nx * (w + 1), cy + ny * (w + 1), STEEL_H[0]);
+                });
+                P(tip[0] + dx, tip[1] + dy, STEEL_H[0]);
+            } else if(kind === 'mace' || kind === 'hammer' || kind === 'spiked') {
+                const cx = tip[0] + dx, cy = tip[1] + dy;
+                if(kind === 'hammer') {                    // a block across the haft
+                    for(let k = -3; k <= 3; k++) for(let s = -1; s <= 1; s++) P(cx + nx * k + dx * s, cy + ny * k + dy * s, Math.abs(k) === 3 || s === 1 ? STEEL_H[0] : s === -1 ? STEEL_H[3] : STEEL_H[2]);
+                } else {
+                    for(let yy = -3; yy <= 3; yy++) for(let xx = -3; xx <= 3; xx++) {
+                        const r2 = xx * xx + yy * yy;
+                        if(r2 <= 9) P(cx + xx, cy + yy, r2 > 5 ? STEEL_H[0] : xx + yy < -1 ? STEEL_H[3] : STEEL_H[2]);
+                    }
+                    if(kind === 'spiked') for(const [a, b] of [[0, -4], [4, 0], [0, 4], [-4, 0]]) P(cx + a, cy + b, STEEL_H[4]);
+                }
+            } else if(kind === 'spear') {                  // a leaf-shaped point past the tip
+                for(let s = 1; s <= 5; s++) {
+                    const w = s < 2 ? 1 : s < 4 ? 2 : 1, cx = tip[0] + dx * s, cy = tip[1] + dy * s;
+                    for(let k = -w + 1; k < w; k++) P(cx + nx * k, cy + ny * k, k === 0 ? STEEL_H[4] : STEEL_H[2]);
+                }
+                P(tip[0] + dx * 6, tip[1] + dy * 6, STEEL_H[0]);
+            }
+        }
+        x.drawImage(t, 0, 0);
+    }
+    // Plate: steel shoulder guards on the body layer's shoulders and a bright ridge down the chest
+    // (the pack's chain shirt is the top armour level; plate is drawn over it)
+    function plateArmour(bx, dir, anim) {
+        const id = bx.getImageData(0, 0, F, F).data;
+        let x0 = F, y0 = F, x1 = -1, y1 = -1;
+        for(let i = 0; i < F * F; i++) if(id[i * 4 + 3]) { const px = i % F, py = (i / F) | 0; if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py; }
+        if(x1 < 0 || anim === 'Death') return;
+        const P = (a, b, w, h, c) => { bx.fillStyle = c; bx.fillRect(a, b, w, h); };
+        const guard = gx => { P(gx - 1, y0 - 1, 5, 1, STEEL_H[0]); P(gx - 1, y0, 1, 3, STEEL_H[0]); P(gx + 3, y0, 1, 3, STEEL_H[0]); P(gx, y0, 3, 3, STEEL_H[2]); P(gx, y0, 3, 1, STEEL_H[4]); P(gx, y0 + 3, 3, 1, STEEL_H[0]); };
+        const mid = (x0 + x1 + 1) >> 1;
+        if(dir === 'down' || dir === 'up') {
+            guard(x0 + 1); guard(x1 - 3);
+            if(dir === 'down') { P(mid - 1, y0 + 4, 2, 5, STEEL_H[2]); P(mid - 1, y0 + 4, 1, 5, STEEL_H[3]); }
+        } else {
+            guard(dir === 'left' ? mid - 1 : mid - 2);
+            P(dir === 'left' ? x0 + 2 : x1 - 3, y0 + 4, 1, 5, STEEL_H[3]);
+        }
+    }
+
+    // ---- a woman's hair (2.1, round 1's "same body, long hair, a different face") ----
+    // The pack only has a man's spiky crop, so for a woman the head layer is first trimmed to a
+    // smooth dome (spikes outside an ellipse over the face go, the edge is re-outlined), then a
+    // style is drawn by code: parts that hang behind the head before it, the rest after. Placed
+    // by the head layer's own box, so it follows every frame's bob and turn; painted in the pack's
+    // hair palette, so colourMap recolours it with the rest of the hair. Styles under review
+    // (tur 5): 'tail' ponytail and 'bun'; a braid and shoulder-length hair were tried and dropped.
+    const HAIR_SET = new Set([...HAIR, HAIR_LINE].map(hkey)), SKIN_SET = new Set(SKIN.map(hkey));
+    function headBox(hx) {
+        const d = hx.getImageData(0, 0, F, F).data;
+        let x0 = F, y0 = F, x1 = -1, y1 = -1, s0 = F, s1 = -1, sy = F;
+        for(let i = 0; i < F * F; i++) {
+            if(!d[i * 4 + 3]) continue;
+            const px = i % F, py = (i / F) | 0;
+            if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py;
+            if(SKIN_SET.has(key(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]))) { if(px < s0) s0 = px; if(px > s1) s1 = px; if(py < sy) sy = py; }
+        }
+        if(x1 < 0) return null;
+        if(s1 < 0) {                                    // seen from behind: no face, so the skull's width comes from
+            const mid = y0 + ((y1 - y0) >> 1);          // the lower half, which the spikes never reach
+            s0 = F; s1 = -1;
+            for(let i = mid * F; i < F * F; i++) if(d[i * 4 + 3]) { const px = i % F; if(px < s0) s0 = px; if(px > s1) s1 = px; }
+            s0 += 2; s1 -= 2; sy = y0 + Math.round((y1 - y0) * 0.55);
+        }
+        return { x0, y0, x1, y1, s0, s1, sy };
+    }
+    function smoothDome(hx, hb) {
+        const id = hx.getImageData(0, 0, F, F), d = id.data;
+        const cx = (hb.s0 + hb.s1) / 2, rx = (hb.s1 - hb.s0) / 2 + 2.2, cy = hb.sy + 2, ry = Math.max(6, cy - hb.y0 - 1);
+        const hair = i => d[i * 4 + 3] && HAIR_SET.has(key(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]));
+        for(let i = 0; i < F * F; i++) {
+            if(!hair(i)) continue;
+            const px = i % F, py = (i / F) | 0, ex = (px + 0.5 - cx) / rx, ey = py < cy ? (py + 0.5 - cy) / ry : 0;
+            if(ex * ex + ey * ey > 1) d[i * 4 + 3] = 0;
+        }
+        const [lr, lg, lb] = [1, 3, 5].map(k => parseInt(HAIR_LINE.slice(k, k + 2), 16));
+        const edge = [];
+        for(let i = 0; i < F * F; i++) {
+            if(!hair(i)) continue;
+            const px = i % F, py = (i / F) | 0;
+            if([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const qx = px + dx, qy = py + dy; return qx < 0 || qy < 0 || qx >= F || qy >= F || !d[(qy * F + qx) * 4 + 3]; })) edge.push(i);
+        }
+        edge.forEach(i => { d[i * 4] = lr; d[i * 4 + 1] = lg; d[i * 4 + 2] = lb; });
+        hx.putImageData(id, 0, 0);
+    }
+    function femHair(x, hb, dir, stage, style, sway) {
+        const P = (a, b, w, h, c) => { x.fillStyle = c; x.fillRect(a, b, w, h); };
+        const cx = (hb.s0 + hb.s1 + 1) >> 1, top = hb.y0, back = hb.y1;
+        const ball = (bx, by, r) => {
+            for(let yy = -r - 1; yy <= r + 1; yy++) for(let xx = -r - 1; xx <= r + 1; xx++) {
+                const q = xx * xx + yy * yy;
+                if(q <= r * r) P(bx + xx, by + yy, 1, 1, xx + yy < -1 ? HAIR[4] : HAIR[2]);
+                else if(q <= (r + 1) * (r + 1)) P(bx + xx, by + yy, 1, 1, HAIR_LINE);
+            }
+        };
+        const side = dir === 'left' ? 1 : -1;            // the back of the head in profile
+        const nape = side > 0 ? hb.x1 - 2 : hb.x0 + 2;
+        // a ponytail: gathered at the tie, swelling a little, then narrowing to a point; in profile it
+        // arcs out from the back of the head before it falls
+        const tail = (sx, y, len, arc) => {
+            for(let r = 0; r <= len; r++) {
+                const f = r / len, ox = Math.round(sx + arc * Math.sin(Math.PI * Math.min(1, f * 1.25)) * 0.9 + sway * f);
+                const w = r < 2 ? 2 : f < 0.7 ? 3 : f < 0.88 ? 2 : 1;
+                P(ox - 1, y + r, w + 2, 1, HAIR_LINE); P(ox, y + r, w, 1, HAIR[2]);
+                if(w > 1) P(ox + (arc < 0 ? w - 1 : 0), y + r, 1, 1, HAIR[4]);
+            }
+        };
+        if(style === 'tail') {
+            if(stage === 'back' && (dir === 'left' || dir === 'right')) tail(nape + side, hb.sy - 3, 11, side * 2.2);
+            if(stage === 'front' && dir === 'up') tail(cx - 1, hb.sy - 2, 11, 0);
+            if(stage === 'front' && dir !== 'down') P(dir === 'up' ? cx - 1 : nape + (side > 0 ? 0 : -1), hb.sy - 4, 2 + (dir === 'up'), 2, '#b3413a');   // the tie
+        } else if(style === 'bun') {
+            if(stage === 'back' && dir === 'down') ball(cx, top + 1, 3);
+            if(stage === 'front' && dir === 'up') ball(cx, top + 4, 3);
+            if(stage === 'front' && (dir === 'left' || dir === 'right')) ball(nape - side, top + 5, 3);
+        }
+        if(stage === 'front' && dir === 'down') P(cx, hb.y1 - 2, 1, 1, '#c9706a');                    // a softer mouth
+    }
+    const FEM_SWAY = [0, 1, 0, -1];
+    let femStyle = 'tail';
+
     // ---- composed frames ----
     const mapCache = {};
     function colourMap(look) {
@@ -4156,7 +4365,7 @@ const Swordsman = (() => {
     function art(look, anim, dir, t) {
         if(!ready()) return null;
         const f = frameIndex(anim, t), row = ROW[dir];
-        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, anim, row, f].join('|');
+        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, look.fem ? 'f' + (look.hairStyle || femStyle) : '', look.wpn || '', look.plate ? 'p' : '', anim, row, f].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }   // keep recently used frames
         c = bake(look, anim, row, f, dir);
@@ -4176,12 +4385,18 @@ const Swordsman = (() => {
         const wl = hasAnim(look.weapon, a) ? look.weapon : 2;
         const head = cell(), hx = head.getContext('2d');
         layer(hx, look.armor, a, 'head', fr, row);
+        const fem = look.fem && a !== 'Death', hb = fem ? headBox(hx) : null, style = look.hairStyle || femStyle;
+        const sway = a === 'Walk' || a === 'Run' ? FEM_SWAY[fr % 4] : 0;
+        if(hb) smoothDome(hx, hb);
         if(look.helm) { const id = hx.getImageData(0, 0, F, F); helmet(id, look.helm, a, row, fr, look.armor); hx.putImageData(id, 0, 0); }
         const comp = cell(), x = comp.getContext('2d');
-        layer(x, wl, a, 'sword_back', fr, row);
-        layer(x, look.armor, a, 'body', fr, row);
+        weapon(x, wl, a, 'sword_back', fr, row, look.wpn);
+        if(look.plate) { const b = cell(), bx = b.getContext('2d'); layer(bx, look.armor, a, 'body', fr, row); plateArmour(bx, dir, a); x.drawImage(b, 0, 0); }
+        else layer(x, look.armor, a, 'body', fr, row);
+        if(hb) femHair(x, hb, dir, 'back', style, sway);
         x.drawImage(head, 0, 0);
-        layer(x, wl, a, 'sword', fr, row);
+        if(hb) femHair(x, hb, dir, 'front', style, sway);
+        weapon(x, wl, a, 'sword', fr, row, look.wpn);
         const id = x.getImageData(0, 0, F, F), d = id.data, m = colourMap(look);
         let x0 = F, y0 = F, x1 = -1, y1 = -1;
         for(let i = 0; i < d.length; i += 4) {
@@ -4366,7 +4581,7 @@ const Mounted = (() => {
         const hf = s.dead ? Horse.frameOf('gallop', s.deadT * 1000) : Horse.frameOf(s.gait, s.gt);
         const fade = s.dead ? Math.min(4, Math.floor(s.deadT / 0.2)) : 0;
         const rf = Swordsman.frameIndex(s.anim, s.t);
-        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
+        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.rider.fem ? 'f' + (look.rider.hairStyle || '') : '', look.rider.wpn || '', look.rider.plate ? 'p' : '', look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }
         c = document.createElement('canvas'); c.width = CW; c.height = CH;

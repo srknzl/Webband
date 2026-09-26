@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.0.0', date: '2026-09-26', name: 'Yeni Yüz' };  // the version name is not translated
+const VERSION = { no: '2.1.0', date: '2026-09-26', name: 'Canlanış' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -728,6 +728,8 @@ const Input = {
                document.getElementById('main-ui').classList.contains('active')) {
                 let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[k];
                 if(scr) Game.showScreen(scr);
+                // 1-9 press a settlement card (2.1): digits belong to nothing else outside battle
+                else if(/^[1-9]$/.test(e.key) && Game.settlementKey(e.key)) e.preventDefault();
                 // Esc returns to the map from any screen; a second Esc — already on the map,
                 // nothing left to back out of — pauses the game (#113).
                 else if(e.key === 'Escape') {
@@ -2198,12 +2200,13 @@ const Game = {
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
-        let html = `${this.creationSteps(step)}<h3>${T(q.q)}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>
+        let html = `${this.creationSteps(step)}${this.heroHead(`<h3>${T(q.q)}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>`)}
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn cr-opt${sel === o.id ? ' sel' : ''}"
                 aria-label="${T(o.label)}"
+                onmouseenter="Game.crHover('${q.key}','${o.id}')" onmouseleave="Game.crHover()" onfocus="Game.crHover('${q.key}','${o.id}')" onblur="Game.crHover()"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
                 <b>${T(o.label)}</b>
                 <span class="cr-desc">${T(o.desc)}</span>
@@ -2213,6 +2216,87 @@ const Game = {
         html += `</div>`;
         if(step > 0) html += `<button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
+        this.startHeroPreview();
+    },
+
+    // ---- The hero as the wizard builds them (2.1) ----
+    // Round 1 put the player's own sprite where a portrait would be: the soldier stands on a patch
+    // of the battle's meadow in the unsworn warband's gold, and every choice shows on it — a
+    // background's sword, axe or horse, a woman's long hair, the chosen banner's colour on the
+    // pennant. Pointing at an option (hover or keyboard focus) previews it before it's picked.
+    heroHead(inner) {
+        return `<div class="cr-head"><div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>
+            <span class="cr-hero-nm" id="cr-hero-nm"></span></div><div class="cr-head-tx">${inner}</div></div>`;
+    },
+    crHover(key, id) { this._crHover = key ? { key, id } : null; },
+    // what the choices so far (plus the one being pointed at) would put on the hero
+    heroPreview() {
+        let sel = Object.assign({}, this.creation.sel), h = this._crHover;
+        if(h) sel[h.key] = h.key === 'banner' ? +h.id : h.id;
+        let eq = {};
+        BACKGROUND.forEach(q => {
+            let o = q.opts.find(x => x.id === sel[q.key]);
+            if(o && o.item && ITEMS[o.item]) eq[ITEMS[o.item].type] = ITEMS[o.item];
+        });
+        let fem = sel.gender === 'female', banner = sel.banner !== undefined ? (BANNERS[sel.banner] || BANNERS[0]).color : '#8a8173';
+        let look = typeof Battle !== 'undefined' && Swordsman.ready() ? Battle.heroLook(eq, fem, 'player', !!eq.horse) : null;
+        return { look, banner };
+    },
+    startHeroPreview() {
+        let cv = document.getElementById('cr-hero');
+        if(!cv) return;
+        let nm = document.getElementById('cr-hero-nm');
+        if(nm) nm.textContent = state.player.name || '';
+        if(typeof Swordsman !== 'undefined') { Swordsman.load(); if(typeof Archer !== 'undefined') Archer.load(); }
+        let dpr = Math.min(3, window.devicePixelRatio || 1), css = cv.clientWidth || 112;
+        cv.width = cv.height = Math.round(css * dpr);
+        this._crHover = null;
+        if(this._heroId) return;                        // one loop, whichever step started it
+        const tick = t => {
+            let c = document.getElementById('cr-hero');
+            if(!c) { this._heroId = null; return; }      // the wizard closed: the loop ends with it
+            this.drawHero(c, Anim.on() ? t : 0);
+            this._heroId = requestAnimationFrame(tick);
+        };
+        this._heroId = requestAnimationFrame(tick);
+    },
+    drawHero(cv, t) {
+        let x = cv.getContext('2d'), W = cv.width, s = W / 112, { look, banner } = this.heroPreview();
+        x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, W);
+        x.imageSmoothingEnabled = false;
+        x.scale(s, s);
+        x.drawImage(this.heroGround(), 0, 0, 112, 112);
+        let fx = 56, fy = 90, k = 3;                    // the feet, and 3 CSS px per sprite pixel
+        x.fillStyle = 'rgba(0,0,0,0.3)'; x.beginPath(); x.ellipse(fx, fy, look && look.kind === 'horse' ? 30 : 16, 5, 0, 0, Math.PI * 2); x.fill();
+        // the pennant behind the hero: a pole and three rows of cloth in the chosen banner's colour
+        let px = look && look.kind === 'horse' ? fx - 34 : fx - 20, top = fy - 70, wave = ((t / 260) | 0) % 2;
+        x.fillStyle = '#5a4a36'; x.fillRect(px, top, 3, fy - top);
+        x.fillStyle = banner;
+        for(let r = 0; r < 4; r++) x.fillRect(px + 3, top + r * 3, (7 - r - (r ? wave : 0)) * 3, 3);
+        x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 3, top + 9, 12, 2);
+        if(!look) return;
+        let spr = look.kind === 'horse' ? Mounted.art(look, { gait: 'stand', gt: t, facing: 'right', anim: 'Idle', t, dead: false })
+                : look.kind === 'archer' ? Archer.art(look.cloth, 'Idle', 'down', t)
+                : Swordsman.art(look, 'Idle', 'down', t);
+        if(!spr) return;
+        let kk = look.kind === 'horse' ? 2.2 : k, w = spr.width * kk, h = spr.height * kk;
+        x.drawImage(spr, Math.round(fx - spr._ax * w), Math.round(fy - spr._ay * h), w, h);
+    },
+    // a round patch of the battle's pixel meadow for the hero to stand on, baked once
+    heroGround() {
+        if(this._heroGround) return this._heroGround;
+        let c = document.createElement('canvas'); c.width = c.height = 38;
+        let x = c.getContext('2d'), img = x.createImageData(38, 38), d = img.data, h = 7;
+        const BASE = [76, 116, 57], TONES = [[85, 128, 63], [70, 105, 58], [63, 96, 52], [91, 136, 68]];
+        for(let y = 0; y < 38; y++) for(let xx = 0; xx < 38; xx++) {
+            let dx = (xx - 18.5) / 18.5, dy = (y - 30) / 8, i = (y * 38 + xx) * 4;
+            if(y < 22 || dx * dx + dy * dy > 1) continue;              // an oval under the feet
+            h = (h * 1103515245 + 12345) >>> 0;
+            let col = (h >>> 16) % 100 < 16 ? TONES[(h >>> 8) % 4] : BASE;
+            d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+        }
+        x.putImageData(img, 0, 0);
+        return (this._heroGround = c);
     },
 
     pickCreation(key, id) {
@@ -2245,12 +2329,12 @@ const Game = {
     },
 
     renderBannerStep() {
-        let html = `${this.creationSteps(BACKGROUND.length)}<h3>${T`Sancağını seç`}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
+        let html = `${this.creationSteps(BACKGROUND.length)}${this.heroHead(`<h3>${T`Sancağını seç`}</h3>
+            <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>`)}
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
             let on = this.creation.sel.banner === i;
-            html += `<button class="btn" aria-label="${T(b.name)}" onclick="Game.pickBanner(${i})" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
+            html += `<button class="btn" aria-label="${T(b.name)}" onclick="Game.pickBanner(${i})" onmouseenter="Game.crHover('banner',${i})" onmouseleave="Game.crHover()" onfocus="Game.crHover('banner',${i})" onblur="Game.crHover()" style="cursor:pointer;width:110px;text-align:center;padding:0.5rem;
                 border-radius:var(--r-md);border:2px solid ${on ? b.color : 'var(--panel-border)'};background:rgba(0,0,0,0.3)">
                 <div style="display:flex;justify-content:center">${this.bannerCss(i, 72)}</div>
                 <div style="font-size:var(--fs-sm);margin-top:0.4rem;color:${b.color}">${T(b.name)}</div>
@@ -2258,6 +2342,7 @@ const Game = {
         });
         html += `</div><button class="btn" style="margin-top:1rem" onclick="Game.creationBack()">${T`← Geri`}</button>`;
         this.showModal(html, '660px');
+        this.startHeroPreview();
     },
 
     pickBanner(i) {
@@ -2316,7 +2401,8 @@ const Game = {
         let b = BANNERS[sel.banner || 0];
         let html = `<h3>${state.player.name}</h3>
             <div style="display:flex;gap:1.2rem;align-items:flex-start;margin-top:0.6rem">
-                ${this.bannerCss(sel.banner || 0, 96)}
+                <div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>
+                    <div style="display:flex;justify-content:center;margin-top:0.4rem">${this.bannerCss(sel.banner || 0, 56)}</div></div>
                 <div style="flex:1;font-size:var(--fs-md);line-height:1.5">
                     <div style="color:${b.color};font-weight:bold">${T`${T(b.name)} sancağı`}</div>
                     ${rows}
@@ -2328,6 +2414,7 @@ const Game = {
                 <button class="btn" onclick="Game.creationBack()">${T`← Geri`}</button>
             </div>`;
         this.showModal(html, '660px');
+        this.startHeroPreview();
     },
 
     // Applies the chosen background to the character. Single application point — the summary
@@ -2409,8 +2496,11 @@ const Game = {
         // re-stretch the canvas over the UI bar's space too, throwing off everything drawn from
         // canvas.width/height — including the minimap, pinned to the now-wrong corner.
         let battleUi = document.getElementById('battle-ui');
-        fit(document.getElementById('battle-canvas'), battleUi ? battleUi.offsetHeight : 0);
+        // (on a phone the bar floats over the field, 2.1, and takes nothing from it)
+        fit(document.getElementById('battle-canvas'), battleUi && !this.floatsOver(battleUi) ? battleUi.offsetHeight : 0);
     },
+    // Is this element laid over its neighbours rather than taking room (the phone battle bar)?
+    floatsOver(el) { return !!el && typeof getComputedStyle === 'function' && getComputedStyle(el).position === 'absolute'; },
 
     // At 144/180 Hz, rAF gives 5-7 ms budget per frame; the game looks the same at 60 fps
     // too, but it costs the GPU 2-3x the work, and dropped frames feel like stutter.
@@ -2497,6 +2587,7 @@ const Game = {
                 Anim.tick(dt);   // UI tweens run even while the clock is stopped (a purchase in a modal)
                 if(!this.clockStopped()) this.update(dt);
                 this.renderMap();
+                this.tickScene(t);
             });
             this._loopId = requestAnimationFrame(loop);
         };
@@ -5648,7 +5739,12 @@ const Game = {
         let t = document.getElementById('map-terrain-txt');
         if(!t) return;
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
-        t.innerText = T(terrain.name) + (terrain.mult !== 1 ? T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
+        // the long "(+30% speed)" reads on wide screens; a narrow phone's one-row capsule
+        // keeps only the bare percentage (style.css picks one of the two)
+        let mod = terrain.mult !== 1
+            ? `<span class="mt-long">${T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)`}</span>`
+              + `<span class="mt-short">${this.pct(Math.round((terrain.mult-1)*100), true)}</span>` : '';
+        t.innerHTML = T(terrain.name) + mod;
         // line icons, not emoji (2.0.0): the terrain's own, and a clock on the speed button
         this.setHtml('map-terrain-ico', this.icon(this.TERRAIN_ICON[terrain.name] || 'compass'));
         this.setHtml('btn-map-speed', this.icon('clock') + ' ×' + this.timeScale());
@@ -6684,12 +6780,18 @@ const Game = {
         let seen = state.career.visited = state.career.visited || [];
         if(!seen.includes(loc.id)) { seen.push(loc.id); this.checkAchievements(); }   // Haritacı (#127)
         if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
+        // Walking in (not a redraw of the same town after a purchase) opens the scene and brings
+        // the cards in one after another (2.1, style.css .entering)
+        let arriving = !document.getElementById('settlement-view').classList.contains('active') || this._enteredLoc !== loc.id;
+        this._enteredLoc = loc.id;
         // Walking in from the map called this directly, skipping showScreen()'s own bookkeeping —
         // body.view-map (#40's map-only floating chrome) stayed on, so the settlement's top bar and
         // bottom nav kept the map's fixed/floating layout and sat on top of the scene and the last
         // action button instead of making room for them in flow (#132 mobile report).
         this.showScreen('settlement');
         document.getElementById('settlement-name').innerText = T(loc.name) + (loc.type==='city'?T(' (Şehir)'):loc.type==='castle'?T(' (Kale)'):T(' (Köy)'));
+        let sub = document.getElementById('settlement-sub');
+        if(sub) sub.innerHTML = this.settlementSubline(loc);
         let ac = document.getElementById('settlement-actions');
         ac.innerHTML = '';
 
@@ -6771,6 +6873,7 @@ const Game = {
         this.addBtn(ac, T('🚪 Ayrıl'), () => this.showScreen('map'));
         this.cardSettlementActions(ac, loc);
         this.renderScene(loc);   // buttons are ready: the scene is built on top of them (#60)
+        if(arriving) this.playEntrance(document.getElementById('settlement-view'), ac);
     },
 
     // ---------- SETTLEMENT ACTION CARDS (2.0.0) ----------
@@ -6800,6 +6903,23 @@ const Game = {
         '🚪': ['door', 'camp', 'Haritaya dön'],
     },
     TOWN_GROUPS: [['trade', 'Ticaret'], ['places', 'Mekânlar'], ['army', 'Ordu'], ['war', 'Savaş'], ['camp', 'Kamp']],
+    // The line under a settlement's name (2.1, round 1's town screen): whose it is, how rich,
+    // and who is in the keep right now — so the hall isn't a guess
+    settlementSubline(loc) {
+        let f = FACTIONS[loc.faction] || { name: '?', color: '#888' };
+        let pr = Math.round(loc.prosperity || 50), prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul');
+        let parts = [`<span class="ss-dot" style="background:${f.color}"></span>${T(f.name)}`, T`Refah: ${prLbl}`];
+        if(loc.type !== 'village' && typeof Nobles !== 'undefined') {
+            let here = Nobles.lordsAt(loc.id).sort((a, b) => (b.rank === 'king') - (a.rank === 'king'));
+            if(here.length === 1) parts.push(T`${T(here[0].name)} kalede`);
+            else if(here.length > 1) parts.push(T`${T(here[0].name)} ve ${here.length - 1} soylu kalede`);
+            else parts.push(T('Kalede soylu yok'));
+        } else {
+            let lord = this.ownerLord(loc);
+            if(lord) parts.push(T`Sahibi: ${T(lord.name)}`);
+        }
+        return parts.join(' · ');
+    },
     cardSettlementActions(ac, loc) {
         let groups = {};
         [...ac.querySelectorAll(':scope > button')].forEach(b => {
@@ -6812,6 +6932,10 @@ const Game = {
             if(m && m[1]) { text = m[1]; meta = m[2]; }
             b.classList.add('act-card');
             if(group === 'camp') b.classList.add('act-quiet');
+            if(emo === '🚪') b.classList.add('act-leave');
+            // a price you can't pay: the card is dimmed and its price red (round 1's town screen)
+            let cost = /(dinar|denar)/i.test(meta) && (meta.match(/\d[\d.,]*/) || [])[0];
+            if(cost && parseInt(cost.replace(/[.,]/g, ''), 10) > state.player.money) b.classList.add('act-poor');
             b.innerHTML = `<span class="sr-only">${label}</span>`
                 + `<span class="ac-ic" aria-hidden="true">${this.icon(icon)}</span>`
                 + `<span class="ac-tx" aria-hidden="true"><b>${text}</b>${hint ? `<small>${T(hint)}</small>` : ''}</span>`
@@ -6827,6 +6951,21 @@ const Game = {
             groups[g].forEach(b => sec.lastChild.appendChild(b));
             ac.appendChild(sec);
         });
+        // keyboard: the cards are numbered 1-9 in reading order, Esc leaves (Game.settlementKey)
+        let n = 0;
+        ac.querySelectorAll('.act-card').forEach(b => {
+            let key = b.classList.contains('act-leave') ? 'Esc' : ++n <= 9 ? String(n) : '';
+            if(key) b.insertAdjacentHTML('beforeend', `<kbd class="ac-kbd" aria-hidden="true">${key}</kbd>`);
+        });
+    },
+    // 1-9 on the settlement screen press that card (numbered by cardSettlementActions)
+    settlementKey(k) {
+        if(!document.getElementById('settlement-view').classList.contains('active')) return false;
+        let cards = [...document.querySelectorAll('#settlement-actions .act-card:not(.act-leave)')];
+        let b = cards[+k - 1];
+        if(!b || b.disabled) return false;
+        b.click();
+        return true;
     },
 
     // Dialogue buttons as cards (2.0.0), the town cards' look for any list of `.btn`s: a line icon
@@ -6869,6 +7008,7 @@ const Game = {
         let btns = [...document.getElementById('settlement-actions').querySelectorAll('button')];
         this._sceneLoc = loc;
         this._sceneBtns = btns;
+        this._sceneHover = -1;                 // tickScene redraws with it: no stale highlight from the last town
         this.sceneHot = [];
         // Device-pixel backing store (#101). Assigning width/height also wipes the canvas, so it
         // happens before the draw, and drawScene re-applies the scale transform on every call.
@@ -6979,6 +7119,80 @@ const Game = {
     // Deliberately NOT applied to the map and battle canvases: those redraw every frame, and
     // the bottleneck there is the compositor, not the drawing — 4x the pixels would cost frames.
     sceneDpr() { return Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1); },
+
+    // ---------- MOTION POLISH (2.1) ----------
+    // Each is a CSS animation or a Web Animation, so the reduced-motion setting (body.reduced-motion
+    // and Anim.on()) turns every one of them off in one place; none of them blocks a tap.
+
+    // Walking into a settlement: the scene rises into view, the cards follow one by one
+    playEntrance(view, ac) {
+        if(!view || !Anim.on()) return;
+        ac.querySelectorAll('.act-card').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 14)));
+        view.classList.remove('entering'); void view.offsetWidth; view.classList.add('entering');
+        clearTimeout(this._enterT);
+        this._enterT = setTimeout(() => view.classList.remove('entering'), 1400);
+    },
+    // Something flies from one spot of the screen to another (a bought item into the bag, coins
+    // into the purse), then the target gives a short pop. `html` is what flies; `n` copies trail.
+    fly(from, to, html, n = 1) {
+        if(!from || !to || !Anim.on() || typeof document.body.animate !== 'function') return;
+        let a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+        if(!a.width || !b.width) return;
+        let x0 = a.left + a.width / 2, y0 = a.top + a.height / 2, x1 = b.left + Math.min(b.width / 2, 22), y1 = b.top + b.height / 2;
+        let lift = Math.min(90, 30 + Math.abs(x1 - x0) * 0.15);
+        for(let i = 0; i < Math.min(n, 5); i++) {
+            let el = document.createElement('div');
+            el.className = 'fx-fly';
+            el.innerHTML = html;
+            el.style.left = x0 + 'px'; el.style.top = y0 + 'px';
+            document.body.appendChild(el);
+            let dx = x1 - x0, dy = y1 - y0;
+            el.animate([
+                { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+                { transform: `translate(calc(-50% + ${dx * 0.5}px), calc(-50% + ${dy * 0.5 - lift}px)) scale(0.9)`, opacity: 1, offset: 0.45 },
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.45)`, opacity: 0.35 }
+            ], { duration: 620, delay: i * 70, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'both' }).onfinish = () => {
+                el.remove();
+                if(i === 0) { to.classList.remove('fx-pop'); void to.offsetWidth; to.classList.add('fx-pop'); }
+            };
+        }
+    },
+    // A gold banner that slides down from the top and leaves by itself: a level, a finished quest.
+    // Over any window (a level-up also opens one), and never in the way of a tap.
+    flourish(title, sub, icon = 'star') {
+        if(typeof document === 'undefined') return;
+        let el = document.getElementById('flourish');
+        if(!el) { el = document.createElement('div'); el.id = 'flourish'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+        el.innerHTML = `<span class="fl-ic">${this.icon(icon)}</span><span class="fl-tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>`
+            + '<i></i><i></i><i></i><i></i><i></i><i></i>';
+        el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+        clearTimeout(this._flT);
+        this._flT = setTimeout(() => el.classList.remove('on'), Anim.on() ? 3000 : 2400);
+    },
+    // Into battle: the screen goes dark on the field and a title rises and fades (1 s)
+    curtain(title, sub) {
+        if(typeof document === 'undefined' || !Anim.on()) return;
+        let el = document.getElementById('curtain');
+        if(!el) { el = document.createElement('div'); el.id = 'curtain'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
+        el.innerHTML = `<div class="ct-box"><span class="ct-ic">${this.icon('swords')}</span><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+        el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+        clearTimeout(this._ctT);
+        this._ctT = setTimeout(() => el.classList.remove('on'), 1300);
+    },
+
+    // The settlement scene lives (2.1): smoke, flags, flames, birds, a villager on the road
+    // (MapArt.sceneLife). Redrawn from the map loop about 12 times a second — pixel art needs no
+    // more — only while the settlement screen shows and no window covers it; under reduced
+    // motion the scene stays still and is drawn only on change, as before.
+    tickScene(t) {
+        if(!this._sceneLoc || !Anim.on() || t - (this._sceneT || 0) < 83) return;
+        if(!document.getElementById('settlement-view').classList.contains('active')) return;
+        if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
+        let cv = document.getElementById('scene-canvas');
+        if(!cv) return;
+        this._sceneT = t;
+        this.drawScene(cv.getContext('2d'), this._sceneLoc, this._sceneBtns, this._sceneHover >= 0 ? this._sceneHover : -1);
+    },
 
     drawScene(ctx, loc, btns, hover) {
         let dpr = this.sceneDpr();
@@ -7640,7 +7854,19 @@ const Game = {
     mktGo() {
         let m = this._mkt;
         if(!m || !m.sel) return;
+        // what flies where once the trade went through (2.1): the item into the bag, coins to the purse
+        let tile = document.querySelector(`#mrow-${m.mode}-${m.sel} .mt-ic`) || document.getElementById(`mrow-${m.mode}-${m.sel}`);
+        let from = tile ? tile.cloneNode(true) : null, rect = tile ? tile.getBoundingClientRect() : null;
+        let money0 = state.player.money, id = m.sel, mode = m.mode, n0 = m.qty;
         if(m.mode === 'buy') this.buyItem(m.sel, m.qty); else this.sellItem(m.sel, m.qty);
+        if(rect && state.player.money !== money0) {
+            let ghost = document.createElement('div');
+            Object.assign(ghost.style, { position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
+            document.body.appendChild(ghost);
+            let to = document.getElementById(mode === 'buy' ? 'mst-bag' : 'mst-gold');
+            this.fly(ghost, to, mode === 'buy' ? this.itemIco(ITEMS[id]) : this.icon('coin'), mode === 'buy' ? Math.min(3, n0) : Math.min(5, 1 + (n0 >> 1)));
+            ghost.remove();
+        }
         m.qty = 1;
         if(m.mode === 'sell' && !state.player.inventory.some(i => i.id === m.sel)) m.sel = null;
         this.refreshMarket();
@@ -7802,11 +8028,11 @@ const Game = {
     marketStatusHtml() {
         let cap = this.cargoCap(), load = this.cargoLoad(), over = load > cap;
         let fs = this.foodStock();
-        let chip = (txt, col) => `<span style="padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
+        let chip = (txt, col, id) => `<span${id ? ` id="${id}"` : ''} style="display:inline-block;padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
         return `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;font-size:var(--fs-sm);margin-top:0.5rem">
-            ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '')}
+            ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '', 'mst-bag')}
             ${chip(T`🍞 Yiyecek: ${isFinite(fs.days) ? fs.days : '∞'} gün`, fs.days < 3 ? '#e8a13a' : '')}
-            ${chip(T`💰 ${Math.floor(state.player.money)}₺`)}
+            ${chip(T`💰 ${Math.floor(state.player.money)}₺`, '', 'mst-gold')}
             ${this.daysToWinter() <= 15 ? chip((this.isWinter() ? T`❄️ Kış` : T`❄️ Kışa ${this.daysToWinter()} gün`) + ` · ${T`🔥 Kömür: ${this.coalDays()} gün`}`,
                                                 this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
         </div>`;
@@ -11705,8 +11931,9 @@ const Game = {
             s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord-style 3 focus points per level
             this.updateStatsFromEquip(); // +10 max HP per level — from the one formula
             s.hp = s.maxHp;
-            alert(`${T`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.`}<br>` +
-                  `${T`Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`}`);
+            // 2.1: the gold banner alone — no window to click away; the map's glowing points
+            // button and the character screen carry the rest (what a target point means)
+            this.flourish(T`Seviye ${s.level}!`, T('1 nitelik, 3 odak puanı'), 'up');
         }
         this.updateTopBar();
     },

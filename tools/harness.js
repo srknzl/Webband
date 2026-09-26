@@ -43,6 +43,7 @@ function fakeCtx() {
         createPattern: () => ({}),
         measureText: t => ({ width: String(t).length * 6 }),
         getImageData: (x, y, w, h) => ({ data: new Uint8ClampedArray(4 * Math.max(1, w) * Math.max(1, h)) }),
+        createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(4 * Math.max(1, w) * Math.max(1, h)) }),
         putImageData: noop,
         setLineDash: noop,
         getLineDash: () => [],
