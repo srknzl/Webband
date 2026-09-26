@@ -672,6 +672,450 @@ const MapArt = (() => {
         labels = [];
     }
 
+    // --- the settlement scene (visual refresh step 5) ------------------------------------------
+    // 300x94 pixels drawn 3x into the scene canvas's 900x280 units. The land behind is the
+    // founding kingdom's (Swadian hills, Rhodok peaks, the Nord sea, Vaegir snow, the Khergit
+    // steppe), the walls behind by settlement type, and every clickable building in the
+    // kingdom's style. The still part is cached per settlement, time of day and button set; a
+    // hover only redraws the gold outline, the sign and the tooltip.
+    const SW = 300, SH = 94, SK = 3, HORIZON = 62;
+    const LAND = {
+        swadia:  { far: ['#9fbd8a', '#86a973'], hill: ['#6f9d4a', '#5b8a3e'], ground: ['#6f8440', '#7e9149', '#8c9c52'], look: 'hills' },
+        rhodok:  { far: ['#aab3bd', '#8f99a4'], hill: ['#7b8a52', '#6a7846'], ground: ['#7a7c46', '#88894e', '#969658'], look: 'peaks' },
+        nord:    { far: ['#6f93a6', '#4f7888'], hill: ['#4c7656', '#3e6448'], ground: ['#587a50', '#648659', '#709163'], look: 'sea' },
+        vaegir:  { far: ['#d4dde1', '#b7c5cb'], hill: ['#c9d4d7', '#aebcc0'], ground: ['#9fb0ad', '#b3c1bf', '#ccd6d6'], look: 'snow' },
+        khergit: { far: ['#c2bb7c', '#aea768'], hill: ['#a8a25b', '#968f4d'], ground: ['#9c9453', '#aba25c', '#bab06a'], look: 'steppe' }
+    };
+    const SKY = {
+        day:   ['#5b98d4', '#78ade0', '#9bc4e8', '#c6dcec'],
+        dusk:  ['#3a3f6e', '#7d5670', '#cc7548', '#e9b076'],
+        night: ['#0a0f26', '#121937', '#1b2349', '#26305a']
+    };
+    const SCENE_KIND = {
+        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'house', '🏭': 'shop', '📦': 'barn',
+        '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔': 'tent', '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate', '⏳': 'fire'
+    };
+    const BUILD = new Map(), BASES = new Map(), ICONS = {};
+
+    // the town cards' line icon, as an image the canvas can stamp (drawn once, then cached)
+    function iconImg(name, stroke, onload) {
+        const k = name + stroke;
+        if(ICONS[k]) return ICONS[k].complete ? ICONS[k] : null;
+        const sym = document.getElementById('i-' + name);
+        if(!sym) return null;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${sym.getAttribute('viewBox') || '0 0 24 24'}" width="48" height="48" fill="none" stroke="${stroke}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${sym.innerHTML}</svg>`;
+        const im = new Image();
+        im.onload = onload;
+        im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        ICONS[k] = im;
+        return null;
+    }
+
+    function bbox(g) {
+        const d = g.x.getImageData(0, 0, g.w, g.h).data;
+        let x0 = g.w, y0 = g.h, x1 = -1, y1 = -1;
+        for(let y = 0; y < g.h; y++) for(let x = 0; x < g.w; x++) if(d[(y * g.w + x) * 4 + 3]) { if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y; }
+        return x1 < 0 ? { x: 0, y: 0, w: g.w, h: g.h } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+    }
+    // a copy of a sprite with a gold ring round it, for the building under the pointer
+    function goldRing(src) {
+        const g = sheet(src.width + 2, src.height + 2);
+        g.x.drawImage(src, 1, 1);
+        outline(g, '#ffd24a');
+        return g.c;
+    }
+
+    // one clickable building, `w` wide and about `h` tall, standing on the sheet's last row
+    function building(kind, cul, w, h, col) {
+        const key = [kind, cul, w, h, col].join('|');
+        if(BUILD.has(key)) return BUILD.get(key);
+        const S = STYLE[cul], yurtish = cul === 'khergit', snow = cul === 'vaegir';
+        const g = sheet(w, h + 16), gy = h + 15, cx = w >> 1;
+        const awning = (x0, x1, y) => { for(let x = x0; x < x1; x++) { const on = ((x - x0) >> 2) & 1; g.px(x, y, 1, 3, on ? col : '#ede4cf'); g.px(x, y + 3, 1, 1, on ? '#00000055' : '#c9bfa7'); } };
+        if(kind === 'tower') {
+            if(yurtish) { yurt(g, cx, gy, w - 6, S, true); tugh(g, cx + (w >> 2), gy, col); }
+            else {
+                wall(g, 1, gy, w - 2, Math.round(h * 0.34), S);
+                const tw = Math.max(8, Math.round(w * 0.42)) | 1, topH = S.top === 'cone' ? Math.ceil((tw + 2) * 0.9) : S.top === 'onion' ? 7 : S.top === 'wood' ? 4 : 1;
+                tower(g, cx - (tw >> 1), gy, tw, Math.max(10, h - 2 - topH), S);
+                flag(g, cx, Math.max(0, gy - (h - 2 - topH) - topH - 7), col);
+                gate(g, cx - 2, gy, 4, 5);
+            }
+        } else if(kind === 'house' || kind === 'tavern' || kind === 'shop') {
+            if(yurtish) { yurt(g, cx, gy, w - 8, S); if(kind === 'shop') { g.px(w - 7, gy - 12, 2, 12, '#7a5a38'); g.px(w - 8, gy - 13, 4, 2, '#b8b0a0'); } }
+            else {
+                const hw = w - 8, hh = Math.round(h * 0.5);
+                house(g, 4, gy, hw, hh, S, snow);
+                for(let x = 6; x < 4 + hw - 2; x += 5) if(Math.abs(x - (4 + (hw >> 1))) > 2) g.window(x, gy - hh + 3);
+                if(kind === 'shop') {                           // a workshop's chimney, smoking
+                    g.px(w - 10, gy - hh - Math.ceil((hw + 2) / 2) + 1, 3, 7, S.wall[2]);
+                    for(const [dx, dy] of [[0, -3], [1, -5], [-1, -7], [0, -9]]) g.px(w - 9 + dx, gy - hh - Math.ceil((hw + 2) / 2) + dy, 2, 2, '#b4b0a8');
+                }
+            }
+            if(kind === 'tavern') { g.px(w - 4, gy - Math.round(h * 0.5) - 1, 1, 4, '#5a4a36'); g.px(w - 7, gy - Math.round(h * 0.5) + 2, 5, 4, '#7a5a36'); g.px(w - 6, gy - Math.round(h * 0.5) + 3, 3, 2, '#e0b852'); }
+        } else if(kind === 'barn') {
+            const bw = w - 4, bh = Math.round(h * 0.55);
+            block(g, 2, gy - bh, bw, bh, cul === 'khergit' || cul === 'rhodok' ? S.wall || STYLE.rhodok.wall : ['#b0503a', '#8f3e2d', '#6e2f22']);
+            gable(g, 1, gy - bh, bw + 2, S.roof || STYLE.nord.roof, snow);
+            const dw = Math.round(bw * 0.4); g.px(cx - (dw >> 1), gy - bh + 4, dw, bh - 4, '#5a3d22');
+            for(let i = 0; i < dw; i++) { g.px(cx - (dw >> 1) + i, gy - bh + 4 + Math.round(i * (bh - 5) / dw), 1, 1, '#c9a86a'); g.px(cx + (dw >> 1) - 1 - i, gy - bh + 4 + Math.round(i * (bh - 5) / dw), 1, 1, '#c9a86a'); }
+        } else if(kind === 'stall') {
+            const top = gy - Math.round(h * 0.62);
+            g.px(3, top + 3, 2, gy - top - 3, '#6b4e2e'); g.px(w - 5, top + 3, 2, gy - top - 3, '#6b4e2e');
+            awning(1, w - 1, top);
+            g.px(4, gy - 8, w - 8, 3, '#8a6a40'); g.px(4, gy - 8, w - 8, 1, '#a88452');
+            for(let x = 6; x < w - 7; x += 4) { const c = ['#c9a94e', '#b8483a', '#6f9a3a', '#d8cfb8'][(x >> 2) % 4]; g.px(x, gy - 10, 3, 2, c); }
+            g.px(6, gy - 5, 4, 5, '#7a5a36'); g.px(w - 10, gy - 5, 4, 5, '#7a5a36');
+        } else if(kind === 'tent') {
+            const P = yurtish ? S.felt : ['#efe6cf', '#d2c7a9', '#a99f85'], th = Math.round(h * 0.75);
+            for(let r = 0; r < th; r++) { const hw = Math.round((w / 2 - 3) * (r + 1) / th); g.px(cx - hw, gy - th + r, hw, 1, P[0]); g.px(cx, gy - th + r, hw + 1, 1, P[1]); }
+            for(let r = 4; r < th; r += 5) { const hw = Math.round((w / 2 - 3) * (r + 1) / th); g.px(cx - hw, gy - th + r, hw * 2 + 1, 1, col); }
+            for(let r = 0; r < Math.round(th * 0.5); r++) { const hw = Math.round(3 * (r + 1) / (th * 0.5)); g.px(cx - hw, gy - Math.round(th * 0.5) + r, hw * 2 + 1, 1, '#3a2f22'); }
+            g.px(cx, gy - th - 4, 1, 4, '#5a4a36'); g.px(cx + 1, gy - th - 4, 3, 2, col);
+            for(let i = 0; i < 3; i++) g.px(w - 4 - i * 2, gy - 12, 1, 12, '#6b4e2e'), g.px(w - 4 - i * 2, gy - 13, 1, 1, '#c8ccd2');
+        } else if(kind === 'ring') {
+            const ry = Math.round(h * 0.28), rx = (w >> 1) - 2, ccy = gy - ry;
+            for(let y = -ry; y <= ry; y++) { const hw = Math.round(rx * Math.sqrt(1 - (y / ry) ** 2)); g.px(cx - hw, ccy + y, hw * 2 + 1, 1, '#c9ad78'); }
+            for(let a = 0; a < 20; a++) { const t = a / 20 * Math.PI * 2, x = Math.round(cx + Math.cos(t) * rx), y = Math.round(ccy + Math.sin(t) * ry); g.px(x, y - 4, 1, 5, '#6b4e2e'); }
+            for(let a = 0; a < 40; a++) { const t = a / 40 * Math.PI * 2; g.px(Math.round(cx + Math.cos(t) * rx), Math.round(ccy + Math.sin(t) * ry) - 3, 1, 1, '#8a6a40'); }
+            g.px(cx, ccy - 9, 1, 9, '#6b4e2e'); g.px(cx + 1, ccy - 9, 4, 3, col);
+        } else if(kind === 'fire') {
+            g.px(cx - 6, gy - 2, 13, 2, '#6b6a62'); g.px(cx - 5, gy - 4, 11, 2, '#5a3d22'); g.px(cx - 4, gy - 3, 3, 1, '#7a5230');
+            for(const [dx, dy, c] of [[-2, -6, '#e0763a'], [0, -9, '#f0a040'], [1, -7, '#ffd36a'], [-1, -7, '#f0a040'], [2, -6, '#e0763a'], [0, -11, '#e0763a'], [0, -6, '#fff1b0']]) g.px(cx + dx, gy + dy, 2, 2, c);
+            g.win.push([cx, gy - 7]);
+            g.px(cx - 10, gy - 5, 5, 5, '#7a5a36'); g.px(cx + 6, gy - 4, 6, 4, '#7a5a36');
+        } else if(kind === 'coop') {
+            g.px(4, gy - 9, 14, 9, '#8a6a40'); g.px(4, gy - 9, 14, 1, '#a88452'); gable(g, 3, gy - 9, 16, ['#9c7a4a', '#7a5a36']);
+            g.px(9, gy - 5, 4, 5, '#2b2016'); for(let i = 0; i < 6; i++) g.px(13 + i, gy - 1 - (i >> 1), 1, 1, '#6b4e2e');
+            g.px(w - 9, gy - 5, 4, 3, '#efe9dc'); g.px(w - 6, gy - 7, 2, 2, '#efe9dc'); g.px(w - 5, gy - 8, 1, 1, '#d8402e'); g.px(w - 4, gy - 6, 1, 1, '#e0a030'); g.px(w - 8, gy - 2, 1, 2, '#e0a030');
+        } else {                                              // the gate out
+            const gh = Math.round(h * 0.8);
+            if(S.top === 'wood' || yurtish) { for(let i = 0; i < w - 4; i++) g.px(2 + i, gy - gh + (i % 2), 1, gh - (i % 2), i % 3 ? '#7f5a37' : '#a1784d'); }
+            else { block(g, 2, gy - gh, w - 4, gh, S.wall); crenels(g, 2, gy - gh, w - 4, S.wall[1]); }
+            const aw = Math.round(w * 0.36); g.px(cx - (aw >> 1), gy - Math.round(gh * 0.62), aw, Math.round(gh * 0.62), '#2b2016');
+            g.px(cx - (aw >> 1) + 1, gy - Math.round(gh * 0.62) - 1, aw - 2, 1, '#2b2016');
+            g.px(cx - (aw >> 1) - 3, gy - Math.round(gh * 0.62), 2, Math.round(gh * 0.62), '#6b4e2e'); g.px(cx + (aw >> 1) + 1, gy - Math.round(gh * 0.62), 2, Math.round(gh * 0.62), '#6b4e2e');
+            g.win.push([cx - (aw >> 1) - 4, gy - Math.round(gh * 0.62) - 3]); g.win.push([cx + (aw >> 1) + 3, gy - Math.round(gh * 0.62) - 3]);   // torches
+        }
+        outline(g);
+        const b = { cv: g.c, win: g.win, box: bbox(g), ring: null };
+        b.ring = goldRing(g.c);
+        BUILD.set(key, b);
+        return b;
+    }
+
+    // the still part of a scene: sky, land, walls behind, ground, the buildings in two rows
+    function sceneBase(loc, slots, band) {
+        const cul = culture(loc), L = LAND[cul] || LAND.swadia, S = STYLE[cul], col = (FACTIONS[loc.faction] || { color: '#ffcc00' }).color;
+        const key = [loc.id, loc.faction, band, slots.map(s => s.kind).join()].join('|');
+        if(BASES.has(key)) return BASES.get(key);
+        const cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
+        const x = cv.getContext('2d'), R = i => hash(i, loc.id.length, 97 + loc.id.charCodeAt(0));
+        const px = (a, b, w, h, c) => { x.fillStyle = c; x.fillRect(a, b, w, h); };
+        // sky in four dithered bands
+        const sky = SKY[band];
+        for(let y = 0; y < HORIZON; y++) for(let xx = 0; xx < SW; xx++) {
+            const f = y / HORIZON * 3.999 + (dith(xx, y) - 0.5) * 0.9;
+            px(xx, y, 1, 1, sky[Math.max(0, Math.min(3, f | 0))]);
+        }
+        if(band === 'day') for(let k = 0; k < 4; k++) {                    // a few clouds
+            const cx = 20 + R(k) * 260, cy = 8 + R(k + 9) * 18, cw = 14 + R(k + 5) * 16;
+            px(cx, cy, cw, 3, '#eef4f8'); px(cx + 3, cy - 2, cw - 8, 2, '#f8fbfd'); px(cx + 2, cy + 3, cw - 3, 1, '#d6e4ee');
+        }
+        // the land beyond
+        const ridge = (base, amp, fq, c, seed) => { for(let xx = 0; xx < SW; xx++) { const top = Math.round(base - amp * (0.5 + 0.5 * Math.sin(xx * fq + seed)) - amp * 0.4 * noise(xx / 23, seed, 5)); px(xx, top, 1, HORIZON - top + 1, c); } };
+        if(L.look === 'peaks') {
+            for(let k = 0; k < 9; k++) { const m = mountain((k * 5 + loc.id.length) % 12); x.drawImage(m, Math.round(k * 36 - 8 + R(k) * 10), HORIZON - m.height + 4); }
+            ridge(HORIZON - 4, 5, 0.05, L.hill[1], 2);
+        } else if(L.look === 'sea') {
+            ridge(HORIZON - 16, 6, 0.03, L.far[1], 1);
+            px(0, HORIZON - 12, SW, 12, '#3f7396'); for(let k = 0; k < 30; k++) px(R(k + 40) * SW, HORIZON - 11 + R(k + 70) * 10, 3, 1, '#7fb0cc');
+            const bx = 40 + R(3) * 200; px(bx, HORIZON - 7, 12, 2, '#5a3d22'); px(bx + 5, HORIZON - 15, 1, 8, '#5a3d22'); px(bx + 6, HORIZON - 14, 4, 5, '#d8cfb8');
+        } else if(L.look === 'snow') {
+            ridge(HORIZON - 10, 9, 0.04, L.far[0], 3); ridge(HORIZON - 3, 5, 0.07, L.hill[1], 6);
+            for(let k = 0; k < 14; k++) x.drawImage(tree('pine', k & 1), Math.round(R(k + 20) * SW), HORIZON - 16 + Math.round(R(k + 30) * 6));
+        } else if(L.look === 'steppe') {
+            ridge(HORIZON - 5, 3, 0.02, L.far[1], 4); ridge(HORIZON - 1, 2, 0.05, L.hill[0], 8);
+        } else {
+            ridge(HORIZON - 12, 8, 0.035, L.far[1], 1); ridge(HORIZON - 4, 6, 0.06, L.hill[1], 5);
+            for(let k = 0; k < 10; k++) x.drawImage(tree('broad', k & 1), Math.round(R(k + 20) * SW), HORIZON - 15 + Math.round(R(k + 30) * 5));
+        }
+        // the settlement behind: a city wall, a castle's keep, a village's fence and fields
+        const back = sheet(SW, SH), gy = HORIZON + 2;
+        if(loc.type === 'city') {
+            if(cul === 'khergit') {
+                for(let k = 0; k < 11; k++) yurt(back, 14 + k * 27, gy - 1, 14 + (k % 3) * 3, S, k === 5);
+                tugh(back, 150, gy - 12, col);
+            } else {
+                for(let k = 0; k < 9; k++) house(back, 8 + k * 33 + Math.round(R(k + 50) * 8), gy - 10, 10 + (k % 3) * 2, 6, S, cul === 'vaegir');
+                tower(back, 142, gy - 8, 14, 22, S); flag(back, 149, gy - 8 - 22 - (S.top === 'cone' ? 14 : S.top === 'onion' ? 8 : 5) - 6, col);
+                wall(back, 0, gy, SW, 10, S);
+                for(let k = 0; k < 5; k++) tower(back, 18 + k * 64, gy, 9, 17, S);
+            }
+        } else if(loc.type === 'castle') {
+            const wS = cul === 'khergit' ? STYLE.rhodok : S;
+            tower(back, 118, gy - 6, 22, 30, wS); flag(back, 128, gy - 6 - 30 - (wS.top === 'cone' ? 22 : wS.top === 'onion' ? 8 : 5) - 6, col);
+            wall(back, 0, gy, SW, 12, wS);
+            for(let k = 0; k < 5; k++) tower(back, 10 + k * 70, gy, 12, 20, wS);
+        } else {
+            if(cul !== 'khergit') {                                    // fields, a fence, a mill or a boat
+                for(let k = 0; k < 6; k++) { const fx = k * 50 + Math.round(R(k + 60) * 10), P = FIELDS[k % 4]; for(let r = 0; r < 4; r++) back.px(fx, gy - 4 + r, 44, 1, `rgb(${P[r & 1].join(',')})`); }
+                if(cul === 'swadia' || cul === 'rhodok') {
+                    const mx = 220 + Math.round(R(1) * 50);
+                    block(back, mx, gy - 16, 7, 12, S.wall); cone(back, mx + 3, gy - 16, 9, 5, S.roof);
+                    for(let i = -6; i <= 6; i++) { back.px(mx + 3 + i, gy - 18 + i, 1, 1, '#7a5a36'); back.px(mx + 3 + i, gy - 18 - i, 1, 1, '#7a5a36'); }
+                }
+            } else for(let k = 0; k < 5; k++) yurt(back, 30 + k * 60 + Math.round(R(k) * 20), gy - 2, 11, S);
+            for(let xx = 0; xx < SW; xx += 6) { back.px(xx, gy - 2, 1, 5, '#7a5a38'); back.px(xx, gy - 1, 6, 1, '#8a6a40'); }
+        }
+        outline(back);
+        x.drawImage(back.c, 0, 0);
+        // the ground, a road along the front
+        for(let y = HORIZON + 3; y < SH; y++) for(let xx = 0; xx < SW; xx++) {
+            const n = noise(xx / 14, y / 6, 17) * 2.99 + (dith(xx, y) - 0.5) * 0.7;
+            px(xx, y, 1, 1, L.ground[Math.max(0, Math.min(2, n | 0))]);
+        }
+        for(let xx = 0; xx < SW; xx++) { const top = Math.round(SH - 9 + xx * 4 / SW); px(xx, top, 1, SH - top, (xx + top) % 7 ? '#a08a5e' : '#8e7850'); px(xx, top, 1, 1, '#8e7850'); }
+        for(let k = 0; k < 40; k++) { const gx = Math.round(R(k + 200) * SW), gy2 = HORIZON + 6 + Math.round(R(k + 300) * 18); px(gx, gy2, 1, 2, L.hill[1]); px(gx + 1, gy2 + 1, 1, 1, L.hill[1]); }
+        // the buildings
+        for(const s of slots) x.drawImage(s.b.cv, s.x, s.base - s.b.cv.height + 1);
+        const out = { cv, cul, col };
+        if(BASES.size > 40) BASES.delete(BASES.keys().next().value);
+        BASES.set(key, out);
+        return out;
+    }
+
+    // a round pixel sun, or a moon with its right side bitten off by shadow
+    function disc(ctx, cx, cy, r, colr, bite) {
+        ctx.fillStyle = colr;
+        for(let y = -r; y <= r; y++) for(let x = -r; x <= r; x++) {
+            if(x * x + y * y > r * r + r * 0.6) continue;
+            if(bite && (x - 2) * (x - 2) + (y + 1) * (y + 1) <= (r - 1) * (r - 1)) continue;
+            ctx.fillRect((cx + x) * SK, (cy + y) * SK, SK, SK);
+        }
+    }
+
+    // Draws the scene into `ctx` (already scaled to 900x280 units) and returns the hot rects,
+    // one per button, in those units
+    function scene(ctx, loc, btns, hover, G) {
+        const hour = state.time.hour, band = hour < 6 || hour >= 20 ? 'night' : (hour >= 18 || hour < 8) ? 'dusk' : 'day';
+        // two rows as before (odd buttons in the back, even in front), but taking turns across the
+        // width, so a back building's sign never lands on the front building below it
+        const slots = [], step = (SW - 16) / Math.max(1, btns.length);
+        btns.forEach((btn, k) => {
+            const backRow = k % 2 === 1, icon = G.sceneIcon(btn.innerHTML).replace('\uFE0F', ''), kind = SCENE_KIND[icon] || 'house';
+            const w = (backRow ? 34 : 42) + (kind === 'ring' ? 6 : 0);
+            slots.push({ btn, icon, kind, w, h: backRow ? 22 : 28, idx: k, base: backRow ? HORIZON + 6 : SH - 4,
+                         x: Math.round(8 + k * step + (step - w) / 2 + (hash(k, loc.id.length, 99) - 0.5) * 4) });
+        });
+        slots.sort((a, b) => a.base - b.base);                  // the back row first
+        const cul = culture(loc), col = (FACTIONS[loc.faction] || { color: '#ffcc00' }).color;
+        for(const s of slots) s.b = building(s.kind, cul, s.w, s.h, col);   // cached, like the base
+        const base = sceneBase(loc, slots, band), hot = [];
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(base.cv, 0, 0, SW * SK, SH * SK);
+        // dusk and night over everything, then what shines through it
+        if(band !== 'day') { ctx.fillStyle = band === 'night' ? 'rgba(10,16,48,0.52)' : 'rgba(90,40,30,0.18)'; ctx.fillRect(0, 0, SW * SK, SH * SK); }
+        if(band === 'night') {
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            for(let k = 0; k < 45; k++) ctx.fillRect(Math.round(hash(k, 1, 91) * SW) * SK, Math.round(hash(k, 2, 91) * 44) * SK, SK, SK);
+            disc(ctx, 40 + hash(3, 3, 91) * 220 | 0, 12, 4, '#e6ecff', -2);   // a crescent moon
+        } else if(band === 'day') {
+            disc(ctx, 30 + hash(4, 4, 91) * 230 | 0, 13, 5, '#fff4c8', 0);
+        }
+        for(const s of slots) {
+            const top = s.base - s.b.cv.height + 1, bx = s.x + s.b.box.x, by = top + s.b.box.y;
+            // the button's own label (a town card also holds a hint and a price), without its emoji
+            const label = (s.btn.querySelector('.sr-only') || s.btn).textContent.replace(/^[^\p{L}\p{N}]+/u, '');
+            hot[s.idx] = { x: bx * SK, y: by * SK, w: s.b.box.w * SK, h: s.b.box.h * SK, btn: s.btn, icon: s.icon, label };
+            if(band === 'night') for(const [wx, wy] of s.b.win) {
+                ctx.fillStyle = '#ffd36a'; ctx.fillRect((s.x + wx) * SK, (top + wy) * SK, SK, SK);
+                ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = G.radial(ctx, 12, 'rgba(255,180,80,0.55)', 'rgba(255,150,60,0)');
+                ctx.save(); ctx.translate((s.x + wx + 0.5) * SK, (top + wy + 0.5) * SK); ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                ctx.globalCompositeOperation = 'source-over';
+            }
+            if(s.idx === hover) ctx.drawImage(s.b.ring, (s.x - 1) * SK, (top - 1) * SK, s.b.ring.width * SK, s.b.ring.height * SK);
+        }
+        // signs: the town card's line icon on a small plate over each building
+        for(const s of slots) {
+            const h = hot[s.idx], card = G.TOWN_CARD[s.icon], on = s.idx === hover;
+            if(!card) continue;
+            const im = iconImg(card[0], on ? '#1a1406' : '#f2d27a', () => G._sceneLoc === loc && G.renderScene(loc));
+            const pw = 30, ph = 26, px = Math.round(h.x + h.w / 2 - pw / 2), py = Math.max(4, h.y - ph - 4);
+            h.top = py;                                        // the tooltip goes above the sign
+            ctx.fillStyle = on ? 'rgba(255,204,0,0.95)' : 'rgba(12,12,16,0.82)';
+            ctx.strokeStyle = on ? '#fff' : 'rgba(255,204,0,0.5)'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 6); ctx.fill(); ctx.stroke();
+            if(im) ctx.drawImage(im, px + 6, py + 4, 18, 18);
+        }
+        return hot;
+    }
+
+    // --- the start screen's marching column (2.0.0): the game's soldiers walking past a keep.
+    // A 320x64 canvas, ~20 fps; it stops itself the moment the start screen isn't showing.
+    let marchId = null;
+    function march() {
+        const cv = document.getElementById('march-canvas');
+        if(!cv || !cv.getContext || marchId !== null) return;          // double-start guard
+        Swordsman.load(); Archer.load();
+        const x = cv.getContext('2d'), W = cv.width, H = cv.height, GY = 55;
+        x.imageSmoothingEnabled = false;
+        const COL = [
+            { kind: 'foot', armor: 1, weapon: 1, helm: '', skin: 0, hair: 0, cloth: 'player' },
+            { kind: 'foot', armor: 2, weapon: 2, helm: 'cap', skin: 1, hair: 2, cloth: 'swadia' },
+            { kind: 'archer', cloth: 'rhodok' },
+            { kind: 'horse', rider: { armor: 3, weapon: 3, helm: 'greathelm', skin: 0, hair: 1, cloth: 'vaegir' }, cloth: 'vaegir', coat: 'grey' },
+            { kind: 'foot', armor: 3, weapon: 3, helm: 'nasal', skin: 2, hair: 4, cloth: 'nord' },
+            { kind: 'horse', rider: { armor: 2, weapon: 2, helm: 'nasal', skin: 3, hair: 5, cloth: 'khergit' }, cloth: 'khergit', coat: 'bay' }
+        ];
+        const GAP = 62, SPAN = COL.length * GAP;
+        let ground = null, keep = null, last = 0;
+        const still = typeof Anim !== 'undefined' && !Anim.on();
+        const frame = now => {
+            const scr = document.getElementById('start-screen');
+            if(!scr || !scr.classList.contains('active')) { marchId = null; return; }
+            marchId = still ? null : requestAnimationFrame(frame);
+            if(now - last < 48 || !Swordsman.ready()) return;
+            last = now;
+            if(!ground) {                                  // grass, a road, the keep: drawn once
+                const g = sheet(W, H);
+                for(let y = GY - 6; y < H; y++) for(let xx = 0; xx < W; xx++) {
+                    const road = y >= GY - 2 && y <= GY + 3, n = noise(xx / 9, y / 4, 23) * 2.99 + (dith(xx, y) - 0.5) * 0.7;
+                    g.px(xx, y, 1, 1, road ? ((xx + y) % 5 ? '#9c8458' : '#86704a') : ['#4d6f36', '#5b7e3e', '#6a8d47'][Math.max(0, Math.min(2, n | 0))]);
+                }
+                for(let xx = 0; xx < W; xx += 1) if(dith(xx, 3) < 0.35) g.px(xx, GY - 7, 1, 1, '#5b7e3e');
+                ground = g.c;
+                keep = settlement({ id: 'castle_s1', type: 'castle', faction: 'swadia' });
+            }
+            x.clearRect(0, 0, W, H);
+            x.drawImage(keep.cv, W - keep.cv.width * 2 - 40, GY - keep.cv.height * 2 + 3, keep.cv.width * 2, keep.cv.height * 2);
+            x.drawImage(ground, 0, 0);
+            COL.forEach((look, i) => {
+                const px = ((now * 0.018 + i * GAP) % SPAN) - 40, t = now + i * 170;
+                let spr;
+                if(look.kind === 'horse') spr = Mounted.art(look, { gait: 'walk', gt: t, facing: 'right', anim: 'Idle', t, dead: false });
+                else if(look.kind === 'archer') spr = Archer.art(look.cloth, 'Walk', 'right', t);
+                else spr = Swordsman.art(look, 'Walk', 'right', t);
+                if(spr) x.drawImage(spr, Math.round(px - spr._ax * spr.width), Math.round(GY + 1 - spr._ay * spr.height));
+            });
+        };
+        marchId = requestAnimationFrame(frame);
+    }
+
+    // --- item icons (visual refresh step 5): 16x16 pixel art per item. A weapon's tier shows in
+    // its metal (iron, steel, patterned Damascus, royal silver on gold) and grip; the same emoji
+    // used to stand for all four swords.
+    const METAL = [['#8d939b', '#b3b9c1', '#5f646b'], ['#b9c4cf', '#e3e9ef', '#7d8893'], ['#9ea5b3', '#d0d5de', '#636878'], ['#e3e9f0', '#ffffff', '#9aa6b2']];
+    const GRIP = ['#6b4a2c', '#3e2c1f', '#8a5a2a', '#7a2a2a'], TRIM = ['#5f646b', '#7d8893', '#b07a3a', '#e0b852'];
+    const ICON_URL = {};
+    function tierOf(item) {
+        if(item.type !== 'weapon' && item.type !== 'horse') return 0;
+        item = ITEMS[item.id] || item;                        // the bag holds copies: rank the original
+        const fam = item.id.split('_')[0], same = Object.values(ITEMS).filter(i => i.type === item.type && i.id.split('_')[0] === fam).sort((a, b) => a.basePrice - b.basePrice);
+        return Math.min(3, Math.max(0, same.indexOf(item)));
+    }
+    function drawItem(g, item) {
+        const t = tierOf(item), M = METAL[t], id = item.id, P = (x, y, c, w = 1, h = 1) => g.px(x, y, w, h, c);
+        const diag = (x0, y0, n, c, c2) => { for(let i = 0; i < n; i++) { P(x0 - i, y0 + i, c); if(c2) P(x0 - i + 1, y0 + i, c2); } };
+        if(item.type === 'weapon' && item.weaponType === 'oneHanded' && !id.startsWith('mace')) {       // swords, the wolf-tooth dagger
+            const dag = id === 'kurt_disi_hancer', n = dag ? 6 : 9, M2 = dag ? ['#c9c3b0', '#f0ead8', '#8a8470'] : M;
+            diag(13, 1 + (9 - n), n, M2[0], M2[1]);
+            if(t === 2) for(let i = 1; i < n; i += 2) P(13 - i, 1 + (9 - n) + i, M2[2]);          // Damascus ripple
+            for(let i = -2; i <= 2; i++) P(4 + i, 11 + i, dag ? '#d8d0b8' : TRIM[t]);             // crossguard
+            P(3, 12, GRIP[t]); P(2, 13, GRIP[t]); P(1, 14, TRIM[t], 2, 1);
+        } else if(id.startsWith('mace')) {
+            diag(9, 6, 7, GRIP[t]);
+            if(t === 3) { P(8, 2, M[0], 6, 3); P(8, 2, M[1], 6, 1); P(12, 5, M[2], 2, 1); }             // war hammer
+            else {
+                P(10, 2, M[0], 4, 4); P(11, 1, M[0], 2, 6); P(9, 3, M[0], 6, 2); P(11, 2, M[1], 1, 2);
+                if(t >= 1) { P(10, 1, M[2]); P(13, 1, M[2]); P(10, 6, M[2]); P(13, 6, M[2]); }
+                if(t === 2) { P(12, 0, M[1]); P(15, 3, M[1]); P(8, 3, M[1]); P(12, 7, M[1]); }          // spikes
+            }
+        } else if(item.weaponType === 'twoHanded') {                                                     // axes
+            diag(11, 3, 11, GRIP[t]);
+            for(let y = 0; y < 8; y++) { const w = y < 1 || y > 6 ? 2 : y < 2 || y > 5 ? 3 : 4; P(11, y, M[y < 3 ? 1 : 0], w, 1); }
+            P(14, 1, M[2], 1, 6);
+            if(t === 3) { P(8, 1, M[0], 2, 4); P(8, 1, M[1]); }                                        // the headsman's back spike
+            if(t >= 2) P(12, 3, TRIM[t], 1, 2);
+        } else if(item.weaponType === 'polearm') {                                                      // lances
+            diag(12, 3, 11, GRIP[t]);
+            P(13, 0, M[0], 2, 3); P(12, 1, M[0], 2, 2); P(14, 0, M[1]); P(15, 0, M[1]);
+            if(t >= 1) P(10, 5, TRIM[t], 2, 1);
+            if(t >= 2) { P(10, 3, t === 3 ? '#2e6fb8' : '#b8342a', 1, 3); P(9, 3, t === 3 ? '#2e6fb8' : '#b8342a', 1, 2); }
+        } else if(item.weaponType === 'bow') {
+            const storm = id === 'firtina_yayi', wood = storm ? '#35507a' : ['#8a5a2a', '#4a3a2a', '#7a4a1a', '#5a2a1a'][t];
+            for(let y = 1; y <= 14; y++) { const x = 4 + Math.round(7 * Math.sin(Math.PI * (y - 1) / 13)); P(x, y, wood); P(x - 1, y, wood); }
+            for(let y = 2; y <= 13; y++) P(4, y, storm ? '#9fd0ff' : '#e8e2d0');
+            P(3, 0, storm ? '#9fd0ff' : TRIM[t], 2, 1); P(3, 15, storm ? '#9fd0ff' : TRIM[t], 2, 1);
+        } else if(item.type === 'shield') {
+            for(let y = 1; y < 15; y++) { const hw = y < 9 ? 6 : Math.max(1, 6 - (y - 8)); P(8 - hw, y, '#8a5a2a', hw * 2, 1); }
+            for(let y = 1; y < 15; y++) { const hw = y < 9 ? 6 : Math.max(1, 6 - (y - 8)); P(8 - hw, y, '#9aa0a8'); P(8 + hw - 1, y, '#6f757c'); }
+            P(2, 1, '#b3b9c1', 12, 1); P(7, 6, '#b3b9c1', 2, 3); P(6, 7, '#9aa0a8', 4, 1);
+        } else if(item.type === 'armor') {
+            const C = id === 'leather' ? ['#9a6a3a', '#7a4f28', '#b8844c'] : id === 'mail' ? ['#9aa0a8', '#6f757c', '#c1c7ce'] : id === 'dev_orsu_zirhi' ? ['#4a4450', '#2e2a33', '#6e6678'] : ['#b9c4cf', '#7d8893', '#e3e9ef'];
+            P(2, 2, C[0], 4, 3); P(10, 2, C[0], 4, 3); P(4, 3, C[0], 8, 11); P(7, 3, C[1], 2, 2);
+            P(4, 3, C[2], 1, 10); P(11, 3, C[1], 1, 11); P(4, 11, C[1], 8, 1);
+            if(id === 'mail') for(let y = 5; y < 13; y += 2) for(let x = 5 + (y & 2 ? 1 : 0); x < 11; x += 2) P(x, y, C[1]);
+            if(id === 'plate' || id === 'dev_orsu_zirhi') { P(5, 7, C[1], 6, 1); P(5, 9, C[1], 6, 1); if(id === 'dev_orsu_zirhi') P(4, 11, '#b8342a', 8, 1); }
+            if(id === 'leather') { for(let y = 5; y < 11; y += 2) P(7, y, '#e0c080'); P(4, 11, '#5a3a1a', 8, 1); }
+        } else if(item.type === 'helmet') {
+            if(id === 'cap') { P(3, 6, '#8a5a2a', 10, 5); P(4, 4, '#8a5a2a', 8, 2); P(6, 3, '#8a5a2a', 4, 1); P(4, 5, '#b07a3a', 3, 3); P(2, 10, '#6b4a2c', 12, 2); }
+            else if(id === 'nasal') { for(let y = 1; y < 11; y++) { const hw = Math.min(5, 1 + (y >> 1)); P(8 - hw, y, M[0], hw * 2, 1); P(8 - hw, y, '#c9d0d8'); } P(2, 10, '#6f757c', 12, 2); P(7, 12, '#6f757c', 2, 3); }
+            else { P(3, 2, '#9aa0a8', 10, 12); P(4, 1, '#9aa0a8', 8, 1); P(3, 2, '#c1c7ce', 2, 12); P(12, 2, '#6f757c', 1, 12); P(4, 6, '#1a1611', 8, 1); P(8, 9, '#1a1611', 1, 1); P(10, 9, '#1a1611', 1, 1); P(8, 7, '#6f757c', 1, 6); }
+        } else if(item.type === 'gloves') {
+            const C = id === 'gloves' ? ['#9a6a3a', '#7a4f28'] : ['#b9c4cf', '#7d8893'];
+            P(4, 7, C[0], 8, 6); P(4, 3, C[0], 2, 5); P(6, 2, C[0], 2, 5); P(8, 2, C[0], 2, 5); P(10, 3, C[0], 2, 5); P(12, 8, C[0], 2, 3);
+            P(4, 12, C[1], 8, 2); P(11, 7, C[1], 1, 5);
+        } else if(item.type === 'boots') {
+            const C = id === 'shoes' ? ['#8a5a2a', '#5a3a1a'] : ['#b9c4cf', '#7d8893'];
+            P(5, 1, C[0], 5, 11); P(5, 10, C[0], 9, 4); P(5, 13, C[1], 9, 2); P(9, 1, C[1], 1, 11); if(id === 'greaves') { P(5, 4, C[1], 5, 1); P(5, 7, C[1], 5, 1); }
+        } else if(item.type === 'horse') {
+            const coat = { horse_kib: ['#8c5530', '#6b3f22'], horse_midilli: ['#b8844c', '#8c5a30'], horse: ['#6b3f22', '#4a2a18'], horse_dag: ['#a7a7b1', '#83838f'],
+                           horse_cenk: ['#38323c', '#262229'], horse_zirhli: ['#6b3f22', '#4a2a18'], horse_demir: ['#4b4450', '#38323c'], han_kisragi: ['#ece6da', '#c9c1b0'] }[id] || ['#8c5530', '#6b3f22'];
+            P(5, 3, coat[0], 5, 11); P(8, 2, coat[0], 4, 4); P(10, 3, coat[0], 4, 3); P(12, 5, coat[0], 3, 3);          // neck, head, muzzle
+            P(9, 1, coat[1], 1, 2); P(4, 3, '#261710', 2, 9); P(11, 4, '#141117'); P(14, 7, '#141117');
+            if(id === 'horse_zirhli' || id === 'horse_demir') { P(6, 6, '#b9c4cf', 4, 8); P(6, 6, '#e3e9ef', 1, 8); P(10, 3, '#9aa6b2', 3, 2); }
+            if(id === 'han_kisragi') { P(4, 3, '#e0b852', 2, 9); P(8, 6, '#e0b852', 2, 1); }
+        } else if(item.type === 'food') {
+            ({
+                wheat: () => {                                   // a tied sheaf, ears leaning out
+                    for(const [x, top, lean] of [[4, 3, -1], [7, 1, 0], [10, 2, 1], [12, 4, 1]]) {
+                        P(x, top + 4, '#b8913a', 1, 14 - top - 4); P(x + lean, top, '#e0b852', 2, 4); P(x + lean + (lean >= 0 ? 1 : -1), top + 1, '#c9a040', 1, 2);
+                    }
+                    P(3, 10, '#8a6a2a', 11, 2);
+                },
+                bread: () => { P(2, 7, '#b07a3a', 12, 6); P(3, 6, '#c9924a', 10, 2); P(4, 5, '#c9924a', 8, 1); for(const x of [5, 8, 11]) P(x, 6, '#e8c890', 1, 3); P(2, 12, '#7a4a1a', 12, 1); },
+                meat: () => { P(3, 4, '#a8342a', 8, 8); P(4, 3, '#c9483a', 6, 2); P(5, 5, '#e07a6a', 3, 2); P(10, 9, '#efe6cf', 4, 3); P(12, 8, '#efe6cf', 3, 2); },
+                cheese: () => { for(let y = 5; y < 13; y++) P(2 + (12 - y), y, '#e8c060', 12 - (12 - y), 1); P(3, 12, '#c9a040', 11, 1); P(8, 9, '#b8902a', 2, 1); P(11, 11, '#b8902a'); P(12, 8, '#b8902a'); },
+                fish: () => { P(3, 6, '#8aa6b8', 9, 4); P(4, 5, '#8aa6b8', 7, 1); P(4, 10, '#6f8a9c', 7, 1); P(12, 5, '#6f8a9c', 2, 6); P(14, 4, '#6f8a9c', 1, 2); P(14, 10, '#6f8a9c', 1, 2); P(5, 7, '#141117'); P(3, 7, '#b8cedc', 5, 1); },
+                fruit: () => { P(4, 5, '#c9342a', 8, 8); P(3, 6, '#c9342a', 10, 6); P(5, 6, '#e8604a', 2, 2); P(8, 2, '#5a3d22', 1, 3); P(9, 2, '#5a8a3a', 3, 2); },
+                butter: () => { P(2, 11, '#c9c1b0', 12, 2); P(4, 6, '#f0d060', 8, 5); P(4, 6, '#f8e490', 8, 1); P(11, 6, '#d8b040', 1, 5); },
+                honey: () => { P(4, 5, '#b8783a', 8, 9); P(3, 6, '#b8783a', 10, 7); P(5, 3, '#8a5a2a', 6, 2); P(5, 7, '#e0a030', 6, 2); P(6, 9, '#f0c050', 2, 3); }
+            }[id] || (() => P(4, 4, '#b07a3a', 8, 8)))();
+        } else if(item.type === 'trade') {
+            ({
+                iron: () => { P(2, 9, '#6f757c', 12, 4); P(3, 8, '#9aa0a8', 10, 1); P(4, 5, '#6f757c', 8, 3); P(5, 4, '#9aa0a8', 6, 1); P(2, 12, '#4a4f55', 12, 1); },
+                velvet: () => { P(2, 4, '#6a2a8a', 12, 9); P(2, 4, '#8a4aaa', 12, 2); P(2, 8, '#4a1a6a', 12, 1); P(12, 4, '#4a1a6a', 2, 9); },
+                ale: () => { P(4, 2, '#8a5a2a', 8, 12); P(3, 4, '#8a5a2a', 10, 8); P(3, 5, '#5f646b', 10, 1); P(3, 10, '#5f646b', 10, 1); P(5, 2, '#a8743a', 2, 12); },
+                coal: () => { P(3, 8, '#2a2a2e', 5, 5); P(7, 6, '#38383e', 6, 7); P(5, 10, '#1a1a1e', 6, 3); P(8, 7, '#55555c'); P(4, 9, '#55555c'); },
+                salt: () => { P(4, 5, '#d8cfb8', 8, 9); P(3, 7, '#d8cfb8', 10, 6); P(5, 3, '#b8ad90', 6, 2); P(6, 2, '#efeae0', 4, 2); P(4, 7, '#efe9dc', 2, 5); }
+            }[id] || (() => P(4, 4, '#8a6a40', 8, 8)))();
+        } else if(id === 'boss_map') {
+            P(2, 3, '#d8c79a', 12, 10); P(2, 3, '#efe0b8', 12, 1); P(2, 12, '#b8a578', 12, 1); P(4, 6, '#8a7a50', 3, 1); P(7, 8, '#8a7a50', 3, 1);
+            P(10, 5, '#b8342a'); P(12, 5, '#b8342a'); P(11, 6, '#b8342a'); P(10, 7, '#b8342a'); P(12, 7, '#b8342a');
+        } else return false;
+        return true;
+    }
+    // A data URL for <img>, cached per item; null when nothing is drawn for it (the emoji stays)
+    function itemIcon(item) {
+        if(!item || !item.id) return null;
+        if(item.id in ICON_URL) return ICON_URL[item.id];
+        const g = sheet(16, 16);
+        if(!drawItem(g, item)) return (ICON_URL[item.id] = null);
+        outline(g, '#15120e');
+        return (ICON_URL[item.id] = g.c.toDataURL('image/png'));
+    }
+
     // --- the frame
     function render(G) {
         const c = G.mapCanvas, ctx = G.ctx, W = c.width, H = c.height, cam = G.camera, z = cam.zoom, now = performance.now();
@@ -765,5 +1209,7 @@ const MapArt = (() => {
         G.drawHail(ctx, W, H);
     }
 
-    return { TEX, SPX, render, site, terrain, settlement, party, partyLook, playerLook, label, culture, bakeMs: () => baked && baked.ms };
+    return { TEX, SPX, render, scene, march, itemIcon, site, terrain, settlement, party, partyLook, playerLook, label, culture, bakeMs: () => baked && baked.ms };
 })();
+// the start screen is up when the scripts run, and only a reload brings it back: the march starts here
+if(typeof requestAnimationFrame === 'function') MapArt.march();

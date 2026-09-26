@@ -1056,6 +1056,41 @@ drawMapRoute`: what is on show, its colour, its label.
   - The sea-glint cell loop cost 5.8 ms at the continent view, so glints run only from zoom
     0.25. At 0.45–0.8 they cost nothing measurable, so phones get them too.
 
+### Settlement scene, item icons, portraits, start screen (2.0.0)
+- **Scene** (`MapArt.scene`, called from `Game.drawScene`): 300×94 pixels drawn 3× into the scene
+  canvas's 900×280 units. Layers:
+  - a four-band dithered sky by time of day, clouds by day, a pixel sun or crescent moon
+  - the founding kingdom's land: Swadian hills with trees, Rhodok peaks (the map's mountain
+    sprites), the Nord sea with a sail, Vaegir snow with pines, a flat Khergit steppe
+  - the settlement behind: a city wall with towers, house roofs and a keep; a castle keep and
+    curtain wall; a village fence with fields and a mill, or a Khergit yurt camp
+  - the ground and a road
+  - one building per action button, built from the map's primitives in the kingdom's style
+    (`SCENE_KIND`: tower, house, tavern, shop, barn, stall, tent, ring, fire, coop, gate)
+
+  Buttons alternate back row / front row across the width, so a back building's sign never lands
+  on the front one. The still part is cached per settlement, owner, time band and button set
+  (`BASES`, 40 entries). A hover redraws only the gold ring (`goldRing`), the signs and the
+  tooltip. Hot rects are the building sprite's opaque bounding box, in 900×280 units. That is
+  what `renderScene`'s pointer mapping and click already read, so a building still clicks its
+  own button. Signs are the town card's line icon (`Game.TOWN_CARD`), rasterised once from the
+  SVG sprite as an image. At night: a blue tint, stars, lit windows and gate torches with a warm
+  glow. The vector scene remains behind `Game._classicScene` until round 3 approves.
+- **Item icons** (`MapArt.itemIcon`, `Game.itemIco`): 16×16 pixel art for all 56 items, cached as
+  data URLs. A weapon's tier is its rank by price within its family (`sword`, `sword_steel`, …)
+  and shows in the metal (`METAL`), grip and trim. Used in the bag, the equipment slots (an
+  empty slot shows the plainest item of its kind, faded), market lists and messages, and storage.
+  Plain-text places (alerts, logs, tooltips) keep the emoji. An item without a drawing falls back
+  to its emoji.
+- **Portrait frame** (`Nobles.framed`): a dark-gold mount, an outer ring in the kingdom's colour
+  (`--fc`) and the crest (`Game.crestCss`) as a corner badge; round for a lady.
+- **Start screen**: the secondary buttons are `.start-act`, dark glass with a gold edge and a line
+  icon. The install button's label is its own key, `Uygulamayı Yükle` ("Yükle" is already
+  "Load"). `MapArt.march()` draws the game's soldiers walking past a keep on a 320×64 canvas at
+  ~20 fps. It has a double-start guard, stops itself once `#start-screen` isn't active, and draws
+  a single still frame under reduced motion. The start screen only comes back on a reload, so the
+  march starts once, at load.
+
 ### Battle renderer (1.33.0)
 Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
 **sharpness** (`#battle-canvas` is one canvas pixel per CSS pixel, soft on a retina screen; Pixi

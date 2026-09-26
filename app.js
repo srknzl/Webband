@@ -1354,7 +1354,7 @@ const Game = {
                        'cap','nasal','greathelm','gloves','gauntlets','shoes','greaves'];
             let id = ids[Math.floor(Math.random() * ids.length)];
             Game.addItem(id, 1);
-            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${ITEMS[id].icon} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
+            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${this.itemIco(ITEMS[id])} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
         }},
         food: { run(s) {
             let foods = Object.values(ITEMS).filter(i => i.type === 'food');
@@ -6867,6 +6867,12 @@ const Game = {
         let col = (FACTIONS[loc.faction] || {}).color || '#ffcc00';
         let ground = H * 0.66;
         ctx.clearRect(0, 0, W, H);
+        // 2.0.0: the scene is MapArt's pixel art (map-art.js); below is the vector scene it
+        // replaces, kept until round 3 approves the new one
+        if(typeof MapArt !== 'undefined' && !this._classicScene) {
+            this.sceneHot = MapArt.scene(ctx, loc, btns, hover, this);
+            return this.drawSceneText(ctx, loc, hover, col);
+        }
 
         // Sky — by time of day
         let sky = ctx.createLinearGradient(0, 0, 0, ground);
@@ -6921,6 +6927,11 @@ const Game = {
             });
         });
 
+        this.drawSceneText(ctx, loc, hover, col);
+    },
+    // The words over a scene, either style: where you are, and what's under the pointer
+    drawSceneText(ctx, loc, hover, col) {
+        let W = this.SCENE_W;
         // Settlement-type badge (#100): a small corner label so the palette + silhouette are
         // never the only cue for where the player has walked in.
         let typeLabel = loc.type === 'castle' ? T('Kale') : loc.type === 'city' ? T('Şehir') : T('Köy');
@@ -6936,7 +6947,7 @@ const Game = {
             let h = this.sceneHot[hover], txt = h.label.trim();
             ctx.font = 'bold 17px Inter, sans-serif';
             let tw = ctx.measureText(txt).width, bx = Math.max(6, Math.min(W - tw - 26, h.x + h.w / 2 - tw / 2 - 10));
-            let by = Math.max(4, h.y - 34);
+            let by = Math.max(4, (h.top !== undefined ? h.top : h.y) - 34);
             ctx.fillStyle = 'rgba(10,10,14,0.88)';
             ctx.strokeStyle = col; ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.roundRect(bx, by, tw + 20, 28, 6); ctx.fill(); ctx.stroke();
@@ -7878,7 +7889,7 @@ const Game = {
             // Stock (#46): how much of a limited good is left, no button once it's out
             let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
             let empty = st <= 0;
-            li.innerHTML = `${item.icon} ${T(item.name)} - <b>${price}₺</b> `
+            li.innerHTML = `${this.itemIco(item)} ${T(item.name)} - <b>${price}₺</b> `
                 + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
                 + (isFinite(st) ? `<span style="font-size:var(--fs-xs);color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${T`stok ${st}`}</span> ` : '')
                 + this.haveTag(item.id)
@@ -7901,7 +7912,7 @@ const Game = {
                 let price = this.marketPrice(item.id, true);
                 let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
                 li.id = 'mrow-sell-' + item.id;
-                li.innerHTML = `${item.icon||'📦'} ${T(item.name)} x${item.qty} - <b>${price}₺</b> `
+                li.innerHTML = `${this.itemIco(item)} ${T(item.name)} x${item.qty} - <b>${price}₺</b> `
                     + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
                     + this.qtyBtns(this.qtyBtn(T`Sat`, `Game.sellItem('${item.id}')`)
                         + (item.qty >= 5 ? this.qtyBtn('x5', `Game.sellItem('${item.id}',5)`) : '')
@@ -8646,7 +8657,7 @@ const Game = {
         this.addProficiencyXp('trade', 4 * can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
-        this.marketMsg(`${ITEMS[id].icon} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
+        this.marketMsg(`${this.itemIco(ITEMS[id])} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
             + (can < n ? ` <i>(${full ? T('çantan doldu') : out ? T('stok bitti') : T`paran ${n} taneye yetmedi`})</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
         // The flash happens AFTER the refresh: the row element is rebuilt
@@ -8669,7 +8680,7 @@ const Game = {
         this.addProficiencyXp('trade', 4 * can);
         item.qty -= can;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
-        this.marketMsg(`${item.icon||'📦'} <b>${T(item.name)} x${can}</b> ${T`satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`}`);
+        this.marketMsg(`${this.itemIco(item)} <b>${T(item.name)} x${can}</b> ${T`satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`}`);
         this.updateTopBar(); this.refreshMarket();
         this.feedback('sell', document.getElementById('mrow-sell-' + id) || document.getElementById('mrow-buy-' + id), gain);
         this.flash(document.getElementById('mrow-buy-' + id));
@@ -10073,7 +10084,7 @@ const Game = {
             .map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
         let col = (title, list, dir, empty) => `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${
             list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
-                <span>${i.icon} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
+                <span>${this.itemIco(i)} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
             : `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         // Treasury: the only money not looted on defeat (#53 item 1.2). Moving money into storage
         // is insurance — the smaller the purse you're carrying, the cheaper a defeat is.
@@ -11528,7 +11539,7 @@ const Game = {
                 let isUse = item.type === 'special' && item.id === 'boss_map';
                 html += `<div class="inv-item"
                 ${canEquip ? `draggable="true" ondragstart="Game._eqDragIdx=${i}" ondragend="Game._eqDragIdx=null"` : ''}>
-                <div style="font-size:1.5rem">${item.icon||'📦'}</div>
+                <div style="font-size:1.5rem">${this.itemIco(item, true)}</div>
                 <div style="font-weight:bold;font-size:var(--fs-md);margin-top:0.3rem">${T(item.name)}</div>
                 <div style="color:var(--text-muted);font-size:var(--fs-sm)">x${item.qty}</div>
                 ${this.itemNote(item) ? `<div style="font-size:var(--fs-xs);color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
@@ -11569,6 +11580,14 @@ const Game = {
         return bits.join(' · ');
     },
 
+    // An item's pixel icon (MapArt.itemIcon, 2.0.0) as an <img>, or its emoji when there's no
+    // drawing for it. Plain-text places (alerts, logs, tooltips) keep the emoji.
+    itemIco(item, big) {
+        if(!item) return '📦';
+        let url = typeof MapArt !== 'undefined' ? MapArt.itemIcon(item) : null;
+        return url ? `<img class="ico-px${big ? ' big' : ''}" src="${url}" alt="">` : (item.icon || '📦');
+    },
+    EQUIP_PH: { helmet: 'cap', armor: 'leather', weapon: 'sword', shield: 'shield', gloves: 'gloves', boots: 'shoes', horse: 'horse_kib' },
     EQUIP_SLOTS: { helmet: { icon: '⛑️', label: 'Başlık' }, armor: { icon: '🎽', label: 'Zırh' },
         weapon: { icon: '🗡️', label: 'Silah' }, shield: { icon: '🛡️', label: 'Kalkan' },
         gloves: { icon: '🧤', label: 'Eldiven' }, boots: { icon: '🥾', label: 'Çizme' },
@@ -11581,7 +11600,8 @@ const Game = {
         let meta = this.EQUIP_SLOTS[slot] || { icon: '📦', label: slot };
         let title = item ? T(item.name) + (this.itemNote(item) ? ' — ' + this.itemNote(item) : '')
                          : T(meta.label);
-        let inner = item ? (item.icon || meta.icon) : `<span class="equip-slot-ph">${meta.icon}</span>`;
+        // an empty slot shows the plainest item of its kind, faded (the pixel icon, else the emoji)
+        let inner = item ? this.itemIco(item, true) : `<span class="equip-slot-ph">${this.itemIco(ITEMS[this.EQUIP_PH[slot]] || meta, true)}</span>`;
         return `<div class="equip-slot${item ? ' filled' : ''}" data-slot="${slot}" title="${String(title).replace(/"/g, '&quot;')}"
             ${item ? `onclick="Game.unequipItem('${slot}')"` : ''}
             ondragover="event.preventDefault();this.classList.add('drag-over')"

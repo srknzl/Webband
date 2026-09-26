@@ -84,6 +84,7 @@
 <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 9c3-3 6 3 9 0s6 3 9 0M3 15c3-3 6 3 9 0s6 3 9 0"/></symbol>
 <symbol id="i-bridge" viewBox="0 0 24 24"><path d="M2 9h20"/><path d="M4 9v10M20 9v10"/><path d="M4 17c3-5 13-5 16 0"/></symbol>
 <symbol id="i-road" viewBox="0 0 24 24"><path d="M9 3L6 21M15 3l3 18"/><path d="M12 4v3M12 10.5v3M12 17v3"/></symbol>
+<symbol id="i-install" viewBox="0 0 24 24"><path d="M12 3v11M7.5 9.5L12 14l4.5-4.5"/><path d="M4 15v4.5h16V15"/></symbol>
 <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
     </defs></svg>
 
@@ -104,6 +105,8 @@
                 <h1>WebBand</h1>
                 <div class="ornament bottom-ornament"></div>
                 <p>Kalradya'ya Hoşgeldiniz</p>
+                <!-- 2.0.0: the game's own soldiers marching past a keep (MapArt.march) -->
+                <canvas id="march-canvas" width="320" height="64" aria-hidden="true"></canvas>
             </div>
             <div class="form-group">
                 <label>Karakter Adı:</label>
@@ -115,15 +118,15 @@
             </div>
             
             <div class="start-actions">
-                <button class="btn hex-btn-small" onclick="Game.showLore('lords')">🏇 Lordlar</button>
-                <button class="btn hex-btn-small" onclick="Game.showLore('kingdoms')">🏰 Krallıklar</button>
-                <button class="btn hex-btn-small" onclick="Save.continueGame()">📂 Kayıttan Devam</button>
-                <button class="btn hex-btn-small" onclick="Save.open()">💾 Kayıtlar</button>
+                <button class="btn start-act" onclick="Game.showLore('lords')"><svg class="i"><use href="#i-horse"/></svg> Lordlar</button>
+                <button class="btn start-act" onclick="Game.showLore('kingdoms')"><svg class="i"><use href="#i-castle"/></svg> Krallıklar</button>
+                <button class="btn start-act" onclick="Save.continueGame()"><svg class="i"><use href="#i-scroll"/></svg> Kayıttan Devam</button>
+                <button class="btn start-act" onclick="Save.open()"><svg class="i"><use href="#i-save"/></svg> Kayıtlar</button>
                 <!-- Install button (#93): hidden until the browser says the game is
                      installable. Chrome/Android and desktop fire `beforeinstallprompt`
                      and let us hold onto it; iOS never does, so on iPhone this stays
                      hidden and Safari's Share sheet is the only route. -->
-                <button class="btn hex-btn-small hidden" id="install-btn" onclick="Game.install()">📲 Yükle</button>
+                <button class="btn start-act hidden" id="install-btn" onclick="Game.install()"><svg class="i"><use href="#i-install"/></svg> Uygulamayı Yükle</button>
             </div>
             <!-- Dil seçimi: ilk açılışta `#lang-ask` perdesi sorar, sonrasında
                  bu sıra başlangıç ekranında durur ve her an değiştirilebilir. -->

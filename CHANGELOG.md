@@ -53,6 +53,20 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
 - **Gece pencereler yanıyor.** Gece biraz daha karanlık. Şehir ve köylerin pencereleri tek tek
   yanıyor.
 
+### Şehirler, eşyalar, ana menü
+
+- **Şehre girince pixel sahne.** Şehir, köy ve kale sahneleri her krallığın kendi tarzında:
+  Svadya'da taş sur ve kırmızı çatılar, Rodok'ta kum taşı, Nord'da ahşap çit ve deniz, Veagir'de
+  soğan kubbeler ve kar, Kergit'te çadır obası ve bozkır. Tıkladığın her bina o krallığın
+  mimarisinde. Tabelalar birbirinin üstüne binmiyor. Gece pencereler ve meşaleler yanıyor.
+- **Eşyaların kendi ikonu var.** Dört kılıç artık aynı emoji değil. Silahın kademesi
+  metalinden belli: demir, çelik, desenli Şam çeliği, altın kabzalı kraliyet. Atların donu,
+  zırhların malzemesi, yiyecekler ve ticaret malları ayrı ayrı çizildi.
+- **Lord portreleri çerçevede.** Koyu altın çerçeve, krallığın renginde bir halka ve köşede
+  arması.
+- **Yeni ana menü.** Başlığın altında oyunun askerleri bir kalenin önünden yürüyor. Turuncu
+  altıgen düğmeler yerine çizgi ikonlu, koyu cam düğmeler var.
+
 ### Arayüz
 
 - **Yeni simgeler.** Üst çubuktaki, menüdeki ve alt şeritteki renkli emojiler yerini oyunun

@@ -195,11 +195,17 @@ const Nobles = {
                 background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
                 display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
         }
-        if(n.guardianId !== undefined && !n.suitor) return this.ladyPortrait(n, size);
-        return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border:4px ridge #dca243;
-            background-image:url('lord_portraits.jpg');background-size:300% 300%;
-            background-position:${col*50}% ${row*50}%;filter:sepia(0.2) contrast(1.1);
-            box-shadow:inset 0 0 15px #000;"></div>`;
+        if(n.guardianId !== undefined && !n.suitor) return this.framed(this.ladyPortrait(n, size), n, size, true);
+        return this.framed(`<div class="pimg" style="background-image:url('lord_portraits.jpg');background-size:300% 300%;
+            background-position:${col*50}% ${row*50}%;filter:sepia(0.2) contrast(1.1);"></div>`, n, size, false);
+    },
+    // The portrait frame (2.0.0): a dark-gold mount, a thin ring in the kingdom's colour and its
+    // crest as a badge in the corner (style.css .portrait); round for a lady's portrait.
+    framed(inner, n, size, round) {
+        let f = FACTIONS[n.faction], cs = Math.round(size * 0.3);
+        let crest = f ? Game.crestCss(f.crest, cs, `position:absolute;right:${-Math.round(cs * 0.22)}px;bottom:${-Math.round(cs * 0.22)}px;`
+            + `border-radius:50%;border:2px solid #d4af37;box-shadow:0 2px 6px rgba(0,0,0,0.8);${f.crestFx ? 'filter:' + f.crestFx + ';' : ''}`) : '';
+        return `<div class="portrait${round ? ' round' : ''}" style="--fc:${f ? f.color : '#d4af37'};width:${size}px;height:${size}px">${inner}${crest}</div>`;
     },
 
     // There's no lady in the sprite sheet (#39): the portrait is drawn in code. Everything
@@ -296,8 +302,7 @@ const Nobles = {
             <rect width="100" height="100" filter="url(#${uid}gr)" opacity="0.16" style="mix-blend-mode:overlay"/>
             <rect width="100" height="100" fill="url(#${uid}vg)"/>
         </svg>`;
-        return `<div style="width:${size}px;height:${size}px;border-radius:50%;flex:0 0 auto;overflow:hidden;
-            border:4px ridge #dca243;box-shadow:inset 0 0 15px #000;filter:sepia(0.35) contrast(1.05) saturate(0.9);">${svg}</div>`;
+        return `<div class="pimg" style="filter:sepia(0.35) contrast(1.05) saturate(0.9);">${svg}</div>`;
     },
 
     // ---------- Who's where ----------

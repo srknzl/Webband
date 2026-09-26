@@ -2983,4 +2983,7 @@ I18N.dicts.en = {
   "Ordu": "Army",
   "Kamp": "Camp",
   "Savaş": "War",
+  "Krallıklar": "Kingdoms",
+  "Kayıttan Devam": "Continue from Save",
+  "Uygulamayı Yükle": "Install"
 };

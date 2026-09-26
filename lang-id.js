@@ -2983,4 +2983,7 @@ I18N.dicts.id = {
   "Ordu": "Pasukan",
   "Kamp": "Perkemahan",
   "Savaş": "Perang",
+  "Krallıklar": "Kerajaan",
+  "Kayıttan Devam": "Lanjutkan dari Simpanan",
+  "Uygulamayı Yükle": "Pasang"
 };
