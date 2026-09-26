@@ -3011,5 +3011,9 @@ I18N.dicts.id = {
   "Evlilik": "Pernikahan",
   "Yoldaşın senin adına konuşur": "Rekanmu berbicara atas namamu",
   "Karşılığında tımar verirsin": "Kamu memberikan wilayah sebagai gantinya",
-  "İlişki −15, nam +2 · rakip krallıkların lordları sevinir": "Hubungan −15, ketenaran +2 · bangsawan kerajaan saingan senang"
+  "İlişki −15, nam +2 · rakip krallıkların lordları sevinir": "Hubungan −15, ketenaran +2 · bangsawan kerajaan saingan senang",
+  "Sahneyi sola kaydır": "Geser pemandangan ke kiri",
+  "Sahneyi sağa kaydır": "Geser pemandangan ke kanan",
+  "Yerleşim sahnesi, yana kaydırılır": "Pemandangan permukiman, dapat digeser ke samping",
+  "Sahneyi yana kaydır": "Geser ke samping"
 };

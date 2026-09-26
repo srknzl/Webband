@@ -1090,7 +1090,28 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
   what `renderScene`'s pointer mapping and click already read, so a building still clicks its
   own button. Signs are the town card's line icon (`Game.TOWN_CARD`), rasterised once from the
   SVG sprite as an image. At night: a blue tint, stars, lit windows and gate torches with a warm
-  glow. The vector scene remains behind `Game._classicScene` until round 3 approves.
+  glow. Round 3 approved it and the vector scene is gone; Node's harness (no MapArt) draws
+  a blank scene with no hot rects. A click maps its own point (not the last hover), so a
+  finger tap hits the building under it.
+- **Phone scene** (`@media (max-width: 820px)`, `Game.sceneScrollInit/Sync/Slide`): at 100 %
+  width a 390 px phone got a 112 px strip with 8 px signs. There the canvas keeps
+  `height: clamp(190px, 52vw, 240px)` and `#scene-scroll` slides sideways natively. From 660 px
+  up it fits the width again: sliding for the last few dozen pixels only put an arrow over a
+  building. The cues show only while the scene overflows (`.scrolls`):
+  - arrow buttons (40 px, 70 % of the box per tap), plus a shaded edge on whichever side has
+    more to show; both fade out at their end (`.at-start/.at-end`)
+  - a thin track under the scene, the thumb as wide as the view
+  - until the first slide, a "Sahneyi yana kaydır" pill (`pointer-events: none`) and one peek
+    of the canvas per session; after a slide `webband_sceneSlide` remembers it
+
+  Labels (pill, arrow `aria-label`/`title`, the region's `aria-label`) are written through `T()`
+  on every render, so they follow the language. A new settlement starts at the left, and a
+  redraw of the same one keeps its place.
+
+  Measured (Pixel 7 emulation, `scene.spec.js`): the scene is 190 px tall at 320–360 px, 203 at
+  390, 224 at 430 and 240 at 600–659, overflowing by 150–330 px; it fits (0 overflow) from 660
+  px. The page never scrolls sideways. A horizontal touch drag on the scene slides it, and a
+  vertical one scrolls the settlement screen.
 - **Item icons** (`MapArt.itemIcon`, `Game.itemIco`): 16×16 pixel art for all 56 items, cached as
   data URLs. A weapon's tier is its rank by price within its family (`sword`, `sword_steel`, …)
   and shows in the metal (`METAL`), grip and trim. Used in the bag, the equipment slots (an

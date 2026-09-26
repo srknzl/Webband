@@ -89,6 +89,7 @@
 <symbol id="i-gift" viewBox="0 0 24 24"><path d="M4 9h16v4H4zM5.5 13v7.5h13V13M12 9v11.5"/><path d="M12 9C9 9 7.5 7.8 7.5 6.3S9 4 10.2 5.1 12 9 12 9zm0 0c3 0 4.5-1.2 4.5-2.7S15 4 13.8 5.1 12 9 12 9z"/></symbol>
 <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5.5"/><path d="M9.5 5.5L12 3l2.5 2.5L12 9.5z"/></symbol>
 <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+<symbol id="i-swipe" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></symbol>
     </defs></svg>
 
     <div id="game-container">
@@ -273,7 +274,15 @@
                     <div id="settlement-view" class="view glass-panel">
                         <h2 id="settlement-name">Şehir Adı</h2>
                         <!-- Yerleşim sahnesi (#60): düğmelerin kendisi burada bina olarak çizilir -->
-                        <canvas id="scene-canvas" width="900" height="280"></canvas>
+                        <!-- Telefonda sahne okunur boyda kalır ve yana kayar (2.0.0); oklar, kenar gölgeleri,
+                             alt çubuk ve ilk girişteki ipucu bunu söyler. Etiketleri renderScene T() ile yazar. -->
+                        <div id="scene-wrap">
+                            <div id="scene-scroll"><canvas id="scene-canvas" width="900" height="280"></canvas></div>
+                            <button type="button" id="scene-left" class="scene-arrow"><svg class="i"><use href="#i-chev"/></svg></button>
+                            <button type="button" id="scene-right" class="scene-arrow"><svg class="i"><use href="#i-chev"/></svg></button>
+                            <div id="scene-hint" aria-hidden="true"><svg class="i"><use href="#i-swipe"/></svg><span></span></div>
+                            <div id="scene-track" aria-hidden="true"><i></i></div>
+                        </div>
                         <div id="settlement-actions" class="action-list">
                         </div>
                     </div>

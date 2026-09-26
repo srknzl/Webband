@@ -6821,26 +6821,11 @@ const Game = {
     // The scene has no separate coordinate table: the settlement screen's own buttons
     // are drawn as buildings. Since addBtn is the single gate, a button added tomorrow
     // becomes a structure in the scene by itself — no need to keep two lists in sync.
-    // The building type is picked from the button's icon; an unrecognized icon falls back to a house.
+    // The building type is picked from the button's icon (MapArt's SCENE_KIND); an unrecognized icon is a house.
     SCENE_W: 900, SCENE_H: 280,
-    SCENE_KIND: {
-        '👑': 'tower', '🛡️': 'tower', '🏆': 'tower',
-        '🍺': 'house', '🧓': 'house', '⛓️': 'house', '🏭': 'shop', '📦': 'barn',
-        '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔️': 'tent',
-        '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate'
-    },
     sceneIcon(text) {
         let m = String(text).match(/(\p{Extended_Pictographic}️?)/u);
         return m ? m[1] : '';
-    },
-    sceneKind(icon) {
-        return this.SCENE_KIND[icon] || this.SCENE_KIND[icon.replace('️', '')] || 'house';
-    },
-    // Deterministic randomness derived from the settlement's id: the same city always gets the same silhouette
-    sceneRnd(loc, i) {
-        let str = String(loc.id) + '|' + i, h = 0;
-        for(let k = 0; k < str.length; k++) h = (h * 131 + str.charCodeAt(k)) % 1000003;
-        return h / 1000003;
     },
 
     renderScene(loc) {
@@ -6855,22 +6840,100 @@ const Game = {
         let dpr = this.sceneDpr();
         if(cv.width !== this.SCENE_W * dpr) { cv.width = this.SCENE_W * dpr; cv.height = this.SCENE_H * dpr; }
         this.drawScene(cv.getContext('2d'), loc, btns, -1);
-        cv.onmousemove = e => {
+        // Hot rects are recorded in 900x280 drawing units, so the pointer is converted into
+        // those — not into the (now larger) backing-store pixels. The rect is the canvas's own,
+        // so a phone's sideways-scrolled scene maps the same way.
+        let hit = e => {
             let r = cv.getBoundingClientRect();
-            // Hot rects are recorded in 900x280 drawing units, so the pointer is converted into
-            // those — not into the (now larger) backing-store pixels.
             let x = (e.clientX - r.left) * this.SCENE_W / r.width, y = (e.clientY - r.top) * this.SCENE_H / r.height;
-            let i = this.sceneHot.findIndex(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+            return this.sceneHot.findIndex(h => h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+        };
+        cv.onmousemove = e => {
+            let i = hit(e);
             if(i === this._sceneHover) return;                 // only redraw on a change
             this._sceneHover = i;
             cv.style.cursor = i >= 0 ? 'pointer' : 'default';
             this.drawScene(cv.getContext('2d'), loc, btns, i);
         };
         cv.onmouseleave = () => { this._sceneHover = -1; this.drawScene(cv.getContext('2d'), loc, btns, -1); };
-        cv.onclick = () => {
-            let h = this.sceneHot[this._sceneHover];
+        // The tap's own point, not the last hover: a finger has no hover to leave behind
+        cv.onclick = e => {
+            let h = this.sceneHot[hit(e)];
             if(h) h.btn.onclick();                             // the button's own action — no second table
         };
+        this.sceneScrollInit(loc);
+    },
+
+    // Phone (2.0.0, round 3): the scene keeps a readable height and slides sideways instead of
+    // shrinking to a strip. Four cues say it slides, each on its own: arrow buttons and a shaded
+    // edge on whichever side has more to show, a track under it, and — until the first slide —
+    // a "slide the scene" pill plus one small peek of the canvas. All of them exist only while
+    // the scene is wider than its box (`.scrolls`), so a desktop sees none.
+    sceneScrollInit(loc) {
+        let sc = document.getElementById('scene-scroll'), wrap = document.getElementById('scene-wrap');
+        if(!sc || !wrap || !sc.addEventListener) return;
+        let left = document.getElementById('scene-left'), right = document.getElementById('scene-right');
+        if(!sc._wired) {
+            sc._wired = true;
+            try { this._sceneSeen = localStorage.getItem('webband_sceneSlide') === '1'; } catch(e) {}
+            left.onclick = () => this.sceneSlide(-1);
+            right.onclick = () => this.sceneSlide(1);
+            sc.addEventListener('scroll', () => {
+                if(sc.scrollLeft > 12) this.sceneSlid();
+                this.sceneScrollSync();
+            }, { passive: true });
+            // The box changes size without a window resize too: the settlement view is drawn
+            // while hidden, then shown; the phone turns sideways
+            if(typeof ResizeObserver === 'function') new ResizeObserver(() => this.sceneScrollSync()).observe(sc);
+            else addEventListener('resize', () => this.sceneScrollSync());
+        }
+        // Labels are written here, not in index.html, so they follow the current language
+        left.setAttribute('aria-label', T('Sahneyi sola kaydır')); left.title = T('Sahneyi sola kaydır');
+        right.setAttribute('aria-label', T('Sahneyi sağa kaydır')); right.title = T('Sahneyi sağa kaydır');
+        sc.setAttribute('aria-label', T('Yerleşim sahnesi, yana kaydırılır'));
+        let hintTx = document.querySelector('#scene-hint span');
+        if(hintTx) hintTx.textContent = T('Sahneyi yana kaydır');
+        // A new settlement starts at its left edge; a redraw of the same one keeps its place
+        if(this._sceneScrollLoc !== loc.id) {
+            this._sceneScrollLoc = loc.id;
+            sc.scrollLeft = 0;
+            wrap.classList.remove('peek');
+            this._scenePeekDue = true;
+        }
+        this.sceneScrollSync();
+    },
+    sceneSlide(dir) {
+        let sc = document.getElementById('scene-scroll');
+        if(!sc) return;
+        sc.scrollBy({ left: dir * sc.clientWidth * 0.7, behavior: this.reduceMotion() ? 'auto' : 'smooth' });
+        this.sceneSlid();
+    },
+    // The player has found the slide: the words go, and stay gone
+    sceneSlid() {
+        if(this._sceneSeen) return;
+        this._sceneSeen = true;
+        try { localStorage.setItem('webband_sceneSlide', '1'); } catch(e) {}
+        this.sceneScrollSync();
+    },
+    sceneScrollSync() {
+        let sc = document.getElementById('scene-scroll'), wrap = document.getElementById('scene-wrap');
+        if(!sc || !wrap) return;
+        let max = sc.scrollWidth - sc.clientWidth, x = sc.scrollLeft, over = max > 4;
+        wrap.classList.toggle('scrolls', over);
+        wrap.classList.toggle('at-start', x <= 4);
+        wrap.classList.toggle('at-end', x >= max - 4);
+        wrap.classList.toggle('hint', over && !this._sceneSeen);
+        // The peek waits for a scene that actually overflows (it may be laid out hidden first),
+        // and plays once a session: a cue the first time, a twitch on every visit
+        if(over && this._scenePeekDue) {
+            this._scenePeekDue = false;
+            if(!this._sceneSeen && !this._scenePeeked) { this._scenePeeked = true; wrap.classList.add('peek'); }
+        }
+        let th = document.querySelector('#scene-track i');
+        if(th && over) {
+            th.style.width = (100 * sc.clientWidth / sc.scrollWidth).toFixed(2) + '%';
+            th.style.left = (100 * x / sc.scrollWidth).toFixed(2) + '%';
+        }
     },
 
     // The scene canvas is the one canvas in the game whose bitmap is stretched: it is authored
@@ -6883,76 +6946,17 @@ const Game = {
     sceneDpr() { return Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1); },
 
     drawScene(ctx, loc, btns, hover) {
-        let W = this.SCENE_W, H = this.SCENE_H, R = i => this.sceneRnd(loc, i);
         let dpr = this.sceneDpr();
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // draw in 900x280 units, store in device pixels
-        let hour = state.time.hour, night = hour < 6 || hour >= 20, dusk = (hour >= 18 && hour < 20) || (hour >= 6 && hour < 8);
         let col = (FACTIONS[loc.faction] || {}).color || '#ffcc00';
-        let ground = H * 0.66;
-        ctx.clearRect(0, 0, W, H);
-        // 2.0.0: the scene is MapArt's pixel art (map-art.js); below is the vector scene it
-        // replaces, kept until round 3 approves the new one
-        if(typeof MapArt !== 'undefined' && !this._classicScene) {
-            this.sceneHot = MapArt.scene(ctx, loc, btns, hover, this);
-            return this.drawSceneText(ctx, loc, hover, col);
-        }
-
-        // Sky — by time of day
-        let sky = ctx.createLinearGradient(0, 0, 0, ground);
-        if(night) { sky.addColorStop(0, '#0b1027'); sky.addColorStop(1, '#2b3355'); }
-        else if(dusk) { sky.addColorStop(0, '#38406e'); sky.addColorStop(0.6, '#c9743c'); sky.addColorStop(1, '#e8b473'); }
-        else { sky.addColorStop(0, '#6ea6dd'); sky.addColorStop(1, '#cfe0ea'); }
-        ctx.fillStyle = sky; ctx.fillRect(0, 0, W, ground + 2);
-        if(night) {                                            // stars
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            for(let i = 0; i < 40; i++) ctx.fillRect(R(i) * W, R(i + 100) * ground * 0.7, 1.6, 1.6);
-        }
-        ctx.fillStyle = night ? 'rgba(226,232,255,0.9)' : dusk ? 'rgba(255,196,120,0.95)' : 'rgba(255,246,214,0.95)';
-        ctx.beginPath(); ctx.arc(90 + R(5) * (W - 180), 46 + R(6) * 24, night ? 16 : 22, 0, 7); ctx.fill();
-
-        // Distant hills (two layers)
-        for(let layer = 0; layer < 2; layer++) {
-            ctx.fillStyle = night ? (layer ? '#1b2138' : '#141a2e') : (layer ? '#8fa07d' : '#6f8064');
-            ctx.beginPath(); ctx.moveTo(0, ground);
-            for(let x = 0; x <= W; x += 60) {
-                let k = layer * 50 + x / 60;
-                ctx.lineTo(x, ground - 30 - layer * 18 - R(k) * 45);
-            }
-            ctx.lineTo(W, ground); ctx.closePath(); ctx.fill();
-        }
-
-        // Backdrop: city walls, a crenellated castle wall, a village fence and fields
-        this.drawBackdrop(ctx, loc, ground, night, col, R);
-
-        // Ground
-        let gr = ctx.createLinearGradient(0, ground, 0, H);
-        gr.addColorStop(0, night ? '#2a2a22' : '#6b6a4a'); gr.addColorStop(1, night ? '#171712' : '#4a4a33');
-        ctx.fillStyle = gr; ctx.fillRect(0, ground, W, H - ground);
-        ctx.fillStyle = night ? 'rgba(120,110,80,0.25)' : 'rgba(190,175,130,0.45)';   // dirt road
-        ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(W, H); ctx.lineTo(W, H - 34); ctx.lineTo(0, H - 22); ctx.fill();
-
-        // Buildings: two rows (odd indices in back, even in front)
-        this.sceneHot = [];
-        let back = btns.filter((_, i) => i % 2 === 1), front = btns.filter((_, i) => i % 2 === 0);
-        let rows = [
-            { list: back, base: ground + 14, w: 96, h: 66, dim: 0.82 },
-            { list: front, base: H - 16, w: 122, h: 88, dim: 1 }
-        ];
-        rows.forEach((row, ri) => {
-            let n = row.list.length || 1, step = (W - 60) / n;
-            row.list.forEach((btn, i) => {
-                let x = 30 + i * step + (step - row.w) / 2 + (R(ri * 20 + i) - 0.5) * 14;
-                let y = row.base - row.h;
-                let icon = this.sceneIcon(btn.innerHTML);
-                let idx = btns.indexOf(btn);
-                this.sceneHot[idx] = { x, y, w: row.w, h: row.h, btn, icon, label: btn.innerText };
-                this.drawStructure(ctx, this.sceneKind(icon), x, y, row.w, row.h, col, icon, night, row.dim, hover === idx);
-            });
-        });
-
+        ctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
+        // 2.0.0: the scene is MapArt's pixel art (map-art.js). Node's harness loads no MapArt,
+        // so there the scene simply stays blank and has no hot rects.
+        if(typeof MapArt === 'undefined') return;
+        this.sceneHot = MapArt.scene(ctx, loc, btns, hover, this);
         this.drawSceneText(ctx, loc, hover, col);
     },
-    // The words over a scene, either style: where you are, and what's under the pointer
+    // The words over the scene: where you are, and what's under the pointer
     drawSceneText(ctx, loc, hover, col) {
         let W = this.SCENE_W;
         // Settlement-type badge (#100): a small corner label so the palette + silhouette are
@@ -6977,165 +6981,6 @@ const Game = {
             ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
             ctx.fillText(txt, bx + 10, by + 15);
         }
-    },
-
-    drawBackdrop(ctx, loc, ground, night, col, R) {
-        let W = this.SCENE_W;
-        // Each settlement type gets its own stone palette so village/castle/city read apart at a
-        // glance (#100): village warm earth, castle cold steel-grey, city warm terracotta-sand.
-        let stone = loc.type === 'castle' ? (night ? '#33343f' : '#8b909c')
-                  : loc.type === 'city'   ? (night ? '#3c3228' : '#b79a6f')
-                  : (night ? '#3a3327' : '#9a8f6e');
-        // Prosperity scales how crowded the silhouette is: a rich city bristles, a poor village is bare (#100).
-        let pros = Math.max(10, Math.min(100, loc.prosperity || 50)), dens = 0.55 + pros / 100;
-        let wallTop = ground - 92;
-        if(loc.type === 'village') {
-            // Field strips + fence — count scales with prosperity
-            let strips = Math.round(3 + dens * 2);
-            ctx.fillStyle = night ? '#3a3a26' : '#9a8f4e';
-            for(let i = 0; i < strips; i++) ctx.fillRect(i * (W / strips) + R(i) * 20, ground - 26, W / strips - 40, 22);
-            ctx.strokeStyle = night ? '#3d3327' : '#7a6042'; ctx.lineWidth = 3;
-            for(let x = 10; x < W; x += 34) {
-                ctx.beginPath(); ctx.moveTo(x, ground - 4); ctx.lineTo(x, ground - 26); ctx.stroke();
-            }
-            ctx.beginPath(); ctx.moveTo(0, ground - 18); ctx.lineTo(W, ground - 18); ctx.stroke();
-            return;
-        }
-        // Wall: long and crenellated in a city, thicker + a keep behind it in a castle
-        if(loc.type === 'castle') {
-            let kx = 60 + R(9) * (W - 320), kw = 190, kh = 165;
-            ctx.fillStyle = night ? '#2c2d38' : '#767c88';                                     // cold steel keep
-            ctx.fillRect(kx, wallTop - kh + 40, kw, kh);
-            ctx.fillStyle = night ? '#22242f' : '#636874';
-            for(let i = 0; i < 5; i++) ctx.fillRect(kx + i * 40, wallTop - kh + 26, 26, 16);   // battlement
-            ctx.fillStyle = col;                                                              // banner
-            ctx.fillRect(kx + kw / 2 - 1, wallTop - kh - 26, 2, 30);
-            ctx.beginPath(); ctx.moveTo(kx + kw / 2 + 1, wallTop - kh - 24);
-            ctx.lineTo(kx + kw / 2 + 36, wallTop - kh - 16); ctx.lineTo(kx + kw / 2 + 1, wallTop - kh - 8); ctx.fill();
-        } else {
-            // City silhouette: warm terracotta rooftops, a dome + minaret behind, count by prosperity
-            let houses = Math.round((6 + R(3) * 5) * dens);
-            for(let i = 0; i < houses; i++) {
-                let x = R(i + 30) * (W - 80), w = 54 + R(i + 60) * 46, h = 52 + R(i + 90) * 60;
-                let top = wallTop + 14 - h;                      // rooftops show above the wall
-                ctx.fillStyle = night ? '#2a2620' : '#7a5f45';
-                ctx.fillRect(x, top, w, h);
-                ctx.fillStyle = night ? '#1a1512' : '#8a4a30';   // terracotta pitched roof
-                ctx.beginPath(); ctx.moveTo(x - 6, top); ctx.lineTo(x + w / 2, top - 26); ctx.lineTo(x + w + 6, top); ctx.fill();
-                if(night) {                                     // hearth light in the windows
-                    ctx.fillStyle = 'rgba(255,196,90,0.75)';
-                    ctx.fillRect(x + w * 0.3, top + 16, 7, 9);
-                    if(R(i + 120) > 0.5) ctx.fillRect(x + w * 0.62, top + 16, 7, 9);
-                }
-            }
-            // A dome + minaret to mark it unmistakably a city
-            let dx = 120 + R(2) * (W - 300), dr = 46;
-            ctx.fillStyle = night ? '#2c2a34' : '#9a8c74';
-            ctx.beginPath(); ctx.arc(dx, wallTop + 6, dr, Math.PI, 0); ctx.fill();
-            ctx.fillRect(dx - dr, wallTop + 4, dr * 2, 8);
-            ctx.fillStyle = col; ctx.fillRect(dx - 1, wallTop - dr - 16, 2, 16);
-            ctx.fillStyle = night ? '#26242e' : '#8a7c64';       // minaret
-            ctx.fillRect(dx + dr + 20, wallTop - 40, 16, wallTop * 0 + 132);
-            ctx.beginPath(); ctx.moveTo(dx + dr + 20, wallTop - 40); ctx.lineTo(dx + dr + 28, wallTop - 60); ctx.lineTo(dx + dr + 36, wallTop - 40); ctx.fill();
-        }
-        // Wall + gate
-        ctx.fillStyle = stone; ctx.fillRect(0, wallTop, W, 92);
-        ctx.fillStyle = night ? '#2c2c34' : '#6f6a5e';
-        for(let x = 4; x < W; x += 34) ctx.fillRect(x, wallTop - 12, 20, 14);      // battlements
-        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, wallTop + 72, W, 20);  // shadow band
-        let gx = 120 + R(7) * (W - 320);
-        ctx.fillStyle = night ? '#16161c' : '#3b2f22';
-        ctx.beginPath(); ctx.moveTo(gx, ground); ctx.lineTo(gx, wallTop + 44);
-        ctx.arc(gx + 28, wallTop + 44, 28, Math.PI, 0); ctx.lineTo(gx + 56, ground); ctx.fill();
-        ctx.fillStyle = col; ctx.fillRect(gx - 26, wallTop - 10, 3, 40);           // a banner beside the gate
-        ctx.beginPath(); ctx.moveTo(gx - 23, wallTop - 8); ctx.lineTo(gx - 2, wallTop - 1); ctx.lineTo(gx - 23, wallTop + 6); ctx.fill();
-    },
-
-    // A single drawing primitive: the kind gives the silhouette's shape, the icon gives the sign.
-    drawStructure(ctx, kind, x, y, w, h, col, icon, night, dim, hot) {
-        ctx.save();
-        if(hot) { ctx.shadowColor = 'rgba(255,204,0,0.9)'; ctx.shadowBlur = 22; }
-        let wood = night ? '#2f2418' : '#6b4f31', wall = night ? '#39332a' : `rgb(${Math.round(168*dim)},${Math.round(150*dim)},${Math.round(120*dim)})`;
-        let roof = night ? '#241d16' : `rgb(${Math.round(122*dim)},${Math.round(70*dim)},${Math.round(48*dim)})`;
-        let lit = 'rgba(255,196,90,0.85)';
-        ctx.fillStyle = 'rgba(0,0,0,0.28)';                       // ground shadow
-        ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 3, w * 0.52, 7, 0, 0, 7); ctx.fill();
-
-        if(kind === 'tower') {
-            ctx.fillStyle = wall; ctx.fillRect(x + w * 0.22, y, w * 0.56, h);
-            ctx.fillStyle = roof;
-            for(let i = 0; i < 4; i++) ctx.fillRect(x + w * 0.22 + i * w * 0.15, y - 9, w * 0.1, 10);
-            ctx.fillStyle = night ? lit : 'rgba(40,35,28,0.8)';
-            ctx.fillRect(x + w * 0.42, y + h * 0.34, w * 0.16, h * 0.2);
-            ctx.fillStyle = col; ctx.fillRect(x + w * 0.5, y - 34, 2, 26);
-            ctx.beginPath(); ctx.moveTo(x + w * 0.52, y - 32); ctx.lineTo(x + w * 0.82, y - 25); ctx.lineTo(x + w * 0.52, y - 18); ctx.fill();
-        } else if(kind === 'stall') {
-            ctx.fillStyle = wood; ctx.fillRect(x + 6, y + h * 0.35, 5, h * 0.65); ctx.fillRect(x + w - 11, y + h * 0.35, 5, h * 0.65);
-            for(let i = 0; i < 5; i++) {                          // striped awning
-                ctx.fillStyle = i % 2 ? '#c94f3d' : '#e8ded0';
-                ctx.fillRect(x + i * w / 5, y + h * 0.28, w / 5, h * 0.16);
-            }
-            ctx.fillStyle = wood; ctx.fillRect(x + 10, y + h * 0.62, w - 20, h * 0.14);
-            ctx.fillStyle = night ? '#3a2f22' : '#8a6c46';
-            ctx.fillRect(x + 16, y + h * 0.78, 22, 18); ctx.fillRect(x + w - 44, y + h * 0.78, 22, 18);
-        } else if(kind === 'tent') {
-            ctx.fillStyle = night ? '#2c2c26' : '#ddd2b4';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.1); ctx.lineTo(x + 4, y + h); ctx.lineTo(x + w - 4, y + h); ctx.fill();
-            ctx.fillStyle = night ? '#191913' : '#4a4436';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.45); ctx.lineTo(x + w / 2 - 13, y + h); ctx.lineTo(x + w / 2 + 13, y + h); ctx.fill();
-            ctx.fillStyle = col; ctx.fillRect(x + w / 2 - 1, y - 12, 2, 22);
-            ctx.beginPath(); ctx.moveTo(x + w / 2 + 1, y - 11); ctx.lineTo(x + w / 2 + 20, y - 6); ctx.lineTo(x + w / 2 + 1, y - 1); ctx.fill();
-        } else if(kind === 'ring') {
-            ctx.fillStyle = night ? '#2a2118' : '#8e6c44';
-            ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.72, w * 0.48, h * 0.3, 0, 0, 7); ctx.fill();
-            ctx.fillStyle = night ? '#3a2f22' : '#b08a58';
-            ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.66, w * 0.42, h * 0.24, 0, 0, 7); ctx.fill();
-            ctx.strokeStyle = wood; ctx.lineWidth = 4;            // palisade stakes
-            for(let i = 0; i < 10; i++) {
-                let a = i / 10 * Math.PI * 2, px = x + w / 2 + Math.cos(a) * w * 0.45, py = y + h * 0.72 + Math.sin(a) * h * 0.3;
-                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py - 16); ctx.stroke();
-            }
-        } else if(kind === 'fire') {
-            ctx.fillStyle = wood; ctx.fillRect(x + w / 2 - 16, y + h * 0.6, 32, h * 0.4);
-            ctx.fillStyle = '#e8622a';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.18); ctx.lineTo(x + w / 2 - 20, y + h * 0.62); ctx.lineTo(x + w / 2 + 20, y + h * 0.62); ctx.fill();
-            ctx.fillStyle = '#ffcc44';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.34); ctx.lineTo(x + w / 2 - 10, y + h * 0.62); ctx.lineTo(x + w / 2 + 10, y + h * 0.62); ctx.fill();
-        } else if(kind === 'gate') {
-            ctx.fillStyle = night ? '#33333c' : '#8b8578'; ctx.fillRect(x, y + h * 0.1, w, h * 0.9);
-            ctx.fillStyle = night ? '#16161c' : '#3b2f22';
-            ctx.beginPath(); ctx.moveTo(x + w * 0.28, y + h); ctx.lineTo(x + w * 0.28, y + h * 0.42);
-            ctx.arc(x + w / 2, y + h * 0.42, w * 0.22, Math.PI, 0); ctx.lineTo(x + w * 0.72, y + h); ctx.fill();
-        } else {
-            // house / shop / barn / coop — body + roof, the difference is in the chimney and door
-            let bh = kind === 'barn' ? h * 0.68 : h * 0.62, by = y + h - bh;
-            ctx.fillStyle = wall; ctx.fillRect(x + 6, by, w - 12, bh);
-            ctx.fillStyle = roof;
-            ctx.beginPath(); ctx.moveTo(x - 2, by); ctx.lineTo(x + w / 2, by - h * 0.34); ctx.lineTo(x + w + 2, by); ctx.fill();
-            ctx.fillStyle = night ? '#241d16' : '#4a3524';        // door
-            let dw = kind === 'barn' ? w * 0.36 : w * 0.2;
-            ctx.fillRect(x + w / 2 - dw / 2, y + h - bh * 0.62, dw, bh * 0.62);
-            ctx.fillStyle = night ? lit : 'rgba(70,90,110,0.7)';  // window
-            ctx.fillRect(x + 14, by + bh * 0.22, 13, 12);
-            ctx.fillRect(x + w - 27, by + bh * 0.22, 13, 12);
-            if(kind === 'shop') {                                  // workshop chimney + smoke
-                ctx.fillStyle = roof; ctx.fillRect(x + w * 0.72, by - h * 0.28, 12, h * 0.3);
-                ctx.fillStyle = 'rgba(200,200,200,0.35)';
-                for(let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + w * 0.78, by - h * 0.34 - i * 11, 5 + i * 2, 0, 7); ctx.fill(); }
-            }
-            if(kind === 'coop') { ctx.fillStyle = wood; for(let i = 0; i < 5; i++) ctx.fillRect(x + 4 + i * (w - 8) / 5, y + h - 14, 3, 14); }
-        }
-
-        // Sign: the button's icon sits above the building, which door it is is obvious at a glance
-        ctx.shadowBlur = 0;
-        if(icon) {
-            ctx.fillStyle = hot ? 'rgba(255,204,0,0.95)' : 'rgba(12,12,16,0.8)';
-            ctx.strokeStyle = hot ? '#fff' : 'rgba(255,204,0,0.55)'; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.roundRect(x + w / 2 - 17, y - (kind === 'tower' ? 56 : 26), 34, 26, 6); ctx.fill(); ctx.stroke();
-            ctx.font = '17px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(icon, x + w / 2, y - (kind === 'tower' ? 42 : 12));
-        }
-        ctx.restore();
     },
 
     // --- INTERIOR BACKDROP (#60) ---

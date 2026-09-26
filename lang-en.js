@@ -3011,5 +3011,9 @@ I18N.dicts.en = {
   "Evlilik": "Marriage",
   "Yoldaşın senin adına konuşur": "A companion speaks on your behalf",
   "Karşılığında tımar verirsin": "You grant a fief in return",
-  "İlişki −15, nam +2 · rakip krallıkların lordları sevinir": "Relation −15, renown +2 · lords of rival kingdoms are pleased"
+  "İlişki −15, nam +2 · rakip krallıkların lordları sevinir": "Relation −15, renown +2 · lords of rival kingdoms are pleased",
+  "Sahneyi sola kaydır": "Slide the scene left",
+  "Sahneyi sağa kaydır": "Slide the scene right",
+  "Yerleşim sahnesi, yana kaydırılır": "Settlement scene, slides sideways",
+  "Sahneyi yana kaydır": "Slide the scene sideways"
 };

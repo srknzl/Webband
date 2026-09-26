@@ -59,6 +59,11 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
   Svadya'da taş sur ve kırmızı çatılar, Rodok'ta kum taşı, Nord'da ahşap çit ve deniz, Veagir'de
   soğan kubbeler ve kar, Kergit'te çadır obası ve bozkır. Tıkladığın her bina o krallığın
   mimarisinde. Tabelalar birbirinin üstüne binmiyor. Gece pencereler ve meşaleler yanıyor.
+- **Telefonda sahne büyük ve yana kayıyor.** Sahne telefonda ince bir şerit olarak kalıyor,
+  tabelalar okunmuyordu. Artık okunur boyda ve parmakla yana kaydırılıyor. Kenarlardaki oklar,
+  kararan kenar ve alttaki çubuk kaydırılabildiğini gösteriyor. İlk girişte "Sahneyi yana
+  kaydır" yazısı çıkıyor ve sahne bir kez kıpırdıyor. Hangi kaydırmada olursan ol, binaya
+  dokunmak o binanın düğmesine basmakla aynı.
 - **Eşyaların kendi ikonu var.** Dört kılıç artık aynı emoji değil. Silahın kademesi
   metalinden belli: demir, çelik, desenli Şam çeliği, altın kabzalı kraliyet. Atların donu,
   zırhların malzemesi, yiyecekler ve ticaret malları ayrı ayrı çizildi.
