@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.32.1', date: '2026-09-26', name: 'Omuz Omuza' };  // the version name is not translated
+const VERSION = { no: '1.33.0', date: '2026-09-26', name: 'Keskin Meydan' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -85,7 +85,9 @@ const Debug = {
                 effectiveFps: g(() => Game._step === Infinity ? T('ölçülmedi')
                     : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01)))),
                 measuredRefresh: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
-                mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'),
+                mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'), battleGl: cv('battle-gl'),
+                // Which battle renderer draws, at what pixel density, and its CPU cost (1.33.0)
+                battleRenderer: g(() => Battle.gfxInfo()),
                 // "The map stopped taking orders" reads as a render freeze and is usually input:
                 // a stuck pointer, a stuck marker drag, or a swallowed click (#100).
                 input: g(() => ({ ptr: Game._ptr.size, drag: !!Game.dragTarget, suppressClick: !!Game.suppressClick })),
@@ -754,9 +756,11 @@ const Input = {
             Input.mouse.clientY = e.clientY;
             Input.stick = null; Input.aim = null;   // if the mouse moved, it takes over aim, not the virtual stick
             
-            let canvas = document.getElementById('battle-canvas');
-            if(canvas && canvas.offsetParent !== null) { // Only track if visible
-                let rect = canvas.getBoundingClientRect();
+            // Measured against the battle canvas on show (#battle-gl under WebGL, 1.33.0) but
+            // scaled to #battle-canvas's size, which stays the field's size either way.
+            let canvas = document.getElementById('battle-canvas'), el = Battle.surfaceEl();
+            if(canvas && el && el.offsetParent !== null) { // Only track if visible
+                let rect = el.getBoundingClientRect();
                 Input.mouse.x = (e.clientX - rect.left) * (canvas.width / rect.width);
                 Input.mouse.y = (e.clientY - rect.top) * (canvas.height / rect.height);
             }
@@ -8402,7 +8406,7 @@ const Game = {
     // ============ SETTINGS (#55 item 7) ============
     // One screen, one read gate: every setting's default lives in OPTS, and a deviating
     // key is written to state.settings (so it enters the save and stays blank in an old save).
-    OPTS: { muted: false, volume: 0.35, music: true, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', fps: 'auto', difficulty: 'normal', edgePan: 'auto' },
+    OPTS: { muted: false, volume: 0.35, music: true, reducedMotion: 'auto', gore: true, frameGate: true, fontScale: 1, autosave: true, lite: 'auto', fps: 'auto', difficulty: 'normal', edgePan: 'auto', renderer: 'auto' },
 
     // Difficulty is a single pair of multipliers: damage **taken** and **dealt**. No other
     // number moves — a wolf pack and a lord's army pass through the same gate, so the
@@ -8455,6 +8459,30 @@ const Game = {
         let cur = document.querySelector('.view.active');
         if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
         this.Music.sync();   // mute, volume and the music switch all land here
+        if(typeof Battle !== 'undefined') Battle.prepareGfx();   // the battle renderer follows its setting (1.33.0)
+    },
+    // Can this browser create a WebGL context, and is it a real GPU? Probed once; the probe
+    // context is released right away. Node's harness has no WebGLRenderingContext: { ok: false }.
+    // `soft` = a software rasterizer (SwiftShader, llvmpipe, Microsoft Basic Render...): there
+    // WebGL is ~10x slower than Canvas2D (measured headless: 8-10 fps against 60), so the
+    // 'auto' renderer setting skips it — failIfMajorPerformanceCaveat doesn't catch SwiftShader.
+    webgl() {
+        if(this._webgl === undefined) {
+            this._webgl = { ok: false, soft: false, gpu: '' };
+            try {
+                if(typeof WebGLRenderingContext !== 'undefined') {
+                    let c = document.createElement('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl');
+                    if(gl) {
+                        let dbg = gl.getExtension('WEBGL_debug_renderer_info');
+                        let gpu = String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || '');
+                        this._webgl = { ok: true, soft: /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu), gpu };
+                        let lose = gl.getExtension('WEBGL_lose_context');
+                        if(lose) lose.loseContext();
+                    }
+                }
+            } catch(e) { this._webgl = { ok: false, soft: false, gpu: '' }; }
+        }
+        return this._webgl;
     },
     // --- Achievements (#127) ---
     ensureAchievements() {
@@ -8610,6 +8638,10 @@ const Game = {
         let ep = this.opt('edgePan');
         let epBtn = ['auto', true, false].map(v => `<button class="btn${ep === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('edgePan', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
+        let rd = this.opt('renderer');
+        let rdBtn = ['auto', 'pixi', 'canvas'].map(v => `<button class="btn${rd === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
+            onclick="Game.setOpt('renderer', '${v}')">${v === 'auto' ? T('Cihaza göre') : v === 'pixi' ? 'WebGL' : 'Canvas'}</button>`).join(' ');
+        let rdNow = typeof Battle !== 'undefined' && Battle.rendererKind() === 'pixi' ? 'WebGL' : 'Canvas';
         let df = this.opt('difficulty');
         let dfBtn = Object.keys(this.DIFFS).map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('difficulty', '${v}')">${T(this.DIFFS[v].name)}</button>`).join(' ');
@@ -8627,6 +8659,7 @@ const Game = {
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer. Telefonda ve takılan cihazda kendiliğinden açılır.'))}
         ${row(T('🎯 Kare hızı hedefi'), fpsBtn, T`Cihaza göre: 60 ile başlar, takılma ölçülürse önce hafif moda, sonra 30'a kendiliğinden iner. Şu an: ${this.targetFps()} fps.`)}
+        ${row(T('🧩 Savaş çizimi'), rdBtn, T`Cihaza göre: ekran kartı varsa WebGL ile, keskin ve ekranın piksel yoğunluğunda çizer; yoksa Canvas'a döner. Şu an: ${rdNow}.`)}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}
@@ -8696,7 +8729,7 @@ const Game = {
     // separate flag. Since a touch step's target is hidden on desktop (`#touch-ui`),
     // `tutorStep`'s "skip the invisible step" rule handles the device split on its own.
     BATTLE_TUTOR: [
-        { el: '#battle-canvas', t: '🗡️ Meydan',
+        { el: '#battle-view > canvas:not([hidden])', t: '🗡️ Meydan',
           m: 'WASD ile yürürsün ve kılıcın imlecin baktığı yere gider — yürüdüğün yere değil. Sol tık savurur, sağ tık (ya da Shift) kalkanı kaldırır: blok yalnız önden geleni keser.',
           d: 'Sol çubukla yürür, sağ çubukla kılıcına yön verirsin. Nişanın nereye baktığını oyuncunun önündeki sarı yay gösterir.' },
         { el: '#tstick', t: '🕹️ Sol çubuk',

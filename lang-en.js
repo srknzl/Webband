@@ -2956,4 +2956,7 @@ I18N.dicts.en = {
   "Maçı kaybetmiş sayılırsın.": "The bout counts as lost.",
   "⚔️ Savaşa Dön": "⚔️ Back to the Fight",
   "Sıradaki parça": "Next track",
+  "🧩 Savaş çizimi": "🧩 Battle renderer",
+  "WebGL çizici başlatılamadı — Canvas2D ile devam": "The WebGL renderer could not start — continuing with Canvas2D",
+  "Cihaza göre: ekran kartı varsa WebGL ile, keskin ve ekranın piksel yoğunluğunda çizer; yoksa Canvas'a döner. Şu an: {0}.": "By device: with a graphics card it draws through WebGL, sharp at the screen's pixel density; otherwise it falls back to Canvas. Now: {0}.",
 };

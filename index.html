@@ -232,6 +232,9 @@
                     <!-- Battle View -->
                     <div id="battle-view" class="view">
                         <canvas id="battle-canvas"></canvas>
+                        <!-- WebGL (PixiJS) battle renderer (1.33.0): its own canvas, since one canvas
+                             can't hold both a 2d and a webgl context. Exactly one of the two shows. -->
+                        <canvas id="battle-gl" hidden></canvas>
                         <div id="battle-ui">
                             <div id="battle-log-left" class="battle-logs" style="left:20px; text-align:left;"></div>
                             <div id="battle-log-right" class="battle-logs" style="right:20px; text-align:right;"></div>
@@ -316,8 +319,10 @@
     <script src="i18n.js"></script>
     <script src="lang-en.js"></script>
     <script src="lang-id.js"></script>
+    <script src="vendor/pixi.min.js"></script>
     <script src="app.js"></script>
     <script src="battle.js"></script>
+    <script src="battle-gl.js"></script>
     <script src="nobles.js"></script>
     <script src="quests.js"></script>
     <!-- Offline copy. The native app now loads the live site (capacitor.config.json's

@@ -2956,4 +2956,7 @@ I18N.dicts.id = {
   "Maçı kaybetmiş sayılırsın.": "Pertandingan dianggap kalah.",
   "⚔️ Savaşa Dön": "⚔️ Kembali Bertarung",
   "Sıradaki parça": "Lagu berikutnya",
+  "🧩 Savaş çizimi": "🧩 Penggambar pertempuran",
+  "WebGL çizici başlatılamadı — Canvas2D ile devam": "Penggambar WebGL gagal dimulai — lanjut dengan Canvas2D",
+  "Cihaza göre: ekran kartı varsa WebGL ile, keskin ve ekranın piksel yoğunluğunda çizer; yoksa Canvas'a döner. Şu an: {0}.": "Ikut perangkat: bila ada kartu grafis, menggambar lewat WebGL, tajam sesuai kepadatan piksel layar; jika tidak, kembali ke Canvas. Saat ini: {0}.",
 };

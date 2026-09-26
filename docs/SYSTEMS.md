@@ -22,9 +22,10 @@ character-creation wizard; on confirm, `enterWorld()` starts the game loop
 loop. `showScreen()` is the only place that restarts it — every way out of battle funnels
 through `Game.showScreen('map')`, so no extra hook is needed.
 
-Script order: `i18n.js → lang-en.js → lang-id.js → app.js → battle.js → nobles.js → quests.js` —
-only matters to avoid a `const` collision (a classic script's `const` is a lexical global, not
-`window.X`).
+Script order: `i18n.js → lang-en.js → lang-id.js → vendor/pixi.min.js → app.js → battle.js →
+battle-gl.js → nobles.js → quests.js` — only matters to avoid a `const` collision (a classic
+script's `const` is a lexical global, not `window.X`). PixiJS is the one library, vendored and
+pinned (8.21, `vendor/PIXI-LICENSE`); the Node harness loads neither Pixi file.
 
 All data lives in one `state` object; `Save` writes it to localStorage as JSON. `VERSION = { no,
 date, name }` sits at the top of `app.js`, bumped by hand alongside a `CHANGELOG.md` line and a
@@ -709,7 +710,9 @@ days before moving on. Never hostile, never a bandit, never prey.
 ### Debug report (#52)
 🐞 Debug Report (`Debug.open()`). `Debug.errors` is a 25-entry ring buffer catching
 `window.onerror`/`unhandledrejection`/wrapped `console.error`; the report (`Debug.report()`)
-bundles game state, rendering status (target/effective fps, frame divisor, canvas sizes),
+bundles game state, rendering status (target/effective fps, frame divisor, canvas sizes, and
+`battleRenderer`: setting, active renderer, GPU string, resolution, draw calls, smoothed CPU ms for
+`update`/`render` per drawn frame),
 browser info, and the error list — every field wrapped in try/catch so the reporter itself can't
 throw. Copy-to-clipboard or download as JSON.
 
@@ -730,7 +733,7 @@ One gate: `Game.opt(k)`/`setOpt(k,v)`, defaults in `Game.OPTS`, `state.settings`
 deviations. Rows: sound/volume, reduce motion (System/On/Off), blood & corpses, frame-skip gate
 toggle, font size, autosave, 🖱️ edge panning (Device-dependent/On/Off), 📱 lite mode
 (Device-dependent/On/Off), 🎯 frame-rate target (Device-dependent/60/30, `Game.targetFps()`),
-⚔️ difficulty.
+🧩 battle renderer (Device-dependent/WebGL/Canvas, `Game.opt('renderer')`), ⚔️ difficulty.
 
 ### Accessibility pass
 Team rings are distinguished by **dash pattern**, not just color (enemy dashed, friendly solid —
@@ -912,13 +915,61 @@ unchanged. Modals lift-and-fade in (`modalIn`, 0.22s), buttons scale 0.97 on pre
 reduced-motion rule flattens both. Canvas: `Battle.roundRect` (falls back to `rect` without
 Canvas2D roundRect) for the tug bar, command strip and health bars.
 
-No canvas library — everything hand-drawn in `app.js`/`battle.js`. Shared approach: **bake the
-expensive thing once, stamp the picture every frame** (`buildGroundTexture`, `Battle.buildGround`,
-`unitSprite`, cached gradients). `Game.mapLabel()` scales with `1/zoom` so text stays the same
+The map, settlement scenes and the chicken chase are hand-drawn Canvas2D in `app.js`/`battle.js`;
+the battle draws through PixiJS since 1.33.0 (below), with its Canvas2D code kept as the
+fallback. Shared approach: **bake the expensive thing once, stamp the picture every frame**
+(`buildGroundTexture`, `Battle.buildGround`, `unitSprite`, cached gradients). `Game.mapLabel()` scales with `1/zoom` so text stays the same
 screen size at any zoom and pushes overlapping labels up rather than overlapping them. An NPC's
 name label is colored by hostility (red+⚔ foe / blue friend / parchment neutral) rather than
 just the faction-colored ring, since "whose is it" and "will it attack me" are different
 questions. Gradients are cached in world coordinates so panning doesn't invalidate them.
+
+### Battle renderer (1.33.0)
+Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
+**sharpness** (`#battle-canvas` is one canvas pixel per CSS pixel, soft on a retina screen; Pixi
+draws at `min(devicePixelRatio, 3)` with `autoDensity`) and a GPU scene graph to build effects on.
+
+- **One seam, two renderers.** `Battle.render()` asks `liveGfx()` for `canvasGfx` (the pre-1.33
+  Canvas2D code, moved as-is into `drawCanvas`) or `BattleGL` (`battle-gl.js`), both
+  `{ resize, render(battle, now), info, destroy }`. Battle owns all state and clocks; both
+  renderers read the same pure helpers — `unitPose` (lunge, recoil, squash, walk stretch,
+  breathing, the `DIE_T` fall), `gait` (1.32.1 mounted stride), `unitArt`, `dustPuff`,
+  `hudLayout`/`drawCmdStrip`/`statusLine`/`tugBox`/`tugStatus` — so motion can't drift apart.
+- **Drawing writes nothing.** The tug bar's easing (`tickTug`) and the hoofbeats (`tickHooves`)
+  moved from the draw path into `update()`; the dust puffs' dice became `Battle.hash01`
+  (rendering must not consume `Math.random`, or a seeded run replays differently with the
+  renderer). `tools/test.js` renders three times and checks state, dice and sounds are untouched.
+- **Setting**: `Game.opt('renderer')` `'auto' | 'pixi' | 'canvas'`, `?renderer=` URL override
+  for a session. `'auto'` = Pixi on a hardware WebGL context; a software rasterizer
+  (`Game.webgl().soft`: SwiftShader/llvmpipe/Basic Render, read from the unmasked renderer string —
+  `failIfMajorPerformanceCaveat` doesn't catch SwiftShader) stays on Canvas2D. `'pixi'` forces
+  any WebGL. No WebGL, a failed init or a lost context (`Battle.glFailed`) → Canvas2D for the
+  session. Pixi's init is async: `applySettings → Battle.prepareGfx()` starts it before the first
+  battle, and a battle that starts earlier draws Canvas2D until `BattleGL.ready`.
+- **Two canvases.** A canvas can't hold a `2d` and a `webgl` context, and `#battle-canvas` also
+  serves the chicken chase through `Game.battleCtx()`, so Pixi owns `#battle-gl`. Exactly one
+  shows (`Battle.showSurface`, `[hidden]`); the hidden `#battle-canvas` still carries the field
+  size, and mouse mapping measures the visible one (`Battle.surfaceEl()`), so screen → world is
+  unchanged. Switching the setting away from Pixi destroys the app and swaps in a fresh element.
+- **Baking.** World shapes are baked at `S = devicePixelRatio × camera zoom` (a texel lands on one
+  screen pixel): shadow, team rings (enemy dashed), player pulse, discs, corpses, sword, bow,
+  arrows, bar back + nine-slice fill, oil glow; unit art through `Battle.unitArt(u, S)` (the same
+  bakers with a scale argument — pixel art sampled `nearest`); text (damage numbers, rank ticks,
+  HUD lines) through Canvas2D's own `fillText` into cached textures, re-baked when webfonts
+  finish loading. The ground is `buildGround(scale)` at up to 3× (2× lite), capped at 4096 px.
+  Per frame: pooled Sprites per layer, three `Graphics` rebuilt for the arcs that change shape
+  (swing sweep/aim arc/telegraph, AI trails/shields, shimmer/arrow rain), one `app.render()`,
+  ticker stopped — Battle's loop, `skipFrame` and the 700 ms pulse check are unchanged.
+- **Known differences.** Layers instead of per-unit interleave: a lower unit's shadow/ring never
+  covers a neighbour's sprite and health bars always sit above sprites. The ground is baked at
+  a higher resolution. Pixel art is crisp instead of bilinear-blurred.
+
+Measured (headless Chromium, 1366×768, SwiftShader — **no real-device numbers yet**): CPU per
+drawn frame from `Debug.report().render.battleRenderer`, update / render: Canvas2D 10v10
+0.24 / 1.06 ms, 30v30 0.52 / 1.6 ms at 60 fps; Pixi 10v10 0.45 / 2.4 ms, 30v30 0.41 / 2.4 ms, 5–7
+draw calls, but only 8–10 fps — the software rasterizer is the bottleneck, which is why `'auto'`
+keeps software GL on Canvas2D. Phone viewport (Pixel 7 emulation, 2.625×): Pixi render 2.7 ms
+(10v10) / 5.8 ms (30v30).
 
 ## Performance
 The bottleneck is the **compositor**, not JS — a typical battle frame costs ~1.2ms of JS against
@@ -929,7 +980,8 @@ a 16.7ms budget. Rules that follow from that:
   static background can keep the blur since the result caches.
 - `renderMap()` returns early while a modal is open — no point redrawing a frozen world under a
   blurred curtain.
-- Canvases are opaque (`getContext('2d', {alpha:false})`) — nothing under them shows anyway.
+- Canvases are opaque (`getContext('2d', {alpha:false})`; Pixi's opaque background gives its
+  WebGL context `alpha:false` too) — nothing under them shows anyway.
 - Emoji/gradients/ground textures are baked once and stamped, never rebuilt per frame.
 - Particle ceilings (sparks/text/blood/corpses) and target-search throttling (every 0.3–0.5s/unit,
   not every frame).
@@ -1004,9 +1056,9 @@ full-screen (no address bar), no external font fetch, and no `dvh` toolbar dance
 Mobile-specific fixes worth remembering because they're easy to reintroduce:
 - **`touch-action` doesn't inherit** — the gate is `* { touch-action: pan-x pan-y }` in
   `style.css`, not a rule on `html, body` (a body-only rule leaves every button inside it on
-  `auto`, so the browser's own double-tap-zoom keeps firing). The six elements that own real
-  gestures (`#map-canvas`, `#battle-canvas`, `#scene-canvas`, `#tstick`, `#tastick`,
-  `#tb-block`) override it to `none`.
+  `auto`, so the browser's own double-tap-zoom keeps firing). The seven elements that own real
+  gestures (`#map-canvas`, `#battle-canvas`, `#battle-gl`, `#scene-canvas`, `#tstick`,
+  `#tastick`, `#tb-block`) override it to `none`.
 - Fonts (Cinzel/Inter) are self-hosted in `fonts/`, not fetched from `fonts.googleapis.com` —
   offline/`file://`/native WebView all silently lost that link and fell back to serif.
 - The notch inset lives on `.screen` itself (`inset: env(...)`), not as padding on its

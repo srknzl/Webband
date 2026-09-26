@@ -229,6 +229,30 @@ async function tapWorld(page, pt) {
     else await page.mouse.click(s.x, s.y);
 }
 
+// ---------- Battle ----------
+/**
+ * The battle is actually being painted: distinct colours on a 7x7 grid of the battle canvas
+ * on show. Read from a screenshot of that element — what the compositor put on screen — so the
+ * same check covers Canvas2D (#battle-canvas) and WebGL (#battle-gl, whose drawing buffer is
+ * not readable back through a 2d context).
+ */
+async function painted(page) {
+    const shot = await page.locator('#battle-view > canvas:not([hidden])').screenshot();
+    return page.evaluate(async b64 => {
+        const img = new Image();
+        img.src = 'data:image/png;base64,' + b64;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0);
+        const seen = new Set();
+        for(let i = 1; i < 8; i++) for(let j = 1; j < 8; j++)
+            seen.add(x.getImageData(Math.floor(c.width * i / 8), Math.floor(c.height * j / 8), 1, 1).data.join(','));
+        return seen.size;
+    }, shot.toString('base64'));
+}
+
 /** A city at peace with the player, far from any roaming party. */
 function quietCity(page) {
     return page.evaluate(() => {
@@ -238,4 +262,4 @@ function quietCity(page) {
     });
 }
 
-module.exports = { test, expect, L, modal, modalBtn, okAlert, openView, newGame, enter, actionBtn, placeParty, tapWorld, quietCity };
+module.exports = { test, expect, L, modal, modalBtn, okAlert, openView, newGame, enter, actionBtn, placeParty, tapWorld, quietCity, painted };

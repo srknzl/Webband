@@ -44,6 +44,72 @@ const Battle = {
         return Game.isTouch() ? Math.max(1.2, Math.min(this.CAM_ZOOM, Math.min(W, H) / this.MOBILE_VIEW)) : this.CAM_ZOOM;
     },
 
+    // ---- Renderer seam (1.33.0). Battle keeps every piece of state and every animation clock;
+    // drawing goes through one of two objects with the same shape — { resize(w, h),
+    // render(battle, now), info(), destroy() }: `canvasGfx` below (the Canvas2D code, the
+    // fallback) or `BattleGL` (battle-gl.js, PixiJS 8 on its own #battle-gl canvas — one
+    // canvas can't hold both a 2d and a webgl context, and #battle-canvas also serves the
+    // chicken chase through Game.battleCtx()). Setting: Game.opt('renderer'),
+    // 'auto' | 'pixi' | 'canvas'; a `?renderer=` URL parameter overrides it for the session.
+    rendererWanted() {
+        let q = typeof location !== 'undefined' && /[?&]renderer=(auto|pixi|canvas)\b/.exec(location.search || '');
+        return q ? q[1] : Game.opt('renderer');
+    },
+    // 'pixi' or 'canvas'. 'auto' = Pixi when a hardware WebGL context can be created; 'pixi'
+    // takes any WebGL, a software rasterizer included. Without one — or once Pixi failed or
+    // lost its context this session — Canvas2D.
+    rendererKind() {
+        let want = this.rendererWanted(), gl = Game.webgl();
+        if(want === 'canvas' || this._glBroken || !gl.ok || typeof PIXI === 'undefined' || typeof BattleGL === 'undefined') return 'canvas';
+        return want === 'pixi' || !gl.soft ? 'pixi' : 'canvas';
+    },
+    // Starts (or tears down) the WebGL renderer to match the setting. Pixi's init is async, so
+    // this runs ahead of the first battle (applySettings); until it's ready the battle draws
+    // through Canvas2D, and liveGfx() swaps over on the first frame after.
+    prepareGfx() {
+        if(typeof BattleGL === 'undefined') return;
+        if(this.rendererKind() === 'pixi') BattleGL.init(document.getElementById('battle-gl')).catch(e => this.glFailed(e));
+        else if(BattleGL.app) BattleGL.destroy();   // frees the GPU; the element is swapped for a fresh one
+        if(this.active) { this.listen(true); this.liveGfx(); }
+    },
+    glFailed(e) {
+        this._glBroken = true;
+        Debug.log('render', T('WebGL çizici başlatılamadı — Canvas2D ile devam'), { err: String((e && e.message) || e) });
+        if(this.active) this.liveGfx();
+    },
+    liveGfx() {
+        let g = this.rendererKind() === 'pixi' && BattleGL.ready ? BattleGL : this.canvasGfx;
+        if(this.gfx !== g) { this.gfx = g; this.showSurface(g === this.canvasGfx ? 'canvas' : 'gl'); }
+        return g;
+    },
+    // Exactly one of the two battle canvases is shown. The hidden #battle-canvas still carries
+    // the field's size (width/height), which camera, clamps and the mouse mapping read.
+    showSurface(which) {
+        let c = document.getElementById('battle-canvas'), gl = document.getElementById('battle-gl');
+        if(c) c.hidden = which !== 'canvas';
+        if(gl) gl.hidden = which !== 'gl';
+    },
+    // The canvas the player sees — mouse coordinates are measured against its box.
+    surfaceEl() {
+        let gl = document.getElementById('battle-gl');
+        return gl && !gl.hidden ? gl : document.getElementById('battle-canvas');
+    },
+    surfaces() { return [document.getElementById('battle-canvas'), document.getElementById('battle-gl')].filter(Boolean); },
+    listen(on) {
+        this.surfaces().forEach(c => {
+            c[on ? 'addEventListener' : 'removeEventListener']('mousedown', this.clickHandler);
+            c[on ? 'addEventListener' : 'removeEventListener']('contextmenu', this.menuHandler);
+        });
+    },
+    // CPU ms per drawn frame, smoothed — the debug report's render.battleRenderer (1.33.0).
+    cpu: { update: 0, render: 0 },
+    cpuSample(u, r) { this.cpu.update += (u - this.cpu.update) * 0.05; this.cpu.render += (r - this.cpu.render) * 0.05; },
+    gfxInfo() {
+        let g = this.gfx || this.canvasGfx, i = g.info();
+        return { setting: this.rendererWanted(), active: g.name, gpu: Game.webgl().gpu || '-', resolution: i.resolution, drawCalls: i.drawCalls,
+                 cpuMsUpdate: Math.round(this.cpu.update * 100) / 100, cpuMsRender: Math.round(this.cpu.render * 100) / 100 };
+    },
+
     // Rival suitor duel: 1-on-1, no group, no loot
     startDuel(lord) {
         this._duelParty = state.player.party;
@@ -551,11 +617,10 @@ const Battle = {
             if(e.button === 2) { e.preventDefault(); this.blockHeld = true; }
             else this.playerAttack(e);
         };
-        this.canvas.addEventListener('mousedown', this.clickHandler);
         this.upHandler = () => { this.blockHeld = false; };
         window.addEventListener('mouseup', this.upHandler);
         this.menuHandler = (e) => e.preventDefault();
-        this.canvas.addEventListener('contextmenu', this.menuHandler);
+        this.listen(true);   // both battle canvases: whichever renderer is showing gets the clicks
 
         this.commandListener = (e) => {
             let slot = this.cmdSlots.find(c => c.key === e.key);
@@ -569,6 +634,8 @@ const Battle = {
         window.addEventListener('keydown', this.commandListener);
 
         this.warmUp();
+        this.gfx = null; this.liveGfx();
+        this.cpu = { update: 0, render: 0 };
         this.paused = false;
         if(this.loopId) cancelAnimationFrame(this.loopId);
         let last = performance.now();
@@ -579,7 +646,14 @@ const Battle = {
             last = t;
             // While the tutorial is open the battle pauses but keeps rendering (#88) — so
             // the character can't be killed while there's something to read on screen.
-            Debug.guard('battle loop', () => { Anim.tick(dt); if(!this.paused) this.update(dt); this.render(); });
+            Debug.guard('battle loop', () => {
+                Anim.tick(dt);
+                let t0 = performance.now();
+                if(!this.paused) this.update(dt);
+                let t1 = performance.now();
+                this.render();
+                this.cpuSample(t1 - t0, performance.now() - t1);
+            });
             this.lastRender = performance.now();     // pulse (#54)
             this.loopId = requestAnimationFrame(loop);
         };
@@ -929,6 +1003,7 @@ const Battle = {
         if(this.pendingEnd !== undefined) {
             this.endDelay -= dt;
             if(this.endDelay <= 0) { this.active = false; let w = this.pendingEnd; this.pendingEnd = undefined; this.endBattle(w); }
+            else this.tickTug(dt);   // the bar still slides to the final count during the held beat
             return;
         }
 
@@ -1439,6 +1514,8 @@ const Battle = {
 
         this.separate();
         this.updateCamera(dt);
+        this.tickTug(dt);
+        this.tickHooves(performance.now());
         this.checkEnd();
     },
 
@@ -1518,11 +1595,15 @@ const Battle = {
     arenaRing(w, h) { return { cx: w / 2, cy: h / 2, r: Math.min(w, h) * 0.47 - 10 }; },
 
     // --- Ground: grass + terrain is drawn once to an offscreen canvas, never regenerated every frame
-    buildGround() {
+    // `scale` (1.33.0): the WebGL renderer bakes the same field at more pixels per unit so the
+    // zoomed camera doesn't magnify a 1x bitmap; every coordinate below stays in field units.
+    buildGround(scale = 1) {
         let W = this.canvas.width, H = this.canvas.height;
         let g = document.createElement('canvas');
-        g.width = W; g.height = H;
+        g.width = Math.round(W * scale); g.height = Math.round(H * scale);
+        g._w = W; g._h = H; g._s = scale;
         let c = g.getContext('2d');
+        c.scale(scale, scale);
 
         if(this.isArena || this.isTourney) return this.buildArenaGround(c, g, W, H);
 
@@ -1868,10 +1949,28 @@ const Battle = {
         c.restore();
     },
 
+    // One frame, through whichever renderer is live (1.33.0). Rendering is side-effect free:
+    // it reads Battle's state and animation clocks and writes none of them — drawing twice
+    // leaves the battle exactly as it was (tools/test.js checks this).
     render() {
+        let g = this.liveGfx(), W = this.canvas.width, H = this.canvas.height;
+        if(g.w !== W || g.h !== H) g.resize(W, H);
+        g.render(this, performance.now());
+    },
+
+    // The Canvas2D renderer — the pre-1.33.0 drawing code, unchanged. It is the fallback when
+    // WebGL is missing or turned off in settings, and what the Node harness runs.
+    canvasGfx: {
+        name: 'canvas', w: 0, h: 0,
+        resize(w, h) { this.w = w; this.h = h; },
+        render(b, now) { b.drawCanvas(now); },
+        info() { return { resolution: '1x', drawCalls: null }; },
+        destroy() {}
+    },
+
+    drawCanvas(now) {
         let ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
-        if(!this.ground || this.ground.width !== W || this.ground.height !== H) this.buildGround();
-        let now = performance.now();
+        if(!this.ground || this.ground._w !== W || this.ground._h !== H) this.buildGround();
 
         ctx.clearRect(0,0,W,H);
 
@@ -1889,7 +1988,8 @@ const Battle = {
             ctx.translate(Math.sin(this.battleTime * 97) * s, Math.cos(this.battleTime * 71) * s);
         }
 
-        ctx.drawImage(this.ground, 0, 0);
+        if(this.ground._s === 1) ctx.drawImage(this.ground, 0, 0);
+        else ctx.drawImage(this.ground, 0, 0, W, H);   // baked sharper for the WebGL path, then the setting flipped
 
         // Water shimmer (the only animated terrain effect)
         if(this.terrain && this.terrain.rivers && !Game.lite()) {
@@ -2081,27 +2181,33 @@ const Battle = {
     // Draws a loaded image into a `size`x`size` canvas, preserving aspect ratio and centered —
     // every real sprite file here is already tightly cropped to its own content, no two are the
     // same exact width/height, so this (not a fixed source-crop rect) is what fits them all.
-    bakeFitted(img, size) {
+    // `R` (1.33.0): bake scale — the tile is size*R pixels for a size-unit sprite; `_pixel`
+    // tells the WebGL renderer to sample it nearest-neighbour.
+    bakeFitted(img, size, R = 1) {
         let c = document.createElement('canvas');
-        c.width = c.height = size;
+        let px = Math.round(size * R);
+        c.width = c.height = px;
+        c._pixel = true;
         let cx = c.getContext('2d');
         cx.imageSmoothingEnabled = false;   // keep the pixel art crisp, not blurred
-        let scale = Math.min(size / img.naturalWidth, size / img.naturalHeight) * 0.92;
+        let scale = Math.min(px / img.naturalWidth, px / img.naturalHeight) * 0.92;
         let w = img.naturalWidth * scale, h = img.naturalHeight * scale;
-        cx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        cx.drawImage(img, (px - w) / 2, (px - h) / 2, w, h);
         return c;
     },
+    // Cache key for a sprite baked at scale R: the Canvas2D path (R = 1) keeps its old keys.
+    rKey(key, R) { return R === 1 ? key : key + '@' + R; },
     // Cavalry (horse + rider) draws bigger than a standing infantry/archer tile, matching how
     // much wider the Wesnoth sprites actually are.
     TROOP_SPRITE_SIZES: { infantry: 36, archer: 36, cavalry: 48 },
-    troopSprite(type, tier) {
+    troopSprite(type, tier, R = 1) {
         if(!this._troopSprites) this._troopSprites = {};
-        let key = type + '_' + tier;
+        let key = this.rKey(type + '_' + tier, R);
         let c = this._troopSprites[key];
         if(c) return c;   // permanent cache — only ever holds the real, loaded sprite
         let img = this.troopImage(type, tier);
         if(img.complete && img.naturalWidth > 0) {
-            c = this.bakeFitted(img, this.TROOP_SPRITE_SIZES[type] || this.TROOP_SPRITE_SIZE);
+            c = this.bakeFitted(img, this.TROOP_SPRITE_SIZES[type] || this.TROOP_SPRITE_SIZE, R);
             this._troopSprites[key] = c;
             return c;
         }
@@ -2110,14 +2216,15 @@ const Battle = {
         // seen) — a placeholder. Cavalry just borrows the plain 🐎 emoji (cached by unitSprite
         // already); infantry/archer get a small procedural placeholder, cached separately so it
         // can never permanently shadow the real sprite once the image is ready.
-        if(type === 'cavalry') return this.unitSprite('🐎');
+        if(type === 'cavalry') return this.unitSprite('🐎', R);
         if(!this._proceduralSprites) this._proceduralSprites = {};
         let pc = this._proceduralSprites[key];
         if(pc) return pc;
         let size = 30, h = size / 2;
         pc = document.createElement('canvas');
-        pc.width = pc.height = size;
+        pc.width = pc.height = Math.round(size * R);
         let x = pc.getContext('2d');
+        x.scale(R, R);
         x.translate(h, h);
         x.fillStyle = this.TROOP_TIER_COLORS[tier];
         x.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -2141,17 +2248,18 @@ const Battle = {
         this._playerImages[kind] = img;
         return img;
     },
-    playerSprite(kind) {
+    playerSprite(kind, R = 1) {
         if(!this._playerSprites) this._playerSprites = {};
-        let c = this._playerSprites[kind];
+        let key = this.rKey(kind, R);
+        let c = this._playerSprites[key];
         if(c) return c;
         let img = this.playerImage(kind);
         if(img.complete && img.naturalWidth > 0) {
-            c = this.bakeFitted(img, kind === 'horse' ? 48 : 40);   // mounted draws bigger, same as cavalry troops
-            this._playerSprites[kind] = c;
+            c = this.bakeFitted(img, kind === 'horse' ? 48 : 40, R);   // mounted draws bigger, same as cavalry troops
+            this._playerSprites[key] = c;
             return c;
         }
-        return this.unitSprite(kind === 'horse' ? '🐴' : '🧑‍🌾');
+        return this.unitSprite(kind === 'horse' ? '🐴' : '🧑‍🌾', R);
     },
     // Standing soldier: legs, torso, head; tier 1 adds a helmet band, tier 2 adds a shield.
     drawInfantrySilhouette(x, h, tier) {
@@ -2189,19 +2297,21 @@ const Battle = {
         }
     },
     // An outlined emoji sprite (built once per icon).
-    unitSprite(icon) {
+    unitSprite(icon, R = 1) {
         if(!this._sprites) this._sprites = {};
-        let c = this._sprites[icon];
+        let key = this.rKey(icon, R);
+        let c = this._sprites[key];
         if(c) return c;
         c = document.createElement('canvas');
-        c.width = c.height = 40;
+        c.width = c.height = Math.round(40 * R);
         let x = c.getContext('2d');
+        x.scale(R, R);
         x.font = '22px Arial';
         x.textAlign = 'center'; x.textBaseline = 'middle';
         x.strokeStyle = 'rgba(0,0,0,0.85)'; x.lineWidth = 4; x.lineJoin = 'round';
         x.strokeText(icon, 20, 20);
         x.fillText(icon, 20, 20);
-        this._sprites[icon] = c;
+        this._sprites[key] = c;
         return c;
     },
 
@@ -2230,14 +2340,16 @@ const Battle = {
     BOSS_DRAW_SIZE: {
         kurt_ana: 44, bozkir_hani: 46, korsan_kral: 48, demirci_dev: 64, savas_tanrisi: 70
     },
-    bossSprite(key) {
+    bossSprite(key, R = 1) {
         if(!this._bossSprites) this._bossSprites = {};
-        let c = this._bossSprites[key];
+        let ck = this.rKey(key, R);
+        let c = this._bossSprites[ck];
         if(c) return c;
         let size = this.BOSS_DRAW_SIZE[key] || 50, half = size / 2;
         c = document.createElement('canvas');
-        c.width = c.height = size;
+        c.width = c.height = Math.round(size * R);
         let x = c.getContext('2d');
+        x.scale(R, R);
         x.translate(half, half);
         x.fillStyle = this.BOSS_COLORS[key] || '#aa00ff';
         x.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -2249,7 +2361,7 @@ const Battle = {
             savas_tanrisi: this.drawWarGodSilhouette
         };
         (drawers[key] || this.drawGiantSilhouette).call(this, x, half);
-        this._bossSprites[key] = c;
+        this._bossSprites[ck] = c;
         return c;
     },
     // Crouched wolf: body, head, snout, two ears, four legs.
@@ -2330,7 +2442,9 @@ const Battle = {
         ctx.restore();
     },
 
-    drawUnit(ctx, u, now) {
+    // Which baked picture a unit wears. Shared by both renderers (1.33.0): `R` is the bake
+    // scale — 1 for Canvas2D, device pixels x camera zoom for the WebGL path.
+    unitArt(u, R = 1) {
         let isPlayer = u.id === 'player';
         let icon = '💂', bakedSpr = null;
         if(isPlayer) {
@@ -2339,13 +2453,13 @@ const Battle = {
             // (CraftPix Swordsman-family knight) or a bow look (CraftPix Roguelike archer) on
             // foot, or the Wesnoth Knight (troops/player_horse.png) mounted — real art all
             // three ways, not the plain 🐴 emoji this used to fall back to.
-            if(u.type === 'cavalry') bakedSpr = this.playerSprite('horse');
+            if(u.type === 'cavalry') bakedSpr = this.playerSprite('horse', R);
             else {
                 let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
-                bakedSpr = this.playerSprite(wt === 'bow' ? 'bow' : 'melee');
+                bakedSpr = this.playerSprite(wt === 'bow' ? 'bow' : 'melee', R);
             }
         }
-        else if(u.isBoss) bakedSpr = this.bossSprite(u.bossKey);   // hand-drawn boss art (#132)
+        else if(u.isBoss) bakedSpr = this.bossSprite(u.bossKey, R);   // hand-drawn boss art (#132)
         else if(u.icon === '🎖️' || u.icon === '💍') icon = u.icon;   // companion/spouse keep their marker
         else if(u.beast) icon = '🐺';
         // Regular infantry/archer/cavalry, either side (#132): real sprite art by type × a
@@ -2353,38 +2467,42 @@ const Battle = {
         // troop tree, or its role in a bandit band), never from its live attack/defense/level.
         // Cavalry's own real art (Wesnoth horseman/cavalryman/grand-knight) replaces the
         // procedural rider silhouette that was rejected in review as looking bad.
-        else bakedSpr = this.troopSprite(u.type === 'cavalry' ? 'cavalry' : u.type === 'archer' ? 'archer' : 'infantry', u.tier || 0);
+        else bakedSpr = this.troopSprite(u.type === 'cavalry' ? 'cavalry' : u.type === 'archer' ? 'archer' : 'infantry', u.tier || 0, R);
+        // Nothing is rasterized/drawn from scratch every frame: emoji are baked into a sprite
+        // once (measured: 13 us -> 3.4 us, 3.8x) and hand-drawn boss/troop art is baked the
+        // same way at spawn/warmUp — this just picks whichever canvas applies to this unit.
+        return bakedSpr || this.unitSprite(icon, R);
+    },
 
-        let isMoving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
+    // The walk/gallop rhythm, read by the pose below, the hoofbeats in update() and nothing
+    // else — one set of numbers, so the clop lands on the hop you see.
+    gait(u, now) {
+        let moving = (Math.abs(u.vx) > 0.1 || Math.abs(u.vy) > 0.1);
         let offset = (u.x + u.y) * 0.05;
         // A horse's gait reads distinctly from a foot soldier's walk (#132: mounted movement
         // "flew" — dead smooth regardless of speed). The stride period now tracks actual
         // velocity — a galloping horse's legs move faster than a trotting one's — and the
         // bounce/tilt is bigger, so covering ground at speed looks like running, not sliding.
-        let mountedGait = u.mounted || u.type === 'cavalry';
-        let speedMag = mountedGait ? Math.hypot(u.vx, u.vy) : 0;
+        let mounted = u.mounted || u.type === 'cavalry';
+        let speedMag = mounted ? Math.hypot(u.vx, u.vy) : 0;
         // Half the old cadence (1.32.1 report: "it rocks too fast"): the 85 ms floor meant ~3.7
         // bounces a second at a gallop, which read as jitter. Now ~1.9 at full tilt, the same
-        // rhythm the hoofbeats below follow.
-        let strideMs = mountedGait ? Math.max(170, 12000 / Math.max(25, speedMag)) : 150;
+        // rhythm the hoofbeats follow.
+        let strideMs = mounted ? Math.max(170, 12000 / Math.max(25, speedMag)) : 150;
         // Mounted bob toned down (1.32.1 report: "the horse rocks too much"): 7 px / 0.24 rad
         // read as a boat in a storm once 1.32.0's stretch and lean stacked on top.
-        let hopAmp = mountedGait ? 3.5 : 4, swayAmp = mountedGait ? 0.07 : 0.15;
-        let hop = isMoving ? Math.abs(Math.sin(now/strideMs + offset)) * hopAmp : 0;
-        let sway = isMoving ? Math.sin(now/strideMs + offset) * swayAmp : 0;
+        let hopAmp = mounted ? 3.5 : 4, swayAmp = mounted ? 0.07 : 0.15;
+        let phase = Math.sin(now/strideMs + offset);
+        return { moving, mounted, offset, strideMs,
+                 hop: moving ? Math.abs(phase) * hopAmp : 0, sway: moving ? phase * swayAmp : 0, phase: Math.abs(phase) };
+    },
 
-        // Hoofbeats (#132): only the player's own mount, timed to its own stride above —
-        // a clop lands each time the visual hop peaks, hysteresis so one peak = one sound.
-        if(isPlayer && mountedGait && isMoving) {
-            let hopPhase = Math.abs(Math.sin(now/strideMs + offset));
-            if(hopPhase > 0.97 && !u._hoofUp) { u._hoofUp = true; Game.sfx('hoofbeat'); }
-            else if(hopPhase < 0.9) u._hoofUp = false;
-        }
-        let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
-
-        // ---- Motion layer (1.32.0): offsets, lean and squash read off the unit's animation
-        // clocks (atkT/hitT/shotT/deadT, ticked in update). Drawn-only: the unit's real x/y —
-        // hit boxes, AI, collisions — never move. "Reduce motion" keeps the fall, drops the rest.
+    // ---- Motion layer (1.32.0): offsets, lean and squash read off the unit's animation
+    // clocks (atkT/hitT/shotT/deadT, ticked in update). Drawn-only: the unit's real x/y —
+    // hit boxes, AI, collisions — never move. "Reduce motion" keeps the fall, drops the rest.
+    // A pure function of (unit, now): both renderers draw exactly this pose (1.33.0).
+    unitPose(u, now) {
+        let gt = this.gait(u, now), hop = gt.hop, sway = gt.sway, strideMs = gt.strideMs, offset = gt.offset;
         let fx = Anim.on(), dead = u.hp <= 0;
         let ox = 0, oy = 0, lean = 0, sx = 1, sy = 1, alpha = 1;
         if(dead) {
@@ -2405,14 +2523,34 @@ const Battle = {
                 lean += Math.cos(u.hitA) * 0.22 * d;
             }
             // Walking: stretches on the stride and leans into the run; standing: breathes
-            if(isMoving) {
+            if(gt.moving) {
                 let c = Math.cos(2 * (now / strideMs + offset));
-                let g = mountedGait ? 0.4 : 1;   // a horse carries its rider level; a man on foot bounces
+                let g = gt.mounted ? 0.4 : 1;   // a horse carries its rider level; a man on foot bounces
                 sy *= 1 + 0.05 * g * c; sx *= 1 - 0.04 * g * c;
                 lean += Math.max(-1, Math.min(1, u.vx / 140)) * 0.08 * g;
             } else sy *= 1 + 0.018 * Math.sin(now / 650 + offset);
         }
-        let ux = u.x + ox, uy = u.y + oy;
+        return { ux: u.x + ox, uy: u.y + oy, hop, sway, lean, sx, sy, alpha, dead, moving: gt.moving };
+    },
+
+    // A stable 0..1 hash — the draw path's stand-in for Math.random (1.33.0): rendering must
+    // not consume the game's random stream, and the same frame must draw the same picture.
+    hash01(a, b) { let s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); },
+    // A dust puff kicked up by a walking unit this frame, or null — a quarter of the frames,
+    // as before, just picked by hash instead of by Math.random.
+    dustPuff(u, now, offset) {
+        let f = Math.floor(now / 16);
+        if(this.hash01(f, offset) >= 0.25) return null;
+        return { x: u.x + (this.hash01(f + 0.5, offset) - 0.5) * 8, y: u.y + 9, r: 1.5 + this.hash01(f, offset + 7.7) * 2.5 };
+    },
+
+    drawUnit(ctx, u, now) {
+        let isPlayer = u.id === 'player';
+        let pose = this.unitPose(u, now);
+        let hop = pose.hop, sway = pose.sway, lean = pose.lean, sx = pose.sx, sy = pose.sy, alpha = pose.alpha, dead = pose.dead;
+        let isMoving = pose.moving;
+        let ring = u.isPlayerTeam ? '#4fa8ff' : '#ff5a4a';
+        let ux = pose.ux, uy = pose.uy;
 
         // Ground shadow + team ring (filled and fully opaque so it doesn't wash out against the ground)
         ctx.globalAlpha = alpha;
@@ -2438,19 +2576,17 @@ const Battle = {
                 ctx.strokeStyle = 'rgba(255,204,0,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
             }
 
-            if(isMoving && !Game.lite() && Math.random() < 0.25) {
+            let dp = isMoving && !Game.lite() ? this.dustPuff(u, now, (u.x + u.y) * 0.05) : null;
+            if(dp) {
                 ctx.fillStyle = 'rgba(196,186,150,0.35)';
-                ctx.beginPath(); ctx.arc(u.x + (Math.random()-0.5)*8, u.y + 9, 1.5+Math.random()*2.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dp.x, dp.y, dp.r, 0, Math.PI*2); ctx.fill();
             }
         }
 
         ctx.save();
         ctx.translate(ux, uy - hop);
         ctx.rotate(sway);
-        // Nothing is rasterized/drawn from scratch every frame: emoji are baked into a sprite
-        // once (measured: 13 us -> 3.4 us, 3.8x) and hand-drawn boss/troop art is baked the
-        // same way at spawn/warmUp — this just blits whichever canvas applies to this unit.
-        let spr = bakedSpr || this.unitSprite(icon), h2 = spr.height / 2;
+        let spr = this.unitArt(u), h2 = spr.height / 2;
         // Lean, fall and squash pivot on the feet, not the middle of the sprite (1.32.0)
         ctx.translate(0, h2); ctx.rotate(lean); ctx.scale(sx, sy);
         ctx.drawImage(spr, -spr.width/2, -spr.height);
@@ -2545,57 +2681,84 @@ const Battle = {
         }
     },
 
-    drawHud(ctx, W, H, now) {
-        // Command strip
-        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        // On a touch device the bottom half is taken up by the virtual stick, buttons, and battle log:
-        // the command strip and the player status line move **below** the power bar, toward
-        // the top of the screen instead (#65). The `B - 40 / -26 / -56 / -76` below stays the same.
-        const B = Game.isTouch() ? 150 : H;
+    // Where the HUD sits (#65, #86): on a touch device the bottom half belongs to the sticks
+    // and the log, so the command strip and status line move under the power bar instead.
+    hudLayout(W, H) {
         const touch = Game.isTouch();
+        // The `B - 40 / -26 / -56 / -76` offsets stay the same either way.
+        return { touch, B: touch ? 150 : H, hudW: touch ? Math.min(150, W - 24) : Math.min(360, W - 24) };
+    },
+    // The command strip, or false when there is nothing to command (#114): in a duel or an
+    // arena bout the whole box was drawn for orders that could never be given.
+    drawCmdStrip(ctx, B, hudW, touch) {
+        if(!(this.cmdSlots && this.cmdSlots.length)) return false;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         let cmdName = this.currentCommand === 'follow' ? T('Takip Et') : this.currentCommand === 'hold' ? T('Mevzini Koru') : T('Hücum Et');
+        ctx.fillStyle = 'rgba(12,14,10,0.72)';
+        this.roundRect(ctx, 12, B - 40, hudW, 28, 10); ctx.fill();
+        ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
         // On touch, the command list isn't written to the canvas a second time (#86): the `#tcmds`
         // buttons already show which command is open. On a 390px screen
         // the two lists didn't fit side by side, "⚑ Attack" and "[2] Attack" ran into each other.
-        let hudW = touch ? Math.min(150, W - 24) : Math.min(360, W - 24);
-        // No troops, no command strip (#114): in a duel or an arena bout the whole box was
-        // drawn for orders that could never be given.
-        if(this.cmdSlots && this.cmdSlots.length) {
-            ctx.fillStyle = 'rgba(12,14,10,0.72)';
-            this.roundRect(ctx, 12, B - 40, hudW, 28, 10); ctx.fill();
-            ctx.strokeStyle = 'rgba(200,170,90,0.45)'; ctx.lineWidth = 1; ctx.stroke();
-            ctx.fillStyle = '#e9d9a8'; ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.fillText(`⚑ ${cmdName}`, 22, B - 26);
-            if(!touch) {
-                // Commands not yet open are dim: the player sees what's coming and when
-                ctx.font = '11px Inter, sans-serif';
-                let lbl = { '1': T('Takip'), '2': T('Hücum'), '3': T('Bekle') };
-                let x = 22 + hudW*0.42;
-                this.cmdSlots.forEach(c => {
-                    ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
-                    let t = `[${c.key}] ${lbl[c.key]} `;
-                    ctx.fillText(t, x, B - 26);
-                    x += ctx.measureText(t).width + 4;
-                });
-            }
+        if(!touch) {
+            // Commands not yet open are dim: the player sees what's coming and when
+            ctx.font = '11px Inter, sans-serif';
+            let lbl = { '1': T('Takip'), '2': T('Hücum'), '3': T('Bekle') };
+            let x = 22 + hudW*0.42;
+            this.cmdSlots.forEach(c => {
+                ctx.fillStyle = c.open ? 'rgba(233,217,168,0.75)' : 'rgba(233,217,168,0.22)';
+                let t = `[${c.key}] ${lbl[c.key]} `;
+                ctx.fillText(t, x, B - 26);
+                x += ctx.measureText(t).width + 4;
+            });
         }
-
-        // Player status line: mount, arrows, block
+        return true;
+    },
+    // A signature of everything drawCmdStrip reads — the WebGL renderer re-bakes the strip
+    // only when this changes.
+    cmdStripKey(hudW, touch) {
+        if(!(this.cmdSlots && this.cmdSlots.length)) return '';
+        return [hudW, touch, this.currentCommand, I18N.lang, this.cmdSlots.map(c => c.open ? 1 : 0).join('')].join('|');
+    },
+    // Player status line: mount, arrows, block — { text, color } or null when the player is down.
+    statusLine(touch) {
         let pl = this._byId ? this._byId['player'] : null;
-        if(pl && pl.hp > 0) {
-            let bits = [pl.type === 'cavalry' ? T('🐴 Atlı') : T('🥾 Yaya')];
-            if(this.playerHasBow()) bits.push(T`🏹 ${this.arrows} ok`);
-            const blockKeyHint = touch ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
-            // On touch the block button is right there on screen; writing how to block every frame
-            // just wasted space on a narrow screen (#86). The moment of blocking is still shown.
-            if(pl.blocking) bits.push(T('🛡 BLOK'));
-            else if(!touch) bits.push(this.playerHasShield() ? T`🛡 ${blockKeyHint} blok` : T`${blockKeyHint} savuştur`);
-            // Terrain and stamina used to be invisible multipliers: the player couldn't tell why they were slower.
-            if(this.getTerrainEffects(pl).speedMod < 1) bits.push(T('🌲 Ağır Zemin'));
-            if((pl.chargeCd || 0) > 0) bits.push(T('💨 Soluklanıyor'));
-            ctx.fillStyle = pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)';
+        if(!(pl && pl.hp > 0)) return null;
+        let bits = [pl.type === 'cavalry' ? T('🐴 Atlı') : T('🥾 Yaya')];
+        if(this.playerHasBow()) bits.push(T`🏹 ${this.arrows} ok`);
+        const blockKeyHint = touch ? T('🛡 düğmesi') : T('[Sağ tık/Shift]');
+        // On touch the block button is right there on screen; writing how to block every frame
+        // just wasted space on a narrow screen (#86). The moment of blocking is still shown.
+        if(pl.blocking) bits.push(T('🛡 BLOK'));
+        else if(!touch) bits.push(this.playerHasShield() ? T`🛡 ${blockKeyHint} blok` : T`${blockKeyHint} savuştur`);
+        // Terrain and stamina used to be invisible multipliers: the player couldn't tell why they were slower.
+        if(this.getTerrainEffects(pl).speedMod < 1) bits.push(T('🌲 Ağır Zemin'));
+        if((pl.chargeCd || 0) > 0) bits.push(T('💨 Soluklanıyor'));
+        return { text: bits.join('   ·   '), color: pl.blocking ? '#bcd8ff' : 'rgba(233,217,168,0.75)' };
+    },
+    tugStatus(tug) {
+        if(tug > 0.8) return T('Ağlatıyoruz! 😂');
+        if(tug > 0.6) return T('Tokatlıyoruz! 😎');
+        if(tug < 0.2) return T('Eyvah Anam! 😱');
+        if(tug < 0.4) return T('Dayak Yiyoruz! 😬');
+        return T('Kafa Kafaya! ⚔️');
+    },
+    // Tug-of-war geometry, shared by both renderers.
+    tugBox(W) { let barW = Math.min(460, W - 130), barH = 22; return { barW, barH, barX: W/2 - barW/2, barY: 30 }; },
+
+    drawHud(ctx, W, H, now) {
+        let { touch, B, hudW } = this.hudLayout(W, H);
+        // Command strip
+        this.drawCmdStrip(ctx, B, hudW, touch);
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+        let st = this.statusLine(touch);
+        if(st) {
+            ctx.fillStyle = st.color;
             ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.fillText(bits.join('   ·   '), 22, B - 56);
+            ctx.fillText(st.text, 22, B - 56);
         }
 
         if(this.knockedOut) {
@@ -2609,15 +2772,9 @@ const Battle = {
         let total = playerAlive + enemyAlive;
         if(total <= 0) return;
 
-        let ratio = playerAlive / total;
-        if(this.tugRatio === undefined) this.tugRatio = ratio;
-        // Eases toward the live ratio with a 0.14 s half-life — the old "8% per frame" felt the
-        // same at 60 fps but crawled at half speed at 30 (1.32.0).
-        let hudDt = this._hudNow ? Math.min(0.1, (now - this._hudNow) / 1000) : 0;
-        this._hudNow = now;
-        this.tugRatio = Anim.damp(this.tugRatio, ratio, hudDt, 0.14);
+        let tug = this.tugShown(playerAlive / total);
 
-        let barW = Math.min(460, W - 130), barH = 22, barX = W/2 - barW/2, barY = 30;
+        let { barW, barH, barX, barY } = this.tugBox(W);
 
         ctx.fillStyle = 'rgba(10,12,9,0.75)';
         this.roundRect(ctx, barX - 6, barY - 6, barW + 12, barH + 12, (barH + 12) / 2); ctx.fill();
@@ -2625,7 +2782,7 @@ const Battle = {
         ctx.save();
         this.roundRect(ctx, barX, barY, barW, barH, barH / 2); ctx.clip();   // soft pill ends (1.32.0)
 
-        let fill = barW * this.tugRatio;
+        let fill = barW * tug;
         let gl = ctx.createLinearGradient(barX, 0, barX + barW, 0);
         gl.addColorStop(0, '#2f8f4f'); gl.addColorStop(1, '#5ad07f');
         ctx.fillStyle = gl; ctx.fillRect(barX, barY, fill, barH);
@@ -2648,11 +2805,7 @@ const Battle = {
         ctx.fillStyle = 'rgba(255,220,120,0.9)';
         ctx.fillRect(barX + fill - 1 + jitter, barY - 5, 2, barH + 10);
 
-        let statusText = T('Kafa Kafaya! ⚔️');
-        if(this.tugRatio > 0.8) statusText = T('Ağlatıyoruz! 😂');
-        else if(this.tugRatio > 0.6) statusText = T('Tokatlıyoruz! 😎');
-        else if(this.tugRatio < 0.2) statusText = T('Eyvah Anam! 😱');
-        else if(this.tugRatio < 0.4) statusText = T('Dayak Yiyoruz! 😬');
+        let statusText = this.tugStatus(tug);
 
         if(!Game.lite()) { ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 6; }
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -2663,6 +2816,29 @@ const Battle = {
         ctx.textAlign = 'right'; ctx.fillText(T`${enemyAlive} Düşman`, barX + barW - 8, barY + barH/2);
         ctx.shadowBlur = 0;
     },
+    // The tug-of-war bar eases toward the live ratio with a 0.14 s half-life — the old "8% per
+    // frame" felt the same at 60 fps but crawled at half speed at 30 (1.32.0). Ticked in
+    // update() since 1.33.0 (it used to be written from inside the HUD drawing).
+    tickTug(dt) {
+        let p = 0, e = 0;
+        this.units.forEach(u => { if(u.hp > 0) u.isPlayerTeam ? p++ : e++; });
+        if(p + e <= 0) return;
+        this.tugRatio = this.tugRatio === undefined ? p / (p + e) : Anim.damp(this.tugRatio, p / (p + e), Math.min(0.1, dt), 0.14);
+    },
+    // What the bar shows: the eased value, or the live ratio before the first tick.
+    tugShown(ratio) { return this.tugRatio === undefined ? ratio : this.tugRatio; },
+    // Hoofbeats (#132): only the player's own mount, timed to its own stride (Battle.gait) —
+    // a clop lands each time the visual hop peaks, hysteresis so one peak = one sound. Lived
+    // in drawUnit until 1.33.0; the draw path no longer writes state or plays sound.
+    tickHooves(now) {
+        let u = this._byId && this._byId['player'];
+        if(!u || u.hp <= 0) return;
+        let gt = this.gait(u, now);
+        if(!gt.mounted || !gt.moving) return;
+        if(gt.phase > 0.97 && !u._hoofUp) { u._hoofUp = true; Game.sfx('hoofbeat'); }
+        else if(gt.phase < 0.9) u._hoofUp = false;
+    },
+
     logKill(victim, killer) {
         // The fall (1.32.0): the unit keeps being drawn for DIE_T seconds, tipping over away
         // from its killer and fading while its corpse fades in underneath (see drawUnit).
@@ -2933,9 +3109,8 @@ const Battle = {
         // lines below switch to, and hands the playlist back when it ends.
         Game.Music.sting(won);
         this.clearRoutPrompt();
-        this.canvas.removeEventListener('mousedown', this.clickHandler);
+        this.listen(false);
         window.removeEventListener('mouseup', this.upHandler);
-        this.canvas.removeEventListener('contextmenu', this.menuHandler);
         window.removeEventListener('keydown', this.commandListener);
         cancelAnimationFrame(this.loopId);
 
@@ -3283,9 +3458,8 @@ const Battle = {
         // not restore _duelParty, permanently wiping out the group.
         if(this.isDuel || this.isArena || this.isTourney) { this.active = false; this.endBattle(false); return; }
         this.active = false;
-        this.canvas.removeEventListener('mousedown', this.clickHandler);
+        this.listen(false);
         window.removeEventListener('mouseup', this.upHandler);
-        this.canvas.removeEventListener('contextmenu', this.menuHandler);
         window.removeEventListener('keydown', this.commandListener);
         cancelAnimationFrame(this.loopId);
 
@@ -3347,6 +3521,7 @@ const TournamentMinigame = {
         this.gear = this.mode === 'chicken' ? null : this.rollGear();
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = Game.battleCtx();   // single gate to the shared canvas (#54)
+        Battle.showSurface('canvas');   // the chase stays Canvas2D; a WebGL battle may have been showing
         Game.showScreen('battle');
         // Chicken chasing and other click challenges have no troops to command. The command
         // pad is static battle markup, so a previous real fight could leave it visible here.

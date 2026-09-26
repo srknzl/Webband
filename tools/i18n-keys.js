@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'i18n.js'];
+const FILES = ['app.js', 'battle.js', 'battle-gl.js', 'nobles.js', 'quests.js', 'i18n.js'];
 
 const ESC = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', '0': '\0' };
 const unesc = s => s.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/g, (m, c) => {
