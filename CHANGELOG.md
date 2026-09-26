@@ -25,6 +25,10 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
   yağız. Üstünde ne giydiysen o.
 - **Okçular yürüyor, nişan alıp bırakıyor.** Kukuletaları da takımın renginde. Yay taşıyorsan
   sen de okçu olarak görünüyorsun.
+- **Okçular düşmana bakıyor.** Sağa bakan okçu sola dönük çiziliyordu. Arkası dönük, ters
+  yöne ok atıyor gibi görünüyordu. Artık hedefine bakarak ateş ediyor. Yakındaki düşmandan
+  geri çekilirken de ona sırtını dönmüyor, yüzü düşmana dönük geri geri yürüyor.
+- **Telefonda küçük harita güç çubuğunun üstüne binmiyor.** Artık çubuğun altında duruyor.
 
 ### Arayüz
 
@@ -39,6 +43,12 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
 - **Şehirde kartlar.** Şehir, köy ve kale seçenekleri uzun bir düğme listesi değil. Artık
   Ticaret, Mekânlar, Ordu, Savaş ve Kamp başlıkları altında kartlar var. Her kartta bir simge
   ve ne işe yaradığını söyleyen kısa bir satır bulunuyor.
+- **iPhone çentiği.** Üst çubuk durum çubuğunun hemen altına yapışmıyor, arada küçük bir
+  boşluk var. Alt menü de ekranın altındaki çizgiye binmiyor. Başlangıç ekranının resmi
+  çentiğin altına kadar uzanıyor.
+- **Her şey üç dilde.** Ekran okuyucunun sesli okuduğu birkaç etiket İngilizce ve Endonezce
+  oyunda Türkçe kalıyordu. Artık onlar da çevriliyor. Bütün ekranları tek tek dolaşıp Türkçe
+  metin kalmadığını denetleyen yeni bir test de var.
 - **Karakter yaratma.** Üstte hangi adımda olduğunu gösteren bir çubuk var. Her seçeneğin
   getirdiği artılar ve eksiler renkli etiketlerle yazıyor.
 

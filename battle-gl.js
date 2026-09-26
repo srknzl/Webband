@@ -282,8 +282,8 @@ const BattleGL = {
         this.tugGreen.position.set(barX, barY); this.tugGreen.width = barW; this.tugGreen.height = barH;
 
         // Minimap frame (#4)
-        let mw = Math.min(150, W * 0.28), mh = mw * 0.62;
-        this.miniBox = { mw, mh, mx: W - mw - 12, my: 12 };
+        this.miniBox = Battle.miniBox(W);
+        let { mw, mh } = this.miniBox;
         this.miniBg.clear().rect(this.miniBox.mx, this.miniBox.my, mw, mh)
             .fill({ color: 0x0a0e0a, alpha: 0.6 }).stroke({ width: 1, color: 0xc8aa5a, alpha: 0.5 });
         this.stripKey = null;

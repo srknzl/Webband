@@ -182,14 +182,17 @@ h1, h2, h3 {
        same 59px here shifts it by 59. That is why the notch survived both 0.89 and 0.93
        (#95). The bottom stays 0: --tui-lift already adds safe-area-inset-bottom, and
        counting it twice would lift the touch controls off the screen. */
-    inset: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    inset: var(--safe-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
     display: none;
     flex-direction: column;
 }
-/* A shell that draws under the status bar while reporting a 0 inset cannot be told apart
-   from a flat screen in CSS, so index.html measures it and only then adds the class. 59px
-   is the tallest iPhone status bar (Dynamic Island); a plain notch wants 44-48. */
-.native-shell .screen { top: 59px; }
+/* --safe-top: the notch plus a 6px breath under it, so the top bar doesn't sit flush against
+   the status bar; min() keeps a flat screen (inset 0) at 0. A shell that draws under the
+   status bar while reporting a 0 inset cannot be told apart from a flat screen in CSS, so
+   index.html measures it and only then adds .native-shell: 59px is the tallest iPhone
+   status bar (Dynamic Island), plus the same 6px. */
+:root { --safe-top: calc(env(safe-area-inset-top) + min(6px, env(safe-area-inset-top))); }
+.native-shell { --safe-top: 65px; }
 .screen.active { display: flex; }
 
 /* --- START SCREEN REDESIGN --- */
@@ -201,6 +204,8 @@ h1, h2, h3 {
     align-items: center;
     overflow-y: auto;
     padding-block: 1.5rem;
+    /* the picture runs up under the notch instead of stopping in a seam below it */
+    top: 0; padding-top: calc(1.5rem + var(--safe-top));
     background: radial-gradient(circle at center, rgba(15,20,25,0.2) 0%, rgba(5,5,8,0.9) 100%), url('bg_hdr.jpg');
     background-size: cover;
     background-position: center;
@@ -827,11 +832,10 @@ body.view-map #view-container { position: fixed; inset: 0; z-index: 1; }
 body.view-map #top-bar {
     /* Fixed escapes .screen's containing block (absolute doesn't contain fixed), so it
        needs its own notch offset instead of inheriting .screen's inset (#40 regression). */
-    position: fixed; top: env(safe-area-inset-top); left: 0; right: 0; z-index: 40;
+    position: fixed; top: var(--safe-top); left: 0; right: 0; z-index: 40;
     opacity: 0.9; transition: opacity .2s;
 }
 body.view-map #top-bar:hover { opacity: 1; }
-.native-shell body.view-map #top-bar { top: 59px; }
 body.view-map #sidebar {
     position: fixed; left: 8px; top: 50%; transform: translateY(-50%);
     width: auto; height: auto; max-height: calc(100vh - 96px);
@@ -1325,7 +1329,7 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
     body.in-battle #battle-log-right { display: none; }
     body.in-battle .battle-logs {
         left: 8px !important; right: 8px !important; width: auto; max-width: none;
-        top: 62px; bottom: auto; max-height: 20px;
+        top: 66px; bottom: auto; max-height: 20px;   /* under Battle.tugBox's frame */
         text-align: center !important;
         -webkit-mask-image: none; mask-image: none;
     }
@@ -1430,7 +1434,8 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
     :root { font-size: 15px; }
 
     /* Kenar menüsü alta açılan şerit olur: dikey yer ekrana kalsın */
-    .content-area { flex-direction: column-reverse; gap: 0.5rem; padding: 0.5rem; }
+    /* the bottom strip keeps clear of the iPhone home indicator (.screen's bottom stays 0) */
+    .content-area { flex-direction: column-reverse; gap: 0.5rem; padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom)); }
     #sidebar {
         width: auto;
         flex-direction: row;
@@ -1580,7 +1585,7 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
 
 /* --- Başlangıç ekranı dar ekranda --- */
 @media (max-width: 820px) {
-    #start-screen { padding: 1rem; justify-content: flex-start; padding-top: 2.5rem; }
+    #start-screen { padding: 1rem; justify-content: flex-start; padding-top: calc(2.5rem + var(--safe-top)); }
     #start-screen h1 { font-size: clamp(2.6rem, 15vw, 5rem); letter-spacing: 3px; }
     #start-screen .title-container { margin-bottom: 1.5rem; }
     #start-screen p { font-size: 1.25rem; }

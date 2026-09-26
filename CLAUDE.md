@@ -134,7 +134,9 @@ npx playwright test [--project=tr-phone] [specs/quests.spec.js]
 ```
 
 Every spec runs in four projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop`), so the
-language projects *are* the translation test. Headless Chromium's WebGL is SwiftShader, so
+language projects *are* the translation test; `i18n.spec.js` additionally sweeps every main
+screen on EN/ID for Turkish source text that never went through `T()` (text, `title`,
+`aria-label`, placeholder). Any new text ships in all three languages. Headless Chromium's WebGL is SwiftShader, so
 `'auto'` draws battles with Canvas2D there; `renderer.spec.js` forces each renderer, and
 `painted()` reads a screenshot of whichever battle canvas is on show. `e2e/fixtures.js` fails
 any test — even one whose own steps passed — on a page error, a `console.error`, a failed request, an entry in

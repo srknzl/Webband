@@ -46,14 +46,18 @@ const I18N = {
         return out;
     },
 
+    // Translated static attributes → the dataset key holding their Turkish source. A screen
+    // reader reads aria-label aloud, so it is as visible as the text.
+    ATTRS: { placeholder: 'trplaceholder', title: 'trtitle', 'aria-label': 'trAria' },
+
     prime(root) {
         root = root || document.body;
         this.textNodes(root).forEach(n => { if(n._trKey === undefined) n._trKey = n.nodeValue.trim(); });
-        root.querySelectorAll('[placeholder], [title]').forEach(el => {
-            ['placeholder', 'title'].forEach(a => {
-                const v = el.getAttribute(a);
-                if(v && el.dataset['tr' + a] === undefined) el.dataset['tr' + a] = v;
-            });
+        root.querySelectorAll('[placeholder], [title], [aria-label]').forEach(el => {
+            for(const a in this.ATTRS) {
+                const v = el.getAttribute(a), d = this.ATTRS[a];
+                if(v && el.dataset[d] === undefined) el.dataset[d] = v;
+            }
         });
     },
 
@@ -69,11 +73,11 @@ const I18N = {
             const k = el.dataset.trValue;
             if(!el.value || el.value === k || el.value === el._trPrev) el.value = el._trPrev = T(k);
         });
-        root.querySelectorAll('[placeholder], [title]').forEach(el => {
-            ['placeholder', 'title'].forEach(a => {
-                const k = el.dataset['tr' + a];
+        root.querySelectorAll('[placeholder], [title], [aria-label]').forEach(el => {
+            for(const a in this.ATTRS) {
+                const k = el.dataset[this.ATTRS[a]];
                 if(k) el.setAttribute(a, T(k));
-            });
+            }
         });
     },
 

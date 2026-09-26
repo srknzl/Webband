@@ -608,10 +608,12 @@ to both renderers with `_k` (1.25 field units per pixel, ~32 tall like the old t
   kingdom (`playerCloth`/`enemyCloth` at `start`, allies their lord's), gold for an unsworn
   warband, brown for bandits. Bosses, beasts and the marked companions keep their own art.
 - **Archers** (`Archer`): the Roguelike Kit's hooded archer — idle 4 / walk 6 / attack 4 / hurt 2
-  / death 8 frames of 32×32, facing down/side/up (left mirrored), one strip per row in
+  / death 8 frames of 32×32, facing down/side/up (the side strip is drawn facing left; right is its mirror), one strip per row in
   `troops/archer_anim.png` (`ARCHER_INDEX`). Cloth greens dyed like the swordsmen's, drawn at
   1.5 units per pixel; the release lands on attack frame 2 when `shotT` resets
-  (`Battle.archerAnim`). The player with a bow is one too.
+  (`Battle.archerAnim`). Standing between shots it faces `shotA`, its last target, not the
+  way it last walked, and while it steps back from a close enemy (within 2 s of a shot) it
+  walks backwards facing it. The player with a bow is one too.
 - **Riders** (`Horse` + `Mounted`): neither pack has a horse, so `Horse` rasterises one (barrel,
   chest, rump, neck, head, two-segment legs) onto a 48×36 grid, shades by edge and outlines it.
   Each leg runs one stride cycle, offset in time: gallop = rotary footfalls with a moment in the
@@ -852,8 +854,15 @@ every feature — `tools/test.js`'s i18n assertions are the sync gate, not this 
 comparisons (`terrain.name === 'Orman'`) language-independent. Three bug classes and how they're
 caught: missing translation (`I18N.missing`), double translation (also `I18N.missing` — the
 English string gets recorded as a bogus key), and "never touches `T` at all" (**no counter sees
-this one** — only a manual scan for Turkish leftovers while playing in EN/ID catches it; this is
-why a data field's *every* display path needs checking by hand when it's added).
+this one** — a data field's *every* display path still needs checking by hand when it's
+added). Since 2.0.0 `e2e/specs/i18n.spec.js` sweeps the screens a new player sees (creation,
+map + its hidden HUD tooltips, every menu, a fight and both result tabs, a town and three of
+its rooms, a village, a castle) on EN/ID and fails on any text, `title`, `aria-label` or
+placeholder that is exactly a dictionary key whose translation differs. Its first run found
+the F11 hint's close button reading "Kapat" aloud: static `aria-label`s were not translated.
+`I18N.ATTRS` now covers them next to `title`/`placeholder`. Only screens the sweep visits are
+covered. A string that reaches the screen only after a week of play still needs the manual
+pass.
 
 Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
 changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
@@ -1126,7 +1135,18 @@ Mobile-specific fixes worth remembering because they're easy to reintroduce:
 - The notch inset lives on `.screen` itself (`inset: env(...)`), not as padding on its
   containing block — an absolutely-positioned child's containing-block padding never moves it,
   only `top`/`inset` do; two earlier attempts (`env()` padding, then a `max(env(), 59px)` floor)
-  were both no-ops for exactly this reason.
+  were both no-ops for exactly this reason. Since 2.0.0 it is `var(--safe-top)` = the inset plus
+  `min(6px, inset)`, a 6px gap under the status bar that stays 0 on a flat screen; the native
+  shell's fallback is 65px. The map's fixed top bar reads the same variable, and the start
+  screen's picture runs up under the notch (its padding carries the inset instead). The bottom
+  strip on non-map screens pads `.content-area` by `safe-area-inset-bottom` so it clears the
+  home indicator. Measured with Chromium's `Emulation.setSafeAreaInsetsOverride` (59/34px,
+  393×852): the top bar starts at 65px, nothing on start/map/menus/town/battle sits under the
+  island, and the bottom nav ends above the 34px home strip.
+- **Battle HUD on a portrait phone**: the tug bar (`Battle.tugBox`, top 34) spans `W − 130`, so
+  the minimap in the top-right corner used to sit on its "N Enemies" end. `Battle.miniBox(W)`,
+  read by both renderers, drops the minimap below the tug bar and the log strip whenever the
+  two would overlap (every phone in portrait; desktop and landscape keep the corner).
 - `sw.js` registration is guarded by `!window.Capacitor`, not just a protocol check — the native
   shell's own origin (`https://localhost`) would otherwise install a second, stale asset cache
   on top of the one already bundled in the app.

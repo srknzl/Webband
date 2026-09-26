@@ -2127,8 +2127,7 @@ const Battle = {
     // a flat fill, baked once per frame like everything else in the HUD.
     drawMinimap(ctx, W, H) {
         if(!this.units.length) return;
-        let mw = Math.min(150, W * 0.28), mh = mw * 0.62;
-        let mx = W - mw - 12, my = 12;
+        let { mw, mh, mx, my } = this.miniBox(W);
         let ww = this.canvas.width, wh = this.canvas.height;
         let sx = mw / ww, sy = mh / wh;
         ctx.save();
@@ -2525,6 +2524,9 @@ const Battle = {
         let moving = Math.abs(u.vx || 0) > 0.1 || Math.abs(u.vy || 0) > 0.1;
         return u.id === 'player' ? this.spriteFace(u.angleToMouse || 0)
              : moving ? this.spriteFace(Math.atan2(u.vy, u.vx))
+             // standing still, a unit keeps looking where it last struck or shot (the more
+             // recent of the two): an archer that stepped back to shoot faces its target
+             : u.shotA !== undefined && !(u.atkT < u.shotT) ? this.spriteFace(u.shotA)
              : u.atkA !== undefined ? this.spriteFace(u.atkA)
              : (u.lastVx || u.lastVy) ? this.spriteFace(Math.atan2(u.lastVy || 0, u.lastVx || 0))
              : (u.isPlayerTeam ? 'right' : 'left');
@@ -2547,6 +2549,8 @@ const Battle = {
         if(u.hp <= 0) return ['Death', dir, (u.deadT || 0) * 1000];
         if(u.shotT !== undefined && u.shotT < 0.3) return ['Attack', u.shotA !== undefined ? this.spriteFace(u.shotA) : dir, 300 + u.shotT * 1000];
         if(u.hitT !== undefined && u.hitT < 0.24) return ['Hurt', dir, u.hitT * 1000];
+        // stepping back from a close enemy between shots: walk backwards, eyes on the target
+        if(moving && u.shotT < 2 && Math.cos(Math.atan2(u.vy, u.vx) - u.shotA) < 0) return ['Walk', this.spriteFace(u.shotA), now + h * 37];
         if(moving) return ['Walk', dir, now + h * 37];
         return ['Idle', dir, now + h * 53];
     },
@@ -2855,7 +2859,14 @@ const Battle = {
         return T('Kafa Kafaya! ⚔️');
     },
     // Tug-of-war geometry, shared by both renderers.
-    tugBox(W) { let barW = Math.min(460, W - 130), barH = 22; return { barW, barH, barX: W/2 - barW/2, barY: 30 }; },
+    tugBox(W) { let barW = Math.min(460, W - 130), barH = 22; return { barW, barH, barX: W/2 - barW/2, barY: 34 }; },
+    // Minimap geometry, shared by both renderers: the top-right corner, unless the tug bar
+    // would run under it (every phone in portrait) — then it drops below the tug bar and the
+    // touch log strip (style.css, top 66px).
+    miniBox(W) {
+        let mw = Math.min(150, W * 0.28), mh = mw * 0.62, mx = W - mw - 12, t = this.tugBox(W);
+        return { mw, mh, mx, my: t.barX + t.barW + 14 > mx ? t.barY + t.barH + 36 : 12 };
+    },
 
     drawHud(ctx, W, H, now) {
         let { touch, B, hudW } = this.hudLayout(W, H);
@@ -4320,7 +4331,8 @@ const Archer = (() => {
         if(c) return c;
         c = document.createElement('canvas'); c.width = c.height = 32;
         const x = c.getContext('2d');
-        if(dir === 'left') { x.translate(32, 0); x.scale(-1, 1); }
+        // the kit's side strip is drawn facing left: right is its mirror
+        if(dir === 'right') { x.translate(32, 0); x.scale(-1, 1); }
         x.drawImage(img, f * 32, A[side ? 'S' : dir === 'up' ? 'U' : 'D'] * 32, 32, 32, 0, 0, 32, 32);
         x.setTransform(1, 0, 0, 1, 0, 0);
         const dye = Swordsman.DYE[cloth];
