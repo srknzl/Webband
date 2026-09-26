@@ -569,13 +569,13 @@ mass (mounted gives 0.3 of a foot soldier's push). O(n²) over the ~70 units a b
 hold 4–7.5s) rather than sitting ready from the start; hidden entirely when `state.player.party`
 is empty (duel/arena/solo encounter).
 
-**Sprites**: real cropped pixel-art for infantry/archer (CraftPix freebies) and cavalry (Battle
-for Wesnoth, GPL v2, credited in `troops/LICENSE.txt`), baked once via `Battle.troopSprite()`.
-Tier (weak/normal/armored) is fixed by the troop's identity, never live stats — the same named
-troop always looks the same. Bosses get their own hand-drawn canvas silhouettes
+**Sprites**: animated pixel art (below) for every regular unit; the single cropped CraftPix frames
+(`Battle.troopSprite()`) are only the placeholder while the atlases load. Tier (weak/normal/
+armored) is fixed by the troop's identity, never live stats — the same named troop always looks
+the same. Bosses get their own hand-drawn canvas silhouettes
 (`Battle.bossSprite`), bigger than a regular unit.
 
-**Animated foot soldiers (1.34.0)**: the player on foot with a melee weapon and every regular
+**Animated soldiers (2.0.0)**: the player on foot with a melee weapon and every regular
 infantry unit are drawn with the CraftPix Swordsman 1–3 (idle 12 / walk 6 / run 8 / attack 8 /
 hurt 5 / death 7 frames, 4 facings). `tools/build-swordsman.js` crops each body/head/sword layer
 sheet to its content and packs one atlas per level (`troops/swordsman_{1,2,3}.png`, the index
@@ -590,8 +590,22 @@ to both renderers with `_k` (1.25 field units per pixel, ~32 tall like the old t
   starts in rags with a stick. Infantry: fixed `tier` → armour and weapon, helmet/hair/skin from
   an FNV hash of the unit id (no hair/skin variety under `Game.lite()`). Cloth: the side's
   kingdom (`playerCloth`/`enemyCloth` at `start`, allies their lord's), gold for an unsworn
-  warband, brown for bandits. Archers, riders, bosses, beasts and the marked companions keep
-  their old art (steps 2–3).
+  warband, brown for bandits. Bosses, beasts and the marked companions keep their own art.
+- **Archers** (`Archer`): the Roguelike Kit's hooded archer — idle 4 / walk 6 / attack 4 / hurt 2
+  / death 8 frames of 32×32, facing down/side/up (left mirrored), one strip per row in
+  `troops/archer_anim.png` (`ARCHER_INDEX`). Cloth greens dyed like the swordsmen's, drawn at
+  1.5 units per pixel; the release lands on attack frame 2 when `shotT` resets
+  (`Battle.archerAnim`). The player with a bow is one too.
+- **Riders** (`Horse` + `Mounted`): neither pack has a horse, so `Horse` rasterises one (barrel,
+  chest, rump, neck, head, two-segment legs) onto a 48×36 grid, shades by edge and outlines it.
+  Each leg runs one stride cycle, offset in time: gallop = rotary footfalls with a moment in the
+  air (8 × 70 ms), walk = four-beat lateral (8 × 115 ms, three feet always down); the fore knee
+  tucks the hoof back, the hind hock tucks it forward. `Mounted.art` seats the Swordsman's upper
+  body (cut 7 px above the feet) on the saddle; the horse faces left/right only, walks under
+  60 u/s and gallops above (`Battle.mountAnim`); a fallen rider lies beside a horse that bolts
+  and fades. Saddle cloth takes the side's colour; coat: the player's horse by price
+  (< 1000 bay, < 2000 grey, else black), troops by tier. Mounted archers ride the same way. The
+  Battle for Wesnoth cavalry art (GPL) is no longer shipped.
 - **Anim** (`Battle.spriteAnim`, pure): death from `deadT`, the player's swing mapped onto
   `attackTimer`, an AI swing from its striking frame on `atkT`, hurt for 0.42 s of `hitT`, walk /
   run (> 95 u/s) while moving, else idle; facing from mouse (player), velocity, last swing,
@@ -602,8 +616,9 @@ to both renderers with `_k` (1.25 field units per pixel, ~32 tall like the old t
   matched against the reference turned ±45/±90/180°. Fits are cached per (level, anim, facing,
   frame, helmet).
 
-Measured (headless Chromium, 1366×768): first bake 0.24 ms per frame, a cached lookup 2 µs; a
-death frame with a turned helmet 7.8 ms the first time (once per combination). Atlases 69–73 KB
+Measured (headless Chromium, 1366×768): first bake 0.24 ms per foot frame, a cached lookup 2 µs;
+a death frame with a turned helmet 7.8 ms the first time (once per combination); a rider frame
+2.1 ms first time (horse + rider), an archer frame 0.5 ms. `archer_anim.png` 17 KB. Atlases 69–73 KB
 each, 1024×304–344 px — about 4 MB decoded for all three, against ~35 MB for the raw sheets.
 
 **Performance**: target search runs every 0.3–0.5s per unit, not every frame; particle ceilings

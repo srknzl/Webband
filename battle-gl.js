@@ -536,7 +536,7 @@ const BattleGL = {
         o.rank.visible = u.level >= 5;
         if(o.rank.visible) {
             let e = this.text(u.level >= 20 ? '^' : u.level >= 15 ? "'''" : u.level >= 10 ? "''" : "'", 'bold 15px Inter, sans-serif', '#ffcc44', S);
-            this.putText(o.rank, e, -12, sprite ? -36 : -12 - lh / 2, 'center', S);
+            this.putText(o.rank, e, -12, art._rankY !== undefined ? art._rankY : -12 - lh / 2, 'center', S);
             if(P.ranks.items.indexOf(o.rank) < 0) P.ranks.items.push(o.rank);
         }
         if(p.dead) return;   // a falling unit has no flash, weapon, shield or health bar
@@ -556,7 +556,7 @@ const BattleGL = {
             gTr.moveTo(ux + Math.cos(ba - Math.PI/3) * 20, uy + Math.sin(ba - Math.PI/3) * 20).arc(ux, uy, 20, ba - Math.PI/3, ba + Math.PI/3)
                .stroke({ width: u.blockFlash > 0 ? 7 : 5, color: col, alpha: al });
         }
-        if(isPlayer ? u.bowTimer > 0 : u.shotT < 0.25) {
+        if((isPlayer ? u.bowTimer > 0 : u.shotT < 0.25) && !art._bow) {   // the archer sprite draws its own bow
             s = P.bows.next(); s.position.set(ux, uy); s.rotation = (isPlayer ? u.angleToMouse : u.shotA) || 0; s.scale.set(inv);
         }
         // A Swordsman player swings the sprite's own sword; the trail still shows where it cuts.

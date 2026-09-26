@@ -3,9 +3,11 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
-## 1.34.0 — Paçavradan Zırha (2026-09-26)
+## 2.0.0 — Yeni Yüz (2026-09-26)
 
-Savaştaki piyadeler ve sen artık gerçekten yürüyor, kılıç sallıyor, darbe alıp yere düşüyorsun.
+Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehirler aynı pixel dünyada.
+
+### Savaş
 
 - **Canlanan askerler.** Piyadelerin tek bir duran resmi vardı, kayarak ve zıplayarak hareket
   ediyorlardı. Artık bekleme, yürüme, koşma, saldırı, darbe alma ve ölüm animasyonları var,
@@ -16,7 +18,13 @@ Savaştaki piyadeler ve sen artık gerçekten yürüyor, kılıç sallıyor, dar
 - **Krallık renkleri.** Askerlerin kıyafeti krallığının renginde: Svadya kırmızı, Rodok yeşil,
   Veagir gri, Nord mavi, Kergit mor, haydutlar kahverengi. Kendi başına dolaşan bir çetenin
   rengi altın. Aynı takımda bile herkesin saçı ve teni farklı.
-- Okçular, süvariler ve boss'lar şimdilik eskisi gibi. Onların sırası sonra geliyor.
+- **Süvariler yeni atlarında.** Atlar artık oyunun geri kalanıyla aynı pixel dünyasında:
+  dörtnala koşarken dört ayak sırayla basıyor, yavaşlayınca sakin sakin yürüyor. Eyer örtüsü
+  krallık renginde, binici kendi kılıcını sallıyor. Binici düşerse at kaçıp gidiyor.
+- **Atına binince sen de öylesin.** Ucuz atlar doru, orta fiyatlılar kır, pahalı savaş atları
+  yağız. Üstünde ne giydiysen o.
+- **Okçular yürüyor, nişan alıp bırakıyor.** Kukuletaları da takımın renginde. Yay taşıyorsan
+  sen de okçu olarak görünüyorsun.
 
 ## 1.33.0 — Keskin Meydan (2026-09-26)
 
