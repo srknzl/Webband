@@ -1,5 +1,5 @@
 <meta charset="utf-8"><body style="background:#3d5a3a;margin:0;font:12px monospace;color:#fff"><canvas id=c></canvas>
-<script src="engine.js"></script><script>
+<script src="engine.js"></script><script src="horse.js"></script><script>
 (async()=>{ await SW.preload(); const [helm, lvl, set] = decodeURIComponent(location.hash.slice(1)).split('|');
  const anims = set==='a' ? ['Idle','Walk','Run'] : ['attack','Hurt','Death'];
  const S=3, CW=40, CH=46, c=document.getElementById('c'); c.width=12*CW*S+60; c.height=anims.length*4*CH*S; const x=c.getContext('2d'); x.imageSmoothingEnabled=false;

@@ -170,6 +170,19 @@
         'O3......O2111O',
         'O3.......O111O',
         'OO........OOO.'] },
+      // the side head half-turned to the camera (Idle frames 5–10): the nose guard sits mid-face
+      left34: { x: 25, y: 21, brim: 28, rows: [
+        '....OOOOOOO...',
+        '..OO3445432OO.',
+        '.O34455433221O',
+        'O344554332211O',
+        'O344443332211O',
+        'O333333322211O',
+        'O222222221111O',
+        'OOOOO3OOO2111O',
+        '.....3...O111O',
+        '.....2....OOO.',
+        '.....O........'] },
       up: { x: 25, y: 21, brim: 29, rows: [
         '...OOOOOOO...',
         '.OO3445432OO.',
@@ -290,18 +303,21 @@
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
     const x = c.getContext('2d'); x.drawImage(img, 0, 0);
     const d = x.getImageData(0, 0, img.width, img.height).data;
-    const grab = row => { const g = new Uint8Array(F * F); for (let y = 0; y < F; y++) for (let xx = 0; xx < F; xx++) g[y * F + xx] = classOf(d, ((row * F + y) * img.width + xx) * 4); return g; };
-    _refs = { down: grab(0), left: grab(1), up: grab(3) };
-    _refs.right = mirror(_refs.left);
+    const grab = (row, f = 0) => { const g = new Uint8Array(F * F); for (let y = 0; y < F; y++) for (let xx = 0; xx < F; xx++) g[y * F + xx] = classOf(d, ((row * F + y) * img.width + f * F + xx) * 4); return g; };
+    // grab(row, frame): the side facings also carry the half-turned pose (Idle frame 6)
+    _refs = { down: [grab(0)], left: [grab(1), grab(1, 6)], up: [grab(3)] };
+    _refs.right = _refs.left.map(mirror);
     return _refs;
   }
   const tplCache = {};
-  function tplFor(type, dir, deg) {
-    const k = type + dir + deg;
+  function tplFor(type, dir, deg, pose = 0, fallen = false) {
+    const k = type + dir + deg + ':' + pose + (fallen ? 'f' : '');
     if (tplCache[k]) return tplCache[k];
-    const base = HELM_TPL[type][dir === 'right' ? 'left' : dir];
+    const side = dir === 'right' ? 'left' : dir, set = HELM_TPL[type];
+    // a head fallen face-down, seen from behind, shows only the crown: every helmet reads as a dome
+    const base = fallen && dir === 'up' ? HELM_TPL.nasal.up : (pose && set[side + '34']) || set[side];
     let { g, cut } = tplGrids(base);
-    let ref = refs()[dir];
+    let ref = refs()[dir][pose];
     if (dir === 'right') { g = mirror(g); cut = mirror(cut); }
     const rr = rotGrid(ref, deg), pts = [];
     for (let i = 0; i < F * F; i++) if (rr[i]) pts.push(i % F, (i / F) | 0, rr[i]);
@@ -333,19 +349,28 @@
       let best = null;
       // a head seen from behind falls straight down (it never turns); the others may roll
       const degs = turning && dir !== 'up' ? [0, 45, -45, 90, -90, 180] : [0];
-      for (const deg of degs) {
-        const { pts } = tplFor(type, dir, deg), R = turning ? 12 : 7;
+      const poses = refs()[dir].length;
+      for (let pose = 0; pose < poses; pose++) for (const deg of degs) {
+        if (pose && deg) continue;                                // a fallen head uses the plain pose
+        const { pts } = tplFor(type, dir, deg, pose), R = turning ? 12 : 7;
         for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-          const s = score(cell, pts, dx, dy) - (deg ? 4 : 0);   // prefer upright on a tie
-          if (!best || s > best.s) best = { s, deg, dx, dy };
+          const s = score(cell, pts, dx, dy) - (deg ? 4 : 0) - (pose ? 1 : 0);   // upright, plain pose win ties
+          if (!best || s > best.s) best = { s, deg, dx, dy, pose };
         }
       }
       fits[anim + ':' + row + ':' + (cx / F)] = best;
-      const { g, cut } = tplFor(type, dir, best.deg);
+      const { g, cut } = tplFor(type, dir, best.deg, best.pose, turning && dir === 'up' && cx / F >= 3);   // from frame 3 the head lies face-down
+      // on a fallen head the helmet may only cover where the head still shows (a head seen from
+      // behind sinks behind the body; the helmet must not spill over it)
+      let clip = null;
+      if (turning) {
+        clip = new Uint8Array(F * F);
+        for (let i = 0; i < F * F; i++) if (cell[i]) { const x0 = i % F, y0 = (i / F) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const X = x0 + dx, Y = y0 + dy; if (X >= 0 && Y >= 0 && X < F && Y < F) clip[Y * F + X] = 1; } }
+      }
       for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
         const X = x + best.dx, Y = y + best.dy;
         if (X < 0 || Y < 0 || X >= F || Y >= F) continue;
-        const i = ((cy + Y) * W + cx + X) * 4, sym = g[y * F + x];
+        const i = ((cy + Y) * W + cx + X) * 4, sym = clip && !clip[Y * F + X] ? 0 : g[y * F + x];
         if (sym) { const [r, gg, b] = COL[sym]; d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = 255; }
         else if (cut[y * F + x]) { const c = classOf(d, i); if (c === 1 || c === 2) d[i + 3] = 0; }
       }

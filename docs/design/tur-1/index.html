@@ -507,7 +507,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
         <tr><td>Kan efekti, ok, gölge</td><td><span class="v yes">Kullan</span></td><td>Pixel kan sıçraması bugünkü yuvarlak lekelerden çok daha iyi okunuyor.</td></tr>
         <tr><td>Arayüz seti</td><td><span class="v no">Kullanma</span></td><td>Pastel mavi ve pembe zindan panelleri. Oyunun koyu-altın temasıyla çatışıyor. 10×10 ikonlar da çok küçük.</td></tr>
         <tr><td>Zindan tileset</td><td><span class="v part">Belki ileride</span></td><td>Açık arazi savaşı için değil. Kuşatmada kale içi sahnesi yapılırsa işe yarar.</td></tr>
-        <tr><td>Süvari / at</td><td><span class="v no">Pakette yok</span></td><td>İki pakette de at yok. Bugünkü süvariler Wesnoth'tan (GPL) ve üslubu çok farklı. Tur 2'de ele alacağım.</td></tr>
+        <tr><td>Süvari / at</td><td><span class="v no">Pakette yok</span></td><td>İki pakette de at yok. Bugünkü süvariler Wesnoth'tan (GPL) ve üslubu çok farklı. 5. bölümde kodla çizdiğim bir atla deneme var.</td></tr>
       </tbody>
     </table>
   </div>
@@ -601,7 +601,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
   <div class="sec-head">
     <span class="eyebrow">5 · PoC · Savaş</span>
     <h2>Bugünkü yöntem ile yeni yöntem, aynı sahnede</h2>
-    <p>Beşe beş küçük bir çarpışma. Soldakiler Nord, sağdakiler Svadya. Her askerin zırhı, saçı ve teni rastgele. <b>"Bugünkü gibi"</b> modu oyundaki yöntemi taklit ediyor: tek kare ve zıplama. <b>"Yeni"</b> modunda gerçek animasyon kareleri, 4 yön ve ölüm animasyonu var. Vuruş flaşı ve kan gibi efektler oyunda zaten var, burada iki modda da aynı çalışıyor. Sahneye tıklarsan yeniden başlar.</p>
+    <p>Beşe beş küçük bir çarpışma, her tarafta bir okçu ve bir süvari. Soldakiler Nord, sağdakiler Svadya. Her askerin zırhı, saçı ve teni rastgele. <b>"Bugünkü gibi"</b> modu oyundaki yöntemi taklit ediyor: tek kare ve zıplama. <b>"Yeni"</b> modunda gerçek animasyon kareleri, 4 yön ve ölüm animasyonu var. Vuruş flaşı ve kan gibi efektler oyunda zaten var, burada iki modda da aynı çalışıyor. Sahneye tıklarsan yeniden başlar.</p>
   </div>
   <div class="arena">
     <canvas id="arena" width="320" height="150" title="Yeniden başlatmak için tıkla"></canvas>
@@ -618,6 +618,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
         <label><input type="checkbox" data-k="numbers" checked>Hasar sayısı</label>
         <label><input type="checkbox" data-k="blood" checked>Kan ve ceset</label>
         <label><input type="checkbox" data-k="archers" checked>Okçular</label>
+        <label><input type="checkbox" data-k="cavalry" checked>Süvariler</label>
         <label><input type="checkbox" data-k="slow">Yavaş çekim</label>
       </div>
     </div>
@@ -626,6 +627,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
     <div class="note"><b>Takım ayrımı</b>Bugün takımları sadece zemindeki renkli halka ayırıyor. Burada kıyafet sancak renginde, halka isteğe bağlı. Kalabalıkta hangi askerin kimden olduğu bir bakışta anlaşılıyor.</div>
     <div class="note"><b>Aynı yüz, farklı insanlar</b>Paketteki herkes aynı saçla geliyor. Beş saç ve dört ten rengiyle, sahnede birbirinin kopyası iki asker neredeyse hiç kalmıyor.</div>
     <div class="note"><b>Performans</b>Renklendirme her sprite sheet için savaş başında bir kez yapılır ve önbelleğe alınır. Çizim sırasında asker başına 3–5 <code>drawImage</code> çağrısı düşer. CLAUDE.md'deki "bir kez pişir" kuralına uyuyor. PixiJS tarafında aynı sayfalar doku olarak yüklenir.</div>
+    <div class="note"><b>Süvari</b>İki pakette de at yok. Yeni moddaki atı ben çizdim: pakete uyan pixel üslupta, altı karelik dörtnala koşma, sancak renginde eyer örtüsü ve üç don (doru, kır, yağız). Üstünde Swordsman binici oturuyor, saldırısı binicinin kendi animasyonu. Binici düşünce at kendi saflarına kaçıyor. Bir sınırı var: at sadece sağa ve sola bakıyor, yukarı ya da aşağı giderken de yandan görünüyor. Bugünkü modda oyundaki Wesnoth süvarisi var.</div>
     <div class="note"><b>Okçu üslubu</b>Roguelike okçusu daha kalın çizgili ve daha kısa. Bu boyutta fark az göze batıyor. Yine de istersen okçuyu Swordsman gövdesinden kendim türetebilirim: kılıç yerine yay çizmek gerekiyor.</div>
   </div>
 </section>
@@ -874,6 +876,13 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
         <label><input type="radio" name="q8" value="paket">Ayrı bir paket bulalım</label>
         <label><input type="radio" name="q8" value="sonra">Şimdilik önemli değil</label>
       </div></fieldset>
+    <fieldset class="q"><legend>9. Süvari</legend>
+      <p class="why">5. bölümdeki savaşta iki modu karşılaştırabilirsin.</p>
+      <div class="opts">
+        <label><input type="radio" name="q9" value="kod-at" checked>Kodla çizilen at + Swordsman binici <em>önerim</em></label>
+        <label><input type="radio" name="q9" value="paket">Aynı üslupta hazır bir at paketi bulalım</label>
+        <label><input type="radio" name="q9" value="wesnoth">Wesnoth süvarileri kalsın</label>
+      </div></fieldset>
     <fieldset class="q"><legend>Notların</legend>
       <textarea id="note" name="note" placeholder="Beğendiğin, beğenmediğin, eklemek istediğin her şey…"></textarea></fieldset>
     <div class="save"><button class="btn" id="saveBtn" type="submit">Kararlarımı kaydet</button><span id="saveState" role="status">Kaydetme bağlantısı kuruluyor…</span></div>
@@ -884,4 +893,5 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
 <footer><div class="wrap">Sprite'lar: CraftPix.net "Free Swordsman 1–3 Level" ve "Free Top-Down Roguelike Game Kit". Miğferler, renklendirme ve sahneler bu sayfanın kodu. Kaynak: <code>docs/design/tur-1/</code>, branch <code>claude/eloquent-allen-pmozyf</code>.</div></footer>
 
 <script src="engine.js"></script>
+<script src="horse.js"></script>
 <script src="app.js"></script>

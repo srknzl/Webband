@@ -153,7 +153,9 @@
 
   // ---- mini battle ----
   const ARC = { anchor: { x: 16, y: 27 }, n: { S_Idle: 4, S_Walk: 6, S_Attack: 4, S_Hurt: 2, S_Death: 8 }, ms: { S_Idle: 160, S_Walk: 110, S_Attack: 150, S_Hurt: 120, S_Death: 110 } };
-  const arcImg = {}, bloodImg = new Image(), arrowImg = new Image();
+  const arcImg = {}, bloodImg = new Image(), arrowImg = new Image(), cavImg = new Image();
+  cavImg.src = 'a/cavalry_normal.png';   // today's Wesnoth rider, for the "Bugünkü gibi" mode
+  const CLOTH_HEX = { nord: '#3a66b0', swadia: '#b83a33' };
   bloodImg.src = 'a/arc/S_Blood.png'; arrowImg.src = 'a/arc/Arrow.png';
   ['S_Idle', 'S_Walk', 'S_Attack', 'S_Hurt', 'S_Death'].forEach(k => { const i = new Image(); i.src = `a/arc/${k}.png`; arcImg[k] = i; });
   function arcFlipped(k) {   // mirrored copy, baked once
@@ -182,9 +184,14 @@
           });
         }
         B.units.push({ team, x: V ? (team ? W - 26 : 26) : (team ? W - 22 : 22), y: V ? (team ? cfg.top - 16 : cfg.bottom + 18) : 88, hp: 2, arc: true, anim: 'S_Idle', t: 0, dir: team ? 'left' : 'right', cd: 1 + r(), flash: 0, kx: 0, dead: false, deadT: 0 });
+        if (cfg.cavalry) B.units.push({
+          team, cav: true, x: team ? W - 34 : 34, y: team ? 58 : 132, hp: 5, coat: team ? 'grey' : 'bay',
+          look: { armor: 3, weapon: 3, helm: team ? 'greathelm' : 'nasal', hair: (r() * 6) | 0, skin: (r() * 4) | 0 },
+          anim: 'Idle', t: 0, ht: 0, facing: team ? 'left' : 'right', moving: false, cd: 0.8 + r(), flash: 0, kx: 0, dead: false, deadT: 0,
+        });
       }
     }
-    const alive = u => !u.dead && (B.opt.archers || !u.arc);
+    const alive = u => !u.dead && (B.opt.archers || !u.arc) && (B.opt.cavalry || !u.cav);
     function nearestFoe(u) {
       let best = null, bd = 1e9;
       for (const o of B.units) if (o.team !== u.team && alive(o)) { const d = Math.hypot(o.x - u.x, (o.y - u.y) * 1.4); if (d < bd) { bd = d; best = o; } }
@@ -193,11 +200,12 @@
     function hit(tgt, dmg, fromX, fromY = tgt.y) {
       if (tgt.dead) return;
       tgt.hp -= dmg;
-      tgt.flash = 1; { const kx = tgt.x - fromX, ky = (tgt.y - fromY) * 1.5, kl = Math.hypot(kx, ky) || 1; tgt.kx = kx / kl * 38; tgt.ky = ky / kl * 38; }
+      tgt.flash = 1; { const kx = tgt.x - fromX, ky = (tgt.y - fromY) * 1.5, kl = Math.hypot(kx, ky) || 1, kb = tgt.cav ? 10 : 38; tgt.kx = kx / kl * kb; tgt.ky = ky / kl * kb; }
       if (B.opt.numbers) B.nums.push({ x: tgt.x, y: tgt.y - 30, t: 0, s: '-' + (dmg * 7 + ((Math.random() * 5) | 0)) });
       if (B.opt.blood) B.fx.push({ x: tgt.x, y: tgt.y - 10, t: 0, flip: tgt.x < fromX });
       if (B.opt.hitstop) B.stop = 0.07;
-      if (tgt.hp <= 0) { tgt.dead = true; tgt.anim = tgt.arc ? 'S_Death' : 'Death'; tgt.t = 0; }
+      if (tgt.hp <= 0) { tgt.dead = true; tgt.anim = tgt.arc ? 'S_Death' : 'Death'; tgt.t = 0; if (tgt.cav) { tgt.hx = tgt.x; tgt.hvx = tgt.team ? 70 : -70; tgt.facing = tgt.hvx < 0 ? 'left' : 'right'; } }
+      else if (tgt.cav) { /* a rider takes the blow in the saddle */ }
       else if (!tgt.arc) { if (tgt.anim !== 'attack') { tgt.anim = 'Hurt'; tgt.t = 0; } }
       else { tgt.anim = 'S_Hurt'; tgt.t = 0; }
     }
@@ -213,10 +221,29 @@
         u.t += dt * 1000;
         u.flash = Math.max(0, u.flash - dt * 7);
         if (u.kx || u.ky) { const k = Math.pow(0.0005, dt); u.x += (u.kx || 0) * dt; u.y += (u.ky || 0) * dt; u.kx *= k; u.ky = (u.ky || 0) * k; if (Math.hypot(u.kx, u.ky) < 1) u.kx = u.ky = 0; }
-        if (u.dead) { u.deadT += dt; continue; }
+        if (u.dead) { u.deadT += dt; if (u.cav) { u.hx += u.hvx * dt; u.ht += dt * 1000; } continue; }
         if (u.arc && !B.opt.archers) continue;
+        if (u.cav && !B.opt.cavalry) continue;
         const [foe, d] = nearestFoe(u);
         if (!foe) { u.anim = u.arc ? 'S_Idle' : 'Idle'; continue; }
+        if (u.cav) {
+          const A = SW.ANIM[u.anim];
+          u.cd -= dt; u.ht += dt * 1000;
+          if (Math.abs(foe.x - u.x) > 4) u.facing = foe.x < u.x ? 'left' : 'right';
+          if (u.anim === 'attack') {
+            if (!u.hitDone && u.t >= 4 * A.ms) { u.hitDone = true; if (u.tgt && !u.tgt.dead && Math.hypot(u.tgt.x - u.x, u.tgt.y - u.y) < 28) hit(u.tgt, 2, u.x, u.y); }
+            if (u.t >= A.n * A.ms) { u.anim = 'Idle'; u.t = 0; }
+          }
+          if (d > 20) {                       // the charge: twice a footman's pace
+            const sp = 48, dx = foe.x - u.x, dy = foe.y - u.y;
+            u.x += dx / d * sp * dt; u.y = Math.max(cfg.ymin, Math.min(cfg.ymax, u.y + dy / d * sp * dt));
+            u.x = Math.max(16, Math.min(cfg.W - 16, u.x)); u.moving = true;
+          } else {
+            u.moving = false;
+            if (u.anim !== 'attack' && u.cd <= 0) { u.anim = 'attack'; u.t = 0; u.hitDone = false; u.tgt = foe; u.cd = 1 + Math.random() * 0.5; }
+          }
+          continue;
+        }
         if (u.arc) {
           u.cd -= dt; faceTo(u, foe);
           if (u.anim === 'S_Attack') {
@@ -252,7 +279,7 @@
       }
       for (const a of B.arrows) {
         a.x += a.vx * dt; a.y += a.vy * dt; a.life -= dt;
-        for (const o of B.units) if (o.team !== a.team && alive(o) && Math.abs(o.x - a.x) < 6 && a.y > o.y - 22 && a.y < o.y - 2) { hit(o, 1, a.x - a.vx, a.y - a.vy); a.life = 0; break; }
+        for (const o of B.units) if (o.team !== a.team && alive(o) && Math.abs(o.x - a.x) < (o.cav ? 14 : 6) && a.y > o.y - (o.cav ? 34 : 22) && a.y < o.y - 2) { hit(o, 1, a.x - a.vx, a.y - a.vy); a.life = 0; break; }
       }
       B.arrows = B.arrows.filter(a => a.life > 0 && a.x > -10 && a.x < cfg.W + 10 && a.y > -10 && a.y < cfg.H + 10);
       B.fx.forEach(f => f.t += dt); B.fx = B.fx.filter(f => f.t < 0.36);
@@ -263,7 +290,7 @@
     function drawBattle(x, g) {
       x.drawImage(g, 0, 0);
       const oldMode = B.mode === 'old';
-      const order = B.units.filter(u => B.opt.archers || !u.arc).slice().sort((a, b) => (a.dead ? -1 : 0) - (b.dead ? -1 : 0) || a.y - b.y);
+      const order = B.units.filter(u => (B.opt.archers || !u.arc) && (B.opt.cavalry || !u.cav)).slice().sort((a, b) => (a.dead ? -1 : 0) - (b.dead ? -1 : 0) || a.y - b.y);
       for (const u of order) {
         const px = Math.round(u.x), py = Math.round(u.y);
         if (u.dead && !B.opt.blood && (oldMode || u.deadT > 0.9)) continue;
@@ -272,6 +299,7 @@
           x.globalAlpha = 1 - u.deadT / 0.5;
         }
         if (B.opt.rings && !u.dead) { x.fillStyle = u.team ? 'rgba(255,77,77,.9)' : 'rgba(51,153,255,.9)'; for (let i = -5; i <= 5; i += 2) { x.fillRect(px + i, py + 2, 1, 1); } x.fillRect(px - 6, py + 1, 1, 1); x.fillRect(px + 6, py + 1, 1, 1); }
+        if (u.cav) { drawRider(x, u, px, py, oldMode); x.globalAlpha = 1; continue; }
         if (!u.dead) shadow(x, px, py - 1);
         if (u.arc) {
           const face = u.dir, k = oldMode ? 'S_Idle' : u.anim;
@@ -309,6 +337,29 @@
       }
       for (const n of B.nums) digits(x, n.s, Math.round(n.x), Math.round(n.y - n.t * 14), n.t < 0.12 ? '#ffffff' : '#ffd166');
     }
+    function drawRider(x, u, px, py, oldMode) {
+      const look = { ...u.look, cloth: B.opt.colors ? (u.team ? 'swadia' : 'nord') : null };
+      if (!B.opt.variety) { look.hair = 0; look.skin = 0; }
+      if (oldMode) {                           // today: one Wesnoth frame, hopping
+        const h = 32, w = Math.round(cavImg.naturalWidth * h / (cavImg.naturalHeight || 1));
+        const hop = u.moving ? -Math.round(Math.abs(Math.sin(u.ht / 70)) * 2) : 0;
+        shadow(x, px, py - 1, 22);
+        if (cavImg.complete && cavImg.naturalWidth) x.drawImage(cavImg, px - (w >> 1), py - h + 2 + hop, w, h);
+        return;
+      }
+      if (u.dead) {                            // the rider falls, the horse bolts for its own lines
+        SW.drawUnit(x, { ...look, anim: 'Death', dir: u.facing, t: u.t }, px, py, { noRed: true });
+        const hx = Math.round(u.hx);
+        if (hx > -30 && hx < cfg.W + 30) {
+          shadow(x, hx, py - 1, 22);
+          HORSE.drawHorse(x, { coat: u.coat, cloth: B.opt.colors ? CLOTH_HEX[u.team ? 'swadia' : 'nord'] : null, facing: u.facing, moving: true, t: u.ht }, hx, py);
+        }
+        return;
+      }
+      shadow(x, px, py - 1, 22);
+      HORSE.drawHorse(x, { coat: u.coat, cloth: B.opt.colors ? CLOTH_HEX[u.team ? 'swadia' : 'nord'] : null, facing: u.facing, moving: u.moving, t: u.ht,
+        rider: { ...look, anim: u.anim, t: u.t }, flash: u.flash > 0.05 ? u.flash : 0 }, px, py);
+    }
     let _fl;
     function flashRect(x, img, sx, dx, dy, a) {
       if (!_fl) { _fl = document.createElement('canvas'); _fl.width = _fl.height = 32; }
@@ -322,7 +373,7 @@
   function battle() {
     const c = $('#arena'), x = ctx2d(c), g = grass(c.width, c.height, 21), opt = {};
     document.querySelectorAll('#b-opts input').forEach(i => { opt[i.dataset.k] = i.checked; i.addEventListener('change', () => { opt[i.dataset.k] = i.checked; }); });
-    const bt = createBattle({ W: c.width, H: c.height, ymin: 44, ymax: 142, opt });
+    const bt = createBattle({ W: c.width, H: c.height, ymin: 44, ymax: 142, opt, cavalry: true });
     $('#b-mode').addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return; bt.B.mode = b.dataset.v;
       $('#b-mode').querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
@@ -447,14 +498,14 @@
     const form = $('#form'), state = $('#saveState'), btn = $('#saveBtn');
     const read = () => {
       const d = {};
-      for (const q of ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q8']) { const el = form.querySelector(`input[name="${q}"]:checked`); d[q] = el ? el.value : null; }
+      for (const q of ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q8', 'q9']) { const el = form.querySelector(`input[name="${q}"]:checked`); d[q] = el ? el.value : null; }
       d.q7 = [...form.querySelectorAll('input[name="q7"]:checked')].map(i => i.value);
       d.note = $('#note').value.slice(0, 4000);
       return d;
     };
     const fill = d => {
       if (!d) return;
-      for (const q of ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q8']) if (d[q]) { const el = form.querySelector(`input[name="${q}"][value="${d[q]}"]`); if (el) el.checked = true; }
+      for (const q of ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q8', 'q9']) if (d[q]) { const el = form.querySelector(`input[name="${q}"][value="${d[q]}"]`); if (el) el.checked = true; }
       if (Array.isArray(d.q7)) form.querySelectorAll('input[name="q7"]').forEach(i => { i.checked = d.q7.includes(i.value); });
       if (typeof d.note === 'string' && document.activeElement !== $('#note')) $('#note').value = d.note;
     };
