@@ -505,9 +505,13 @@ function newGame(approach) {
   G.player.y -= 4;
   G.chars.push(G.player);
   const squadN = approach === 'army' ? 8 : approach === 'squad' ? squadSize() : 0;
+  // the squad stands on free ground round the start (they used to be placed below it, past the map's
+  // bottom edge, where every tile counts as a wall — and never moved)
+  const spots = freeTilesNear(G.start.x, G.start.y, squadN + 1).slice(1);
   for(let i = 0; i < squadN; i++) {
-    const s = makeChar('squad', G.start.x, G.start.y, { look: LOOKS.squad(i), hp: 60, maxHp: 60, idx: i, face: 'up' });
-    s.x += (i % 3 - 1) * 12; s.y += 10 + (i / 3 | 0) * 10;
+    const [sx, sy] = spots[i % Math.max(1, spots.length)] || [G.start.x, G.start.y];
+    const s = makeChar('squad', sx, sy, { look: LOOKS.squad(i), hp: 60, maxHp: 60, idx: i, face: 'up' });
+    if(i >= spots.length) { s.x += (i % 3 - 1) * 8; }
     G.chars.push(s);
   }
   G.trail = [];
@@ -545,6 +549,20 @@ function newGame(approach) {
   }
   G.msg = approach === 'army' ? 'Ön kapıdan giriyorsunuz. Haydutlar silaha sarıldı!' : 'Sessiz ol. Eğilirsen daha az görünürsün.';
   G.msgT = 4;
+}
+// the n nearest walkable tiles to (tx, ty), breadth first, the start itself first
+function freeTilesNear(tx, ty, n) {
+  const out = [], seen = new Set([tx + ',' + ty]), q = [[tx, ty]];
+  while(q.length && out.length < n) {
+    const [x, y] = q.shift();
+    if(!solidTile(x, y) && tile(x, y) !== 'W') out.push([x, y]);
+    for(const [dx, dy] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
+      const k = (x + dx) + ',' + (y + dy);
+      if(seen.has(k) || x + dx < 0 || y + dy < 0 || x + dx >= G.w || y + dy >= G.h - 0 || solidTile(x + dx, y + dy)) continue;
+      seen.add(k); q.push([x + dx, y + dy]);
+    }
+  }
+  return out;
 }
 function squadSize() { return 1 + Math.floor(opts.lead / 3); }
 
@@ -799,7 +817,11 @@ function findInteraction() {
   }
   for(const [dx, dy] of [[1, 0], [-1, 0]]) if(tile(tx + dx, ty) === 'W')
     add(Math.abs((tx + dx) * T + 16 - p.x), 'Pencereden geç', { cx: (tx + dx) * T + 16, cy: ty * T + 16 }, () => busy(1.1, 'Pencereden geçiliyor…', () => { p.x += dx * T * 2; noise(p.x, p.y, 45, null); }));
-  if(isExit(tx, ty)) add(20, 'İnden ayrıl', null, () => endGame('out'));
+  if(isExit(tx, ty)) {
+    const chaser = G.chars.find(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - p.x, g.y - p.y) < 8 * T);
+    if(chaser) add(20, 'Peşindeler!', null, () => say('Peşinde haydutlar varken kaçamazsın. Önce onlardan kurtul ya da uzaklaş.'));
+    else add(20, 'İnden ayrıl', null, () => endGame('out'));
+  }
   cand.sort((a, b) => a.d - b.d);
   return cand[0] || null;
 }
@@ -897,8 +919,8 @@ function updateGuard(g, dt) {
     g.lastSeen = { x: best.c.x, y: best.c.y }; g.target = best.c;
     if(g.state !== 'alert') {
       const moving = best.c.kind === 'player' ? (best.c.anim !== 'Idle') : true;
-      const rate = 1.35 * (.35 + Math.min(1, best.v.light)) * (1.25 - best.v.d / best.v.range) * (best.c.crouch ? .55 : 1) * (moving ? 1 : .6)
-        * (best.c.kind === 'player' ? 1 : .7) * (best.v.d < 40 ? 2.5 : 1);
+      const rate = 4.2 * (.45 + Math.min(1, best.v.light)) * (1.35 - best.v.d / best.v.range) * (best.c.crouch ? .6 : 1) * (moving ? 1 : .7)
+        * (best.c.kind === 'player' ? 1 : .75) * (best.v.d < 48 ? 2.5 : 1);
       g.sus = Math.min(1, g.sus + rate * dt);
       if(g.sus > .35 && g.state === 'calm') { g.state = 'suspicious'; g.investigate = 3; }
       if(g.sus >= 1) { g.state = 'alert'; raiseAlarm(g); }
@@ -999,8 +1021,17 @@ function updateFollower(c, dt, i) {
   const p = G.player;
   if(c.kind === 'squad' && G.alarm > 0) {
     // fight: the nearest alert bandit
-    let t = null, bd = 1e9;
-    for(const g of G.chars) if(g.kind === 'guard' && g.state === 'alert') { const d = Math.hypot(g.x - c.x, g.y - c.y); if(d < bd && d < 12 * T) { bd = d; t = g; } }
+    // the nearest alert bandit they can actually walk to (one in a cellar only a trapdoor reaches
+    // is left for when you take them down there); rechecked twice a second
+    const reach = G.approach === 'army' ? 40 * T : 12 * T;
+    c.retarget = (c.retarget || 0) - dt;
+    if(c.retarget <= 0 || !c.foe || c.foe.state !== 'alert') {
+      c.retarget = .5; c.foe = null;
+      const foes = G.chars.filter(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - c.x, g.y - c.y) < reach)
+        .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y));
+      for(const g of foes) if(Math.hypot(g.x - c.x, g.y - c.y) < 40 || path(c, g)) { c.foe = g; break; }
+    }
+    const t = c.foe, bd = t ? Math.hypot(t.x - c.x, t.y - c.y) : 1e9;
     if(t) {
       c.crouch = false;
       if(bd > 30) { followPath(c, t, 100, dt); c.anim = 'Run'; }
@@ -1019,8 +1050,10 @@ function updateFollower(c, dt, i) {
   if(!tgt) { c.anim = 'Idle'; return; }
   const d = Math.hypot(tgt.x - c.x, tgt.y - c.y);
   if(d > 14) {
-    const sp = Math.min(p.crouch ? 50 : 135, d * 3);
-    walkTo(c, tgt.x, tgt.y, c.kind === 'prisoner' ? sp * .9 : sp, dt);
+    const sp = Math.min(p.crouch ? 50 : 135, Math.max(60, d * 3));
+    // straight at the trail point when nothing's in the way, round the walls when something is
+    if(los(c.x, c.y - 6, tgt.x, tgt.y - 6, false) && d < 3 * T) walkTo(c, tgt.x, tgt.y, c.kind === 'prisoner' ? sp * .9 : sp, dt);
+    else followPath(c, tgt, c.kind === 'prisoner' ? sp * .9 : sp, dt);
     c.anim = sp > 100 ? 'Run' : 'Walk';
   } else { c.anim = 'Idle'; c.a = p.a; }
 }
