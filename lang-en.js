@@ -3016,5 +3016,12 @@ I18N.dicts.en = {
   "Sahneyi sola kaydır": "Slide the scene left",
   "Sahneyi sağa kaydır": "Slide the scene right",
   "Yerleşim sahnesi, yana kaydırılır": "Settlement scene, slides sideways",
-  "Sahneyi yana kaydır": "Slide the scene sideways"
+  "Sahneyi yana kaydır": "Slide the scene sideways",
+  "Seviye {0}!": "Level {0}!",
+  "1 nitelik, 3 odak puanı": "1 attribute, 3 focus points",
+  "Görev tamamlandı": "Quest complete",
+  "Son savaş": "The final battle",
+  "Kuşatma": "Siege",
+  "Savaş!": "Battle!",
+  "{0} düşmana karşı": "Against {0} foes"
 };

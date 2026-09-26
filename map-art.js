@@ -73,6 +73,7 @@ const MapArt = (() => {
         const x = c.getContext('2d');
         const g = {
             c, x, w, h, win: [],
+            fx: [], live: false,          // live: flags/smoke/flames are drawn per frame (sceneLife), not baked
             px(px, py, pw, ph, col) { if(col) { x.fillStyle = col; x.fillRect(px, py, pw, ph); } },
             window(px, py) { g.px(px, py, 1, 1, '#2a2119'); g.win.push([px, py]); }
         };
@@ -403,7 +404,11 @@ const MapArt = (() => {
         if(S.top === 'onion') for(let i = 0; i < w; i += 2) g.px(x + i, gy - h - 1, 1, 1, '#f1f4f5');
     }
     function gate(g, x, gy, w, h) { g.px(x, gy - h, w, h, '#2b2016'); g.px(x + 1, gy - h - 1, w - 2, 1, '#2b2016'); }
-    function flag(g, x, y, col) { g.px(x, y, 1, 6, '#5a4a36'); g.px(x + 1, y, 4, 1, col); g.px(x + 1, y + 1, 3, 1, col); g.px(x + 1, y + 2, 2, 1, col); }
+    function flag(g, x, y, col) {
+        g.px(x, y, 1, 6, '#5a4a36');
+        if(g.live) { g.fx.push({ t: 'flag', x: x + 1, y, col }); return; }     // the cloth waves (sceneLife)
+        g.px(x + 1, y, 4, 1, col); g.px(x + 1, y + 1, 3, 1, col); g.px(x + 1, y + 2, 2, 1, col);
+    }
     function yurt(g, cx, gy, w, S, big) {
         const h = Math.round(w * 0.55), P = S.felt;
         for(let r = 0; r < h; r++) {
@@ -423,6 +428,7 @@ const MapArt = (() => {
         let g;
         if(loc.type === 'city') {
             g = sheet(40, 42); const gy = 41;          // headroom for the keep's flag
+            g.live = true;                             // its cloth waves (render, 2.1)
             if(cul === 'khergit') {
                 yurt(g, 8, gy - 7, 10, S); yurt(g, 31, gy - 7, 10, S); yurt(g, 20, gy - 9, 16, S, true);
                 yurt(g, 5, gy, 9, S); yurt(g, 35, gy, 9, S); yurt(g, 15, gy, 10, S); yurt(g, 26, gy, 10, S);
@@ -438,6 +444,7 @@ const MapArt = (() => {
             }
         } else if(loc.type === 'castle') {
             g = sheet(32, 40); const gy = 35;
+            g.live = true;
             g.px(2, gy, 28, 2, '#5b6b3a'); g.px(4, gy + 2, 24, 2, '#4d5c31'); g.px(1, gy - 1, 30, 1, '#6a7a44');
             if(cul === 'khergit') {
                 wall(g, 4, gy, 24, 7, STYLE.rhodok); yurt(g, 16, gy - 7, 14, S, true); tower(g, 3, gy, 5, 12, STYLE.rhodok); tower(g, 24, gy, 5, 12, STYLE.rhodok);
@@ -469,7 +476,7 @@ const MapArt = (() => {
             gr.addColorStop(0, 'rgba(255,190,90,0.9)'); gr.addColorStop(1, 'rgba(255,160,60,0)');
             gx.fillStyle = gr; gx.fillRect(cx - 3, cy - 3, 6, 6);
         }
-        return { cv: g.c, win: g.win, glow, pad: P };
+        return { cv: g.c, win: g.win, glow, pad: P, flags: g.fx.filter(f => f.t === 'flag') };
     }
     function settlement(loc) {
         const k = loc.id + '|' + loc.faction;
@@ -779,6 +786,7 @@ const MapArt = (() => {
         if(BUILD.has(key)) return BUILD.get(key);
         const S = STYLE[cul], yurtish = cul === 'khergit', snow = cul === 'vaegir';
         const g = sheet(w, h + 16), gy = h + 15, cx = w >> 1;
+        g.live = true;
         const awning = (x0, x1, y) => { for(let x = x0; x < x1; x++) { const on = ((x - x0) >> 2) & 1; g.px(x, y, 1, 3, on ? col : '#ede4cf'); g.px(x, y + 3, 1, 1, on ? '#00000055' : '#c9bfa7'); } };
         if(kind === 'tower') {
             if(yurtish) { yurt(g, cx, gy, w - 6, S, true); tugh(g, cx + (w >> 2), gy, col); }
@@ -790,14 +798,15 @@ const MapArt = (() => {
                 gate(g, cx - 2, gy, 4, 5);
             }
         } else if(kind === 'house' || kind === 'tavern' || kind === 'shop') {
-            if(yurtish) { yurt(g, cx, gy, w - 8, S); if(kind === 'shop') { g.px(w - 7, gy - 12, 2, 12, '#7a5a38'); g.px(w - 8, gy - 13, 4, 2, '#b8b0a0'); } }
+            if(yurtish) { yurt(g, cx, gy, w - 8, S); g.fx.push({ t: 'smoke', x: cx, y: gy - Math.round((w - 8) * 0.55) - 1 }); if(kind === 'shop') { g.px(w - 7, gy - 12, 2, 12, '#7a5a38'); g.px(w - 8, gy - 13, 4, 2, '#b8b0a0'); } }
             else {
                 const hw = w - 8, hh = Math.round(h * 0.5);
                 house(g, 4, gy, hw, hh, S, snow);
                 for(let x = 6; x < 4 + hw - 2; x += 5) if(Math.abs(x - (4 + (hw >> 1))) > 2) g.window(x, gy - hh + 3);
-                if(kind === 'shop') {                           // a workshop's chimney, smoking
-                    g.px(w - 10, gy - hh - Math.ceil((hw + 2) / 2) + 1, 3, 7, S.wall[2]);
-                    for(const [dx, dy] of [[0, -3], [1, -5], [-1, -7], [0, -9]]) g.px(w - 9 + dx, gy - hh - Math.ceil((hw + 2) / 2) + dy, 2, 2, '#b4b0a8');
+                if(kind === 'shop' || kind === 'tavern') {      // a chimney; its smoke rises per frame (sceneLife)
+                    const ct = gy - hh - Math.ceil((hw + 2) / 2) + 1;
+                    g.px(w - 10, ct, 3, 7, S.wall[2]);
+                    g.fx.push({ t: 'smoke', x: w - 9, y: ct - 1 });
                 }
             }
             if(kind === 'tavern') { g.px(w - 4, gy - Math.round(h * 0.5) - 1, 1, 4, '#5a4a36'); g.px(w - 7, gy - Math.round(h * 0.5) + 2, 5, 4, '#7a5a36'); g.px(w - 6, gy - Math.round(h * 0.5) + 3, 3, 2, '#e0b852'); }
@@ -829,7 +838,7 @@ const MapArt = (() => {
             g.px(cx, ccy - 9, 1, 9, '#6b4e2e'); g.px(cx + 1, ccy - 9, 4, 3, col);
         } else if(kind === 'fire') {
             g.px(cx - 6, gy - 2, 13, 2, '#6b6a62'); g.px(cx - 5, gy - 4, 11, 2, '#5a3d22'); g.px(cx - 4, gy - 3, 3, 1, '#7a5230');
-            for(const [dx, dy, c] of [[-2, -6, '#e0763a'], [0, -9, '#f0a040'], [1, -7, '#ffd36a'], [-1, -7, '#f0a040'], [2, -6, '#e0763a'], [0, -11, '#e0763a'], [0, -6, '#fff1b0']]) g.px(cx + dx, gy + dy, 2, 2, c);
+            g.fx.push({ t: 'fire', x: cx, y: gy });          // the flames flicker per frame (sceneLife)
             g.win.push([cx, gy - 7]);
             g.px(cx - 10, gy - 5, 5, 5, '#7a5a36'); g.px(cx + 6, gy - 4, 6, 4, '#7a5a36');
         } else if(kind === 'coop') {
@@ -846,7 +855,7 @@ const MapArt = (() => {
             g.win.push([cx - (aw >> 1) - 4, gy - Math.round(gh * 0.62) - 3]); g.win.push([cx + (aw >> 1) + 3, gy - Math.round(gh * 0.62) - 3]);   // torches
         }
         outline(g);
-        const b = { cv: g.c, win: g.win, box: bbox(g), ring: null };
+        const b = { cv: g.c, win: g.win, fx: g.fx, box: bbox(g), ring: null };
         b.ring = goldRing(g.c);
         BUILD.set(key, b);
         return b;
@@ -890,12 +899,21 @@ const MapArt = (() => {
         }
         // the settlement behind: a city wall, a castle's keep, a village's fence and fields
         const back = sheet(SW, SH), gy = HORIZON + 2;
+        back.live = true;
         if(loc.type === 'city') {
             if(cul === 'khergit') {
-                for(let k = 0; k < 11; k++) yurt(back, 14 + k * 27, gy - 1, 14 + (k % 3) * 3, S, k === 5);
+                for(let k = 0; k < 11; k++) {
+                    const yw = 14 + (k % 3) * 3;
+                    yurt(back, 14 + k * 27, gy - 1, yw, S, k === 5);
+                    if(k % 4 === 1) back.fx.push({ t: 'smoke', x: 14 + k * 27, y: gy - 1 - Math.round(yw * 0.55) - 1 });
+                }
                 tugh(back, 150, gy - 12, col);
             } else {
-                for(let k = 0; k < 9; k++) house(back, 8 + k * 33 + Math.round(R(k + 50) * 8), gy - 10, 10 + (k % 3) * 2, 6, S, cul === 'vaegir');
+                for(let k = 0; k < 9; k++) {
+                    const hx = 8 + k * 33 + Math.round(R(k + 50) * 8), hw = 10 + (k % 3) * 2;
+                    house(back, hx, gy - 10, hw, 6, S, cul === 'vaegir');
+                    if(k % 3 === 1) back.fx.push({ t: 'smoke', x: hx + Math.round(hw * 0.7), y: gy - 16 - Math.ceil((hw + 2) / 2) + 2 });
+                }
                 tower(back, 142, gy - 8, 14, 22, S); flag(back, 149, gy - 8 - 22 - (S.top === 'cone' ? 14 : S.top === 'onion' ? 8 : 5) - 6, col);
                 wall(back, 0, gy, SW, 10, S);
                 for(let k = 0; k < 5; k++) tower(back, 18 + k * 64, gy, 9, 17, S);
@@ -913,7 +931,11 @@ const MapArt = (() => {
                     block(back, mx, gy - 16, 7, 12, S.wall); cone(back, mx + 3, gy - 16, 9, 5, S.roof);
                     for(let i = -6; i <= 6; i++) { back.px(mx + 3 + i, gy - 18 + i, 1, 1, '#7a5a36'); back.px(mx + 3 + i, gy - 18 - i, 1, 1, '#7a5a36'); }
                 }
-            } else for(let k = 0; k < 5; k++) yurt(back, 30 + k * 60 + Math.round(R(k) * 20), gy - 2, 11, S);
+            } else for(let k = 0; k < 5; k++) {
+                const yx = 30 + k * 60 + Math.round(R(k) * 20);
+                yurt(back, yx, gy - 2, 11, S);
+                if(k % 2 === 0) back.fx.push({ t: 'smoke', x: yx, y: gy - 2 - Math.round(11 * 0.55) - 1 });
+            }
             for(let xx = 0; xx < SW; xx += 6) { back.px(xx, gy - 2, 1, 5, '#7a5a38'); back.px(xx, gy - 1, 6, 1, '#8a6a40'); }
         }
         outline(back);
@@ -927,7 +949,10 @@ const MapArt = (() => {
         for(let k = 0; k < 40; k++) { const gx = Math.round(R(k + 200) * SW), gy2 = HORIZON + 6 + Math.round(R(k + 300) * 18); px(gx, gy2, 1, 2, L.hill[1]); px(gx + 1, gy2 + 1, 1, 1, L.hill[1]); }
         // the buildings
         for(const s of slots) x.drawImage(s.b.cv, s.x, s.base - s.b.cv.height + 1);
-        const out = { cv, cul, col };
+        // what moves over this base, in scene pixels: the backdrop's, then each building's
+        const fx = back.fx.slice();
+        for(const s of slots) for(const f of s.b.fx) fx.push(Object.assign({}, f, { x: s.x + f.x, y: s.base - s.b.cv.height + 1 + f.y }));
+        const out = { cv, cul, col, fx };
         if(BASES.size > 40) BASES.delete(BASES.keys().next().value);
         BASES.set(key, out);
         return out;
@@ -945,6 +970,63 @@ const MapArt = (() => {
 
     // Draws the scene into `ctx` (already scaled to 900x280 units) and returns the hot rects,
     // one per button, in those units
+    // --- the living scene (2.1): what moves over the still base, drawn every scene frame
+    // (Game.tickScene, ~12 a second). Smoke rises from chimneys and yurts, flags wave, flames
+    // flicker, birds cross a day sky and a villager walks the road. `lit`: the flames go over the
+    // dusk/night tint, the rest under it. Under reduced motion everything stands still (t = 0).
+    const FLAG_F = [[4, 3, 2], [3, 4, 2], [4, 4, 1]];
+    const FLAME = [[-2, -6, '#e0763a'], [0, -9, '#f0a040'], [1, -7, '#ffd36a'], [-1, -7, '#f0a040'], [2, -6, '#e0763a'], [0, -11, '#e0763a'], [0, -6, '#fff1b0']];
+    function sceneLife(ctx, base, band, now, loc, lit) {
+        const t = Anim.on() ? now : 0;
+        const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) * SK, Math.round(y) * SK, w * SK, h * SK); };
+        for(const f of base.fx) {
+            const ph = hash(f.x, f.y, 7);
+            if(f.t === 'fire') {
+                if(!lit) continue;
+                const fr = (t / 120 + ph * 9) | 0;
+                FLAME.forEach(([dx, dy, c], i) => {
+                    const j = hash(fr, i, 3), k = hash(fr, i, 4);
+                    P(f.x + dx + (j < 0.25 ? -1 : j > 0.75 ? 1 : 0), f.y + dy - (k > 0.6 ? 1 : 0), 2, 2, c);
+                });
+                if(hash(fr, 9, 5) > 0.55) P(f.x + (hash(fr, 8, 5) * 5 | 0) - 2, f.y - 13 - (hash(fr, 7, 5) * 3 | 0), 1, 1, '#ffd36a');   // an ember
+                continue;
+            }
+            if(lit) continue;
+            if(f.t === 'smoke') {
+                for(let i = 0; i < 5; i++) {
+                    const a = (t / 2600 + ph + i / 5) % 1, sz = a < 0.25 ? 1 : a < 0.65 ? 2 : 3;
+                    ctx.globalAlpha = 0.9 - a * 0.8;
+                    P(f.x + Math.sin(a * 5 + i) * 1.2 + a * 5 - (sz >> 1), f.y - a * 16, sz, sz, band === 'night' ? '#8d93a6' : a < 0.4 ? '#8f8a80' : '#aaa59b');
+                }
+                ctx.globalAlpha = 1;
+            } else if(f.t === 'flag') {
+                const rows = FLAG_F[((t / 230 + ph * 6) | 0) % 3];
+                rows.forEach((w, r) => { P(f.x, f.y + r, w, 1, f.col); P(f.x + w - 1, f.y + r, 1, 1, 'rgba(0,0,0,0.28)'); });
+            }
+        }
+        if(lit) return;
+        if(band === 'day') for(let i = 0; i < 3; i++) {       // birds, drifting across
+            const bx = ((t / (46000 + i * 9000) + hash(i, loc.id.length, 11)) % 1.25 - 0.12) * SW, by = 9 + hash(i, 2, 11) * 22 + Math.sin(t / 900 + i) * 1.5;
+            const up = ((t / 190 + i * 3) | 0) % 2;
+            P(bx - 1, by + up, 1, 1, '#33343d'); P(bx, by + 1, 1, 1, '#33343d'); P(bx + 1, by + up, 1, 1, '#33343d');
+        }
+        // a villager on the road, a walk across every half minute, now left, now right
+        if(band !== 'night' && typeof Swordsman !== 'undefined' && Swordsman.ready()) {
+            const seed = hash(loc.id.length, loc.id.charCodeAt(0), 13), cyc = t / 30000 + seed, n = cyc | 0, p = cyc % 1;
+            if(p < 0.82) {
+                const right = hash(n, 1, 13) > 0.45, q = p / 0.82, x = right ? -10 + q * (SW + 20) : SW + 10 - q * (SW + 20);
+                const cloth = Swordsman.DYE[loc.faction] ? loc.faction : 'player';
+                const look = { armor: 1, weapon: 1, helm: '', skin: (hash(n, 2, 13) * 4) | 0, hair: (hash(n, 3, 13) * 6) | 0, cloth };
+                const spr = Swordsman.art(look, 'Walk', right ? 'right' : 'left', t);
+                if(spr) {
+                    const k = 1.35, w = spr.width * k, h = spr.height * k, fy = (SH - 4) * SK;
+                    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x * SK - 6 * k, fy - 2, 12 * k, 3);
+                    ctx.drawImage(spr, x * SK - spr._ax * w, fy - spr._ay * h, w, h);
+                }
+            }
+        }
+    }
+
     function scene(ctx, loc, btns, hover, G) {
         const hour = state.time.hour, band = hour < 6 || hour >= 20 ? 'night' : (hour >= 18 || hour < 8) ? 'dusk' : 'day';
         // two rows as before (odd buttons in the back, even in front), but taking turns across the
@@ -959,9 +1041,10 @@ const MapArt = (() => {
         slots.sort((a, b) => a.base - b.base);                  // the back row first
         const cul = culture(loc), col = (FACTIONS[loc.faction] || { color: '#ffcc00' }).color;
         for(const s of slots) s.b = building(s.kind, cul, s.w, s.h, col);   // cached, like the base
-        const base = sceneBase(loc, slots, band), hot = [];
+        const base = sceneBase(loc, slots, band), hot = [], now = performance.now();
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(base.cv, 0, 0, SW * SK, SH * SK);
+        sceneLife(ctx, base, band, now, loc, false);
         // dusk and night over everything, then what shines through it
         if(band !== 'day') { ctx.fillStyle = band === 'night' ? 'rgba(10,16,48,0.52)' : 'rgba(90,40,30,0.18)'; ctx.fillRect(0, 0, SW * SK, SH * SK); }
         if(band === 'night') {
@@ -971,6 +1054,7 @@ const MapArt = (() => {
         } else if(band === 'day') {
             disc(ctx, 30 + hash(4, 4, 91) * 230 | 0, 13, 5, '#fff4c8', 0);
         }
+        sceneLife(ctx, base, band, now, loc, true);
         for(const s of slots) {
             const top = s.base - s.b.cv.height + 1, bx = s.x + s.b.box.x, by = top + s.b.box.y;
             // the button's own label (a town card also holds a hint and a price), without its emoji
@@ -978,9 +1062,12 @@ const MapArt = (() => {
             hot[s.idx] = { x: bx * SK, y: by * SK, w: s.b.box.w * SK, h: s.b.box.h * SK, btn: s.btn, icon: s.icon, label };
             if(band === 'night') for(const [wx, wy] of s.b.win) {
                 ctx.fillStyle = '#ffd36a'; ctx.fillRect((s.x + wx) * SK, (top + wy) * SK, SK, SK);
+                // a torch or hearth breathes a little (2.1); still under reduced motion
+                const fl = Anim.on() ? 0.8 + 0.2 * Math.sin(now / 130 + wx * 7 + wy * 3) * Math.sin(now / 71 + wx) : 1;
+                ctx.globalAlpha = fl;
                 ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = G.radial(ctx, 12, 'rgba(255,180,80,0.55)', 'rgba(255,150,60,0)');
                 ctx.save(); ctx.translate((s.x + wx + 0.5) * SK, (top + wy + 0.5) * SK); ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
             }
             if(s.idx === hover) ctx.drawImage(s.b.ring, (s.x - 1) * SK, (top - 1) * SK, s.b.ring.width * SK, s.b.ring.height * SK);
         }
@@ -1317,6 +1404,14 @@ const MapArt = (() => {
             const x = loc.x - w / 2, y = loc.y + 22 * sk - h;
             if(x > vx1 || x + w < vx0 || y > vy1 + 40 / z || y + h < vy0 - 40 / z) continue;   // off screen
             ctx.drawImage(s.cv, x, y, w, h);
+            // the keep's flag waves (2.1): three rows of cloth, one of three shapes, per settlement
+            for(const f of s.flags) {
+                const rows = FLAG_F[(((Anim.on() ? now : 0) / 260 + hash(f.x, loc.x | 0, 7) * 6) | 0) % 3], kk = k;
+                rows.forEach((fw, r) => {
+                    ctx.fillStyle = f.col; ctx.fillRect(x + f.x * kk, y + (f.y + r) * kk, fw * kk, kk);
+                    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(x + (f.x + fw - 1) * kk, y + (f.y + r) * kk, kk, kk);
+                });
+            }
             blocked.push({ x: loc.x, y: loc.y + 22 * sk, w, h });
             lit.push({ s, x, y, k });
             const fc = FACTIONS[loc.faction] || { color: '#888' };

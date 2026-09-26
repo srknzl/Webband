@@ -1505,6 +1505,7 @@ const Quests = {
         }
 
         Game.updateTopBar();
+        Game.flourish(T('Görev tamamlandı'), T(def.title), 'scroll');
         alert(T`✅ Görev tamamlandı: ${T(def.title)}\n\n+${def.reward.money} dinar, ${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam` +
               (g.isGuild ? '.' : T`, ${T(g.name)} ile +${def.reward.rel} ilişki.`));
         this.render();

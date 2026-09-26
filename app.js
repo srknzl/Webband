@@ -2497,6 +2497,7 @@ const Game = {
                 Anim.tick(dt);   // UI tweens run even while the clock is stopped (a purchase in a modal)
                 if(!this.clockStopped()) this.update(dt);
                 this.renderMap();
+                this.tickScene(t);
             });
             this._loopId = requestAnimationFrame(loop);
         };
@@ -6684,6 +6685,10 @@ const Game = {
         let seen = state.career.visited = state.career.visited || [];
         if(!seen.includes(loc.id)) { seen.push(loc.id); this.checkAchievements(); }   // Haritacı (#127)
         if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
+        // Walking in (not a redraw of the same town after a purchase) opens the scene and brings
+        // the cards in one after another (2.1, style.css .entering)
+        let arriving = !document.getElementById('settlement-view').classList.contains('active') || this._enteredLoc !== loc.id;
+        this._enteredLoc = loc.id;
         // Walking in from the map called this directly, skipping showScreen()'s own bookkeeping —
         // body.view-map (#40's map-only floating chrome) stayed on, so the settlement's top bar and
         // bottom nav kept the map's fixed/floating layout and sat on top of the scene and the last
@@ -6771,6 +6776,7 @@ const Game = {
         this.addBtn(ac, T('🚪 Ayrıl'), () => this.showScreen('map'));
         this.cardSettlementActions(ac, loc);
         this.renderScene(loc);   // buttons are ready: the scene is built on top of them (#60)
+        if(arriving) this.playEntrance(document.getElementById('settlement-view'), ac);
     },
 
     // ---------- SETTLEMENT ACTION CARDS (2.0.0) ----------
@@ -6869,6 +6875,7 @@ const Game = {
         let btns = [...document.getElementById('settlement-actions').querySelectorAll('button')];
         this._sceneLoc = loc;
         this._sceneBtns = btns;
+        this._sceneHover = -1;                 // tickScene redraws with it: no stale highlight from the last town
         this.sceneHot = [];
         // Device-pixel backing store (#101). Assigning width/height also wipes the canvas, so it
         // happens before the draw, and drawScene re-applies the scale transform on every call.
@@ -6979,6 +6986,80 @@ const Game = {
     // Deliberately NOT applied to the map and battle canvases: those redraw every frame, and
     // the bottleneck there is the compositor, not the drawing — 4x the pixels would cost frames.
     sceneDpr() { return Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1); },
+
+    // ---------- MOTION POLISH (2.1) ----------
+    // Each is a CSS animation or a Web Animation, so the reduced-motion setting (body.reduced-motion
+    // and Anim.on()) turns every one of them off in one place; none of them blocks a tap.
+
+    // Walking into a settlement: the scene rises into view, the cards follow one by one
+    playEntrance(view, ac) {
+        if(!view || !Anim.on()) return;
+        ac.querySelectorAll('.act-card').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 14)));
+        view.classList.remove('entering'); void view.offsetWidth; view.classList.add('entering');
+        clearTimeout(this._enterT);
+        this._enterT = setTimeout(() => view.classList.remove('entering'), 1400);
+    },
+    // Something flies from one spot of the screen to another (a bought item into the bag, coins
+    // into the purse), then the target gives a short pop. `html` is what flies; `n` copies trail.
+    fly(from, to, html, n = 1) {
+        if(!from || !to || !Anim.on() || typeof document.body.animate !== 'function') return;
+        let a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+        if(!a.width || !b.width) return;
+        let x0 = a.left + a.width / 2, y0 = a.top + a.height / 2, x1 = b.left + Math.min(b.width / 2, 22), y1 = b.top + b.height / 2;
+        let lift = Math.min(90, 30 + Math.abs(x1 - x0) * 0.15);
+        for(let i = 0; i < Math.min(n, 5); i++) {
+            let el = document.createElement('div');
+            el.className = 'fx-fly';
+            el.innerHTML = html;
+            el.style.left = x0 + 'px'; el.style.top = y0 + 'px';
+            document.body.appendChild(el);
+            let dx = x1 - x0, dy = y1 - y0;
+            el.animate([
+                { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+                { transform: `translate(calc(-50% + ${dx * 0.5}px), calc(-50% + ${dy * 0.5 - lift}px)) scale(0.9)`, opacity: 1, offset: 0.45 },
+                { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.45)`, opacity: 0.35 }
+            ], { duration: 620, delay: i * 70, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'both' }).onfinish = () => {
+                el.remove();
+                if(i === 0) { to.classList.remove('fx-pop'); void to.offsetWidth; to.classList.add('fx-pop'); }
+            };
+        }
+    },
+    // A gold banner that slides down from the top and leaves by itself: a level, a finished quest.
+    // Over any window (a level-up also opens one), and never in the way of a tap.
+    flourish(title, sub, icon = 'star') {
+        if(typeof document === 'undefined') return;
+        let el = document.getElementById('flourish');
+        if(!el) { el = document.createElement('div'); el.id = 'flourish'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+        el.innerHTML = `<span class="fl-ic">${this.icon(icon)}</span><span class="fl-tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>`
+            + '<i></i><i></i><i></i><i></i><i></i><i></i>';
+        el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+        clearTimeout(this._flT);
+        this._flT = setTimeout(() => el.classList.remove('on'), Anim.on() ? 3000 : 2400);
+    },
+    // Into battle: the screen goes dark on the field and a title rises and fades (1 s)
+    curtain(title, sub) {
+        if(typeof document === 'undefined' || !Anim.on()) return;
+        let el = document.getElementById('curtain');
+        if(!el) { el = document.createElement('div'); el.id = 'curtain'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
+        el.innerHTML = `<div class="ct-box"><span class="ct-ic">${this.icon('swords')}</span><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+        el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+        clearTimeout(this._ctT);
+        this._ctT = setTimeout(() => el.classList.remove('on'), 1300);
+    },
+
+    // The settlement scene lives (2.1): smoke, flags, flames, birds, a villager on the road
+    // (MapArt.sceneLife). Redrawn from the map loop about 12 times a second — pixel art needs no
+    // more — only while the settlement screen shows and no window covers it; under reduced
+    // motion the scene stays still and is drawn only on change, as before.
+    tickScene(t) {
+        if(!this._sceneLoc || !Anim.on() || t - (this._sceneT || 0) < 83) return;
+        if(!document.getElementById('settlement-view').classList.contains('active')) return;
+        if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
+        let cv = document.getElementById('scene-canvas');
+        if(!cv) return;
+        this._sceneT = t;
+        this.drawScene(cv.getContext('2d'), this._sceneLoc, this._sceneBtns, this._sceneHover >= 0 ? this._sceneHover : -1);
+    },
 
     drawScene(ctx, loc, btns, hover) {
         let dpr = this.sceneDpr();
@@ -7640,7 +7721,19 @@ const Game = {
     mktGo() {
         let m = this._mkt;
         if(!m || !m.sel) return;
+        // what flies where once the trade went through (2.1): the item into the bag, coins to the purse
+        let tile = document.querySelector(`#mrow-${m.mode}-${m.sel} .mt-ic`) || document.getElementById(`mrow-${m.mode}-${m.sel}`);
+        let from = tile ? tile.cloneNode(true) : null, rect = tile ? tile.getBoundingClientRect() : null;
+        let money0 = state.player.money, id = m.sel, mode = m.mode, n0 = m.qty;
         if(m.mode === 'buy') this.buyItem(m.sel, m.qty); else this.sellItem(m.sel, m.qty);
+        if(rect && state.player.money !== money0) {
+            let ghost = document.createElement('div');
+            Object.assign(ghost.style, { position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
+            document.body.appendChild(ghost);
+            let to = document.getElementById(mode === 'buy' ? 'mst-bag' : 'mst-gold');
+            this.fly(ghost, to, mode === 'buy' ? this.itemIco(ITEMS[id]) : this.icon('coin'), mode === 'buy' ? Math.min(3, n0) : Math.min(5, 1 + (n0 >> 1)));
+            ghost.remove();
+        }
         m.qty = 1;
         if(m.mode === 'sell' && !state.player.inventory.some(i => i.id === m.sel)) m.sel = null;
         this.refreshMarket();
@@ -7802,11 +7895,11 @@ const Game = {
     marketStatusHtml() {
         let cap = this.cargoCap(), load = this.cargoLoad(), over = load > cap;
         let fs = this.foodStock();
-        let chip = (txt, col) => `<span style="padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
+        let chip = (txt, col, id) => `<span${id ? ` id="${id}"` : ''} style="display:inline-block;padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
         return `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;font-size:var(--fs-sm);margin-top:0.5rem">
-            ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '')}
+            ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '', 'mst-bag')}
             ${chip(T`🍞 Yiyecek: ${isFinite(fs.days) ? fs.days : '∞'} gün`, fs.days < 3 ? '#e8a13a' : '')}
-            ${chip(T`💰 ${Math.floor(state.player.money)}₺`)}
+            ${chip(T`💰 ${Math.floor(state.player.money)}₺`, '', 'mst-gold')}
             ${this.daysToWinter() <= 15 ? chip((this.isWinter() ? T`❄️ Kış` : T`❄️ Kışa ${this.daysToWinter()} gün`) + ` · ${T`🔥 Kömür: ${this.coalDays()} gün`}`,
                                                 this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
         </div>`;
@@ -11705,6 +11798,7 @@ const Game = {
             s.focusPoints = (s.focusPoints || 0) + 3; // Bannerlord-style 3 focus points per level
             this.updateStatsFromEquip(); // +10 max HP per level — from the one formula
             s.hp = s.maxHp;
+            this.flourish(T`Seviye ${s.level}!`, T('1 nitelik, 3 odak puanı'), 'up');
             alert(`${T`Seviye atladın! Artık Lvl ${s.level}. <b>1 Nitelik</b>, 3 Odak Puanı kazandın.`}<br>` +
                   `${T`Nitelik puanı bir <b>hedef</b> koyar; efektif değer o niteliğe uygun oynadıkça yükselir.`}`);
         }

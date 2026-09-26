@@ -219,6 +219,8 @@ const Battle = {
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = Game.battleCtx();   // single gate to the shared canvas (#54)
         Game.showScreen('battle');
+        // into the field through a short curtain (2.1); an auto-resolved fight is never shown
+        if(!auto) Game.curtain(bossLevel ? T('Son savaş') : siegePlan ? T('Kuşatma') : T('Savaş!'), T`${enemyCount} düşmana karşı`);
         this.isBossFight = !!bossLevel;
         
         let vc = document.getElementById('view-container');
