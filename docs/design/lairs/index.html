@@ -67,7 +67,7 @@ body.touch #touch { display: block; }
 .tb.big { width: 78px; height: 78px; font-size: 12px; border-color: rgba(224,96,90,.6); }
 .tb.on { background: rgba(60,120,80,.55); border-color: #9fe0b0; }
 .tb.ctx { border-color: rgba(245,215,110,.7); color: var(--gold2); }
-.tb.ctx[disabled] { opacity: .35; }
+.tb.ctx.idle { opacity: .4; }
 #tbCrouch { grid-column: 1; grid-row: 2; } #tbAct { grid-column: 1; grid-row: 1; } #tbAtk { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 
 /* ---------- screens ---------- */
@@ -141,7 +141,7 @@ input[type=range] { width: 100%; accent-color: var(--gold); }
   <div id="stickZone"></div>
   <div id="stick" hidden><div id="knob"></div></div>
   <div id="tbtns">
-    <button class="tb ctx" id="tbAct" disabled>—</button>
+    <button class="tb ctx idle" id="tbAct">Etkileşim</button>
     <button class="tb" id="tbCrouch">Eğil</button>
     <button class="tb big" id="tbAtk">Saldır</button>
   </div>
@@ -778,11 +778,11 @@ function findInteraction() {
     const d = Math.hypot(c.x - p.x, c.y - p.y);
     if(d < 36) add(d - 6, c.loud && !c.shushed ? 'Sus işareti ver' : 'Çözüp kurtar', c, c.loud && !c.shushed ? () => { c.shushed = true; say('Tutsak başını salladı.'); } : () => freePrisoner(c));
   }
-  for(let y = ty - 1; y <= ty + 1; y++) for(let x = tx - 1; x <= tx + 1; x++) {
-    const o = obj(x, y);
+  for(const o of G.objs) {
     if(!o || o.gone) continue;
-    const d = Math.hypot(o.cx - p.x, o.cy - p.y);
-    if(d > 46) continue;
+    // measured from the feet to the object's base, so standing on any side counts the same
+    const d = Math.hypot(o.cx - p.x, o.cy + 6 - p.y);
+    if(d > 50) continue;
     if(o.chest && !o.open) {
       if(o.trapped && o.known && !o.disarmed) add(d, 'Tuzağı sök', o, () => busy(2, 'Tuzak sökülüyor…', () => { o.disarmed = true; say('Tuzak söküldü.'); }));
       else add(d, 'Sandığı aç', o, () => busy(1.1, 'Açılıyor…', () => openChest(o)));
@@ -1212,27 +1212,27 @@ function usable(o) {
 }
 function drawMarkers() {
   const p = G.player, at = G.ctx && G.ctx.at;
-  ctx.textAlign = 'center';
+  const pulse = .78 + Math.sin(G.t * 5) * .22;
   for(const o of G.objs) {
-    if(!o || !usable(o) || o === at) continue;
+    if(!o || !usable(o)) continue;
     const d = Math.hypot(o.cx - p.x, o.cy - p.y);
-    if(d > 5 * T || !los(p.x, p.y - 8, o.cx, o.cy, true)) continue;
-    const bob = Math.sin(G.t * 3 + o.x) * 1.5, y = o.cy - (o.chest ? 38 : o.trapdoor ? 20 : 30) + bob;
-    ctx.globalAlpha = clamp(1.3 - d / (5 * T), .25, .9);
-    ctx.fillStyle = o.search ? '#c9b98a' : '#f5d76e';
-    ctx.beginPath(); ctx.moveTo(o.cx, y - 5.5); ctx.lineTo(o.cx + 4.5, y); ctx.lineTo(o.cx, y + 5.5); ctx.lineTo(o.cx - 4.5, y); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1; ctx.stroke();
+    if(d > 6 * T || (o !== at && !los(p.x, p.y - 8, o.cx, o.cy, true))) continue;
+    const g = objGeom(o); if(!g) continue;
+    drawOutline(...g, o === at ? pulse : clamp(1.2 - d / (6 * T), .35, .75));
   }
-  ctx.globalAlpha = 1;
+  // a guard you can take down right now, a prisoner you can free: outlined the same way
+  if(at && at.kind) {
+    const fr = at.state === 'sleep' ? null : Swordsman.art(at.look, at.anim === 'attack' ? 'Idle' : at.anim, at.dir, at.animT);
+    if(fr) drawOutline(fr, 0, 0, fr.width, fr.height, at.x - fr._ax * fr.width, at.y - fr._ay * fr.height * (at.crouch ? .84 : 1), fr.width, Math.round(fr.height * (at.crouch ? .84 : 1)), pulse);
+    else { ctx.strokeStyle = `rgba(110,255,140,${pulse})`; ctx.lineWidth = 1.5; ctx.strokeRect(Math.round(at.x - 18), Math.round(at.y - 18), 36, 22); }
+  }
   if(at && !p.busy) {
-    const x = at.cx ?? at.x, y = at.cy ?? (at.y - 16), pulse = 1 + Math.sin(G.t * 6) * .08;
-    ctx.strokeStyle = 'rgba(245,215,110,.85)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(x, (at.kind ? at.y - 2 : y + 10), 15 * pulse, 7 * pulse, 0, 0, 7); ctx.stroke();
-    const label = (isTouch ? '' : 'E · ') + G.ctx.label, ly = at.kind ? at.y - 52 : y - 30;
-    ctx.font = 'bold 10px Inter, sans-serif';
+    const x = at.cx ?? at.x, top = at.kind ? at.y - 50 : (objGeom(at) ? objGeom(at)[6] - 8 : at.cy - 30);
+    const label = (isTouch ? '' : 'E · ') + G.ctx.label;
+    ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center';
     const w = ctx.measureText(label).width + 12;
-    ctx.fillStyle = 'rgba(10,9,8,.85)'; ctx.fillRect(Math.round(x - w / 2), Math.round(ly - 10), Math.round(w), 14);
-    ctx.fillStyle = '#f5d76e'; ctx.fillText(label, Math.round(x), Math.round(ly + 1));
+    ctx.fillStyle = 'rgba(10,9,8,.88)'; ctx.fillRect(Math.round(x - w / 2), Math.round(top - 11), Math.round(w), 14);
+    ctx.fillStyle = '#8dffa8'; ctx.fillText(label, Math.round(x), Math.round(top));
   }
 }
 function drawCone(g) {
@@ -1318,6 +1318,42 @@ function drawDoor(d) {
   }
   if(d.locked) { ctx.fillStyle = '#b3413a'; ctx.fillRect(X + 4, Y + 17, T - 8, 3); ctx.fillStyle = '#ffd0c8'; ctx.fillRect(X + 14, Y + 15, 4, 7); }
 }
+// where and how a usable object is drawn: [image, sx, sy, sw, sh, x, y, w, h] at 2x
+function objGeom(o) {
+  const x = o.cx, y = o.cy;
+  if(o.chest) return [o.trapped ? IMG.chest2 : IMG.chest, (o.open ? 3 : 0) * 16, 0, 16, 24, x - 16, y - 30, 32, 48];
+  if(o.lever) return [IMG.lever, (o.pulled ? 3 : 0) * 16, 0, 16, 18, x - 16, y - 20, 32, 36];
+  if(o.purse) return [IMG.purse, 0, 0, 11, 14, x - 11, y - 18, 22, 28];
+  if(o.trapdoor) return [IMG.trapdoor, 0, 0, 17, 17, x - 17, y - 17, 34, 34];
+  if(o.img) { const im = IMG[o.img]; return [im, 0, 0, im.width, im.height, Math.round(x - im.width), Math.round(y + 14 - im.height * 2), im.width * 2, im.height * 2]; }
+  return null;
+}
+// a hollow green outline around a sprite region, one source pixel wide, baked once per region
+const OUTLINES = new Map();
+function outlineOf(img, sx, sy, sw, sh) {
+  const key = (img.src || img._oid || (img._oid = Math.random())) + ':' + sx + ':' + sy + ':' + sw + ':' + sh;
+  let c = OUTLINES.get(key);
+  if(c) return c;
+  const src = document.createElement('canvas'); src.width = sw + 2; src.height = sh + 2;
+  const sx2 = src.getContext('2d'); sx2.drawImage(img, sx, sy, sw, sh, 1, 1, sw, sh);
+  const d = sx2.getImageData(0, 0, sw + 2, sh + 2).data, W = sw + 2, H = sh + 2;
+  c = document.createElement('canvas'); c.width = W; c.height = H;
+  const cx2 = c.getContext('2d'), out = cx2.createImageData(W, H);
+  const on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4 + 3] > 40;
+  for(let y = 0; y < H; y++) for(let x = 0; x < W; x++) {
+    if(on(x, y)) continue;
+    if(on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)) { const i = (y * W + x) * 4; out.data[i] = 110; out.data[i + 1] = 255; out.data[i + 2] = 140; out.data[i + 3] = 255; }
+  }
+  cx2.putImageData(out, 0, 0);
+  OUTLINES.set(key, c);
+  return c;
+}
+function drawOutline(img, sx, sy, sw, sh, x, y, w, h, alpha) {
+  const o = outlineOf(img, sx, sy, sw, sh), k = w / sw;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(o, Math.round(x - k), Math.round(y - k), Math.round(w + 2 * k), Math.round(h + 2 * k));
+  ctx.globalAlpha = 1;
+}
 function drawObj(o) {
   const x = o.cx, y = o.cy;
   if(o.table) {
@@ -1395,7 +1431,7 @@ function updateHud() {
   const c = G.ctx, label = p.busy ? p.busy.label : c ? c.label : '';
   pr.hidden = !p.busy || isTouch;          // the action itself is written next to the thing, in the world
   if(label) { const h = p.busy ? label : '<kbd>E</kbd>' + label; if(pr.innerHTML !== h) pr.innerHTML = h; }
-  ctxBtn.disabled = !c || !!p.busy; ctxBtn.textContent = p.busy ? '…' : c ? c.label : 'Etkileşim';
+  ctxBtn.classList.toggle('idle', !c || !!p.busy); ctxBtn.textContent = p.busy ? '…' : c ? c.label : 'Etkileşim';
   $('#tbCrouch').classList.toggle('on', p.crouch);
 }
 
@@ -1488,7 +1524,7 @@ $('#apArmy').onclick = () => start('army');
 $('#controlsTxt').innerHTML = isTouch
   ? 'Telefonda: ekranın solunda parmağını sürükle, sonuna kadar itersen koşarsın. Sağda Eğil, Etkileşim ve Saldır düğmeleri.'
   : 'Klavye: <kbd>WASD</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>C</kbd> eğil · <kbd>E</kbd> etkileşim (bayılt, aç, ara, kurtar, çık) · <kbd>Boşluk</kbd> saldır · <kbd>Esc</kbd> duraklat';
-$('#controlsTxt').innerHTML += '<br>Altın <b style="color:#f5d76e">◆</b> işaretli şeyler kullanılabilir: sandık, kol, kapak, kese; sandık, varil ve çuvallar aranabilir. <b>Bayıltmak</b> için seni görmemiş bir haydudun <b>arkasına</b> sokul (eğilirsen daha kolay), başında "Bayılt" yazınca <kbd>E</kbd>. Uyuyanları ve zar oynayanları her yönden bayıltabilirsin.';
+$('#controlsTxt').innerHTML += '<br><b style="color:#8dffa8">Yeşil çerçeveli</b> her şey kullanılabilir: sandık, kol, kapak, kese; sandıklar, variller ve çuvallar aranabilir. Kullanılınca çerçeve kalkar. <b>Bayıltmak</b> için seni görmemiş bir haydudun <b>arkasına</b> sokul (eğilirsen daha kolay), başında "Bayılt" yazınca <kbd>E</kbd>. Uyuyanları ve zar oynayanları her yönden bayıltabilirsin.';
 
 // the ambush roll the briefing promised is the one the game uses
 const _newGame = newGame;
