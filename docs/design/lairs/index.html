@@ -777,6 +777,9 @@ function floatText(x, y, t, col) { G.texts.push({ x, y, t, col: col || '#fff', l
 // ---------- input ----------
 const keys = {};
 let touchMove = { x: 0, y: 0, mag: 0 }, actPressed = false, atkPressed = false, crouchToggle = false, throwPressed = false;
+// aiming a pebble: holding Q (the mouse picks the spot) or holding the Taş button and dragging (the drag
+// picks the spot); a landing mark and the circle of who'll hear it show until you let go
+let aim = null, aimFinal = null;   // { touch, dx, dy, moved } while held; the spot picked at release
 const mouse = { world: null, t: 0, sx: 0, sy: 0 };
 canvas.addEventListener('mousemove', e => { mouse.sx = e.clientX * DPR; mouse.sy = e.clientY * DPR; mouse.t = Date.now(); });
 addEventListener('keydown', e => {
@@ -785,13 +788,13 @@ addEventListener('keydown', e => {
   keys[k] = true;
   if(k === 'c' || k === 'control') crouchToggle = true;
   if(k === 'e') actPressed = true;
-  if(k === 'q') throwPressed = true;
+  if(k === 'q' && !aim) aim = { touch: false };
   if(k === ' ' || k === 'j') { atkPressed = true; e.preventDefault(); }
   if(k === 'escape') togglePause();
   if(['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
 });
-addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
-addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
+addEventListener('keyup', e => { const k = e.key.toLowerCase(); keys[k] = false; if(k === 'q' && aim && !aim.touch) { aim = null; throwPressed = true; } });
+addEventListener('blur', () => { for(const k in keys) keys[k] = false; aim = null; });
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if(isTouch) document.body.classList.add('touch');
 (function touchSetup() {
@@ -813,7 +816,23 @@ if(isTouch) document.body.classList.add('touch');
   hold($('#tbAct'), () => actPressed = true);
   hold($('#tbAtk'), () => atkPressed = true);
   hold($('#tbCrouch'), () => crouchToggle = true);
-  hold($('#tbThrow'), () => throwPressed = true);
+  // Taş: a tap throws where you face; press and drag to pick the spot (a full drag of ~110 px is the
+  // longest throw), let go to throw; drag back onto the button to call it off
+  const tb = $('#tbThrow'); let tid = null, tx0 = 0, ty0 = 0;
+  tb.addEventListener('pointerdown', e => { e.preventDefault(); tid = e.pointerId; tx0 = e.clientX; ty0 = e.clientY; tb.setPointerCapture(tid); aim = { touch: true, dx: 0, dy: 0, moved: false }; tb.classList.add('on'); });
+  tb.addEventListener('pointermove', e => {
+    if(e.pointerId !== tid || !aim) return;
+    aim.dx = e.clientX - tx0; aim.dy = e.clientY - ty0;
+    if(Math.hypot(aim.dx, aim.dy) > 30) aim.moved = true;
+  });
+  const tend = (e, cancel) => {
+    if(e.pointerId !== tid) return; tid = null; tb.classList.remove('on');
+    const back = aim && aim.moved && Math.hypot(aim.dx, aim.dy) < 16;
+    if(aim && !cancel && !back) { aimFinal = aimTarget(); throwPressed = true; }
+    else if(back) say('Atış iptal.');
+    aim = null;
+  };
+  tb.addEventListener('pointerup', e => tend(e, false)); tb.addEventListener('pointercancel', e => tend(e, true));
 })();
 
 // ---------- the player ----------
@@ -984,19 +1003,32 @@ function unhide() {
 }
 // a pebble goes where you point (the mouse on a desktop) or four tiles ahead, stops at a wall,
 // and clatters there: guards walk over to look, away from you
+const PEBBLE_RANGE = 7 * T, PEBBLE_NOISE = 175;
+// where the pebble is aimed: the drag on a phone, the mouse on a desktop, else four tiles ahead
+function aimTarget() {
+  const p = G.player;
+  if(aim && aim.touch && Math.hypot(aim.dx, aim.dy) > 14) {
+    const m = Math.min(1, Math.hypot(aim.dx, aim.dy) / 110), a = Math.atan2(aim.dy, aim.dx);
+    return { x: p.x + Math.cos(a) * m * PEBBLE_RANGE, y: p.y + Math.sin(a) * m * PEBBLE_RANGE };
+  }
+  if(!isTouch && mouse.world && Date.now() - mouse.t < 4000) return { x: mouse.world.x, y: mouse.world.y };
+  return { x: p.x + Math.cos(p.a) * 4.5 * T, y: p.y + Math.sin(p.a) * 4.5 * T };
+}
+// where it lands: at most seven tiles, short of the first wall
+function pebbleLanding(tx, ty) {
+  const p = G.player, dx = tx - p.x, dy = ty - p.y, len = Math.hypot(dx, dy) || 1, d = Math.min(PEBBLE_RANGE, len), ux = dx / len, uy = dy / len;
+  let r = 0;
+  for(; r < d; r += 6) { const x = p.x + ux * r, y = p.y - 10 + uy * r; if(solidTile(Math.floor(x / T), Math.floor(y / T)) && r > 20) { r -= 10; break; } }
+  return { x: p.x + ux * r, y: p.y - 4 + uy * r, ux, uy };
+}
 function throwPebble() {
   const p = G.player;
   if(G.pebbles <= 0) { say('Atacak taşın kalmadı. Çuvallarda, sandıklarda bulabilirsin.'); return; }
-  let tx, ty;
-  if(mouse.world && Date.now() - mouse.t < 4000 && !isTouch) { tx = mouse.world.x; ty = mouse.world.y; }
-  else { tx = p.x + Math.cos(p.a) * 4.5 * T; ty = p.y + Math.sin(p.a) * 4.5 * T; }
-  const dx = tx - p.x, dy = ty - p.y, d = Math.min(7 * T, Math.hypot(dx, dy)) || 1, ux = dx / (Math.hypot(dx, dy) || 1), uy = dy / (Math.hypot(dx, dy) || 1);
-  let r = 0;
-  for(; r < d; r += 6) { const x = p.x + ux * r, y = p.y - 10 + uy * r; if(solidTile(Math.floor(x / T), Math.floor(y / T)) && r > 20) { r -= 10; break; } }
-  const lx = p.x + ux * r, ly = p.y - 4 + uy * r;
+  const tgt = aimFinal || aimTarget(); aimFinal = null;
+  const { x: lx, y: ly, ux, uy } = pebbleLanding(tgt.x, tgt.y);
   G.pebbles--; p.a = Math.atan2(uy, ux); p.atkT = .2;
   G.fx.push({ kind: 'stone', x0: p.x, y0: p.y - 20, x: lx, y: ly, t: 0 });
-  setTimeout(() => { if(G && !G.done) { noise(lx, ly, 175, null); floatText(lx, ly - 16, 'Tık!', '#e8e0cc'); } }, 420);
+  setTimeout(() => { if(G && !G.done) { noise(lx, ly, PEBBLE_NOISE, null); floatText(lx, ly - 16, 'Tık!', '#e8e0cc'); } }, 420);
 }
 function spookHorses(o) {
   o.used = true;
@@ -1441,6 +1473,7 @@ function render() {
     if(f.kind === 'bats') { ctx.fillStyle = '#0c0a0e'; for(let i = 0; i < 7; i++) { const a = i * .9 + f.t * 3, r = f.t * 70 + i * 6; const bx = f.x + Math.cos(a) * r, by = f.y - f.t * 50 + Math.sin(a * 2) * 10; ctx.fillRect(bx - 4, by, 8, 2); ctx.fillRect(bx - 1, by - 1, 2, 3); } }
   }
   drawMarkers();
+  if(aim && G.pebbles > 0) drawAim();
   for(const g of G.chars) if(g.kind === 'guard') drawGuardMark(g);
   for(const c of G.chars) if(c.kind === 'prisoner' && c.tied) { ctx.fillStyle = '#f5d76e'; ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center'; if(Math.hypot(c.x - p.x, c.y - p.y) < 5 * T) ctx.fillText('?', c.x, c.y - 42); }
   ctx.textAlign = 'center';
@@ -1465,6 +1498,19 @@ function render() {
 // the one the button would use right now is ringed and says what it does. Used things lose it.
 function usable(o) {
   return !o.gone && ((o.chest && !o.open) || (o.search && !o.searched) || (o.lever && !o.pulled) || o.purse || o.trapdoor || o.hide || (o.pen && !o.used) || (o.cage && !o.open) || (o.torch && o.lit !== false));
+}
+// the pebble's flight, where it lands, how far it carries, and a "?" over each bandit who'll hear it
+function drawAim() {
+  const p = G.player, t = aimTarget(), l = pebbleLanding(t.x, t.y), x0 = p.x, y0 = p.y - 20;
+  ctx.fillStyle = 'rgba(232,224,204,.8)';
+  for(let i = 1; i < 12; i++) { const u = i / 12, x = x0 + (l.x - x0) * u, y = y0 + (l.y - y0) * u - Math.sin(u * Math.PI) * 28; ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); }
+  ctx.strokeStyle = 'rgba(245,215,110,.28)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(l.x, l.y, PEBBLE_NOISE, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(l.x, l.y, 6, 0, 7); ctx.stroke();
+  ctx.font = 'bold 12px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#f5d76e';
+  for(const g of G.chars) {
+    if(g.kind !== 'guard' || ['ko', 'down', 'alert'].includes(g.state)) continue;
+    if(Math.hypot(g.x - l.x, g.y - l.y) <= (g.state === 'sleep' ? PEBBLE_NOISE * .45 : PEBBLE_NOISE)) ctx.fillText('?', g.x, g.y - (g.state === 'sleep' ? 22 : 46));
+  }
 }
 function drawMarkers() {
   const p = G.player, at = G.ctx && G.ctx.at;
@@ -1840,9 +1886,9 @@ $('#apSolo').onclick = () => start('solo');
 $('#apSquad').onclick = () => start('squad');
 $('#apArmy').onclick = () => start('army');
 $('#controlsTxt').innerHTML = isTouch
-  ? 'Telefonda: ekranın solunda parmağını sürükle, sonuna kadar itersen koşarsın. Sağda Etkileşim, Eğil, Taş (baktığın yöne çakıl atar) ve Saldır.'
-  : 'Klavye: <kbd>WASD</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>C</kbd> eğil · <kbd>E</kbd> etkileşim (bayılt, aç, ara, saklan, kurtar, çık) · <kbd>Q</kbd> çakıl taşı at (fareyle nişan al) · <kbd>Boşluk</kbd> saldır · <kbd>Esc</kbd> duraklat';
-$('#controlsTxt').innerHTML += '<br><b style="color:#8dffa8">Yeşil çerçeveli</b> her şey kullanılabilir: sandık, kol, kapak, kese; sandıklar, variller ve çuvallar aranabilir. Kullanılınca çerçeve kalkar. <b>Bayıltmak</b> için seni görmemiş bir haydudun <b>arkasına</b> sokul (eğilirsen daha kolay), başında "Bayılt" yazınca <kbd>E</kbd>. Uyuyanları ve zar oynayanları her yönden bayıltabilirsin.<br><b>Saman, dolap, kaya kovuğu</b>: içine saklanırsan yanına gelmedikçe seni göremezler. <b>Çakıl taşı</b> attığın yere giderler; <b>meşaleyi söndürürsen</b> biri yakmaya gelir; kampta <b>atları ürkütmek</b> birkaçını birden çeker.<br><b style="color:#ff8a70">Peşindeler!</b> yazıyorsa hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Önce kovalayanlardan kurtul ya da uzaklaş.';
+  ? 'Telefonda: ekranın solunda parmağını sürükle, sonuna kadar itersen koşarsın. Sağda Etkileşim, Eğil, Taş ve Saldır. <b>Taş</b>a dokunursan baktığın yöne atarsın; basılı tutup sürüklersen nereye düşeceğini seçersin, bırakınca atılır (düğmeye geri sürüklersen iptal).'
+  : 'Klavye: <kbd>WASD</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>C</kbd> eğil · <kbd>E</kbd> etkileşim (bayılt, aç, ara, saklan, kurtar, çık) · <kbd>Q</kbd> basılı tut, fareyle nişan al, bırakınca çakıl taşı atılır · <kbd>Boşluk</kbd> saldır · <kbd>Esc</kbd> duraklat';
+$('#controlsTxt').innerHTML += '<br><b style="color:#8dffa8">Yeşil çerçeveli</b> her şey kullanılabilir: sandık, kol, kapak, kese; sandıklar, variller ve çuvallar aranabilir. Kullanılınca çerçeve kalkar. <b>Bayıltmak</b> için seni görmemiş bir haydudun <b>arkasına</b> sokul (eğilirsen daha kolay), başında "Bayılt" yazınca <kbd>E</kbd>. Uyuyanları ve zar oynayanları her yönden bayıltabilirsin.<br><b>Saman, dolap, kaya kovuğu</b>: içine saklanırsan yanına gelmedikçe seni göremezler. <b>Çakıl taşı</b> attığın yere giderler (nişan alırken duyacakların başında <b>?</b> çıkar); <b>meşaleyi söndürürsen</b> biri yakmaya gelir; kampta <b>atları ürkütmek</b> birkaçını birden çeker.<br><b style="color:#ff8a70">Peşindeler!</b> yazıyorsa hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Önce kovalayanlardan kurtul ya da uzaklaş.';
 
 // the ambush roll the briefing promised is the one the game uses
 const _newGame = newGame;
