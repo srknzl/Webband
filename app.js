@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.1.0', date: '2026-09-26', name: 'Canlanış' };  // the version name is not translated
+const VERSION = { no: '2.1.1', date: '2026-09-26', name: 'Canlanış' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2222,11 +2222,25 @@ const Game = {
     // ---- The hero as the wizard builds them (2.1) ----
     // Round 1 put the player's own sprite where a portrait would be: the soldier stands on a patch
     // of the battle's meadow in the unsworn warband's gold, and every choice shows on it — a
-    // background's sword, axe or horse, a woman's long hair, the chosen banner's colour on the
+    // background's sword, axe or horse, a woman's chosen hair, the chosen banner's colour on the
     // pennant. Pointing at an option (hover or keyboard focus) previews it before it's picked.
     heroHead(inner) {
         return `<div class="cr-head"><div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>
-            <span class="cr-hero-nm" id="cr-hero-nm"></span></div><div class="cr-head-tx">${inner}</div></div>`;
+            <span class="cr-hero-nm" id="cr-hero-nm"></span>${this.hairBtn()}</div><div class="cr-head-tx">${inner}</div></div>`;
+    },
+    // A woman picks her hair under the preview (2.1.1): four styles drawn by code (Swordsman's
+    // femHair), one button that steps through them — the name stays written on it
+    HAIR_STYLES: [['tail', 'At kuyruğu'], ['bun', 'Saç topuzu'], ['braid', 'Örgü'], ['long', 'Uzun saç']],
+    hairBtn() {
+        if(this.creation.sel.gender !== 'female') return '';
+        let cur = this.HAIR_STYLES.find(h => h[0] === this.creation.sel.hair) || this.HAIR_STYLES[0];
+        return `<button class="btn cr-hair" id="cr-hair" onclick="Game.nextHair()" title="${T('Saçını değiştir')}">${this.icon('refresh')} ${T`Saç: ${T(cur[1])}`}</button>`;
+    },
+    nextHair() {
+        let i = this.HAIR_STYLES.findIndex(h => h[0] === this.creation.sel.hair);
+        this.creation.sel.hair = this.HAIR_STYLES[(Math.max(0, i) + 1) % this.HAIR_STYLES.length][0];
+        let b = document.getElementById('cr-hair');
+        if(b) b.outerHTML = this.hairBtn();
     },
     crHover(key, id) { this._crHover = key ? { key, id } : null; },
     // what the choices so far (plus the one being pointed at) would put on the hero
@@ -2239,7 +2253,7 @@ const Game = {
             if(o && o.item && ITEMS[o.item]) eq[ITEMS[o.item].type] = ITEMS[o.item];
         });
         let fem = sel.gender === 'female', banner = sel.banner !== undefined ? (BANNERS[sel.banner] || BANNERS[0]).color : '#8a8173';
-        let look = typeof Battle !== 'undefined' && Swordsman.ready() ? Battle.heroLook(eq, fem, 'player', !!eq.horse) : null;
+        let look = typeof Battle !== 'undefined' && Swordsman.ready() ? Battle.heroLook(eq, fem, 'player', !!eq.horse, sel.hair) : null;
         return { look, banner };
     },
     startHeroPreview() {
@@ -2401,7 +2415,7 @@ const Game = {
         let b = BANNERS[sel.banner || 0];
         let html = `<h3>${state.player.name}</h3>
             <div style="display:flex;gap:1.2rem;align-items:flex-start;margin-top:0.6rem">
-                <div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>
+                <div class="cr-hero"><canvas id="cr-hero" width="112" height="112" aria-hidden="true"></canvas>${this.hairBtn()}
                     <div style="display:flex;justify-content:center;margin-top:0.4rem">${this.bannerCss(sel.banner || 0, 56)}</div></div>
                 <div style="flex:1;font-size:var(--fs-md);line-height:1.5">
                     <div style="color:${b.color};font-weight:bold">${T`${T(b.name)} sancağı`}</div>
@@ -5582,13 +5596,20 @@ const Game = {
         let ce = document.getElementById('chip-cargo');
         if(ce) ce.classList.toggle('warn', cload > ccap);
         set('ui-hp', `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`);
-        set('ui-level', p.stats.level);
+        this.countTo('ui-level', p.stats.level);
+        // gains that aren't a counted number (2.1.1): a new man in the party, experience earned
+        let last = this._hudLast, now = { men: p.party.length, xp: p.stats.xp + p.stats.level * 1e6 };
+        if(last && Anim.on()) {
+            if(now.men > last.men) this.gainFx(document.getElementById('chip-party'), `+${now.men - last.men}`);
+            if(now.xp > last.xp) { let b = document.getElementById('bar-xp'); if(b) { b.classList.remove('bar-gain'); void b.offsetWidth; b.classList.add('bar-gain'); } }
+        }
+        this._hudLast = now;
 
         bar('bar-hp', p.stats.hp / p.stats.maxHp * 100);
         bar('bar-party', p.party.length / cap * 100);
         bar('bar-cargo', cload / ccap * 100);
         bar('bar-xp', p.stats.xp / p.stats.xpNext * 100);
-        set('ui-morale', Math.round(this.morale()));
+        this.countTo('ui-morale', Math.round(this.morale()));
         bar('bar-morale', this.morale());
 
         this.updateSpeedUI(this.getPlayerSpeed());
@@ -5606,12 +5627,23 @@ const Game = {
         let c = this._counters[id];
         if(!c || c.el !== el) { this._counters[id] = { el, v: value, to: value }; el.innerText = value; return; }
         if(c.to === value) return;
-        let up = value > c.to;
+        let up = value > c.to, prev = c.to;
         c.to = value;
         if(!Anim.on()) { c.v = value; el.innerText = value; return; }
         Anim.to(c, { v: value }, 0.6, 'outCubic', null, o => { el.innerText = Math.round(o.v); });
         let chip = el.closest && el.closest('.hud-chip');
         if(chip) { chip.classList.remove('bump-up', 'bump-down'); void chip.offsetWidth; chip.classList.add(up ? 'bump-up' : 'bump-down'); }
+        if(up && chip) this.gainFx(chip, `+${value - prev}`);
+    },
+    // A gain drops off its chip (2.1.1): a small "+N" appears just under the badge and drifts off, the icon
+    // pops. Fixed to the page rather than inside the chip, so the top bar's clipping never cuts it.
+    gainFx(chip, text) {
+        if(!chip || !chip.offsetParent || !Anim.on() || text === '+0') return;
+        let r = chip.getBoundingClientRect(), f = document.createElement('span');
+        f.className = 'hud-plus'; f.textContent = text; f.setAttribute('aria-hidden', 'true');
+        f.style.left = Math.round(r.left + r.width / 2) + 'px'; f.style.top = Math.round(r.bottom + 3) + 'px';   // just under the badge: never on its own number
+        document.body.appendChild(f);
+        setTimeout(() => f.remove(), 1300);
     },
 
     // Top-bar tooltips: what each badge affects and by how much (thanks to setHtml,
@@ -12075,6 +12107,7 @@ const Save = {
     apply(d) {
         if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
         this.mergeInto(state, d.state);
+        Game._counters = {}; Game._hudLast = null;   // a loaded game's numbers are set, not "gained"
 
         // Quest definitions may be retired between releases. Strip them from old saves and
         // cached offers before any quest UI tries to dereference a definition that no longer exists.

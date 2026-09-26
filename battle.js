@@ -1663,11 +1663,33 @@ const Battle = {
             let x = (rnd() * lw) | 0, y = (rnd() * lh) | 0;
             if(rnd() < 0.5) put(x, y, 232, 211, 106); else put(x, y, 233, 228, 214);
         }
+        let TR = this.terrain || {};
+        // Pits (2.1.1) are painted into the pixels as a scatter of small, ragged clumps of trodden
+        // earth and mud; a forest gets no floor at all, only its trees. A dark disc (forest) and a
+        // black radial blot (pit) read as huge round shadows on the pixel meadow — the rough zone
+        // keeps its exact circle for the rules, but nothing round is drawn for it any more.
+        let clump = (cx, cy, r) => {
+            let lobes = []; for(let k = 0; k < 8; k++) lobes.push(0.6 + rnd() * 0.55);
+            for(let y = Math.max(0, (cy - r * 1.2) | 0); y < Math.min(lh, cy + r * 1.2); y++)
+                for(let x = Math.max(0, (cx - r * 1.2) | 0); x < Math.min(lw, cx + r * 1.2); x++) {
+                    let dx = x - cx, dy = (y - cy) * 1.35, a = (Math.atan2(dy, dx) / (Math.PI * 2) + 1) % 1 * 8, i = a | 0, t = a - i;
+                    let q = Math.hypot(dx, dy) / (r * (lobes[i] * (1 - t) + lobes[(i + 1) % 8] * t)) + (rnd() - 0.5) * 0.35;
+                    if(q >= 1) continue;
+                    let o = (y * lw + x) * 4, c = q < 0.55 && rnd() < 0.7 ? (rnd() < 0.3 ? [84, 74, 50] : [106, 95, 64]) : null;
+                    if(c) { d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; }
+                    else if(rnd() < 0.6) { d[o] = d[o] * 0.85 + 12; d[o + 1] = d[o + 1] * 0.85 + 8; d[o + 2] = d[o + 2] * 0.85 + 2; }
+                }
+        };
+        (TR.pits || []).forEach(p => {
+            for(let k = 0, n = 3 + Math.round(p.r / 14); k < n; k++) {
+                let a = rnd() * Math.PI * 2, dd = Math.sqrt(rnd()) * p.r * 0.7;
+                clump((p.x + Math.cos(a) * dd) / P, (p.y + Math.sin(a) * dd) / P, (p.r * (0.18 + rnd() * 0.18)) / P);
+            }
+        });
         c.putImageData(img, 0, 0);
         c.scale(1 / P, 1 / P);                                       // terrain below is in field units
         let lite = Game.lite();
 
-        let TR = this.terrain || {};
 
         (TR.rivers||[]).forEach(r => {
             let vert = r.isVertical;
@@ -1681,16 +1703,6 @@ const Battle = {
             if(vert) { c.moveTo(r.x,0); c.lineTo(r.x,H); c.moveTo(r.x+r.w,0); c.lineTo(r.x+r.w,H); }
             else { c.moveTo(0,r.y); c.lineTo(W,r.y); c.moveTo(0,r.y+r.h); c.lineTo(W,r.y+r.h); }
             c.stroke();
-        });
-
-        (TR.pits||[]).forEach(p => {
-            let rg = c.createRadialGradient(p.x, p.y - p.r*0.2, p.r*0.1, p.x, p.y, p.r);
-            rg.addColorStop(0, 'rgba(0,0,0,0.58)');
-            rg.addColorStop(0.75, 'rgba(0,0,0,0.30)');
-            rg.addColorStop(1, 'rgba(0,0,0,0)');
-            c.fillStyle = rg; c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI*2); c.fill();
-            c.strokeStyle = 'rgba(170,190,140,0.22)'; c.lineWidth = 2;
-            c.beginPath(); c.arc(p.x, p.y, p.r*0.94, Math.PI*1.1, Math.PI*1.9); c.stroke();
         });
 
         (TR.hills||[]).forEach(h => {
@@ -1718,15 +1730,18 @@ const Battle = {
         });
 
         (TR.forests||[]).forEach(f => {
-            c.fillStyle = 'rgba(9,24,11,0.5)';
-            c.beginPath(); c.arc(f.x, f.y, f.r, 0, Math.PI*2); c.fill();
-            let n = Math.floor(f.r / (lite ? 18 : 9));
-            let trees = [];
+            // the floor is already in the pixels above; here the grove: more trees toward the middle,
+            // low bushes along the edge
+            let n = Math.floor(f.r / (lite ? 14 : 7)), trees = [];
             for(let i = 0; i < n; i++) {
-                let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.r * 0.92;
-                trees.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 8 + Math.random()*7 });
+                let a = rnd()*Math.PI*2, d = Math.pow(rnd(), 0.7) * f.r * 0.85;
+                trees.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 8 + rnd()*7 });
             }
-            trees.sort((a,b) => a.y - b.y).forEach(t => this.drawTree(c, t.x, t.y, t.r));
+            for(let i = 0, m = Math.floor(f.r / (lite ? 20 : 10)); i < m; i++) {
+                let a = rnd()*Math.PI*2, d = f.r * (0.8 + rnd() * 0.25);
+                trees.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 4 + rnd()*2.5, bush: true });
+            }
+            trees.sort((a,b) => a.y - b.y).forEach(t => t.bush ? this.drawBush(c, t.x, t.y, t.r) : this.drawTree(c, t.x, t.y, t.r));
         });
 
         (TR.rocks||[]).forEach(k => this.drawRock(c, k.x, k.y, k.r));
@@ -1955,6 +1970,13 @@ const Battle = {
         c.strokeStyle = 'rgba(20,22,24,0.8)'; c.lineWidth = 2; c.stroke();
     },
 
+    // A low bush on a forest's edge (2.1.1): two dark lobes and a lit top, its shadow to the lower right
+    drawBush(c, x, y, r) {
+        c.fillStyle = 'rgba(0,0,0,0.3)';
+        c.beginPath(); c.ellipse(x + r*0.3, y + r*0.5, r*1.1, r*0.45, 0, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#2f5a2a'; c.beginPath(); c.arc(x - r*0.45, y, r*0.75, 0, Math.PI*2); c.arc(x + r*0.45, y, r*0.7, 0, Math.PI*2); c.fill();
+        c.fillStyle = '#4f8540'; c.beginPath(); c.arc(x - r*0.1, y - r*0.35, r*0.7, 0, Math.PI*2); c.fill();
+    },
     // Once for the battle ground, but called EVERY FRAME on the map (4 forests × ~15 trees).
     // The canopy gradient depends only on the tree's radius, not its position: drawing is set up
     // at the origin and moved into place with translate, so the gradient is built once per radius.
@@ -2516,7 +2538,7 @@ const Battle = {
         let side = u.cloth && Swordsman.DYE[u.cloth] ? u.cloth : u.isPlayerTeam ? (this.playerCloth || 'player') : (this.enemyCloth || 'bandit');
         let mounted = u.mounted || u.type === 'cavalry';
         if(u.id === 'player')
-            return this.heroLook(state.player.equipment, state.player.background && state.player.background.gender === 'female', side, mounted);
+            return this.heroLook(state.player.equipment, state.player.background && state.player.background.gender === 'female', side, mounted, state.player.background && state.player.background.hair);
         if(u.icon === '🎖️' || u.icon === '💍') return null;
         let tier = Math.max(0, Math.min(2, u.tier || 0)), h = this.idHash(u), lite = Game.lite();
         let rider = {
@@ -2535,12 +2557,12 @@ const Battle = {
     teamRing(u) { return !this.spriteLook(u); },
     // The player's look from what they wear — shared by the battle and the character creation
     // preview (2.1), which feeds it the equipment the chosen background would give
-    heroLook(eq, fem, side, mounted) {
+    heroLook(eq, fem, side, mounted, hairStyle) {
         let w = eq.weapon, ar = eq.armor, hm = eq.helmet;
         let rider = {
             armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
             helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
-            skin: 0, hair: fem ? 3 : 0, cloth: side, fem: !!fem,
+            skin: 0, hair: fem ? 3 : 0, cloth: side, fem: !!fem, hairStyle: fem ? hairStyle || 'tail' : undefined,
             // what's in the hand and on the chest beyond the pack's sword and chain (2.1)
             wpn: !w ? '' : /^axe/.test(w.id) ? 'axe' : w.id === 'mace_warhammer' ? 'hammer' : w.id === 'mace_spiked' ? 'spiked' : /^mace/.test(w.id) ? 'mace' : w.weaponType === 'polearm' ? 'spear' : '',
             plate: !!ar && (ar.defense || 0) >= 30
@@ -4263,7 +4285,7 @@ const Swordsman = (() => {
     // style is drawn by code: parts that hang behind the head before it, the rest after. Placed
     // by the head layer's own box, so it follows every frame's bob and turn; painted in the pack's
     // hair palette, so colourMap recolours it with the rest of the hair. Styles under review
-    // (tur 5): 'tail' ponytail and 'bun'; a braid and shoulder-length hair were tried and dropped.
+    // (tur 5, 2.1.1): 'tail' ponytail, 'bun', 'braid', 'long' shoulder-length — the player picks one.
     const HAIR_SET = new Set([...HAIR, HAIR_LINE].map(hkey)), SKIN_SET = new Set(SKIN.map(hkey));
     function headBox(hx) {
         const d = hx.getImageData(0, 0, F, F).data;
@@ -4312,6 +4334,20 @@ const Swordsman = (() => {
                 else if(q <= (r + 1) * (r + 1)) P(bx + xx, by + yy, 1, 1, HAIR_LINE);
             }
         };
+        // a hair shape painted on its own cell, then given one outline all round and laid on the frame
+        const mass = paint => {
+            const hc = cell(), h = hc.getContext('2d');
+            paint(h);
+            const id = h.getImageData(0, 0, F, F), d = id.data, [lr, lg, lb] = [1, 3, 5].map(k => parseInt(HAIR_LINE.slice(k, k + 2), 16)), line = [];
+            for(let i = 0; i < F * F; i++) {
+                if(d[i * 4 + 3]) continue;
+                const px = i % F, py = (i / F) | 0;
+                if([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => { const qx = px + a, qy = py + b; return qx >= 0 && qy >= 0 && qx < F && qy < F && d[(qy * F + qx) * 4 + 3]; })) line.push(i);
+            }
+            line.forEach(i => { d[i * 4] = lr; d[i * 4 + 1] = lg; d[i * 4 + 2] = lb; d[i * 4 + 3] = 255; });
+            h.putImageData(id, 0, 0);
+            x.drawImage(hc, 0, 0);
+        };
         const side = dir === 'left' ? 1 : -1;            // the back of the head in profile
         const nape = side > 0 ? hb.x1 - 2 : hb.x0 + 2;
         // a ponytail: gathered at the tie, swelling a little, then narrowing to a point; in profile it
@@ -4332,10 +4368,64 @@ const Swordsman = (() => {
             if(stage === 'back' && dir === 'down') ball(cx, top + 1, 3);
             if(stage === 'front' && dir === 'up') ball(cx, top + 4, 3);
             if(stage === 'front' && (dir === 'left' || dir === 'right')) ball(nape - side, top + 5, 3);
+        } else if(style === 'long') {
+            // shoulder-length (2.1.1 redo): the crown's own mass carried down to the shoulders.
+            // Drawn behind the head in front and profile, so the face covers its inner edge and
+            // only one outline — the outer silhouette — is ever seen; strand ends are uneven.
+            if(stage === 'back' && dir === 'down') mass(h => {
+                for(const sd of [-1, 1]) for(let k = 0; k < 5; k++) {
+                    const col = sd < 0 ? hb.s0 - 3 + k : hb.s1 + 3 - k, t0 = [5, 3, 1, 0, 0][k];   // the top follows the head's curve
+                    const end = hb.sy + 8 + (k % 2 ? RAG[(k + (sd > 0 ? 3 : 0)) % 6] : 0) - (k === 0 ? 1 : 0);
+                    for(let y = hb.sy - 4 + t0; y < end; y++) {
+                        const ox = col + (y > end - 4 ? sd : 0);
+                        h.fillStyle = k === 0 ? HAIR[1] : k === 2 && y > hb.sy - 2 && y < hb.sy + 3 ? HAIR[3] : HAIR[2];
+                        h.fillRect(ox, y, 1, 1);
+                    }
+                }
+            });
+            if(stage === 'back' && (dir === 'left' || dir === 'right')) mass(h => {
+                for(let k = 0; k < 5; k++) {                // from inside the skull outward, rounding off at the back
+                    const col = nape - side * 2 + side * k, t0 = [0, 0, 1, 2, 4][k], end = hb.sy + 8 - [0, 0, 1, 2, 3][k] + (k % 2 ? RAG[k] : 0);
+                    for(let y = hb.y0 + 3 + t0; y < end; y++) {
+                        const ox = col + (y > end - 5 ? Math.round(sway * (y - end + 5) / 5) : 0);
+                        h.fillStyle = k >= 3 ? HAIR[1] : k === 1 && y < hb.sy + 2 ? HAIR[3] : HAIR[2];
+                        h.fillRect(ox, y, 1, 1);
+                    }
+                }
+            });
+            if(stage === 'front' && dir === 'up') mass(h => {
+                const half = (hb.s1 - hb.s0) / 2 + 1;       // the back of the head itself, carried down to the shoulders
+                for(let col = hb.s0 - 1; col <= hb.s1 + 1; col++) {
+                    const k = col - hb.s0 + 1, u = (col - cx) / half, t = hb.y0 + 2 + Math.round(u * u * 5);
+                    const end = hb.sy + 8 + (k % 2 ? RAG[k % 6] : 0) - (Math.abs(u) > 0.9 ? 1 : 0);
+                    for(let y = t; y < end; y++) {
+                        const ox = col + (y > end - 3 ? (u < 0 ? -1 : u > 0 ? 1 : 0) : 0) + (y > hb.sy + 3 ? sway : 0);
+                        h.fillStyle = Math.abs(u) > 0.85 ? HAIR[1] : (k % 4 === 1 && y > t + 1 && y < t + 6) ? HAIR[3] : HAIR[2];
+                        h.fillRect(ox, y, 1, 1);
+                    }
+                }
+            });
+        } else if(style === 'braid') {
+            // a braid (2.1.1 redo): interlocking lobes that start at the head, narrow toward the end,
+            // a red tie and a little tuft below it
+            const braid = (h, sx, y0, n, curve) => {
+                for(let k = 0; k < n; k++) {
+                    const bx = Math.round(sx + curve(k / n)), y = y0 + k * 2, w = k > n - 3 ? 2 : 3, flip = k % 2;
+                    h.fillStyle = HAIR[2]; h.fillRect(bx - 1, y, w, 1);
+                    h.fillStyle = HAIR[3]; h.fillRect(flip ? bx - 1 + w - 1 : bx - 1, y, 1, 1);
+                    h.fillStyle = HAIR[1]; h.fillRect(bx - 1 + (flip ? 0 : 1), y + 1, w - 1, 1);
+                }
+                const ex = Math.round(sx + curve(1)), ey = y0 + n * 2;
+                h.fillStyle = '#b3413a'; h.fillRect(ex - 1, ey, 2, 1);
+                h.fillStyle = HAIR[2]; h.fillRect(ex - 1, ey + 1, 2, 1); h.fillRect(ex - 2, ey + 2, 4, 1);
+            };
+            if(stage === 'front' && dir === 'down') mass(h => braid(h, hb.s1 + 1, hb.sy + 1, 6, f => Math.min(1, f * 2.5)));   // over the right shoulder
+            if(stage === 'back' && (dir === 'left' || dir === 'right')) mass(h => braid(h, nape + side, hb.sy - 2, 6, f => side * 1.5 * Math.sin(Math.PI * Math.min(1, f * 1.4)) + sway * f));
+            if(stage === 'front' && dir === 'up') mass(h => braid(h, cx, hb.sy + 1, 5, f => sway * f));
         }
         if(stage === 'front' && dir === 'down') P(cx, hb.y1 - 2, 1, 1, '#c9706a');                    // a softer mouth
     }
-    const FEM_SWAY = [0, 1, 0, -1];
+    const FEM_SWAY = [0, 1, 0, -1], RAG = [0, 1, -1, 1, 0, -1];   // uneven strand ends, the same every frame
     let femStyle = 'tail';
 
     // ---- composed frames ----
