@@ -7614,6 +7614,10 @@ const Game = {
         let cb = document.getElementById('modal-close');
         if(cb) { cb.classList.toggle('hidden', !this.canDismiss()); cb.title = T('Kapat'); }
         document.getElementById('modal-overlay').classList.remove('hidden');
+        // A new window starts at its top. On a phone a tall window (a lord's dialogue cards) opened
+        // part-way down, the portrait and name cut off under the frame; setting the offset here
+        // also lays the window out once, so content added after this call can't shift it again.
+        mc.scrollTop = 0;
     },
     // The three ways the user can close a window *on their own* — Esc, clicking outside, ×
     // — ask from one place; asking separately would leave one of them an escape hatch from an encounter (#70).

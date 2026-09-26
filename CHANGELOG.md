@@ -74,6 +74,8 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
 - **Lordla konuşma kartları.** Konuşma seçenekleri şehirdeki gibi ikonlu kartlar. Her birinin
   altında ne işe yaradığı yazıyor: hediye günde bir kez verilir, hakaret ilişkiyi 15 düşürür.
   Karşıdakinin sözü yazılırken kartlar yerinden oynamıyor.
+- **Telefonda uzun pencere en üstten açılıyor.** Lordla konuşma gibi uzun bir pencere biraz
+  aşağı kaymış açılıyordu. Portre ve isim çerçevenin altında kalıyordu.
 - **Yeni ana menü.** Başlığın altında oyunun askerleri bir kalenin önünden yürüyor. Turuncu
   altıgen düğmeler yerine çizgi ikonlu, koyu cam düğmeler var.
 
