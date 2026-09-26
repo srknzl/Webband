@@ -3028,5 +3028,11 @@ I18N.dicts.en = {
   "{0} ve {1} soylu kalede": "{0} and {1} more nobles are in the keep",
   "Kalede soylu yok": "No nobles in the keep",
   "Sahibi: {0}": "Held by {0}",
-  "Duraklat": "Pause"
+  "Duraklat": "Pause",
+  "At kuyruğu": "Ponytail",
+  "Örgü": "Braid",
+  "Uzun saç": "Long hair",
+  "Saçını değiştir": "Change your hair",
+  "Saç: {0}": "Hair: {0}",
+  "Saç topuzu": "Bun"
 };

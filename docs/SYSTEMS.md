@@ -1177,9 +1177,16 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
   the same `heroLook` the battle uses. One rAF loop with a `_heroId` guard; it stops once
   `#cr-hero` is gone.
 - **Sprite looks** (Swordsman bake): `fem` trims the pack's spiky crop to a smooth dome
-  (`headBox`, `smoothDome`) and draws a hairstyle by code (`femHair`: `'tail'` ponytail by default,
-  `'bun'`; the parts that hang behind the head are drawn before it; not on the death frames).
-  The first attempt, two side strands, was turned down in review. `wpn` gives an axe / mace / spiked mace / hammer / spear head at the blade tip, with the
+  (`headBox`, `smoothDome`) and draws a hairstyle by code (`femHair`), not on the death frames.
+  - Styles: `'tail'` ponytail (the default), `'bun'`, `'braid'`, `'long'` shoulder-length.
+  - The parts that hang behind the head are drawn before it. Braid and long hair are painted
+    on their own cell and outlined once all round (`mass`), so only the outer silhouette shows.
+  - Strand ends are uneven by a fixed table (`RAG`), the same on every frame.
+  - 2.1.1: the player picks the style in character creation. `Game.hairBtn` is one button under
+    the preview that steps through `HAIR_STYLES`; the choice is stored as `background.hair` and
+    passed to `heroLook`, and is part of both frame-cache keys.
+  - Review history: the first attempt (two side strands) was turned down, then the first
+    braid and long hair were too; both were redone in 2.1.1. `wpn` gives an axe / mace / spiked mace / hammer / spear head at the blade tip, with the
   blade pixels recoloured to wood (`weapon()`). `plate` (defense ≥ 30) draws steel plates on the
   body (`plateArmour`). All three are part of the frame-cache key in `Swordsman.art` and
   `Mounted.art`. `Battle.teamRing(u)` draws the ground ring only for units with no sprite look:
@@ -1200,6 +1207,30 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
   its words. Measured: the panel is 56 px tall at 412 px (76 before), and one row from 390 px up
   in TR/EN/ID with unspent points showing. At 360 px ID it wraps to two rows. `ux.spec` asserts
   one row on Pixel 7.
+
+### Small polish (2.1.1)
+- **Battle forests and pits** (`buildField`): nothing round is drawn for a rough zone any more.
+  - Before, a forest was a flat 50 % black disc and a pit a black radial gradient: huge round
+    shadows on the pixel meadow.
+  - Now a forest is only its trees, denser toward the middle, with low bushes along the edge
+    (`drawBush`).
+  - A pit is 3 + r/14 small, ragged clumps of trodden earth and mud, painted into the ground's
+    pixels (`clump`).
+  - The rules still use the exact circle (`getTerrainEffects`).
+- **Top-bar gains** (`countTo`, `Game.gainFx`):
+  - money, renown, morale and level count up to their new value
+  - on a rise the badge bumps, its icon pops (`icoPop`) and a "+N" pill drops out just under
+    the badge (`.hud-plus`, fixed to the page so the bar's clipping never cuts it, 1.2 s)
+  - a new man in the party gets the pill too; earned XP makes the level bar flash (`.bar-gain`)
+  - `Save.apply` resets the counters, so a loaded game's numbers are set, not "gained"
+  - everything is off under `Anim.on() === false`
+- **Map sidebar, desktop**: the floating strip on the map keeps its labels and key chips, the
+  same rows as on every other screen (it was icon-only while taking nearly the same width).
+  `#map-hud` moved to `left: 212px` to clear it. Measured at 1366×768: the strip ends at 187 px
+  (TR) / 198 px (EN), with no scroll; at 1024×640 in ID it ends at 192 px, also without scroll.
+- **e2e**: the forced-pixi renderer specs are `test.slow()` on the phone projects. CI's
+  SwiftShader at a phone's density starved the page past 60 s: red on main since 1.34.0.
+  Measured locally: 33–42 s each.
 
 ### Battle renderer (1.33.0)
 Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
