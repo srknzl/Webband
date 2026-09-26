@@ -2527,6 +2527,11 @@ const Battle = {
         if(u.type !== 'infantry') return null;
         return Object.assign({ kind: 'foot' }, rider);
     },
+    // Round 1 chose "the kingdom's colours on the clothes" to tell the sides apart (2.1): a
+    // soldier drawn as a sprite wears his side, so only a unit without clothes to show (a beast,
+    // the boss, a figure still waiting for its sheet) keeps the ground ring. The player's gold
+    // pulse is not a team mark and stays.
+    teamRing(u) { return !this.spriteLook(u); },
     // The player's look from what they wear — shared by the battle and the character creation
     // preview (2.1), which feeds it the equipment the chosen background would give
     heroLook(eq, fem, side, mounted) {
@@ -2534,7 +2539,10 @@ const Battle = {
         let rider = {
             armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
             helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
-            skin: 0, hair: fem ? 3 : 0, cloth: side
+            skin: 0, hair: fem ? 3 : 0, cloth: side, fem: !!fem,
+            // what's in the hand and on the chest beyond the pack's sword and chain (2.1)
+            wpn: !w ? '' : /^axe/.test(w.id) ? 'axe' : w.id === 'mace_warhammer' ? 'hammer' : w.id === 'mace_spiked' ? 'spiked' : /^mace/.test(w.id) ? 'mace' : w.weaponType === 'polearm' ? 'spear' : '',
+            plate: !!ar && (ar.defense || 0) >= 30
         };
         if(mounted) {
             let hp = (eq.horse && eq.horse.basePrice) || 0;
@@ -2692,15 +2700,17 @@ const Battle = {
         ctx.fillStyle = `rgba(0,0,0,${0.5 - hop*0.03})`; ctx.fill();
 
         if(!dead) {
-            ctx.beginPath();
-            ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
-            ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
-            ctx.fill();
-            // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
-            // the enemy's is dashed — still distinguishable on a grayscale screen.
-            ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
-            ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
-            ctx.setLineDash([]);
+            if(this.teamRing(u)) {
+                ctx.beginPath();
+                ctx.ellipse(u.x, u.y + 9, 10, 4.5, 0, 0, Math.PI*2);
+                ctx.fillStyle = u.isPlayerTeam ? 'rgba(79,168,255,0.28)' : 'rgba(255,90,74,0.28)';
+                ctx.fill();
+                // Telling teams apart doesn't rely on color alone (#55 item 6): the friendly ring is solid,
+                // the enemy's is dashed — still distinguishable on a grayscale screen.
+                ctx.setLineDash(u.isPlayerTeam ? [] : [4, 3.2]);
+                ctx.strokeStyle = ring; ctx.lineWidth = 2.5; ctx.stroke();
+                ctx.setLineDash([]);
+            }
 
             if(isPlayer) {
                 let pulse = 1 + Math.sin(now/300)*0.12;
@@ -4159,6 +4169,117 @@ const Swordsman = (() => {
         }
     }
 
+    // ---- other weapons and plate (2.1, round 1's promise: the pack only has swords) ----
+    // An axe, a mace or a spear is the sword layer made into a haft — its steel greys turned to
+    // wood — with a head drawn at the far end, pointing the way the blade pointed. The grip is the
+    // layer's pixel nearest the body, the tip the farthest, so it follows every swing.
+    const WOOD = ['#4a3420', '#6b4e2e', '#8a6a40'], STEEL_H = ['#2a2d33', '#6e7680', '#9aa3ad', '#c9d0d6', '#eef2f4'];
+    function weapon(x, lvl, anim, part, f, row, kind) {
+        if(!kind) return layer(x, lvl, anim, part, f, row);
+        const t = cell(), tx = t.getContext('2d');
+        layer(tx, lvl, anim, part, f, row);
+        const id = tx.getImageData(0, 0, F, F), d = id.data, BX = 32, BY = 33;
+        let grip = null, tip = null, gd = 1e9, td = -1;
+        for(let i = 0; i < F * F; i++) {
+            const o = i * 4;
+            if(!d[o + 3]) continue;
+            const px = i % F, py = (i / F) | 0, dist = (px - BX) ** 2 + (py - BY) ** 2;
+            if(dist < gd) { gd = dist; grip = [px, py]; }
+            if(dist > td) { td = dist; tip = [px, py]; }
+            const r = d[o], g = d[o + 1], b = d[o + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            if(mx > 90 && b >= r - 8 && mx - mn < 90) {     // blade steel (grey to steel-blue) -> haft wood, by brightness
+                const w = WOOD[mx > 190 ? 2 : mx > 140 ? 1 : 0]; d[o] = parseInt(w.slice(1, 3), 16); d[o + 1] = parseInt(w.slice(3, 5), 16); d[o + 2] = parseInt(w.slice(5, 7), 16);
+            }
+        }
+        tx.putImageData(id, 0, 0);
+        if(tip && grip && td > 16) {
+            let dx = tip[0] - grip[0], dy = tip[1] - grip[1], L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+            const nx = -dy, ny = dx, P = (a, b, c) => { tx.fillStyle = c; tx.fillRect(Math.round(a), Math.round(b), 1, 1); };
+            if(kind === 'axe') {                           // a bearded blade on one side of the haft
+                const W = [3, 5, 6, 6, 4, 2];
+                W.forEach((w, s) => {
+                    const cx = tip[0] - dx * s, cy = tip[1] - dy * s;
+                    for(let k = 1; k <= w; k++) P(cx + nx * k, cy + ny * k, k === w ? STEEL_H[4] : STEEL_H[s === 0 || s === W.length - 1 ? 1 : 2]);
+                    P(cx + nx * (w + 1), cy + ny * (w + 1), STEEL_H[0]);
+                });
+                P(tip[0] + dx, tip[1] + dy, STEEL_H[0]);
+            } else if(kind === 'mace' || kind === 'hammer' || kind === 'spiked') {
+                const cx = tip[0] + dx, cy = tip[1] + dy;
+                if(kind === 'hammer') {                    // a block across the haft
+                    for(let k = -3; k <= 3; k++) for(let s = -1; s <= 1; s++) P(cx + nx * k + dx * s, cy + ny * k + dy * s, Math.abs(k) === 3 || s === 1 ? STEEL_H[0] : s === -1 ? STEEL_H[3] : STEEL_H[2]);
+                } else {
+                    for(let yy = -3; yy <= 3; yy++) for(let xx = -3; xx <= 3; xx++) {
+                        const r2 = xx * xx + yy * yy;
+                        if(r2 <= 9) P(cx + xx, cy + yy, r2 > 5 ? STEEL_H[0] : xx + yy < -1 ? STEEL_H[3] : STEEL_H[2]);
+                    }
+                    if(kind === 'spiked') for(const [a, b] of [[0, -4], [4, 0], [0, 4], [-4, 0]]) P(cx + a, cy + b, STEEL_H[4]);
+                }
+            } else if(kind === 'spear') {                  // a leaf-shaped point past the tip
+                for(let s = 1; s <= 5; s++) {
+                    const w = s < 2 ? 1 : s < 4 ? 2 : 1, cx = tip[0] + dx * s, cy = tip[1] + dy * s;
+                    for(let k = -w + 1; k < w; k++) P(cx + nx * k, cy + ny * k, k === 0 ? STEEL_H[4] : STEEL_H[2]);
+                }
+                P(tip[0] + dx * 6, tip[1] + dy * 6, STEEL_H[0]);
+            }
+        }
+        x.drawImage(t, 0, 0);
+    }
+    // Plate: steel shoulder guards on the body layer's shoulders and a bright ridge down the chest
+    // (the pack's chain shirt is the top armour level; plate is drawn over it)
+    function plateArmour(bx, dir, anim) {
+        const id = bx.getImageData(0, 0, F, F).data;
+        let x0 = F, y0 = F, x1 = -1, y1 = -1;
+        for(let i = 0; i < F * F; i++) if(id[i * 4 + 3]) { const px = i % F, py = (i / F) | 0; if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py; }
+        if(x1 < 0 || anim === 'Death') return;
+        const P = (a, b, w, h, c) => { bx.fillStyle = c; bx.fillRect(a, b, w, h); };
+        const guard = gx => { P(gx - 1, y0 - 1, 5, 1, STEEL_H[0]); P(gx - 1, y0, 1, 3, STEEL_H[0]); P(gx + 3, y0, 1, 3, STEEL_H[0]); P(gx, y0, 3, 3, STEEL_H[2]); P(gx, y0, 3, 1, STEEL_H[4]); P(gx, y0 + 3, 3, 1, STEEL_H[0]); };
+        const mid = (x0 + x1 + 1) >> 1;
+        if(dir === 'down' || dir === 'up') {
+            guard(x0 + 1); guard(x1 - 3);
+            if(dir === 'down') { P(mid - 1, y0 + 4, 2, 5, STEEL_H[2]); P(mid - 1, y0 + 4, 1, 5, STEEL_H[3]); }
+        } else {
+            guard(dir === 'left' ? mid - 1 : mid - 2);
+            P(dir === 'left' ? x0 + 2 : x1 - 3, y0 + 4, 1, 5, STEEL_H[3]);
+        }
+    }
+
+    // ---- a woman's long hair and face (2.1, round 1's "same body, long hair, a different face") ----
+    // Drawn by code over the composed frame, placed by the head layer's own box so it follows
+    // every frame's bob and turn: strands down to the shoulders on both sides facing the camera,
+    // down the back of the head in profile, over the nape seen from behind. It is painted in the
+    // pack's own hair palette, so colourMap recolours it with the rest of the hair; a softer
+    // mouth sits on the face.
+    function longHair(x, hx, dir) {
+        const id = hx.getImageData(0, 0, F, F).data;
+        let x0 = F, y0 = F, x1 = -1, y1 = -1;
+        for(let i = 0; i < F * F; i++) if(id[i * 4 + 3]) { const px = i % F, py = (i / F) | 0; if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py; }
+        if(x1 < 0) return;
+        const P = (a, b, w, h, c) => { x.fillStyle = c; x.fillRect(a, b, w, h); };
+        const strand = (sx, top, len, w) => {           // a lock of hair: dark edge, lighter middle, a rounded tip
+            P(sx - 1, top, 1, len, HAIR_LINE); P(sx + w, top, 1, len, HAIR_LINE);
+            P(sx, top, w, len, HAIR[1]); if(w > 1) P(sx + (w >> 1), top, 1, len - 1, HAIR[3]);
+            P(sx, top + len, w, 1, HAIR_LINE);
+        };
+        const len = Math.max(6, (y1 - y0) >> 1);
+        if(dir === 'down') {
+            strand(x0 + 1, y0 + 6, len + 2, 2); strand(x1 - 1, y0 + 6, len + 2, 2);
+            P((x0 + x1 + 1) >> 1, y1 - 2, 1, 1, '#c9706a');                       // the mouth
+        } else if(dir === 'left') {
+            strand(x1 - 3, y0 + 5, len + 3, 3);
+            P(x0 + 3, y1 - 2, 1, 1, '#c9706a');
+        } else if(dir === 'right') {
+            strand(x0 + 1, y0 + 5, len + 3, 3);
+            P(x1 - 3, y1 - 2, 1, 1, '#c9706a');
+        } else {                                        // from behind: a fall of hair over the nape
+            for(let r = 0; r < len; r++) {
+                const inset = 2 + (r >> 1), a = x0 + inset, b = x1 - inset;
+                if(b <= a) break;
+                P(a - 1, y1 - 2 + r, 1, 1, HAIR_LINE); P(b + 1, y1 - 2 + r, 1, 1, HAIR_LINE);
+                P(a, y1 - 2 + r, b - a + 1, 1, r % 3 === 1 ? HAIR[3] : HAIR[2]);
+            }
+        }
+    }
+
     // ---- composed frames ----
     const mapCache = {};
     function colourMap(look) {
@@ -4186,7 +4307,7 @@ const Swordsman = (() => {
     function art(look, anim, dir, t) {
         if(!ready()) return null;
         const f = frameIndex(anim, t), row = ROW[dir];
-        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, anim, row, f].join('|');
+        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, look.fem ? 'f' : '', look.wpn || '', look.plate ? 'p' : '', anim, row, f].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }   // keep recently used frames
         c = bake(look, anim, row, f, dir);
@@ -4208,10 +4329,12 @@ const Swordsman = (() => {
         layer(hx, look.armor, a, 'head', fr, row);
         if(look.helm) { const id = hx.getImageData(0, 0, F, F); helmet(id, look.helm, a, row, fr, look.armor); hx.putImageData(id, 0, 0); }
         const comp = cell(), x = comp.getContext('2d');
-        layer(x, wl, a, 'sword_back', fr, row);
-        layer(x, look.armor, a, 'body', fr, row);
+        weapon(x, wl, a, 'sword_back', fr, row, look.wpn);
+        if(look.plate) { const b = cell(), bx = b.getContext('2d'); layer(bx, look.armor, a, 'body', fr, row); plateArmour(bx, dir, a); x.drawImage(b, 0, 0); }
+        else layer(x, look.armor, a, 'body', fr, row);
         x.drawImage(head, 0, 0);
-        layer(x, wl, a, 'sword', fr, row);
+        if(look.fem && a !== 'Death') longHair(x, hx, dir);
+        weapon(x, wl, a, 'sword', fr, row, look.wpn);
         const id = x.getImageData(0, 0, F, F), d = id.data, m = colourMap(look);
         let x0 = F, y0 = F, x1 = -1, y1 = -1;
         for(let i = 0; i < d.length; i += 4) {
@@ -4396,7 +4519,7 @@ const Mounted = (() => {
         const hf = s.dead ? Horse.frameOf('gallop', s.deadT * 1000) : Horse.frameOf(s.gait, s.gt);
         const fade = s.dead ? Math.min(4, Math.floor(s.deadT / 0.2)) : 0;
         const rf = Swordsman.frameIndex(s.anim, s.t);
-        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
+        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.rider.fem ? 'f' : '', look.rider.wpn || '', look.rider.plate ? 'p' : '', look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
         let c = frames.get(k);
         if(c) { frames.delete(k); frames.set(k, c); return c; }
         c = document.createElement('canvas'); c.width = CW; c.height = CH;
