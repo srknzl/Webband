@@ -219,9 +219,27 @@ daily (newest first). In battle, `Game.moraleMult()` = `0.8 + morale/250` scales
 - Tooltip overflow is solved once (`Game.initTooltipClamp()`), never per-badge.
 - Side menu: `M/C/P/I/Q` shortcuts, **K** diplomacy, **Esc** to map, **WASD**/arrows pan,
   **Space** recenters — all via `Input.init`, disabled during a modal/battle.
-- Map HUD: terrain + speed, troop composition, ⏳ Wait / 🎯 Find Me / 🎵 Next / 🌍 Diplomacy,
-  time-speed button. Collapses to two rows + "⋯ Daha" under 820px.
+- Map HUD: terrain + speed, troop composition, Wait / Find Me / Next / Diplomacy, time-speed
+  button. Since 2.0.0 all of them use line icons (`Game.icon`); the terrain's icon comes from
+  `Game.TERRAIN_ICON` by name. The labels' dictionary keys still carry their old emoji, which
+  is cut off at display. Collapses to two rows + "⋯ Daha" under 820px.
 - `Game.setHtml(id, html)` only writes `innerHTML` when the text actually changed.
+- **Icons (2.0.0)**: one inline SVG sprite (`#icon-sprite`, 50 line symbols) at the top of
+  `index.html`; `Game.icon(name)` → `<svg class="i"><use href="#i-name"/></svg>`, colored
+  by `currentColor`. HUD, side menu, bottom strip and town cards use it. Map-HUD buttons and
+  data tables (items, troops) keep their emoji.
+- **Top bar trays (2.0.0)**: the badges sit in four `.hud-group` trays (time · money+food ·
+  party+morale+cargo · health+level+renown+speed). Every badge id is unchanged. `.hud-more`
+  badges fold away under 820px and `.hud-more-narrow` (health) under 430px, behind
+  `#hud-toggle` (`Game.toggleHud()` → `body.hud-open`). A tray whose chips are all folded
+  hides via `:has()`. Measured: Pixel 7 (412px), TR/EN, the closed bar is one row, 48px
+  tall, and the toggle is 36×36 (the thumb gate in `ux.spec` is 32).
+- **Settlement cards (2.0.0)**: `Game.cardSettlementActions()` runs before `renderScene` and
+  rewrites the plain action buttons into cards grouped as Ticaret / Mekânlar / Ordu / Savaş /
+  Kamp. The grouping comes from `TOWN_CARD` (by the label's leading emoji → icon, group, hint);
+  a trailing "(…)" becomes the card's meta. The button itself, its `onclick` and its label
+  text (kept in an `.sr-only` span) are untouched, so tests and screen readers see the same
+  button.
 
 #### Transaction feedback (#45)
 Every buy/sell/recruit/promote goes through `Game.feedback(kind, el, moneyDelta)` →
@@ -569,11 +587,59 @@ mass (mounted gives 0.3 of a foot soldier's push). O(n²) over the ~70 units a b
 hold 4–7.5s) rather than sitting ready from the start; hidden entirely when `state.player.party`
 is empty (duel/arena/solo encounter).
 
-**Sprites**: real cropped pixel-art for infantry/archer (CraftPix freebies) and cavalry (Battle
-for Wesnoth, GPL v2, credited in `troops/LICENSE.txt`), baked once via `Battle.troopSprite()`.
-Tier (weak/normal/armored) is fixed by the troop's identity, never live stats — the same named
-troop always looks the same. Bosses get their own hand-drawn canvas silhouettes
+**Sprites**: animated pixel art (below) for every regular unit; the single cropped CraftPix frames
+(`Battle.troopSprite()`) are only the placeholder while the atlases load. Tier (weak/normal/
+armored) is fixed by the troop's identity, never live stats — the same named troop always looks
+the same. Bosses get their own hand-drawn canvas silhouettes
 (`Battle.bossSprite`), bigger than a regular unit.
+
+**Animated soldiers (2.0.0)**: the player on foot with a melee weapon and every regular
+infantry unit are drawn with the CraftPix Swordsman 1–3 (idle 12 / walk 6 / run 8 / attack 8 /
+hurt 5 / death 7 frames, 4 facings). `tools/build-swordsman.js` crops each body/head/sword layer
+sheet to its content and packs one atlas per level (`troops/swordsman_{1,2,3}.png`, the index
+block in battle.js); the pack's red hurt overlay is not shipped, only its per-frame strength.
+`Swordsman.art(look, anim, dir, t)` composes a frame — body and head from the armour level,
+sword from the weapon level — recolours skin/hair/cloth by exact palette entry, paints the
+helmet, crops to content and caches the canvas (LRU, 2500 frames); `Battle.unitArt` returns it
+to both renderers with `_k` (1.25 field units per pixel, ~32 tall like the old tile), `_ax/_ay`
+(feet anchor, placed `SPRITE_FOOT` = 14 below the unit's point) and `_pixel`.
+- **Look** (`Battle.spriteLook`, pure): player armour none/<20 def/≥20 → level 1/2/3, weapon
+  none/<400/≥400 dinars → 1/2/3, helmet def <5 cap, <12 nasal, else great helm — a new game
+  starts in rags with a stick. Infantry: fixed `tier` → armour and weapon, helmet/hair/skin from
+  an FNV hash of the unit id (no hair/skin variety under `Game.lite()`). Cloth: the side's
+  kingdom (`playerCloth`/`enemyCloth` at `start`, allies their lord's), gold for an unsworn
+  warband, brown for bandits. Bosses, beasts and the marked companions keep their own art.
+- **Archers** (`Archer`): the Roguelike Kit's hooded archer — idle 4 / walk 6 / attack 4 / hurt 2
+  / death 8 frames of 32×32, facing down/side/up (the side strip is drawn facing left; right is its mirror), one strip per row in
+  `troops/archer_anim.png` (`ARCHER_INDEX`). Cloth greens dyed like the swordsmen's, drawn at
+  1.5 units per pixel; the release lands on attack frame 2 when `shotT` resets
+  (`Battle.archerAnim`). Standing between shots it faces `shotA`, its last target, not the
+  way it last walked, and while it steps back from a close enemy (within 2 s of a shot) it
+  walks backwards facing it. The player with a bow is one too.
+- **Riders** (`Horse` + `Mounted`): neither pack has a horse, so `Horse` rasterises one (barrel,
+  chest, rump, neck, head, two-segment legs) onto a 48×36 grid, shades by edge and outlines it.
+  Each leg runs one stride cycle, offset in time: gallop = rotary footfalls with a moment in the
+  air (8 × 70 ms), walk = four-beat lateral (8 × 115 ms, three feet always down); the fore knee
+  tucks the hoof back, the hind hock tucks it forward. `Mounted.art` seats the Swordsman's upper
+  body (cut 7 px above the feet) on the saddle; the horse faces left/right only, walks under
+  60 u/s and gallops above (`Battle.mountAnim`); a fallen rider lies beside a horse that bolts
+  and fades. Saddle cloth takes the side's colour; coat: the player's horse by price
+  (< 1000 bay, < 2000 grey, else black), troops by tier. Mounted archers ride the same way. The
+  Battle for Wesnoth cavalry art (GPL) is no longer shipped.
+- **Anim** (`Battle.spriteAnim`, pure): death from `deadT`, the player's swing mapped onto
+  `attackTimer`, an AI swing from its striking frame on `atkT`, hurt for 0.42 s of `hitT`, walk /
+  run (> 95 u/s) while moving, else idle; facing from mouse (player), velocity, last swing,
+  last velocity. `unitPose` drops hop/sway/lean/squash for these units (the frames carry them) and
+  fades the fallen out between 0.9 and `SPRITE_DIE_T` = 1.3 s (`Battle.dieT`).
+- **Helmets** are drawn by hand once per facing (plus a half-turned side pose) and placed per
+  frame at the offset that best matches the frame's head to the reference; a fallen head is
+  matched against the reference turned ±45/±90/180°. Fits are cached per (level, anim, facing,
+  frame, helmet).
+
+Measured (headless Chromium, 1366×768): first bake 0.24 ms per foot frame, a cached lookup 2 µs;
+a death frame with a turned helmet 7.8 ms the first time (once per combination); a rider frame
+2.1 ms first time (horse + rider), an archer frame 0.5 ms. `archer_anim.png` 17 KB. Atlases 69–73 KB
+each, 1024×304–344 px — about 4 MB decoded for all three, against ~35 MB for the raw sheets.
 
 **Performance**: target search runs every 0.3–0.5s per unit, not every frame; particle ceilings
 (sparks 120, floating text 40, blood 200, corpses 60); everyone is clamped to the arena (a
@@ -791,8 +857,15 @@ every feature — `tools/test.js`'s i18n assertions are the sync gate, not this 
 comparisons (`terrain.name === 'Orman'`) language-independent. Three bug classes and how they're
 caught: missing translation (`I18N.missing`), double translation (also `I18N.missing` — the
 English string gets recorded as a bogus key), and "never touches `T` at all" (**no counter sees
-this one** — only a manual scan for Turkish leftovers while playing in EN/ID catches it; this is
-why a data field's *every* display path needs checking by hand when it's added).
+this one** — a data field's *every* display path still needs checking by hand when it's
+added). Since 2.0.0 `e2e/specs/i18n.spec.js` sweeps the screens a new player sees (creation,
+map + its hidden HUD tooltips, every menu, a fight and both result tabs, a town and three of
+its rooms, a village, a castle) on EN/ID and fails on any text, `title`, `aria-label` or
+placeholder that is exactly a dictionary key whose translation differs. Its first run found
+the F11 hint's close button reading "Kapat" aloud: static `aria-label`s were not translated.
+`I18N.ATTRS` now covers them next to `title`/`placeholder`. Only screens the sweep visits are
+covered. A string that reaches the screen only after a week of play still needs the manual
+pass.
 
 Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
 changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
@@ -919,12 +992,163 @@ Canvas2D roundRect) for the tug bar, command strip and health bars.
 Settlement scenes and the chicken chase are hand-drawn Canvas2D in `app.js`/`battle.js`; the
 battle (1.33.0) and the map (1.34.0) draw through PixiJS (below), each with its Canvas2D code kept
 as the fallback. Shared approach: **bake the expensive thing once, stamp the picture every frame**
-(`buildGroundTexture`, `Battle.buildGround`, `unitSprite`, cached gradients). Map labels
-(`Game.labelSpot`, laid out in `mapScene`) scale with `1/zoom` so text stays the same
-screen size at any zoom and pushes overlapping labels up rather than overlapping them. An NPC's
+(`Battle.buildGround`, `unitSprite`, MapArt's terrain and sprites, cached gradients). Map labels
+are laid out by MapArt in screen space (see Pixel map), so text stays the same screen size at any
+zoom and a label that finds no free spot is dropped rather than overlapping another. An NPC's
 name label is colored by hostility (red+⚔ foe / blue friend / parchment neutral) rather than
 just the faction-colored ring, since "whose is it" and "will it attack me" are different
 questions. Gradients are cached in world coordinates so panning doesn't invalidate them.
+
+### Pixel map (2.0.0)
+`map-art.js` (`MapArt`) draws the campaign map in the battle's pixel world. `Game.renderMap()`
+hands over to `MapArt.render(Game)`. In `tools/harness.js` MapArt isn't loaded and the map draws
+nothing. The emoji-and-vector map it replaced was removed after round 2 approved this one. The
+game's side of the drawing lives in `drawMapSites / drawMapParties / drawMapPlayer /
+drawMapRoute`: what is on show, its colour, its label.
+- **Terrain bake.** The whole continent is baked once into one canvas, `TEX` = 8 world units
+  per pixel, 1275×1275 (the square −600…9600). Per texel: sea by depth, foam and beach, or
+  ground. Ground is four shades of the land's palette, picked by value noise with light Bayer
+  dithering. The land is a coarse grid (8 texels per cell) of palettes blended by distance to
+  each settlement's founding kingdom (σ 820): Swadia green, Rhodok olive with rock flecks,
+  Nord cool green, Vaegir grey-green with snow that thickens northward, Khergit steppe with dry
+  patches, plus a wild green. Then forest floor, a hedged patchwork of fields beside every
+  non-Khergit village and town, rivers (bank, water, glint), roads (kerbs first, then the
+  surface, so a junction has no kerb across it), a trodden square at each gate, bridges.
+  Last come stamped sprites, back to front: mountains on the rocky half of the coast (angular
+  noise decides cliff or beach), trees in forests (pine, birch or broadleaf by region) and
+  ~2600 bushes, rocks and lone trees on open ground. Two pre-shrunk copies (½, ¼) are made with
+  high-quality filtering. `key()` rebakes when settlements, roads or the border change.
+- **Decorative only.** Regional colour, snow, steppe and rocks change nothing in play: speed,
+  ambush and sight still read `getTerrainInfo`, which knows only forest, river, bridge and road.
+  The terrain panel says "Düzlük" on snow.
+- **Settlements** are sprites of `SPX` = 3 world units per pixel, built from primitives (block,
+  crenels, cone / onion / wooden / flat tower tops, gable house, palisade, yurt, tugh, flag),
+  outlined in dark brown. The style is the founding kingdom's (`CULTURE`, read from `LOCATIONS`
+  before any save or siege), the flag the current owner's. Sizes: city 40×42, castle 32×40,
+  village 28×18. They grow with `max(1, 0.35 / zoom)`, slower than parties (0.55), so a
+  kingdom's towns don't overlap at the continent view. Window pixels are recorded at build
+  time and lit after the day tint: a `#ffd36a` pixel each, plus one pre-drawn halo image per
+  settlement stamped with `lighter`. Only settlements on screen are drawn, lit or glowing. The
+  pixel map has no `lite` branch. On the Pixel 7 profile a night frame with halos, hearth glow
+  and sea glints costs what a day frame costs (0.9 / 0.7 ms at 0.45 / 0.8). The first
+  proposal's per-window radial halo over every settlement cost +1.1 ms, and that is why it was
+  desktop-only there.
+- **Sites** (#58) have their own sprites: ruin, farm, tower, cave, camp, lair, boss keep.
+- **Parties** are the battle's soldiers: `MapArt.partyLook` gives lords, kings and viziers a
+  Mounted knight in their kingdom's cloth, bandits a tier-0/1 Swordsman in bandit brown, forest
+  bandits the Archer. A caravan is a covered wagon behind a walking `Horse` (spokes turning), its
+  column capped-and-armed guards walking behind. A wolf pack is a pixel wolf with a four-frame
+  trot. The old drawn silhouettes (`drawPartyIcon`) only stand in until the sprite sheets have
+  loaded. The player is
+  `Battle.spriteLook` of the player, so the map shows what they wear. Idle faces down, walking
+  faces the way it moves (`Game.iconMotion`), and 10+ / 30+ men add one or two followers.
+  `Swordsman.load()` / `Archer.load()` are called from the map, not only from a battle.
+- **Night** is the old `dayTint` a third deeper (alpha ×1.35, cap 0.64).
+- **Labels** are laid out in screen space after the world is drawn, so text stays crisp and
+  untinted. Priority order: player 0, cities 1, castles 2, villages 3, foes 3.5, lords 4, quest
+  lines 4, other parties 5, sites 6. Each tries eight spots: above, below, right, left, then
+  one row further out each way. Every settlement sprite is an obstacle. Cities and castles
+  always get a label, the rest only where one fits.
+- **Measured** (headless Chromium, software raster, ms per frame, desktop 1366×768 / Pixel 7):
+  close 0.8 → 0.4–0.9 / 0.3–0.5 (classic 1.3–2.0 / 0.7–1.1); mid 0.3 → 0.6–1.1 / 0.3–0.7
+  (classic 1.2–1.9 / 0.6–1.2); continent 0.12 → 2.5–5 / 2.6–4 (classic 1.1–2.4 / 0.7–0.9).
+  Bake 350 ms desktop, 430 ms phone, once per world. Two lessons from the measuring:
+  - A smoothed `drawImage` of the terrain cost 3.3 ms at any zoom and a nearest one 0.7 ms, so
+    the ground is always drawn nearest from the right copy.
+  - The sea-glint cell loop cost 5.8 ms at the continent view, so glints run only from zoom
+    0.25. At 0.45–0.8 they cost nothing measurable, so phones get them too.
+
+### Market: pick, then how many (2.0.0)
+`openMarket` shows Buy/Sell tabs over one grid of tiles (`.mkt-tile`, id `mrow-buy-<id>` /
+`mrow-sell-<id>`): pixel icon, name, price with its regional tag, stock and "you have N". The chosen
+tile fills the trade panel (`marketPanelHtml`):
+- the good's note, and for equipment the difference from what you wear
+- a − / quantity / + stepper with 1 · 5 · 10 · Max chips, for goods, food and any stack you sell
+- why fewer than asked (bag room, the market's stock, the purse)
+- one button that says what it will do: "Buy 10 · 144₺"
+
+`marketQuote(id, n, selling)` walks the price unit by unit, the way the supply curve moves it, and
+puts the stock back. The panel's total and Max come from it, and `buyItem`/`sellItem` commit the
+same walk, so the preview is what you pay. On desktop the panel is a sticky 290 px column; under
+820 px it pins to the bottom of the window, solid, over a three-column grid. The last trade's
+message lives in the panel (`_mktMsg`) so a redraw keeps it.
+
+### Settlement scene, item icons, portraits, start screen (2.0.0)
+- **Scene** (`MapArt.scene`, called from `Game.drawScene`): 300×94 pixels drawn 3× into the scene
+  canvas's 900×280 units. Layers:
+  - a four-band dithered sky by time of day, clouds by day, a pixel sun or crescent moon
+  - the founding kingdom's land: Swadian hills with trees, Rhodok peaks (the map's mountain
+    sprites), the Nord sea with a sail, Vaegir snow with pines, a flat Khergit steppe
+  - the settlement behind: a city wall with towers, house roofs and a keep; a castle keep and
+    curtain wall; a village fence with fields and a mill, or a Khergit yurt camp
+  - the ground and a road
+  - one building per action button, built from the map's primitives in the kingdom's style
+    (`SCENE_KIND`: tower, house, tavern, shop, barn, stall, tent, ring, fire, coop, gate)
+
+  Buttons alternate back row / front row across the width, so a back building's sign never lands
+  on the front one. The still part is cached per settlement, owner, time band and button set
+  (`BASES`, 40 entries). A hover redraws only the gold ring (`goldRing`), the signs and the
+  tooltip. Hot rects are the building sprite's opaque bounding box, in 900×280 units. That is
+  what `renderScene`'s pointer mapping and click already read, so a building still clicks its
+  own button. Signs are the town card's line icon (`Game.TOWN_CARD`), rasterised once from the
+  SVG sprite as an image. At night: a blue tint, stars, lit windows and gate torches with a warm
+  glow. Round 3 approved it and the vector scene is gone; Node's harness (no MapArt) draws
+  a blank scene with no hot rects. A click maps its own point (not the last hover), so a
+  finger tap hits the building under it.
+- **Phone scene** (`@media (max-width: 820px)`, `Game.sceneScrollInit/Sync/Slide`): at 100 %
+  width a 390 px phone got a 112 px strip with 8 px signs. There the canvas keeps
+  `height: clamp(190px, 52vw, 240px)` and `#scene-scroll` slides sideways natively. From 660 px
+  up it fits the width again: sliding for the last few dozen pixels only put an arrow over a
+  building. The cues show only while the scene overflows (`.scrolls`):
+  - arrow buttons (40 px, 70 % of the box per tap), plus a shaded edge on whichever side has
+    more to show; both fade out at their end (`.at-start/.at-end`)
+  - a thin track under the scene, the thumb as wide as the view
+  - until the first slide, a "Sahneyi yana kaydır" pill (`pointer-events: none`) and one peek
+    of the canvas per session; after a slide `webband_sceneSlide` remembers it
+
+  Labels (pill, arrow `aria-label`/`title`, the region's `aria-label`) are written through `T()`
+  on every render, so they follow the language. A new settlement starts at the left, and a
+  redraw of the same one keeps its place.
+
+  Measured (Pixel 7 emulation, `scene.spec.js`): the scene is 190 px tall at 320–360 px, 203 at
+  390, 224 at 430 and 240 at 600–659, overflowing by 150–330 px; it fits (0 overflow) from 660
+  px. The page never scrolls sideways. A horizontal touch drag on the scene slides it, and a
+  vertical one scrolls the settlement screen.
+- **Item icons** (`MapArt.itemIcon`, `Game.itemIco`): 16×16 pixel art for all 56 items, cached as
+  data URLs. A weapon's tier is its rank by price within its family (`sword`, `sword_steel`, …)
+  and shows in the metal (`METAL`), grip and trim. Used in the bag, the equipment slots (an
+  empty slot shows the plainest item of its kind, faded), market lists and messages, and storage.
+  Plain-text places (alerts, logs, tooltips) keep the emoji. An item without a drawing falls back
+  to its emoji.
+- **Portraits** (`MapArt.portrait`, through `Nobles.portraitCss`): a 48×48 pixel bust per lord and
+  lady, seeded by id, cached as a data URL and shown `pixelated`. The painted `lord_portraits.jpg`
+  and the SVG ladies only stand in where MapArt isn't loaded.
+  - Kingdom: skin and hair palettes and the background tone; Khergit moustaches and fur-rimmed
+    cone hats, Nord braided beards and hair, Nord and Vaegir fur collars, Vaegir fur caps.
+  - Rank: kings are older, with a crown, an ermine collar and a beard; viziers get a gold
+    collar and chain.
+  - Personality: brows (angled for quarrelsome and martial, one raised for cunning, arched for
+    goodnatured), the mouth's mood, a scar on some martial lords, a red nose for the debauched.
+  - A lady's trait: ambitious → tiara, pious → a veil with hair beside the face, romantic →
+    a flower, wild → loose hair with a feather.
+  - `HAIR_OF` hand-picks a hair colour (Lady Avrilia brown).
+- **Lord dialogue cards** (`Game.cardButtons(box, table)`, `Nobles.TALK_CARD`): the conversation's
+  buttons become the town cards. Each gets a line icon by the label's leading emoji and a hint of
+  what it does, e.g. "once a day · relation rises if it suits their taste", or "relation −15,
+  renown +2 · lords of rival kingdoms are pleased" (the numbers `insult` applies). The colour a
+  button's inline border carried becomes `tone-danger/love/gold/done`. One column on a phone,
+  where the portrait shrinks to 88 px with the words flowing beside and under it. The typed
+  greeting reserves its final height before the first letter (`typeIn`), so the cards never
+  move. Measured: the first card's top stays on the same pixel for the whole line on desktop
+  and Pixel 7.
+- **Portrait frame** (`Nobles.framed`): a dark-gold mount, an outer ring in the kingdom's colour
+  (`--fc`) and the crest (`Game.crestCss`) as a corner badge; round for a lady.
+- **Start screen**: the secondary buttons are `.start-act`, dark glass with a gold edge and a line
+  icon. The install button's label is its own key, `Uygulamayı Yükle` ("Yükle" is already
+  "Load"). `MapArt.march()` draws the game's soldiers walking past a keep on a 320×64 canvas at
+  ~20 fps. It has a double-start guard, stops itself once `#start-screen` isn't active, and draws
+  a single still frame under reduced motion. The start screen only comes back on a reload, so the
+  march starts once, at load.
 
 ### Battle renderer (1.33.0)
 Not a frame-rate fix — Canvas2D already held 60 fps on an iPhone 14 at 250 v 250. What it buys:
@@ -935,7 +1159,7 @@ draws at `min(devicePixelRatio, 3)` with `autoDensity`) and a GPU scene graph to
   Canvas2D code, moved as-is into `drawCanvas`) or `BattleGL` (`battle-gl.js`), both
   `{ resize, render(battle, now), info, destroy }`. Battle owns all state and clocks; both
   renderers read the same pure helpers — `unitPose` (lunge, recoil, squash, walk stretch,
-  breathing, the `DIE_T` fall), `gait` (1.32.1 mounted stride), `unitArt`, `dustPuff`,
+  breathing, the `DIE_T` fall), `gait` (1.32.1 mounted stride), `unitArt` / `spriteAnim`, `dustPuff`,
   `hudLayout`/`drawCmdStrip`/`statusLine`/`tugBox`/`tugStatus` — so motion can't drift apart.
 - **Drawing writes nothing.** The tug bar's easing (`tickTug`) and the hoofbeats (`tickHooves`)
   moved from the draw path into `update()`; the dust puffs' dice became `Battle.hash01`
@@ -973,56 +1197,53 @@ draw calls, but only 8–10 fps — the software rasterizer is the bottleneck, w
 keeps software GL on Canvas2D. Phone viewport (Pixel 7 emulation, 2.625×): Pixi render 2.7 ms
 (10v10) / 5.8 ms (30v30).
 
-### Map renderer (1.34.0)
-The battle's move, done for the world map, for the same reason: **sharpness** (`#map-canvas` is one
-canvas pixel per CSS pixel; `MapGL` draws at `min(devicePixelRatio, 3)`) — and on a phone the
-terrain stops being re-rasterized every frame, which is what lite mode (#84) was cutting down.
+### Map renderer (1.34.0, pixel map 2.0.0)
+The battle's move, done for the world map, for **sharpness**: `#map-canvas` is one canvas pixel per
+CSS pixel, so on a 2.6× phone the Canvas2D map is stretched; `MapGL` draws at
+`min(devicePixelRatio, 3)`. 1.34.0 did it for the vector map; 2.0.0 replaced that map with
+MapArt's pixel art, and the merge kept the renderer seam, not the vector scene graph.
 
-- **One scene, two renderers.** `Game.renderMap()` builds `mapScene(now)` — lairs, settlements,
-  parties in sight, the player, routes, and every name label with its collision already settled
-  (`labelSpot`, in the old draw order: lairs, settlements, parties, you) — and hands it to
-  `drawMapCanvas` (Canvas2D) or `MapGL.render` (`map-gl.js`). The random decor (dirt patches,
-  each forest's trees) is rolled in `mapDecor()`, outside both draw paths; drawing writes no game
-  state and draws no dice (`tools/test.js` checks).
-- **Shared vector code, not a port.** Coast, rivers, river shimmer, roads/squares/bridges, a
-  settlement's pennant, party figures (`drawFigure`/`drawPole`/`drawFlag`), the route, the lords'
-  marker rings and the hail are plain ctx functions. Canvas2D runs them every frame; MapGL runs
-  them through `GLCtx` — a Canvas2D facade that flattens arcs/ellipses/curves with the current
-  transform, cuts line dashes (Pixi has none) and replays into a `PIXI.GraphicsContext`. Open
-  subpaths that continue each other are chained into one polyline (`GLCtx.joined`): Canvas2D
-  strokes a path as one shape, Pixi strokes pieces separately, so a translucent road's joints came
-  out as bright discs until then.
-- **Built once.** The terrain (sea, waves, coast, land mask, ground tile, dirt, rivers, roads,
-  forests, mountains) is rebuilt only when the world or lite mode changes (`ensureWorld`'s key:
-  lite, `mapBorder`, `roads`, `bridges`, `dirtPatches`, the trees). Land layers sit in a container
-  masked by the coast polygon (Canvas2D's `clip()`). Waves are fixed sine polylines slid sideways
-  — the same travelling wave. A frame moves the camera, repositions pooled sprites and rebuilds
-  four small `Graphics` (shimmer, routes, markers, hail).
-- **Figures are vectors.** One `GraphicsContext` per (kind, colour, cloak), per pole height, per
-  pennant colour, shared by every icon — crisp from the whole continent (zoom 0.07) to 3×. Pose
-  comes from `Game.iconPose` (facing, lean, bob, fade, crowd column), shared with Canvas2D; the
-  pennant's wave is a vertical shear from the pole, which moves the tip by exactly `wave` and the
-  curve's control point by half, Canvas2D's numbers.
-- **Textures by zoom bucket.** Emoji (settlements, lairs, badges, mountains) come from
-  `Game.emojiCanvas` at their on-screen pixel size, so they're always shrunk, never blown up; the
-  tree is `Battle.drawTree` baked per power-of-two bucket of `zoom × dpr`; name plates are baked
-  whole at `uiScale × dpr` and cached by content; the lords' 📍 names are world-sized, baked per
-  bucket. Power-of-two textures get mipmaps (the ground tile shrinks 40× zoomed out).
+- **One piece of drawing code.** `Game.renderMap()` → `liveMapGfx()` → `MapArt.render(G, ctx)`,
+  with `ctx` = `Game.ctx` (Canvas2D) or `MapGL.fx`, a `PixCtx`. PixCtx extends `GLCtx` (the
+  1.34.0 facade: transform stack, arcs/ellipses/curves flattened with the current transform,
+  dashes cut, `GLCtx.joined` for chained subpaths) with the rest of the Canvas2D surface the map
+  uses: `drawImage` (3/5/9 args) → a sprite placed by the full transform (`setFromMatrix`, so a
+  mirrored soldier stays mirrored), `fillRect` → a tinted white sprite when axis-aligned,
+  `fill`/`stroke` → one pooled `Graphics` each, `fillText` → text baked per power-of-two bucket of
+  on-screen size (shadow included), `'lighter'` → additive blend. `imageSmoothingEnabled` picks
+  the texture filter, Canvas2D's meaning: off = nearest (the pixel art), on = linear (emoji,
+  plates, glows). Objects are handed out and re-parented in call order every frame, so the paint
+  order is Canvas2D's. Gradients throw: the map draws baked glow canvases instead (the hearth light
+  became one for this).
+- **Density-aware in one place.** `ctx.pixelRatio` (1 on Canvas2D) picks the terrain level (a texel
+  must stay a screen pixel wide) and the resolution name plates are baked at. Plates (backing,
+  border, faction dot, text) are baked per content × density and stamped in both renderers —
+  Canvas2D stopped re-filling ~30 rounded rects a frame too.
+- **Uploads, not rasterising.** `MapGL.tex` keeps one texture source per canvas and filter;
+  sub-rectangles share it. A texture unused for 600 frames is freed (soldier frames come and go
+  with the camera), checked every 300 frames. Text is dropped and re-baked when webfonts finish.
+- **MapArt is handed in.** `MapArt.render` passes itself to `Game.drawMapSites/Parties/Player(ctx,
+  art)`: app.js never looks MapArt up by name mid-frame (it loads after app.js and not at all in
+  Node). `tools/test.js` evaluates map-art.js in a function scope and draws it through both a
+  fake Canvas2D and PixCtx over a fake Pixi: no state change, no dice, no two labels overlapping.
+- **Party fade-in counts frames.** `iconMotion` used to fade a party in when it hadn't been drawn
+  for 400 ms. At a low frame rate (software WebGL at a phone's density, a slow phone) that was every
+  frame, so parties sat at zero opacity; it now fades in only a party missing from the previous
+  drawn map frame (`Game._mapFrame`).
 - **Input doesn't move.** `#map-gl` sits *under* `#map-canvas`; while Pixi draws, `#map-view.gl`
   makes `#map-canvas` see-through (`opacity: 0`), but it stays the element every pointer handler,
   `mapPos`, the cursor, the edge pan and the tutorial highlight use. The storm shake moves both.
 - **Setting**: the battle's — `Game.opt('renderer')` / `?renderer=`, `Game.mapRendererKind()` with
   the same rules (software GL stays Canvas2D on `'auto'`); `applySettings → prepareMapGfx()`
   starts or destroys it, a failed init or lost context (`Game.mapGlFailed`) → Canvas2D for the
-  session. MSAA is on (vector edges; close to free on a tile-based phone GPU).
-- **Known differences.** Labels come in two layers (settlements' under parties, parties' on top)
-  instead of each after its own icon; the night tint covers the whole view rather than a fixed
-  world rect; the wave polylines keep their vertices as they slide.
+  session. MSAA is on (rings, route, hail; close to free on a tile-based phone GPU).
 
-Measured (in-app Chromium, RTX 5080, 1.5×, 1341×1270 — **no phone numbers yet**): CPU per frame,
-full / lite: Pixi 0.41–0.58 / 0.17–0.20 ms, Canvas2D 0.39–0.48 / 0.26–0.28 ms (Canvas2D's number
-leaves out its rasterizing, which is the phone's real cost); 14–16 draw calls. Headless SwiftShader
-renders it correctly (screenshot pairs at zoom 0.07/0.3/0.8/2.2, day/night, lite) but slowly.
+Measured (headless Chromium, SwiftShader, so CPU-rastered — **no real-GPU numbers yet**): screenshot
+pairs Canvas2D/WebGL at Praven, day and night, desktop 1366×768 and Pixel 7 (2.625×), match except
+for sharper text and rings on WebGL. `renderMap` ms per frame (includes SwiftShader's raster on the
+WebGL side): Canvas2D 1.2–1.5 desktop, 0.7–1.5 phone; WebGL 8.1 desktop, 3.8–4.1 phone; 1 draw
+call. `renderer.spec.js`'s phone WebGL tests, 2 workers: 39–49 s here against 60 s+ (two timeouts)
+for 1.34.0's vector WebGL map on the same machine; at 4 workers both time out.
 
 ## Performance
 The bottleneck is the **compositor**, not JS — a typical battle frame costs ~1.2ms of JS against
@@ -1117,7 +1338,18 @@ Mobile-specific fixes worth remembering because they're easy to reintroduce:
 - The notch inset lives on `.screen` itself (`inset: env(...)`), not as padding on its
   containing block — an absolutely-positioned child's containing-block padding never moves it,
   only `top`/`inset` do; two earlier attempts (`env()` padding, then a `max(env(), 59px)` floor)
-  were both no-ops for exactly this reason.
+  were both no-ops for exactly this reason. Since 2.0.0 it is `var(--safe-top)` = the inset plus
+  `min(6px, inset)`, a 6px gap under the status bar that stays 0 on a flat screen; the native
+  shell's fallback is 65px. The map's fixed top bar reads the same variable, and the start
+  screen's picture runs up under the notch (its padding carries the inset instead). The bottom
+  strip on non-map screens pads `.content-area` by `safe-area-inset-bottom` so it clears the
+  home indicator. Measured with Chromium's `Emulation.setSafeAreaInsetsOverride` (59/34px,
+  393×852): the top bar starts at 65px, nothing on start/map/menus/town/battle sits under the
+  island, and the bottom nav ends above the 34px home strip.
+- **Battle HUD on a portrait phone**: the tug bar (`Battle.tugBox`, top 34) spans `W − 130`, so
+  the minimap in the top-right corner used to sit on its "N Enemies" end. `Battle.miniBox(W)`,
+  read by both renderers, drops the minimap below the tug bar and the log strip whenever the
+  two would overlap (every phone in portrait; desktop and landscape keep the corner).
 - `sw.js` registration is guarded by `!window.Capacitor`, not just a protocol check — the native
   shell's own origin (`https://localhost`) would otherwise install a second, stale asset cache
   on top of the one already bundled in the app.

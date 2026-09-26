@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.34.0', date: '2026-09-26', name: 'Keskin Harita' };  // the version name is not translated
+const VERSION = { no: '2.0.0', date: '2026-09-26', name: 'Yeni Yüz' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1171,7 +1171,7 @@ const Game = {
             if(!document.documentElement.requestFullscreen || this.isTouch()) fsBtn.style.display = 'none';
             document.addEventListener('fullscreenchange', () => {
                 let ico = document.getElementById('fs-ico');
-                if(ico) ico.textContent = document.fullscreenElement ? '🗗' : '⛶';
+                if(ico) ico.innerHTML = this.icon(document.fullscreenElement ? 'shrink' : 'expand');
             });
         }
 
@@ -1359,7 +1359,7 @@ const Game = {
                        'cap','nasal','greathelm','gloves','gauntlets','shoes','greaves'];
             let id = ids[Math.floor(Math.random() * ids.length)];
             Game.addItem(id, 1);
-            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${ITEMS[id].icon} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
+            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${this.itemIco(ITEMS[id])} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
         }},
         food: { run(s) {
             let foods = Object.values(ITEMS).filter(i => i.type === 'food');
@@ -2179,6 +2179,18 @@ const Game = {
         return out.join(' · ');
     },
 
+    // The wizard's progress as a bar of segments (2.0.0): done, current, to come.
+    creationSteps(step) {
+        let n = BACKGROUND.length + 2, out = '';
+        for(let i = 0; i < n; i++) out += `<i class="${i < step ? 'on' : i === step ? 'cur' : ''}"></i>`;
+        return `<div class="cr-steps" aria-hidden="true">${out}</div>`;
+    },
+    // An option's effects as chips: red for a cost, green for a gain, grey for "nothing extra".
+    bonusChips(o) {
+        let parts = (this.bonusText(o) || '').split(' · ').filter(Boolean);
+        if(!parts.length) return `<span class="cr-fx"><span>${T('ek bir getirisi yok')}</span></span>`;
+        return `<span class="cr-fx">${parts.map(p => `<span class="${/(^|\s)[-−]\d/.test(p) ? 'neg' : /\+\d/.test(p) ? 'pos' : ''}">${p}</span>`).join('')}</span>`;
+    },
     renderCreation() {
         let step = this.creation.step;
         if(step > BACKGROUND.length + 1) return this.renderCreationSummary();
@@ -2186,16 +2198,16 @@ const Game = {
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
-        let html = `<h3>${T(q.q)}</h3>
+        let html = `${this.creationSteps(step)}<h3>${T(q.q)}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
-            html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
+            html += `<button class="btn cr-opt${sel === o.id ? ' sel' : ''}"
                 aria-label="${T(o.label)}"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
                 <b>${T(o.label)}</b>
-                <div style="font-size:var(--fs-sm);color:var(--text-muted);font-style:italic">${T(o.desc)}</div>
-                <div style="font-size:var(--fs-sm);color:var(--primary)">${this.bonusText(o) || T('ek bir getirisi yok')}</div>
+                <span class="cr-desc">${T(o.desc)}</span>
+                ${this.bonusChips(o)}
             </button>`;
         });
         html += `</div>`;
@@ -2233,7 +2245,7 @@ const Game = {
     },
 
     renderBannerStep() {
-        let html = `<h3>${T`Sancağını seç`}</h3>
+        let html = `${this.creationSteps(BACKGROUND.length)}<h3>${T`Sancağını seç`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
@@ -2259,7 +2271,7 @@ const Game = {
     // Game.DIFFS / Game.OPTS as the rows in ⚙️ Settings, writes through the same Game.setOpt gate.
     renderDiffStep() {
         let cur = this.opt('difficulty'), lt = this.opt('lite');
-        let html = `<h3>${T`⚙️ Ayarlar`}</h3>
+        let html = `${this.creationSteps(BACKGROUND.length + 1)}<h3>${T`⚙️ Ayarlar`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+2}/${BACKGROUND.length+2} — ${T(`Sonradan ⚙️ Ayarlar'dan değiştirebilirsin.`)}`}</p>
             <h4 style="margin:1rem 0 0.4rem">${T('⚔️ Zorluk')}</h4>
             <div style="display:flex;flex-direction:column;gap:0.5rem">`;
@@ -2866,6 +2878,11 @@ const Game = {
 
     // Time of day: name/icon only (the clock badge). The map tint is computed separately
     // and gradually — see dayTint()/nightGlow().
+    // One line icon from #icon-sprite (2.0.0) — the single writer of that markup.
+    icon(name, cls = '') { return `<svg class="i${cls ? ' ' + cls : ''}"><use href="#i-${name}"/></svg>`; },
+    // Phone top bar: the secondary chips fold behind the chevron.
+    toggleHud() { document.body.classList.toggle('hud-open'); },
+    DAYPART_ICON: { night: 'moon', dawn: 'dawn', morning: 'dawn', day: 'sun', noon: 'sun', dusk: 'dawn' },
     getDayPart() {
         let h = state.time.hour;
         if(h < 5)  return { key: 'night',   name: T('Gece'),       icon: '🌙' };
@@ -2974,7 +2991,7 @@ const Game = {
 
         let mounted = !!state.player.equipment.horse;
         let ico = document.getElementById('ui-speed-ico');
-        if(ico) ico.innerText = mounted ? '🐎' : '🥾';
+        if(ico) ico.innerHTML = this.icon(mounted ? 'horse' : 'boot');
         let mode = document.getElementById('ui-speed-mode');
         if(mode) mode.innerText = mounted ? T('atlı') : T('yaya');
 
@@ -5459,7 +5476,7 @@ const Game = {
 
         set('ui-day', T`${state.time.day}. Gün` + (this.isWinter() ? ' ❄️' : ''));
         set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
-        set('ui-daypart', dp.icon);
+        this.setHtml('ui-daypart', this.icon(this.DAYPART_ICON[dp.key] || 'sun'));
         this.countTo('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
         // Consumption is never zero anymore (the player eats too, #75) — the "no army" branch is gone.
@@ -5566,7 +5583,7 @@ const Game = {
             (p.equipment.armor ? R(T`Zırh (${T(p.equipment.armor.name)})`, '+' + p.equipment.armor.armor, true) : R(T('Zırh'), T('yok'), false)),
             T('Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.')));
 
-        this.setHtml('mute-ico', this.opt('muted') ? '🔇' : '🔊');
+        this.setHtml('mute-ico', this.icon(this.opt('muted') ? 'mute' : 'sound'));
         this.setHtml('mute-lbl', this.opt('muted') ? T('Ses Kapalı') : T('Ses Açık'));
 
         let comp = this.getPartyComposition();
@@ -5625,14 +5642,16 @@ const Game = {
         if(e) e.innerHTML = html;
     },
 
+    TERRAIN_ICON: { 'Düzlük': 'wheat', 'Orman': 'tree', 'Nehir Geçidi': 'wave', 'Köprü': 'bridge', 'Taş Yol': 'road', 'Toprak Yol': 'road', 'Keçi Yolu': 'boot' },
     // Map tooltip: the terrain you're on + troop composition
     updateMapHud() {
         let t = document.getElementById('map-terrain-txt');
         if(!t) return;
         let terrain = this.getTerrainInfo(state.player.x, state.player.y);
         t.innerText = T(terrain.name) + (terrain.mult !== 1 ? T`  (${terrain.mult > 1 ? '+' : ''}%${((terrain.mult-1)*100).toFixed(0)} hız)` : '');
-        document.getElementById('map-terrain').firstElementChild.innerText = terrain.icon;
-        document.getElementById('btn-map-speed').textContent = '⏱️ ×' + this.timeScale();
+        // line icons, not emoji (2.0.0): the terrain's own, and a clock on the speed button
+        this.setHtml('map-terrain-ico', this.icon(this.TERRAIN_ICON[terrain.name] || 'compass'));
+        this.setHtml('btn-map-speed', this.icon('clock') + ' ×' + this.timeScale());
 
         let c = this.getPartyComposition();
         // Unspent points should show from the map and open the character screen (#35)
@@ -5641,14 +5660,17 @@ const Game = {
         let pts = ap + fp ? `<button id="btn-points" onclick="Game.showScreen('character')"`
                 + ` title="${touch ? T('Harcanmamış puanların var — karakter ekranına git')
                                     : T('Harcanmamış puanların var — karakter ekranına git (C)')}">`
-                + `✨ ${ap ? T`${ap} nitelik` : ''}${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
+                + `${this.icon('spark')} ${ap ? T`${ap} nitelik` : ''}${ap && fp ? ' · ' : ''}${fp ? T`${fp} odak` : ''}</button>` : '';
+        // the labels' keys still carry their old emoji (the dictionaries stay as they are): the
+        // emoji is cut off at display and a line icon takes its place
+        let lbl = (ic, s) => `${this.icon(ic)} ${s.replace(/^[^\p{L}\p{N}]+/u, '')}`;
         this.setHtml('map-comp',
-            `<span>🪖 <b>${c.infantry}</b></span><span>🏹 <b>${c.archer}</b></span><span>🐎 <b>${c.cavalry}</b></span>`
+            `<span title="${T('Piyade')}">${this.icon('helm')} <b>${c.infantry}</b></span><span title="${T('Okçu')}">${this.icon('bow')} <b>${c.archer}</b></span><span title="${T('Süvari')}">${this.icon('horse')} <b>${c.cavalry}</b></span>`
             + pts
-            + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${T`⏳ Bekle`}</button>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${T`🎯 Beni Bul`}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
-            + `<button id="btn-track" onclick="Game.Music.skip()" title="${touch ? T('Sıradaki parçaya geç') : T('Sıradaki parçaya geç (N)')}">${T`🎵 Sıradaki`}${touch ? '' : ' <kbd>N</kbd>'}</button>`
-            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${T`🌍 Diplomasi`}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
+            + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${lbl('glass', T`⏳ Bekle`)}</button>`
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${lbl('target', T`🎯 Beni Bul`)}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
+            + `<button id="btn-track" onclick="Game.Music.skip()" title="${touch ? T('Sıradaki parçaya geç') : T('Sıradaki parçaya geç (N)')}">${lbl('note', T`🎵 Sıradaki`)}${touch ? '' : ' <kbd>N</kbd>'}</button>`
+            + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${lbl('globe', T`🌍 Diplomasi`)}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
     },
 
     renderPrisonerUI() {
@@ -5807,71 +5829,14 @@ const Game = {
     },
 
     // --- MAP RENDER ---
-    // Ground texture: a 256px repeating pattern, generated once. The canvas is kept: the WebGL
-    // map (map-gl.js) tiles the very same one, so both renderers show the same grain.
-    groundCanvas() {
-        if(!this._groundCv) this.buildGroundTexture();
-        return this._groundCv;
-    },
-    buildGroundTexture() {
-        let sz = 256;
-        let c = document.createElement('canvas'); c.width = c.height = sz;
-        let x = c.getContext('2d');
-        x.fillStyle = '#32472d'; x.fillRect(0, 0, sz, sz);
-        // Draw wrapping across the edges — otherwise tiling the pattern leaves a grid seam
-        let wrap = (px, py, draw) => {
-            for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) draw(px + ox*sz, py + oy*sz);
-        };
-        for(let i = 0; i < 26; i++) {
-            let px = Math.random()*sz, py = Math.random()*sz, r = 18 + Math.random()*40;
-            let col = Math.random() > 0.5 ? 'rgba(84,112,64,0.22)' : 'rgba(26,42,26,0.22)';
-            wrap(px, py, (qx, qy) => {
-                let g = x.createRadialGradient(qx, qy, 0, qx, qy, r);
-                g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
-                x.fillStyle = g; x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill();
-            });
-        }
-        for(let i = 0; i < 2600; i++) {
-            let px = Math.random()*sz, py = Math.random()*sz, r = 0.5 + Math.random()*1.2;
-            x.fillStyle = Math.random() > 0.5 ? 'rgba(86,116,66,0.35)' : 'rgba(28,44,26,0.35)';
-            wrap(px, py, (qx, qy) => { x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill(); });
-        }
-        this._groundCv = c;
-        this.groundPattern = this.ctx ? this.ctx.createPattern(c, 'repeat') : null;
-    },
-
-    // Map name labels — a legible plate instead of bare shadowed text.
-    // Overlapping ones shift upward (so names in a crowded area don't eat each other).
-    // Label size scales with the screen: a fixed 19px is correct on a 1440px canvas,
-    // but labels ran into each other on a 370px phone (#86). The short side's
-    // 620px is the reference; a screen below that shrinks down to 68%.
+    // Ground texture: a 256px repeating pattern, generated once
+    // Map label size scales with the screen: a fixed size is right on a 1440px canvas, but
+    // labels ran into each other on a 370px phone (#86). The short side's 620px is the
+    // reference; a screen below that shrinks down to 68% (MapArt's labels read it).
     uiScale() {
         let cv = this.mapCanvas;
         if(!cv || !cv.width) return 1;
         return Math.max(0.68, Math.min(1, Math.min(cv.width, cv.height) / 620));
-    },
-
-    // Where a label goes, or null when there's no room (mapScene asks, paintLabel / MapGL draw):
-    // `{ y, w, h, k }` in world units, k = world units per on-screen label unit.
-    labelSpot(ctx, text, x, y) {
-        // Text size is independent of zoom: it reads at the same on-screen size at every zoom level
-        let s = this.uiScale(), k = s / this.camera.zoom;
-        let w = this.textW(ctx, text) * k + 18*k, h = 25*k;
-
-        if(!this._labelRects) this._labelRects = [];
-        let free = false;
-        for(let tries = 0; tries < 8; tries++) {
-            let hit = this._labelRects.some(r =>
-                Math.abs(r.x - x) < (r.w + w)/2 && Math.abs(r.y - y) < (r.h + h)/2 + 3);
-            if(!hit) { free = true; break; }
-            y -= h + 5;
-        }
-        // If no room opened up, the label just isn't drawn: printing it anyway after
-        // 8 tries produced a wall of overlapping text on a narrow screen (#86). Whose
-        // name got dropped can be read from the tooltip — two overlapping names, both are hidden.
-        if(!free) return null;
-        this._labelRects.push({ x, y, w, h });
-        return { y, w, h, k };
     },
 
     // --- MAP PARTY ICONS ---
@@ -6036,7 +6001,13 @@ const Game = {
         let now = performance.now(), m = this._icons.get(id);
         if(!m) { m = { face: 1, move: moving ? 1 : 0, lastX: x, seen: now, last: now }; this._icons.set(id, m); }
         let dt = Math.max(0, Math.min(0.1, (now - m.last) / 1000));
-        if(now - m.last > 400) m.seen = now;   // wasn't drawn for a while: it's coming back into view
+        // Missing from the previous drawn frame: it's coming back into view, so it fades in.
+        // Counted in map frames, not milliseconds: at a low frame rate (software WebGL at a
+        // phone's density, a slow phone) a 400 ms gap between frames made every party fade in
+        // from zero on every frame, i.e. never show at all.
+        let f = this._mapFrame || 0;
+        if(m.frame !== undefined && m.frame < f - 1) m.seen = now;
+        m.frame = f;
         m.last = now;
         let dx = x - m.lastX; m.lastX = x;
         if(Math.abs(dx) > 0.02) m.want = dx > 0 ? 1 : -1;
@@ -6112,90 +6083,28 @@ const Game = {
         ctx.restore();
     },
 
-    // ---- The map, drawn through one of two renderers (1.34.0) ----
-    // Everything the map shows is decided here once per frame; how it gets onto the screen is
-    // the renderer's business: the Canvas2D code below (drawMapCanvas, the fallback) or MapGL
-    // (map-gl.js, PixiJS/WebGL on its own #map-gl canvas). The vector pieces — coast, rivers,
-    // roads, bridges, pennants, party figures, route — are ctx functions both share: Canvas2D
-    // runs them every frame, MapGL runs them once into Pixi geometry through its GLCtx facade.
-    renderMap() {
-        if(!document.getElementById('map-view').classList.contains('active')) return;
-        // Time stops while a modal is open; continuing to draw made the modal's glass panel
-        // recompute its backdrop blur every frame.
-        if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
-        let now = performance.now();
-        this.mapDecor();
-        let scene = this.mapScene(now), gl = this.liveMapGfx();
-        if(gl) {
-            let c = this.mapCanvas;
-            if(gl.w !== c.width || gl.h !== c.height) gl.resize(c.width, c.height);
-            gl.render(scene, now);
-        } else this.drawMapCanvas(scene, now);
-        this.stormShake();
-        this.mapCpuSample(performance.now() - now);
-    },
-
-    // The lazily rolled decor — dirt patches (kept in the save) and each forest's trees (per
-    // session) — rolled outside the draw path, so both renderers show the same ones.
-    mapDecor() {
-        if(!state.dirtPatches) {
-            state.dirtPatches = [];
-            for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
-        }
-        if(!this._forestTrees) {
-            this._forestTrees = FORESTS.map(f => {
-                let arr = [];
-                let n = Math.max(14, Math.floor(f.radius / 11));
-                for(let i=0;i<n;i++) {
-                    let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.radius * 0.95;
-                    arr.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 18 + Math.random()*20 });
-                }
-                arr.sort((p,q) => p.y - q.y);
-                return arr;
-            });
-        }
-    },
-
-    // What stands on the map this frame, as plain data: lairs, settlements, parties, the
-    // player, routes and labels. Label collisions are settled here, in the old draw order
-    // (lairs, settlements, parties, you), so both renderers drop the same names (#86).
-    mapScene(now) {
-        let ik = this.iconScale(), zoom = this.camera.zoom, mctx = this.ctx;
-        let sc = { sites: [], locs: [], npcs: [], player: null, routes: [], groundLabels: [], partyLabels: [] };
-        this._labelRects = [];
-        let label = (list, text, x, y, color, accent) => {
-            let b = this.labelSpot(mctx, text, x, y);
-            if(b) list.push({ text, x, y: b.y, w: b.w, h: b.h, k: b.k, color, accent });
-        };
-
+    // The game's side of the map that MapArt draws (split out of renderMap in 2.0.0): which
+    // discovery sites, parties and route are on show, how they're labelled and coloured. `art` is
+    // MapArt, handed in by MapArt.render (map-art.js loads after app.js and isn't in Node at all).
+    drawMapSites(ctx, art) {
         // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
         (state.sites || []).forEach(site => {
             if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
-            let k = this.SITE_KINDS[site.kind], big = (k.boss ? 46 : 30) * ik;
+            let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = (k.boss ? 46 : 30) * ik;
             let fresh = this.siteReady(site);
-            sc.sites.push({ x: site.x, y: site.y, big, icon: site.icon || k.icon, alpha: fresh ? 0.95 : 0.45 });
+            ctx.beginPath();
+            ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+            ctx.globalAlpha = fresh ? 0.95 : 0.45;
+            art.site(ctx, site, big);
+            ctx.globalAlpha = 1;
             // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
-            if((fresh || k.boss) && zoom > 0.18) label(sc.groundLabels, T(site.name || k.name), site.x, site.y - big*0.75 - 10, k.boss ? '#e0b0b0' : '#cbbf9a', k.boss ? '#7a2a2a' : '#8a7b52');
+            if(!((fresh || k.boss) && this.camera.zoom > 0.18)) return;
+            art.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
         });
-
-        // Settlements. A quest's "where" also shows on the map: it comes from the same source
-        // as the 📍 in the quest screen (QUESTS[].where), so the two lists can't drift apart.
-        let questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
-        LOCATIONS.forEach(loc => {
-            let fc = FACTIONS[loc.faction] || {color:'#888'};
-            let base = loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32, big = base * ik;
-            let qm = questMarks[loc.id], qDone = qm && qm.some(x => x.done);
-            sc.locs.push({ id: loc.id, x: loc.x, y: loc.y, base, big, ik, color: fc.color,
-                           icon: loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️',
-                           quest: qm ? (qDone ? '✅' : '📜') : null });
-            label(sc.groundLabels, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
-            if(qm && zoom > 0.18)
-                label(sc.groundLabels, qm.map(x => (x.done ? '✅ ' : '') + x.title).join(' · '), loc.x, loc.y - big*0.82 - 34,
-                      qDone ? '#7ddc8a' : '#e0b062', qDone ? '#2a7a3a' : '#8a6a2a');
-        });
-
+    },
+    drawMapParties(ctx, art) {
         // NPCs (only those in sight range)
-        let pf = this.playerFaction();
         state.npcParties.forEach(npc => {
             let dx = npc.x - state.player.x;
             let dy = npc.y - state.player.y;
@@ -6206,42 +6115,62 @@ const Game = {
             let band = BAND_KINDS[npc.band] || null;
             // A band travels in its own color and its own silhouette: a wolf pack doesn't look like bandits
             let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
+
+            // Faction ring
+            ctx.beginPath();
+            ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
+            ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+
+            // A charge on top: one more red ring around the outside. A charge is now only
+            // launched from within visible range, so this marker always arrives on time.
+            if(npc.charging) {
+                ctx.beginPath();
+                ctx.ellipse(npc.x, npc.y + 22, 32, 13, 0, 0, Math.PI*2);
+                ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(performance.now() / 260));
+                ctx.stroke(); ctx.globalAlpha = 1;
+            }
+
+            // A gold ring for the one party a "find and defeat this exact gang" quest is locked
+            // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
+            // marker on a settlement, so it reads as "this one, specifically" among identical-
+            // looking bandit parties instead of just another red silhouette.
+            if(npc.questLocks) {
+                ctx.beginPath();
+                ctx.ellipse(npc.x, npc.y + 22, 28, 11, 0, 0, Math.PI*2);
+                ctx.strokeStyle = '#e0b062'; ctx.lineWidth = 2.5;
+                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(performance.now() / 400));
+                ctx.stroke(); ctx.globalAlpha = 1;
+                this.emoji(ctx, '📜', npc.x, npc.y - 26, 20 * this.iconScale());
+            }
+
             // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
             let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
             let lone = npc.type === 'wanderer';
-            let n = {
-                id: npc.id, x: npc.x, y: npc.y, col: nCol,
-                // A charge on top: one more red ring around the outside. A charge is now only
-                // launched from within visible range, so this marker always arrives on time.
-                charging: !!npc.charging,
-                // A gold ring for the one party a "find and defeat this exact gang" quest is locked
-                // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
-                // marker on a settlement, so it reads as "this one, specifically" among identical-
-                // looking bandit parties instead of just another red silhouette.
-                quest: npc.questLocks ? { ch: '📜', x: npc.x, y: npc.y - 26, size: 20 * ik } : null,
-                icon: {
-                    id: npc.id, moving: isMoving,
-                    kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
-                    mounted: npc.type !== 'bandit' && !lone,
-                    size: npc.size || 1,
-                    color: nCol,
-                    scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * ik,
-                    bob: isMoving ? -Math.abs(Math.sin(now/150)) * 5 : 0,
-                    dim: npc.type === 'bandit'
-                },
-                badge: null
+            let iconOpts = {
+                id: npc.id, moving: isMoving,
+                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
+                mounted: npc.type !== 'bandit' && !lone,
+                size: npc.size || 1,
+                color: nCol,
+                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * this.iconScale(),
+                bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
+                dim: npc.type === 'bandit'
             };
+            // the drawn silhouette only stands in until the soldiers' sprite sheets have loaded
+            if(!art.party(ctx, npc.x, npc.y + 22, Object.assign({ look: art.partyLook(npc, band), banner: npc.type === 'bandit' ? null : nCol }, iconOpts)))
+                this.drawPartyIcon(ctx, npc.x, npc.y + 22, iconOpts);
+
             if(lone) {                                      // what their story is, at a glance (#119)
                 let w = this.WANDERERS.find(x => x.id === npc.wanderer);
-                if(w) n.badge = { ch: w.icon, x: npc.x, y: npc.y - 30, size: 22 * ik };
+                if(w) this.emoji(ctx, w.icon, npc.x, npc.y - 30, 22 * this.iconScale());
             }
             // Crown: king/vizier
             if(npc.type === 'king' || npc.type === 'vizier') {
                 let cs = npc.type === 'king' ? 30 : 24;
-                n.badge = { ch: npc.type === 'king' ? '👑' : '🎖️', x: npc.x + 22, y: npc.y - 44 + cs*0.35, size: cs };
+                this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
             }
-            sc.npcs.push(n);
-
+            
             // The label used to be trimmed to the first word to keep the map readable, but
             // a band's name is a qualifier plus a noun and the first word is the throwaway
             // half: "Orman Haydutları" showed as "Orman", "Forest Bandits" as "Forest" (#94).
@@ -6258,374 +6187,108 @@ const Game = {
             // distance and relative strength, which would make the label flicker as you close in.
             // Colour is not the only cue — a foe's name is prefixed with a blade for the
             // colour-blind, since red against parchment is exactly the pair that fails.
+            let pf = this.playerFaction();
             // `npc.type === 'bandit'` covers every roaming band -- bandit, wolf, forest and
             // mountain all come out of `spawnBand` with that type; `npc.band` does not, because
             // caravans and villagers carry a `BAND_KINDS` entry of their own.
             let foe = this.mapPartyIsFoe(npc);
             let friend = !foe && !!npc.faction && (npc.faction === pf || this.allied(pf, npc.faction));
             let txtCol = foe ? '#ff6b5a' : friend ? '#7fd4ff' : '#d8d2c4';
-            label(sc.partyLabels, `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`, npc.x, npc.y + 50, txtCol, nCol);
+            let txt = `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`;
+            // who gets a label when there's no room for all: foes, then lords, then the rest
+            let lordly = npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier';
+            art.label(npc.x, npc.y + 22, txt, { prio: foe ? 3.5 : lordly ? 4 : 5, color: txtCol, dot: nCol, foe, up: 62, down: 10, side: 24 });
         });
-
+    },
+    drawMapPlayer(ctx, art) {
         // Player
         // While captive, the only party moving on the map is the one holding you; you have
         // no separate group. The player icon + name + "Captive" text used to be drawn at the
         // same point as the captor's icon and label (overlapping text).
-        let P = state.player, pl = sc.player = { x: P.x, y: P.y, chain: null, pulse: 0, tent: null, icon: null };
-        if(P.prisoner) {
-            pl.chain = { ch: '⛓️', x: P.x - 30, y: P.y - 30, size: 30 };
+        let isPrisoner = !!state.player.prisoner;
+        if(isPrisoner) {
+            this.emoji(ctx, '⛓️', state.player.x - 30, state.player.y - 30, 30);
         } else {
-            pl.pulse = 1 + Math.sin(now/450) * 0.1;          // player base — a pulsing gold ring
-            // The party is stationary while time accelerates: the map should say camp,
-            // not show a rider apparently standing in the middle of nowhere.
-            if(P.wait) pl.tent = { ch: '⛺', x: P.x, y: P.y + 28, size: 54 * ik };
-            else pl.icon = {                             // mounted if we have a horse (like in Warband)
-                id: 'player', moving: P.status === 'moving', bobAmp: 6,
-                mounted: !!P.equipment.horse,
-                size: P.party.length + 1,
-                color: this.bannerColor(),
-                scale: 1.35 * this.partyIconScale(P.party.length + 1) * ik,
-                bob: P.status === 'moving' ? -Math.abs(Math.sin(now/150)) * 6 : 0
-            };
-            label(sc.partyLabels, `${P.wait ? '⛺ ' : ''}${P.name} (${P.party.length + 1})`, P.x, P.y - 72, '#ffcc00', '#ffcc00');
-        }
-        if(P.targetLocation && P.status === 'moving') sc.routes.push({ t: P.targetLocation, live: true });
-        if(this.dragTarget) sc.routes.push({ t: this.dragTarget, live: false });
-        return sc;
-    },
-
-    // ---- Shared vector pieces: plain ctx calls, world units ----
-    coastPath(ctx) {
-        ctx.beginPath();
-        for(let i=0; i<state.mapBorder.length; i++) {
-            let pt = state.mapBorder[i];
-            if(i===0) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.closePath();
-    },
-    // Beach + coastal shadow + the land itself. Leaves the coast as the current path, so the
-    // Canvas2D caller can clip to it.
-    drawCoast(ctx, lite) {
-        this.coastPath(ctx);
-        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        if(!lite) { ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke(); }
-        ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
-        // Coastal shadow: `shadowBlur = 70` blurred the whole continent pixel by pixel
-        // every frame. Three wide transparent outlines give the same halo, the cost is a path stroke.
-        // In lite mode the beach strip stays, the halo drops: 6 wide outlines is 0.48ms, 1 is 0.12ms.
-        if(!lite) {
-            ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-            for(let bw of [130, 86, 48]) { ctx.lineWidth = bw; ctx.stroke(); }
-        }
-        ctx.fillStyle = '#2f452c'; ctx.fill();
-        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
-    },
-    // Rivers — bed, water, current
-    drawRivers(ctx, lite) {
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        RIVERS.forEach(riv => {
-            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2);
-            if(lite) { ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.9)'; ctx.stroke(); return; }
-            ctx.lineWidth = riv.width + 22; ctx.strokeStyle = 'rgba(96,110,70,0.55)'; ctx.stroke();
-            ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.85)'; ctx.stroke();
-            ctx.lineWidth = riv.width * 0.45; ctx.strokeStyle = 'rgba(120,200,235,0.5)'; ctx.stroke();
-        });
-    },
-    // The flowing shimmer (not in lite mode): lineDashOffset changes every frame, so it's a new stroke each frame
-    drawRiverShimmer(ctx, now) {
-        ctx.lineCap = 'round';
-        ctx.setLineDash([50, 90]);
-        ctx.lineDashOffset = -(now / 25);
-        ctx.strokeStyle = 'rgba(255,255,255,0.30)';
-        RIVERS.forEach(riv => {
-            ctx.lineWidth = Math.max(3, riv.width * 0.18);
-            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2); ctx.stroke();
-        });
-        ctx.setLineDash([]);
-    },
-    // Roads — a separate texture per kind (#56): paved main road, dirt road,
-    // an unmaintained goat path. Same-kind roads collect into one path (3 stroke sets per frame).
-    ROAD_LOOK: {
-        stone: { w: 52, shoulder: 'rgba(78,72,60,0.45)', top: 36, surf: 'rgba(150,146,134,0.48)',
-                 mark: 'rgba(226,222,208,0.26)', dash: [26, 20], mw: 5 },
-        dirt:  { w: 44, shoulder: 'rgba(92,68,38,0.45)', top: 28, surf: 'rgba(158,124,74,0.42)',
-                 mark: 'rgba(214,186,132,0.30)', dash: [70, 55], mw: 4 },
-        track: { w: 26, shoulder: 'rgba(84,72,44,0.30)', top: 14, surf: 'rgba(150,132,88,0.28)',
-                 mark: 'rgba(198,180,132,0.22)', dash: [22, 46], mw: 3 }
-    },
-    drawRoads(ctx, lite) {
-        if(!state.roads) return;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        for(let kind of ['stone', 'dirt', 'track']) {
-            let st = this.ROAD_LOOK[kind];
+            // Player base — a pulsing gold ring
+            let pp = 1 + Math.sin(performance.now()/450) * 0.1;
             ctx.beginPath();
-            let any = false;
-            state.roads.forEach(r => {
-                if((r.kind || 'dirt') !== kind) return;
-                any = true;
-                ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2);
-            });
-            if(!any) continue;
-            ctx.lineWidth = st.w;   ctx.strokeStyle = st.shoulder; ctx.stroke();
-            ctx.lineWidth = st.top; ctx.strokeStyle = st.surf;     ctx.stroke();
-            if(lite) continue;               // the center-line marking is decorative: the road's kind already reads from its width
-            ctx.setLineDash(st.dash);
-            ctx.lineWidth = st.mw;  ctx.strokeStyle = st.mark;     ctx.stroke();
-            ctx.setLineDash([]);
-        }
-        // The road opens into a square at a settlement's mouth
-        ctx.fillStyle = 'rgba(120,98,62,0.35)';
-        LOCATIONS.forEach(l => {
-            let r = l.type === 'city' ? 70 : l.type === 'castle' ? 52 : 40;
-            ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI*2); ctx.fill();
-        });
-        // Bridges — planks crossing over the river
-        (state.bridges || []).forEach(b => {
-            let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // the road's own width
-            ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a || 0);
-            ctx.fillStyle = 'rgba(70,52,30,0.92)';
-            ctx.fillRect(-w * 1.3, -w, w * 2.6, w * 2);
-            ctx.strokeStyle = 'rgba(186,152,96,0.95)'; ctx.lineWidth = 4;
-            for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // planks perpendicular to the road
-                ctx.beginPath(); ctx.moveTo(i, -w + 2); ctx.lineTo(i, w - 2); ctx.stroke();
-            }
-            ctx.restore();
-        });
-    },
-    // A settlement's faction pennant, `big` = its icon size, `ik` = the icon scale
-    drawLocPennant(ctx, x, y, big, ik, color) {
-        let px = x + big*0.42, py = y - big*0.45;
-        ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3 * ik;
-        ctx.beginPath(); ctx.moveTo(px, py + 34*ik); ctx.lineTo(px, py - 26*ik); ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(px, py - 26*ik); ctx.lineTo(px + 30*ik, py - 17*ik); ctx.lineTo(px, py - 8*ik);
-        ctx.closePath();
-        ctx.fillStyle = color; ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
-    },
-    // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
-    // removed — the line itself already told the direction. A drag route is pale and white,
-    // a confirmed route is gold: which one is active is clear at a glance.
-    drawRoute(ctx, t, live, now) {
-        let z = this.camera.zoom;
-        ctx.save();
-        ctx.lineCap = 'round';
-        ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(now / 55) % (19 / z) : 0;
-        ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
-        ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-        ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
-        ctx.lineWidth = 1.6 / z;
-        ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
-        let r = 6 / z, pulse = live ? 1 + Math.sin(now/380) * 0.12 : 1.15;
-        ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
-        ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
-        ctx.stroke();
-        ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
-        ctx.lineWidth = 1.2 / z;
-        ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
-        ctx.restore();
-    },
-    // A name plate from mapScene: rounded dark plate, faction accent underline, the text
-    paintLabel(ctx, l) {
-        let { text, x, y, w, h, k, color, accent } = l;
-        ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(8,10,14,0.72)';
-        ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(x - w/2, y - h/2, w, h, 5*k);
-        else ctx.rect(x - w/2, y - h/2, w, h);
-        ctx.fill();
-        if(accent) {
-            ctx.fillStyle = accent;
-            ctx.fillRect(x - w/2, y + h/2 - 2.5*k, w, 2.5*k);
-        }
-        ctx.fillStyle = color;
-        ctx.fillText(text, x, y);
-    },
-    // Mountains along the coast: which border points carry one, and how big (a broken
-    // silhouette instead of a regular repeat). Half of the 315 border points were mountains:
-    // ~157 emoji rasterizations per frame. Now a baked sprite is stamped, and in lite mode
-    // it's also thinned to one in four.
-    mountainStep(lite) { return lite ? 4 : 2; },
-    mountainSize(index) { return 42 + ((index * 37) % 24); },
-
-    // ---- The Canvas2D map (the fallback renderer) ----
-    drawMapCanvas(sc, now) {
-        let c = this.mapCanvas, ctx = this.ctx;
-        let W = c.width, H = c.height;
-        // On a phone the bottleneck isn't JS but fill rate (#84): the `lite` branches below
-        // replace full-screen expensive layers with flat equivalents.
-        let lite = this.lite();
-        ctx.clearRect(0,0,W,H);
-        ctx.save();
-        ctx.scale(this.camera.zoom, this.camera.zoom);
-        ctx.translate(-this.camera.x + W/(2*this.camera.zoom), -this.camera.y + H/(2*this.camera.zoom));
-
-        // --- Sea
-        if(!this._seaGrad) {
-            let g = ctx.createLinearGradient(0, -2000, 0, 11000);
-            g.addColorStop(0, '#0a1c2e');
-            g.addColorStop(0.5, '#123c58');
-            g.addColorStop(1, '#0a1c2e');
-            this._seaGrad = g;
-        }
-        // The gradient is cached but every pixel is still sampled: measured 0.99ms -> 0.06ms
-        ctx.fillStyle = lite ? '#123c58' : this._seaGrad;
-        ctx.fillRect(-5000, -5000, 20000, 20000);
-
-        // Sea waves — 26 polylines × 45 points; the sea stays flat in lite mode
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.lineWidth = 6;
-        let wt = now / 4000;
-        for(let i = -4; i < 22 && !lite; i++) {
-            let y = i * 600 + Math.sin(wt + i) * 40;
-            ctx.beginPath();
-            for(let x = -4000; x < 14000; x += 400) ctx.lineTo(x, y + Math.sin((x/900) + wt*2 + i) * 30);
-            ctx.stroke();
-        }
-
-        // --- Continent
-        ctx.save();
-        this.drawCoast(ctx, lite);
-        ctx.clip(); // Nothing after this spills outside the continent
-
-        // Ground texture (generated once and tiled as a pattern). Filling the whole
-        // continent a second time, sampling a texture on top, costs 2.06ms on its own —
-        // the single most expensive thing on the map. In lite mode the flat green underneath stays.
-        if(!lite) {
-            if(!this.groundPattern) this.buildGroundTexture();
-            ctx.fillStyle = this.groundPattern;
-            ctx.fill();
-        }
-
-        // Dirt patches — soft-edged
-        if(!lite) state.dirtPatches.forEach(d => {
-            ctx.save(); ctx.translate(d.x, d.y);
-            ctx.fillStyle = this.radial(ctx, Math.round(d.r), 'rgba(30,44,28,0.55)', 'rgba(30,44,28,0)');
-            ctx.beginPath(); ctx.arc(0, 0, d.r, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-        });
-
-        this.drawRivers(ctx, lite);
-        if(!lite) this.drawRiverShimmer(ctx, now);
-        this.drawRoads(ctx, lite);
-
-        // Forests — actual trees (positions rolled once in mapDecor).
-        // The forest patch stays fixed: its gradient is generated once. The trees (4 forests ×
-        // ~15 trees, each 6 path segments + 1 gradient) drop in lite mode, the patch stays.
-        if(!this._forestGrad) this._forestGrad = FORESTS.map(f => {
-            let g = ctx.createRadialGradient(f.x, f.y, f.radius*0.2, f.x, f.y, f.radius);
-            g.addColorStop(0, 'rgba(16,38,18,0.85)');
-            g.addColorStop(1, 'rgba(16,38,18,0)');
-            return g;
-        });
-        // In lite mode the trees are thinned but not switched off: a darkening disc alone
-        // doesn't stand out from the ground, the forest became invisible — but a forest is
-        // gameplay information (ambush, spotting, speed). With a third left the patch still reads.
-        let step = lite ? 3 : 1;
-        FORESTS.forEach((f, i) => {
-            ctx.fillStyle = this._forestGrad[i];
-            ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI*2); ctx.fill();
-            this._forestTrees[i].forEach((t, j) => { if(j % step === 0) Battle.drawTree(ctx, t.x, t.y, t.r); });
-        });
-
-        ctx.restore(); // continent clip ends
-
-        sc.sites.forEach(s => {
-            ctx.beginPath();
-            ctx.ellipse(s.x, s.y + 12, s.big*0.5, s.big*0.2, 0, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
-            ctx.globalAlpha = s.alpha;
-            this.emoji(ctx, s.icon, s.x, s.y + 10, s.big);
-            ctx.globalAlpha = 1;
-        });
-        sc.locs.forEach(l => {
-            ctx.beginPath();                                   // ground shadow
-            ctx.ellipse(l.x, l.y + 18, l.big*0.55, l.big*0.22, 0, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
-            this.emoji(ctx, l.icon, l.x, l.y + 15, l.big);
-            this.drawLocPennant(ctx, l.x, l.y, l.big, l.ik, l.color);
-            if(l.quest) this.emoji(ctx, l.quest, l.x - l.big*0.55, l.y - 15 - 34*l.ik, 36*l.ik);
-        });
-        sc.groundLabels.forEach(l => this.paintLabel(ctx, l));
-
-        // --- TIME OF DAY ---
-        // Night is blue, dawn/dusk warm-toned. At night, settlements have hearth light.
-        let tint = this.dayTint();
-        if(tint) {
-            ctx.fillStyle = tint;
-            ctx.fillRect(-1000, -1000, 11000, 11000);
-        }
-        // Hearth light: one gradient, intensity via globalAlpha (0 gradients/frame instead of 25)
-        let glow = this.nightGlow();
-        if(glow > 0.02 && !lite) {
-            ctx.globalCompositeOperation = 'lighter';
-            ctx.globalAlpha = 0.30 * glow;
-            ctx.fillStyle = this.radial(ctx, 110, 'rgba(255,170,70,1)', 'rgba(255,140,50,0)');
-            LOCATIONS.forEach(loc => {
-                ctx.save(); ctx.translate(loc.x, loc.y);
-                ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI*2); ctx.fill();
-                ctx.restore();
-            });
-            ctx.globalAlpha = 1;
-            ctx.globalCompositeOperation = 'source-over';
-        }
-
-        // No fog of war: terrain, roads, and settlements are always visible (like Warband).
-        // The only thing hidden is parties — those are filtered by Game.canSee().
-        let mStep = this.mountainStep(lite);
-        state.mapBorder.forEach((pt, index) => {
-            if(index % mStep === 0) this.emoji(ctx, '🏔️', pt.x, pt.y + 20 + (index % 3) * 6, this.mountainSize(index));
-        });
-
-        sc.npcs.forEach(n => {
-            // Faction ring
-            ctx.beginPath();
-            ctx.ellipse(n.x, n.y + 22, 24, 9, 0, 0, Math.PI*2);
-            ctx.strokeStyle = n.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
-            if(n.charging) {
-                ctx.beginPath();
-                ctx.ellipse(n.x, n.y + 22, 32, 13, 0, 0, Math.PI*2);
-                ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
-                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(now / 260));
-                ctx.stroke(); ctx.globalAlpha = 1;
-            }
-            if(n.quest) {
-                ctx.beginPath();
-                ctx.ellipse(n.x, n.y + 22, 28, 11, 0, 0, Math.PI*2);
-                ctx.strokeStyle = '#e0b062'; ctx.lineWidth = 2.5;
-                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(now / 400));
-                ctx.stroke(); ctx.globalAlpha = 1;
-                this.emoji(ctx, n.quest.ch, n.quest.x, n.quest.y, n.quest.size);
-            }
-            this.drawPartyIcon(ctx, n.x, n.y + 22, n.icon);
-            if(n.badge) this.emoji(ctx, n.badge.ch, n.badge.x, n.badge.y, n.badge.size);
-        });
-
-        let pl = sc.player;
-        if(pl.chain) this.emoji(ctx, pl.chain.ch, pl.chain.x, pl.chain.y, pl.chain.size);
-        else {
-            ctx.beginPath();
-            ctx.ellipse(pl.x, pl.y + 28, 36*pl.pulse, 13*pl.pulse, 0, 0, Math.PI*2);
+            ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
             ctx.strokeStyle = 'rgba(255,204,0,0.9)';
             ctx.lineWidth = 4; ctx.stroke();
-            if(pl.tent) this.emoji(ctx, pl.tent.ch, pl.tent.x, pl.tent.y, pl.tent.size);
-            else this.drawPartyIcon(ctx, pl.x, pl.y + 28, pl.icon);
+
+            if(state.player.wait) {
+                // The party is stationary while time accelerates: the map should say camp,
+                // not show a rider apparently standing in the middle of nowhere.
+                this.emoji(ctx, '⛺', state.player.x, state.player.y + 28, 54 * this.iconScale());
+            } else {
+                // If we have a horse, we appear mounted on the map (like in Warband)
+                let iconOpts = {
+                    id: 'player', moving: state.player.status === 'moving', bobAmp: 6,
+                    mounted: !!state.player.equipment.horse,
+                    size: state.player.party.length + 1,
+                    color: this.bannerColor(),
+                    scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
+                    bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
+                };
+                if(!art.party(ctx, state.player.x, state.player.y + 28, Object.assign({ look: art.playerLook(), banner: this.bannerColor() }, iconOpts)))
+                    this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, iconOpts);
+            }
+
+            let txt = `${state.player.wait ? '⛺ ' : ''}${state.player.name} (${state.player.party.length + 1})`;
+            art.label(state.player.x, state.player.y + 28, txt, { prio: 0, color: '#ffcc00', dot: this.bannerColor(), up: 74, down: 12, side: 28, must: true, edge: 'rgba(255,204,0,0.6)' });
         }
-        sc.partyLabels.forEach(l => this.paintLabel(ctx, l));
+    },
+    drawMapRoute(ctx) {
+        // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
+        // removed — the line itself already told the direction. A drag route is pale and white,
+        // a confirmed route is gold: which one is active is clear at a glance.
+        let route = (t, live) => {
+            let z = this.camera.zoom;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(performance.now() / 55) % (19 / z) : 0;
+            ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
+            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+            ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
+            ctx.lineWidth = 1.6 / z;
+            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+            ctx.setLineDash([]);
 
-        sc.routes.forEach(r => this.drawRoute(ctx, r.t, r.live, now));
+            // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
+            let r = 6 / z, pulse = live ? 1 + Math.sin(performance.now()/380) * 0.12 : 1.15;
+            ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
+            ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
+            ctx.stroke();
+            ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
+            ctx.lineWidth = 1.2 / z;
+            ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+        };
+        if(state.player.targetLocation && state.player.status === 'moving') route(state.player.targetLocation, true);
+        if(this.dragTarget) route(this.dragTarget, false);
+    },
 
-        // Location markers learned from lords
-        Nobles.drawMarkers(ctx);
-
-        ctx.restore();
-        if(this.hailOn()) this.hailPath(ctx, W, H);
+    // The campaign map is MapArt's (map-art.js, 2.0.0): a baked pixel terrain, settlement and
+    // party sprites, labels laid out on top — one piece of Canvas2D code. The renderer (1.34.0)
+    // only decides what it draws into: #map-canvas's own context, or MapGL's PixCtx, a Canvas2D
+    // facade that turns the same calls into Pixi sprites on #map-gl at the screen's density.
+    // Without MapArt (tools/harness.js runs in Node and does not load it) nothing is drawn.
+    renderMap() {
+        if(!document.getElementById('map-view').classList.contains('active')) return;
+        // Time stops while a modal is open; continuing to draw made the modal's glass panel
+        // recompute its backdrop blur every frame.
+        if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
+        if(typeof MapArt === 'undefined') return;
+        this._mapFrame = (this._mapFrame || 0) + 1;      // iconMotion counts in these
+        let now = performance.now(), gl = this.liveMapGfx();
+        if(gl) {
+            let c = this.mapCanvas;
+            if(gl.w !== c.width || gl.h !== c.height) gl.resize(c.width, c.height);
+            gl.render(ctx => MapArt.render(this, ctx));
+        } else MapArt.render(this, this.ctx);
+        this.stormShake();
+        this.mapCpuSample(performance.now() - now);
     },
 
     handleMapHover(e) {
@@ -7106,39 +6769,104 @@ const Game = {
             this.addBtn(ac, T('⚔️ Kuşat! (Kendi Krallığını Kur)'), () => this.besiegeLocation(loc, true));
         }
         this.addBtn(ac, T('🚪 Ayrıl'), () => this.showScreen('map'));
+        this.cardSettlementActions(ac, loc);
         this.renderScene(loc);   // buttons are ready: the scene is built on top of them (#60)
+    },
+
+    // ---------- SETTLEMENT ACTION CARDS (2.0.0) ----------
+    // The buttons stay exactly what addBtn made (same labels, same handlers); this dresses
+    // each one as a card — line icon, title, one-line hint, and the label's trailing
+    // "(…)" as a status on the right — and files it under a group. The original label stays
+    // first in the button as screen-reader text, so its emoji still picks the building in the
+    // scene (sceneIcon) and a label lookup still finds the button.
+    // emoji -> [icon, group, hint]; hints stay raw Turkish and are translated here (T below).
+    TOWN_CARD: {
+        '🛒': ['stall', 'trade', 'Erzak, silah ve zırh al-sat'],
+        '🏭': ['anvil', 'trade', 'Her gün dinar getirir'],
+        '⛓': ['chain', 'trade', 'Esirlerini sat'],
+        '🍺': ['mug', 'places', 'Paralı asker, yoldaş, söylenti'],
+        '🤺': ['swords', 'places', 'Talim dövüşü, ödül ve tecrübe'],
+        '🏆': ['trophy', 'places', 'Turnuva meydanı'],
+        '👑': ['crown', 'places', 'Lordlarla görüş'],
+        '🍷': ['wine', 'places', 'Soylularla kadeh kaldır'],
+        '🧓': ['elder', 'places', 'Köyün derdini ve dedikodusunu dinle'],
+        '🐔': ['chicken', 'places', 'Görev: tavukları topla'],
+        '🪖': ['helm', 'army', 'Buradan asker yaz'],
+        '🛡': ['tower', 'army', 'Kaleyi koruyan askerler'],
+        '📦': ['box', 'army', 'Burada bıraktığın eşyalar'],
+        '⚔': ['swords', 'war', 'Burayı kuşat'],
+        '🔥': ['fire', 'war', 'Köyü yağmala; halk sana düşman olur'],
+        '⏳': ['glass', 'camp', 'Saat geçir, yaralılar iyileşir'],
+        '🚪': ['door', 'camp', 'Haritaya dön'],
+    },
+    TOWN_GROUPS: [['trade', 'Ticaret'], ['places', 'Mekânlar'], ['army', 'Ordu'], ['war', 'Savaş'], ['camp', 'Kamp']],
+    cardSettlementActions(ac, loc) {
+        let groups = {};
+        [...ac.querySelectorAll(':scope > button')].forEach(b => {
+            let label = b.innerHTML, emo = this.sceneIcon(label).replace('\uFE0F', '');
+            let [icon, group, hint] = this.TOWN_CARD[emo] || ['compass', 'places', ''];
+            if(loc.type === 'village' && emo === '👑') { group = 'army'; hint = 'Köy sana haraç öder'; }
+            if(loc.type === 'village' && emo === '🛒') hint = 'Köylülerden yiyecek al';
+            let text = label.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').trim(), meta = '';
+            let m = text.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+            if(m && m[1]) { text = m[1]; meta = m[2]; }
+            b.classList.add('act-card');
+            if(group === 'camp') b.classList.add('act-quiet');
+            b.innerHTML = `<span class="sr-only">${label}</span>`
+                + `<span class="ac-ic" aria-hidden="true">${this.icon(icon)}</span>`
+                + `<span class="ac-tx" aria-hidden="true"><b>${text}</b>${hint ? `<small>${T(hint)}</small>` : ''}</span>`
+                + (meta ? `<span class="ac-mt" aria-hidden="true">${meta}</span>` : '');
+            (groups[group] = groups[group] || []).push(b);
+        });
+        ac.innerHTML = '';
+        this.TOWN_GROUPS.forEach(([g, name]) => {
+            if(!groups[g]) return;
+            let sec = document.createElement('section');
+            sec.className = 'act-group act-' + g;
+            sec.innerHTML = `<h4>${T(name)}</h4><div class="act-cards"></div>`;
+            groups[g].forEach(b => sec.lastChild.appendChild(b));
+            ac.appendChild(sec);
+        });
+    },
+
+    // Dialogue buttons as cards (2.0.0), the town cards' look for any list of `.btn`s: a line icon
+    // by the label's leading emoji, the label, a hint of what it does. `table` maps emoji →
+    // [icon, hint, tone]. The button, its onclick, its disabled state and its label (kept in
+    // .sr-only) stay; the colour its inline border used to carry becomes a tone class.
+    cardButtons(box, table) {
+        if(!box) return;
+        box.classList.add('act-cards');
+        [...box.querySelectorAll(':scope > button')].forEach(b => {
+            let label = b.innerHTML, emo = this.sceneIcon(label).replace('\uFE0F', '');
+            let [icon, hint, tone] = table[emo] || table[''] || ['dots', '', ''];
+            let st = b.getAttribute('style') || '';
+            if(!tone) tone = /danger/.test(st) ? 'danger' : /ff9ec4/i.test(st) ? 'love' : /e0b062|--primary/.test(st) ? 'gold' : '';
+            let text = label.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').trim();
+            b.removeAttribute('style');
+            b.classList.add('act-card');
+            if(tone) b.classList.add('tone-' + tone);
+            if(b.classList.contains('primary')) { b.classList.remove('primary'); b.classList.add('tone-done'); }
+            b.innerHTML = `<span class="sr-only">${label}</span>`
+                + `<span class="ac-ic" aria-hidden="true">${this.icon(icon)}</span>`
+                + `<span class="ac-tx" aria-hidden="true"><b>${text}</b>${hint ? `<small>${T(hint)}</small>` : ''}</span>`;
+        });
     },
 
     // ---------- SETTLEMENT SCENE (#60) ----------
     // The scene has no separate coordinate table: the settlement screen's own buttons
     // are drawn as buildings. Since addBtn is the single gate, a button added tomorrow
     // becomes a structure in the scene by itself — no need to keep two lists in sync.
-    // The building type is picked from the button's icon; an unrecognized icon falls back to a house.
+    // The building type is picked from the button's icon (MapArt's SCENE_KIND); an unrecognized icon is a house.
     SCENE_W: 900, SCENE_H: 280,
-    SCENE_KIND: {
-        '👑': 'tower', '🛡️': 'tower', '🏆': 'tower',
-        '🍺': 'house', '🧓': 'house', '⛓️': 'house', '🏭': 'shop', '📦': 'barn',
-        '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔️': 'tent',
-        '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate'
-    },
     sceneIcon(text) {
         let m = String(text).match(/(\p{Extended_Pictographic}️?)/u);
         return m ? m[1] : '';
-    },
-    sceneKind(icon) {
-        return this.SCENE_KIND[icon] || this.SCENE_KIND[icon.replace('️', '')] || 'house';
-    },
-    // Deterministic randomness derived from the settlement's id: the same city always gets the same silhouette
-    sceneRnd(loc, i) {
-        let str = String(loc.id) + '|' + i, h = 0;
-        for(let k = 0; k < str.length; k++) h = (h * 131 + str.charCodeAt(k)) % 1000003;
-        return h / 1000003;
     },
 
     renderScene(loc) {
         let cv = document.getElementById('scene-canvas');
         if(!cv) return;
-        let btns = [...document.getElementById('settlement-actions').children];
+        let btns = [...document.getElementById('settlement-actions').querySelectorAll('button')];
         this._sceneLoc = loc;
         this._sceneBtns = btns;
         this.sceneHot = [];
@@ -7147,22 +6875,100 @@ const Game = {
         let dpr = this.sceneDpr();
         if(cv.width !== this.SCENE_W * dpr) { cv.width = this.SCENE_W * dpr; cv.height = this.SCENE_H * dpr; }
         this.drawScene(cv.getContext('2d'), loc, btns, -1);
-        cv.onmousemove = e => {
+        // Hot rects are recorded in 900x280 drawing units, so the pointer is converted into
+        // those — not into the (now larger) backing-store pixels. The rect is the canvas's own,
+        // so a phone's sideways-scrolled scene maps the same way.
+        let hit = e => {
             let r = cv.getBoundingClientRect();
-            // Hot rects are recorded in 900x280 drawing units, so the pointer is converted into
-            // those — not into the (now larger) backing-store pixels.
             let x = (e.clientX - r.left) * this.SCENE_W / r.width, y = (e.clientY - r.top) * this.SCENE_H / r.height;
-            let i = this.sceneHot.findIndex(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+            return this.sceneHot.findIndex(h => h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+        };
+        cv.onmousemove = e => {
+            let i = hit(e);
             if(i === this._sceneHover) return;                 // only redraw on a change
             this._sceneHover = i;
             cv.style.cursor = i >= 0 ? 'pointer' : 'default';
             this.drawScene(cv.getContext('2d'), loc, btns, i);
         };
         cv.onmouseleave = () => { this._sceneHover = -1; this.drawScene(cv.getContext('2d'), loc, btns, -1); };
-        cv.onclick = () => {
-            let h = this.sceneHot[this._sceneHover];
+        // The tap's own point, not the last hover: a finger has no hover to leave behind
+        cv.onclick = e => {
+            let h = this.sceneHot[hit(e)];
             if(h) h.btn.onclick();                             // the button's own action — no second table
         };
+        this.sceneScrollInit(loc);
+    },
+
+    // Phone (2.0.0, round 3): the scene keeps a readable height and slides sideways instead of
+    // shrinking to a strip. Four cues say it slides, each on its own: arrow buttons and a shaded
+    // edge on whichever side has more to show, a track under it, and — until the first slide —
+    // a "slide the scene" pill plus one small peek of the canvas. All of them exist only while
+    // the scene is wider than its box (`.scrolls`), so a desktop sees none.
+    sceneScrollInit(loc) {
+        let sc = document.getElementById('scene-scroll'), wrap = document.getElementById('scene-wrap');
+        if(!sc || !wrap || !sc.addEventListener) return;
+        let left = document.getElementById('scene-left'), right = document.getElementById('scene-right');
+        if(!sc._wired) {
+            sc._wired = true;
+            try { this._sceneSeen = localStorage.getItem('webband_sceneSlide') === '1'; } catch(e) {}
+            left.onclick = () => this.sceneSlide(-1);
+            right.onclick = () => this.sceneSlide(1);
+            sc.addEventListener('scroll', () => {
+                if(sc.scrollLeft > 12) this.sceneSlid();
+                this.sceneScrollSync();
+            }, { passive: true });
+            // The box changes size without a window resize too: the settlement view is drawn
+            // while hidden, then shown; the phone turns sideways
+            if(typeof ResizeObserver === 'function') new ResizeObserver(() => this.sceneScrollSync()).observe(sc);
+            else addEventListener('resize', () => this.sceneScrollSync());
+        }
+        // Labels are written here, not in index.html, so they follow the current language
+        left.setAttribute('aria-label', T('Sahneyi sola kaydır')); left.title = T('Sahneyi sola kaydır');
+        right.setAttribute('aria-label', T('Sahneyi sağa kaydır')); right.title = T('Sahneyi sağa kaydır');
+        sc.setAttribute('aria-label', T('Yerleşim sahnesi, yana kaydırılır'));
+        let hintTx = document.querySelector('#scene-hint span');
+        if(hintTx) hintTx.textContent = T('Sahneyi yana kaydır');
+        // A new settlement starts at its left edge; a redraw of the same one keeps its place
+        if(this._sceneScrollLoc !== loc.id) {
+            this._sceneScrollLoc = loc.id;
+            sc.scrollLeft = 0;
+            wrap.classList.remove('peek');
+            this._scenePeekDue = true;
+        }
+        this.sceneScrollSync();
+    },
+    sceneSlide(dir) {
+        let sc = document.getElementById('scene-scroll');
+        if(!sc) return;
+        sc.scrollBy({ left: dir * sc.clientWidth * 0.7, behavior: this.reduceMotion() ? 'auto' : 'smooth' });
+        this.sceneSlid();
+    },
+    // The player has found the slide: the words go, and stay gone
+    sceneSlid() {
+        if(this._sceneSeen) return;
+        this._sceneSeen = true;
+        try { localStorage.setItem('webband_sceneSlide', '1'); } catch(e) {}
+        this.sceneScrollSync();
+    },
+    sceneScrollSync() {
+        let sc = document.getElementById('scene-scroll'), wrap = document.getElementById('scene-wrap');
+        if(!sc || !wrap) return;
+        let max = sc.scrollWidth - sc.clientWidth, x = sc.scrollLeft, over = max > 4;
+        wrap.classList.toggle('scrolls', over);
+        wrap.classList.toggle('at-start', x <= 4);
+        wrap.classList.toggle('at-end', x >= max - 4);
+        wrap.classList.toggle('hint', over && !this._sceneSeen);
+        // The peek waits for a scene that actually overflows (it may be laid out hidden first),
+        // and plays once a session: a cue the first time, a twitch on every visit
+        if(over && this._scenePeekDue) {
+            this._scenePeekDue = false;
+            if(!this._sceneSeen && !this._scenePeeked) { this._scenePeeked = true; wrap.classList.add('peek'); }
+        }
+        let th = document.querySelector('#scene-track i');
+        if(th && over) {
+            th.style.width = (100 * sc.clientWidth / sc.scrollWidth).toFixed(2) + '%';
+            th.style.left = (100 * x / sc.scrollWidth).toFixed(2) + '%';
+        }
     },
 
     // The scene canvas is the one canvas in the game whose bitmap is stretched: it is authored
@@ -7175,67 +6981,19 @@ const Game = {
     sceneDpr() { return Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1); },
 
     drawScene(ctx, loc, btns, hover) {
-        let W = this.SCENE_W, H = this.SCENE_H, R = i => this.sceneRnd(loc, i);
         let dpr = this.sceneDpr();
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // draw in 900x280 units, store in device pixels
-        let hour = state.time.hour, night = hour < 6 || hour >= 20, dusk = (hour >= 18 && hour < 20) || (hour >= 6 && hour < 8);
         let col = (FACTIONS[loc.faction] || {}).color || '#ffcc00';
-        let ground = H * 0.66;
-        ctx.clearRect(0, 0, W, H);
-
-        // Sky — by time of day
-        let sky = ctx.createLinearGradient(0, 0, 0, ground);
-        if(night) { sky.addColorStop(0, '#0b1027'); sky.addColorStop(1, '#2b3355'); }
-        else if(dusk) { sky.addColorStop(0, '#38406e'); sky.addColorStop(0.6, '#c9743c'); sky.addColorStop(1, '#e8b473'); }
-        else { sky.addColorStop(0, '#6ea6dd'); sky.addColorStop(1, '#cfe0ea'); }
-        ctx.fillStyle = sky; ctx.fillRect(0, 0, W, ground + 2);
-        if(night) {                                            // stars
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            for(let i = 0; i < 40; i++) ctx.fillRect(R(i) * W, R(i + 100) * ground * 0.7, 1.6, 1.6);
-        }
-        ctx.fillStyle = night ? 'rgba(226,232,255,0.9)' : dusk ? 'rgba(255,196,120,0.95)' : 'rgba(255,246,214,0.95)';
-        ctx.beginPath(); ctx.arc(90 + R(5) * (W - 180), 46 + R(6) * 24, night ? 16 : 22, 0, 7); ctx.fill();
-
-        // Distant hills (two layers)
-        for(let layer = 0; layer < 2; layer++) {
-            ctx.fillStyle = night ? (layer ? '#1b2138' : '#141a2e') : (layer ? '#8fa07d' : '#6f8064');
-            ctx.beginPath(); ctx.moveTo(0, ground);
-            for(let x = 0; x <= W; x += 60) {
-                let k = layer * 50 + x / 60;
-                ctx.lineTo(x, ground - 30 - layer * 18 - R(k) * 45);
-            }
-            ctx.lineTo(W, ground); ctx.closePath(); ctx.fill();
-        }
-
-        // Backdrop: city walls, a crenellated castle wall, a village fence and fields
-        this.drawBackdrop(ctx, loc, ground, night, col, R);
-
-        // Ground
-        let gr = ctx.createLinearGradient(0, ground, 0, H);
-        gr.addColorStop(0, night ? '#2a2a22' : '#6b6a4a'); gr.addColorStop(1, night ? '#171712' : '#4a4a33');
-        ctx.fillStyle = gr; ctx.fillRect(0, ground, W, H - ground);
-        ctx.fillStyle = night ? 'rgba(120,110,80,0.25)' : 'rgba(190,175,130,0.45)';   // dirt road
-        ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(W, H); ctx.lineTo(W, H - 34); ctx.lineTo(0, H - 22); ctx.fill();
-
-        // Buildings: two rows (odd indices in back, even in front)
-        this.sceneHot = [];
-        let back = btns.filter((_, i) => i % 2 === 1), front = btns.filter((_, i) => i % 2 === 0);
-        let rows = [
-            { list: back, base: ground + 14, w: 96, h: 66, dim: 0.82 },
-            { list: front, base: H - 16, w: 122, h: 88, dim: 1 }
-        ];
-        rows.forEach((row, ri) => {
-            let n = row.list.length || 1, step = (W - 60) / n;
-            row.list.forEach((btn, i) => {
-                let x = 30 + i * step + (step - row.w) / 2 + (R(ri * 20 + i) - 0.5) * 14;
-                let y = row.base - row.h;
-                let icon = this.sceneIcon(btn.innerHTML);
-                let idx = btns.indexOf(btn);
-                this.sceneHot[idx] = { x, y, w: row.w, h: row.h, btn, icon, label: btn.innerText };
-                this.drawStructure(ctx, this.sceneKind(icon), x, y, row.w, row.h, col, icon, night, row.dim, hover === idx);
-            });
-        });
-
+        ctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
+        // 2.0.0: the scene is MapArt's pixel art (map-art.js). Node's harness loads no MapArt,
+        // so there the scene simply stays blank and has no hot rects.
+        if(typeof MapArt === 'undefined') return;
+        this.sceneHot = MapArt.scene(ctx, loc, btns, hover, this);
+        this.drawSceneText(ctx, loc, hover, col);
+    },
+    // The words over the scene: where you are, and what's under the pointer
+    drawSceneText(ctx, loc, hover, col) {
+        let W = this.SCENE_W;
         // Settlement-type badge (#100): a small corner label so the palette + silhouette are
         // never the only cue for where the player has walked in.
         let typeLabel = loc.type === 'castle' ? T('Kale') : loc.type === 'city' ? T('Şehir') : T('Köy');
@@ -7251,172 +7009,13 @@ const Game = {
             let h = this.sceneHot[hover], txt = h.label.trim();
             ctx.font = 'bold 17px Inter, sans-serif';
             let tw = ctx.measureText(txt).width, bx = Math.max(6, Math.min(W - tw - 26, h.x + h.w / 2 - tw / 2 - 10));
-            let by = Math.max(4, h.y - 34);
+            let by = Math.max(4, (h.top !== undefined ? h.top : h.y) - 34);
             ctx.fillStyle = 'rgba(10,10,14,0.88)';
             ctx.strokeStyle = col; ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.roundRect(bx, by, tw + 20, 28, 6); ctx.fill(); ctx.stroke();
             ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
             ctx.fillText(txt, bx + 10, by + 15);
         }
-    },
-
-    drawBackdrop(ctx, loc, ground, night, col, R) {
-        let W = this.SCENE_W;
-        // Each settlement type gets its own stone palette so village/castle/city read apart at a
-        // glance (#100): village warm earth, castle cold steel-grey, city warm terracotta-sand.
-        let stone = loc.type === 'castle' ? (night ? '#33343f' : '#8b909c')
-                  : loc.type === 'city'   ? (night ? '#3c3228' : '#b79a6f')
-                  : (night ? '#3a3327' : '#9a8f6e');
-        // Prosperity scales how crowded the silhouette is: a rich city bristles, a poor village is bare (#100).
-        let pros = Math.max(10, Math.min(100, loc.prosperity || 50)), dens = 0.55 + pros / 100;
-        let wallTop = ground - 92;
-        if(loc.type === 'village') {
-            // Field strips + fence — count scales with prosperity
-            let strips = Math.round(3 + dens * 2);
-            ctx.fillStyle = night ? '#3a3a26' : '#9a8f4e';
-            for(let i = 0; i < strips; i++) ctx.fillRect(i * (W / strips) + R(i) * 20, ground - 26, W / strips - 40, 22);
-            ctx.strokeStyle = night ? '#3d3327' : '#7a6042'; ctx.lineWidth = 3;
-            for(let x = 10; x < W; x += 34) {
-                ctx.beginPath(); ctx.moveTo(x, ground - 4); ctx.lineTo(x, ground - 26); ctx.stroke();
-            }
-            ctx.beginPath(); ctx.moveTo(0, ground - 18); ctx.lineTo(W, ground - 18); ctx.stroke();
-            return;
-        }
-        // Wall: long and crenellated in a city, thicker + a keep behind it in a castle
-        if(loc.type === 'castle') {
-            let kx = 60 + R(9) * (W - 320), kw = 190, kh = 165;
-            ctx.fillStyle = night ? '#2c2d38' : '#767c88';                                     // cold steel keep
-            ctx.fillRect(kx, wallTop - kh + 40, kw, kh);
-            ctx.fillStyle = night ? '#22242f' : '#636874';
-            for(let i = 0; i < 5; i++) ctx.fillRect(kx + i * 40, wallTop - kh + 26, 26, 16);   // battlement
-            ctx.fillStyle = col;                                                              // banner
-            ctx.fillRect(kx + kw / 2 - 1, wallTop - kh - 26, 2, 30);
-            ctx.beginPath(); ctx.moveTo(kx + kw / 2 + 1, wallTop - kh - 24);
-            ctx.lineTo(kx + kw / 2 + 36, wallTop - kh - 16); ctx.lineTo(kx + kw / 2 + 1, wallTop - kh - 8); ctx.fill();
-        } else {
-            // City silhouette: warm terracotta rooftops, a dome + minaret behind, count by prosperity
-            let houses = Math.round((6 + R(3) * 5) * dens);
-            for(let i = 0; i < houses; i++) {
-                let x = R(i + 30) * (W - 80), w = 54 + R(i + 60) * 46, h = 52 + R(i + 90) * 60;
-                let top = wallTop + 14 - h;                      // rooftops show above the wall
-                ctx.fillStyle = night ? '#2a2620' : '#7a5f45';
-                ctx.fillRect(x, top, w, h);
-                ctx.fillStyle = night ? '#1a1512' : '#8a4a30';   // terracotta pitched roof
-                ctx.beginPath(); ctx.moveTo(x - 6, top); ctx.lineTo(x + w / 2, top - 26); ctx.lineTo(x + w + 6, top); ctx.fill();
-                if(night) {                                     // hearth light in the windows
-                    ctx.fillStyle = 'rgba(255,196,90,0.75)';
-                    ctx.fillRect(x + w * 0.3, top + 16, 7, 9);
-                    if(R(i + 120) > 0.5) ctx.fillRect(x + w * 0.62, top + 16, 7, 9);
-                }
-            }
-            // A dome + minaret to mark it unmistakably a city
-            let dx = 120 + R(2) * (W - 300), dr = 46;
-            ctx.fillStyle = night ? '#2c2a34' : '#9a8c74';
-            ctx.beginPath(); ctx.arc(dx, wallTop + 6, dr, Math.PI, 0); ctx.fill();
-            ctx.fillRect(dx - dr, wallTop + 4, dr * 2, 8);
-            ctx.fillStyle = col; ctx.fillRect(dx - 1, wallTop - dr - 16, 2, 16);
-            ctx.fillStyle = night ? '#26242e' : '#8a7c64';       // minaret
-            ctx.fillRect(dx + dr + 20, wallTop - 40, 16, wallTop * 0 + 132);
-            ctx.beginPath(); ctx.moveTo(dx + dr + 20, wallTop - 40); ctx.lineTo(dx + dr + 28, wallTop - 60); ctx.lineTo(dx + dr + 36, wallTop - 40); ctx.fill();
-        }
-        // Wall + gate
-        ctx.fillStyle = stone; ctx.fillRect(0, wallTop, W, 92);
-        ctx.fillStyle = night ? '#2c2c34' : '#6f6a5e';
-        for(let x = 4; x < W; x += 34) ctx.fillRect(x, wallTop - 12, 20, 14);      // battlements
-        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, wallTop + 72, W, 20);  // shadow band
-        let gx = 120 + R(7) * (W - 320);
-        ctx.fillStyle = night ? '#16161c' : '#3b2f22';
-        ctx.beginPath(); ctx.moveTo(gx, ground); ctx.lineTo(gx, wallTop + 44);
-        ctx.arc(gx + 28, wallTop + 44, 28, Math.PI, 0); ctx.lineTo(gx + 56, ground); ctx.fill();
-        ctx.fillStyle = col; ctx.fillRect(gx - 26, wallTop - 10, 3, 40);           // a banner beside the gate
-        ctx.beginPath(); ctx.moveTo(gx - 23, wallTop - 8); ctx.lineTo(gx - 2, wallTop - 1); ctx.lineTo(gx - 23, wallTop + 6); ctx.fill();
-    },
-
-    // A single drawing primitive: the kind gives the silhouette's shape, the icon gives the sign.
-    drawStructure(ctx, kind, x, y, w, h, col, icon, night, dim, hot) {
-        ctx.save();
-        if(hot) { ctx.shadowColor = 'rgba(255,204,0,0.9)'; ctx.shadowBlur = 22; }
-        let wood = night ? '#2f2418' : '#6b4f31', wall = night ? '#39332a' : `rgb(${Math.round(168*dim)},${Math.round(150*dim)},${Math.round(120*dim)})`;
-        let roof = night ? '#241d16' : `rgb(${Math.round(122*dim)},${Math.round(70*dim)},${Math.round(48*dim)})`;
-        let lit = 'rgba(255,196,90,0.85)';
-        ctx.fillStyle = 'rgba(0,0,0,0.28)';                       // ground shadow
-        ctx.beginPath(); ctx.ellipse(x + w / 2, y + h + 3, w * 0.52, 7, 0, 0, 7); ctx.fill();
-
-        if(kind === 'tower') {
-            ctx.fillStyle = wall; ctx.fillRect(x + w * 0.22, y, w * 0.56, h);
-            ctx.fillStyle = roof;
-            for(let i = 0; i < 4; i++) ctx.fillRect(x + w * 0.22 + i * w * 0.15, y - 9, w * 0.1, 10);
-            ctx.fillStyle = night ? lit : 'rgba(40,35,28,0.8)';
-            ctx.fillRect(x + w * 0.42, y + h * 0.34, w * 0.16, h * 0.2);
-            ctx.fillStyle = col; ctx.fillRect(x + w * 0.5, y - 34, 2, 26);
-            ctx.beginPath(); ctx.moveTo(x + w * 0.52, y - 32); ctx.lineTo(x + w * 0.82, y - 25); ctx.lineTo(x + w * 0.52, y - 18); ctx.fill();
-        } else if(kind === 'stall') {
-            ctx.fillStyle = wood; ctx.fillRect(x + 6, y + h * 0.35, 5, h * 0.65); ctx.fillRect(x + w - 11, y + h * 0.35, 5, h * 0.65);
-            for(let i = 0; i < 5; i++) {                          // striped awning
-                ctx.fillStyle = i % 2 ? '#c94f3d' : '#e8ded0';
-                ctx.fillRect(x + i * w / 5, y + h * 0.28, w / 5, h * 0.16);
-            }
-            ctx.fillStyle = wood; ctx.fillRect(x + 10, y + h * 0.62, w - 20, h * 0.14);
-            ctx.fillStyle = night ? '#3a2f22' : '#8a6c46';
-            ctx.fillRect(x + 16, y + h * 0.78, 22, 18); ctx.fillRect(x + w - 44, y + h * 0.78, 22, 18);
-        } else if(kind === 'tent') {
-            ctx.fillStyle = night ? '#2c2c26' : '#ddd2b4';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.1); ctx.lineTo(x + 4, y + h); ctx.lineTo(x + w - 4, y + h); ctx.fill();
-            ctx.fillStyle = night ? '#191913' : '#4a4436';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.45); ctx.lineTo(x + w / 2 - 13, y + h); ctx.lineTo(x + w / 2 + 13, y + h); ctx.fill();
-            ctx.fillStyle = col; ctx.fillRect(x + w / 2 - 1, y - 12, 2, 22);
-            ctx.beginPath(); ctx.moveTo(x + w / 2 + 1, y - 11); ctx.lineTo(x + w / 2 + 20, y - 6); ctx.lineTo(x + w / 2 + 1, y - 1); ctx.fill();
-        } else if(kind === 'ring') {
-            ctx.fillStyle = night ? '#2a2118' : '#8e6c44';
-            ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.72, w * 0.48, h * 0.3, 0, 0, 7); ctx.fill();
-            ctx.fillStyle = night ? '#3a2f22' : '#b08a58';
-            ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.66, w * 0.42, h * 0.24, 0, 0, 7); ctx.fill();
-            ctx.strokeStyle = wood; ctx.lineWidth = 4;            // palisade stakes
-            for(let i = 0; i < 10; i++) {
-                let a = i / 10 * Math.PI * 2, px = x + w / 2 + Math.cos(a) * w * 0.45, py = y + h * 0.72 + Math.sin(a) * h * 0.3;
-                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py - 16); ctx.stroke();
-            }
-        } else if(kind === 'fire') {
-            ctx.fillStyle = wood; ctx.fillRect(x + w / 2 - 16, y + h * 0.6, 32, h * 0.4);
-            ctx.fillStyle = '#e8622a';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.18); ctx.lineTo(x + w / 2 - 20, y + h * 0.62); ctx.lineTo(x + w / 2 + 20, y + h * 0.62); ctx.fill();
-            ctx.fillStyle = '#ffcc44';
-            ctx.beginPath(); ctx.moveTo(x + w / 2, y + h * 0.34); ctx.lineTo(x + w / 2 - 10, y + h * 0.62); ctx.lineTo(x + w / 2 + 10, y + h * 0.62); ctx.fill();
-        } else if(kind === 'gate') {
-            ctx.fillStyle = night ? '#33333c' : '#8b8578'; ctx.fillRect(x, y + h * 0.1, w, h * 0.9);
-            ctx.fillStyle = night ? '#16161c' : '#3b2f22';
-            ctx.beginPath(); ctx.moveTo(x + w * 0.28, y + h); ctx.lineTo(x + w * 0.28, y + h * 0.42);
-            ctx.arc(x + w / 2, y + h * 0.42, w * 0.22, Math.PI, 0); ctx.lineTo(x + w * 0.72, y + h); ctx.fill();
-        } else {
-            // house / shop / barn / coop — body + roof, the difference is in the chimney and door
-            let bh = kind === 'barn' ? h * 0.68 : h * 0.62, by = y + h - bh;
-            ctx.fillStyle = wall; ctx.fillRect(x + 6, by, w - 12, bh);
-            ctx.fillStyle = roof;
-            ctx.beginPath(); ctx.moveTo(x - 2, by); ctx.lineTo(x + w / 2, by - h * 0.34); ctx.lineTo(x + w + 2, by); ctx.fill();
-            ctx.fillStyle = night ? '#241d16' : '#4a3524';        // door
-            let dw = kind === 'barn' ? w * 0.36 : w * 0.2;
-            ctx.fillRect(x + w / 2 - dw / 2, y + h - bh * 0.62, dw, bh * 0.62);
-            ctx.fillStyle = night ? lit : 'rgba(70,90,110,0.7)';  // window
-            ctx.fillRect(x + 14, by + bh * 0.22, 13, 12);
-            ctx.fillRect(x + w - 27, by + bh * 0.22, 13, 12);
-            if(kind === 'shop') {                                  // workshop chimney + smoke
-                ctx.fillStyle = roof; ctx.fillRect(x + w * 0.72, by - h * 0.28, 12, h * 0.3);
-                ctx.fillStyle = 'rgba(200,200,200,0.35)';
-                for(let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + w * 0.78, by - h * 0.34 - i * 11, 5 + i * 2, 0, 7); ctx.fill(); }
-            }
-            if(kind === 'coop') { ctx.fillStyle = wood; for(let i = 0; i < 5; i++) ctx.fillRect(x + 4 + i * (w - 8) / 5, y + h - 14, 3, 14); }
-        }
-
-        // Sign: the button's icon sits above the building, which door it is is obvious at a glance
-        ctx.shadowBlur = 0;
-        if(icon) {
-            ctx.fillStyle = hot ? 'rgba(255,204,0,0.95)' : 'rgba(12,12,16,0.8)';
-            ctx.strokeStyle = hot ? '#fff' : 'rgba(255,204,0,0.55)'; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.roundRect(x + w / 2 - 17, y - (kind === 'tower' ? 56 : 26), 34, 26, 6); ctx.fill(); ctx.stroke();
-            ctx.font = '17px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(icon, x + w / 2, y - (kind === 'tower' ? 42 : 12));
-        }
-        ctx.restore();
     },
 
     // --- INTERIOR BACKDROP (#60) ---
@@ -7895,6 +7494,10 @@ const Game = {
         let cb = document.getElementById('modal-close');
         if(cb) { cb.classList.toggle('hidden', !this.canDismiss()); cb.title = T('Kapat'); }
         document.getElementById('modal-overlay').classList.remove('hidden');
+        // A new window starts at its top. On a phone a tall window (a lord's dialogue cards) opened
+        // part-way down, the portrait and name cut off under the frame; setting the offset here
+        // also lays the window out once, so content added after this call can't shift it again.
+        mc.scrollTop = 0;
     },
     // The three ways the user can close a window *on their own* — Esc, clicking outside, ×
     // — ask from one place; asking separately would leave one of them an escape hatch from an encounter (#70).
@@ -8004,20 +7607,66 @@ const Game = {
         this._marketCategory = id;
         this.refreshMarket();
     },
+    // The market (2.0.0): pick a good first, then how many. Buy/Sell tabs over one grid of tiles;
+    // the chosen tile opens a trade panel (a column on the right, pinned to the bottom on a phone)
+    // with a quantity stepper and the total priced unit by unit (`marketQuote`) before you commit.
     openMarket(loc) {
         this._marketCategory = 'all';
-        let html = `<h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
-        <div id="market-status"></div>
-        <div id="market-cats"></div>
-        <div id="market-cols" style="display:flex;flex-wrap:wrap;gap:2rem;margin-top:1rem;">
-        <div style="flex:1;min-width:220px;"><h4>${T`Satın Al`}</h4><ul id="market-buy" style="list-style:none;"></ul></div>
-        <div style="flex:1;min-width:220px;"><h4>${T`Sat`}</h4><ul id="market-sell" style="list-style:none;"></ul></div>
-        </div>
-        <div id="market-msg" style="min-height:1.4rem;margin-top:0.8rem;font-size:var(--fs-md)"></div>
-        <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>`;
-        this.showModal(html, '600px', this.sceneBg('market'));   // bazaar interior (#102)
+        this._mkt = { mode: 'buy', sel: null, qty: 1 };
+        this._mktMsg = '';
+        let html = `<div class="mkt">
+            <h3>${T`🛒 Pazar - ${T(loc.name)}`}</h3>
+            <div id="market-status"></div>
+            <div id="market-tabs" class="mkt-tabs" role="tablist"></div>
+            <div id="market-cats"></div>
+            <div class="mkt-body">
+                <div id="market-buy" class="mkt-grid"></div>
+                <div id="market-panel" class="mkt-panel" aria-live="polite"></div>
+            </div>
+            <button class="btn" style="margin-top:1rem" onclick="Game.closeModal()">${T`Kapat`}</button>
+        </div>`;
+        this.showModal(html, '900px', this.sceneBg('market'));   // bazaar interior (#102)
         this._marketLoc = loc;
         this.refreshMarket();
+    },
+    mktMode(mode) { this._mkt = { mode, sel: null, qty: 1 }; this._mktMsg = ''; this.refreshMarket(); },
+    mktSelect(id) {
+        if(this._mkt.sel !== id) this._mkt.qty = 1;
+        this._mkt.sel = id;
+        this.refreshMarket();
+    },
+    mktSetQty(n) { this._mkt.qty = Math.max(1, Math.floor(+n) || 1); this.refreshMarket(); },
+    mktQty(d) { this.mktSetQty(this._mkt.qty + d); },
+    mktGo() {
+        let m = this._mkt;
+        if(!m || !m.sel) return;
+        if(m.mode === 'buy') this.buyItem(m.sel, m.qty); else this.sellItem(m.sel, m.qty);
+        m.qty = 1;
+        if(m.mode === 'sell' && !state.player.inventory.some(i => i.id === m.sel)) m.sel = null;
+        this.refreshMarket();
+    },
+    // What n of a good would cost (or fetch) right now, priced one by one: each unit bought
+    // raises the next one's price (and each sold lowers it). The stock is walked and put back,
+    // so a quote changes nothing; buyItem/sellItem commit the same walk.
+    marketQuote(id, n, selling) {
+        let loc = this._marketLoc, had = !!(loc && loc.stock && Object.prototype.hasOwnProperty.call(loc.stock, id));
+        let saved = had ? loc.stock[id] : undefined, can = 0, cost = 0, full = false, out = false, poor = false;
+        if(selling) {
+            let it = state.player.inventory.find(i => i.id === id), max = Math.min(n, it ? it.qty : 0);
+            for(; can < max; can++) { cost += this.marketPrice(id, true); if(loc) this.addStock(loc, id, 1); }
+        } else {
+            let free = this.cargoCap() - this.cargoLoad();   // room left in the bag (#78)
+            for(; can < n; can++) {
+                if(can >= free) { full = true; break; }
+                if(loc && this.stock(loc, id) < 1) { out = true; break; }
+                let p = this.marketPrice(id);
+                if(state.player.money - cost < p) { poor = true; break; }
+                cost += p;
+                if(loc) this.addStock(loc, id, -1);
+            }
+        }
+        if(loc && loc.stock) { if(had) loc.stock[id] = saved; else delete loc.stock[id]; }
+        return { can, cost, full, out, poor };
     },
 
     // --- PER-GOOD SUPPLY/DEMAND (#24) ---
@@ -8162,68 +7811,80 @@ const Game = {
                                                 this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
         </div>`;
     },
-    // "Sende: N" next to the price (#103): deciding whether to sell shouldn't need a trip
-    // to the inventory screen and back.
-    haveTag(id) {
-        let it = state.player.inventory.find(i => i.id === id);
-        return it && it.qty > 0 ? `<span style="font-size:var(--fs-xs);color:#7ddc8a">${T`sende ${it.qty}`}</span> ` : '';
-    },
-    // 1x / 5x / All on one line. `.btn` is a block, so two of them in a plain `<li>` wrapped (#103);
-    // the inline-flex wrapper with `nowrap` is what keeps them side by side.
-    qtyBtns(html) { return `<span style="display:inline-flex;gap:4px;flex-wrap:nowrap;vertical-align:middle">${html}</span>`; },
-    qtyBtn(label, call) {
-        return `<button class="btn" style="padding:0.2rem 0.5rem;font-size:var(--fs-sm);white-space:nowrap" onclick="${call}">${label}</button>`;
-    },
     refreshMarket() {
         // A trade can finish a quest (bought_item → Quests.markDone), and that notice takes the
         // modal over before the trade redraws its rows: with the market gone there is nothing to redraw.
         if(!this.marketOpen()) return;
+        let m = this._mkt = this._mkt || { mode: 'buy', sel: null, qty: 1 }, loc = this._marketLoc;
         this.setHtml('market-status', this.marketStatusHtml());
         this.setHtml('market-cats', this.marketCatsHtml());
+        let sellable = state.player.inventory.filter(i => !i.unique && !i.unsellable && i.type !== 'special');
+        document.getElementById('market-tabs').innerHTML = [['buy', T('Satın Al')], ['sell', T('Sat') + ` <span class="mkt-n">${sellable.length}</span>`]]
+            .map(([k, l]) => `<button type="button" role="tab" aria-selected="${m.mode === k}" class="${m.mode === k ? 'on' : ''}" onclick="Game.mktMode('${k}')">${l}</button>`).join('');
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
         let matchesCat = type => !cat.types || cat.types.includes(type);
-        let buy = document.getElementById('market-buy'); buy.innerHTML = '';
-        Object.values(ITEMS).forEach(item => {
-            if(item.unique) return;   // unique boss drops are earned, never bought (#38)
-            if(!matchesCat(item.type)) return;
-            let price = this.marketPrice(item.id);
-            let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-            li.id = 'mrow-buy-' + item.id;   // the row is rebuilt on every refresh; the flash effect finds it by id
-            let note = this.itemNote(item);
-            // Stock (#46): how much of a limited good is left, no button once it's out
-            let st = this._marketLoc ? Math.floor(this.stock(this._marketLoc, item.id)) : Infinity;
-            let empty = st <= 0;
-            li.innerHTML = `${item.icon} ${T(item.name)} - <b>${price}₺</b> `
-                + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                + (isFinite(st) ? `<span style="font-size:var(--fs-xs);color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${T`stok ${st}`}</span> ` : '')
-                + this.haveTag(item.id)
-                + (empty ? `<i style="font-size:var(--fs-sm);color:var(--text-muted)">${T`tükendi`}</i>`
-                    // "Tümü" is just a big count: buyItem already stops at the first of money,
-                    // stock and bag room, and says in the message which one it hit. Equipment
-                    // and horses dropped bulk-buy (#132) — a one-off purchase, no reason to
-                    // stock 5+; goods/food keep it since provisioning an army needs bulk buys.
-                    : (item.type === 'trade' || item.type === 'food')
-                        ? this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)
-                            + this.qtyBtn('x5', `Game.buyItem('${item.id}',5)`)
-                            + this.qtyBtn(T`Tümü`, `Game.buyItem('${item.id}',999)`))
-                        : this.qtyBtns(this.qtyBtn(T`Al`, `Game.buyItem('${item.id}')`)))
-                + (note ? `<div style="font-size:var(--fs-xs);color:#cbb26b">${note}</div>` : '');
-            buy.appendChild(li);
-        });
-        let sell = document.getElementById('market-sell'); sell.innerHTML = '';
-        state.player.inventory.forEach(item => {
-            if(!item.unique && !item.unsellable && item.type !== 'special' && matchesCat(item.type)) {
-                let price = this.marketPrice(item.id, true);
-                let li = document.createElement('li'); li.style.marginBottom = '0.5rem';
-                li.id = 'mrow-sell-' + item.id;
-                li.innerHTML = `${item.icon||'📦'} ${T(item.name)} x${item.qty} - <b>${price}₺</b> `
-                    + `<span style="font-size:var(--fs-xs)">${this._marketLoc ? this.priceTag(this._marketLoc, item.id) : ''}</span> `
-                    + this.qtyBtns(this.qtyBtn(T`Sat`, `Game.sellItem('${item.id}')`)
-                        + (item.qty >= 5 ? this.qtyBtn('x5', `Game.sellItem('${item.id}',5)`) : '')
-                        + (item.qty >= 2 ? this.qtyBtn(T`Tümü`, `Game.sellItem('${item.id}',${item.qty})`) : ''));
-                sell.appendChild(li);
-            }
-        });
+        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && matchesCat(i.type))   // unique boss drops are earned, never bought (#38)
+                                    : sellable.filter(i => matchesCat(i.type));
+        let grid = document.getElementById('market-buy');
+        grid.innerHTML = list.length ? list.map(item => {
+            let price = this.marketPrice(item.id, m.mode === 'sell');
+            // Stock (#46): how much of a limited good is left
+            let st = m.mode === 'buy' && loc ? Math.floor(this.stock(loc, item.id)) : Infinity, empty = st <= 0;
+            let have = state.player.inventory.find(i => i.id === item.id);
+            let badges = (isFinite(st) ? `<span style="color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${empty ? T`tükendi` : T`stok ${st}`}</span>` : '')
+                + (have && have.qty > 0 ? `<span style="color:#7ddc8a">${m.mode === 'buy' ? T`sende ${have.qty}` : '×' + have.qty}</span>` : '');
+            let on = m.sel === item.id;
+            return `<button type="button" class="mkt-tile${on ? ' sel' : ''}${empty ? ' out' : ''}" id="mrow-${m.mode}-${item.id}" aria-pressed="${on}" onclick="Game.mktSelect('${item.id}')">
+                <span class="mt-ic">${this.itemIco(item, true)}</span><span class="mt-nm">${T(item.name)}</span>
+                <span class="mt-pr"><b>${price}₺</b> <small>${loc ? this.priceTag(loc, item.id) : ''}</small></span>
+                <span class="mt-bd">${badges}</span></button>`;
+        }).join('') : `<p class="mkt-empty">${m.mode === 'buy' ? T`Bu sırada satılık bir şey yok.` : T`Satacak bir şeyin yok.`}</p>`;
+        document.getElementById('market-panel').innerHTML = this.marketPanelHtml();
+    },
+    // The trade panel for the chosen good: what it is, how it compares with what you wear, how
+    // many, what that comes to, one button.
+    marketPanelHtml() {
+        let m = this._mkt, buy = m.mode === 'buy', msg = `<div id="market-msg" class="mp-msg">${this._mktMsg || ''}</div>`;
+        let item = m.sel && (buy ? ITEMS[m.sel] : state.player.inventory.find(i => i.id === m.sel));
+        if(!item) return `<p class="mp-hint">${buy ? T`Bir eşya seç; kaç tane alacağını burada ayarlarsın.` : T`Satmak istediğin eşyayı seç.`}</p>${msg}`;
+        let loc = this._marketLoc, stack = item.type === 'trade' || item.type === 'food';
+        let max = buy ? (stack ? this.marketQuote(item.id, 9999, false).can : Math.min(1, this.marketQuote(item.id, 1, false).can))
+                      : item.qty;
+        let qty = Math.max(1, Math.min(m.qty, Math.max(1, max)));
+        m.qty = qty;
+        let q = this.marketQuote(item.id, qty, !buy);
+        // why fewer than asked (or none): the bag, the market's stock, or the purse
+        let why = '';
+        if(buy && q.can < qty) {
+            let free = this.cargoCap() - this.cargoLoad(), st = loc ? Math.floor(this.stock(loc, item.id)) : 0;
+            why = q.full ? (free > 0 ? T`Çantada ${free} birimlik yer var` : T`Çantan dolu`)
+                : q.out ? (st > 0 ? T`Stokta ${st} tane var` : T`Stok tükendi`)
+                : (q.can > 0 ? T`Paran ${q.can} taneye yetiyor` : T`Paran yetmiyor`);
+        }
+        // a weapon, armour piece or horse against the one you're wearing
+        let cmp = '';
+        let worn = buy && state.player.equipment && state.player.equipment[item.type];
+        let stat = it => it.attack || it.defense || it.hSpd || 0;
+        if(worn && worn.id !== item.id) {
+            let d = stat(item) - stat(worn);
+            cmp = `<div class="mp-cmp">${T`Kuşandığın:`} ${this.itemIco(worn)} ${T(worn.name)} <b style="color:${d > 0 ? '#7ddc8a' : d < 0 ? '#e0463a' : 'var(--text-muted)'}">${d > 0 ? '+' : ''}${d}</b></div>`;
+        }
+        let unit = this.marketPrice(item.id, !buy);
+        let stepper = stack || (!buy && item.qty > 1) ? `<div class="mp-qty">
+                <button type="button" onclick="Game.mktQty(-1)" aria-label="−1" ${qty <= 1 ? 'disabled' : ''}>−</button>
+                <input id="mkt-qty" type="number" inputmode="numeric" min="1" max="${Math.max(1, max)}" value="${qty}" onchange="Game.mktSetQty(this.value)" aria-label="${T('Adet')}">
+                <button type="button" onclick="Game.mktQty(1)" aria-label="+1" ${qty >= max ? 'disabled' : ''}>+</button>
+            </div>
+            <div class="mp-chips">${[1, 5, 10].filter(v => v < max).map(v => `<button type="button" class="${v === qty ? 'on' : ''}" onclick="Game.mktSetQty(${v})">${v}</button>`).join('')}
+                <button type="button" class="${qty === max ? 'on' : ''}" onclick="Game.mktSetQty(${Math.max(1, max)})">${T`Maks`} ${max}</button></div>` : '';
+        let label = buy ? T`${q.can} al · ${q.cost}₺` : T`${q.can} sat · +${q.cost}₺`;
+        return `<div class="mp-head"><span class="mp-ic">${this.itemIco(item, true)}</span>
+                <div><b>${T(item.name)}</b><small>${T`adet başı ${unit}₺`} ${loc ? this.priceTag(loc, item.id) : ''}${!buy ? ` · ${T`sende ${item.qty}`}` : ''}</small></div></div>
+            ${this.itemNote(item) ? `<div class="mp-note">${this.itemNote(item)}</div>` : ''}
+            ${cmp}${stepper}
+            ${why ? `<div class="mp-why">${why}</div>` : ''}
+            <button type="button" class="btn primary mp-go" onclick="Game.mktGo()" ${q.can <= 0 ? 'disabled' : ''}>${label}</button>
+            ${msg}`;
     },
     // ============ TRANSACTION FEEDBACK (#45) ============
     // Single gate: sound + the relevant row flashing + a flying delta on the coin badge.
@@ -8971,7 +8632,10 @@ const Game = {
 
     // The result of a trade should show inside the modal: alert() would close the market.
     marketMsg(html, ok = true) {
-        this.setHtml('market-msg', `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`);
+        // kept, because the trade panel it sits in is redrawn after every trade
+        this._mktMsg = `<span style="color:${ok ? 'var(--success)' : 'var(--danger)'}">${html}</span>`;
+        let el = document.getElementById('market-msg');
+        if(el) el.innerHTML = this._mktMsg;
     },
     // A stale tap (iOS ghost click, a double tap that lands after closeModal) can still fire a
     // market button once the modal DOM is gone. Without the modal there is no row to flash and no
@@ -8980,18 +8644,11 @@ const Game = {
     buyItem(id, n = 1) {
         if(!this.marketOpen()) return;
         if(this.marketPrice(id) === null) return alert(T('Bu eşya pazarda yok.'));
-        let loc = this._marketLoc, out = false, full = false, cost = 0, can = 0;
-        let free = this.cargoCap() - this.cargoLoad();   // room left in the bag (#78)
-        // Price is computed unit by unit: each good bought lowers the stock, and the lowered stock
-        // makes the next one pricier. (Buying in bulk at one price would be too cheap — hence the one-by-one vs. bulk difference.)
-        for(; can < n; can++) {
-            if(can >= free) { full = true; break; }
-            if(loc && this.stock(loc, id) < 1) { out = true; break; }
-            let p = this.marketPrice(id);
-            if(state.player.money - cost < p) break;
-            cost += p;
-            if(loc) this.addStock(loc, id, -1);
-        }
+        let loc = this._marketLoc;
+        // Priced unit by unit (marketQuote): each good bought lowers the stock and the lowered
+        // stock makes the next one pricier — buying in bulk at one price would be too cheap.
+        let { can, cost, full, out } = this.marketQuote(id, n, false);
+        if(loc && can > 0) this.addStock(loc, id, -can);
         if(can <= 0) {
             this.feedback('error', document.getElementById('mrow-buy-' + id));
             // Instead of silently ignoring it, it says why: no room / no stock / no money.
@@ -9005,7 +8662,7 @@ const Game = {
         this.addProficiencyXp('trade', 4 * can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
-        this.marketMsg(`${ITEMS[id].icon} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
+        this.marketMsg(`${this.itemIco(ITEMS[id])} <b>${T(ITEMS[id].name)} x${can}</b> ${T`alındı · <b>-${cost}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${have ? have.qty : 0}`}`
             + (can < n ? ` <i>(${full ? T('çantan doldu') : out ? T('stok bitti') : T`paran ${n} taneye yetmedi`})</i>` : ''));
         this.updateTopBar(); this.refreshMarket();
         // The flash happens AFTER the refresh: the row element is rebuilt
@@ -9018,17 +8675,14 @@ const Game = {
         if(idx === -1) return;
         let item = state.player.inventory[idx];
         if(item.unique || item.unsellable || item.type === 'special') { this.sfx('error'); return alert(T('Bu eşya pazarda satılmıyor.')); }
-        let can = Math.min(n, item.qty), gain = 0;
         // What you sell enters the market's stock: each unit sold lowers the next one's price.
-        for(let i = 0; i < can; i++) {
-            gain += this.marketPrice(id, true);
-            if(this._marketLoc) this.addStock(this._marketLoc, id, 1);
-        }
+        let { can, cost: gain } = this.marketQuote(id, n, true);
+        if(this._marketLoc && can > 0) this.addStock(this._marketLoc, id, can);
         state.player.money += gain;
         this.addProficiencyXp('trade', 4 * can);
         item.qty -= can;
         if(item.qty <= 0) state.player.inventory.splice(idx,1);
-        this.marketMsg(`${item.icon||'📦'} <b>${T(item.name)} x${can}</b> ${T`satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`}`);
+        this.marketMsg(`${this.itemIco(item)} <b>${T(item.name)} x${can}</b> ${T`satıldı · <b>+${gain}₺</b> · kasa <b>${Math.floor(state.player.money)}₺</b> · elde ${Math.max(0,item.qty)}`}`);
         this.updateTopBar(); this.refreshMarket();
         this.feedback('sell', document.getElementById('mrow-sell-' + id) || document.getElementById('mrow-buy-' + id), gain);
         this.flash(document.getElementById('mrow-buy-' + id));
@@ -10432,7 +10086,7 @@ const Game = {
             .map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveStorage('${loc.id}','${id}',${v},'${dir}')">${v === max && max > 5 ? T('Hepsi') : v}</button>`).join(' ');
         let col = (title, list, dir, empty) => `<div style="flex:1"><h4>${title}</h4><ul style="list-style:none">${
             list.length ? list.map(i => `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
-                <span>${i.icon} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
+                <span>${this.itemIco(i)} ${T(i.name)} <b>x${i.qty}</b></span><span>${btns(i.id, dir, i.qty)}</span></li>`).join('')
             : `<li style="color:var(--text-muted)">${empty}</li>`}</ul></div>`;
         // Treasury: the only money not looted on defeat (#53 item 1.2). Moving money into storage
         // is insurance — the smaller the purse you're carrying, the cheaper a defeat is.
@@ -11887,7 +11541,7 @@ const Game = {
                 let isUse = item.type === 'special' && item.id === 'boss_map';
                 html += `<div class="inv-item"
                 ${canEquip ? `draggable="true" ondragstart="Game._eqDragIdx=${i}" ondragend="Game._eqDragIdx=null"` : ''}>
-                <div style="font-size:1.5rem">${item.icon||'📦'}</div>
+                <div style="font-size:1.5rem">${this.itemIco(item, true)}</div>
                 <div style="font-weight:bold;font-size:var(--fs-md);margin-top:0.3rem">${T(item.name)}</div>
                 <div style="color:var(--text-muted);font-size:var(--fs-sm)">x${item.qty}</div>
                 ${this.itemNote(item) ? `<div style="font-size:var(--fs-xs);color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
@@ -11928,6 +11582,14 @@ const Game = {
         return bits.join(' · ');
     },
 
+    // An item's pixel icon (MapArt.itemIcon, 2.0.0) as an <img>, or its emoji when there's no
+    // drawing for it. Plain-text places (alerts, logs, tooltips) keep the emoji.
+    itemIco(item, big) {
+        if(!item) return '📦';
+        let url = typeof MapArt !== 'undefined' ? MapArt.itemIcon(item) : null;
+        return url ? `<img class="ico-px${big ? ' big' : ''}" src="${url}" alt="">` : (item.icon || '📦');
+    },
+    EQUIP_PH: { helmet: 'cap', armor: 'leather', weapon: 'sword', shield: 'shield', gloves: 'gloves', boots: 'shoes', horse: 'horse_kib' },
     EQUIP_SLOTS: { helmet: { icon: '⛑️', label: 'Başlık' }, armor: { icon: '🎽', label: 'Zırh' },
         weapon: { icon: '🗡️', label: 'Silah' }, shield: { icon: '🛡️', label: 'Kalkan' },
         gloves: { icon: '🧤', label: 'Eldiven' }, boots: { icon: '🥾', label: 'Çizme' },
@@ -11940,7 +11602,8 @@ const Game = {
         let meta = this.EQUIP_SLOTS[slot] || { icon: '📦', label: slot };
         let title = item ? T(item.name) + (this.itemNote(item) ? ' — ' + this.itemNote(item) : '')
                          : T(meta.label);
-        let inner = item ? (item.icon || meta.icon) : `<span class="equip-slot-ph">${meta.icon}</span>`;
+        // an empty slot shows the plainest item of its kind, faded (the pixel icon, else the emoji)
+        let inner = item ? this.itemIco(item, true) : `<span class="equip-slot-ph">${this.itemIco(ITEMS[this.EQUIP_PH[slot]] || meta, true)}</span>`;
         return `<div class="equip-slot${item ? ' filled' : ''}" data-slot="${slot}" title="${String(title).replace(/"/g, '&quot;')}"
             ${item ? `onclick="Game.unequipItem('${slot}')"` : ''}
             ondragover="event.preventDefault();this.classList.add('drag-over')"

@@ -1,28 +1,25 @@
 // ============================================
 // WEBBAND - WEBGL MAP RENDERER (PixiJS 8)
 // ============================================
-// The world map drawn through PixiJS (vendor/pixi.min.js) instead of Canvas2D (1.34.0) — the
-// battle's BattleGL (battle-gl.js), done for the map. Same picture, same motion: Game.renderMap
-// decides what stands on the map (Game.mapScene: settlements, lairs, parties, labels, routes)
-// and hands it here; nothing in this file writes game state. What changes is how pixels get made:
-// - it renders at the screen's pixel density (min(devicePixelRatio, 3)), so coastlines, roads
-//   and names stay sharp on a retina phone — #map-canvas is one canvas pixel per CSS pixel;
-// - the terrain (sea, coast, rivers, roads, bridges, forests, mountains) is built ONCE into
-//   GPU geometry and sprites; a frame only moves the camera. Canvas2D re-strokes all of it
-//   every frame, which is why phones had to drop half of it (lite mode, #84);
-// - the vector pieces are not re-implemented: the same Game.drawCoast / drawRivers / drawRoads /
-//   drawFigure / drawRoute ctx code runs into Pixi geometry through GLCtx below, a Canvas2D
-//   facade. Party figures become shared GraphicsContexts — vectors, so they stay crisp at every
-//   zoom from the whole continent (0.07) to 3x.
-// One app.render() per frame; the Pixi ticker stays stopped — the map loop (skipFrame gate,
-// modal pause) decides when a frame is drawn.
+// The world map drawn through PixiJS (vendor/pixi.min.js) instead of Canvas2D (1.34.0), the
+// battle's BattleGL done for the map. Since 2.0.0 the map is MapArt's pixel art (map-art.js),
+// and it is one piece of Canvas2D code: MapArt.render(G, ctx) draws into either #map-canvas's own
+// context or PixCtx below, a Canvas2D facade that turns every call into pooled Pixi sprites and
+// geometry, in call order. So the picture is written once, and WebGL only changes how pixels get
+// made:
+// - it renders at the screen's pixel density (min(devicePixelRatio, 3)); #map-canvas is one
+//   canvas pixel per CSS pixel, so on a retina phone the Canvas2D map is stretched 2-3x. Pixel
+//   sprites keep their hard edges either way, but the name plates, rings and routes were soft;
+// - every baked canvas (terrain, settlement and soldier sprites, emoji, name plates) is uploaded
+//   once and stamped as a sprite; a frame moves sprites instead of re-rasterising the terrain.
+// Nothing in this file writes game state. One app.render() per frame; the Pixi ticker stays
+// stopped — the map loop (skipFrame gate, modal pause) decides when a frame is drawn.
 
 // ---- GLCtx: the slice of the Canvas2D API the map's vector code uses, recorded into a
 // PIXI.GraphicsContext. Paths are flattened to polylines here (arcs, ellipses, curves) with the
 // current transform applied per call, exactly as Canvas2D does; fill()/stroke() replay the
-// current path into Pixi. Line dashes are cut here too — Pixi has none. Not supported (and not
-// used by the code that runs through it): gradients/patterns, text, images, clip (MapGL masks
-// with the coast instead), composite modes.
+// current path into Pixi. Line dashes are cut here too — Pixi has none. Not supported here:
+// gradients/patterns, clip, composite modes; images, text and blending are PixCtx's (below).
 const GLCTX_STATE = ['fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'miterLimit', 'globalAlpha', 'lineDashOffset', '_dash'];
 class GLCtx {
     constructor(gc) {
@@ -196,11 +193,98 @@ class GLCtx {
     }
 }
 
+// ---- PixCtx: the Canvas2D surface MapArt's map draws through (2.0.0). Paths, transforms, dashes
+// and styles are GLCtx's; on top of that:
+// - drawImage → a sprite with the canvas as its texture (uploaded once, see MapGL.tex), placed by
+//   the full current transform, so a mirrored soldier or a scaled terrain lands where Canvas2D
+//   puts it. imageSmoothingEnabled picks the texture's filter, exactly the Canvas2D meaning:
+//   false = hard pixel edges (the pixel art), true = smooth (emoji, name plates, glows);
+// - fillRect → a tinted white sprite when the transform is axis-aligned (the sea, the tint, the
+//   window pixels, the banners), otherwise a path;
+// - fill/stroke → one pooled Graphics each, the path already flattened in screen space;
+// - fillText → the text baked at its on-screen size (shadow included), then a sprite;
+// - globalCompositeOperation 'lighter' → additive blending.
+// Objects are handed out in call order and re-parented in that order every frame, so what
+// Canvas2D paints later lies on top here too. Gradients and patterns are not supported: the map
+// code uses baked glow canvases instead.
+const PIX_STATE = ['globalCompositeOperation', 'imageSmoothingEnabled', 'font', 'textAlign', 'textBaseline', 'shadowColor', 'shadowBlur'];
+class PixCtx extends GLCtx {
+    constructor(gl) {
+        super(null);
+        this.gl = gl;
+        this.pixelRatio = gl.R;
+        this.spr = []; this.gfx = []; this.ns = 0; this.ng = 0;
+        this._M = new PIXI.Matrix();
+        this.reset();
+    }
+    reset() {
+        this.m = [1, 0, 0, 1, 0, 0]; this.stack = []; this.subs = []; this.cur = null;
+        this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
+        this.miterLimit = 10; this.globalAlpha = 1; this.lineDashOffset = 0; this._dash = [];
+        this.globalCompositeOperation = 'source-over'; this.imageSmoothingEnabled = true;
+        this.font = '10px sans-serif'; this.textAlign = 'start'; this.textBaseline = 'alphabetic';
+        this.shadowColor = 'rgba(0,0,0,0)'; this.shadowBlur = 0;
+    }
+    save() { super.save(); let s = this.stack[this.stack.length - 1]; PIX_STATE.forEach(k => { s[k] = this[k]; }); }
+    restore() { let s = this.stack[this.stack.length - 1]; super.restore(); if(s) PIX_STATE.forEach(k => { this[k] = s[k]; }); }
+    // One frame: every object goes back to the pool and is re-parented in call order
+    begin(root) { this.root = root; this.reset(); this.ns = this.ng = 0; root.removeChildren(); }
+    end() {
+        // unused pool entries drop their textures, so an evicted one is never drawn again
+        for(let i = this.ns; i < this.spr.length; i++) this.spr[i].texture = PIXI.Texture.EMPTY;
+    }
+    _spr() { let s = this.spr[this.ns++]; if(!s) { s = new PIXI.Sprite(); this.spr.push(s); } this.root.addChild(s); return s; }
+    _gfx() { let g = this.gfx[this.ng++]; if(!g) { g = new PIXI.Graphics(); this.gfx.push(g); } g.clear(); this.root.addChild(g); return g; }
+    _blend(o) { o.blendMode = this.globalCompositeOperation === 'lighter' ? 'add' : 'normal'; }
+    // The current transform, then translate(x, y) and scale(sx, sy), onto a sprite
+    _place(o, x, y, sx, sy) {
+        let [a, b, c, d, e, f] = this.m;
+        this._M.set(a * sx, b * sx, c * sy, d * sy, a * x + c * y + e, b * x + d * y + f);
+        o.setFromMatrix(this._M);
+    }
+    fill() { let g = this._gfx(); this.gc = g.context; super.fill(); this._blend(g); }
+    stroke() { let g = this._gfx(); this.gc = g.context; super.stroke(); this._blend(g); }
+    fillRect(x, y, w, h) {
+        if(typeof this.fillStyle !== 'string' || this.m[1] || this.m[2]) return super.fillRect(x, y, w, h);
+        let [color, a] = GLCtx.rgba(this.fillStyle), s = this._spr(), t = PIXI.Texture.WHITE;
+        if(s.texture !== t) s.texture = t;
+        s.anchor.set(0, 0); s.tint = color; s.alpha = a * this.globalAlpha; this._blend(s);
+        this._place(s, x, y, w / t.width, h / t.height);
+    }
+    drawImage(img, ...a) {
+        let sx = 0, sy = 0, sw = img.width, sh = img.height, dx, dy, dw, dh;
+        if(a.length === 2) { [dx, dy] = a; dw = sw; dh = sh; }
+        else if(a.length === 4) [dx, dy, dw, dh] = a;
+        else [sx, sy, sw, sh, dx, dy, dw, dh] = a;
+        if(!(sw > 0 && sh > 0 && img.width > 0 && img.height > 0)) return;
+        let t = this.gl.tex(img, !this.imageSmoothingEnabled, sx, sy, sw, sh), s = this._spr();
+        if(s.texture !== t) s.texture = t;
+        s.anchor.set(0, 0); s.tint = 0xffffff; s.alpha = this.globalAlpha; this._blend(s);
+        this._place(s, dx, dy, dw / sw, dh / sh);
+    }
+    measureText(t) {
+        let m = this._mctx || (this._mctx = BattleGL.canvas(1, 1).getContext('2d'));
+        m.font = this.font;
+        return m.measureText(t);
+    }
+    fillText(str, x, y) {
+        // baked for its on-screen size in power-of-two steps, so a zoom re-bakes a handful of times
+        let q = Math.pow(2, Math.max(-2, Math.min(3, Math.ceil(Math.log2(Math.max(1e-3, this.k() * this.pixelRatio))))));
+        let e = this.gl.text(str, this.font, this.fillStyle, this.shadowColor, this.shadowBlur * this.pixelRatio, this.textAlign, this.textBaseline, q);
+        let s = this._spr();
+        if(s.texture !== e.tex) s.texture = e.tex;
+        s.anchor.set(e.ax, e.ay); s.tint = 0xffffff; s.alpha = this.globalAlpha; this._blend(s);
+        this._place(s, x, y, 1 / q, 1 / q);
+    }
+    strokeText() {}
+    createRadialGradient() { throw new Error('PixCtx: gradients are not supported, draw a baked canvas'); }
+}
+
 const MapGL = {
     name: 'pixi', app: null, ready: false, w: 0, h: 0,
     R: 1,          // screen pixels per CSS pixel
-    k: 1,          // screen pixels per world unit this frame (R x camera zoom)
     frame: 0, calls: 0, lastCalls: 0,
+    fx: null,      // the PixCtx the map draws through
     _initP: null,
 
     // ---- Lifecycle (BattleGL's, for #map-gl) ------------------------------------------
@@ -213,9 +297,9 @@ const MapGL = {
             await app.init({
                 canvas, width: Math.max(1, canvas.clientWidth || 300), height: Math.max(1, canvas.clientHeight || 150),
                 resolution: this.R, autoDensity: true,
-                // The map is vectors (coast, roads, figures): MSAA keeps their edges smooth.
-                // On a phone's tile-based GPU it is close to free.
-                antialias: true, background: 0x0a1c2e, autoStart: false, sharedTicker: false,
+                // MSAA only touches the few vector shapes (rings, route, hail); on a phone's
+                // tile-based GPU it is close to free
+                antialias: true, background: 0x173f5c, autoStart: false, sharedTicker: false,
                 preference: 'webgl', powerPreference: 'high-performance', hello: false
             });
             app.ticker.stop();
@@ -224,8 +308,8 @@ const MapGL = {
             this._onLost = e => { e.preventDefault(); Game.mapGlFailed(new Error('webglcontextlost')); };
             canvas.addEventListener('webglcontextlost', this._onLost);
             BattleGL.countCalls.call(this, app.renderer.gl);
-            this.build();
-            // Labels are baked with the webfonts; once they finish loading, re-bake them.
+            this.fx = new PixCtx(this);
+            // Text is baked with the webfonts; once they finish loading, bake it again.
             if(document.fonts && document.fonts.addEventListener) {
                 this._onFonts = () => this.dropTexts();
                 document.fonts.addEventListener('loadingdone', this._onFonts);
@@ -245,12 +329,11 @@ const MapGL = {
         fresh.removeAttribute('style');
         fresh.hidden = true;
         canvas.replaceWith(fresh);
-        Object.assign(this, { app: null, ready: false, _initP: null, w: 0, h: 0, _wkey: null, bk: null,
-                              texts: new Map(), cvTexs: new WeakMap(), figs: new Map(), trees: new Map(), pennants: new Map() });
+        Object.assign(this, { app: null, ready: false, _initP: null, w: 0, h: 0, fx: null, texs: [new Map(), new Map()], texts: new Map() });
     },
     info() {
         let c = this.app && this.app.canvas;
-        return { resolution: `${this.R}x` + (c ? ` (${c.width}x${c.height})` : ''), drawCalls: this.lastCalls };
+        return { resolution: `${this.R}x` + (c ? ` (${c.width}x${c.height})` : ''), drawCalls: this.lastCalls, textures: this.texs[0].size + this.texs[1].size };
     },
     resize(w, h) {
         this.w = w; this.h = h;
@@ -258,399 +341,68 @@ const MapGL = {
     },
 
     // ---- Textures ------------------------------------------------------------------------
-    canvas(w, h) { return BattleGL.canvas(w, h); },
-    // `repeat` for the ground tile; power-of-two textures get mipmaps (they shrink a lot when zoomed out)
-    texOf(c, o = {}) {
-        let pot = (c.width & (c.width - 1)) === 0 && (c.height & (c.height - 1)) === 0;
-        return new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: c, scaleMode: 'linear', autoGenerateMipmaps: pot, mipmapFilter: 'linear',
-                                                                    addressMode: o.repeat ? 'repeat' : 'clamp-to-edge' }) });
-    },
-    // A baked Canvas2D canvas (Game's emoji glyphs) -> texture, once per canvas
-    cvTexs: new WeakMap(),
-    cvTex(c) {
-        let t = this.cvTexs.get(c);
-        if(!t) { t = this.texOf(c); this.cvTexs.set(c, t); }
+    // A baked canvas (or image) -> one texture source per filter, uploaded once; sub-rectangles
+    // share it. Kept while drawn; one unused for 600 frames is freed (soldier frames and name
+    // plates come and go as the camera moves).
+    texs: [new Map(), new Map()],     // [smooth, nearest]
+    tex(img, nearest, sx, sy, sw, sh) {
+        let map = this.texs[nearest ? 1 : 0], e = map.get(img);
+        if(!e) {
+            let o = { resource: img, scaleMode: nearest ? 'nearest' : 'linear' };
+            let src = typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement ? new PIXI.CanvasSource(o) : new PIXI.ImageSource(o);
+            e = { src, whole: new PIXI.Texture({ source: src }), subs: null, used: 0 };
+            map.set(img, e);
+        }
+        e.used = this.frame;
+        if(!sx && !sy && sw === img.width && sh === img.height) return e.whole;
+        let key = sx + ',' + sy + ',' + sw + ',' + sh, t = (e.subs || (e.subs = new Map())).get(key);
+        if(!t) { t = new PIXI.Texture({ source: e.src, frame: new PIXI.Rectangle(sx, sy, sw, sh) }); e.subs.set(key, t); }
         return t;
     },
-    radialTex(inner, outer, r0 = 0) {
-        let c = this.canvas(128, 128), x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 64 * r0, 64, 64, 64);
-        g.addColorStop(0, inner); g.addColorStop(1, outer);
-        x.fillStyle = g; x.fillRect(0, 0, 128, 128);
-        return this.texOf(c);
-    },
-    // A fresh Canvas2D facade over a Graphics, emptied first (per-frame geometry)
-    gx(g) { g.clear(); return new GLCtx(g.context); },
-
-    // Emoji on a sprite, Game.emoji's placement: (x, y) is the baseline centre, `size` world units.
-    // The glyph is picked for its on-screen pixel size, so it is always shrunk, never blown up.
-    emo(s, ch, x, y, size, k = this.k) {
-        let c = Game.emojiCanvas(ch, size * k);
-        let t = this.cvTex(c);
-        if(s.texture !== t) s.texture = t;
-        s.anchor.set(0.5, c._base / (c._k * c.height));
-        s.position.set(x, y);
-        s.scale.set(size * c._k);
-    },
-
-    // Name plates, baked whole (plate + accent + text) at the screen's density and cached by
-    // content. Game.labelSpot sized them; they read at the same on-screen size at every zoom.
+    // Text baked at q texture pixels per unit, drawn at a fixed spot of its canvas with the
+    // requested align/baseline, so the anchor puts it exactly where Canvas2D would.
     texts: new Map(),
-    plate(l) {
-        let s = Game.uiScale(), q = s * this.R;
-        let key = [l.text, l.color, l.accent, q].join('\u0001'), e = this.texts.get(key);
+    text(str, font, fill, shadow, blur, align, base, q) {
+        let key = [str, font, fill, shadow, blur, align, base, q].join('\u0001'), e = this.texts.get(key);
         if(e) { e.used = this.frame; return e; }
-        let w = Game.textW(Game.ctx, l.text) + 18, h = 25;
-        let c = this.canvas(w * q, h * q), x = c.getContext('2d');
-        x.scale(q, q);
-        x.fillStyle = 'rgba(8,10,14,0.72)';
-        x.beginPath(); Battle.roundRect(x, 0, 0, w, h, 5); x.fill();
-        if(l.accent) { x.fillStyle = l.accent; x.fillRect(0, h - 2.5, w, 2.5); }
-        x.font = 'bold 19px Inter, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-        x.fillStyle = l.color; x.fillText(l.text, w / 2, h / 2);
-        e = { tex: this.texOf(c), q, used: this.frame };
-        this.texts.set(key, e);
-        if(this.texts.size > 240) this.evictTexts();
-        return e;
-    },
-    // World-sized text (the lords' 📍 markers): baked for the zoom bucket, shadow included
-    wtext(str, font, fill, blur) {
-        let q = Math.pow(2, Math.max(-2, Math.min(2, Math.ceil(Math.log2(this.k)))));
-        let key = [str, font, fill, blur, q].join('\u0001'), e = this.texts.get(key);
-        if(e) { e.used = this.frame; return e; }
-        let m = this._mctx || (this._mctx = this.canvas(1, 1).getContext('2d'));
+        let m = this._mctx || (this._mctx = BattleGL.canvas(1, 1).getContext('2d'));
         m.font = font;
-        let px = parseFloat(/(\d+(?:\.\d+)?)px/.exec(font)[1]), pad = 4 + blur * 1.5;
-        let w = m.measureText(str).width + pad * 2, h = px * 1.5 + pad * 2, base = pad + px * 1.1;
-        let c = this.canvas(w * q, h * q), x = c.getContext('2d');
+        let px = parseFloat((/(\d+(?:\.\d+)?)px/.exec(font) || [0, 16])[1]), pad = 2 + blur / q * 1.5;
+        let w = m.measureText(str).width + pad * 2, h = px * 2 + pad * 2;
+        let c = BattleGL.canvas(w * q, h * q), x = c.getContext('2d');
         x.scale(q, q);
-        x.font = font; x.textAlign = 'center';
-        if(blur) { x.shadowColor = 'black'; x.shadowBlur = blur * q; }
-        x.fillStyle = fill; x.fillText(str, w / 2, base);
-        e = { tex: this.texOf(c), q, ay: base / h, used: this.frame };
+        x.font = font; x.textAlign = align; x.textBaseline = base; x.fillStyle = fill;
+        if(blur) { x.shadowColor = shadow; x.shadowBlur = blur; }
+        let ox = align === 'center' ? w / 2 : align === 'right' || align === 'end' ? w - pad : pad, oy = pad + px;
+        x.fillText(str, ox, oy);
+        e = { tex: new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: c }) }), ax: ox / w, ay: oy / h, used: this.frame };
         this.texts.set(key, e);
         return e;
-    },
-    textSprites() { let P = this.P; return P ? P.glabels.items.concat(P.plabels.items, P.mtexts.items) : []; },
-    evictTexts() {
-        let old = new Set();
-        for(const [k, e] of this.texts) if(e.used < this.frame - 2) { old.add(e.tex); this.texts.delete(k); }
-        this.textSprites().forEach(s => { if(old.has(s.texture)) s.texture = PIXI.Texture.EMPTY; });
-        old.forEach(t => t.destroy(true));
     },
     dropTexts() {
-        this.textSprites().forEach(s => { s.texture = PIXI.Texture.EMPTY; });
         this.texts.forEach(e => e.tex.destroy(true));
         this.texts.clear();
     },
-
-    // Shared vector contexts: a party figure per (kind, colour, cloak), a pole per height, a
-    // pennant per colour — built once through the same Game.drawFigure/drawPole/drawFlag code.
-    figs: new Map(),
-    vec(key, draw) {
-        let gc = this.figs.get(key);
-        if(!gc) { gc = new PIXI.GraphicsContext(); draw(new GLCtx(gc)); this.figs.set(key, gc); }
-        return gc;
-    },
-    figCtx(kind, col, cloak) { return this.vec('f|' + kind + '|' + col + '|' + cloak, c => Game.drawFigure(c, kind, col, cloak)); },
-    poleCtx(top) { return this.vec('p|' + top, c => Game.drawPole(c, top)); },
-    // The pennant with its pole-side edge on the origin; the wave is a skew (see icon())
-    flagCtx(col) { return this.vec('g|' + col, c => { c.translate(14, 0); Game.drawFlag(c, 0, col, 0); }); },
-    ringCtx(rx, ry, w) {
-        return this.vec('r|' + rx + '|' + ry + '|' + w, c => {
-            c.strokeStyle = '#fff'; c.lineWidth = w; c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); c.stroke();
-        });
-    },
-    // One tree (Battle.drawTree) baked for a zoom bucket; sprites scale it to their own radius
-    TREE_R: 32,
-    trees: new Map(),
-    treeTex(b) {
-        let e = this.trees.get(b);
-        if(!e) {
-            let r = this.TREE_R, c = this.canvas(2.4 * r * b, 2.1 * r * b), x = c.getContext('2d');
-            x.scale(b, b); x.translate(r * 1.02, r * 1.1);
-            Battle.drawTree(x, 0, 0, r);
-            e = { tex: this.texOf(c), ax: 1.02 / 2.4, ay: 1.1 / 2.1 };
-            this.trees.set(b, e);
+    evict() {
+        let old = this.frame - 600;
+        for(const map of this.texs) for(const [img, e] of map) if(e.used < old) {
+            if(e.subs) e.subs.forEach(t => t.destroy(false));
+            e.whole.destroy(false); e.src.destroy();
+            map.delete(img);
         }
-        return e;
-    },
-
-    // ---- The scene graph, built once --------------------------------------------------
-    build() {
-        const C = () => new PIXI.Container(), G = () => new PIXI.Graphics(), stage = this.app.stage;
-        const add = (parent, o) => { parent.addChild(o); return o; };
-        const S = (ax = 0.5, ay = 0.5) => () => { let s = new PIXI.Sprite(); s.anchor.set(ax, ay); return s; };
-        let w = this.world = add(stage, C());
-
-        // Sea: the deep colour everywhere, the gradient band over the map (flat in lite mode)
-        this.seaFlat = add(w, new PIXI.Sprite(PIXI.Texture.WHITE));
-        this.seaFlat.position.set(-5000, -5000); this.seaFlat.width = 20000; this.seaFlat.height = 20000;
-        let sg = this.canvas(1, 256), sx = sg.getContext('2d'), grad = sx.createLinearGradient(0, 0, 0, 256);
-        grad.addColorStop(0, '#0a1c2e'); grad.addColorStop(0.5, '#123c58'); grad.addColorStop(1, '#0a1c2e');
-        sx.fillStyle = grad; sx.fillRect(0, 0, 1, 256);
-        this.seaGrad = add(w, new PIXI.Sprite(this.texOf(sg)));
-        this.seaGrad.position.set(-5000, -2000); this.seaGrad.width = 20000; this.seaGrad.height = 13000;
-        // Waves: each a fixed sine polyline, slid sideways and bobbed (see render)
-        this.waves = add(w, C());
-        this.waveLines = [];
-        const WP = Math.PI * 2 * 900;
-        for(let i = -4; i < 22; i++) {
-            let g = add(this.waves, G());
-            for(let x = -4000, first = true; x < 14000 + WP + 400; x += 400, first = false)
-                g[first ? 'moveTo' : 'lineTo'](x, Math.sin(x / 900 + i) * 30);
-            g.stroke({ width: 6, color: 0xffffff, alpha: 0.05 });
-            this.waveLines.push(g);
-        }
-        this.coast = add(w, G());
-        // The land: everything on it is clipped to the coast, as Canvas2D's ctx.clip() does
-        this.land = add(w, C());
-        this.landMask = add(this.land, G());
-        this.land.mask = this.landMask;
-        this.ground = add(this.land, new PIXI.TilingSprite({ texture: this.texOf(Game.groundCanvas(), { repeat: true }), width: 1, height: 1 }));
-        this.dirt = add(this.land, C());
-        this.rivers = add(this.land, G());
-        this.shimmer = add(this.land, G());
-        this.roads = add(this.land, G());
-        this.forests = add(this.land, C());
-
-        const L = this.L = {};
-        for(const n of ['shadows', 'icons', 'pennants', 'qmarks', 'glabels']) L[n] = add(w, C());
-        this.tint = add(w, new PIXI.Sprite(PIXI.Texture.WHITE));
-        L.glow = add(w, C());
-        this.mountains = add(w, C());
-        for(const n of ['rings', 'rmarks', 'parties', 'badges']) L[n] = add(w, C());
-        this.pRing = add(w, new PIXI.Graphics(this.ringCtx(36, 13, 4)));
-        this.pEmo = add(w, S(0.5, 0.5)());
-        L.player = add(w, C());
-        for(const n of ['plabels']) L[n] = add(w, C());
-        this.routes = add(w, G());
-        this.markers = add(w, G());
-        L.mtexts = add(w, C());
-        this.hail = add(stage, G());     // screen space
-
-        let dc = this.canvas(128, 128), dx = dc.getContext('2d');
-        dx.fillStyle = '#000'; dx.beginPath(); dx.arc(64, 64, 63, 0, Math.PI * 2); dx.fill();
-        this.shadowTex = this.texOf(dc);                                    // a solid disc, clean-edged
-        this.dirtTex = this.radialTex('rgba(30,44,28,0.55)', 'rgba(30,44,28,0)');
-        this.forestTex = this.radialTex('rgba(16,38,18,0.85)', 'rgba(16,38,18,0)', 0.2);
-        this.glowTex = this.radialTex('rgba(255,170,70,1)', 'rgba(255,140,50,0)');
-
-        const icon = () => {
-            let o = C(), shadow = new PIXI.Sprite(this.shadowTex), a = C(), b = C();
-            shadow.anchor.set(0.5); shadow.tint = 0x000000; shadow.alpha = 0.45;
-            let ex = Game.ICON_CROWD.map(([ox, oy]) => {
-                let c = C(), g = G(); c.position.set(ox, oy); c.scale.set(0.78); c.alpha = 0.75; c.addChild(g); c.g = g; b.addChild(c); return c;
-            });
-            let fig = G(), pole = G(), flag = G();
-            b.addChild(fig, pole, flag); a.addChild(b); o.addChild(shadow, a);
-            return Object.assign(o, { shadow, a, b, ex, fig, pole, flag });
-        };
-        this.P = {
-            shadows: new GLPool(L.shadows, () => { let s = new PIXI.Sprite(this.shadowTex); s.anchor.set(0.5); s.tint = 0; return s; }),
-            icons: new GLPool(L.icons, S()), qmarks: new GLPool(L.qmarks, S()),
-            glabels: new GLPool(L.glabels, S()), plabels: new GLPool(L.plabels, S()),
-            glow: new GLPool(L.glow, () => { let s = new PIXI.Sprite(this.glowTex); s.anchor.set(0.5); s.blendMode = 'add'; return s; }),
-            rings: new GLPool(L.rings, G), rmarks: new GLPool(L.rmarks, S()),
-            parties: new GLPool(L.parties, icon), badges: new GLPool(L.badges, S()),
-            player: new GLPool(L.player, icon), mtexts: new GLPool(L.mtexts, S())
-        };
-    },
-
-    // The terrain, rebuilt whenever it could look different: a new world (new game, a load),
-    // or lite mode flipping (the adaptive frame rate, #84). Neither happens mid-play.
-    ensureWorld(lite) {
-        let key = [lite, state.mapBorder, state.roads, state.bridges, state.dirtPatches, Game._forestTrees];
-        if(this._wkey && key.every((v, i) => v === this._wkey[i])) return;
-        this._wkey = key;
-        this.seaFlat.tint = lite ? 0x123c58 : 0x0a1c2e;
-        this.seaGrad.visible = !lite;
-
-        Game.drawCoast(this.gx(this.coast), lite);
-        let m = this.gx(this.landMask);
-        Game.coastPath(m); m.fillStyle = '#fff'; m.fill();
-        let xs = state.mapBorder.map(p => p.x), ys = state.mapBorder.map(p => p.y);
-        let x0 = Math.min(...xs) - 10, y0 = Math.min(...ys) - 10;
-        this.ground.visible = !lite;
-        this.ground.position.set(x0, y0);
-        this.ground.width = Math.max(...xs) + 10 - x0; this.ground.height = Math.max(...ys) + 10 - y0;
-        this.ground.tilePosition.set(-x0, -y0);     // the pattern sits on the world origin, like Canvas2D's
-
-        const clear = c => c.removeChildren().forEach(o => o.destroy());
-        clear(this.dirt);
-        if(!lite) state.dirtPatches.forEach(d => {
-            let s = new PIXI.Sprite(this.dirtTex); s.anchor.set(0.5); s.position.set(d.x, d.y); s.scale.set(d.r / 64);
-            this.dirt.addChild(s);
-        });
-        Game.drawRivers(this.gx(this.rivers), lite);
-        Game.drawRoads(this.gx(this.roads), lite);
-
-        // Forests: the dark patch, then its trees front to back (thinned to a third in lite mode)
-        clear(this.forests);
-        this.treeSprites = [];
-        let step = lite ? 3 : 1;
-        FORESTS.forEach((f, i) => {
-            let p = new PIXI.Sprite(this.forestTex); p.anchor.set(0.5); p.position.set(f.x, f.y); p.scale.set(f.radius / 64);
-            this.forests.addChild(p);
-            Game._forestTrees[i].forEach((t, j) => {
-                if(j % step) return;
-                let s = new PIXI.Sprite(); s.position.set(t.x, t.y); s.r = t.r;
-                this.forests.addChild(s); this.treeSprites.push(s);
-            });
-        });
-
-        clear(this.mountains);
-        let mStep = Game.mountainStep(lite);
-        state.mapBorder.forEach((pt, index) => {
-            if(index % mStep) return;
-            let s = new PIXI.Sprite(); s.mx = pt.x; s.my = pt.y + 20 + (index % 3) * 6; s.size = Game.mountainSize(index);
-            this.mountains.addChild(s);
-        });
-        this.bk = null;   // new sprites: (re)texture them for the zoom
-    },
-    // Textures picked for the zoom: the tree bake and the mountain glyphs. Power-of-two
-    // buckets, so this runs a handful of times over a whole zoom-out, not every frame.
-    retexture() {
-        let top = Math.pow(2, this.bk), b = Math.max(1/16, Math.min(8, top));   // the most px/unit this bucket shows
-        let t = this.treeTex(b);
-        this.treeSprites.forEach(s => { s.texture = t.tex; s.anchor.set(t.ax, t.ay); s.scale.set(s.r / this.TREE_R / b); });
-        this.mountains.children.forEach(s => this.emo(s, '🏔️', s.mx, s.my, s.size, top));
-    },
-
-    // One party icon: Game.drawPartyIcon's layers and pose (Game.iconPose), as a container.
-    icon(o, x, y, opt) {
-        let p = Game.iconPose(x, opt), sc = p.sc;
-        o.position.set(x, y); o.alpha = p.alpha;
-        o.shadow.scale.set(26 * sc / 63, 9 * sc / 63);
-        o.a.scale.set(sc); o.a.rotation = p.rot;
-        o.b.scale.set(p.face, 1); o.b.position.set(0, p.bob);
-        let fig = this.figCtx(p.kind, opt.color, p.cloak);
-        if(o.fig.context !== fig) o.fig.context = fig;
-        o.ex.forEach((e, i) => { e.visible = i < p.extra; if(e.visible && e.g.context !== fig) e.g.context = fig; });
-        o.pole.visible = o.flag.visible = p.flag;
-        if(p.flag) {
-            let pc = this.poleCtx(p.top), fc = this.flagCtx(opt.color);
-            if(o.pole.context !== pc) o.pole.context = pc;
-            if(o.flag.context !== fc) o.flag.context = fc;
-            // The pennant's wave as a vertical shear from the pole: the tip (20 out) moves by
-            // exactly `wave`, the curve's control point (10 out) by half — Canvas2D's numbers.
-            o.flag.position.set(-14, p.top);
-            o.flag.skew.set(0, Math.asin(Math.max(-1, Math.min(1, -p.wave / 20))));
-        }
+        for(const [k, e] of this.texts) if(e.used < old) { e.tex.destroy(true); this.texts.delete(k); }
     },
 
     // ---- One frame --------------------------------------------------------------------
-    render(sc, now) {
-        const cam = Game.camera, Z = cam.zoom, W = this.w, H = this.h, lite = Game.lite(), P = this.P;
+    // `draw(ctx)` is MapArt.render with this PixCtx as its context
+    render(draw) {
         this.frame++;
         this.calls = 0;
-        this.k = Z * this.R;
-        this.ensureWorld(lite);
-        let bk = Math.ceil(Math.log2(this.k));
-        if(bk !== this.bk) { this.bk = bk; this.retexture(); }
-        this.world.scale.set(Z);
-        this.world.position.set(W / 2 - cam.x * Z, H / 2 - cam.y * Z);
-        for(const n in P) if(P[n].begin) P[n].begin();
-
-        // Sea waves slide sideways — the same travelling sine as Canvas2D's per-frame polylines
-        this.waves.visible = !lite;
-        if(!lite) {
-            let wt = now / 4000, WP = Math.PI * 2 * 900;
-            this.waveLines.forEach((g, j) => { let i = j - 4; g.position.set(-((1800 * wt) % WP), i * 600 + Math.sin(wt + i) * 40); });
-        }
-        this.shimmer.clear();
-        if(!lite) Game.drawRiverShimmer(new GLCtx(this.shimmer.context), now);
-
-        // Lairs and settlements
-        sc.sites.forEach(s => {
-            let sh = P.shadows.next(); sh.position.set(s.x, s.y + 12); sh.scale.set(s.big * 0.5 / 63, s.big * 0.2 / 63); sh.alpha = 0.35;
-            let e = P.icons.next(); this.emo(e, s.icon, s.x, s.y + 10, s.big); e.alpha = s.alpha;
-        });
-        let seen = new Set();
-        sc.locs.forEach(l => {
-            let sh = P.shadows.next(); sh.position.set(l.x, l.y + 18); sh.scale.set(l.big * 0.55 / 63, l.big * 0.22 / 63); sh.alpha = 0.45;
-            let e = P.icons.next(); this.emo(e, l.icon, l.x, l.y + 15, l.big); e.alpha = 1;
-            this.pennant(l); seen.add(l.id);
-            if(l.quest) this.emo(P.qmarks.next(), l.quest, l.x - l.big * 0.55, l.y - 15 - 34 * l.ik, 36 * l.ik);
-        });
-        this.pennants.forEach((p, id) => { if(!seen.has(id)) p.g.visible = false; });
-        sc.groundLabels.forEach(l => this.label(P.glabels.next(), l));
-
-        // Time of day: the tint over the view, hearth light at night (not in lite mode)
-        let tint = Game.dayTint();
-        this.tint.visible = !!tint;
-        if(tint) {
-            BattleGL.tint(this.tint, tint);
-            this.tint.position.set(cam.x - W / 2 / Z - 10, cam.y - H / 2 / Z - 10);
-            this.tint.width = W / Z + 20; this.tint.height = H / Z + 20;
-        }
-        let glow = Game.nightGlow();
-        if(glow > 0.02 && !lite) LOCATIONS.forEach(loc => {
-            let s = P.glow.next(); s.position.set(loc.x, loc.y); s.scale.set(110 / 64); s.alpha = 0.30 * glow;
-        });
-
-        // Parties
-        const ring = (x, y, gc, col, a) => {
-            let g = P.rings.next(); if(g.context !== gc) g.context = gc;
-            g.position.set(x, y); BattleGL.tint(g, col, a);
-        };
-        sc.npcs.forEach(n => {
-            ring(n.x, n.y + 22, this.ringCtx(24, 9, 3), n.col, 0.75);
-            if(n.charging) ring(n.x, n.y + 22, this.ringCtx(32, 13, 2.5), '#e0463a', 0.5 + 0.35 * Math.abs(Math.sin(now / 260)));
-            if(n.quest) {
-                ring(n.x, n.y + 22, this.ringCtx(28, 11, 2.5), '#e0b062', 0.6 + 0.3 * Math.abs(Math.sin(now / 400)));
-                this.emo(P.rmarks.next(), n.quest.ch, n.quest.x, n.quest.y, n.quest.size);
-            }
-            this.icon(P.parties.next(), n.x, n.y + 22, n.icon);
-            if(n.badge) this.emo(P.badges.next(), n.badge.ch, n.badge.x, n.badge.y, n.badge.size);
-        });
-        let pl = sc.player;
-        this.pRing.visible = !pl.chain;
-        this.pEmo.visible = !!(pl.chain || pl.tent);
-        if(pl.chain || pl.tent) { let e = pl.chain || pl.tent; this.emo(this.pEmo, e.ch, e.x, e.y, e.size); }
-        if(!pl.chain) {
-            this.pRing.position.set(pl.x, pl.y + 28); this.pRing.scale.set(pl.pulse);
-            BattleGL.tint(this.pRing, 'rgba(255,204,0,0.9)');
-            if(pl.icon) this.icon(P.player.next(), pl.x, pl.y + 28, pl.icon);
-        }
-        sc.partyLabels.forEach(l => this.label(P.plabels.next(), l));
-
-        // Routes and the lords' location markers: rebuilt per frame (they flow and pulse)
-        let rc = this.gx(this.routes);
-        sc.routes.forEach(r => Game.drawRoute(rc, r.t, r.live, now));
-        let mc = this.gx(this.markers);
-        Nobles.markers().forEach(m => {
-            Nobles.markerRing(mc, m);
-            if(m.ghost) return;
-            let e = this.wtext(Nobles.markerText(m), Nobles.MARKER_FONT, '#ffcc00', 12), s = P.mtexts.next();
-            if(s.texture !== e.tex) s.texture = e.tex;
-            s.anchor.set(0.5, e.ay); s.position.set(m.x, m.y - m.radius - 14); s.scale.set(1 / e.q);
-        });
-
-        let hc = this.gx(this.hail);
-        if(Game.hailOn()) Game.hailPath(hc, W, H);
-
-        for(const n in P) if(P[n].end) P[n].end();
+        this.fx.begin(this.app.stage);
+        draw(this.fx);
+        this.fx.end();
         this.app.render();
         this.lastCalls = this.calls;
-    },
-
-    // A settlement's pennant: built once per settlement (again when the fief changes hands),
-    // scaled by the icon scale like everything Canvas2D draws with `ik`.
-    pennants: new Map(),
-    pennant(l) {
-        let p = this.pennants.get(l.id);
-        if(!p) { p = { g: new PIXI.Graphics(), color: null }; this.L.pennants.addChild(p.g); this.pennants.set(l.id, p); }
-        if(p.color !== l.color || p.base !== l.base) {
-            p.color = l.color; p.base = l.base;
-            Game.drawLocPennant(this.gx(p.g), 0, 0, l.base, 1, l.color);
-        }
-        p.g.visible = true;
-        p.g.position.set(l.x, l.y); p.g.scale.set(l.ik);
-    },
-    label(s, l) {
-        let e = this.plate(l);
-        if(s.texture !== e.tex) s.texture = e.tex;
-        s.position.set(l.x, l.y);
-        s.scale.set(l.k / e.q);
+        if(this.frame % 300 === 0) this.evict();
     }
 };

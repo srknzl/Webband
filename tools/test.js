@@ -1082,39 +1082,137 @@ test('map renderer: GLCtx turns Canvas2D path calls into Pixi geometry', () => {
     assert.deepStrictEqual(log.map(l => l.op), ['fill', 'stroke'], 'the pennant: fill, then its outline');
 });
 
-// Both renderers draw from one scene, built once per frame, so they can't disagree about
-// which names fit or who is in sight; drawing it must not change the game.
-test('map: one scene per frame; the Canvas2D map draws it without touching game state', () => {
-    const G = gw.Game, S = gw.state, vm = require('vm'), box = gw._sandbox;
-    G.mapCanvas = box.document.getElementById('map-canvas');
-    G.ctx = G.mapCanvas.getContext('2d');
-    G.camera.x = S.player.x; G.camera.y = S.player.y; G.camera.zoom = 0.8;
-    S.player.targetLocation = { x: S.player.x + 300, y: S.player.y }; S.player.status = 'moving';
-    G.mapDecor();
-    const sc = G.mapScene(1000);
-    assert.strictEqual(sc.locs.length, require('vm').runInContext('LOCATIONS.length', gw._ctx), 'every settlement is on the map');
-    assert.ok(sc.player.icon && sc.partyLabels.some(l => l.text.startsWith(S.player.name)), 'you, with your name');
-    assert.strictEqual(sc.routes.length, 1, 'the route to your destination');
-    const labels = sc.groundLabels.concat(sc.partyLabels);
-    for(let i = 0; i < labels.length; i++) for(let j = i + 1; j < labels.length; j++) {
-        const a = labels[i], b = labels[j];
-        const hit = Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + 3;
-        assert.ok(!hit, `labels "${a.text}" and "${b.text}" overlap (#86)`);
+// The map is one piece of Canvas2D code (MapArt.render) drawn into either #map-canvas's context
+// or PixCtx, the WebGL facade. Neither the harness nor the game loads MapArt in Node, so it is
+// evaluated here inside a function scope (no lexical global leaks into later tests), and PixCtx
+// runs over a fake Pixi that records what it would put on screen.
+function fakePixi() {
+    class Obj {
+        constructor() { this.anchor = { set: (x, y) => { this.ax = x; this.ay = y; } }; this.blendMode = 'normal'; this.tint = 0xffffff; this.alpha = 1; }
+        setFromMatrix(M) { this.M = [M.a, M.b, M.c, M.d, M.tx, M.ty]; }
     }
-    S.npcParties.forEach(n => { n.charging = false; });
-    G.drawMapCanvas(sc, 1000);                         // the first frame bakes the ground grain (that one draws dice)
-    const before = JSON.stringify(S);
-    let dice = 0;
-    box.__rnd0 = vm.runInContext('Math.random', gw._ctx);
-    box.__die = () => { dice++; return box.__rnd0(); };
-    vm.runInContext('Math.random = __die;', gw._ctx);
+    class Sprite extends Obj {}
+    class Graphics extends Obj {
+        constructor() { super(); this.clear(); }
+        clear() {
+            const log = this.log = [], polys = [];
+            let cur = null;
+            this.context = {
+                beginPath() { polys.length = 0; cur = null; },
+                moveTo(x, y) { cur = [x, y]; polys.push(cur); },
+                lineTo(x, y) { cur.push(x, y); },
+                closePath() { cur.closed = true; },
+                fill(st) { log.push({ op: 'fill', st, polys: polys.map(p => p.slice()) }); },
+                stroke(st) { log.push({ op: 'stroke', st, polys: polys.map(p => p.slice()) }); }
+            };
+        }
+    }
+    class Matrix { set(a, b, c, d, tx, ty) { Object.assign(this, { a, b, c, d, tx, ty }); } }
+    class Source { constructor(o) { Object.assign(this, o); } destroy() {} }
+    class Texture {
+        constructor(o) { this.source = o.source; this.frame = o.frame; this.width = o.frame ? o.frame.width : o.source.resource.width; this.height = o.frame ? o.frame.height : o.source.resource.height; }
+        destroy() {}
+    }
+    Texture.WHITE = { width: 1, height: 1, white: true };
+    Texture.EMPTY = { width: 1, height: 1, empty: true };
+    class Rectangle { constructor(x, y, width, height) { Object.assign(this, { x, y, width, height }); } }
+    return { Sprite, Graphics, Matrix, Texture, CanvasSource: Source, ImageSource: Source, Rectangle };
+}
+function loadMapGL() {
+    const vm = require('vm'), fs = require('fs'), path = require('path');
+    const hex = css => {
+        if(css[0] === '#') return [parseInt(css.length === 4 ? css.replace(/(\w)/g, '$1$1').slice(1) : css.slice(1, 7), 16), 1];
+        const p = /rgba?\(([^)]+)\)/.exec(css)[1].split(',').map(Number);
+        return [(p[0] << 16) | (p[1] << 8) | p[2], p[3] === undefined ? 1 : p[3]];
+    };
+    const doc = gw._sandbox.document;
+    const BattleGL = { hex, canvas: (w, h) => { const c = doc.createElement('canvas'); c.width = Math.ceil(w); c.height = Math.ceil(h); return c; }, countCalls() {} };
+    gw._sandbox.__pixi = fakePixi(); gw._sandbox.__bgl = BattleGL;
+    const src = fs.readFileSync(path.join(__dirname, '..', 'map-gl.js'), 'utf8');
+    return vm.runInContext(`(function (PIXI, BattleGL) {\n${src}\n;return { GLCtx, PixCtx, MapGL };\n})(__pixi, __bgl)`, gw._ctx);
+}
+
+test('map renderer: PixCtx puts images, rects and paths where Canvas2D would, in call order', () => {
+    const { PixCtx, MapGL } = loadMapGL();
+    MapGL.R = 2; MapGL.frame = 1;
+    const fx = new PixCtx(MapGL), root = { children: [], removeChildren() { this.children = []; }, addChild(o) { this.children.push(o); } };
+    const doc = gw._sandbox.document, img = doc.createElement('canvas');
+    img.width = 4; img.height = 4;
+    fx.begin(root);
+    assert.strictEqual(fx.pixelRatio, 2, 'the map may bake for the screen density');
+    fx.save(); fx.scale(2, 2); fx.translate(10, 5);
+    fx.imageSmoothingEnabled = false;
+    fx.drawImage(img, 1, 2, 8, 8);                       // world (1,2) 8x8 -> screen (22,14), 4 units per texel
+    fx.restore();
+    const s = root.children[0];
+    assert.deepStrictEqual(s.M, [4, 0, 0, 4, 22, 14], 'placed by the whole transform');
+    assert.strictEqual(s.texture.source.scaleMode, 'nearest', 'imageSmoothingEnabled=false keeps hard pixel edges');
+    fx.save(); fx.translate(50, 0); fx.scale(-1, 1); fx.drawImage(img, 0, 0); fx.restore();
+    assert.deepStrictEqual(root.children[1].M, [-1, 0, 0, 1, 50, 0], 'a mirrored sprite stays mirrored');
+    assert.strictEqual(root.children[1].texture.source.scaleMode, 'linear', 'smoothing on: a linear texture');
+    assert.strictEqual(root.children[1].texture.source, MapGL.tex(img, false, 0, 0, 4, 4).source, 'one upload per canvas and filter');
+    fx.fillStyle = 'rgba(255,0,0,0.5)'; fx.globalAlpha = 0.5; fx.globalCompositeOperation = 'lighter';
+    fx.fillRect(3, 4, 10, 20);
+    const r = root.children[2];
+    assert.ok(r.texture.white && r.tint === 0xff0000 && r.alpha === 0.25 && r.blendMode === 'add', 'fillRect: a tinted sprite, alpha and blend kept');
+    assert.deepStrictEqual(r.M, [10, 0, 0, 20, 3, 4]);
+    fx.globalAlpha = 1; fx.globalCompositeOperation = 'source-over';
+    fx.beginPath(); fx.ellipse(0, 0, 10, 4, 0, 0, Math.PI * 2); fx.strokeStyle = '#00ff00'; fx.lineWidth = 3; fx.stroke();
+    const g = root.children[3];
+    assert.ok(g.log.length === 1 && g.log[0].op === 'stroke' && g.log[0].st.width === 3, 'a path is its own Graphics');
+    fx.font = 'bold 30px Inter'; fx.textAlign = 'center'; fx.fillStyle = '#ffcc00';
+    fx.fillText('Praven', 100, 50);
+    const t = root.children[4];
+    assert.ok(t.texture && t.ax > 0.3 && t.ax < 0.7 && t.M[4] === 100 && t.M[5] === 50, 'text is anchored on its point, centred');
+    assert.deepStrictEqual(root.children.map(o => o.constructor.name), ['Sprite', 'Sprite', 'Sprite', 'Graphics', 'Sprite'], 'call order is draw order');
+    assert.throws(() => fx.createRadialGradient(0, 0, 0, 0, 0, 1), /gradients/, 'a gradient fails loudly, not as a black blot');
+});
+
+test('map: MapArt draws through Canvas2D and PixCtx without touching game state; labels never overlap', () => {
+    const G = gw.Game, S = gw.state, vm = require('vm'), fs = require('fs'), path = require('path'), box = gw._sandbox;
+    if(!vm.runInContext('typeof ImageData', gw._ctx).startsWith('f'))
+        vm.runInContext('globalThis.ImageData = class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };', gw._ctx);
+    const src = fs.readFileSync(path.join(__dirname, '..', 'map-art.js'), 'utf8');
+    // Evaluated in a function scope, no global: MapArt.render hands itself to the game's drawMap*
+    // calls, so app.js never looks it up by name and nothing leaks into later tests
+    const MapArt = vm.runInContext(`(function () {\n${src}\n;return MapArt;\n})()`, gw._ctx);
     try {
-        for(const t of [1000, 2500]) G.drawMapCanvas(G.mapScene(t), t);
-        for(const lite of [true, false]) { G._lite = lite; G.drawMapCanvas(G.mapScene(3000), 3000); }
-    } finally { vm.runInContext('Math.random = __rnd0;', gw._ctx); G._lite = undefined; }
-    assert.strictEqual(JSON.stringify(S), before, 'drawing the map changed the game');
-    assert.strictEqual(dice, 0, 'the map draw path consumed the game\'s random stream');
-    S.player.targetLocation = null; S.player.status = 'idle';
+        const { PixCtx, MapGL } = loadMapGL();
+        G.mapCanvas = box.document.getElementById('map-canvas');
+        G.mapCanvas.width = 1200; G.mapCanvas.height = 800;
+        G.ctx = G.mapCanvas.getContext('2d');
+        G.camera.x = S.player.x; G.camera.y = S.player.y; G.camera.zoom = 0.8;
+        S.player.targetLocation = { x: S.player.x + 300, y: S.player.y }; S.player.status = 'moving';
+        S.npcParties.forEach(n => { n.charging = false; });
+        const fx = new PixCtx(MapGL), root = { children: [], removeChildren() { this.children = []; }, addChild(o) { this.children.push(o); } };
+        const pix = () => { fx.begin(root); MapArt.render(G, fx); fx.end(); };
+        MapArt.render(G, G.ctx);                           // the first frame bakes the terrain and sprites
+        pix();
+        assert.ok(root.children.length > 20, 'the WebGL facade got the picture: ' + root.children.length + ' objects');
+        const { labels, boxes } = MapArt.placed();
+        assert.ok(labels.some(l => l.text.startsWith(S.player.name)), 'you, with your name');
+        for(let i = 0; i < labels.length; i++) {
+            const a = labels[i];
+            for(let j = i + 1; j < labels.length; j++) {
+                const b = labels[j], hit = a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+                assert.ok(!hit, `labels "${a.text}" and "${b.text}" overlap (#86)`);
+            }
+        }
+        const before = JSON.stringify(S);
+        let dice = 0;
+        box.__rnd0 = vm.runInContext('Math.random', gw._ctx);
+        box.__die = () => { dice++; return box.__rnd0(); };
+        vm.runInContext('Math.random = __die;', gw._ctx);
+        try {
+            for(let i = 0; i < 2; i++) { MapArt.render(G, G.ctx); pix(); }
+            S.time.hour = 23; MapArt.render(G, G.ctx); pix();      // night: windows, halos, hearth light
+        } finally { vm.runInContext('Math.random = __rnd0;', gw._ctx); }
+        S.time.hour = JSON.parse(before).time.hour;
+        assert.strictEqual(JSON.stringify(S), before, 'drawing the map changed the game');
+        assert.strictEqual(dice, 0, 'the map draw path consumed the game\'s random stream');
+    } finally {
+        S.player.targetLocation = null; S.player.status = 'idle';
+    }
 });
 test('renderer: drawing is side-effect free — two renders leave Battle exactly as they found it', () => {
     const B = gw.Battle, G = gw.Game, S = gw.state;

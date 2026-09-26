@@ -19,7 +19,8 @@ after changing it, update the "Measured" lines.
 | `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Anim`, `Game`, `Save` + `state` |
 | `battle.js` | `Battle`, `TournamentMinigame`; the Canvas2D battle drawing (`canvasGfx`) and the renderer seam |
 | `battle-gl.js` | `BattleGL` — the battle drawn with PixiJS/WebGL on `#battle-gl` (1.33.0) |
-| `map-gl.js` | `MapGL` — the world map drawn with PixiJS/WebGL on `#map-gl`, and `GLCtx`, the Canvas2D facade it runs the shared vector code through (1.34.0) |
+| `map-gl.js` | `MapGL` — the map drawn with PixiJS/WebGL on `#map-gl` (1.34.0): `PixCtx`, the Canvas2D facade MapArt's map draws through (2.0.0), and `GLCtx`, which turns its paths into Pixi geometry |
+| `map-art.js` | `MapArt` — pixel art outside battle (2.0.0): the campaign map (baked terrain, settlement/site sprites, parties, labels), the settlement scene, item icons, character portraits, the start screen's march |
 | `vendor/` | `pixi.min.js` (PixiJS 8.21 UMD, pinned) + `PIXI-LICENSE` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |
@@ -29,7 +30,7 @@ after changing it, update the "Measured" lines.
 | `sw.js`, `manifest.webmanifest`, `fonts/`, `icon-*.png` | PWA: offline cache, install metadata, self-hosted Cinzel/Inter |
 | `native/` | Capacitor shell — npm lives here and in `e2e/` only. `ios/`/`android/` are generated, never committed |
 | `e2e/` | Playwright end-to-end tests: the real game in Chromium, desktop + phone layout, TR/EN/ID |
-| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node` |
+| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/economy/framegate`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node`; `build-swordsman.js` is a one-off asset build (needs the CraftPix pack + Playwright) that writes `troops/swordsman_*.png` and the index block in `battle.js` |
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
 | `CHANGELOG.md` | Change list in player-facing language |
@@ -43,9 +44,10 @@ after changing it, update the "Measured" lines.
 checks `typeof Game`).
 
 **Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `vendor/pixi.min.js` → `app.js` →
-`battle.js` → `battle-gl.js` → `map-gl.js` → `nobles.js` → `quests.js`. The order only prevents
-`const` collisions. `tools/harness.js` loads none of the Pixi files — in Node the battle and the
-map always draw through Canvas2D (`tools/test.js` loads `map-gl.js` on its own to test `GLCtx`).
+`battle.js` → `battle-gl.js` → `map-gl.js` → `map-art.js` → `nobles.js` → `quests.js`. The order only
+prevents `const` collisions. `tools/harness.js` loads none of the Pixi files nor `map-art.js` — in Node
+the battle always draws through Canvas2D and the map draws nothing (`tools/test.js` loads
+`map-gl.js` on its own to test `GLCtx` and `PixCtx`).
 
 **One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
 `Save.migrate` is a single migration chain; a new field is usually enough with the
@@ -90,12 +92,13 @@ clocks and pose helpers (`unitPose`, `gait`, `dustPuff`, `hudLayout`, `tugBox`, 
 and write nothing — state belongs in `update()` (the tug bar, hoofbeats), dice never enter the
 draw path (`Battle.hash01`). Setting: `Game.opt('renderer')` `'auto' | 'pixi' | 'canvas'`,
 `?renderer=` overrides it for a session; `'auto'` skips software WebGL (SwiftShader).
-**The map the same way, same setting** (1.34.0): `Game.renderMap()` → `mapScene()` (what stands on
-the map, labels already laid out) → `liveMapGfx()` → `drawMapCanvas` or `MapGL`. Vector pieces
-(`drawCoast`, `drawRivers`, `drawRoads`, `drawFigure`, `drawRoute`…) are ctx functions both use —
-MapGL runs them through `GLCtx` — so change the picture there, once. Random decor is rolled in
-`mapDecor()`, never while drawing. `#map-gl` lies under `#map-canvas`, which only turns
-see-through (`#map-view.gl`) and stays the input surface.
+**The map the same way, same setting** (1.34.0, pixel map 2.0.0): `Game.renderMap()` →
+`liveMapGfx()` → `MapArt.render(G, ctx)`, where `ctx` is `Game.ctx` (Canvas2D) or `MapGL.fx`, a
+`PixCtx` — a Canvas2D facade that turns every `drawImage`/`fillRect`/path/`fillText` into pooled Pixi
+sprites and geometry, in call order. The map is one piece of Canvas2D code; change the picture
+there, once. `ctx.pixelRatio` (1 on Canvas2D, the screen's density on WebGL) is the only thing it
+may branch on — baked label plates and the terrain level use it. `#map-gl` lies under
+`#map-canvas`, which only turns see-through (`#map-view.gl`) and stays the input surface.
 
 **The game loop** genuinely stops while `Battle.active || TournamentMinigame.active`
 (`_loopId = null`); the only place that restarts it is `showScreen()`. Every rAF loop has a
@@ -110,15 +113,16 @@ The bottleneck isn't JS, it's the **compositor**: battle JS runs ~1.2 ms per fra
   frames** (#85) and the decision is made **per frame**, not per call (#42).
 - **No `backdrop-filter` above the moving canvas**; `renderMap()` returns early while a modal
   is open.
-- Expensive things are baked once (`buildGroundTexture`, `Battle.buildGround`, `unitSprite`,
-  `Game.emoji/radial/textW`) — no gradient is generated per frame.
+- Expensive things are baked once (MapArt's terrain, sprites and name plates, `Battle.buildGround`,
+  `unitSprite`, `Game.emoji/radial/textW`) — no gradient is generated per frame.
 - Canvases are opaque; `battle-canvas` is shared by both engines, both read from
   `Game.battleCtx()`. A canvas can't hold a `2d` and a `webgl` context at once, so Pixi draws on
   its own `#battle-gl`; exactly one of the two is shown (`Battle.showSurface`), and the hidden
   `#battle-canvas` keeps carrying the field size that the camera, clamps and mouse mapping read.
-- The WebGL path bakes every shape once at *device pixels × camera zoom* and stamps pooled
+- The battle's WebGL path bakes every shape once at *device pixels × camera zoom* and stamps pooled
   Sprites — no display object is created per frame; only arcs that change shape every frame
-  (swing sweep, trails, shields, boss telegraph, shimmer) are rebuilt `Graphics`.
+  (swing sweep, trails, shields, boss telegraph, shimmer) are rebuilt `Graphics`. The map's
+  (`PixCtx`) uploads each baked canvas once and reuses pooled sprites/`Graphics` in call order.
 
 ## Measurement and tests
 
@@ -147,7 +151,9 @@ npx playwright test [--project=tr-phone] [specs/quests.spec.js]
 ```
 
 Every spec runs in four projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop`), so the
-language projects *are* the translation test. Headless Chromium's WebGL is SwiftShader, so
+language projects *are* the translation test; `i18n.spec.js` additionally sweeps every main
+screen on EN/ID for Turkish source text that never went through `T()` (text, `title`,
+`aria-label`, placeholder). Any new text ships in all three languages. Headless Chromium's WebGL is SwiftShader, so
 `'auto'` draws battles and the map with Canvas2D there; `renderer.spec.js` forces each renderer, and
 `painted(page, sel)` reads a screenshot of whichever canvas is on show. Locally Playwright runs 4
 workers, not half the cores: every WebGL test renders on the CPU there. `e2e/fixtures.js` fails

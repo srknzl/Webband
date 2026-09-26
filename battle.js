@@ -30,6 +30,7 @@ const Battle = {
     ALLY_SHARE: 0.35, ALLY_CAP: 20,
     allyShare(size) { return Math.min(size, this.ALLY_CAP, Math.max(3, Math.round(size * this.ALLY_SHARE))); },
     DIE_T: 0.7,   // seconds a fallen unit keeps being drawn while it tips over (1.32.0)
+    SPRITE_FOOT: 14,   // a Swordsman frame's feet sit this far below the unit's point (the old tile's feet)
     // A rounded-rectangle path (soft pass, 1.32.0). Falls back to a plain rectangle where
     // Canvas2D has no roundRect (Safari < 16).
     roundRect(ctx, x, y, w, h, r) {
@@ -272,6 +273,11 @@ const Battle = {
         // Reset every battle (#5): otherwise a siege's castle scene/banner bleeds into the next, unrelated field fight.
         this.siege = siegePlan ? { name: siegePlan.name, defBonus: siegePlan.defBonus, gaps: siegePlan.gaps } : null;
         this.siegeBannerColor = null;
+        // What each side's foot soldiers are dyed in (visual refresh): the player's kingdom, or gold
+        // for an unsworn warband; the enemy's kingdom, or bandit brown when it has none.
+        let pf = Game.playerFaction();
+        this.playerCloth = Swordsman.DYE[pf] ? pf : 'player';
+        this.enemyCloth = faction && Swordsman.DYE[faction] ? faction : 'bandit';
         if(this.siege) {
             let wx = Math.round(W * 0.66);
             let gaps = [{ y: H / 2, h: 74, gate: true }];
@@ -551,7 +557,7 @@ const Battle = {
                     mounted: ti.type === 'cavalry' || ti.speed > this.FOOT_MAX,
                     dmgType: ti.dmgType, brace: ti.brace, color: '#7ec8a0',
                     radius: ti.type === 'cavalry' ? 7 : 5, atkCd: Math.random() * 0.6,
-                    level: allyParty.level || 1, icon: ti.icon, tier: ti.tier
+                    level: allyParty.level || 1, icon: ti.icon, tier: ti.tier, cloth: allyParty.faction
                 });
             }
         }
@@ -2059,7 +2065,7 @@ const Battle = {
 
         // Units — sorted by y for a sense of depth. The just-fallen are drawn too, for the
         // DIE_T seconds of their fall (1.32.0).
-        this.units.filter(u => u.hp > 0 || (u.deadT !== undefined && u.deadT < this.DIE_T))
+        this.units.filter(u => u.hp > 0 || (u.deadT !== undefined && u.deadT < this.dieT(u)))
             .sort((a,b) => a.y - b.y).forEach(u => this.drawUnit(ctx, u, now));
 
         // Arrows
@@ -2121,8 +2127,7 @@ const Battle = {
     // a flat fill, baked once per frame like everything else in the HUD.
     drawMinimap(ctx, W, H) {
         if(!this.units.length) return;
-        let mw = Math.min(150, W * 0.28), mh = mw * 0.62;
-        let mx = W - mw - 12, my = 12;
+        let { mw, mh, mx, my } = this.miniBox(W);
         let ww = this.canvas.width, wh = this.canvas.height;
         let sx = mw / ww, sy = mh / wh;
         ctx.save();
@@ -2157,11 +2162,9 @@ const Battle = {
     // - Archer: one sprite (CraftPix.net Roguelike Kit's hooded archer, bow on the back)
     //   recolored per tier (paler/leather → richer → desaturated steel) since only one archer
     //   pose was available in that pack.
-    // - Cavalry: 3 real Battle for Wesnoth unit sprites (horseman/cavalryman/grand-knight,
-    //   GPL v2 — a copyleft license, unlike the CC0/no-attribution packs above; used as-is,
-    //   unmodified beyond cropping transparent padding, with attribution kept in
-    //   troops/LICENSE.txt as the license requires). The earlier procedural rider silhouette
-    //   was rejected in review as looking bad; this replaces it with real game art instead.
+    // These single frames are now only the placeholders shown while the animated atlases load
+    // (Swordsman / Archer / Mounted, at the end of this file). Cavalry's Wesnoth sprites are
+    // gone: riders are a code-drawn Horse carrying a Swordsman (2.0.0).
     TROOP_TIER_COLORS: ['#8a7256', '#5a6b7a', '#3f4a56'],   // unused now cavalry is a real sprite too; kept for the infantry/archer loading-frame fallback
     TROOP_TIER_ACCENT: ['#c2a878', '#cfd8e0', '#e8e8e8'],
     TROOP_TIER_NAMES: ['weak', 'normal', 'armored'],
@@ -2320,8 +2323,9 @@ const Battle = {
         this._swordGrad = null;   // the context may have been recreated
         this.UNIT_ICONS.forEach(i => this.unitSprite(i));
         Object.keys(BOSSES).forEach(k => this.bossSprite(k));
-        ['infantry', 'cavalry', 'archer'].forEach(t => [0, 1, 2].forEach(tier => this.troopSprite(t, tier)));
-        ['melee', 'bow', 'horse'].forEach(k => this.playerSprite(k));
+        ['infantry', 'archer'].forEach(t => [0, 1, 2].forEach(tier => this.troopSprite(t, tier)));
+        this.playerSprite('bow');
+        Swordsman.load(); Archer.load();
     },
 
     // Hand-drawn boss art (#132) — no image-generation tool is available and the game ships
@@ -2444,35 +2448,128 @@ const Battle = {
 
     // Which baked picture a unit wears. Shared by both renderers (1.33.0): `R` is the bake
     // scale — 1 for Canvas2D, device pixels x camera zoom for the WebGL path.
-    unitArt(u, R = 1) {
+    unitArt(u, R = 1, now = 0) {
+        let look = this.spriteLook(u);
+        if(look) {
+            let a = look.kind === 'horse' ? Mounted.art(look, this.mountAnim(u, now))
+                  : look.kind === 'archer' ? Archer.art(look.cloth, ...this.archerAnim(u, now))
+                  : Swordsman.art(look, ...this.spriteAnim(u, now));
+            if(a) return a;
+        }
+        // Below: the frame or two before the sprite atlases load, and the units that keep
+        // their own art (bosses, beasts, the marked companions).
         let isPlayer = u.id === 'player';
         let icon = '💂', bakedSpr = null;
         if(isPlayer) {
-            // Weapon-reactive appearance (#132): real sprites, not combined emoji glyphs (that
-            // read as two disconnected floating icons, flagged in review) — a melee look
-            // (CraftPix Swordsman-family knight) or a bow look (CraftPix Roguelike archer) on
-            // foot, or the Wesnoth Knight (troops/player_horse.png) mounted — real art all
-            // three ways, not the plain 🐴 emoji this used to fall back to.
-            if(u.type === 'cavalry') bakedSpr = this.playerSprite('horse', R);
-            else {
-                let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
-                bakedSpr = this.playerSprite(wt === 'bow' ? 'bow' : 'melee', R);
-            }
+            let wt = state.player.equipment.weapon && state.player.equipment.weapon.weaponType;
+            if(u.type === 'cavalry') icon = '🐴';
+            else bakedSpr = wt === 'bow' ? this.playerSprite('bow', R) : this.troopSprite('infantry', 0, R);
         }
         else if(u.isBoss) bakedSpr = this.bossSprite(u.bossKey, R);   // hand-drawn boss art (#132)
         else if(u.icon === '🎖️' || u.icon === '💍') icon = u.icon;   // companion/spouse keep their marker
         else if(u.beast) icon = '🐺';
-        // Regular infantry/archer/cavalry, either side (#132): real sprite art by type × a
-        // tier fixed at spawn from the unit's identity (`u.tier` — its position in its own
-        // troop tree, or its role in a bandit band), never from its live attack/defense/level.
-        // Cavalry's own real art (Wesnoth horseman/cavalryman/grand-knight) replaces the
-        // procedural rider silhouette that was rejected in review as looking bad.
-        else bakedSpr = this.troopSprite(u.type === 'cavalry' ? 'cavalry' : u.type === 'archer' ? 'archer' : 'infantry', u.tier || 0, R);
-        // Nothing is rasterized/drawn from scratch every frame: emoji are baked into a sprite
-        // once (measured: 13 us -> 3.4 us, 3.8x) and hand-drawn boss/troop art is baked the
-        // same way at spawn/warmUp — this just picks whichever canvas applies to this unit.
+        else if(u.type === 'cavalry' || u.mounted) icon = '🐎';
+        // Regular infantry/archer, either side (#132): tier fixed at spawn from the unit's
+        // identity (`u.tier`), never from its live attack/defense/level.
+        else bakedSpr = this.troopSprite(u.type === 'archer' ? 'archer' : 'infantry', u.tier || 0, R);
         return bakedSpr || this.unitSprite(icon, R);
     },
+
+    // ---- Animated soldiers (visual refresh) ----
+    // Who is drawn with which sprite, and how they look. Pure: reads the unit, writes nothing.
+    // - foot: the Swordsman (player with a melee weapon: armour -> body, weapon -> sword,
+    //   helmet -> head; infantry: fixed tier -> armour/weapon, helmet/hair/skin by id hash);
+    // - archer: the hooded archer, cloth dyed (player with a bow, archers on foot);
+    // - horse: a Swordsman rider on a Horse (the mounted player — horse coat from the horse's
+    //   price —, cavalry and horse archers — coat from the tier).
+    // Bosses, beasts and the marked companions keep their own art.
+    spriteLook(u) {
+        if(!Swordsman.ready() || u.isBoss || u.beast) return null;
+        let side = u.cloth && Swordsman.DYE[u.cloth] ? u.cloth : u.isPlayerTeam ? (this.playerCloth || 'player') : (this.enemyCloth || 'bandit');
+        let mounted = u.mounted || u.type === 'cavalry';
+        if(u.id === 'player') {
+            let eq = state.player.equipment, w = eq.weapon, ar = eq.armor, hm = eq.helmet;
+            let fem = state.player.background && state.player.background.gender === 'female';
+            let rider = {
+                armor: !ar ? 1 : (ar.defense || 0) < 20 ? 2 : 3, weapon: !w ? 1 : (w.basePrice || 0) < 400 ? 2 : 3,
+                helm: !hm ? '' : (hm.defense || 0) < 5 ? 'cap' : (hm.defense || 0) < 12 ? 'nasal' : 'greathelm',
+                skin: 0, hair: fem ? 3 : 0, cloth: side
+            };
+            if(mounted) {
+                let hp = (eq.horse && eq.horse.basePrice) || 0;
+                return { kind: 'horse', rider, cloth: side, coat: hp < 1000 ? 'bay' : hp < 2000 ? 'grey' : 'black' };
+            }
+            if(w && w.weaponType === 'bow') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
+            return Object.assign({ kind: 'foot' }, rider);
+        }
+        if(u.icon === '🎖️' || u.icon === '💍') return null;
+        let tier = Math.max(0, Math.min(2, u.tier || 0)), h = this.idHash(u), lite = Game.lite();
+        let rider = {
+            armor: tier + 1, weapon: tier + 1, helm: [['', 'cap'], ['cap', 'nasal'], ['nasal', 'greathelm']][tier][h % 2],
+            skin: lite ? 0 : (h >>> 3) % 4, hair: lite ? 0 : (h >>> 5) % 6, cloth: side   // a phone bakes fewer faces
+        };
+        if(mounted) return { kind: 'horse', rider, cloth: side, coat: ['bay', 'grey', 'black'][tier] };
+        if(u.type === 'archer') return Archer.ready() ? { kind: 'archer', cloth: side } : null;
+        if(u.type !== 'infantry') return null;
+        return Object.assign({ kind: 'foot' }, rider);
+    },
+    idHash(u) {
+        let s = String(u.id != null ? u.id : u.name || ''), h = 2166136261;
+        for(let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+        return h >>> 0;
+    },
+    spriteFace(a) { let c = Math.cos(a), s = Math.sin(a); return Math.abs(c) >= Math.abs(s) * 0.9 ? (c < 0 ? 'left' : 'right') : (s < 0 ? 'up' : 'down'); },
+    // the facing a unit shows when nothing else decides it
+    restFacing(u) {
+        let moving = Math.abs(u.vx || 0) > 0.1 || Math.abs(u.vy || 0) > 0.1;
+        return u.id === 'player' ? this.spriteFace(u.angleToMouse || 0)
+             : moving ? this.spriteFace(Math.atan2(u.vy, u.vx))
+             // standing still, a unit keeps looking where it last struck or shot (the more
+             // recent of the two): an archer that stepped back to shoot faces its target
+             : u.shotA !== undefined && !(u.atkT < u.shotT) ? this.spriteFace(u.shotA)
+             : u.atkA !== undefined ? this.spriteFace(u.atkA)
+             : (u.lastVx || u.lastVy) ? this.spriteFace(Math.atan2(u.lastVy || 0, u.lastVx || 0))
+             : (u.isPlayerTeam ? 'right' : 'left');
+    },
+    // [anim, facing, ms into it] from the unit's own clocks — the same ones unitPose reads.
+    spriteAnim(u, now) {
+        let isPlayer = u.id === 'player', h = this.idHash(u) % 997, face = a => this.spriteFace(a);
+        let moving = Math.abs(u.vx || 0) > 0.1 || Math.abs(u.vy || 0) > 0.1, dir = this.restFacing(u);
+        if(u.hp <= 0) return ['Death', dir, (u.deadT || 0) * 1000];
+        if(isPlayer && u.isAttacking) return ['attack', face(u.currentWeaponAngle || u.angleToMouse || 0), (1 - Math.max(0, u.attackTimer) / 0.3) * 560];
+        // an AI blow lands the moment atkT is reset: show the swing from its striking frame on
+        if(!isPlayer && u.atkT !== undefined && u.atkT < 0.35) return ['attack', u.atkA !== undefined ? face(u.atkA) : dir, 210 + u.atkT * 1000];
+        if(u.hitT !== undefined && u.hitT < 0.42) return ['Hurt', dir, u.hitT * 1000];
+        if(moving) return [Math.hypot(u.vx, u.vy) > 95 ? 'Run' : 'Walk', dir, now + h * 37];
+        return ['Idle', dir, now + h * 53];
+    },
+    // The archer: the release lands on frame 2 of 4 when shotT is reset.
+    archerAnim(u, now) {
+        let h = this.idHash(u) % 997, dir = this.restFacing(u), moving = Math.abs(u.vx || 0) > 0.1 || Math.abs(u.vy || 0) > 0.1;
+        if(u.hp <= 0) return ['Death', dir, (u.deadT || 0) * 1000];
+        if(u.shotT !== undefined && u.shotT < 0.3) return ['Attack', u.shotA !== undefined ? this.spriteFace(u.shotA) : dir, 300 + u.shotT * 1000];
+        if(u.hitT !== undefined && u.hitT < 0.24) return ['Hurt', dir, u.hitT * 1000];
+        // stepping back from a close enemy between shots: walk backwards, eyes on the target
+        if(moving && u.shotT < 2 && Math.cos(Math.atan2(u.vy, u.vx) - u.shotA) < 0) return ['Walk', this.spriteFace(u.shotA), now + h * 37];
+        if(moving) return ['Walk', dir, now + h * 37];
+        return ['Idle', dir, now + h * 53];
+    },
+    // A rider: the horse faces left or right and walks or gallops by speed; the rider's own
+    // animation (idle, swing, hurt, fall) runs on top.
+    mountAnim(u, now) {
+        let [anim, dir, t] = this.spriteAnim(u, now), h = this.idHash(u) % 997;
+        let lr = a => Math.cos(a) < 0 ? 'left' : 'right';
+        let facing = dir === 'left' || dir === 'right' ? dir
+                   : Math.abs(u.vx || 0) > 0.1 ? lr(Math.atan2(u.vy || 0, u.vx))
+                   : u.atkA !== undefined ? lr(u.atkA) : (u.isPlayerTeam ? 'right' : 'left');
+        let sp = Math.hypot(u.vx || 0, u.vy || 0);
+        if(anim === 'Run' || anim === 'Walk') anim = 'Idle';
+        return { gait: sp < 0.1 ? 'stand' : sp < 60 ? 'walk' : 'gallop', gt: now + h * 41, facing, anim, t,
+                 dead: u.hp <= 0, deadT: u.deadT || 0 };
+    },
+    // How long a fallen unit stays drawn: the sprite's own death animation, then a fade.
+    SPRITE_DIE_T: 1.3,
+    dieT(u) { return this.spriteLook(u) ? this.SPRITE_DIE_T : this.DIE_T; },
 
     // The walk/gallop rhythm, read by the pose below, the hoofbeats in update() and nothing
     // else — one set of numbers, so the clop lands on the hop you see.
@@ -2530,6 +2627,12 @@ const Battle = {
                 lean += Math.max(-1, Math.min(1, u.vx / 140)) * 0.08 * g;
             } else sy *= 1 + 0.018 * Math.sin(now / 650 + offset);
         }
+        if(this.spriteLook(u)) {
+            // The sprite's frames already walk, flinch and fall: keep only the lunge/knockback
+            // offsets, and fade a fallen one out once its death animation has played.
+            hop = 0; sway = 0; lean = 0; sx = 1; sy = 1;
+            if(dead) { ox = 0; oy = 0; alpha = 1 - Anim.k((u.deadT || 0) - 0.9, this.SPRITE_DIE_T - 0.9, 'inOutQuad'); }
+        }
         return { ux: u.x + ox, uy: u.y + oy, hop, sway, lean, sx, sy, alpha, dead, moving: gt.moving };
     },
 
@@ -2586,17 +2689,20 @@ const Battle = {
         ctx.save();
         ctx.translate(ux, uy - hop);
         ctx.rotate(sway);
-        let spr = this.unitArt(u), h2 = spr.height / 2;
-        // Lean, fall and squash pivot on the feet, not the middle of the sprite (1.32.0)
-        ctx.translate(0, h2); ctx.rotate(lean); ctx.scale(sx, sy);
-        ctx.drawImage(spr, -spr.width/2, -spr.height);
+        let spr = this.unitArt(u, 1, now), k = spr._k || 1, sw = spr.width * k, sh = spr.height * k, h2 = sh / 2;
+        // Lean, fall and squash pivot on the feet, not the middle of the sprite (1.32.0). A
+        // Swordsman frame carries its own feet anchor (_ax/_ay) and scale (_k).
+        let foot = spr._ay !== undefined ? this.SPRITE_FOOT : h2, ax = spr._ax !== undefined ? spr._ax : 0.5, ay = spr._ay !== undefined ? spr._ay : 1;
+        ctx.translate(0, foot); ctx.rotate(lean); ctx.scale(sx, sy);
+        if(spr._pixel) ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(spr, -ax * sw, -ay * sh, sw, sh);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
         if(u.level >= 5) {
             let rankStr = u.level >= 20 ? '^' : u.level >= 15 ? "'''" : u.level >= 10 ? "''" : "'";
             ctx.fillStyle = '#ffcc44';
             ctx.font = 'bold 15px Inter, sans-serif';
-            ctx.fillText(rankStr, -12, -12 - h2);
+            ctx.fillText(rankStr, -12, spr._rankY !== undefined ? spr._rankY : -12 - h2);
         }
         ctx.restore();
         ctx.globalAlpha = 1;
@@ -2634,7 +2740,7 @@ const Battle = {
 
         // Bow (right after firing an arrow) — AI archers show theirs too (1.32.0)
         let bowUp = isPlayer ? u.bowTimer > 0 : u.shotT < 0.25;
-        if(bowUp) {
+        if(bowUp && !spr._bow) {   // the archer sprite draws its own bow
             ctx.save();
             ctx.translate(ux, uy - hop);
             ctx.rotate((isPlayer ? u.angleToMouse : u.shotA) || 0);
@@ -2648,8 +2754,15 @@ const Battle = {
             ctx.restore();
         }
 
+        // A Swordsman player swings the sprite's own sword; the trail still shows where it cuts.
+        let spritePlayer = isPlayer && spr._ay !== undefined;
+        if(spritePlayer && u.isAttacking) {
+            let a1 = u.currentWeaponAngle || 0, k2 = 1 - Math.max(0, u.attackTimer) / 0.3;
+            ctx.beginPath(); ctx.arc(ux, uy - hop - 2, 24, a1 - 1.2 * Math.min(1, k2 + 0.2), a1);
+            ctx.strokeStyle = `rgba(255,245,215,${0.7 * (1 - k2 * 0.6)})`; ctx.lineWidth = 3; ctx.stroke();
+        }
         // Sword (while swinging)
-        if(u.isAttacking) {
+        if(u.isAttacking && !spritePlayer) {
             ctx.save();
             ctx.translate(ux, uy - hop);
             ctx.rotate(u.currentWeaponAngle || 0);
@@ -2746,7 +2859,14 @@ const Battle = {
         return T('Kafa Kafaya! ⚔️');
     },
     // Tug-of-war geometry, shared by both renderers.
-    tugBox(W) { let barW = Math.min(460, W - 130), barH = 22; return { barW, barH, barX: W/2 - barW/2, barY: 30 }; },
+    tugBox(W) { let barW = Math.min(460, W - 130), barH = 22; return { barW, barH, barX: W/2 - barW/2, barY: 34 }; },
+    // Minimap geometry, shared by both renderers: the top-right corner, unless the tug bar
+    // would run under it (every phone in portrait) — then it drops below the tug bar and the
+    // touch log strip (style.css, top 66px).
+    miniBox(W) {
+        let mw = Math.min(150, W * 0.28), mh = mw * 0.62, mx = W - mw - 12, t = this.tugBox(W);
+        return { mw, mh, mx, my: t.barX + t.barW + 14 > mx ? t.barY + t.barH + 36 : 12 };
+    },
 
     drawHud(ctx, W, H, now) {
         let { touch, B, hudW } = this.hudLayout(W, H);
@@ -3683,3 +3803,601 @@ const TournamentMinigame = {
         Game.updateTopBar();
     }
 };
+
+// --- SWORDSMAN SPRITES (visual refresh, step 1) ---
+// <swordsman-index> (generated by tools/build-swordsman.js — do not edit by hand)
+const SWORDSMAN_INDEX = {"1":{"size":[1024,332],"parts":{"Death":{"head":[0,0,14,19,36,27],"body":[208,200,22,31,19,15],"sword_back":[0,264,17,35,31,10],"sword":[698,264,16,37,25,8]},"attack":{"head":[252,0,20,17,24,25],"sword":[444,0,11,25,42,25],"sword_back":[0,108,11,21,36,23],"body":[0,200,19,30,26,16]},"Run":{"head":[780,0,23,17,18,24],"body":[518,108,23,27,17,17],"sword":[656,200,19,33,18,11],"sword_back":[800,200,23,34,20,10]},"Walk":{"head":[288,108,22,17,20,21],"body":[341,200,25,30,14,14],"sword_back":[217,264,22,34,22,9],"sword":[204,304,20,37,21,7]},"Hurt":{"head":[408,108,20,19,22,19],"body":[581,200,24,31,15,13],"sword":[613,264,19,37,17,8],"sword_back":[330,304,21,36,23,7]},"Idle":{"head":[654,108,23,19,18,16],"body":[425,200,25,31,13,13],"sword_back":[349,264,22,36,22,8],"sword":[0,304,19,37,17,7]}},"red":{"Hurt":[0,0,0.48,0.97,0.53,0,0,0.49,0.95,0.52,0,0,0.49,0.95,0.5,0,0,0.52,1,0.49],"Death":[0,0,0,0.36,0.86,0.41,0,0,0,0,0.43,1,0.49,0,0,0,0,0.44,0.99,0.49,0,0,0,0,0.49,0.92,0.45,0]}},"2":{"size":[1024,344],"parts":{"attack":{"sword":[0,0,13,24,40,27],"sword_back":[572,0,11,20,35,24],"head":[0,108,20,17,24,24],"body":[0,204,19,30,26,16]},"Death":{"head":[320,0,14,19,36,27],"body":[208,204,22,31,19,15],"sword_back":[0,268,18,35,30,11],"sword":[794,268,15,37,26,9]},"Run":{"head":[192,108,23,17,18,20],"body":[566,108,22,27,18,17],"sword_back":[692,204,24,32,19,13],"sword":[844,204,19,33,18,13]},"Walk":{"head":[336,108,22,17,20,19],"body":[341,204,24,30,16,14],"sword_back":[462,268,22,35,22,9],"sword":[192,312,20,37,20,8]},"Hurt":{"head":[456,108,20,19,22,19],"body":[437,204,24,31,15,14],"sword_back":[594,268,21,35,23,9],"sword":[709,268,19,37,17,9]},"Idle":{"head":[710,108,23,19,18,16],"body":[512,204,24,31,15,13],"sword_back":[210,268,22,36,21,9],"sword":[0,312,20,37,16,8]}},"red":{"Hurt":[0,0,0.48,0.96,0.53,0,0,0.49,0.94,0.51,0,0,0.5,0.96,0.51,0,0,0.52,1,0.5],"Death":[0,0,0,0.39,0.93,0.45,0,0,0,0,0.43,1,0.49,0,0,0,0,0.43,0.97,0.48,0,0,0,0,0.52,0.99,0.49,0]}},"3":{"size":[1024,304],"parts":{"attack":{"sword":[0,0,13,24,40,27],"sword_back":[572,0,11,20,35,25],"head":[0,108,20,17,24,24],"body":[592,108,19,29,26,17]},"Death":{"head":[320,0,14,19,36,27],"body":[0,204,22,31,19,15],"sword":[468,264,15,36,26,10],"sword_back":[650,264,18,35,30,9]},"Run":{"head":[192,108,23,17,18,20],"body":[456,108,23,27,17,17],"sword_back":[229,204,23,32,20,14],"sword":[569,204,19,33,18,13]},"Walk":{"head":[336,108,22,17,20,19],"body":[133,204,24,30,16,14],"sword_back":[713,204,22,34,22,11],"sword":[845,204,20,35,21,11]},"Idle":{"head":[800,108,23,19,18,16],"body":[389,204,24,31,15,13],"sword_back":[0,264,22,36,22,10],"sword":[264,264,19,36,17,10]}},"red":{"Death":[0,0,0,0.4,0.94,0.45,0,0,0,0,0.43,1,0.49,0,0,0,0,0.43,0.97,0.48,0,0,0,0,0.5,0.96,0.47,0]}}};
+const ARCHER_INDEX = {"Idle":{"n":4,"D":0,"S":1,"U":2},"Walk":{"n":6,"D":3,"S":4,"U":5},"Attack":{"n":4,"D":6,"S":7,"U":8},"Hurt":{"n":2,"D":9,"S":10,"U":11},"Death":{"n":8,"D":12,"S":13,"U":14}};
+// </swordsman-index>
+
+// The CraftPix Swordsman (1-3) as the battle's foot soldiers and the player on foot.
+// Every frame is composed from the pack's layers — body and head from the armour tier,
+// sword from the weapon tier — so the player looks like what they wear (no knight on day
+// one). Skin, hair and cloth are recoloured by exact palette entry (shading survives);
+// cloth takes the side's kingdom colour. Helmets are drawn by hand once per facing and
+// placed per frame by matching the head against a reference; nothing is re-derived per
+// frame, so a helmet cannot change shape between frames. A composed frame is baked once
+// into its own small canvas (cropped to content) and cached; both renderers draw it
+// through Battle.unitArt like any other baked art — `_k` is its size in field units per
+// pixel, `_ax/_ay` the anchor that sits on the feet, `_pixel` asks for nearest sampling.
+const Swordsman = (() => {
+    const F = 64, FOOT = { x: 32, y: 44 };
+    const K = 1.25;                 // field units per sprite pixel: ~32 tall, the old tile's size
+    const ANIM = {
+        Idle:   { n: 12, ms: 120, loop: true },
+        Walk:   { n: 6,  ms: 110, loop: true },
+        Run:    { n: 8,  ms: 80,  loop: true },
+        attack: { n: 8,  ms: 70,  loop: false },
+        Hurt:   { n: 5,  ms: 85,  loop: false },
+        Death:  { n: 7,  ms: 120, loop: false },
+    };
+    const ROW = { down: 0, left: 1, right: 2, up: 3 }, DIRS = ['down', 'left', 'right', 'up'];
+
+    // ---- palettes, read off the pack's own PNGs ----
+    const HAIR = ['#2b2023', '#3b2c33', '#4d3945', '#684f5a', '#876c7d'], HAIR_LINE = '#211a1c';
+    const SKIN = ['#795048', '#a46f59', '#be865f', '#e1b26e', '#f6ca74'];
+    const EYES = ['#3f6ad4', '#374a8f', '#d2dde8'];
+    const CLOTH = {
+        1: ['#2d312b', '#3f433d', '#5e615a', '#6f736a', '#868b7c', '#a0a387'],   // rags
+        2: ['#3c201e', '#4f2725', '#653631', '#784639', '#905941'],              // leather vest, dyed
+        3: ['#481916', '#5e1e1c', '#8a3b26', '#a24d29', '#4c2726'],              // cape
+    };
+    // kingdom id -> the hue its soldiers are dyed in (FACTIONS colours, toned for cloth)
+    const DYE = {
+        swadia:  { h: 2,   s: 0.62, dl: 0.06 },
+        rhodok:  { h: 118, s: 0.42, dl: 0.04 },
+        vaegir:  { h: 210, s: 0.07, dl: 0.14 },
+        nord:    { h: 213, s: 0.62, dl: 0.06 },
+        khergit: { h: 282, s: 0.45, dl: 0.06 },
+        bandit:  { h: 28,  s: 0.28, dl: 0.00 },
+        player:  { h: 42,  s: 0.62, dl: 0.08 },   // an unsworn warband: gold, a colour no kingdom wears
+    };
+    const HAIRS = [null,
+        (h, s, l) => [20, 0.12, l * 0.7], (h, s, l) => [24, 0.4, l * 1.02], (h, s, l) => [12, 0.55, l * 1.08 + 0.04],
+        (h, s, l) => [40, 0.5, l * 1.2 + 0.12], (h, s, l) => [220, 0.05, l * 1.15 + 0.14]];
+    const SKINS = [null,
+        (h, s, l) => [h + 2, s * 0.8, Math.min(0.9, l + 0.06)], (h, s, l) => [h - 4, s * 0.95, l - 0.12], (h, s, l) => [h - 6, s * 0.85, l - 0.24]];
+    const STEEL = ['#1d1a22', '#3d4552', '#5f6b7d', '#8795a8', '#b9c6d4', '#e4ecf2'];
+    const LEATHER = ['#1f130d', '#4a2c1a', '#6e4527', '#8f5d33', '#b07a45', '#c99a62'];
+
+    const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+    const key = (r, g, b) => (r << 16) | (g << 8) | b;
+    const hkey = h => { const [r, g, b] = hex2rgb(h); return key(r, g, b); };
+    function rgb2hsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+        if(mx === mn) return [0, 0, l];
+        const d = mx - mn, s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return [h * 60, s, l];
+    }
+    function hsl2rgb(h, s, l) {
+        h = ((h % 360) + 360) % 360 / 360; s = Math.max(0, Math.min(1, s)); l = Math.max(0, Math.min(1, l));
+        if(!s) return [l * 255, l * 255, l * 255].map(Math.round);
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+        const t = x => { x = (x + 1) % 1; return x < 1 / 6 ? p + (q - p) * 6 * x : x < 0.5 ? q : x < 2 / 3 ? p + (q - p) * (2 / 3 - x) * 6 : p; };
+        return [t(h + 1 / 3), t(h), t(h - 1 / 3)].map(v => Math.round(v * 255));
+    }
+    const viaHsl = (hex, f) => { const [r, g, b] = hex2rgb(hex); return hsl2rgb(...f(...rgb2hsl(r, g, b))); };
+
+    // ---- atlases ----
+    let imgs = null;
+    function load() {
+        if(imgs || typeof Image === 'undefined' || !SWORDSMAN_INDEX) return;
+        imgs = [1, 2, 3].map(l => { const i = new Image(); i.src = 'troops/swordsman_' + l + '.png'; return i; });
+    }
+    const ready = () => !!imgs && imgs.every(i => i.complete && i.naturalWidth > 0);
+    const hasAnim = (lvl, anim) => !!(SWORDSMAN_INDEX[lvl].parts[anim] && SWORDSMAN_INDEX[lvl].parts[anim].body);
+    function cell() { const c = document.createElement('canvas'); c.width = c.height = F; return c; }
+    // one layer of one frame, drawn into a 64x64 cell at its place in the pack's grid
+    function layer(x, lvl, anim, part, f, row) {
+        const p = SWORDSMAN_INDEX[lvl].parts[anim] && SWORDSMAN_INDEX[lvl].parts[anim][part];
+        if(!p) return;
+        const [ax, ay, bx, by, bw, bh] = p;
+        x.drawImage(imgs[lvl - 1], ax + f * bw, ay + row * bh, bw, bh, bx, by, bw, bh);
+    }
+
+    // ---- hand-drawn helmets ----
+    // Each helmet is drawn once per facing, pixel by pixel, in the coordinates of that facing's
+    // reference head (level-1 Idle frame 0; the side facings also carry the half-turned Idle
+    // frame 6). Every other frame gets the same drawing, moved by however far its head moved,
+    // found by matching the frame's head (skin, eyes, hair, outline) against the reference. A
+    // fallen head (Death) is matched against the reference turned by ±45/±90/180°.
+    //   O outline · 1–5 dark→light · N slit/hole · . empty
+    const HELM_TPL = {
+      nasal: {
+        down: { x: 25, y: 21, brim: 28, rows: [
+          '...OOOOOOO...',
+          '.OO3445432OO.',
+          'O33455543322O',
+          'O34554433221O',
+          'O34443333221O',
+          'O33333332221O',
+          'O22222222111O',
+          'OOOOOO3OOOOOO',
+          '......3......',
+          '......2......',
+          '......O......'] },
+        left: { x: 25, y: 21, brim: 28, rows: [
+          '....OOOOOOO...',
+          '..OO3445432OO.',
+          '.O34455433221O',
+          'O344554332211O',
+          'O344443332211O',
+          'O333333322211O',
+          'O222222221111O',
+          'OOOOOOOO22111O',
+          'O3......O2111O',
+          'O3.......O111O',
+          'OO........OOO.'] },
+        // the side head half-turned to the camera (Idle frames 5–10): the nose guard sits mid-face
+        left34: { x: 25, y: 21, brim: 28, rows: [
+          '....OOOOOOO...',
+          '..OO3445432OO.',
+          '.O34455433221O',
+          'O344554332211O',
+          'O344443332211O',
+          'O333333322211O',
+          'O222222221111O',
+          'OOOOO3OOO2111O',
+          '.....3...O111O',
+          '.....2....OOO.',
+          '.....O........'] },
+        up: { x: 25, y: 21, brim: 29, rows: [
+          '...OOOOOOO...',
+          '.OO3445432OO.',
+          'O33455543322O',
+          'O34554433221O',
+          'O34443333221O',
+          'O33333332221O',
+          'O33333322211O',
+          'O22222222111O',
+          'OOOOOOOOOOOOO'] },
+      },
+      cap: {
+        down: { x: 25, y: 22, brim: 28, rows: [
+          '...OOOOOOO...',
+          '.OO4452432OO.',
+          'O34453233221O',
+          'O34432332211O',
+          'O33332322111O',
+          'O11111111111O',
+          'OOOOOOOOOOOOO'] },
+        left: { x: 25, y: 22, brim: 28, rows: [
+          '...OOOOOOOO...',
+          '.OO44534332OO.',
+          'O344532433211O',
+          'O344432333211O',
+          'O333322322111O',
+          'O111111111111O',
+          'OOOOOOOOOOOOOO'] },
+        up: { x: 25, y: 22, brim: 29, rows: [
+          '...OOOOOOO...',
+          '.OO4453432OO.',
+          'O34453233221O',
+          'O34432332211O',
+          'O33332322111O',
+          'O33332322111O',
+          'O11111111111O',
+          'OOOOOOOOOOOOO'] },
+      },
+      greathelm: {
+        down: { x: 25, y: 21, brim: 34, rows: [
+          '.OOOOOOOOOOO.',
+          'O34455443322O',
+          'O34554433221O',
+          'O34443333221O',
+          'O33333333221O',
+          'O33333333221O',
+          'O22222422211O',
+          'O33333433221O',
+          'O33333433221O',
+          'ONNNNNONNNNNO',
+          'O33333433221O',
+          'O33333433221O',
+          'O2N2N242N2N1O',
+          '.OOOOOOOOOOO.'] },
+        left: { x: 25, y: 21, brim: 34, rows: [
+          '.OOOOOOOOOOOO.',
+          'O344554332211O',
+          'O344554332211O',
+          'O344443332211O',
+          'O333333322211O',
+          'O333333322211O',
+          'O222222221111O',
+          'O333333322211O',
+          'O333333322211O',
+          'ONNNNN3322211O',
+          'O333333322211O',
+          'O333333322211O',
+          'ON3N3332211OO.',
+          '.OOOOOOOOOOO..'] },
+        up: { x: 25, y: 21, brim: 34, rows: [
+          '.OOOOOOOOOOO.',
+          'O34455443322O',
+          'O34554433221O',
+          'O34443333221O',
+          'O33333333221O',
+          'O33333333221O',
+          'O33333332221O',
+          'O33333322211O',
+          'O33333322211O',
+          'O22222222111O',
+          'O33333322211O',
+          'O33333322211O',
+          'O22222222111O',
+          '.OOOOOOOOOOO.'] },
+      },
+    };
+
+    const CLS = new Map();
+    HAIR.forEach(h => CLS.set(hkey(h), 1)); CLS.set(hkey(HAIR_LINE), 2);
+    SKIN.forEach(h => CLS.set(hkey(h), 3)); CLS.set(hkey('#552d24'), 3);
+    EYES.forEach(h => CLS.set(hkey(h), 4)); CLS.set(hkey('#110b00'), 5);
+    const classOf = (d, i) => d[i + 3] ? (CLS.get(key(d[i], d[i + 1], d[i + 2])) || 6) : 0;
+    const PIV = { x: 31, y: 28 };
+    function rotGrid(g, deg) {
+        if(!deg) return g;
+        const o = new Uint8Array(F * F), r = -deg * Math.PI / 180, c = Math.round(Math.cos(r) * 1e6) / 1e6, s = Math.round(Math.sin(r) * 1e6) / 1e6;
+        for(let y = 0; y < F; y++) for(let x = 0; x < F; x++) {
+            const dx = x - PIV.x, dy = y - PIV.y;
+            const sx = Math.round(PIV.x + dx * c - dy * s), sy = Math.round(PIV.y + dx * s + dy * c);
+            if(sx >= 0 && sy >= 0 && sx < F && sy < F) o[y * F + x] = g[sy * F + sx];
+        }
+        return o;
+    }
+    const mirror = g => { const o = new Uint8Array(F * F); for(let y = 0; y < F; y++) for(let x = 0; x < F; x++) o[y * F + x] = g[y * F + (F - 1 - x)]; return o; };
+    const SYM = { '.': 0, O: 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, N: 7 };
+    function tplGrids(t) {
+        const g = new Uint8Array(F * F), cut = new Uint8Array(F * F);
+        t.rows.forEach((row, j) => { for(let i = 0; i < row.length; i++) g[(t.y + j) * F + t.x + i] = SYM[row[i]] || 0; });
+        const w = Math.max(...t.rows.map(r => r.length));
+        for(let y = 0; y <= t.brim; y++) for(let x = t.x - 3; x < t.x + w + 3; x++) if(x >= 0 && x < F) cut[y * F + x] = 1;
+        return { g, cut };
+    }
+    let _refs = null;
+    function refs() {
+        if(_refs) return _refs;
+        const grab = (row, f = 0) => {
+            const c = cell(), x = c.getContext('2d'); layer(x, 1, 'Idle', 'head', f, row);
+            const d = x.getImageData(0, 0, F, F).data, g = new Uint8Array(F * F);
+            for(let i = 0; i < F * F; i++) g[i] = classOf(d, i * 4);
+            return g;
+        };
+        _refs = { down: [grab(0)], left: [grab(1), grab(1, 6)], up: [grab(3)] };
+        _refs.right = _refs.left.map(mirror);
+        return _refs;
+    }
+    const tplCache = {};
+    function tplFor(type, dir, deg, pose = 0, fallen = false) {
+        const k = type + dir + deg + ':' + pose + (fallen ? 'f' : '');
+        if(tplCache[k]) return tplCache[k];
+        const side = dir === 'right' ? 'left' : dir, set = HELM_TPL[type];
+        // a head fallen face-down, seen from behind, shows only its crown: every helmet reads as a dome
+        const base = fallen && dir === 'up' ? HELM_TPL.nasal.up : (pose && set[side + '34']) || set[side];
+        let { g, cut } = tplGrids(base);
+        if(dir === 'right') { g = mirror(g); cut = mirror(cut); }
+        const rr = rotGrid(refs()[dir][pose], deg), pts = [];
+        for(let i = 0; i < F * F; i++) if(rr[i]) pts.push(i % F, (i / F) | 0, rr[i]);
+        return (tplCache[k] = { g: rotGrid(g, deg), cut: rotGrid(cut, deg), pts });
+    }
+    function score(cellCls, pts, dx, dy) {
+        let s = 0;
+        for(let p = 0; p < pts.length; p += 3) {
+            const r = pts[p + 2], X = pts[p] + dx, Y = pts[p + 1] + dy;
+            const c = X >= 0 && Y >= 0 && X < F && Y < F ? cellCls[Y * F + X] : 0;
+            if(c === r) s += r === 1 ? 1 : 2;
+            else if(!c) s -= 1;
+        }
+        return s;
+    }
+    const fitCache = {};
+    // paint `type` onto one head cell (ImageData of a 64x64 canvas holding only the head layer)
+    function helmet(id, type, anim, row, f, lvl) {
+        const d = id.data, dir = DIRS[row], turning = anim === 'Death';
+        const cellCls = new Uint8Array(F * F); let any = false;
+        for(let i = 0; i < F * F; i++) { cellCls[i] = classOf(d, i * 4); if(cellCls[i]) any = true; }
+        if(!any) return;
+        const fk = [lvl, anim, row, f, type].join(':');
+        let best = fitCache[fk];
+        if(!best) {
+            const degs = turning && dir !== 'up' ? [0, 45, -45, 90, -90, 180] : [0], poses = refs()[dir].length;
+            for(let pose = 0; pose < poses; pose++) for(const deg of degs) {
+                if(pose && deg) continue;
+                const { pts } = tplFor(type, dir, deg, pose), R = turning ? 12 : 7;
+                for(let dy = -R; dy <= R; dy++) for(let dx = -R; dx <= R; dx++) {
+                    const s = score(cellCls, pts, dx, dy) - (deg ? 4 : 0) - (pose ? 1 : 0);
+                    if(!best || s > best.s) best = { s, deg, dx, dy, pose };
+                }
+            }
+            fitCache[fk] = best;
+        }
+        const { g, cut } = tplFor(type, dir, best.deg, best.pose, turning && dir === 'up' && f >= 3);
+        let clip = null;             // a fallen helmet covers only where the head still shows
+        if(turning) {
+            clip = new Uint8Array(F * F);
+            for(let i = 0; i < F * F; i++) if(cellCls[i]) { const x0 = i % F, y0 = (i / F) | 0; for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++) { const X = x0 + dx, Y = y0 + dy; if(X >= 0 && Y >= 0 && X < F && Y < F) clip[Y * F + X] = 1; } }
+        }
+        const ramp = type === 'cap' ? LEATHER : STEEL;
+        const COL = [null, ramp[0], ramp[1], ramp[2], ramp[3], ramp[4], ramp[5], '#0d0b10'].map(h => h && hex2rgb(h));
+        for(let y = 0; y < F; y++) for(let x = 0; x < F; x++) {
+            const X = x + best.dx, Y = y + best.dy;
+            if(X < 0 || Y < 0 || X >= F || Y >= F) continue;
+            const i = (Y * F + X) * 4, sym = clip && !clip[Y * F + X] ? 0 : g[y * F + x];
+            if(sym) { const [r, gg, b] = COL[sym]; d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = 255; }
+            else if(cut[y * F + x]) { const c = classOf(d, i); if(c === 1 || c === 2) d[i + 3] = 0; }
+        }
+    }
+
+    // ---- composed frames ----
+    const mapCache = {};
+    function colourMap(look) {
+        const k = look.skin + ':' + look.hair + ':' + look.cloth + ':' + look.armor;
+        if(mapCache[k]) return mapCache[k];
+        const m = new Map();
+        if(look.skin) SKIN.forEach(h => m.set(hkey(h), viaHsl(h, SKINS[look.skin])));
+        if(look.hair) HAIR.forEach(h => m.set(hkey(h), viaHsl(h, HAIRS[look.hair])));
+        const dye = DYE[look.cloth];
+        if(dye) {
+            const sat = look.armor === 1 ? dye.s * 0.7 : dye.s, dl = look.armor === 1 ? dye.dl : dye.dl + 0.08;
+            CLOTH[look.armor].forEach(h => m.set(hkey(h), viaHsl(h, (hh, s, l) => [dye.h, sat, l + dl])));
+        }
+        return (mapCache[k] = m);
+    }
+    // level 3 ships no layered Hurt: built from its idle frame, knocked back, then flushed red
+    const HURT3 = [[1, 0], [2, 0], [2, 0.9], [1, 0.8], [0, 0.3]];
+    const KNOCK = { right: [-1, 0], left: [1, 0], down: [0, -1], up: [0, 1] };
+    const frames = new Map(), CAP = 2500;
+    function frameIndex(anim, t) {
+        const A = ANIM[anim], f = Math.floor(Math.max(0, t) / A.ms);
+        return A.loop ? f % A.n : Math.min(A.n - 1, f);
+    }
+    // look: { armor 1..3, weapon 1..3, helm ''|'cap'|'nasal'|'greathelm', skin 0..3, hair 0..5, cloth }
+    function art(look, anim, dir, t) {
+        if(!ready()) return null;
+        const f = frameIndex(anim, t), row = ROW[dir];
+        const k = [look.armor, look.weapon, look.helm, look.skin, look.hair, look.cloth, anim, row, f].join('|');
+        let c = frames.get(k);
+        if(c) { frames.delete(k); frames.set(k, c); return c; }   // keep recently used frames
+        c = bake(look, anim, row, f, dir);
+        frames.set(k, c);
+        if(frames.size > CAP) frames.delete(frames.keys().next().value);
+        return c;
+    }
+    function bake(look, anim, row, f, dir) {
+        let a = anim, fr = f, ox = 0, oy = 0, red = 0;
+        if(!hasAnim(look.armor, a)) {
+            const [kk, r] = HURT3[Math.min(f, HURT3.length - 1)];
+            a = 'Idle'; fr = 0; ox = KNOCK[dir][0] * kk; oy = KNOCK[dir][1] * kk; red = r;
+        } else if(a === 'Hurt' || a === 'Death') {
+            const t = SWORDSMAN_INDEX[look.armor].red[a];
+            red = t ? t[row * ANIM[a].n + f] || 0 : 0;
+        }
+        const wl = hasAnim(look.weapon, a) ? look.weapon : 2;
+        const head = cell(), hx = head.getContext('2d');
+        layer(hx, look.armor, a, 'head', fr, row);
+        if(look.helm) { const id = hx.getImageData(0, 0, F, F); helmet(id, look.helm, a, row, fr, look.armor); hx.putImageData(id, 0, 0); }
+        const comp = cell(), x = comp.getContext('2d');
+        layer(x, wl, a, 'sword_back', fr, row);
+        layer(x, look.armor, a, 'body', fr, row);
+        x.drawImage(head, 0, 0);
+        layer(x, wl, a, 'sword', fr, row);
+        const id = x.getImageData(0, 0, F, F), d = id.data, m = colourMap(look);
+        let x0 = F, y0 = F, x1 = -1, y1 = -1;
+        for(let i = 0; i < d.length; i += 4) {
+            if(!d[i + 3]) continue;
+            const c = m.get(key(d[i], d[i + 1], d[i + 2]));
+            if(c) { d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; }
+            const p = i >> 2, px = p % F, py = (p / F) | 0;
+            if(px < x0) x0 = px; if(px > x1) x1 = px; if(py < y0) y0 = py; if(py > y1) y1 = py;
+        }
+        x.putImageData(id, 0, 0);
+        if(red > 0.02) {
+            x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#d42a3a'; x.globalAlpha = Math.min(0.65, red * 0.65);
+            x.fillRect(0, 0, F, F); x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+        }
+        if(x1 < 0) { x0 = y0 = 0; x1 = y1 = 1; }
+        const out = document.createElement('canvas');
+        out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+        out.getContext('2d').drawImage(comp, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+        out._pixel = true; out._k = K; out._rankY = -36;
+        out._ax = (FOOT.x - ox - x0) / out.width; out._ay = (FOOT.y - oy - y0) / out.height;
+        return out;
+    }
+    // a cloth colour dyed with a side's hue — shared with the archer and the saddle cloth
+    const dyeRgb = (hex, dye) => viaHsl(hex, (h, s, l) => [dye.h, dye.s, l + dye.dl]);
+    const dyeHex = cloth => { const d = DYE[cloth]; if(!d) return null; const [r, g, b] = hsl2rgb(d.h, d.s * 0.9, 0.42 + d.dl); return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join(''); };
+    return { ANIM, K, load, ready, art, frameIndex, DYE, dyeRgb, dyeHex };
+})();
+
+// The horse for every rider (visual refresh, step 2). Neither pack ships one, so it is built
+// from a few shapes (barrel, chest, rump, neck, head, jointed legs) rasterised onto the pixel
+// grid, shaded by edge and outlined. Legs run one stride cycle each, offset in time: a gallop
+// (rotary footfalls, a moment in the air) and a calm four-beat walk. A foreleg folds at the
+// knee with the hoof tucked back, a hind leg at the hock with the hoof tucked forward.
+// Every (coat, gait, frame, cloth) is baked once; 48x36 px, facing right, ground at y 33.
+const Horse = (() => {
+    const W = 48, H = 36, GROUND = 33, SADDLE = { x: 21, y: 13 };
+    const COATS = {
+        bay:   { o: '#24160f', c: ['#4a2a18', '#6b3f22', '#8c5530', '#ad7143'], mane: '#261710', sock: '#d8c7a8' },
+        grey:  { o: '#23232b', c: ['#5b5b67', '#83838f', '#a7a7b1', '#cbcbd3'], mane: '#3d3d47', sock: '#e9e9ee' },
+        black: { o: '#121015', c: ['#262229', '#38323c', '#4b4450', '#655c6b'], mane: '#141117', sock: '#8d8490' },
+    };
+    const ease = u => u * u * (3 - 2 * u);
+    // [upper, lower] leg angles, absolute, degrees from vertical (+ = toward the head)
+    function legAt(p, fore, g) {
+        if(p < g.stance) {
+            const th = g.reach - 2 * g.reach * (p / g.stance);
+            return fore ? [th, th] : [th - 12, th + 8];
+        }
+        const u = (p - g.stance) / (1 - g.stance), th = -g.reach + 2 * g.reach * ease(u), flex = Math.sin(Math.PI * u);
+        return fore ? [th + flex * g.knee, th - flex * g.fold] : [th - 12 - flex * g.hock, th + 8 + flex * g.fold * 0.9];
+    }
+    const GAITS = {
+        // rotary gallop: near hind, far hind, near fore, far fore, then all four in the air
+        gallop: { n: 8, ms: 70, stance: 0.42, reach: 28, knee: 22, fold: 78, hock: 14, phase: { nh: 0, fh: 0.12, nf: 0.4, ff: 0.52 }, bob: t => Math.round(-Math.sin(2 * Math.PI * (t - 0.15))) },
+        // four-beat walk: hind, fore on the same side, then the other side; always three feet down
+        walk:   { n: 8, ms: 115, stance: 0.62, reach: 16, knee: 14, fold: 46, hock: 8, phase: { nh: 0, nf: 0.25, fh: 0.5, ff: 0.75 }, bob: t => Math.round(-Math.sin(4 * Math.PI * t) * 0.6) },
+    };
+    const POSES = {};
+    for(const g in GAITS) {
+        const G = GAITS[g];
+        POSES[g] = Array.from({ length: G.n }, (_, i) => {
+            const t = i / G.n, f = {};
+            for(const k in G.phase) f[k] = legAt((t + 1 - G.phase[k]) % 1, k[1] === 'f', G);
+            f.bob = G.bob(t); f.tail = 1 + Math.round(Math.sin(2 * Math.PI * t) * (g === 'gallop' ? 1 : 0.5));
+            return f;
+        });
+    }
+    POSES.stand = [{ nf: [3, 3], ff: [-2, -2], nh: [-14, 6], fh: [-10, 9], bob: 0, tail: 1 }];
+    const frameOf = (gait, t) => gait === 'stand' ? 0 : Math.floor(Math.max(0, t) / GAITS[gait].ms) % GAITS[gait].n;
+    const shade = (hex, k) => {
+        const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
+        const f = v => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k)));
+        return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2, '0')).join('');
+    };
+    const cache = {};
+    function bake(coatName, gait, fi, cloth) {
+        const key = coatName + gait + fi + (cloth || '');
+        if(cache[key]) return cache[key];
+        const coat = COATS[coatName] || COATS.bay, P = POSES[gait][fi] || POSES.stand[0], b = P.bob;
+        const m = new Uint8Array(W * H);          // 1 body · 2 far leg · 3 mane/tail · 4 hoof · 6 cloth · 7 saddle · 8 eye · 9 sock
+        const set = (x, y, v) => { x = Math.round(x); y = Math.round(y); if(x >= 0 && y >= 0 && x < W && y < H) m[y * W + x] = v; };
+        const ell = (cx, cy, rx, ry, v) => { for(let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for(let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) { const dx = (x - cx) / rx, dy = (y - cy) / ry; if(dx * dx + dy * dy <= 1) set(x, y, v); } };
+        const line = (x0, y0, x1, y1, r, v) => { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2) + 1; for(let i = 0; i <= n; i++) { const t = i / n; ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, v); } };
+        const leg = (hx, hy, [a1, a2], v, sock) => {
+            const r1 = a1 * Math.PI / 180, r2 = a2 * Math.PI / 180;
+            const kx = hx + Math.sin(r1) * 6, ky = hy + Math.cos(r1) * 6, fx = kx + Math.sin(r2) * 6, fy = ky + Math.cos(r2) * 6;
+            line(hx, hy, kx, ky, 1.25, v); line(kx, ky, fx, fy, 0.75, v);
+            if(sock) line(kx + (fx - kx) * 0.6, ky + (fy - ky) * 0.6, fx, fy, 0.7, 9);
+            set(fx, fy, 4);
+        };
+        leg(27, 21 + b, P.ff, 2); leg(14, 21 + b, P.fh, 2);                    // far legs, behind the body
+        const tw = [[9, 15], [6, 18], [5, 22], [5, 25]].map(([x, y], i) => [x - (i ? P.tail * 0.6 * i : 0), y + b]);
+        for(let i = 0; i < tw.length - 1; i++) line(tw[i][0], tw[i][1], tw[i + 1][0], tw[i + 1][1], 1, 3);
+        ell(22, 18 + b, 9.5, 5, 1); ell(29, 17 + b, 5, 5, 1); ell(14, 17 + b, 5.5, 5, 1);
+        line(29, 15 + b, 34, 8 + b, 2.4, 1);
+        ell(37, 8 + b, 4, 2.4, 1); ell(40, 10 + b, 2, 1.8, 1);
+        set(35, 3 + b, 1); set(35, 4 + b, 1); set(36, 4 + b, 1);
+        leg(28, 21 + b, P.nf, 1, true); leg(15, 21 + b, P.nh, 1, false);
+        line(28, 12 + b, 33, 5 + b, 0.8, 3); set(34, 5 + b, 3); set(35, 6 + b, 3);
+        set(37, 7 + b, 8);
+        for(let y = 14; y <= 20; y++) for(let x = 17; x <= 25; x++) if(m[(y + b) * W + x] === 1) set(x, y + b, cloth ? 6 : 7);
+        for(let x = 18; x <= 23; x++) { set(x, 12 + b, 7); set(x, 13 + b, 7); }
+        set(17, 12 + b, 7); set(24, 11 + b, 7);
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const x = c.getContext('2d'), id = x.createImageData(W, H), d = id.data;
+        const rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+        const ramp = cloth ? [shade(cloth, -0.35), shade(cloth, -0.15), cloth, shade(cloth, 0.2)] : null;
+        const put = (i, h) => { const [r, g, bb] = rgb(h); d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = bb; d[i * 4 + 3] = 255; };
+        const at = (xx, yy) => xx < 0 || yy < 0 || xx >= W || yy >= H ? 0 : m[yy * W + xx];
+        for(let yy = 0; yy < H; yy++) for(let xx = 0; xx < W; xx++) {
+            const v = m[yy * W + xx], i = yy * W + xx; if(!v) continue;
+            const up = at(xx, yy - 1), dn = at(xx, yy + 1);
+            if(v === 1) put(i, coat.c[!up || up === 3 ? 3 : !dn ? 1 : 2]);
+            else if(v === 2) put(i, coat.c[!up ? 1 : 0]);
+            else if(v === 3) put(i, coat.mane);
+            else if(v === 4) put(i, '#1a1412');
+            else if(v === 6) put(i, ramp[!up || up === 7 ? 3 : !dn || dn === 2 ? 0 : (xx === 17 || xx === 25) ? 1 : 2]);
+            else if(v === 7) put(i, !up ? '#9a6a3a' : '#6e4527');
+            else if(v === 8) put(i, '#0e0b0a');
+            else if(v === 9) put(i, coat.sock);
+        }
+        for(let yy = 0; yy < H; yy++) for(let xx = 0; xx < W; xx++)
+            if(!m[yy * W + xx] && (at(xx - 1, yy) || at(xx + 1, yy) || at(xx, yy - 1) || at(xx, yy + 1))) put(yy * W + xx, coat.o);
+        x.putImageData(id, 0, 0);
+        return (cache[key] = c);
+    }
+    return { W, H, GROUND, SADDLE, GAITS, bake, frameOf, bob: (gait, fi) => (POSES[gait][fi] || POSES.stand[0]).bob };
+})();
+
+// The hooded archer (Roguelike Kit): idle 4 / walk 6 / attack 4 / hurt 2 / death 8 frames of
+// 32x32, facing down, side (right; left is mirrored) and up. Cloth greens are dyed like the
+// swordsmen's. Frames are baked once and handed to both renderers like Swordsman frames.
+const Archer = (() => {
+    const K = 1.5, FOOT = { x: 16, y: 27 };
+    const ANIM = { Idle: { ms: 160, loop: true }, Walk: { ms: 110, loop: true }, Attack: { ms: 150 }, Hurt: { ms: 120 }, Death: { ms: 110 } };
+    const GREEN = ['#265c42', '#3e8948', '#63c74d'];
+    let img = null;
+    const load = () => { if(!img && typeof Image !== 'undefined' && ARCHER_INDEX) { img = new Image(); img.src = 'troops/archer_anim.png'; } };
+    const ready = () => !!img && img.complete && img.naturalWidth > 0;
+    const frames = new Map();
+    function art(cloth, anim, dir, t) {
+        if(!ready()) return null;
+        const A = ARCHER_INDEX[anim], n = A.n, fr = Math.floor(Math.max(0, t) / ANIM[anim].ms);
+        const f = ANIM[anim].loop ? fr % n : Math.min(n - 1, fr), side = dir === 'left' || dir === 'right';
+        const k = [cloth, anim, dir, f].join('|');
+        let c = frames.get(k);
+        if(c) return c;
+        c = document.createElement('canvas'); c.width = c.height = 32;
+        const x = c.getContext('2d');
+        // the kit's side strip is drawn facing left: right is its mirror
+        if(dir === 'right') { x.translate(32, 0); x.scale(-1, 1); }
+        x.drawImage(img, f * 32, A[side ? 'S' : dir === 'up' ? 'U' : 'D'] * 32, 32, 32, 0, 0, 32, 32);
+        x.setTransform(1, 0, 0, 1, 0, 0);
+        const dye = Swordsman.DYE[cloth];
+        if(dye) {
+            const id = x.getImageData(0, 0, 32, 32), d = id.data, m = new Map();
+            GREEN.forEach(h => m.set(h, Swordsman.dyeRgb(h, dye)));
+            for(let i = 0; i < d.length; i += 4) {
+                if(!d[i + 3]) continue;
+                const h = '#' + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, '0')).join(''), r = m.get(h);
+                if(r) { d[i] = r[0]; d[i + 1] = r[1]; d[i + 2] = r[2]; }
+            }
+            x.putImageData(id, 0, 0);
+        }
+        c._pixel = true; c._k = K; c._ax = FOOT.x / 32; c._ay = FOOT.y / 32; c._rankY = -34; c._bow = true;
+        frames.set(k, c);
+        return c;
+    }
+    return { ANIM, load, ready, art };
+})();
+
+// A rider: the Swordsman from the waist up, sat on a Horse. Composed per frame into one
+// canvas (the horse facing left or right only), cached like the others. A fallen rider lies
+// beside a horse that fades out as it bolts.
+const Mounted = (() => {
+    const CW = 64, CH = 58, HX = 8, HY = 22;          // horse cell's place in the composite
+    const FEET = { x: HX + 24, y: HY + Horse.GROUND };
+    const frames = new Map(), CAP = 1500;
+    // s: { gait 'stand'|'walk'|'gallop', gt, facing 'left'|'right', anim, t, dead, deadT }
+    function art(look, s) {
+        if(!Swordsman.ready()) return null;
+        const hf = s.dead ? Horse.frameOf('gallop', s.deadT * 1000) : Horse.frameOf(s.gait, s.gt);
+        const fade = s.dead ? Math.min(4, Math.floor(s.deadT / 0.2)) : 0;
+        const rf = Swordsman.frameIndex(s.anim, s.t);
+        const k = [look.rider.armor, look.rider.weapon, look.rider.helm, look.rider.skin, look.rider.hair, look.cloth, look.coat, s.dead ? 'd' : s.gait, hf, fade, s.facing, s.anim, rf].join('|');
+        let c = frames.get(k);
+        if(c) { frames.delete(k); frames.set(k, c); return c; }
+        c = document.createElement('canvas'); c.width = CW; c.height = CH;
+        const x = c.getContext('2d'), left = s.facing === 'left';
+        const horse = Horse.bake(look.coat, s.dead ? 'gallop' : s.gait, hf, Swordsman.dyeHex(look.cloth));
+        const drawHorse = (dx, alpha) => {
+            x.save(); x.globalAlpha = alpha;
+            if(left) { x.translate(HX + dx + Horse.W, HY); x.scale(-1, 1); x.drawImage(horse, 0, 0); }
+            else x.drawImage(horse, HX + dx, HY);
+            x.restore();
+        };
+        if(s.dead) {
+            // the horse bolts the way it faced and fades; its rider falls where it stood
+            drawHorse((left ? -1 : 1) * fade * 3, 1 - fade / 4.5);
+            const r = Swordsman.art(look.rider, 'Death', s.facing, s.t);
+            if(r) x.drawImage(r, Math.round(FEET.x - r._ax * r.width) + (left ? 5 : -5), Math.round(FEET.y - r._ay * r.height));
+        } else {
+            drawHorse(0, 1);
+            const r = Swordsman.art(look.rider, s.anim, s.facing, s.t);
+            if(r) {
+                // only the rider's upper body: cut 7 px above the feet, seat that line on the saddle
+                const fx = r._ax * r.width, fy = r._ay * r.height, cut = Math.max(1, Math.round(fy - 7));
+                const bob = s.gait === 'stand' ? 0 : Horse.bob(s.gait, hf);
+                const sx = HX + (left ? Horse.W - 1 - Horse.SADDLE.x : Horse.SADDLE.x), sy = HY + Horse.SADDLE.y + bob;
+                x.drawImage(r, 0, 0, r.width, cut, Math.round(sx - fx), sy - cut, r.width, cut);
+            }
+        }
+        c._pixel = true; c._k = Swordsman.K; c._ax = FEET.x / CW; c._ay = FEET.y / CH; c._rankY = -56;
+        frames.set(k, c);
+        if(frames.size > CAP) frames.delete(frames.keys().next().value);
+        return c;
+    }
+    return { art };
+})();

@@ -3,6 +3,116 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.0.0 — Yeni Yüz (2026-09-26)
+
+Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehirler aynı pixel dünyada.
+
+### Savaş
+
+- **Canlanan askerler.** Piyadelerin tek bir duran resmi vardı, kayarak ve zıplayarak hareket
+  ediyorlardı. Artık bekleme, yürüme, koşma, saldırı, darbe alma ve ölüm animasyonları var,
+  dört yöne de bakıyorlar.
+- **Ne giyersen o görünürsün.** İlk gün parlak zırhlı bir şövalye değil, paçavralı ve sopalı
+  bir köylüsün. Deri zırh, zincir zırh, kılıç, çelik kılıç ve miğferler (deri başlık,
+  burunluklu miğfer, büyük miğfer) üstünde görünüyor.
+- **Krallık renkleri.** Askerlerin kıyafeti krallığının renginde: Svadya kırmızı, Rodok yeşil,
+  Veagir gri, Nord mavi, Kergit mor, haydutlar kahverengi. Kendi başına dolaşan bir çetenin
+  rengi altın. Aynı takımda bile herkesin saçı ve teni farklı.
+- **Süvariler yeni atlarında.** Atlar artık oyunun geri kalanıyla aynı pixel dünyasında:
+  dörtnala koşarken dört ayak sırayla basıyor, yavaşlayınca sakin sakin yürüyor. Eyer örtüsü
+  krallık renginde, binici kendi kılıcını sallıyor. Binici düşerse at kaçıp gidiyor.
+- **Atına binince sen de öylesin.** Ucuz atlar doru, orta fiyatlılar kır, pahalı savaş atları
+  yağız. Üstünde ne giydiysen o.
+- **Okçular yürüyor, nişan alıp bırakıyor.** Kukuletaları da takımın renginde. Yay taşıyorsan
+  sen de okçu olarak görünüyorsun.
+- **Okçular düşmana bakıyor.** Sağa bakan okçu sola dönük çiziliyordu. Arkası dönük, ters
+  yöne ok atıyor gibi görünüyordu. Artık hedefine bakarak ateş ediyor. Yakındaki düşmandan
+  geri çekilirken de ona sırtını dönmüyor, yüzü düşmana dönük geri geri yürüyor.
+- **Telefonda küçük harita güç çubuğunun üstüne binmiyor.** Artık çubuğun altında duruyor.
+
+### Harita
+
+- **Harita da pixel dünyasında.** Şehirler artık emoji gökdelen değil. Her krallığın kendi
+  mimarisinde kaleler var: Svadya'nın kırmızı çatılı taş surları, Rodok'un kum taşı kuleleri,
+  Nord'un ahşap çitleri, Veagir'in soğan kubbeleri, Kergit'in keçe çadırları. Kale el
+  değiştirince bayrağı değişir, duvarları kalır.
+- **Arazi kimin toprağı olduğunu söylüyor.** Svadya yeşil ova, Kergit bozkırı sarımsı, Veagir'in
+  kuzeyi karlı, Rodok taşlık. Kıyının bir kısmı sarp dağ, bir kısmı kumsal. Köylerin yanında
+  tarlalar, ormanlarda sık ağaçlar var. Bunlar sadece görüntü: hız ve pusu yine orman, nehir ve
+  yola bağlı.
+- **Haritada yürüyen birlikler savaştaki askerler.** Ne giyiyorsan haritada da o görünüyorsun.
+  Lordlar zırhlı süvari, haydutlar paçavralı. Terk edilmiş yerler de (kamp, çiftlik, mağara,
+  haydut ini) küçük pixel yapılar oldu.
+- **Yazılar birbirini ve şehri örtmüyor.** Önce senin adın, sonra şehirler, düşmanlar ve
+  lordlar yer buluyor. Hiçbir yazı bir şehrin çiziminin üstüne binmiyor.
+- **Kervanlar ve kurtlar.** Kervan artık atın çektiği, tekerlekleri dönen üstü örtülü bir
+  araba. Muhafızları arkasından yürüyor. Kurt sürüsü tırıs giden pixel kurtlar.
+- **Harita panelinde çizgi ikonlar.** Sol alttaki arazi kutusundaki emojiler (birlik sayıları,
+  Bekle, Beni Bul, Sıradaki, Diplomasi, hız) üst çubuktaki gibi çizgi ikon oldu. Arazinin
+  ikonu da bulunduğun yere göre değişiyor: ova, orman, nehir, köprü, yol.
+- **Gece pencereler yanıyor.** Gece biraz daha karanlık. Şehir ve köylerin pencereleri tek tek
+  yanıyor.
+- **Pixel harita ekran kartıyla da keskin.** 1.34.0'ın WebGL çizimi artık yeni pixel haritayı
+  çiziyor. Ekran kartı olan cihazda isim etiketleri, halkalar ve rota ekranın kendi piksel
+  yoğunluğunda net, pixel askerler ve kaleler keskin kenarlı. Ekran kartı yoksa aynı harita
+  Canvas ile çiziliyor, görüntü aynı.
+- **Yavaş cihazda birlikler görünmüyordu.** Kare hızı düştüğünde
+  haritadaki birlikler her karede yeniden belirmeye başlayıp hiç görünmüyordu. Artık sadece
+  gerçekten görüş alanına giren birlik yavaşça beliriyor.
+
+### Şehirler, eşyalar, ana menü
+
+- **Şehre girince pixel sahne.** Şehir, köy ve kale sahneleri her krallığın kendi tarzında:
+  Svadya'da taş sur ve kırmızı çatılar, Rodok'ta kum taşı, Nord'da ahşap çit ve deniz, Veagir'de
+  soğan kubbeler ve kar, Kergit'te çadır obası ve bozkır. Tıkladığın her bina o krallığın
+  mimarisinde. Tabelalar birbirinin üstüne binmiyor. Gece pencereler ve meşaleler yanıyor.
+- **Telefonda sahne büyük ve yana kayıyor.** Sahne telefonda ince bir şerit olarak kalıyor,
+  tabelalar okunmuyordu. Artık okunur boyda ve parmakla yana kaydırılıyor. Kenarlardaki oklar,
+  kararan kenar ve alttaki çubuk kaydırılabildiğini gösteriyor. İlk girişte "Sahneyi yana
+  kaydır" yazısı çıkıyor ve sahne bir kez kıpırdıyor. Hangi kaydırmada olursan ol, binaya
+  dokunmak o binanın düğmesine basmakla aynı.
+- **Eşyaların kendi ikonu var.** Dört kılıç artık aynı emoji değil. Silahın kademesi
+  metalinden belli: demir, çelik, desenli Şam çeliği, altın kabzalı kraliyet. Atların donu,
+  zırhların malzemesi, yiyecekler ve ticaret malları ayrı ayrı çizildi.
+- **Bütün portreler pixel.** Lordlar ve leydiler oyunun geri kalanıyla aynı pixel dünyasında.
+  Krallar taçlı ve kürklü, Kergitler kalpaklı ve bıyıklı, Nordlar örgü sakallı. Mizaç yüzde
+  okunuyor: kaşlar, gülümseme, savaşçının yara izi. Leydilerin tacı, duvağı, saçındaki çiçeği
+  var. Portreler koyu altın çerçevede, köşede krallığın arması.
+- **Pazar: önce seç, sonra kaç tane.** Al ve Sat sekmeleri tek bir eşya ızgarası gösteriyor.
+  Bir eşyaya dokununca yanında (telefonda ekranın altında) bir işlem paneli açılıyor. Panelde
+  eşyanın özellikleri, kuşandığınla farkı, adet ayarı (1, 5, 10, En çok) ve ödeyeceğin toplam
+  var. Toplam, alırken fiyatın nasıl artacağı hesaba katılarak önceden yazıyor. Neden daha
+  fazla alamadığını da söylüyor: çanta, stok ya da para.
+- **Lordla konuşma kartları.** Konuşma seçenekleri şehirdeki gibi ikonlu kartlar. Her birinin
+  altında ne işe yaradığı yazıyor: hediye günde bir kez verilir, hakaret ilişkiyi 15 düşürür.
+  Karşıdakinin sözü yazılırken kartlar yerinden oynamıyor.
+- **Telefonda uzun pencere en üstten açılıyor.** Lordla konuşma gibi uzun bir pencere biraz
+  aşağı kaymış açılıyordu. Portre ve isim çerçevenin altında kalıyordu.
+- **Yeni ana menü.** Başlığın altında oyunun askerleri bir kalenin önünden yürüyor. Turuncu
+  altıgen düğmeler yerine çizgi ikonlu, koyu cam düğmeler var.
+
+### Arayüz
+
+- **Yeni simgeler.** Üst çubuktaki, menüdeki ve alt şeritteki renkli emojiler yerini oyunun
+  altın rengine uyan ince çizgili simgelere bıraktı. Günün saati de simgesiyle belli: şafak,
+  gündüz, gece.
+- **Toplu üst çubuk.** Değerler dört gruba ayrıldı: zaman; para ve erzak; ordu, moral ve yük;
+  can, seviye, nam ve hız. Erzak ya da moral tehlikeli düşünce rozet kırmızıya döner ve
+  yanıp söner.
+- **Telefonda tek satır.** Dar ekranda üst çubuk artık iki üç satıra taşmıyor. En önemli
+  değerler görünüyor, gerisi sağdaki ok düğmesiyle açılıyor.
+- **Şehirde kartlar.** Şehir, köy ve kale seçenekleri uzun bir düğme listesi değil. Artık
+  Ticaret, Mekânlar, Ordu, Savaş ve Kamp başlıkları altında kartlar var. Her kartta bir simge
+  ve ne işe yaradığını söyleyen kısa bir satır bulunuyor.
+- **iPhone çentiği.** Üst çubuk durum çubuğunun hemen altına yapışmıyor, arada küçük bir
+  boşluk var. Alt menü de ekranın altındaki çizgiye binmiyor. Başlangıç ekranının resmi
+  çentiğin altına kadar uzanıyor.
+- **Her şey üç dilde.** Ekran okuyucunun sesli okuduğu birkaç etiket İngilizce ve Endonezce
+  oyunda Türkçe kalıyordu. Artık onlar da çevriliyor. Bütün ekranları tek tek dolaşıp Türkçe
+  metin kalmadığını denetleyen yeni bir test de var.
+- **Karakter yaratma.** Üstte hangi adımda olduğunu gösteren bir çubuk var. Her seçeneğin
+  getirdiği artılar ve eksiler renkli etiketlerle yazıyor.
+
 ## 1.34.0 — Keskin Harita (2026-09-26)
 
 Harita da artık ekran kartıyla çiziliyor. Aynı harita, daha keskin.

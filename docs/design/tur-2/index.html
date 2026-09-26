@@ -1,0 +1,377 @@
+<title>WebBand Görsel Tur 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=Pixelify+Sans:wght@400;600&display=swap">
+<style>
+/* Same deliberate look as round 1: the game's own dark-and-gold world, on either host theme. */
+:root {
+  color-scheme: dark;
+  --bg: #0f0e0c; --bg2: #141210; --panel: #1a1714; --panel2: #221e19;
+  --line: rgba(212,175,55,.24); --line2: rgba(236,230,218,.09);
+  --ink: #ece6da; --muted: #a8a194; --faint: #736c61;
+  --gold: #d4af37; --gold2: #f5d76e; --green: #4cc38a; --red: #e0605a;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --pixel: 'Pixelify Sans', 'Courier New', monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--body); padding-inline: 16px; }
+@media (min-width: 720px) { body { padding-inline: 28px; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+a { color: var(--gold2); }
+:focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; }
+.wrap { max-width: 1100px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .02em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 5.4vw, 3.4rem); line-height: 1.08; color: var(--gold2); }
+h2 { font-size: clamp(1.4rem, 3vw, 1.95rem); line-height: 1.2; color: var(--gold); }
+h3 { font-size: 1.05rem; color: var(--ink); }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.eyebrow { font: 600 .74rem/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; margin-inline: -16px; padding: 10px 16px;
+  background: rgba(15,14,12,.94); border-bottom: 1px solid var(--line2); }
+@media (min-width: 720px) { .nav { margin-inline: -28px; padding-inline: 28px; } }
+.nav .wrap { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.nav a { flex: none; text-decoration: none; color: var(--muted); font: 500 .82rem/1 var(--body); padding: 8px 11px; border-radius: 999px; border: 1px solid transparent; }
+.nav a:hover { color: var(--ink); border-color: var(--line2); }
+.nav a b { color: var(--gold); font-weight: 600; margin-right: 5px; font-variant-numeric: tabular-nums; }
+section { padding-block: 52px 8px; border-top: 1px solid var(--line2); }
+.sec-head { display: grid; gap: 10px; margin-bottom: 24px; }
+.sec-head p { color: var(--muted); }
+ul.notes { margin: 0; padding-left: 1.1rem; display: grid; gap: 6px; color: var(--muted); max-width: 70ch; }
+ul.notes b { color: var(--ink); font-weight: 600; }
+
+/* hero: drag to compare */
+.hero { padding-block: 40px 28px; display: grid; gap: 18px; }
+.hero .lead { font-size: 1.06rem; color: var(--muted); max-width: 64ch; }
+.hero .lead strong { color: var(--ink); font-weight: 600; }
+.cmp { position: relative; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); background: #173f5c; aspect-ratio: 1366 / 768; max-width: 100%; }
+.cmp img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.cmp .top { clip-path: inset(0 0 0 var(--cut, 50%)); }
+.cmp .bar { position: absolute; top: 0; bottom: 0; left: var(--cut, 50%); width: 2px; background: var(--gold2); box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
+.cmp .bar::after { content: ''; position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: var(--gold2);
+  box-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.cmp input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; }
+.cmp .tag { position: absolute; top: 10px; padding: 5px 10px; border-radius: 999px; font: 600 .72rem/1 var(--body); letter-spacing: .1em; text-transform: uppercase; background: rgba(10,9,8,.8); pointer-events: none; }
+.cmp .tag.l { left: 10px; color: var(--muted); } .cmp .tag.r { right: 10px; color: var(--gold2); }
+.hint { font-size: .85rem; color: var(--faint); }
+
+/* toggled views */
+.seg { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line2); }
+.seg button { font: 600 .8rem/1 var(--body); color: var(--muted); background: none; border: 0; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--gold); color: #1a1406; }
+.view { display: grid; gap: 12px; }
+.view .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.shot { border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line2); background: var(--panel); }
+.shot img { display: block; width: 100%; height: auto; }
+.stack { display: grid; gap: 34px; }
+
+/* kingdoms */
+.kgrid { display: grid; gap: 14px; }
+.krow { display: grid; grid-template-columns: 140px repeat(3, 1fr); gap: 10px; align-items: center; }
+.krow .kn { display: grid; gap: 4px; }
+.krow .kn b { font-family: var(--display); color: var(--ink); font-size: 1rem; }
+.krow .kn span { font-size: .8rem; color: var(--muted); line-height: 1.4; }
+.krow figure { margin: 0; display: grid; gap: 4px; }
+.krow figure img { width: 100%; height: auto; display: block; border-radius: var(--r-sm); border: 1px solid var(--line2); image-rendering: pixelated; }
+.krow figcaption { font: 500 .7rem/1 var(--body); color: var(--faint); letter-spacing: .08em; text-transform: uppercase; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+@media (max-width: 680px) { .krow { grid-template-columns: repeat(3, 1fr); } .krow .kn { grid-column: 1 / -1; } }
+
+/* phones */
+.phones { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.pcol { display: grid; gap: 10px; align-content: start; }
+.phone { border-radius: 28px; padding: 8px; background: #050505; border: 1px solid #2a2622; max-width: 300px; }
+.phone img { display: block; width: 100%; height: auto; border-radius: 21px; }
+
+/* numbers */
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tw { overflow-x: auto; border: 1px solid var(--line2); border-radius: var(--r-md); }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line2); white-space: nowrap; }
+th { font: 600 .72rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); background: var(--bg2); }
+td.n { text-align: right; } td.good { color: var(--green); } td.warn { color: var(--gold2); }
+tr:last-child td { border-bottom: 0; }
+
+/* decisions */
+.form { display: grid; gap: 14px; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.q { background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r-md); padding: 16px; display: grid; gap: 10px; }
+.q legend { font: 600 1rem/1.35 var(--body); color: var(--ink); padding: 0; margin-bottom: 10px; }
+.q .sub { font-size: .85rem; color: var(--muted); margin-top: -4px; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.opts label { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line2); background: var(--bg2); cursor: pointer; font-size: .9rem; }
+.opts label:has(input:checked) { border-color: var(--gold); background: rgba(212,175,55,.12); color: var(--gold2); }
+.opts input { accent-color: var(--gold); margin: 0; }
+textarea { width: 100%; min-height: 110px; resize: vertical; background: var(--bg2); color: var(--ink); border: 1px solid var(--line2); border-radius: var(--r-sm); padding: 12px; font: 15px/1.5 var(--body); }
+.save { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.btn { font: 600 .95rem/1 var(--body); padding: 13px 22px; border-radius: 999px; border: 0; background: var(--gold); color: #1a1406; cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: default; }
+#saveState { font-size: .88rem; color: var(--muted); }
+footer { padding-block: 40px 60px; color: var(--faint); font-size: .85rem; }
+</style>
+
+<nav class="nav" aria-label="Bölümler"><div class="wrap">
+  <a href="#yakin"><b>1</b>Üç yakınlık</a>
+  <a href="#krallik"><b>2</b>Krallıkların mimarisi</a>
+  <a href="#gece"><b>3</b>Gece ve akşam</a>
+  <a href="#telefon"><b>4</b>Telefonda</a>
+  <a href="#olcum"><b>5</b>Ölçümler</a>
+  <a href="#karar"><b>6</b>Kararların</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <span class="eyebrow">Görsel yenileme · Tur 2 · Harita</span>
+  <h1>Kalradya'nın haritası, savaşla aynı pixel dünyasında</h1>
+  <p class="lead">Bunlar çizim değil, <strong>oyunun kendisinden</strong> alınmış ekran görüntüleri: aynı dünya, aynı kamera, bir yanda bugünkü harita, bir yanda yenisi. Emoji gökdelenler yerine her krallığın kendi mimarisinde kaleler, düz yeşil yerine bölgeye göre değişen arazi, kıyıda dağlar, yollar, tarlalar, ve haritada yürüyen birlikler artık savaştaki askerlerin kendisi.</p>
+  <div class="cmp" id="hero" style="--cut:50%">
+    <img src="a/desk-mid-now.webp" alt="Bugünkü harita, orta yakınlık" width="1366" height="768">
+    <img class="top" src="a/desk-mid-new.webp" alt="Yeni pixel harita, orta yakınlık" width="1366" height="768">
+    <span class="bar"></span>
+    <span class="tag l">Bugün</span><span class="tag r">Önerilen</span>
+    <input type="range" id="heroCut" min="0" max="100" value="50" aria-label="Bugün ile önerileni karşılaştır">
+  </div>
+  <p class="hint">Çizgiyi sağa sola sürükle. Soldaki bugünkü harita, sağdaki yenisi.</p>
+</header>
+
+<section id="yakin">
+  <div class="sec-head">
+    <span class="eyebrow">1 · Üç yakınlık</span>
+    <h2>Yakında, ortada, bütün kıtada</h2>
+    <p>Her görüntünün üstündeki düğmeyle bugünkü ve önerilen hâl arasında geçiş yapabilirsin. Hepsi masaüstü, 1366×768.</p>
+  </div>
+  <div class="stack">
+    <div class="view" data-view="close">
+      <div class="head"><h3>Yakın · Praven'in kapısında</h3>
+        <div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="shot"><img src="a/desk-close-new.webp" alt="Yakın görünüm" width="1366" height="768" loading="lazy"></div>
+      <ul class="notes">
+        <li><b>Yazılar artık şehri örtmüyor.</b> Bugün Praven'in adı, Kral Harlaus ve iki kervan üst üste binip şehri tamamen kapatıyor. Yeni yerleşim sisteminde önce oyuncu, sonra şehirler, sonra düşmanlar, sonra lordlar yer alıyor. Her yazı şehrin çizimine değil boş bir yere oturuyor.</li>
+        <li><b>Oyuncu ne giyiyorsa haritada da o.</b> Paçavralı köylü ilk gün haritada da paçavralı. Kralın ordusu zırhlı süvari olarak geçiyor.</li>
+      </ul>
+    </div>
+    <div class="view" data-view="mid">
+      <div class="head"><h3>Orta · Svadya'nın göbeği</h3>
+        <div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="shot"><img src="a/desk-mid-new.webp" alt="Orta görünüm" width="1366" height="768" loading="lazy"></div>
+      <ul class="notes">
+        <li><b>Yollar, köprüler, tarlalar.</b> Taş yol, toprak yol ve keçi yolu aynı pixel dokusunda. Köylerin ve şehirlerin yanında çitlerle ayrılmış tarlalar var.</li>
+        <li><b>Terk edilmiş yerler de çizildi.</b> Kamp, çiftlik, harabe, gözetleme kulesi, mağara, haydut ini ve boss kalesi artık emoji değil küçük pixel yapılar.</li>
+        <li><b>Kıyıda dağlar, kumsallar.</b> Bugün kıyı boyunca dizilmiş minik 🏔️ emojileri var. Yenisinde kıyının bir kısmı sarp dağ, bir kısmı kumsal.</li>
+      </ul>
+    </div>
+    <div class="view" data-view="far">
+      <div class="head"><h3>Uzak · bütün krallıklar</h3>
+        <div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="shot"><img src="a/desk-far-new.webp" alt="Uzak görünüm" width="1366" height="768" loading="lazy"></div>
+      <ul class="notes">
+        <li><b>Arazi kimin toprağı olduğunu söylüyor.</b> Svadya yemyeşil ova, Kergit bozkırı sarımsı, Veagir'in kuzeyi karlı, Rodok taşlık, Nord kıyısı serin yeşil.</li>
+        <li><b>Bu renkler sadece görüntü.</b> Oyun kuralı değişmedi: hız, pusu, görüş hâlâ sadece orman, nehir ve yola bağlı. Karlı yerde yürürken arazi paneli yine "Düzlük" diyor.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="krallik">
+  <div class="sec-head">
+    <span class="eyebrow">2 · Krallıkların mimarisi</span>
+    <h2>Her yerleşim onu kuran krallığın tarzında</h2>
+    <p>Şehir, kale ve köy üç ayrı çizim. Bayrak sahibinin renginde. Bir kale kuşatmada el değiştirirse bayrağı değişir, duvarları değil.</p>
+  </div>
+  <div class="kgrid">
+    <div class="krow"><div class="kn"><b><span class="dot" style="background:#ff4d4d"></span>Svadya</b><span>Taş sur, kırmızı kiremit, sivri kuleler</span></div>
+      <figure><img src="a/c-swadia-city.webp" alt="Svadya şehri" width="320" height="220" loading="lazy"><figcaption>Şehir</figcaption></figure>
+      <figure><img src="a/c-swadia-castle.webp" alt="Svadya kalesi" width="320" height="220" loading="lazy"><figcaption>Kale</figcaption></figure>
+      <figure><img src="a/c-swadia-village.webp" alt="Svadya köyü" width="320" height="220" loading="lazy"><figcaption>Köy</figcaption></figure></div>
+    <div class="krow"><div class="kn"><b><span class="dot" style="background:#33cc33"></span>Rodok</b><span>Kum taşı, kiremit çatı, düz mazgallı kuleler</span></div>
+      <figure><img src="a/c-rhodok-city.webp" alt="Rodok şehri" width="320" height="220" loading="lazy"><figcaption>Şehir</figcaption></figure>
+      <figure><img src="a/c-rhodok-castle.webp" alt="Rodok kalesi" width="320" height="220" loading="lazy"><figcaption>Kale</figcaption></figure>
+      <figure><img src="a/c-rhodok-village.webp" alt="Rodok köyü" width="320" height="220" loading="lazy"><figcaption>Köy</figcaption></figure></div>
+    <div class="krow"><div class="kn"><b><span class="dot" style="background:#3399ff"></span>Nord</b><span>Ahşap kazık çit, uzun evler, ahşap gözcü kulesi</span></div>
+      <figure><img src="a/c-nord-city.webp" alt="Nord şehri" width="320" height="220" loading="lazy"><figcaption>Şehir</figcaption></figure>
+      <figure><img src="a/c-nord-castle.webp" alt="Nord kalesi" width="320" height="220" loading="lazy"><figcaption>Kale</figcaption></figure>
+      <figure><img src="a/c-nord-village.webp" alt="Nord köyü" width="320" height="220" loading="lazy"><figcaption>Köy</figcaption></figure></div>
+    <div class="krow"><div class="kn"><b><span class="dot" style="background:#cccccc"></span>Veagir</b><span>Beyaz sur, altın ve yeşil soğan kubbe, karlı çatı</span></div>
+      <figure><img src="a/c-vaegir-city.webp" alt="Veagir şehri" width="320" height="220" loading="lazy"><figcaption>Şehir</figcaption></figure>
+      <figure><img src="a/c-vaegir-castle.webp" alt="Veagir kalesi" width="320" height="220" loading="lazy"><figcaption>Kale</figcaption></figure>
+      <figure><img src="a/c-vaegir-village.webp" alt="Veagir köyü" width="320" height="220" loading="lazy"><figcaption>Köy</figcaption></figure></div>
+    <div class="krow"><div class="kn"><b><span class="dot" style="background:#cc66ff"></span>Kergit</b><span>Keçe çadırlar, tuğ sancağı, altın tepeli han çadırı</span></div>
+      <figure><img src="a/c-khergit-city.webp" alt="Kergit şehri" width="320" height="220" loading="lazy"><figcaption>Şehir</figcaption></figure>
+      <figure><img src="a/c-khergit-castle.webp" alt="Kergit kalesi" width="320" height="220" loading="lazy"><figcaption>Kale</figcaption></figure>
+      <figure><img src="a/c-khergit-village.webp" alt="Kergit köyü" width="320" height="220" loading="lazy"><figcaption>Köy</figcaption></figure></div>
+  </div>
+</section>
+
+<section id="gece">
+  <div class="sec-head">
+    <span class="eyebrow">3 · Gece ve akşam</span>
+    <h2>Gece pencereler yanıyor</h2>
+    <p>Gece harita bugünkünden biraz daha karanlık. Şehirlerin ve köylerin pencereleri tek tek yanıyor, ocak ışığı etrafa sızıyor. Yazılar karanlıkta kalmıyor, gecenin üstünde net duruyor.</p>
+  </div>
+  <div class="stack">
+    <div class="view" data-view="night">
+      <div class="head"><h3>Gece 22:00</h3>
+        <div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="shot"><img src="a/desk-night-new.webp" alt="Gece görünümü" width="1366" height="768" loading="lazy"></div>
+    </div>
+    <div class="view" data-view="dusk">
+      <div class="head"><h3>Gün batımı 19:30</h3>
+        <div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="shot"><img src="a/desk-dusk-new.webp" alt="Akşam görünümü" width="1366" height="768" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section id="telefon">
+  <div class="sec-head">
+    <span class="eyebrow">4 · Telefonda</span>
+    <h2>Aynı harita, Pixel 7 boyutunda</h2>
+    <p>Telefonda masaüstündeki her şey var, deniz parıltısı ve gece pencerelerinin ışığı dahil. Pencere ışığı her yerleşim için bir kez hazırlanıyor. Bu yüzden telefonda gece bir karesi gündüzünkü kadar sürüyor.</p>
+  </div>
+  <div class="phones">
+    <div class="pcol view" data-view="phone-mid">
+      <div class="head"><h3>Orta</h3><div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="phone"><img src="a/phone-mid-new.webp" alt="Telefonda orta görünüm" width="412" height="839" loading="lazy"></div>
+    </div>
+    <div class="pcol view" data-view="phone-far">
+      <div class="head"><h3>Uzak</h3><div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="phone"><img src="a/phone-far-new.webp" alt="Telefonda uzak görünüm" width="412" height="839" loading="lazy"></div>
+    </div>
+    <div class="pcol view" data-view="phone-night">
+      <div class="head"><h3>Gece</h3><div class="seg"><button type="button" data-v="now" aria-pressed="false">Bugün</button><button type="button" data-v="new" aria-pressed="true">Önerilen</button></div></div>
+      <div class="phone"><img src="a/phone-night-new.webp" alt="Telefonda gece görünümü" width="412" height="839" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section id="olcum">
+  <div class="sec-head">
+    <span class="eyebrow">5 · Ölçümler</span>
+    <h2>Daha güzel, çoğu yerde daha hızlı</h2>
+    <p>Arazinin tamamı dünya kurulurken bir kez çiziliyor. Her karede sadece o hazır resim, yerleşimler, birlikler ve yazılar çiziliyor. Ölçümler başsız Chromium'da, kare başına milisaniye (bir karenin bütçesi 16,7 ms).</p>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Yakınlık</th><th>Masaüstü bugün</th><th>Masaüstü yeni</th><th>Telefon bugün</th><th>Telefon yeni</th></tr></thead>
+    <tbody>
+      <tr><td>Yakın (0,8)</td><td class="n">1,3–2,0</td><td class="n good">0,4–0,9</td><td class="n">0,7–1,1</td><td class="n good">0,3–0,5</td></tr>
+      <tr><td>Orta (0,3)</td><td class="n">1,2–1,9</td><td class="n good">0,6–1,1</td><td class="n">0,6–1,2</td><td class="n good">0,3–0,7</td></tr>
+      <tr><td>Bütün kıta (0,12)</td><td class="n">1,1–2,4</td><td class="n warn">2,5–5</td><td class="n">0,7–0,9</td><td class="n warn">2,6–4</td></tr>
+      <tr><td>Arazinin ilk çizimi (bir kez)</td><td class="n">–</td><td class="n">350 ms</td><td class="n">–</td><td class="n">430 ms</td></tr>
+    </tbody>
+  </table></div>
+  <ul class="notes" style="margin-top:16px">
+    <li><b>Bütün kıta görünümü biraz daha pahalı</b>, çünkü o an 25 yerleşim, bütün birlikler ve yazılar birden ekranda. Yine de bütçenin çok altında. Başsız tarayıcı her şeyi işlemcide çiziyor, gerçek telefonda ekran kartı bunu daha hızlı yapar.</li>
+    <li><b>Yeni dünya açılırken yarım saniyelik bir bekleme</b> var: arazi o an bir kez çiziliyor. Sonra hiç tekrarlanmıyor.</li>
+  </ul>
+</section>
+
+<section id="karar">
+  <div class="sec-head">
+    <span class="eyebrow">6 · Kararların</span>
+    <h2>Neyi tutalım, neyi değiştirelim?</h2>
+    <p>Seçimlerini kaydettiğinde ben buradan okuyorum. İstersen sohbete yazman da yeterli.</p>
+  </div>
+  <form class="form" id="form">
+    <fieldset class="q"><legend>1. Yeni harita genel olarak</legend>
+      <div class="opts">
+        <label><input type="radio" name="q1" value="yeni">Önerilen gibi olsun</label>
+        <label><input type="radio" name="q1" value="bugun">Bugünkü kalsın</label>
+        <label><input type="radio" name="q1" value="karisik">Bazı parçalar (nota yaz)</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>2. Bölgeye göre arazi rengi</legend>
+      <p class="sub">Kergit bozkırının sarısı, Veagir kuzeyindeki kar, Rodok taşlığı.</p>
+      <div class="opts">
+        <label><input type="radio" name="q2" value="boyle">Böyle kalsın</label>
+        <label><input type="radio" name="q2" value="hafif">Daha hafif olsun</label>
+        <label><input type="radio" name="q2" value="kapali">Her yer aynı yeşil</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>3. Yerleşimler krallığın mimarisinde</legend>
+      <div class="opts">
+        <label><input type="radio" name="q3" value="evet">Evet, her krallık farklı</label>
+        <label><input type="radio" name="q3" value="tek">Hepsi aynı tarzda</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>4. Haritadaki birlikler savaştaki askerler olsun mu?</legend>
+      <div class="opts">
+        <label><input type="radio" name="q4" value="asker">Evet, pixel askerler</label>
+        <label><input type="radio" name="q4" value="eski">Eski simgeler kalsın</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>5. Gecenin karanlığı</legend>
+      <div class="opts">
+        <label><input type="radio" name="q5" value="boyle">Böyle iyi</label>
+        <label><input type="radio" name="q5" value="acik">Daha açık</label>
+        <label><input type="radio" name="q5" value="koyu">Daha koyu</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>6. Uzaktan bakınca yerleşimlerin boyutu</legend>
+      <div class="opts">
+        <label><input type="radio" name="q6" value="boyle">Böyle iyi</label>
+        <label><input type="radio" name="q6" value="buyuk">Daha büyük</label>
+        <label><input type="radio" name="q6" value="kucuk">Daha küçük</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>7. Bu turda bunlar da olsun (birden fazla seçebilirsin)</legend>
+      <div class="opts">
+        <label><input type="checkbox" name="q7" value="kervan">Kervan arabası ve kurtlar da pixel</label>
+        <label><input type="checkbox" name="q7" value="panel">Haritanın alt panelindeki emojiler çizgi ikon</label>
+        <label><input type="checkbox" name="q7" value="adim5">Sonra doğrudan Adım 5 (şehir sahneleri)</label>
+      </div></fieldset>
+    <fieldset class="q"><legend>Eklemek istediğin bir şey</legend>
+      <textarea id="note" aria-label="Notun" placeholder="Beğenmediğin, değişmesini istediğin bir şey…"></textarea></fieldset>
+    <div class="save"><button class="btn" type="submit" id="saveBtn">Kararlarımı kaydet</button><span id="saveState" role="status">Hazırlanıyor…</span></div>
+  </form>
+</section>
+
+<footer>WebBand 2.0.0 hazırlığı · Tur 2 · harita. Görüntüler <code>claude/eloquent-allen-pmozyf</code> dalındaki oyundan alındı.</footer>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  // hero comparison
+  const hero = $('#hero'), cut = $('#heroCut');
+  cut.addEventListener('input', () => hero.style.setProperty('--cut', cut.value + '%'));
+
+  // today / proposed toggles: every view swaps its image between a/<name>-now and -new
+  document.querySelectorAll('.view').forEach(v => {
+    const base = v.dataset.view.startsWith('phone-') ? 'phone-' + v.dataset.view.slice(6) : 'desk-' + v.dataset.view;
+    const img = v.querySelector('img');
+    v.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+      v.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      img.src = 'a/' + base + '-' + b.dataset.v + '.webp';
+    }));
+  });
+
+  // decisions, saved to feedback/tur2
+  const form = $('#form'), btn = $('#saveBtn'), state = $('#saveState');
+  const Q = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'];
+  const read = () => {
+    const d = {};
+    for (const q of Q) { const el = form.querySelector(`input[name="${q}"]:checked`); d[q] = el ? el.value : null; }
+    d.q7 = [...form.querySelectorAll('input[name="q7"]:checked')].map(i => i.value);
+    d.note = $('#note').value.slice(0, 4000);
+    return d;
+  };
+  const fill = d => {
+    if (!d) return;
+    for (const q of Q) if (d[q]) { const el = form.querySelector(`input[name="${q}"][value="${d[q]}"]`); if (el) el.checked = true; }
+    if (Array.isArray(d.q7)) form.querySelectorAll('input[name="q7"]').forEach(i => { i.checked = d.q7.includes(i.value); });
+    if (typeof d.note === 'string' && document.activeElement !== $('#note')) $('#note').value = d.note;
+  };
+  form.addEventListener('submit', e => e.preventDefault());
+  btn.disabled = true;
+  (async () => {
+    let db = null;
+    try { db = window.claude && typeof window.claude.use === 'function' ? await window.claude.use('db') : null; } catch (_) { db = null; }
+    if (!db) { state.textContent = 'Bu görünümde kaydedilemiyor. Seçimlerini sohbete yazman yeterli.'; return; }
+    const ref = db.doc('feedback/tur2');
+    btn.disabled = false; state.textContent = 'Hazır. Kaydettiğinde ben de görürüm.';
+    ref.onSnapshot(s => { if (s.exists) { fill(s.data().answers); const at = s.data().savedAt; if (at) state.textContent = 'Son kayıt: ' + new Date(at).toLocaleString('tr-TR'); } }, () => {});
+    form.addEventListener('submit', async () => {
+      btn.disabled = true; state.textContent = 'Kaydediliyor…';
+      try { await ref.set({ answers: read(), savedAt: Date.now() }); state.textContent = 'Kaydedildi. Teşekkürler, buradan okuyacağım.'; }
+      catch (err) { state.textContent = err && err.code === 'permission_denied' ? 'Bu sayfaya yazma iznin yok. Seçimlerini sohbete yazabilirsin.' : 'Kaydedilemedi (' + (err && err.code || 'hata') + '). Seçimlerini sohbete yazabilirsin.'; }
+      btn.disabled = false;
+    });
+  })();
+})();
+</script>

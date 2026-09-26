@@ -195,11 +195,21 @@ const Nobles = {
                 background:linear-gradient(160deg,#4a3a1c,#221a0c);border:4px ridge #dca243;
                 display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;">⚖️</div>`;
         }
-        if(n.guardianId !== undefined && !n.suitor) return this.ladyPortrait(n, size);
-        return `<div style="width:${size}px;height:${size}px;flex:0 0 auto;border:4px ridge #dca243;
-            background-image:url('lord_portraits.jpg');background-size:300% 300%;
-            background-position:${col*50}% ${row*50}%;filter:sepia(0.2) contrast(1.1);
-            box-shadow:inset 0 0 15px #000;"></div>`;
+        // 2.0.0: every lord and lady is a pixel bust (MapArt.portrait); the painted sheet and the
+        // SVG ladies below only stand in where MapArt isn't loaded (tools/harness.js)
+        let px = typeof MapArt !== 'undefined' && MapArt.portrait(n), lady = n.guardianId !== undefined && !n.suitor;
+        if(px) return this.framed(`<div class="pimg px" style="background-image:url('${px}')"></div>`, n, size, lady);
+        if(lady) return this.framed(this.ladyPortrait(n, size), n, size, true);
+        return this.framed(`<div class="pimg" style="background-image:url('lord_portraits.jpg');background-size:300% 300%;
+            background-position:${col*50}% ${row*50}%;filter:sepia(0.2) contrast(1.1);"></div>`, n, size, false);
+    },
+    // The portrait frame (2.0.0): a dark-gold mount, a thin ring in the kingdom's colour and its
+    // crest as a badge in the corner (style.css .portrait); round for a lady's portrait.
+    framed(inner, n, size, round) {
+        let f = FACTIONS[n.faction], cs = Math.round(size * 0.3);
+        let crest = f ? Game.crestCss(f.crest, cs, `position:absolute;right:${-Math.round(cs * 0.22)}px;bottom:${-Math.round(cs * 0.22)}px;`
+            + `border-radius:50%;border:2px solid #d4af37;box-shadow:0 2px 6px rgba(0,0,0,0.8);${f.crestFx ? 'filter:' + f.crestFx + ';' : ''}`) : '';
+        return `<div class="portrait${round ? ' round' : ''}" style="--fc:${f ? f.color : '#d4af37'};width:${size}px;height:${size}px">${inner}${crest}</div>`;
     },
 
     // There's no lady in the sprite sheet (#39): the portrait is drawn in code. Everything
@@ -296,8 +306,7 @@ const Nobles = {
             <rect width="100" height="100" filter="url(#${uid}gr)" opacity="0.16" style="mix-blend-mode:overlay"/>
             <rect width="100" height="100" fill="url(#${uid}vg)"/>
         </svg>`;
-        return `<div style="width:${size}px;height:${size}px;border-radius:50%;flex:0 0 auto;overflow:hidden;
-            border:4px ridge #dca243;box-shadow:inset 0 0 15px #000;filter:sepia(0.35) contrast(1.05) saturate(0.9);">${svg}</div>`;
+        return `<div class="pimg" style="filter:sepia(0.35) contrast(1.05) saturate(0.9);">${svg}</div>`;
     },
 
     // ---------- Who's where ----------
@@ -412,9 +421,9 @@ const Nobles = {
         let banter = this.retinueHtml(id);          // retinue banter (#59), shown once the line finishes
         Quests.emit('talked_to', { lordId: id });
 
-        let html = `<div style="display:flex;gap:1.5rem;align-items:flex-start">
+        let html = `<div class="lord-head" style="display:flex;gap:1.5rem;align-items:flex-start">
             ${this.portraitCss(n, 140)}
-            <div style="flex:1">
+            <div style="flex:1;min-width:0">
                 <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
                 <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:0.6rem">
                     ${T`${T(FACTIONS[n.faction].name)} · ${T(p.name)} · ${this.traitOb(id).icon} ${T(this.traitOb(id).name)} · İlişki: ${this.relLabel(r)} (${r})
@@ -426,7 +435,7 @@ const Nobles = {
                 ${banter}
             </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1.2rem">`;
+        <div class="lord-acts">`;
 
         let today = state.time.day;
         let chat = state.smallTalkDay || {};
@@ -484,10 +493,27 @@ const Nobles = {
         html += `<button class="btn" onclick="Game.closeModal()">${T`Ayrıl`}</button></div>`;
 
         Game.showModal(html, '680px');
+        Game.cardButtons(document.querySelector('#modal-body .lord-acts'), this.TALK_CARD);
         // The line is typed out gradually; the retinue only cuts in once the lord finishes
         let b = document.getElementById('lord-banter');
         if(b) b.style.visibility = 'hidden';
         Game.typeIn('lord-line', `"${line}"`, () => { if(b) b.style.visibility = 'visible'; });
+    },
+
+    // The lord's dialogue as cards (Game.cardButtons): emoji → [icon, what it does, tone]
+    TALK_CARD: {
+        '🗣': ['talk', 'Günde bir kez · seni ne kadar ciddiye aldığına göre ilişki değişir'],
+        '📜': ['scroll', 'Görev iste'],
+        '✅': ['scroll', 'Ödülünü al', 'done'],
+        '🗺': ['map', 'Cevabın doğruluğu aranızdaki ilişkiye bağlı'],
+        '🎁': ['gift', 'Günde bir kez · zevkine uyarsa ilişki artar'],
+        '🎵': ['note', 'Görev için ezberlediğin şiir'],
+        '💞': ['heart', '', 'love'], '💘': ['heart', '', 'love'], '💍': ['ring', 'Evlilik', 'love'],
+        '🕊': ['flag', 'Yoldaşın senin adına konuşur'],
+        '🎖': ['star', '', 'gold'], '🏰': ['castle', '', 'gold'],
+        '👑': ['crown', 'Karşılığında tımar verirsin', 'gold'],
+        '🤬': ['talk', 'İlişki −15, nam +2 · rakip krallıkların lordları sevinir', 'danger'],
+        '': ['door', '', '']
     },
 
     recitePoemToLord(id) {

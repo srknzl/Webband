@@ -1,4 +1,6 @@
-Battle sprites in this folder come from three sources.
+Battle sprites in this folder come from two CraftPix.net freebies. The horse
+ridden by every mounted unit is drawn by code in battle.js (Horse); the Battle
+for Wesnoth cavalry sprites used until 1.33 are no longer shipped.
 
 --- CraftPix.net (2 freebies) ---
 Royalty-free use in unlimited personal/commercial projects, no attribution
@@ -8,7 +10,15 @@ source files may not be resold or redistributed on their own).
 infantry_weak.png / infantry_normal.png / infantry_armored.png
   From "Free Swordsman 1-3 Level Pixel Top-Down Sprite Character" —
   https://craftpix.net/freebies/free-swordsman-1-3-level-pixel-top-down-sprite-character-pack/
-  One idle frame per level (1/2/3), cropped to content.
+  One idle frame per level (1/2/3), cropped to content — now only the loading
+  placeholder for the animated sprites below.
+
+swordsman_1.png / swordsman_2.png / swordsman_3.png
+  The same pack, every animation (idle, walk, run, attack, hurt, death) in all
+  four facings, as separate body/head/sword layers so armour and weapon can
+  come from different levels. Each layer sheet is cropped to its content and
+  packed into one atlas per level by tools/build-swordsman.js; pixels are not
+  altered (recolouring and the helmets are drawn at runtime by battle.js).
 
 archer_weak.png / archer_normal.png / archer_armored.png
 player_bow.png
@@ -17,24 +27,9 @@ player_bow.png
   https://craftpix.net/freebies/free-top-down-roguelike-game-kit-pixel-art/
   One idle frame, cropped to content. The three archer tiers are the same
   sprite recolored (weak/normal/armored) since only one archer pose exists
-  in the pack.
+  in the pack. Now only the loading placeholder for archer_anim.png.
 
-player_melee.png
-  From the same Roguelike Kit, the knight character (character slot 2).
-
---- Battle for Wesnoth (GPL v2 or later) ---
-https://www.wesnoth.org/ — a copyleft license, unlike the two packs above:
-redistributing these specific files (modified or not) must keep them under
-GPL and carry this notice. Used here unmodified beyond cropping transparent
-padding. Full license: https://github.com/wesnoth/wesnoth/blob/master/data/COPYING.txt
-Copyright the Battle for Wesnoth project and contributors (human-loyalists
-faction unit art; the "Cavalry Base Sprites" line was developed by Jetrel,
-Sleepwalker and other Wesnoth art contributors — see
-https://forums.wesnoth.org/viewtopic.php?t=38751).
-
-cavalry_weak.png    — data/core/images/units/human-loyalists/horseman/horseman.png
-cavalry_normal.png  — data/core/images/units/human-loyalists/cavalryman/cavalryman.png
-cavalry_armored.png — data/core/images/units/human-loyalists/grand-knight/grand-knight.png
-player_horse.png    — data/core/images/units/human-loyalists/knight/knight.png
-  (fetched from https://github.com/wesnoth/wesnoth, master branch, cropped
-  to content)
+archer_anim.png
+  The same archer, every animation (idle, walk, attack, hurt, death) facing
+  down, side and up, stacked one 32 px strip per row by
+  tools/build-swordsman.js; pixels unaltered (team colours are dyed at runtime).
