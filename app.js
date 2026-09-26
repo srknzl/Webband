@@ -1166,7 +1166,7 @@ const Game = {
             if(!document.documentElement.requestFullscreen || this.isTouch()) fsBtn.style.display = 'none';
             document.addEventListener('fullscreenchange', () => {
                 let ico = document.getElementById('fs-ico');
-                if(ico) ico.textContent = document.fullscreenElement ? '🗗' : '⛶';
+                if(ico) ico.innerHTML = this.icon(document.fullscreenElement ? 'shrink' : 'expand');
             });
         }
 
@@ -2174,6 +2174,18 @@ const Game = {
         return out.join(' · ');
     },
 
+    // The wizard's progress as a bar of segments (2.0.0): done, current, to come.
+    creationSteps(step) {
+        let n = BACKGROUND.length + 2, out = '';
+        for(let i = 0; i < n; i++) out += `<i class="${i < step ? 'on' : i === step ? 'cur' : ''}"></i>`;
+        return `<div class="cr-steps" aria-hidden="true">${out}</div>`;
+    },
+    // An option's effects as chips: red for a cost, green for a gain, grey for "nothing extra".
+    bonusChips(o) {
+        let parts = (this.bonusText(o) || '').split(' · ').filter(Boolean);
+        if(!parts.length) return `<span class="cr-fx"><span>${T('ek bir getirisi yok')}</span></span>`;
+        return `<span class="cr-fx">${parts.map(p => `<span class="${/(^|\s)[-−]\d/.test(p) ? 'neg' : /\+\d/.test(p) ? 'pos' : ''}">${p}</span>`).join('')}</span>`;
+    },
     renderCreation() {
         let step = this.creation.step;
         if(step > BACKGROUND.length + 1) return this.renderCreationSummary();
@@ -2181,16 +2193,16 @@ const Game = {
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
-        let html = `<h3>${T(q.q)}</h3>
+        let html = `${this.creationSteps(step)}<h3>${T(q.q)}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
-            html += `<button class="btn${sel === o.id ? ' primary' : ''}" style="text-align:left;line-height:1.4"
+            html += `<button class="btn cr-opt${sel === o.id ? ' sel' : ''}"
                 aria-label="${T(o.label)}"
                 onclick="Game.pickCreation('${q.key}','${o.id}')">
                 <b>${T(o.label)}</b>
-                <div style="font-size:var(--fs-sm);color:var(--text-muted);font-style:italic">${T(o.desc)}</div>
-                <div style="font-size:var(--fs-sm);color:var(--primary)">${this.bonusText(o) || T('ek bir getirisi yok')}</div>
+                <span class="cr-desc">${T(o.desc)}</span>
+                ${this.bonusChips(o)}
             </button>`;
         });
         html += `</div>`;
@@ -2228,7 +2240,7 @@ const Game = {
     },
 
     renderBannerStep() {
-        let html = `<h3>${T`Sancağını seç`}</h3>
+        let html = `${this.creationSteps(BACKGROUND.length)}<h3>${T`Sancağını seç`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+1}/${BACKGROUND.length+2} — ${T(`Haritada grubunun rengi budur; kendi krallığını kurarsan krallığının da arması olur.`)}`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1rem;justify-content:center">`;
         BANNERS.forEach((b, i) => {
@@ -2254,7 +2266,7 @@ const Game = {
     // Game.DIFFS / Game.OPTS as the rows in ⚙️ Settings, writes through the same Game.setOpt gate.
     renderDiffStep() {
         let cur = this.opt('difficulty'), lt = this.opt('lite');
-        let html = `<h3>${T`⚙️ Ayarlar`}</h3>
+        let html = `${this.creationSteps(BACKGROUND.length + 1)}<h3>${T`⚙️ Ayarlar`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${BACKGROUND.length+2}/${BACKGROUND.length+2} — ${T(`Sonradan ⚙️ Ayarlar'dan değiştirebilirsin.`)}`}</p>
             <h4 style="margin:1rem 0 0.4rem">${T('⚔️ Zorluk')}</h4>
             <div style="display:flex;flex-direction:column;gap:0.5rem">`;
@@ -2861,6 +2873,11 @@ const Game = {
 
     // Time of day: name/icon only (the clock badge). The map tint is computed separately
     // and gradually — see dayTint()/nightGlow().
+    // One line icon from #icon-sprite (2.0.0) — the single writer of that markup.
+    icon(name, cls = '') { return `<svg class="i${cls ? ' ' + cls : ''}"><use href="#i-${name}"/></svg>`; },
+    // Phone top bar: the secondary chips fold behind the chevron.
+    toggleHud() { document.body.classList.toggle('hud-open'); },
+    DAYPART_ICON: { night: 'moon', dawn: 'dawn', morning: 'dawn', day: 'sun', noon: 'sun', dusk: 'dawn' },
     getDayPart() {
         let h = state.time.hour;
         if(h < 5)  return { key: 'night',   name: T('Gece'),       icon: '🌙' };
@@ -2969,7 +2986,7 @@ const Game = {
 
         let mounted = !!state.player.equipment.horse;
         let ico = document.getElementById('ui-speed-ico');
-        if(ico) ico.innerText = mounted ? '🐎' : '🥾';
+        if(ico) ico.innerHTML = this.icon(mounted ? 'horse' : 'boot');
         let mode = document.getElementById('ui-speed-mode');
         if(mode) mode.innerText = mounted ? T('atlı') : T('yaya');
 
@@ -5451,7 +5468,7 @@ const Game = {
 
         set('ui-day', T`${state.time.day}. Gün` + (this.isWinter() ? ' ❄️' : ''));
         set('ui-clock', `${String(Math.floor(state.time.hour)).padStart(2,'0')}:00 · ${dp.name}`);
-        set('ui-daypart', dp.icon);
+        this.setHtml('ui-daypart', this.icon(this.DAYPART_ICON[dp.key] || 'sun'));
         this.countTo('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
         // Consumption is never zero anymore (the player eats too, #75) — the "no army" branch is gone.
@@ -5558,7 +5575,7 @@ const Game = {
             (p.equipment.armor ? R(T`Zırh (${T(p.equipment.armor.name)})`, '+' + p.equipment.armor.armor, true) : R(T('Zırh'), T('yok'), false)),
             T('Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.')));
 
-        this.setHtml('mute-ico', this.opt('muted') ? '🔇' : '🔊');
+        this.setHtml('mute-ico', this.icon(this.opt('muted') ? 'mute' : 'sound'));
         this.setHtml('mute-lbl', this.opt('muted') ? T('Ses Kapalı') : T('Ses Açık'));
 
         let comp = this.getPartyComposition();
@@ -7013,7 +7030,64 @@ const Game = {
             this.addBtn(ac, T('⚔️ Kuşat! (Kendi Krallığını Kur)'), () => this.besiegeLocation(loc, true));
         }
         this.addBtn(ac, T('🚪 Ayrıl'), () => this.showScreen('map'));
+        this.cardSettlementActions(ac, loc);
         this.renderScene(loc);   // buttons are ready: the scene is built on top of them (#60)
+    },
+
+    // ---------- SETTLEMENT ACTION CARDS (2.0.0) ----------
+    // The buttons stay exactly what addBtn made (same labels, same handlers); this dresses
+    // each one as a card — line icon, title, one-line hint, and the label's trailing
+    // "(…)" as a status on the right — and files it under a group. The original label stays
+    // first in the button as screen-reader text, so its emoji still picks the building in the
+    // scene (sceneIcon) and a label lookup still finds the button.
+    // emoji -> [icon, group, hint]; hints stay raw Turkish and are translated here (T below).
+    TOWN_CARD: {
+        '🛒': ['stall', 'trade', 'Erzak, silah ve zırh al-sat'],
+        '🏭': ['anvil', 'trade', 'Her gün dinar getirir'],
+        '⛓': ['chain', 'trade', 'Esirlerini sat'],
+        '🍺': ['mug', 'places', 'Paralı asker, yoldaş, söylenti'],
+        '🤺': ['swords', 'places', 'Talim dövüşü, ödül ve tecrübe'],
+        '🏆': ['trophy', 'places', 'Turnuva meydanı'],
+        '👑': ['crown', 'places', 'Lordlarla görüş'],
+        '🍷': ['wine', 'places', 'Soylularla kadeh kaldır'],
+        '🧓': ['elder', 'places', 'Köyün derdini ve dedikodusunu dinle'],
+        '🐔': ['chicken', 'places', 'Görev: tavukları topla'],
+        '🪖': ['helm', 'army', 'Buradan asker yaz'],
+        '🛡': ['tower', 'army', 'Kaleyi koruyan askerler'],
+        '📦': ['box', 'army', 'Burada bıraktığın eşyalar'],
+        '⚔': ['swords', 'war', 'Burayı kuşat'],
+        '🔥': ['fire', 'war', 'Köyü yağmala; halk sana düşman olur'],
+        '⏳': ['glass', 'camp', 'Saat geçir, yaralılar iyileşir'],
+        '🚪': ['door', 'camp', 'Haritaya dön'],
+    },
+    TOWN_GROUPS: [['trade', 'Ticaret'], ['places', 'Mekânlar'], ['army', 'Ordu'], ['war', 'Savaş'], ['camp', 'Kamp']],
+    cardSettlementActions(ac, loc) {
+        let groups = {};
+        [...ac.querySelectorAll(':scope > button')].forEach(b => {
+            let label = b.innerHTML, emo = this.sceneIcon(label).replace('\uFE0F', '');
+            let [icon, group, hint] = this.TOWN_CARD[emo] || ['compass', 'places', ''];
+            if(loc.type === 'village' && emo === '👑') { group = 'army'; hint = 'Köy sana haraç öder'; }
+            if(loc.type === 'village' && emo === '🛒') hint = 'Köylülerden yiyecek al';
+            let text = label.replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').trim(), meta = '';
+            let m = text.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+            if(m && m[1]) { text = m[1]; meta = m[2]; }
+            b.classList.add('act-card');
+            if(group === 'camp') b.classList.add('act-quiet');
+            b.innerHTML = `<span class="sr-only">${label}</span>`
+                + `<span class="ac-ic" aria-hidden="true">${this.icon(icon)}</span>`
+                + `<span class="ac-tx" aria-hidden="true"><b>${text}</b>${hint ? `<small>${T(hint)}</small>` : ''}</span>`
+                + (meta ? `<span class="ac-mt" aria-hidden="true">${meta}</span>` : '');
+            (groups[group] = groups[group] || []).push(b);
+        });
+        ac.innerHTML = '';
+        this.TOWN_GROUPS.forEach(([g, name]) => {
+            if(!groups[g]) return;
+            let sec = document.createElement('section');
+            sec.className = 'act-group act-' + g;
+            sec.innerHTML = `<h4>${T(name)}</h4><div class="act-cards"></div>`;
+            groups[g].forEach(b => sec.lastChild.appendChild(b));
+            ac.appendChild(sec);
+        });
     },
 
     // ---------- SETTLEMENT SCENE (#60) ----------
@@ -7045,7 +7119,7 @@ const Game = {
     renderScene(loc) {
         let cv = document.getElementById('scene-canvas');
         if(!cv) return;
-        let btns = [...document.getElementById('settlement-actions').children];
+        let btns = [...document.getElementById('settlement-actions').querySelectorAll('button')];
         this._sceneLoc = loc;
         this._sceneBtns = btns;
         this.sceneHot = [];

@@ -222,6 +222,22 @@ daily (newest first). In battle, `Game.moraleMult()` = `0.8 + morale/250` scales
 - Map HUD: terrain + speed, troop composition, ⏳ Wait / 🎯 Find Me / 🎵 Next / 🌍 Diplomacy,
   time-speed button. Collapses to two rows + "⋯ Daha" under 820px.
 - `Game.setHtml(id, html)` only writes `innerHTML` when the text actually changed.
+- **Icons (2.0.0)**: one inline SVG sprite (`#icon-sprite`, 50 line symbols) at the top of
+  `index.html`; `Game.icon(name)` → `<svg class="i"><use href="#i-name"/></svg>`, colored
+  by `currentColor`. HUD, side menu, bottom strip and town cards use it. Map-HUD buttons and
+  data tables (items, troops) keep their emoji.
+- **Top bar trays (2.0.0)**: the badges sit in four `.hud-group` trays (time · money+food ·
+  party+morale+cargo · health+level+renown+speed). Every badge id is unchanged. `.hud-more`
+  badges fold away under 820px and `.hud-more-narrow` (health) under 430px, behind
+  `#hud-toggle` (`Game.toggleHud()` → `body.hud-open`). A tray whose chips are all folded
+  hides via `:has()`. Measured: Pixel 7 (412px), TR/EN, the closed bar is one row, 48px
+  tall, and the toggle is 36×36 (the thumb gate in `ux.spec` is 32).
+- **Settlement cards (2.0.0)**: `Game.cardSettlementActions()` runs before `renderScene` and
+  rewrites the plain action buttons into cards grouped as Ticaret / Mekânlar / Ordu / Savaş /
+  Kamp. The grouping comes from `TOWN_CARD` (by the label's leading emoji → icon, group, hint);
+  a trailing "(…)" becomes the card's meta. The button itself, its `onclick` and its label
+  text (kept in an `.sr-only` span) are untouched, so tests and screen readers see the same
+  button.
 
 #### Transaction feedback (#45)
 Every buy/sell/recruit/promote goes through `Game.feedback(kind, el, moneyDelta)` →

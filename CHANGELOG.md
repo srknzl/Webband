@@ -26,6 +26,22 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
 - **Okçular yürüyor, nişan alıp bırakıyor.** Kukuletaları da takımın renginde. Yay taşıyorsan
   sen de okçu olarak görünüyorsun.
 
+### Arayüz
+
+- **Yeni simgeler.** Üst çubuktaki, menüdeki ve alt şeritteki renkli emojiler yerini oyunun
+  altın rengine uyan ince çizgili simgelere bıraktı. Günün saati de simgesiyle belli: şafak,
+  gündüz, gece.
+- **Toplu üst çubuk.** Değerler dört gruba ayrıldı: zaman; para ve erzak; ordu, moral ve yük;
+  can, seviye, nam ve hız. Erzak ya da moral tehlikeli düşünce rozet kırmızıya döner ve
+  yanıp söner.
+- **Telefonda tek satır.** Dar ekranda üst çubuk artık iki üç satıra taşmıyor. En önemli
+  değerler görünüyor, gerisi sağdaki ok düğmesiyle açılıyor.
+- **Şehirde kartlar.** Şehir, köy ve kale seçenekleri uzun bir düğme listesi değil. Artık
+  Ticaret, Mekânlar, Ordu, Savaş ve Kamp başlıkları altında kartlar var. Her kartta bir simge
+  ve ne işe yaradığını söyleyen kısa bir satır bulunuyor.
+- **Karakter yaratma.** Üstte hangi adımda olduğunu gösteren bir çubuk var. Her seçeneğin
+  getirdiği artılar ve eksiler renkli etiketlerle yazıyor.
+
 ## 1.33.0 — Keskin Meydan (2026-09-26)
 
 Savaş artık ekran kartıyla çiziliyor. Görüntü ve hareketler aynı, sadece daha keskin.
