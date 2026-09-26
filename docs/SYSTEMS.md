@@ -778,7 +778,8 @@ days before moving on. Never hostile, never a bandit, never prey.
 `window.onerror`/`unhandledrejection`/wrapped `console.error`; the report (`Debug.report()`)
 bundles game state, rendering status (target/effective fps, frame divisor, canvas sizes, and
 `battleRenderer`: setting, active renderer, GPU string, resolution, draw calls, smoothed CPU ms for
-`update`/`render` per drawn frame),
+`update`/`render` per drawn frame; `mapRenderer` (1.34.0): setting, active, resolution, draw calls,
+CPU ms per map frame),
 browser info, and the error list — every field wrapped in try/catch so the reporter itself can't
 throw. Copy-to-clipboard or download as JSON.
 
@@ -799,7 +800,7 @@ One gate: `Game.opt(k)`/`setOpt(k,v)`, defaults in `Game.OPTS`, `state.settings`
 deviations. Rows: sound/volume, reduce motion (System/On/Off), blood & corpses, frame-skip gate
 toggle, font size, autosave, 🖱️ edge panning (Device-dependent/On/Off), 📱 lite mode
 (Device-dependent/On/Off), 🎯 frame-rate target (Device-dependent/60/30, `Game.targetFps()`),
-🧩 battle renderer (Device-dependent/WebGL/Canvas, `Game.opt('renderer')`), ⚔️ difficulty.
+🧩 map and battle renderer (Device-dependent/WebGL/Canvas, `Game.opt('renderer')`), ⚔️ difficulty.
 
 ### Accessibility pass
 Team rings are distinguished by **dash pattern**, not just color (enemy dashed, friendly solid —
@@ -988,11 +989,12 @@ unchanged. Modals lift-and-fade in (`modalIn`, 0.22s), buttons scale 0.97 on pre
 reduced-motion rule flattens both. Canvas: `Battle.roundRect` (falls back to `rect` without
 Canvas2D roundRect) for the tug bar, command strip and health bars.
 
-The map, settlement scenes and the chicken chase are hand-drawn Canvas2D in `app.js`/`battle.js`;
-the battle draws through PixiJS since 1.33.0 (below), with its Canvas2D code kept as the
-fallback. Shared approach: **bake the expensive thing once, stamp the picture every frame**
-(`buildGroundTexture`, `Battle.buildGround`, `unitSprite`, cached gradients). `Game.mapLabel()` scales with `1/zoom` so text stays the same
-screen size at any zoom and pushes overlapping labels up rather than overlapping them. An NPC's
+Settlement scenes and the chicken chase are hand-drawn Canvas2D in `app.js`/`battle.js`; the
+battle (1.33.0) and the map (1.34.0) draw through PixiJS (below), each with its Canvas2D code kept
+as the fallback. Shared approach: **bake the expensive thing once, stamp the picture every frame**
+(`Battle.buildGround`, `unitSprite`, MapArt's terrain and sprites, cached gradients). Map labels
+are laid out by MapArt in screen space (see Pixel map), so text stays the same screen size at any
+zoom and a label that finds no free spot is dropped rather than overlapping another. An NPC's
 name label is colored by hostility (red+⚔ foe / blue friend / parchment neutral) rather than
 just the faction-colored ring, since "whose is it" and "will it attack me" are different
 questions. Gradients are cached in world coordinates so panning doesn't invalidate them.
@@ -1194,6 +1196,54 @@ drawn frame from `Debug.report().render.battleRenderer`, update / render: Canvas
 draw calls, but only 8–10 fps — the software rasterizer is the bottleneck, which is why `'auto'`
 keeps software GL on Canvas2D. Phone viewport (Pixel 7 emulation, 2.625×): Pixi render 2.7 ms
 (10v10) / 5.8 ms (30v30).
+
+### Map renderer (1.34.0, pixel map 2.0.0)
+The battle's move, done for the world map, for **sharpness**: `#map-canvas` is one canvas pixel per
+CSS pixel, so on a 2.6× phone the Canvas2D map is stretched; `MapGL` draws at
+`min(devicePixelRatio, 3)`. 1.34.0 did it for the vector map; 2.0.0 replaced that map with
+MapArt's pixel art, and the merge kept the renderer seam, not the vector scene graph.
+
+- **One piece of drawing code.** `Game.renderMap()` → `liveMapGfx()` → `MapArt.render(G, ctx)`,
+  with `ctx` = `Game.ctx` (Canvas2D) or `MapGL.fx`, a `PixCtx`. PixCtx extends `GLCtx` (the
+  1.34.0 facade: transform stack, arcs/ellipses/curves flattened with the current transform,
+  dashes cut, `GLCtx.joined` for chained subpaths) with the rest of the Canvas2D surface the map
+  uses: `drawImage` (3/5/9 args) → a sprite placed by the full transform (`setFromMatrix`, so a
+  mirrored soldier stays mirrored), `fillRect` → a tinted white sprite when axis-aligned,
+  `fill`/`stroke` → one pooled `Graphics` each, `fillText` → text baked per power-of-two bucket of
+  on-screen size (shadow included), `'lighter'` → additive blend. `imageSmoothingEnabled` picks
+  the texture filter, Canvas2D's meaning: off = nearest (the pixel art), on = linear (emoji,
+  plates, glows). Objects are handed out and re-parented in call order every frame, so the paint
+  order is Canvas2D's. Gradients throw: the map draws baked glow canvases instead (the hearth light
+  became one for this).
+- **Density-aware in one place.** `ctx.pixelRatio` (1 on Canvas2D) picks the terrain level (a texel
+  must stay a screen pixel wide) and the resolution name plates are baked at. Plates (backing,
+  border, faction dot, text) are baked per content × density and stamped in both renderers —
+  Canvas2D stopped re-filling ~30 rounded rects a frame too.
+- **Uploads, not rasterising.** `MapGL.tex` keeps one texture source per canvas and filter;
+  sub-rectangles share it. A texture unused for 600 frames is freed (soldier frames come and go
+  with the camera), checked every 300 frames. Text is dropped and re-baked when webfonts finish.
+- **MapArt is handed in.** `MapArt.render` passes itself to `Game.drawMapSites/Parties/Player(ctx,
+  art)`: app.js never looks MapArt up by name mid-frame (it loads after app.js and not at all in
+  Node). `tools/test.js` evaluates map-art.js in a function scope and draws it through both a
+  fake Canvas2D and PixCtx over a fake Pixi: no state change, no dice, no two labels overlapping.
+- **Party fade-in counts frames.** `iconMotion` used to fade a party in when it hadn't been drawn
+  for 400 ms. At a low frame rate (software WebGL at a phone's density, a slow phone) that was every
+  frame, so parties sat at zero opacity; it now fades in only a party missing from the previous
+  drawn map frame (`Game._mapFrame`).
+- **Input doesn't move.** `#map-gl` sits *under* `#map-canvas`; while Pixi draws, `#map-view.gl`
+  makes `#map-canvas` see-through (`opacity: 0`), but it stays the element every pointer handler,
+  `mapPos`, the cursor, the edge pan and the tutorial highlight use. The storm shake moves both.
+- **Setting**: the battle's — `Game.opt('renderer')` / `?renderer=`, `Game.mapRendererKind()` with
+  the same rules (software GL stays Canvas2D on `'auto'`); `applySettings → prepareMapGfx()`
+  starts or destroys it, a failed init or lost context (`Game.mapGlFailed`) → Canvas2D for the
+  session. MSAA is on (rings, route, hail; close to free on a tile-based phone GPU).
+
+Measured (headless Chromium, SwiftShader, so CPU-rastered — **no real-GPU numbers yet**): screenshot
+pairs Canvas2D/WebGL at Praven, day and night, desktop 1366×768 and Pixel 7 (2.625×), match except
+for sharper text and rings on WebGL. `renderMap` ms per frame (includes SwiftShader's raster on the
+WebGL side): Canvas2D 1.2–1.5 desktop, 0.7–1.5 phone; WebGL 8.1 desktop, 3.8–4.1 phone; 1 draw
+call. `renderer.spec.js`'s phone WebGL tests, 2 workers: 39–49 s here against 60 s+ (two timeouts)
+for 1.34.0's vector WebGL map on the same machine; at 4 workers both time out.
 
 ## Performance
 The bottleneck is the **compositor**, not JS — a typical battle frame costs ~1.2ms of JS against

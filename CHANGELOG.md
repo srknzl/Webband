@@ -52,6 +52,13 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
   ikonu da bulunduğun yere göre değişiyor: ova, orman, nehir, köprü, yol.
 - **Gece pencereler yanıyor.** Gece biraz daha karanlık. Şehir ve köylerin pencereleri tek tek
   yanıyor.
+- **Pixel harita ekran kartıyla da keskin.** 1.34.0'ın WebGL çizimi artık yeni pixel haritayı
+  çiziyor. Ekran kartı olan cihazda isim etiketleri, halkalar ve rota ekranın kendi piksel
+  yoğunluğunda net, pixel askerler ve kaleler keskin kenarlı. Ekran kartı yoksa aynı harita
+  Canvas ile çiziliyor, görüntü aynı.
+- **Yavaş cihazda birlikler görünmüyordu.** Kare hızı düştüğünde
+  haritadaki birlikler her karede yeniden belirmeye başlayıp hiç görünmüyordu. Artık sadece
+  gerçekten görüş alanına giren birlik yavaşça beliriyor.
 
 ### Şehirler, eşyalar, ana menü
 
@@ -105,6 +112,21 @@ Oyunun bütün görüntüsü baştan yapıldı: savaş, arayüz, harita ve şehi
   metin kalmadığını denetleyen yeni bir test de var.
 - **Karakter yaratma.** Üstte hangi adımda olduğunu gösteren bir çubuk var. Her seçeneğin
   getirdiği artılar ve eksiler renkli etiketlerle yazıyor.
+
+## 1.34.0 — Keskin Harita (2026-09-26)
+
+Harita da artık ekran kartıyla çiziliyor. Aynı harita, daha keskin.
+
+- **Harita keskin.** Kıyılar, yollar, nehirler, yerleşim adları ve partiler telefonda ve yüksek
+  çözünürlüklü ekranlarda artık ekranın kendi piksel yoğunluğunda çiziliyor. Eskiden ekranın
+  yarı ya da üçte bir çözünürlüğündeydi, hafif bulanıktı. Kıta en uzaktan da en yakından da net.
+- **Telefona daha hafif.** Arazi (deniz, kıyı, yollar, ormanlar, dağlar) bir kere kuruluyor ve
+  her karede yalnız kamera kayıyor. Eskiden her karede baştan çiziliyordu.
+- **Aynı harita.** Aynı partiler ve hareketleri (yön dönme, yürüyüş, dalgalanan flama), aynı
+  rota çizgisi, gece ışıkları, dolu fırtınası. İsim etiketleri artık partilerin üstünde duruyor,
+  bir ikonun altında kalmıyor.
+- **Ayar adı değişti: 🧩 Harita ve savaş çizimi.** Tek ayar ikisini birden seçiyor. "Cihaza
+  göre" ekran kartı varsa WebGL'i kullanıyor; bir sorun çıkarsa Canvas'a kendiliğinden dönüyor.
 
 ## 1.33.0 — Keskin Meydan (2026-09-26)
 

@@ -260,6 +260,9 @@
                 <main id="view-container">
                     <!-- Map View -->
                     <div id="map-view" class="view active">
+                        <!-- WebGL (PixiJS) map renderer (1.34.0): drawn UNDER #map-canvas, which turns
+                             transparent but keeps taking the pointer (see Game.mapRendererKind). -->
+                        <canvas id="map-gl" hidden></canvas>
                         <canvas id="map-canvas"></canvas>
                         <div id="map-tooltip" class="glass-panel hidden"></div>
                         <!-- Grup künyesi: arazi + birlik dağılımı (Warband'ın grup penceresi gibi) -->
@@ -405,6 +408,7 @@
     <script src="app.js"></script>
     <script src="battle.js"></script>
     <script src="battle-gl.js"></script>
+    <script src="map-gl.js"></script>
     <script src="map-art.js"></script>
     <script src="nobles.js"></script>
     <script src="quests.js"></script>

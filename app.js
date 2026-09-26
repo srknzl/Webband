@@ -85,9 +85,10 @@ const Debug = {
                 effectiveFps: g(() => Game._step === Infinity ? T('ölçülmedi')
                     : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01)))),
                 measuredRefresh: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
-                mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'), battleGl: cv('battle-gl'),
+                mapCanvas: cv('map-canvas'), mapGl: cv('map-gl'), battleCanvas: cv('battle-canvas'), battleGl: cv('battle-gl'),
                 // Which battle renderer draws, at what pixel density, and its CPU cost (1.33.0)
                 battleRenderer: g(() => Battle.gfxInfo()),
+                mapRenderer: g(() => Game.mapGfxInfo()),
                 // "The map stopped taking orders" reads as a render freeze and is usually input:
                 // a stuck pointer, a stuck marker drag, or a swallowed click (#100).
                 input: g(() => ({ ptr: Game._ptr.size, drag: !!Game.dragTarget, suppressClick: !!Game.suppressClick })),
@@ -1057,6 +1058,11 @@ const Game = {
     // x/y and size mean the same thing as `fillText(ch, x, y)` + `textBaseline:'alphabetic'`.
     _sprites: {},
     emoji(ctx, ch, x, y, size) {
+        let s = this.emojiCanvas(ch, size), k = size * s._k;
+        ctx.drawImage(s, x - s.width * k / 2, y - s._base * size, s.width * k, s.height * k);
+    },
+    // The baked glyph for a size in pixels (the map's WebGL renderer asks with on-screen pixels).
+    emojiCanvas(ch, size) {
         let px = Math.min(256, Math.max(16, Math.pow(2, Math.ceil(Math.log2(Math.max(16, size))))));
         let key = ch + '|' + px, s = this._sprites[key];
         if(!s) {
@@ -1069,8 +1075,7 @@ const Game = {
             s._k = 1 / px;
             this._sprites[key] = s;
         }
-        let k = size * s._k;
-        ctx.drawImage(s, x - s.width * k / 2, y - s._base * size, s.width * k, s.height * k);
+        return s;
     },
 
     // A radial gradient centered at the origin; the caller moves it into place with translate.
@@ -4300,11 +4305,9 @@ const Game = {
     hoursTo(loc) { let v = this.getPlayerSpeed().value; return v > 0 ? Math.max(1, Math.round(this.dist(state.player, loc) / v)) : '?'; },
     // Hail from the sky, drawn in screen space over the map while a storm lasts; a short shake
     // when it starts. Skipped in lite mode and under reduced motion (#84, #121).
-    drawHail(ctx, W, H) {
-        if(!state.player.storm || this.lite() || this.reduceMotion()) {
-            if(this.mapCanvas.style.transform) this.mapCanvas.style.transform = '';
-            return;
-        }
+    hailOn() { return !!state.player.storm && !this.lite() && !this.reduceMotion(); },
+    // The hail streaks, in screen pixels (both map renderers draw these same lines)
+    hailPath(ctx, W, H) {
         let t = performance.now() / 1000;
         ctx.strokeStyle = 'rgba(225,235,245,0.75)'; ctx.lineWidth = Math.max(1.5, W / 700);
         ctx.beginPath();
@@ -4313,10 +4316,15 @@ const Game = {
             ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12);
         }
         ctx.stroke();
-        if(performance.now() < (this._stormShakeUntil || 0)) {
+    },
+    // The storm's opening shake moves whichever map canvases there are, together
+    stormShake() {
+        let tr = '';
+        if(this.hailOn() && performance.now() < (this._stormShakeUntil || 0)) {
             let k = (this._stormShakeUntil - performance.now()) / 1500;
-            this.mapCanvas.style.transform = `translate(${(Math.random() - 0.5) * 10 * k}px, ${(Math.random() - 0.5) * 10 * k}px)`;
-        } else if(this.mapCanvas.style.transform) this.mapCanvas.style.transform = '';
+            tr = `translate(${(Math.random() - 0.5) * 10 * k}px, ${(Math.random() - 0.5) * 10 * k}px)`;
+        }
+        this.mapSurfaces().forEach(c => { if(c.style.transform !== tr) c.style.transform = tr; });
     },
 
     // --- WINTER AND COAL (#121) ---
@@ -5992,8 +6000,14 @@ const Game = {
     iconMotion(id, x, moving) {
         let now = performance.now(), m = this._icons.get(id);
         if(!m) { m = { face: 1, move: moving ? 1 : 0, lastX: x, seen: now, last: now }; this._icons.set(id, m); }
-        let dt = Math.min(0.1, (now - m.last) / 1000);
-        if(now - m.last > 400) m.seen = now;   // wasn't drawn for a while: it's coming back into view
+        let dt = Math.max(0, Math.min(0.1, (now - m.last) / 1000));
+        // Missing from the previous drawn frame: it's coming back into view, so it fades in.
+        // Counted in map frames, not milliseconds: at a low frame rate (software WebGL at a
+        // phone's density, a slow phone) a 400 ms gap between frames made every party fade in
+        // from zero on every frame, i.e. never show at all.
+        let f = this._mapFrame || 0;
+        if(m.frame !== undefined && m.frame < f - 1) m.seen = now;
+        m.frame = f;
         m.last = now;
         let dx = x - m.lastX; m.lastX = x;
         if(Math.abs(dx) > 0.02) m.want = dx > 0 ? 1 : -1;
@@ -6002,67 +6016,77 @@ const Game = {
         return m;
     },
 
-    drawPartyIcon(ctx, x, y, o) {
-        let sc = o.scale || 1;
+    // How a party icon stands this frame — shared by both map renderers (1.34.0), so the
+    // Canvas2D and the WebGL icon walk, turn, fade and wave identically.
+    // Motion (1.32.0): o.id turns it on; without one the icon is drawn still, as before.
+    ICON_CROWD: [[-17, -4], [16, -7]],   // the column figures behind a crowd's front man
+    iconPose(x, o) {
         let kind = o.kind || (o.mounted ? 'rider' : 'foot');
-        let cloak = o.dim ? '#3a3a42' : '#26262e';
-        // Motion (1.32.0): o.id turns it on; without one the icon is drawn still, as before.
         let m = o.id !== undefined && Anim.on() ? this.iconMotion(o.id, x, o.moving) : null;
         let now = performance.now();
+        let p = { kind, cloak: o.dim ? '#3a3a42' : '#26262e', sc: o.scale || 1, alpha: 1, bob: o.bob || 0, rot: 0, face: 1, wave: 0,
+                  // Crowd column: 1 companion figure at 10+ people, 2 at 30+
+                  extra: o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0),
+                  top: kind === 'rider' ? -62 : -48, flag: kind !== 'wolf', motion: !!m };
+        if(m) {
+            p.alpha = Anim.k(now - m.seen, 400, 'outQuad');                    // fades into view
+            p.bob = -Math.abs(Math.sin(now / 150 + (o.id.length || 0))) * (o.bobAmp || 5) * m.move;
+            p.face = Math.max(0.12, Math.abs(m.face)) * (m.face < 0 ? -1 : 1);
+            p.rot = 0.06 * m.move * (m.face < 0 ? -1 : 1);                      // leans into the march
+            // The pennant waves (1.32.0): its tip swings a few px, a little more on the march
+            p.wave = Math.sin(now / 260 + x * 0.01) * (1.5 + 2.5 * m.move);
+        }
+        return p;
+    },
+    // Banner pole (a wolf pack carries no banner) and its pennant, tip `wave` px off its rest
+    drawPole(ctx, top) {
+        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
+    },
+    drawFlag(ctx, top, color, wave) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(-14, top); ctx.quadraticCurveTo(-24, top + 1 + wave * 0.5, -14 - 20, top + 6 + wave); ctx.lineTo(-14, top + 13);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+    },
+
+    drawPartyIcon(ctx, x, y, o) {
+        let p = this.iconPose(x, o), sc = p.sc;
 
         ctx.save();
         ctx.translate(x, y);
-        if(m) ctx.globalAlpha = Anim.k(now - m.seen, 400, 'outQuad');   // fades into view
+        if(p.motion) ctx.globalAlpha = p.alpha;
 
         ctx.beginPath();                                               // ground shadow
         ctx.ellipse(0, 0, 26*sc, 9*sc, 0, 0, Math.PI*2);
         ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
 
         ctx.scale(sc, sc);
-        let bob = o.bob || 0;
-        if(m) {
-            bob = -Math.abs(Math.sin(now / 150 + (o.id.length || 0))) * (o.bobAmp || 5) * m.move;
-            let f = Math.max(0.12, Math.abs(m.face)) * (m.face < 0 ? -1 : 1);
-            ctx.rotate(0.06 * m.move * (m.face < 0 ? -1 : 1));   // leans into the march
-            ctx.scale(f, 1);
-        }
-        ctx.translate(0, bob);
-        let base = m ? ctx.globalAlpha : 1;
+        if(p.motion) { ctx.rotate(p.rot); ctx.scale(p.face, 1); }
+        ctx.translate(0, p.bob);
+        let base = p.alpha;
 
-        // Crowd column: 1 companion figure at 10+ people, 2 at 30+
-        let extra = o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0);
-        let offsets = [[-17, -4], [16, -7]];
         ctx.globalAlpha = 0.75 * base;
-        for(let i = 0; i < extra; i++) {
+        for(let i = 0; i < p.extra; i++) {
             ctx.save();
-            ctx.translate(offsets[i][0], offsets[i][1]);
+            ctx.translate(this.ICON_CROWD[i][0], this.ICON_CROWD[i][1]);
             ctx.scale(0.78, 0.78);
-            this.drawFigure(ctx, kind, o.color, cloak);
+            this.drawFigure(ctx, p.kind, o.color, p.cloak);
             ctx.restore();
         }
         ctx.globalAlpha = base;
 
-        this.drawFigure(ctx, kind, o.color, cloak);
-
-        // Banner pole (a wolf pack carries no banner)
-        if(kind === 'wolf') { ctx.restore(); return; }
-        let top = kind === 'rider' ? -62 : -48;
-        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
-        ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
-        ctx.fillStyle = o.color;
-        // The pennant waves (1.32.0): its tip swings a few px, a little more on the march
-        let wave = m ? Math.sin(now / 260 + x * 0.01) * (1.5 + 2.5 * m.move) : 0;
-        ctx.beginPath();
-        ctx.moveTo(-14, top); ctx.quadraticCurveTo(-24, top + 1 + wave * 0.5, -14 - 20, top + 6 + wave); ctx.lineTo(-14, top + 13);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+        this.drawFigure(ctx, p.kind, o.color, p.cloak);
+        if(p.flag) { this.drawPole(ctx, p.top); this.drawFlag(ctx, p.top, o.color, p.wave); }
 
         ctx.restore();
     },
 
     // The game's side of the map that MapArt draws (split out of renderMap in 2.0.0): which
-    // discovery sites, parties and route are on show, how they're labelled and coloured.
-    drawMapSites(ctx) {
+    // discovery sites, parties and route are on show, how they're labelled and coloured. `art` is
+    // MapArt, handed in by MapArt.render (map-art.js loads after app.js and isn't in Node at all).
+    drawMapSites(ctx, art) {
         // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
         (state.sites || []).forEach(site => {
             if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
@@ -6072,14 +6096,14 @@ const Game = {
             ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
             ctx.globalAlpha = fresh ? 0.95 : 0.45;
-            MapArt.site(ctx, site, big);
+            art.site(ctx, site, big);
             ctx.globalAlpha = 1;
             // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
             if(!((fresh || k.boss) && this.camera.zoom > 0.18)) return;
-            MapArt.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
+            art.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
         });
     },
-    drawMapParties(ctx) {
+    drawMapParties(ctx, art) {
         // NPCs (only those in sight range)
         state.npcParties.forEach(npc => {
             let dx = npc.x - state.player.x;
@@ -6134,7 +6158,7 @@ const Game = {
                 dim: npc.type === 'bandit'
             };
             // the drawn silhouette only stands in until the soldiers' sprite sheets have loaded
-            if(!MapArt.party(ctx, npc.x, npc.y + 22, Object.assign({ look: MapArt.partyLook(npc, band), banner: npc.type === 'bandit' ? null : nCol }, iconOpts)))
+            if(!art.party(ctx, npc.x, npc.y + 22, Object.assign({ look: art.partyLook(npc, band), banner: npc.type === 'bandit' ? null : nCol }, iconOpts)))
                 this.drawPartyIcon(ctx, npc.x, npc.y + 22, iconOpts);
 
             if(lone) {                                      // what their story is, at a glance (#119)
@@ -6173,10 +6197,10 @@ const Game = {
             let txt = `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`;
             // who gets a label when there's no room for all: foes, then lords, then the rest
             let lordly = npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier';
-            MapArt.label(npc.x, npc.y + 22, txt, { prio: foe ? 3.5 : lordly ? 4 : 5, color: txtCol, dot: nCol, foe, up: 62, down: 10, side: 24 });
+            art.label(npc.x, npc.y + 22, txt, { prio: foe ? 3.5 : lordly ? 4 : 5, color: txtCol, dot: nCol, foe, up: 62, down: 10, side: 24 });
         });
     },
-    drawMapPlayer(ctx) {
+    drawMapPlayer(ctx, art) {
         // Player
         // While captive, the only party moving on the map is the one holding you; you have
         // no separate group. The player icon + name + "Captive" text used to be drawn at the
@@ -6206,12 +6230,12 @@ const Game = {
                     scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
                     bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
                 };
-                if(!MapArt.party(ctx, state.player.x, state.player.y + 28, Object.assign({ look: MapArt.playerLook(), banner: this.bannerColor() }, iconOpts)))
+                if(!art.party(ctx, state.player.x, state.player.y + 28, Object.assign({ look: art.playerLook(), banner: this.bannerColor() }, iconOpts)))
                     this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, iconOpts);
             }
 
             let txt = `${state.player.wait ? '⛺ ' : ''}${state.player.name} (${state.player.party.length + 1})`;
-            MapArt.label(state.player.x, state.player.y + 28, txt, { prio: 0, color: '#ffcc00', dot: this.bannerColor(), up: 74, down: 12, side: 28, must: true, edge: 'rgba(255,204,0,0.6)' });
+            art.label(state.player.x, state.player.y + 28, txt, { prio: 0, color: '#ffcc00', dot: this.bannerColor(), up: 74, down: 12, side: 28, must: true, edge: 'rgba(255,204,0,0.6)' });
         }
     },
     drawMapRoute(ctx) {
@@ -6246,14 +6270,25 @@ const Game = {
     },
 
     // The campaign map is MapArt's (map-art.js, 2.0.0): a baked pixel terrain, settlement and
-    // party sprites, labels laid out on top. Without it (tools/harness.js runs in Node and does
-    // not load it) there is simply nothing to draw.
+    // party sprites, labels laid out on top — one piece of Canvas2D code. The renderer (1.34.0)
+    // only decides what it draws into: #map-canvas's own context, or MapGL's PixCtx, a Canvas2D
+    // facade that turns the same calls into Pixi sprites on #map-gl at the screen's density.
+    // Without MapArt (tools/harness.js runs in Node and does not load it) nothing is drawn.
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
         // Time stops while a modal is open; continuing to draw made the modal's glass panel
         // recompute its backdrop blur every frame.
         if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
-        if(typeof MapArt !== 'undefined') MapArt.render(this);
+        if(typeof MapArt === 'undefined') return;
+        this._mapFrame = (this._mapFrame || 0) + 1;      // iconMotion counts in these
+        let now = performance.now(), gl = this.liveMapGfx();
+        if(gl) {
+            let c = this.mapCanvas;
+            if(gl.w !== c.width || gl.h !== c.height) gl.resize(c.width, c.height);
+            gl.render(ctx => MapArt.render(this, ctx));
+        } else MapArt.render(this, this.ctx);
+        this.stormShake();
+        this.mapCpuSample(performance.now() - now);
     },
 
     handleMapHover(e) {
@@ -8179,6 +8214,7 @@ const Game = {
         if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
         this.Music.sync();   // mute, volume and the music switch all land here
         if(typeof Battle !== 'undefined') Battle.prepareGfx();   // the battle renderer follows its setting (1.33.0)
+        this.prepareMapGfx();                                     // ...and so does the map's (1.34.0)
     },
     // Can this browser create a WebGL context, and is it a real GPU? Probed once; the probe
     // context is released right away. Node's harness has no WebGLRenderingContext: { ok: false }.
@@ -8202,6 +8238,49 @@ const Game = {
             } catch(e) { this._webgl = { ok: false, soft: false, gpu: '' }; }
         }
         return this._webgl;
+    },
+
+    // ---- Map renderer seam (1.34.0) — the battle's (Battle.rendererKind) twin, one setting for
+    // both: Game.opt('renderer') / ?renderer=. MapGL (map-gl.js) draws on its own #map-gl, which
+    // sits UNDER #map-canvas; while it draws, #map-canvas turns transparent (#map-view.gl) but
+    // stays on top, so every pointer handler, the cursor, the tooltip maths and the tutorial's
+    // highlight keep working on the element they always did.
+    mapRendererKind() {
+        let want = typeof Battle !== 'undefined' ? Battle.rendererWanted() : this.opt('renderer'), gl = this.webgl();
+        if(want === 'canvas' || this._mapGlBroken || !gl.ok || typeof PIXI === 'undefined' || typeof MapGL === 'undefined') return 'canvas';
+        return want === 'pixi' || !gl.soft ? 'pixi' : 'canvas';
+    },
+    prepareMapGfx() {
+        if(typeof MapGL === 'undefined') return;
+        if(this.mapRendererKind() === 'pixi') MapGL.init(document.getElementById('map-gl')).catch(e => this.mapGlFailed(e));
+        else if(MapGL.app) { MapGL.destroy(); this.showMapSurface('canvas'); }
+    },
+    mapGlFailed(e) {
+        this._mapGlBroken = true;
+        Debug.log('render', T('WebGL harita çizici başlatılamadı — Canvas2D ile devam'), { err: String((e && e.message) || e) });
+        this.showMapSurface('canvas');
+    },
+    // MapGL when it is the renderer and ready, otherwise null (= draw with Canvas2D)
+    liveMapGfx() {
+        let gl = typeof MapGL !== 'undefined' && this.mapRendererKind() === 'pixi' && MapGL.ready ? MapGL : null;
+        let want = gl ? 'gl' : 'canvas';
+        if(this._mapSurface !== want) this.showMapSurface(want);
+        return gl;
+    },
+    showMapSurface(which) {
+        this._mapSurface = which;
+        let v = document.getElementById('map-view'), gl = document.getElementById('map-gl');
+        if(v) v.classList.toggle('gl', which === 'gl');
+        if(gl) gl.hidden = which !== 'gl';
+    },
+    mapSurfaces() { return [this.mapCanvas, document.getElementById('map-gl')].filter(Boolean); },
+    // CPU ms per drawn map frame, smoothed — the debug report's render.mapRenderer
+    _mapCpu: 0,
+    mapCpuSample(ms) { this._mapCpu += (ms - this._mapCpu) * 0.05; },
+    mapGfxInfo() {
+        let gl = this._mapSurface === 'gl' && typeof MapGL !== 'undefined' ? MapGL : null, i = gl ? gl.info() : {};
+        return { setting: typeof Battle !== 'undefined' ? Battle.rendererWanted() : this.opt('renderer'), active: gl ? 'pixi' : 'canvas',
+                 resolution: gl ? i.resolution : '1x', drawCalls: gl ? i.drawCalls : '-', cpuMs: Math.round(this._mapCpu * 100) / 100 };
     },
     // --- Achievements (#127) ---
     ensureAchievements() {
@@ -8378,7 +8457,7 @@ const Game = {
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer. Telefonda ve takılan cihazda kendiliğinden açılır.'))}
         ${row(T('🎯 Kare hızı hedefi'), fpsBtn, T`Cihaza göre: 60 ile başlar, takılma ölçülürse önce hafif moda, sonra 30'a kendiliğinden iner. Şu an: ${this.targetFps()} fps.`)}
-        ${row(T('🧩 Savaş çizimi'), rdBtn, T`Cihaza göre: ekran kartı varsa WebGL ile, keskin ve ekranın piksel yoğunluğunda çizer; yoksa Canvas'a döner. Şu an: ${rdNow}.`)}
+        ${row(T('🧩 Harita ve savaş çizimi'), rdBtn, T`Cihaza göre: ekran kartı varsa harita ve savaş WebGL ile, keskin ve ekranın piksel yoğunluğunda çizilir; yoksa Canvas'a döner. Şu an: ${rdNow}.`)}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}

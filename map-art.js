@@ -639,8 +639,56 @@ const MapArt = (() => {
         return ok;
     }
 
+    // the hearth light round a settlement at night: one radial glow, baked once
+    let HEARTH = null;
+    function hearth() {
+        if(HEARTH) return HEARTH;
+        const c = document.createElement('canvas'); c.width = c.height = 128;
+        const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+        g.addColorStop(0, 'rgba(255,170,70,1)'); g.addColorStop(1, 'rgba(255,140,50,0)');
+        x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+        return (HEARTH = c);
+    }
+
     // --- labels, laid out in screen space: player first, then settlements, foes, the rest
-    let labels = [];
+    // A plate (backing, border, faction dot, text) is baked once per content and screen density,
+    // then stamped: the WebGL map gets it at the screen's own resolution, and Canvas2D skips
+    // re-filling ~30 rounded rects and texts a frame.
+    let labels = [], placed = [], boxes = [];      // the last frame's label and settlement rects (tools/test.js reads them)
+    const PLATES = new Map(), TW = new Map();
+    let measure = null;
+    function textW(font, text) {
+        const k = font + '|' + text;
+        let w = TW.get(k);
+        if(w === undefined) {
+            measure = measure || document.createElement('canvas').getContext('2d');
+            measure.font = font; w = measure.measureText(text).width;
+            if(TW.size > 800) TW.clear();
+            TW.set(k, w);
+        }
+        return w;
+    }
+    // text measured and baked before the webfont arrived is redone once it has
+    if(typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener)
+        document.fonts.addEventListener('loadingdone', () => { PLATES.clear(); TW.clear(); });
+    function plate(L, fs, ph, w, dot, R) {
+        const key = [L.text, L.color, L.dot || '', L.foe ? 1 : 0, L.edge || '', fs, Math.round(w), R].join('\u0001');
+        let c = PLATES.get(key);
+        if(c) { PLATES.delete(key); PLATES.set(key, c); return c; }
+        c = document.createElement('canvas');
+        c.width = Math.ceil((w + 2) * R); c.height = Math.ceil((ph + 2) * R);
+        const x = c.getContext('2d');
+        x.scale(R, R); x.translate(1, 1);
+        x.font = `600 ${fs}px Inter, sans-serif`; x.textBaseline = 'middle'; x.textAlign = 'left';
+        x.fillStyle = L.foe ? 'rgba(40,8,6,0.82)' : 'rgba(10,11,14,0.78)';
+        x.beginPath(); x.roundRect(0.5, 0.5, w - 1, ph - 1, ph / 2); x.fill();
+        x.lineWidth = 1; x.strokeStyle = L.foe ? 'rgba(255,107,90,0.8)' : L.edge || 'rgba(212,175,55,0.28)'; x.stroke();
+        if(dot) { x.fillStyle = L.dot; x.beginPath(); x.arc(fs * 0.55 + dot / 2 - 1, ph / 2, dot / 2.4, 0, Math.PI * 2); x.fill(); }
+        x.fillStyle = L.color; x.fillText(L.text, fs * 0.55 + dot, ph / 2 + 0.5);
+        PLATES.set(key, c);
+        if(PLATES.size > 300) PLATES.delete(PLATES.keys().next().value);
+        return c;
+    }
     function label(wx, wy, text, o) { labels.push(Object.assign({ wx, wy, text }, o)); }
     function drawLabels(ctx, cam, W, H, blocked) {
         const z = cam.zoom, s = Game.uiScale(), fs = Math.round(13 * s + 1.5), ph = Math.round(fs * 1.55);
@@ -648,10 +696,12 @@ const MapArt = (() => {
         const taken = blocked.map(b => { const [x, y] = toS(b.x, b.y); return { x: x - b.w * z / 2, y: y - b.h * z, w: b.w * z, h: b.h * z }; });
         const hit = r => taken.some(t => r.x < t.x + t.w && r.x + r.w > t.x && r.y < t.y + t.h && r.y + r.h > t.y);
         labels.sort((a, b) => a.prio - b.prio);
+        placed = []; boxes = taken.slice();
+        const R = ctx.pixelRatio || 1, font = `600 ${fs}px Inter, sans-serif`, snap = v => Math.round(v * R) / R;
         ctx.save();
-        ctx.font = `600 ${fs}px Inter, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        ctx.imageSmoothingEnabled = true;
         for(const L of labels) {
-            const tw = ctx.measureText(L.text).width, dot = L.dot ? fs * 0.75 : 0, w = tw + dot + fs * 1.1, [sx, sy] = toS(L.wx, L.wy);
+            const tw = textW(font, L.text), dot = L.dot ? fs * 0.75 : 0, w = tw + dot + fs * 1.1, [sx, sy] = toS(L.wx, L.wy);
             if(sx < -w || sx > W + w || sy < -40 || sy > H + 40) continue;
             const up = L.up * z, dn = L.down * z;
             // above, below, right, left, then a row further out each way
@@ -662,11 +712,9 @@ const MapArt = (() => {
             for(const [x, y] of spots) { const c = { x, y, w, h: ph }; if(!hit(c)) { r = c; break; } }
             if(!r) { if(!L.must) continue; r = { x: spots[0][0], y: spots[0][1], w, h: ph }; }
             taken.push(r);
-            ctx.fillStyle = L.foe ? 'rgba(40,8,6,0.82)' : 'rgba(10,11,14,0.78)';
-            ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, ph / 2); ctx.fill();
-            ctx.lineWidth = 1; ctx.strokeStyle = L.foe ? 'rgba(255,107,90,0.8)' : L.edge || 'rgba(212,175,55,0.28)'; ctx.stroke();
-            if(dot) { ctx.fillStyle = L.dot; ctx.beginPath(); ctx.arc(r.x + fs * 0.55 + dot / 2 - 1, r.y + ph / 2, dot / 2.4, 0, Math.PI * 2); ctx.fill(); }
-            ctx.fillStyle = L.color; ctx.fillText(L.text, r.x + fs * 0.55 + dot, r.y + ph / 2 + 0.5);
+            placed.push({ text: L.text, x: r.x, y: r.y, w: r.w, h: r.h });
+            const c = plate(L, fs, ph, w, dot, R);
+            ctx.drawImage(c, snap(r.x) - 1, snap(r.y) - 1, c.width / R, c.height / R);
         }
         ctx.restore();
         labels = [];
@@ -1224,8 +1272,10 @@ const MapArt = (() => {
     }
 
     // --- the frame
-    function render(G) {
-        const c = G.mapCanvas, ctx = G.ctx, W = c.width, H = c.height, cam = G.camera, z = cam.zoom, now = performance.now();
+    // `ctx` is #map-canvas's own context or MapGL's PixCtx; `ctx.pixelRatio` (1 or the screen's
+    // density) is the one thing the picture may depend on
+    function render(G, ctx) {
+        const c = G.mapCanvas, W = c.width, H = c.height, cam = G.camera, z = cam.zoom, now = performance.now();
         const T0 = terrain();
         Swordsman.load(); Archer.load();          // the map's parties are the battle's soldiers
         ctx.save();
@@ -1235,7 +1285,8 @@ const MapArt = (() => {
         // the ground, always drawn nearest-neighbour: up close that is the pixel look, far out a
         // pre-shrunk copy keeps a texel at least a screen pixel wide. A smoothed draw cost 3.3 ms
         // at any zoom (measured, software raster), a nearest one 0.7 ms.
-        const px = TEX * z, lvl = px < 0.5 ? 2 : px < 1 ? 1 : 0;
+        // (a texel's size in screen pixels: on WebGL the screen has pixelRatio of them per CSS px)
+        const px = TEX * z * (ctx.pixelRatio || 1), lvl = px < 0.5 ? 2 : px < 1 ? 1 : 0;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(T0.mips[lvl], X0, Y0, N * TEX, N * TEX);
         // the sea glints: a few pale texel dashes drifting, not so far out that a dash is under a
@@ -1253,7 +1304,7 @@ const MapArt = (() => {
         }
         ctx.imageSmoothingEnabled = false;
 
-        G.drawMapSites(ctx);
+        G.drawMapSites(ctx, api);
 
         // settlements
         // settlements keep a readable size far out, but grow slower than parties (0.35 / zoom
@@ -1276,8 +1327,8 @@ const MapArt = (() => {
                   { prio: 4, color: qDone ? '#7ddc8a' : '#e0b062', up: 30 / z, down: h + 30 / z, side: w / 2 });
         }
 
-        G.drawMapParties(ctx);
-        G.drawMapPlayer(ctx);
+        G.drawMapParties(ctx, api);
+        G.drawMapPlayer(ctx, api);
 
         // time of day over the world, then what gives off light, then the words
         // (the pixel map reads brighter than the old one, so night goes a third deeper)
@@ -1298,14 +1349,17 @@ const MapArt = (() => {
             for(const L of lit) ctx.drawImage(L.s.glow, L.x - L.s.pad * L.k, L.y - L.s.pad * L.k, L.s.glow.width * L.k, L.s.glow.height * L.k);
             ctx.globalCompositeOperation = 'source-over';
             ctx.globalAlpha = 1;
-            {   // hearth light spilling out of every settlement on screen
+            {   // hearth light spilling out of every settlement on screen (a baked glow, so the
+                // WebGL facade draws the same thing: it takes no gradients)
                 ctx.globalCompositeOperation = 'lighter';
                 ctx.globalAlpha = 0.22 * glow;
-                ctx.fillStyle = G.radial(ctx, 110, 'rgba(255,170,70,1)', 'rgba(255,140,50,0)');
+                ctx.imageSmoothingEnabled = true;
+                const hg = hearth();
                 LOCATIONS.forEach(loc => {
                     if(loc.x + 110 < vx0 || loc.x - 110 > vx1 || loc.y + 110 < vy0 || loc.y - 110 > vy1) return;
-                    ctx.save(); ctx.translate(loc.x, loc.y); ctx.beginPath(); ctx.arc(0, 0, 110, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                    ctx.drawImage(hg, loc.x - 110, loc.y - 110, 220, 220);
                 });
+                ctx.imageSmoothingEnabled = false;
                 ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
             }
         }
@@ -1313,10 +1367,13 @@ const MapArt = (() => {
         Nobles.drawMarkers(ctx);
         ctx.restore();
         drawLabels(ctx, cam, W, H, blocked);
-        G.drawHail(ctx, W, H);
+        if(G.hailOn()) G.hailPath(ctx, W, H);
     }
 
-    return { TEX, SPX, render, scene, march, itemIcon, portrait, site, terrain, settlement, party, partyLook, playerLook, label, culture, bakeMs: () => baked && baked.ms };
+    // what the game's side of the map (Game.drawMapSites/Parties/Player) draws with: handed to it
+    // by render, so app.js never looks MapArt up by name mid-frame
+    const api = { TEX, SPX, render, placed: () => ({ labels: placed, boxes }), scene, march, itemIcon, portrait, site, terrain, settlement, party, partyLook, playerLook, label, culture, bakeMs: () => baked && baked.ms };
+    return api;
 })();
 // the start screen is up when the scripts run, and only a reload brings it back: the march starts here
 if(typeof requestAnimationFrame === 'function') MapArt.march();
