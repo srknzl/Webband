@@ -9,16 +9,33 @@
     grey:  { o: '#23232b', c: ['#5b5b67', '#83838f', '#a7a7b1', '#cbcbd3'], mane: '#3d3d47', sock: '#e9e9ee' },
     black: { o: '#121015', c: ['#262229', '#38323c', '#4b4450', '#655c6b'], mane: '#141117', sock: '#8d8490' },
   };
-  // [upper, lower] leg angles in degrees from vertical (+ = forward); near/far front, near/far hind
-  const GALLOP = [
-    { nf: [42, -64], ff: [22, -34], nh: [-32, 22], fh: [-46, 40], bob: 0, tail: 2 },
-    { nf: [20, -12], ff: [6, -6], nh: [-12, 10], fh: [-26, 22], bob: -1, tail: 1 },
-    { nf: [-6, 44], ff: [-16, 54], nh: [22, -52], fh: [12, -36], bob: -1, tail: 0 },
-    { nf: [-26, 62], ff: [-32, 72], nh: [34, -22], fh: [24, -12], bob: 0, tail: 0 },
-    { nf: [10, 72], ff: [0, 62], nh: [10, 6], fh: [0, 2], bob: 1, tail: 1 },
-    { nf: [34, -22], ff: [24, -12], nh: [-20, 10], fh: [-10, 6], bob: 0, tail: 2 },
-  ];
-  const STAND = { nf: [4, 0], ff: [-2, 0], nh: [-4, 0], fh: [3, 0], bob: 0, tail: 1 };
+  // Legs follow one stride cycle each, offset in time: stance (hoof down, the straight leg sweeps
+  // back under the body) then swing (the leg lifts, folds and reaches forward). A foreleg folds
+  // at the knee with the hoof tucked back; a hind leg folds at the hock with the hoof tucked
+  // forward under the belly — the two joints bend opposite ways, as on a real horse.
+  // Angles are absolute, in degrees from vertical, + = toward the head.
+  const ease = u => u * u * (3 - 2 * u);
+  function legAt(p, fore) {
+    const STANCE = 0.42;
+    if (p < STANCE) {                                   // planted, sweeping back
+      const th = 26 - 56 * (p / STANCE);
+      return fore ? [th, th] : [th - 12, th + 8];
+    }
+    const u = (p - STANCE) / (1 - STANCE), th = -30 + 56 * ease(u), flex = Math.sin(Math.PI * u);
+    return fore ? [th + flex * 22, th - flex * 78]       // knee forward, hoof tucked back
+                : [th - 12 - flex * 14, th + 8 + flex * 70];   // hock back, hoof tucked forward
+  }
+  // rotary gallop footfalls: near hind, far hind, near fore, far fore, then a moment in the air
+  const PHASE = { nh: 0, fh: 0.12, nf: 0.4, ff: 0.52 };
+  const N_GALLOP = 8;
+  const GALLOP = Array.from({ length: N_GALLOP }, (_, i) => {
+    const t = i / N_GALLOP, f = {};
+    for (const k in PHASE) f[k] = legAt((t + 1 - PHASE[k]) % 1, k[1] === 'f');
+    f.bob = Math.round(-Math.sin(2 * Math.PI * (t - 0.15)));  // rises in the suspension
+    f.tail = 1 + Math.round(Math.sin(2 * Math.PI * t));
+    return f;
+  });
+  const STAND = { nf: [3, 3], ff: [-2, -2], nh: [-14, 6], fh: [-10, 9], bob: 0, tail: 1 };
   const cache = {};
 
   function bake(coatName, fi, cloth) {
@@ -30,10 +47,10 @@
     const ell = (cx, cy, rx, ry, v) => { for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) { const dx = (x - cx) / rx, dy = (y - cy) / ry; if (dx * dx + dy * dy <= 1) set(x, y, v); } };
     const line = (x0, y0, x1, y1, r, v) => { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2) + 1; for (let i = 0; i <= n; i++) { const t = i / n; ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, v); } };
     const leg = (hx, hy, [a1, a2], v, sockOn) => {
-      const r1 = a1 * Math.PI / 180, r2 = (a1 + a2) * Math.PI / 180;
+      const r1 = a1 * Math.PI / 180, r2 = a2 * Math.PI / 180;
       const kx = hx + Math.sin(r1) * 6, ky = hy + Math.cos(r1) * 6;
       const fx = kx + Math.sin(r2) * 6, fy = ky + Math.cos(r2) * 6;
-      line(hx, hy, kx, ky, 1.1, v); line(kx, ky, fx, fy, 0.7, v);
+      line(hx, hy, kx, ky, 1.25, v); line(kx, ky, fx, fy, 0.75, v);
       if (sockOn) line(kx + (fx - kx) * 0.6, ky + (fy - ky) * 0.6, fx, fy, 0.7, 9);
       set(fx, fy, 4); set(fx + Math.sin(r2 + Math.PI / 2), fy + Math.cos(r2 + Math.PI / 2) * 0, 4);
     };
@@ -96,7 +113,7 @@
   let _rider;
   // Draws horse + rider with the hooves' centre on (x, y). rider: SW unit (drawn from the waist up).
   function drawHorse(ctx, h, x, y) {
-    const fi = h.moving ? Math.floor(h.t / 85) % GALLOP.length : -1;
+    const fi = h.moving ? Math.floor(h.t / 70) % GALLOP.length : -1;
     const src = bake(h.coat, fi, h.cloth), left = h.facing === 'left';
     const img = left ? flipped(src) : src, ox = Math.round(x - 24), oy = Math.round(y - GROUND);
     const bob = fi < 0 ? 0 : GALLOP[fi].bob;
