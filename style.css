@@ -508,7 +508,13 @@ input[type="text"]:focus {
     background-color: #1e293b;
     cursor: crosshair;
     display: block;
+    position: relative;   /* above #map-gl, below the HUD: z-index auto, so DOM order decides */
 }
+/* The WebGL map (1.34.0) sits under #map-canvas; while it draws, #map-canvas is see-through but
+   still the element every pointer handler, the cursor and the tutorial highlight are bound to. */
+#map-gl { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; pointer-events: none; background: #0a1c2e; }
+#map-gl[hidden] { display: none; }
+#map-view.gl #map-canvas { opacity: 0; }
 #map-tooltip {
     position: absolute;
     padding: 0.5rem 0.9rem;
@@ -1200,7 +1206,7 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
    #scene-canvas hariç: onun kendi pan/pinch kodu yok, sadece tıklama (#renderScene). `none`
    bırakılırsa üstünden başlayan bir parmak kaydırması ne native scroll'a ne bize gider,
    sessizce yutulur — şehir ekranı mobilde en alta kadar kaydırılamaz hale gelir. */
-#map-canvas, #battle-canvas, #battle-gl { touch-action: none; }
+#map-canvas, #map-gl, #battle-canvas, #battle-gl { touch-action: none; }
 /* Pinch-zooming the whole UI breaks the game (panel sizes are computed from the
    screen, so after a zoom nothing sits where it belongs). Scrolling stays free, pinch
    is gone, and `pan-x pan-y` closes the double-tap zoom with it.

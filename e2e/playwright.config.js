@@ -18,6 +18,10 @@ module.exports = defineConfig({
     timeout: 60_000,
     expect: { timeout: 10_000 },
     fullyParallel: true,
+    // Locally, 4 at a time: the default is half the logical cores (8 here), and every WebGL
+    // test renders on SwiftShader — the CPU — so 8 Chromiums pinned the machine at 100% and
+    // starved each other into timeouts. CI keeps the default.
+    workers: process.env.CI ? undefined : 4,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',

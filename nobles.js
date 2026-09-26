@@ -964,44 +964,58 @@ const Nobles = {
     },
 
     // Draws known-location markers on the map (called from within Game.renderMap)
-    drawMarkers(ctx) {
+    // The markers to draw, live ones moved onto their party first. The WebGL map (map-gl.js)
+    // draws the same list: the ring through markerRing, the name as a baked text.
+    markers() {
+        let out = [];
         for(let id in state.knownLocations) {
             let m = state.knownLocations[id];
-            // A watchtower look leaves faint ghosts of every band it saw (#128): a thin, pale,
-            // nameless ring at the last-seen spot, so the memory of "there was something there"
-            // lingers a day without turning the map into a wall of bold yellow "nerede?" rings.
-            if(m.ghost) {
-                let age = state.time.day - m.day;               // fades over its one-day life
-                ctx.save();
-                ctx.globalAlpha = Math.max(0.15, 0.5 - age * 0.35);
-                ctx.strokeStyle = 'rgba(210,200,170,0.9)';
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([4, 6]);
-                ctx.beginPath();
-                ctx.arc(m.x, m.y, m.radius || 26, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.restore();
-                continue;
-            }
-            if(m.live) {
+            if(!m.ghost && m.live) {
                 let party = this.partyOf(id);
                 if(party) { m.x = party.x; m.y = party.y; }
             }
-            ctx.save();
+            out.push(m);
+        }
+        return out;
+    },
+    MARKER_FONT: 'bold 30px Inter',
+    markerText(m) { return `📍 ${T(m.name)}`; },
+    markerRing(ctx, m) {
+        ctx.save();
+        // A watchtower look leaves faint ghosts of every band it saw (#128): a thin, pale,
+        // nameless ring at the last-seen spot, so the memory of "there was something there"
+        // lingers a day without turning the map into a wall of bold yellow "nerede?" rings.
+        if(m.ghost) {
+            let age = state.time.day - m.day;               // fades over its one-day life
+            ctx.globalAlpha = Math.max(0.15, 0.5 - age * 0.35);
+            ctx.strokeStyle = 'rgba(210,200,170,0.9)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 6]);
+            ctx.beginPath();
+            ctx.arc(m.x, m.y, m.radius || 26, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
             ctx.strokeStyle = 'rgba(255,204,0,0.75)';
             ctx.lineWidth = 6;
             ctx.setLineDash([18, 14]);
             ctx.beginPath();
             ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
             ctx.stroke();
-            ctx.setLineDash([]);
+        }
+        ctx.restore();
+    },
+    drawMarkers(ctx) {
+        this.markers().forEach(m => {
+            this.markerRing(ctx, m);
+            if(m.ghost) return;
+            ctx.save();
             ctx.fillStyle = '#ffcc00';
-            ctx.font = 'bold 30px Inter';
+            ctx.font = this.MARKER_FONT;
             ctx.textAlign = 'center';
             ctx.shadowColor = 'black'; ctx.shadowBlur = 12;
-            ctx.fillText(`📍 ${T(m.name)}`, m.x, m.y - m.radius - 14);
+            ctx.fillText(this.markerText(m), m.x, m.y - m.radius - 14);
             ctx.restore();
-        }
+        });
     },
 
     // ---------- COURTSHIP ----------

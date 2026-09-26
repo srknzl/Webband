@@ -15,7 +15,7 @@
 // check alone would install a second, stale copy of every asset on top of the one
 // Capacitor already ships in the bundle.
 // ============================================================
-const CACHE = 'webband-v1.33.0';
+const CACHE = 'webband-v1.34.0';
 
 // The soundtrack (#131) is 20.8 MB and deliberately NOT in FILES: precaching it would make
 // the install a 20 MB download before the game is playable at all. Each piece is cached the
@@ -26,7 +26,7 @@ const MUSIC = 'webband-music';
 
 const FILES = [
     './', 'index.html', 'style.css', 'manifest.webmanifest',
-    'i18n.js', 'lang-en.js', 'lang-id.js', 'vendor/pixi.min.js', 'app.js', 'battle.js', 'battle-gl.js', 'nobles.js', 'quests.js',
+    'i18n.js', 'lang-en.js', 'lang-id.js', 'vendor/pixi.min.js', 'app.js', 'battle.js', 'battle-gl.js', 'map-gl.js', 'nobles.js', 'quests.js',
     'bg_hdr.jpg', 'kingdom_crests.jpg', 'lord_portraits.jpg',
     'fonts/cinzel-latin.woff2', 'fonts/cinzel-latin-ext.woff2',
     'fonts/inter-latin.woff2', 'fonts/inter-latin-ext.woff2',

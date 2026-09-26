@@ -234,10 +234,10 @@ async function tapWorld(page, pt) {
  * The battle is actually being painted: distinct colours on a 7x7 grid of the battle canvas
  * on show. Read from a screenshot of that element — what the compositor put on screen — so the
  * same check covers Canvas2D (#battle-canvas) and WebGL (#battle-gl, whose drawing buffer is
- * not readable back through a 2d context).
+ * not readable back through a 2d context). `sel` points it at another surface (the map's).
  */
-async function painted(page) {
-    const shot = await page.locator('#battle-view > canvas:not([hidden])').screenshot();
+async function painted(page, sel = '#battle-view > canvas:not([hidden])') {
+    const shot = await page.locator(sel).screenshot();
     return page.evaluate(async b64 => {
         const img = new Image();
         img.src = 'data:image/png;base64,' + b64;

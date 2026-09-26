@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.34.0 — Keskin Harita (2026-09-26)
+
+Harita da artık ekran kartıyla çiziliyor. Aynı harita, daha keskin.
+
+- **Harita keskin.** Kıyılar, yollar, nehirler, yerleşim adları ve partiler telefonda ve yüksek
+  çözünürlüklü ekranlarda artık ekranın kendi piksel yoğunluğunda çiziliyor. Eskiden ekranın
+  yarı ya da üçte bir çözünürlüğündeydi, hafif bulanıktı. Kıta en uzaktan da en yakından da net.
+- **Telefona daha hafif.** Arazi (deniz, kıyı, yollar, ormanlar, dağlar) bir kere kuruluyor ve
+  her karede yalnız kamera kayıyor. Eskiden her karede baştan çiziliyordu.
+- **Aynı harita.** Aynı partiler ve hareketleri (yön dönme, yürüyüş, dalgalanan flama), aynı
+  rota çizgisi, gece ışıkları, dolu fırtınası. İsim etiketleri artık partilerin üstünde duruyor,
+  bir ikonun altında kalmıyor.
+- **Ayar adı değişti: 🧩 Harita ve savaş çizimi.** Tek ayar ikisini birden seçiyor. "Cihaza
+  göre" ekran kartı varsa WebGL'i kullanıyor; bir sorun çıkarsa Canvas'a kendiliğinden dönüyor.
+
 ## 1.33.0 — Keskin Meydan (2026-09-26)
 
 Savaş artık ekran kartıyla çiziliyor. Görüntü ve hareketler aynı, sadece daha keskin.

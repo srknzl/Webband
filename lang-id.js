@@ -2956,7 +2956,8 @@ I18N.dicts.id = {
   "Maçı kaybetmiş sayılırsın.": "Pertandingan dianggap kalah.",
   "⚔️ Savaşa Dön": "⚔️ Kembali Bertarung",
   "Sıradaki parça": "Lagu berikutnya",
-  "🧩 Savaş çizimi": "🧩 Penggambar pertempuran",
+  "🧩 Harita ve savaş çizimi": "🧩 Penggambar peta dan pertempuran",
   "WebGL çizici başlatılamadı — Canvas2D ile devam": "Penggambar WebGL gagal dimulai — lanjut dengan Canvas2D",
-  "Cihaza göre: ekran kartı varsa WebGL ile, keskin ve ekranın piksel yoğunluğunda çizer; yoksa Canvas'a döner. Şu an: {0}.": "Ikut perangkat: bila ada kartu grafis, menggambar lewat WebGL, tajam sesuai kepadatan piksel layar; jika tidak, kembali ke Canvas. Saat ini: {0}.",
+  "WebGL harita çizici başlatılamadı — Canvas2D ile devam": "Penggambar peta WebGL gagal dimulai — lanjut dengan Canvas2D",
+  "Cihaza göre: ekran kartı varsa harita ve savaş WebGL ile, keskin ve ekranın piksel yoğunluğunda çizilir; yoksa Canvas'a döner. Şu an: {0}.": "Ikut perangkat: bila ada kartu grafis, peta dan pertempuran digambar lewat WebGL, tajam sesuai kepadatan piksel layar; bila tidak, kembali ke Canvas. Sekarang: {0}.",
 };

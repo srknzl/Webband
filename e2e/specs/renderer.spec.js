@@ -73,6 +73,48 @@ for(const renderer of ['pixi', 'canvas']) {
     });
 }
 
+// The map (1.34.0) follows the same setting. With Pixi it draws on #map-gl, under a
+// see-through #map-canvas that still takes every tap; switching back to Canvas at runtime
+// tears the WebGL map down and the 2d canvas shows again.
+for(const renderer of ['pixi', 'canvas']) {
+    test(`harita çizimi: ${renderer} — harita boyanır, dokunuş hâlâ hedef verir`, async ({ page }) => {
+        await newGame(page);
+        await page.evaluate(r => Game.setOpt('renderer', r), renderer);
+        if(renderer === 'pixi') await page.waitForFunction(() => MapGL.ready && Game._mapSurface === 'gl');
+        const gl = renderer === 'pixi';
+        await expect(page.locator('#map-gl')).toBeVisible({ visible: gl });
+        await expect(page.locator('#map-view')).toHaveClass(gl ? /\bgl\b/ : /^(?!.*\bgl\b)/);
+        expect(await page.evaluate(() => getComputedStyle(Game.mapCanvas).opacity)).toBe(gl ? '0' : '1');
+        const info = await page.evaluate(() => Debug.report().render.mapRenderer);
+        expect(info.active).toBe(renderer);
+        if(gl) {
+            // Drawn at the screen's pixel density, over exactly the box #map-canvas measures input in
+            const dens = await page.evaluate(() => {
+                const c = document.getElementById('map-gl'), r = c.getBoundingClientRect(), m = Game.mapCanvas.getBoundingClientRect();
+                return { ratio: c.width / r.width, dpr: Math.min(3, devicePixelRatio), box: [r.left - m.left, r.top - m.top, r.width - m.width, r.height - m.height] };
+            });
+            expect(Math.abs(dens.ratio - dens.dpr)).toBeLessThan(0.02);
+            dens.box.forEach(d => expect(Math.abs(d)).toBeLessThan(1));
+            await expect.poll(() => page.evaluate(() => Debug.report().render.mapRenderer.drawCalls)).toBeGreaterThan(0);
+        }
+        expect(await painted(page, gl ? '#map-gl' : '#map-canvas')).toBeGreaterThan(3);
+
+        // A tap on the map still sets a destination: the input surface didn't move
+        await page.evaluate(() => { state.player.status = 'idle'; state.player.targetLocation = null; });
+        const spot = await page.evaluate(() => ({ x: state.player.x + 120, y: state.player.y + 60 }));
+        await tapWorld(page, spot);
+        await expect.poll(() => page.evaluate(() => state.player.status)).toBe('moving');
+
+        if(gl) {
+            await page.evaluate(() => Game.setOpt('renderer', 'canvas'));
+            await expect(page.locator('#map-gl')).toBeHidden();
+            await expect(page.locator('#map-view')).not.toHaveClass(/\bgl\b/);
+            await expect.poll(() => painted(page, '#map-canvas')).toBeGreaterThan(3);
+            expect(await page.evaluate(() => MapGL.app)).toBeNull();
+        }
+    });
+}
+
 // Without WebGL, 'auto' and even a forced 'pixi' fall back to Canvas2D — and the fight still runs.
 test('savaş çizimi: WebGL yoksa Canvas\'a döner', async ({ page }) => {
     await newGame(page);

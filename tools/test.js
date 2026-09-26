@@ -959,6 +959,163 @@ test('renderer: the settings row writes through Game.setOpt and reads through Ga
         assert.strictEqual(G.opt('renderer'), 'auto');
     } finally { G.showModal = orig; }
 });
+// --- Map renderer seam (1.34.0) ---
+// The map follows the same setting as the battle; MapGL (map-gl.js) is never loaded by the
+// harness, so here the map always draws with Canvas2D until a test fakes Pixi in.
+test('map renderer: the battle\'s setting and gate decide the map too', () => {
+    const ctx = gw._ctx, vm = require('vm'), G = gw.Game;
+    const run = src => vm.runInContext(src, ctx);
+    const kinds = () => ['auto', 'pixi', 'canvas'].map(v => { G.setOpt('renderer', v); return G.mapRendererKind(); });
+    assert.deepStrictEqual(kinds(), ['canvas', 'canvas', 'canvas'], 'no Pixi loaded: Canvas2D whatever the setting');
+    assert.strictEqual(G.liveMapGfx(), null, 'Canvas2D draws');
+    run('globalThis.PIXI = {}; globalThis.MapGL = { ready: false, app: null, init() { globalThis.__mapInits = (globalThis.__mapInits || 0) + 1; return Promise.resolve(); }, destroy() {} };');
+    const hadGl = G._webgl;
+    try {
+        G._webgl = { ok: true, soft: true, gpu: 'SwiftShader' };
+        assert.deepStrictEqual(kinds(), ['canvas', 'pixi', 'canvas'], 'software GL: auto keeps Canvas2D, pixi forces WebGL');
+        G._webgl = { ok: true, soft: false, gpu: 'Apple GPU' };
+        assert.deepStrictEqual(kinds(), ['pixi', 'pixi', 'canvas'], 'hardware WebGL: auto and pixi draw the map with Pixi');
+        assert.ok(run('globalThis.__mapInits || 0') > 0, 'choosing pixi starts the map renderer');
+        G.setOpt('renderer', 'pixi');
+        assert.strictEqual(G.liveMapGfx(), null, 'still initialising: Canvas2D carries the frames meanwhile');
+        run('MapGL.ready = true;');
+        assert.strictEqual(G.liveMapGfx(), run('MapGL'), 'ready: Pixi draws');
+        const view = gw._sandbox.document.getElementById('map-view');
+        assert.ok(view.classList.contains('gl'), '#map-canvas turns see-through over #map-gl, but stays the input surface');
+        G._mapGlBroken = true;
+        assert.strictEqual(G.liveMapGfx(), null, 'a failed or lost context drops the map to Canvas2D for the session');
+        assert.ok(!view.classList.contains('gl'), 'and #map-canvas shows again');
+        G._mapGlBroken = false;
+        gw._sandbox.location = { search: '?renderer=canvas' };
+        assert.strictEqual(G.mapRendererKind(), 'canvas', '?renderer= overrides the setting for the map too');
+        const info = G.mapGfxInfo();
+        assert.ok(['pixi', 'canvas'].includes(info.active) && 'cpuMs' in info, 'the debug report says which one draws');
+    } finally {
+        delete gw._sandbox.location;
+        G._webgl = hadGl; G._mapGlBroken = false;
+        run('delete globalThis.PIXI; delete globalThis.MapGL; delete globalThis.__mapInits;');
+        G.setOpt('renderer', 'auto');
+        G.showMapSurface('canvas');
+    }
+});
+
+// GLCtx is the Canvas2D facade the WebGL map runs the shared vector code through (coast,
+// rivers, roads, figures, route). It needs no GPU: here it records into a fake Pixi context.
+test('map renderer: GLCtx turns Canvas2D path calls into Pixi geometry', () => {
+    const vm = require('vm'), fs = require('fs'), path = require('path');
+    const hex = css => {
+        if(css[0] === '#') return [parseInt(css.length === 4 ? css.replace(/(\w)/g, '$1$1').slice(1) : css.slice(1, 7), 16), 1];
+        const p = /rgba?\(([^)]+)\)/.exec(css)[1].split(',').map(Number);
+        return [(p[0] << 16) | (p[1] << 8) | p[2], p[3] === undefined ? 1 : p[3]];
+    };
+    const box = { BattleGL: { hex }, Math };
+    const { GLCtx } = vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'map-gl.js'), 'utf8') + '\n;({ GLCtx })', box);
+    const rec = () => {
+        const log = [], polys = [];
+        let cur = null;
+        const gc = {
+            beginPath() { polys.length = 0; cur = null; },
+            moveTo(x, y) { cur = [x, y]; polys.push(cur); },
+            lineTo(x, y) { cur.push(x, y); },
+            closePath() { cur.closed = true; },
+            fill(s) { log.push({ op: 'fill', s, polys: polys.map(p => p.slice()) }); },
+            stroke(s) { log.push({ op: 'stroke', s, polys: polys.map(p => p.slice()) }); }
+        };
+        return { gc, log };
+    };
+
+    // Transforms apply per call, like Canvas2D; widths and dashes scale with the transform
+    let { gc, log } = rec(), c = new GLCtx(gc);
+    c.translate(100, 50); c.scale(2, 2);
+    c.strokeStyle = 'rgba(255,0,0,0.5)'; c.lineWidth = 3; c.globalAlpha = 0.5; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(10, 0); c.stroke();
+    assert.deepStrictEqual(log[0].polys[0], [100, 50, 120, 50], 'points land where the transform puts them');
+    assert.strictEqual(log[0].s.width, 6, 'lineWidth scales with the transform');
+    assert.strictEqual(log[0].s.color, 0xff0000);
+    assert.strictEqual(log[0].s.alpha, 0.25, 'colour alpha x globalAlpha');
+    assert.strictEqual(log[0].s.cap, 'round');
+
+    // A full arc is a closed ring of points on the radius
+    ({ gc, log } = rec()); c = new GLCtx(gc);
+    c.fillStyle = '#0f0'; c.beginPath(); c.arc(5, 5, 10, 0, Math.PI * 2); c.fill();
+    const ring = log[0].polys[0];
+    assert.ok(ring.length / 2 >= 32, 'round enough to hold at 3x zoom');
+    for(let i = 0; i < ring.length; i += 2) assert.ok(Math.abs(Math.hypot(ring[i] - 5, ring[i + 1] - 5) - 10) < 1e-9);
+    assert.strictEqual(log[0].s.color, 0x00ff00);
+
+    // Dashes: Canvas2D's pattern, restarting per subpath and shifted by the offset
+    const pieces = GLCtx.dashed([{ pts: [0, 0, 100, 0], closed: false }], [10, 5], 0);
+    assert.strictEqual(pieces.length, 7, '0-10, 15-25 ... 90-100');
+    assert.deepStrictEqual([...pieces[1].pts], [15, 0, 25, 0]);
+    const shifted = GLCtx.dashed([{ pts: [0, 0, 30, 0], closed: false }], [10, 5], 5);
+    assert.deepStrictEqual([...shifted[0].pts], [0, 0, 5, 0], 'an offset starts mid-dash');
+    const corner = GLCtx.dashed([{ pts: [0, 0, 6, 0, 6, 6], closed: false }], [10, 20], 0);
+    assert.deepStrictEqual([...corner[0].pts], [0, 0, 6, 0, 6, 4], 'a dash runs on around a vertex');
+
+    // A road is a run of segments: joined into one polyline so a translucent joint isn't painted twice
+    ({ gc, log } = rec()); c = new GLCtx(gc);
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(10, 0); c.moveTo(10, 0); c.lineTo(20, 5); c.moveTo(50, 50); c.lineTo(60, 60); c.stroke();
+    assert.strictEqual(log[0].polys.length, 2, 'the connected run is one piece, the separate one stays apart');
+    assert.deepStrictEqual(log[0].polys[0], [0, 0, 10, 0, 20, 5]);
+
+    // fillRect paints on its own and leaves the current path alone
+    ({ gc, log } = rec()); c = new GLCtx(gc);
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(5, 5);
+    c.fillRect(0, 0, 2, 2);
+    c.stroke();
+    assert.strictEqual(log[0].op, 'fill');
+    assert.deepStrictEqual(log[1].polys[0], [0, 0, 5, 5], 'the path survived the fillRect');
+
+    // save/restore brings back transform and style
+    c.save(); c.translate(7, 7); c.lineWidth = 9; c.restore();
+    assert.deepStrictEqual([...c.m], [1, 0, 0, 1, 0, 0]); assert.strictEqual(c.lineWidth, 1);
+
+    // The shared party figures run through it without a Canvas2D-only call
+    for(const kind of ['foot', 'archer', 'rider', 'wolf', 'cart']) {
+        ({ gc, log } = rec()); c = new GLCtx(gc);
+        gw.Game.drawFigure(c, kind, '#c0392b', '#26262e');
+        assert.ok(log.filter(l => l.op === 'fill').length >= 3, kind + ' figure draws its shapes');
+        assert.ok(log.every(l => l.polys.every(p => p.every(Number.isFinite))), kind + ': no NaN points');
+    }
+    ({ gc, log } = rec()); c = new GLCtx(gc);
+    gw.Game.drawFlag(c, -48, '#c0392b', 3);
+    assert.deepStrictEqual(log.map(l => l.op), ['fill', 'stroke'], 'the pennant: fill, then its outline');
+});
+
+// Both renderers draw from one scene, built once per frame, so they can't disagree about
+// which names fit or who is in sight; drawing it must not change the game.
+test('map: one scene per frame; the Canvas2D map draws it without touching game state', () => {
+    const G = gw.Game, S = gw.state, vm = require('vm'), box = gw._sandbox;
+    G.mapCanvas = box.document.getElementById('map-canvas');
+    G.ctx = G.mapCanvas.getContext('2d');
+    G.camera.x = S.player.x; G.camera.y = S.player.y; G.camera.zoom = 0.8;
+    S.player.targetLocation = { x: S.player.x + 300, y: S.player.y }; S.player.status = 'moving';
+    G.mapDecor();
+    const sc = G.mapScene(1000);
+    assert.strictEqual(sc.locs.length, require('vm').runInContext('LOCATIONS.length', gw._ctx), 'every settlement is on the map');
+    assert.ok(sc.player.icon && sc.partyLabels.some(l => l.text.startsWith(S.player.name)), 'you, with your name');
+    assert.strictEqual(sc.routes.length, 1, 'the route to your destination');
+    const labels = sc.groundLabels.concat(sc.partyLabels);
+    for(let i = 0; i < labels.length; i++) for(let j = i + 1; j < labels.length; j++) {
+        const a = labels[i], b = labels[j];
+        const hit = Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + 3;
+        assert.ok(!hit, `labels "${a.text}" and "${b.text}" overlap (#86)`);
+    }
+    S.npcParties.forEach(n => { n.charging = false; });
+    G.drawMapCanvas(sc, 1000);                         // the first frame bakes the ground grain (that one draws dice)
+    const before = JSON.stringify(S);
+    let dice = 0;
+    box.__rnd0 = vm.runInContext('Math.random', gw._ctx);
+    box.__die = () => { dice++; return box.__rnd0(); };
+    vm.runInContext('Math.random = __die;', gw._ctx);
+    try {
+        for(const t of [1000, 2500]) G.drawMapCanvas(G.mapScene(t), t);
+        for(const lite of [true, false]) { G._lite = lite; G.drawMapCanvas(G.mapScene(3000), 3000); }
+    } finally { vm.runInContext('Math.random = __rnd0;', gw._ctx); G._lite = undefined; }
+    assert.strictEqual(JSON.stringify(S), before, 'drawing the map changed the game');
+    assert.strictEqual(dice, 0, 'the map draw path consumed the game\'s random stream');
+    S.player.targetLocation = null; S.player.status = 'idle';
+});
 test('renderer: drawing is side-effect free — two renders leave Battle exactly as they found it', () => {
     const B = gw.Battle, G = gw.Game, S = gw.state;
     S.player.party = ['Svadya Köylüsü', 'Svadya Okçusu', 'Svadya Süvarisi'].map((name, i) => ({ id: 'se' + i, name, level: 12 }));

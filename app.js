@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '1.33.0', date: '2026-09-26', name: 'Keskin Meydan' };  // the version name is not translated
+const VERSION = { no: '1.34.0', date: '2026-09-26', name: 'Keskin Harita' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -85,9 +85,10 @@ const Debug = {
                 effectiveFps: g(() => Game._step === Infinity ? T('ölçülmedi')
                     : Math.round(1000 / Game._step / Math.max(1, Math.floor(1000 / Game.targetFps() / Game._step + 0.01)))),
                 measuredRefresh: g(() => Game._step === Infinity ? T('ölçülmedi') : Math.round(1000 / Game._step) + T(' Hz')),
-                mapCanvas: cv('map-canvas'), battleCanvas: cv('battle-canvas'), battleGl: cv('battle-gl'),
+                mapCanvas: cv('map-canvas'), mapGl: cv('map-gl'), battleCanvas: cv('battle-canvas'), battleGl: cv('battle-gl'),
                 // Which battle renderer draws, at what pixel density, and its CPU cost (1.33.0)
                 battleRenderer: g(() => Battle.gfxInfo()),
+                mapRenderer: g(() => Game.mapGfxInfo()),
                 // "The map stopped taking orders" reads as a render freeze and is usually input:
                 // a stuck pointer, a stuck marker drag, or a swallowed click (#100).
                 input: g(() => ({ ptr: Game._ptr.size, drag: !!Game.dragTarget, suppressClick: !!Game.suppressClick })),
@@ -1057,6 +1058,11 @@ const Game = {
     // x/y and size mean the same thing as `fillText(ch, x, y)` + `textBaseline:'alphabetic'`.
     _sprites: {},
     emoji(ctx, ch, x, y, size) {
+        let s = this.emojiCanvas(ch, size), k = size * s._k;
+        ctx.drawImage(s, x - s.width * k / 2, y - s._base * size, s.width * k, s.height * k);
+    },
+    // The baked glyph for a size in pixels (the map's WebGL renderer asks with on-screen pixels).
+    emojiCanvas(ch, size) {
         let px = Math.min(256, Math.max(16, Math.pow(2, Math.ceil(Math.log2(Math.max(16, size))))));
         let key = ch + '|' + px, s = this._sprites[key];
         if(!s) {
@@ -1069,8 +1075,7 @@ const Game = {
             s._k = 1 / px;
             this._sprites[key] = s;
         }
-        let k = size * s._k;
-        ctx.drawImage(s, x - s.width * k / 2, y - s._base * size, s.width * k, s.height * k);
+        return s;
     },
 
     // A radial gradient centered at the origin; the caller moves it into place with translate.
@@ -4283,11 +4288,9 @@ const Game = {
     hoursTo(loc) { let v = this.getPlayerSpeed().value; return v > 0 ? Math.max(1, Math.round(this.dist(state.player, loc) / v)) : '?'; },
     // Hail from the sky, drawn in screen space over the map while a storm lasts; a short shake
     // when it starts. Skipped in lite mode and under reduced motion (#84, #121).
-    drawHail(ctx, W, H) {
-        if(!state.player.storm || this.lite() || this.reduceMotion()) {
-            if(this.mapCanvas.style.transform) this.mapCanvas.style.transform = '';
-            return;
-        }
+    hailOn() { return !!state.player.storm && !this.lite() && !this.reduceMotion(); },
+    // The hail streaks, in screen pixels (both map renderers draw these same lines)
+    hailPath(ctx, W, H) {
         let t = performance.now() / 1000;
         ctx.strokeStyle = 'rgba(225,235,245,0.75)'; ctx.lineWidth = Math.max(1.5, W / 700);
         ctx.beginPath();
@@ -4296,10 +4299,15 @@ const Game = {
             ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12);
         }
         ctx.stroke();
-        if(performance.now() < (this._stormShakeUntil || 0)) {
+    },
+    // The storm's opening shake moves whichever map canvases there are, together
+    stormShake() {
+        let tr = '';
+        if(this.hailOn() && performance.now() < (this._stormShakeUntil || 0)) {
             let k = (this._stormShakeUntil - performance.now()) / 1500;
-            this.mapCanvas.style.transform = `translate(${(Math.random() - 0.5) * 10 * k}px, ${(Math.random() - 0.5) * 10 * k}px)`;
-        } else if(this.mapCanvas.style.transform) this.mapCanvas.style.transform = '';
+            tr = `translate(${(Math.random() - 0.5) * 10 * k}px, ${(Math.random() - 0.5) * 10 * k}px)`;
+        }
+        this.mapSurfaces().forEach(c => { if(c.style.transform !== tr) c.style.transform = tr; });
     },
 
     // --- WINTER AND COAL (#121) ---
@@ -5799,7 +5807,12 @@ const Game = {
     },
 
     // --- MAP RENDER ---
-    // Ground texture: a 256px repeating pattern, generated once
+    // Ground texture: a 256px repeating pattern, generated once. The canvas is kept: the WebGL
+    // map (map-gl.js) tiles the very same one, so both renderers show the same grain.
+    groundCanvas() {
+        if(!this._groundCv) this.buildGroundTexture();
+        return this._groundCv;
+    },
     buildGroundTexture() {
         let sz = 256;
         let c = document.createElement('canvas'); c.width = c.height = sz;
@@ -5823,7 +5836,8 @@ const Game = {
             x.fillStyle = Math.random() > 0.5 ? 'rgba(86,116,66,0.35)' : 'rgba(28,44,26,0.35)';
             wrap(px, py, (qx, qy) => { x.beginPath(); x.arc(qx, qy, r, 0, Math.PI*2); x.fill(); });
         }
-        this.groundPattern = this.ctx.createPattern(c, 'repeat');
+        this._groundCv = c;
+        this.groundPattern = this.ctx ? this.ctx.createPattern(c, 'repeat') : null;
     },
 
     // Map name labels — a legible plate instead of bare shadowed text.
@@ -5837,12 +5851,12 @@ const Game = {
         return Math.max(0.68, Math.min(1, Math.min(cv.width, cv.height) / 620));
     },
 
-    mapLabel(ctx, text, x, y, color, accent) {
+    // Where a label goes, or null when there's no room (mapScene asks, paintLabel / MapGL draw):
+    // `{ y, w, h, k }` in world units, k = world units per on-screen label unit.
+    labelSpot(ctx, text, x, y) {
         // Text size is independent of zoom: it reads at the same on-screen size at every zoom level
         let s = this.uiScale(), k = s / this.camera.zoom;
         let w = this.textW(ctx, text) * k + 18*k, h = 25*k;
-        ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
         if(!this._labelRects) this._labelRects = [];
         let free = false;
@@ -5855,20 +5869,9 @@ const Game = {
         // If no room opened up, the label just isn't drawn: printing it anyway after
         // 8 tries produced a wall of overlapping text on a narrow screen (#86). Whose
         // name got dropped can be read from the tooltip — two overlapping names, both are hidden.
-        if(!free) return;
+        if(!free) return null;
         this._labelRects.push({ x, y, w, h });
-
-        ctx.fillStyle = 'rgba(8,10,14,0.72)';
-        ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(x - w/2, y - h/2, w, h, 5*k);
-        else ctx.rect(x - w/2, y - h/2, w, h);
-        ctx.fill();
-        if(accent) {
-            ctx.fillStyle = accent;
-            ctx.fillRect(x - w/2, y + h/2 - 2.5*k, w, 2.5*k);
-        }
-        ctx.fillStyle = color;
-        ctx.fillText(text, x, y);
+        return { y, w, h, k };
     },
 
     // --- MAP PARTY ICONS ---
@@ -6032,7 +6035,7 @@ const Game = {
     iconMotion(id, x, moving) {
         let now = performance.now(), m = this._icons.get(id);
         if(!m) { m = { face: 1, move: moving ? 1 : 0, lastX: x, seen: now, last: now }; this._icons.set(id, m); }
-        let dt = Math.min(0.1, (now - m.last) / 1000);
+        let dt = Math.max(0, Math.min(0.1, (now - m.last) / 1000));
         if(now - m.last > 400) m.seen = now;   // wasn't drawn for a while: it's coming back into view
         m.last = now;
         let dx = x - m.lastX; m.lastX = x;
@@ -6042,75 +6045,422 @@ const Game = {
         return m;
     },
 
-    drawPartyIcon(ctx, x, y, o) {
-        let sc = o.scale || 1;
+    // How a party icon stands this frame — shared by both map renderers (1.34.0), so the
+    // Canvas2D and the WebGL icon walk, turn, fade and wave identically.
+    // Motion (1.32.0): o.id turns it on; without one the icon is drawn still, as before.
+    ICON_CROWD: [[-17, -4], [16, -7]],   // the column figures behind a crowd's front man
+    iconPose(x, o) {
         let kind = o.kind || (o.mounted ? 'rider' : 'foot');
-        let cloak = o.dim ? '#3a3a42' : '#26262e';
-        // Motion (1.32.0): o.id turns it on; without one the icon is drawn still, as before.
         let m = o.id !== undefined && Anim.on() ? this.iconMotion(o.id, x, o.moving) : null;
         let now = performance.now();
+        let p = { kind, cloak: o.dim ? '#3a3a42' : '#26262e', sc: o.scale || 1, alpha: 1, bob: o.bob || 0, rot: 0, face: 1, wave: 0,
+                  // Crowd column: 1 companion figure at 10+ people, 2 at 30+
+                  extra: o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0),
+                  top: kind === 'rider' ? -62 : -48, flag: kind !== 'wolf', motion: !!m };
+        if(m) {
+            p.alpha = Anim.k(now - m.seen, 400, 'outQuad');                    // fades into view
+            p.bob = -Math.abs(Math.sin(now / 150 + (o.id.length || 0))) * (o.bobAmp || 5) * m.move;
+            p.face = Math.max(0.12, Math.abs(m.face)) * (m.face < 0 ? -1 : 1);
+            p.rot = 0.06 * m.move * (m.face < 0 ? -1 : 1);                      // leans into the march
+            // The pennant waves (1.32.0): its tip swings a few px, a little more on the march
+            p.wave = Math.sin(now / 260 + x * 0.01) * (1.5 + 2.5 * m.move);
+        }
+        return p;
+    },
+    // Banner pole (a wolf pack carries no banner) and its pennant, tip `wave` px off its rest
+    drawPole(ctx, top) {
+        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
+    },
+    drawFlag(ctx, top, color, wave) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(-14, top); ctx.quadraticCurveTo(-24, top + 1 + wave * 0.5, -14 - 20, top + 6 + wave); ctx.lineTo(-14, top + 13);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+    },
+
+    drawPartyIcon(ctx, x, y, o) {
+        let p = this.iconPose(x, o), sc = p.sc;
 
         ctx.save();
         ctx.translate(x, y);
-        if(m) ctx.globalAlpha = Anim.k(now - m.seen, 400, 'outQuad');   // fades into view
+        if(p.motion) ctx.globalAlpha = p.alpha;
 
         ctx.beginPath();                                               // ground shadow
         ctx.ellipse(0, 0, 26*sc, 9*sc, 0, 0, Math.PI*2);
         ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
 
         ctx.scale(sc, sc);
-        let bob = o.bob || 0;
-        if(m) {
-            bob = -Math.abs(Math.sin(now / 150 + (o.id.length || 0))) * (o.bobAmp || 5) * m.move;
-            let f = Math.max(0.12, Math.abs(m.face)) * (m.face < 0 ? -1 : 1);
-            ctx.rotate(0.06 * m.move * (m.face < 0 ? -1 : 1));   // leans into the march
-            ctx.scale(f, 1);
-        }
-        ctx.translate(0, bob);
-        let base = m ? ctx.globalAlpha : 1;
+        if(p.motion) { ctx.rotate(p.rot); ctx.scale(p.face, 1); }
+        ctx.translate(0, p.bob);
+        let base = p.alpha;
 
-        // Crowd column: 1 companion figure at 10+ people, 2 at 30+
-        let extra = o.size >= 30 ? 2 : (o.size >= 10 ? 1 : 0);
-        let offsets = [[-17, -4], [16, -7]];
         ctx.globalAlpha = 0.75 * base;
-        for(let i = 0; i < extra; i++) {
+        for(let i = 0; i < p.extra; i++) {
             ctx.save();
-            ctx.translate(offsets[i][0], offsets[i][1]);
+            ctx.translate(this.ICON_CROWD[i][0], this.ICON_CROWD[i][1]);
             ctx.scale(0.78, 0.78);
-            this.drawFigure(ctx, kind, o.color, cloak);
+            this.drawFigure(ctx, p.kind, o.color, p.cloak);
             ctx.restore();
         }
         ctx.globalAlpha = base;
 
-        this.drawFigure(ctx, kind, o.color, cloak);
-
-        // Banner pole (a wolf pack carries no banner)
-        if(kind === 'wolf') { ctx.restore(); return; }
-        let top = kind === 'rider' ? -62 : -48;
-        ctx.strokeStyle = '#7d6a45'; ctx.lineWidth = 2.4;
-        ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-14, top); ctx.stroke();
-        ctx.fillStyle = o.color;
-        // The pennant waves (1.32.0): its tip swings a few px, a little more on the march
-        let wave = m ? Math.sin(now / 260 + x * 0.01) * (1.5 + 2.5 * m.move) : 0;
-        ctx.beginPath();
-        ctx.moveTo(-14, top); ctx.quadraticCurveTo(-24, top + 1 + wave * 0.5, -14 - 20, top + 6 + wave); ctx.lineTo(-14, top + 13);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+        this.drawFigure(ctx, p.kind, o.color, p.cloak);
+        if(p.flag) { this.drawPole(ctx, p.top); this.drawFlag(ctx, p.top, o.color, p.wave); }
 
         ctx.restore();
     },
 
+    // ---- The map, drawn through one of two renderers (1.34.0) ----
+    // Everything the map shows is decided here once per frame; how it gets onto the screen is
+    // the renderer's business: the Canvas2D code below (drawMapCanvas, the fallback) or MapGL
+    // (map-gl.js, PixiJS/WebGL on its own #map-gl canvas). The vector pieces — coast, rivers,
+    // roads, bridges, pennants, party figures, route — are ctx functions both share: Canvas2D
+    // runs them every frame, MapGL runs them once into Pixi geometry through its GLCtx facade.
     renderMap() {
         if(!document.getElementById('map-view').classList.contains('active')) return;
         // Time stops while a modal is open; continuing to draw made the modal's glass panel
         // recompute its backdrop blur every frame.
         if(!document.getElementById('modal-overlay').classList.contains('hidden')) return;
+        let now = performance.now();
+        this.mapDecor();
+        let scene = this.mapScene(now), gl = this.liveMapGfx();
+        if(gl) {
+            let c = this.mapCanvas;
+            if(gl.w !== c.width || gl.h !== c.height) gl.resize(c.width, c.height);
+            gl.render(scene, now);
+        } else this.drawMapCanvas(scene, now);
+        this.stormShake();
+        this.mapCpuSample(performance.now() - now);
+    },
+
+    // The lazily rolled decor — dirt patches (kept in the save) and each forest's trees (per
+    // session) — rolled outside the draw path, so both renderers show the same ones.
+    mapDecor() {
+        if(!state.dirtPatches) {
+            state.dirtPatches = [];
+            for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
+        }
+        if(!this._forestTrees) {
+            this._forestTrees = FORESTS.map(f => {
+                let arr = [];
+                let n = Math.max(14, Math.floor(f.radius / 11));
+                for(let i=0;i<n;i++) {
+                    let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.radius * 0.95;
+                    arr.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 18 + Math.random()*20 });
+                }
+                arr.sort((p,q) => p.y - q.y);
+                return arr;
+            });
+        }
+    },
+
+    // What stands on the map this frame, as plain data: lairs, settlements, parties, the
+    // player, routes and labels. Label collisions are settled here, in the old draw order
+    // (lairs, settlements, parties, you), so both renderers drop the same names (#86).
+    mapScene(now) {
+        let ik = this.iconScale(), zoom = this.camera.zoom, mctx = this.ctx;
+        let sc = { sites: [], locs: [], npcs: [], player: null, routes: [], groundLabels: [], partyLabels: [] };
+        this._labelRects = [];
+        let label = (list, text, x, y, color, accent) => {
+            let b = this.labelSpot(mctx, text, x, y);
+            if(b) list.push({ text, x, y: b.y, w: b.w, h: b.h, k: b.k, color, accent });
+        };
+
+        // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
+        (state.sites || []).forEach(site => {
+            if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
+            let k = this.SITE_KINDS[site.kind], big = (k.boss ? 46 : 30) * ik;
+            let fresh = this.siteReady(site);
+            sc.sites.push({ x: site.x, y: site.y, big, icon: site.icon || k.icon, alpha: fresh ? 0.95 : 0.45 });
+            // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
+            if((fresh || k.boss) && zoom > 0.18) label(sc.groundLabels, T(site.name || k.name), site.x, site.y - big*0.75 - 10, k.boss ? '#e0b0b0' : '#cbbf9a', k.boss ? '#7a2a2a' : '#8a7b52');
+        });
+
+        // Settlements. A quest's "where" also shows on the map: it comes from the same source
+        // as the 📍 in the quest screen (QUESTS[].where), so the two lists can't drift apart.
+        let questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
+        LOCATIONS.forEach(loc => {
+            let fc = FACTIONS[loc.faction] || {color:'#888'};
+            let base = loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32, big = base * ik;
+            let qm = questMarks[loc.id], qDone = qm && qm.some(x => x.done);
+            sc.locs.push({ id: loc.id, x: loc.x, y: loc.y, base, big, ik, color: fc.color,
+                           icon: loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️',
+                           quest: qm ? (qDone ? '✅' : '📜') : null });
+            label(sc.groundLabels, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
+            if(qm && zoom > 0.18)
+                label(sc.groundLabels, qm.map(x => (x.done ? '✅ ' : '') + x.title).join(' · '), loc.x, loc.y - big*0.82 - 34,
+                      qDone ? '#7ddc8a' : '#e0b062', qDone ? '#2a7a3a' : '#8a6a2a');
+        });
+
+        // NPCs (only those in sight range)
+        let pf = this.playerFaction();
+        state.npcParties.forEach(npc => {
+            let dx = npc.x - state.player.x;
+            let dy = npc.y - state.player.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if(dist > this.spotRange(npc) + 45) return; // Don't draw if out of sight (or hidden in a forest)
+
+            let nf = FACTIONS[npc.faction] || {};
+            let band = BAND_KINDS[npc.band] || null;
+            // A band travels in its own color and its own silhouette: a wolf pack doesn't look like bandits
+            let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
+            // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
+            let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
+            let lone = npc.type === 'wanderer';
+            let n = {
+                id: npc.id, x: npc.x, y: npc.y, col: nCol,
+                // A charge on top: one more red ring around the outside. A charge is now only
+                // launched from within visible range, so this marker always arrives on time.
+                charging: !!npc.charging,
+                // A gold ring for the one party a "find and defeat this exact gang" quest is locked
+                // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
+                // marker on a settlement, so it reads as "this one, specifically" among identical-
+                // looking bandit parties instead of just another red silhouette.
+                quest: npc.questLocks ? { ch: '📜', x: npc.x, y: npc.y - 26, size: 20 * ik } : null,
+                icon: {
+                    id: npc.id, moving: isMoving,
+                    kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
+                    mounted: npc.type !== 'bandit' && !lone,
+                    size: npc.size || 1,
+                    color: nCol,
+                    scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * ik,
+                    bob: isMoving ? -Math.abs(Math.sin(now/150)) * 5 : 0,
+                    dim: npc.type === 'bandit'
+                },
+                badge: null
+            };
+            if(lone) {                                      // what their story is, at a glance (#119)
+                let w = this.WANDERERS.find(x => x.id === npc.wanderer);
+                if(w) n.badge = { ch: w.icon, x: npc.x, y: npc.y - 30, size: 22 * ik };
+            }
+            // Crown: king/vizier
+            if(npc.type === 'king' || npc.type === 'vizier') {
+                let cs = npc.type === 'king' ? 30 : 24;
+                n.badge = { ch: npc.type === 'king' ? '👑' : '🎖️', x: npc.x + 22, y: npc.y - 44 + cs*0.35, size: cs };
+            }
+            sc.npcs.push(n);
+
+            // The label used to be trimmed to the first word to keep the map readable, but
+            // a band's name is a qualifier plus a noun and the first word is the throwaway
+            // half: "Orman Haydutları" showed as "Orman", "Forest Bandits" as "Forest" (#94).
+            // The full name is short enough in all three languages; the only thing worth
+            // dropping is a lord's army suffix, which repeats on every lord on screen.
+            let shortName = this.npcName(npc);
+            if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
+                shortName = shortName.replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
+            }
+            // The label used to be white for everyone, so a lord of a kingdom we are at war
+            // with read exactly like an allied one — the marker ring carries the faction's
+            // colour, which answers "whose is it", never "will it attack me" (#108). The
+            // answer comes from `atWar`, not from `isHostile`: hostility there depends on
+            // distance and relative strength, which would make the label flicker as you close in.
+            // Colour is not the only cue — a foe's name is prefixed with a blade for the
+            // colour-blind, since red against parchment is exactly the pair that fails.
+            // `npc.type === 'bandit'` covers every roaming band -- bandit, wolf, forest and
+            // mountain all come out of `spawnBand` with that type; `npc.band` does not, because
+            // caravans and villagers carry a `BAND_KINDS` entry of their own.
+            let foe = this.mapPartyIsFoe(npc);
+            let friend = !foe && !!npc.faction && (npc.faction === pf || this.allied(pf, npc.faction));
+            let txtCol = foe ? '#ff6b5a' : friend ? '#7fd4ff' : '#d8d2c4';
+            label(sc.partyLabels, `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`, npc.x, npc.y + 50, txtCol, nCol);
+        });
+
+        // Player
+        // While captive, the only party moving on the map is the one holding you; you have
+        // no separate group. The player icon + name + "Captive" text used to be drawn at the
+        // same point as the captor's icon and label (overlapping text).
+        let P = state.player, pl = sc.player = { x: P.x, y: P.y, chain: null, pulse: 0, tent: null, icon: null };
+        if(P.prisoner) {
+            pl.chain = { ch: '⛓️', x: P.x - 30, y: P.y - 30, size: 30 };
+        } else {
+            pl.pulse = 1 + Math.sin(now/450) * 0.1;          // player base — a pulsing gold ring
+            // The party is stationary while time accelerates: the map should say camp,
+            // not show a rider apparently standing in the middle of nowhere.
+            if(P.wait) pl.tent = { ch: '⛺', x: P.x, y: P.y + 28, size: 54 * ik };
+            else pl.icon = {                             // mounted if we have a horse (like in Warband)
+                id: 'player', moving: P.status === 'moving', bobAmp: 6,
+                mounted: !!P.equipment.horse,
+                size: P.party.length + 1,
+                color: this.bannerColor(),
+                scale: 1.35 * this.partyIconScale(P.party.length + 1) * ik,
+                bob: P.status === 'moving' ? -Math.abs(Math.sin(now/150)) * 6 : 0
+            };
+            label(sc.partyLabels, `${P.wait ? '⛺ ' : ''}${P.name} (${P.party.length + 1})`, P.x, P.y - 72, '#ffcc00', '#ffcc00');
+        }
+        if(P.targetLocation && P.status === 'moving') sc.routes.push({ t: P.targetLocation, live: true });
+        if(this.dragTarget) sc.routes.push({ t: this.dragTarget, live: false });
+        return sc;
+    },
+
+    // ---- Shared vector pieces: plain ctx calls, world units ----
+    coastPath(ctx) {
+        ctx.beginPath();
+        for(let i=0; i<state.mapBorder.length; i++) {
+            let pt = state.mapBorder[i];
+            if(i===0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.closePath();
+    },
+    // Beach + coastal shadow + the land itself. Leaves the coast as the current path, so the
+    // Canvas2D caller can clip to it.
+    drawCoast(ctx, lite) {
+        this.coastPath(ctx);
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        if(!lite) { ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke(); }
+        ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
+        // Coastal shadow: `shadowBlur = 70` blurred the whole continent pixel by pixel
+        // every frame. Three wide transparent outlines give the same halo, the cost is a path stroke.
+        // In lite mode the beach strip stays, the halo drops: 6 wide outlines is 0.48ms, 1 is 0.12ms.
+        if(!lite) {
+            ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+            for(let bw of [130, 86, 48]) { ctx.lineWidth = bw; ctx.stroke(); }
+        }
+        ctx.fillStyle = '#2f452c'; ctx.fill();
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
+    },
+    // Rivers — bed, water, current
+    drawRivers(ctx, lite) {
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        RIVERS.forEach(riv => {
+            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2);
+            if(lite) { ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.9)'; ctx.stroke(); return; }
+            ctx.lineWidth = riv.width + 22; ctx.strokeStyle = 'rgba(96,110,70,0.55)'; ctx.stroke();
+            ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.85)'; ctx.stroke();
+            ctx.lineWidth = riv.width * 0.45; ctx.strokeStyle = 'rgba(120,200,235,0.5)'; ctx.stroke();
+        });
+    },
+    // The flowing shimmer (not in lite mode): lineDashOffset changes every frame, so it's a new stroke each frame
+    drawRiverShimmer(ctx, now) {
+        ctx.lineCap = 'round';
+        ctx.setLineDash([50, 90]);
+        ctx.lineDashOffset = -(now / 25);
+        ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+        RIVERS.forEach(riv => {
+            ctx.lineWidth = Math.max(3, riv.width * 0.18);
+            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2); ctx.stroke();
+        });
+        ctx.setLineDash([]);
+    },
+    // Roads — a separate texture per kind (#56): paved main road, dirt road,
+    // an unmaintained goat path. Same-kind roads collect into one path (3 stroke sets per frame).
+    ROAD_LOOK: {
+        stone: { w: 52, shoulder: 'rgba(78,72,60,0.45)', top: 36, surf: 'rgba(150,146,134,0.48)',
+                 mark: 'rgba(226,222,208,0.26)', dash: [26, 20], mw: 5 },
+        dirt:  { w: 44, shoulder: 'rgba(92,68,38,0.45)', top: 28, surf: 'rgba(158,124,74,0.42)',
+                 mark: 'rgba(214,186,132,0.30)', dash: [70, 55], mw: 4 },
+        track: { w: 26, shoulder: 'rgba(84,72,44,0.30)', top: 14, surf: 'rgba(150,132,88,0.28)',
+                 mark: 'rgba(198,180,132,0.22)', dash: [22, 46], mw: 3 }
+    },
+    drawRoads(ctx, lite) {
+        if(!state.roads) return;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for(let kind of ['stone', 'dirt', 'track']) {
+            let st = this.ROAD_LOOK[kind];
+            ctx.beginPath();
+            let any = false;
+            state.roads.forEach(r => {
+                if((r.kind || 'dirt') !== kind) return;
+                any = true;
+                ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2);
+            });
+            if(!any) continue;
+            ctx.lineWidth = st.w;   ctx.strokeStyle = st.shoulder; ctx.stroke();
+            ctx.lineWidth = st.top; ctx.strokeStyle = st.surf;     ctx.stroke();
+            if(lite) continue;               // the center-line marking is decorative: the road's kind already reads from its width
+            ctx.setLineDash(st.dash);
+            ctx.lineWidth = st.mw;  ctx.strokeStyle = st.mark;     ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        // The road opens into a square at a settlement's mouth
+        ctx.fillStyle = 'rgba(120,98,62,0.35)';
+        LOCATIONS.forEach(l => {
+            let r = l.type === 'city' ? 70 : l.type === 'castle' ? 52 : 40;
+            ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI*2); ctx.fill();
+        });
+        // Bridges — planks crossing over the river
+        (state.bridges || []).forEach(b => {
+            let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // the road's own width
+            ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a || 0);
+            ctx.fillStyle = 'rgba(70,52,30,0.92)';
+            ctx.fillRect(-w * 1.3, -w, w * 2.6, w * 2);
+            ctx.strokeStyle = 'rgba(186,152,96,0.95)'; ctx.lineWidth = 4;
+            for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // planks perpendicular to the road
+                ctx.beginPath(); ctx.moveTo(i, -w + 2); ctx.lineTo(i, w - 2); ctx.stroke();
+            }
+            ctx.restore();
+        });
+    },
+    // A settlement's faction pennant, `big` = its icon size, `ik` = the icon scale
+    drawLocPennant(ctx, x, y, big, ik, color) {
+        let px = x + big*0.42, py = y - big*0.45;
+        ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3 * ik;
+        ctx.beginPath(); ctx.moveTo(px, py + 34*ik); ctx.lineTo(px, py - 26*ik); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(px, py - 26*ik); ctx.lineTo(px + 30*ik, py - 17*ik); ctx.lineTo(px, py - 8*ik);
+        ctx.closePath();
+        ctx.fillStyle = color; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
+    },
+    // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
+    // removed — the line itself already told the direction. A drag route is pale and white,
+    // a confirmed route is gold: which one is active is clear at a glance.
+    drawRoute(ctx, t, live, now) {
+        let z = this.camera.zoom;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(now / 55) % (19 / z) : 0;
+        ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
+        ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+        ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
+        ctx.lineWidth = 1.6 / z;
+        ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
+        let r = 6 / z, pulse = live ? 1 + Math.sin(now/380) * 0.12 : 1.15;
+        ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
+        ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
+        ctx.stroke();
+        ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
+        ctx.lineWidth = 1.2 / z;
+        ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+    },
+    // A name plate from mapScene: rounded dark plate, faction accent underline, the text
+    paintLabel(ctx, l) {
+        let { text, x, y, w, h, k, color, accent } = l;
+        ctx.font = `bold ${(19*k).toFixed(1)}px Inter, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(8,10,14,0.72)';
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(x - w/2, y - h/2, w, h, 5*k);
+        else ctx.rect(x - w/2, y - h/2, w, h);
+        ctx.fill();
+        if(accent) {
+            ctx.fillStyle = accent;
+            ctx.fillRect(x - w/2, y + h/2 - 2.5*k, w, 2.5*k);
+        }
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+    },
+    // Mountains along the coast: which border points carry one, and how big (a broken
+    // silhouette instead of a regular repeat). Half of the 315 border points were mountains:
+    // ~157 emoji rasterizations per frame. Now a baked sprite is stamped, and in lite mode
+    // it's also thinned to one in four.
+    mountainStep(lite) { return lite ? 4 : 2; },
+    mountainSize(index) { return 42 + ((index * 37) % 24); },
+
+    // ---- The Canvas2D map (the fallback renderer) ----
+    drawMapCanvas(sc, now) {
         let c = this.mapCanvas, ctx = this.ctx;
         let W = c.width, H = c.height;
         // On a phone the bottleneck isn't JS but fill rate (#84): the `lite` branches below
         // replace full-screen expensive layers with flat equivalents.
         let lite = this.lite();
-        this._labelRects = [];
         ctx.clearRect(0,0,W,H);
         ctx.save();
         ctx.scale(this.camera.zoom, this.camera.zoom);
@@ -6131,8 +6481,8 @@ const Game = {
         // Sea waves — 26 polylines × 45 points; the sea stays flat in lite mode
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 6;
-        let wt = performance.now() / 4000;
-        for(let i = -4; i < 22 && !this.lite(); i++) {
+        let wt = now / 4000;
+        for(let i = -4; i < 22 && !lite; i++) {
             let y = i * 600 + Math.sin(wt + i) * 40;
             ctx.beginPath();
             for(let x = -4000; x < 14000; x += 400) ctx.lineTo(x, y + Math.sin((x/900) + wt*2 + i) * 30);
@@ -6141,28 +6491,7 @@ const Game = {
 
         // --- Continent
         ctx.save();
-        ctx.beginPath();
-        for(let i=0; i<state.mapBorder.length; i++) {
-            let pt = state.mapBorder[i];
-            if(i===0) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.closePath();
-
-        // Beach + coastal shadow
-        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-        if(!lite) { ctx.lineWidth = 90; ctx.strokeStyle = 'rgba(226,205,150,0.16)'; ctx.stroke(); }
-        ctx.lineWidth = 42; ctx.strokeStyle = 'rgba(214,190,132,0.55)'; ctx.stroke();
-        // Coastal shadow: `shadowBlur = 70` blurred the whole continent pixel by pixel
-        // every frame. Three wide transparent outlines give the same halo, the cost is a path stroke.
-        // In lite mode the beach strip stays, the halo drops: 6 wide outlines is 0.48ms, 1 is 0.12ms.
-        if(!lite) {
-            ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-            for(let bw of [130, 86, 48]) { ctx.lineWidth = bw; ctx.stroke(); }
-        }
-        ctx.fillStyle = '#2f452c'; ctx.fill();
-        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(140,170,120,0.35)'; ctx.stroke();
-
+        this.drawCoast(ctx, lite);
         ctx.clip(); // Nothing after this spills outside the continent
 
         // Ground texture (generated once and tiled as a pattern). Filling the whole
@@ -6175,98 +6504,18 @@ const Game = {
         }
 
         // Dirt patches — soft-edged
-        if(!state.dirtPatches) {
-            state.dirtPatches = [];
-            for(let i=0;i<60;i++) state.dirtPatches.push({x:Math.random()*9000, y:Math.random()*9000, r:45+Math.random()*120});
-        }
-        if(!this.lite()) state.dirtPatches.forEach(d => {
+        if(!lite) state.dirtPatches.forEach(d => {
             ctx.save(); ctx.translate(d.x, d.y);
             ctx.fillStyle = this.radial(ctx, Math.round(d.r), 'rgba(30,44,28,0.55)', 'rgba(30,44,28,0)');
             ctx.beginPath(); ctx.arc(0, 0, d.r, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         });
 
-        // Rivers — bed, water, current
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        RIVERS.forEach(riv => {
-            ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2);
-            if(lite) { ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.9)'; ctx.stroke(); return; }
-            ctx.lineWidth = riv.width + 22; ctx.strokeStyle = 'rgba(96,110,70,0.55)'; ctx.stroke();
-            ctx.lineWidth = riv.width; ctx.strokeStyle = 'rgba(48,120,160,0.85)'; ctx.stroke();
-            ctx.lineWidth = riv.width * 0.45; ctx.strokeStyle = 'rgba(120,200,235,0.5)'; ctx.stroke();
-        });
-        if(!lite) {   // flowing shimmer: lineDashOffset changes every frame, so it's a new stroke each frame
-            ctx.setLineDash([50, 90]);
-            ctx.lineDashOffset = -(performance.now() / 25);
-            ctx.strokeStyle = 'rgba(255,255,255,0.30)';
-            RIVERS.forEach(riv => {
-                ctx.lineWidth = Math.max(3, riv.width * 0.18);
-                ctx.beginPath(); ctx.moveTo(riv.x1, riv.y1); ctx.lineTo(riv.x2, riv.y2); ctx.stroke();
-            });
-            ctx.setLineDash([]);
-        }
+        this.drawRivers(ctx, lite);
+        if(!lite) this.drawRiverShimmer(ctx, now);
+        this.drawRoads(ctx, lite);
 
-        // Roads — a separate texture per kind (#56): paved main road, dirt road,
-        // an unmaintained goat path. Same-kind roads collect into one path (3 stroke sets per frame).
-        if(state.roads) {
-            const STYLE = {
-                stone: { w: 52, shoulder: 'rgba(78,72,60,0.45)', top: 36, surf: 'rgba(150,146,134,0.48)',
-                         mark: 'rgba(226,222,208,0.26)', dash: [26, 20], mw: 5 },
-                dirt:  { w: 44, shoulder: 'rgba(92,68,38,0.45)', top: 28, surf: 'rgba(158,124,74,0.42)',
-                         mark: 'rgba(214,186,132,0.30)', dash: [70, 55], mw: 4 },
-                track: { w: 26, shoulder: 'rgba(84,72,44,0.30)', top: 14, surf: 'rgba(150,132,88,0.28)',
-                         mark: 'rgba(198,180,132,0.22)', dash: [22, 46], mw: 3 }
-            };
-            for(let kind of ['stone', 'dirt', 'track']) {
-                let st = STYLE[kind];
-                ctx.beginPath();
-                let any = false;
-                state.roads.forEach(r => {
-                    if((r.kind || 'dirt') !== kind) return;
-                    any = true;
-                    ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2);
-                });
-                if(!any) continue;
-                ctx.lineWidth = st.w;   ctx.strokeStyle = st.shoulder; ctx.stroke();
-                ctx.lineWidth = st.top; ctx.strokeStyle = st.surf;     ctx.stroke();
-                if(lite) continue;               // the center-line marking is decorative: the road's kind already reads from its width
-                ctx.setLineDash(st.dash);
-                ctx.lineWidth = st.mw;  ctx.strokeStyle = st.mark;     ctx.stroke();
-                ctx.setLineDash([]);
-            }
-            // The road opens into a square at a settlement's mouth
-            ctx.fillStyle = 'rgba(120,98,62,0.35)';
-            LOCATIONS.forEach(l => {
-                let r = l.type === 'city' ? 70 : l.type === 'castle' ? 52 : 40;
-                ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, Math.PI*2); ctx.fill();
-            });
-            // Bridges — planks crossing over the river
-            (state.bridges || []).forEach(b => {
-                let w = (this.ROAD_KINDS[b.kind] || this.ROAD_KINDS.dirt).half + 6;  // the road's own width
-                ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a || 0);
-                ctx.fillStyle = 'rgba(70,52,30,0.92)';
-                ctx.fillRect(-w * 1.3, -w, w * 2.6, w * 2);
-                ctx.strokeStyle = 'rgba(186,152,96,0.95)'; ctx.lineWidth = 4;
-                for(let i = -w * 1.15; i <= w * 1.15; i += 12) {   // planks perpendicular to the road
-                    ctx.beginPath(); ctx.moveTo(i, -w + 2); ctx.lineTo(i, w - 2); ctx.stroke();
-                }
-                ctx.restore();
-            });
-        }
-
-        // Forests — actual trees (positions generated once and stored)
-        if(!this._forestTrees) {
-            this._forestTrees = FORESTS.map(f => {
-                let arr = [];
-                let n = Math.max(14, Math.floor(f.radius / 11));
-                for(let i=0;i<n;i++) {
-                    let a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random()) * f.radius * 0.95;
-                    arr.push({ x: f.x + Math.cos(a)*d, y: f.y + Math.sin(a)*d, r: 18 + Math.random()*20 });
-                }
-                arr.sort((p,q) => p.y - q.y);
-                return arr;
-            });
-        }
+        // Forests — actual trees (positions rolled once in mapDecor).
         // The forest patch stays fixed: its gradient is generated once. The trees (4 forests ×
         // ~15 trees, each 6 path segments + 1 gradient) drop in lite mode, the patch stays.
         if(!this._forestGrad) this._forestGrad = FORESTS.map(f => {
@@ -6278,7 +6527,7 @@ const Game = {
         // In lite mode the trees are thinned but not switched off: a darkening disc alone
         // doesn't stand out from the ground, the forest became invisible — but a forest is
         // gameplay information (ambush, spotting, speed). With a third left the patch still reads.
-        let step = this.lite() ? 3 : 1;
+        let step = lite ? 3 : 1;
         FORESTS.forEach((f, i) => {
             ctx.fillStyle = this._forestGrad[i];
             ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI*2); ctx.fill();
@@ -6287,56 +6536,23 @@ const Game = {
 
         ctx.restore(); // continent clip ends
 
-        // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
-        (state.sites || []).forEach(site => {
-            if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
-            let k = this.SITE_KINDS[site.kind], ik = this.iconScale(), big = (k.boss ? 46 : 30) * ik;
-            let fresh = this.siteReady(site);
+        sc.sites.forEach(s => {
             ctx.beginPath();
-            ctx.ellipse(site.x, site.y + 12, big*0.5, big*0.2, 0, 0, Math.PI*2);
+            ctx.ellipse(s.x, s.y + 12, s.big*0.5, s.big*0.2, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
-            ctx.globalAlpha = fresh ? 0.95 : 0.45;
-            this.emoji(ctx, site.icon || k.icon, site.x, site.y + 10, big);
+            ctx.globalAlpha = s.alpha;
+            this.emoji(ctx, s.icon, s.x, s.y + 10, s.big);
             ctx.globalAlpha = 1;
-            // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
-            if((fresh || k.boss) && this.camera.zoom > 0.18) this.mapLabel(ctx, T(site.name || k.name), site.x, site.y - big*0.75 - 10, k.boss ? '#e0b0b0' : '#cbbf9a', k.boss ? '#7a2a2a' : '#8a7b52');
         });
-
-        // Draw locations
-        // A quest's "where" also shows on the map: it comes from the same source
-        // as the 📍 in the quest screen (QUESTS[].where), so the two lists can't drift apart.
-        let questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
-        LOCATIONS.forEach(loc => {
-            let fc = FACTIONS[loc.faction] || {color:'#888'};
-            let ik = this.iconScale();
-            let big = (loc.type === 'city' ? 64 : loc.type === 'castle' ? 48 : 32) * ik;
-            let icon = loc.type === 'city' ? '🏙️' : loc.type === 'castle' ? '🏰' : '🏘️';
-
-            // Ground shadow
-            ctx.beginPath();
-            ctx.ellipse(loc.x, loc.y + 18, big*0.55, big*0.22, 0, 0, Math.PI*2);
+        sc.locs.forEach(l => {
+            ctx.beginPath();                                   // ground shadow
+            ctx.ellipse(l.x, l.y + 18, l.big*0.55, l.big*0.22, 0, 0, Math.PI*2);
             ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
-
-            this.emoji(ctx, icon, loc.x, loc.y + 15, big);
-
-            // Faction pennant
-            let px = loc.x + big*0.42, py = loc.y - big*0.45;
-            ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3 * ik;
-            ctx.beginPath(); ctx.moveTo(px, py + 34*ik); ctx.lineTo(px, py - 26*ik); ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(px, py - 26*ik); ctx.lineTo(px + 30*ik, py - 17*ik); ctx.lineTo(px, py - 8*ik);
-            ctx.closePath();
-            ctx.fillStyle = fc.color; ctx.fill();
-            ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2 * ik; ctx.stroke();
-
-            let qm = questMarks[loc.id], qDone = qm && qm.some(x => x.done);
-            if(qm) this.emoji(ctx, qDone ? '✅' : '📜', loc.x - big*0.55, loc.y - 15 - 34*ik, 36*ik);
-
-            this.mapLabel(ctx, T(loc.name), loc.x, loc.y - big*0.82 - 14, '#f2e4bb', fc.color);
-            if(qm && this.camera.zoom > 0.18)
-                this.mapLabel(ctx, qm.map(x => (x.done ? '✅ ' : '') + x.title).join(' · '), loc.x, loc.y - big*0.82 - 34,
-                              qDone ? '#7ddc8a' : '#e0b062', qDone ? '#2a7a3a' : '#8a6a2a');
+            this.emoji(ctx, l.icon, l.x, l.y + 15, l.big);
+            this.drawLocPennant(ctx, l.x, l.y, l.big, l.ik, l.color);
+            if(l.quest) this.emoji(ctx, l.quest, l.x - l.big*0.55, l.y - 15 - 34*l.ik, 36*l.ik);
         });
+        sc.groundLabels.forEach(l => this.paintLabel(ctx, l));
 
         // --- TIME OF DAY ---
         // Night is blue, dawn/dusk warm-toned. At night, settlements have hearth light.
@@ -6347,7 +6563,7 @@ const Game = {
         }
         // Hearth light: one gradient, intensity via globalAlpha (0 gradients/frame instead of 25)
         let glow = this.nightGlow();
-        if(glow > 0.02 && !this.lite()) {
+        if(glow > 0.02 && !lite) {
             ctx.globalCompositeOperation = 'lighter';
             ctx.globalAlpha = 0.30 * glow;
             ctx.fillStyle = this.radial(ctx, 110, 'rgba(255,170,70,1)', 'rgba(255,140,50,0)');
@@ -6362,177 +6578,54 @@ const Game = {
 
         // No fog of war: terrain, roads, and settlements are always visible (like Warband).
         // The only thing hidden is parties — those are filtered by Game.canSee().
-
-        // Draw a mountain range along the borders
-        // Half of the 315 border points were mountains: ~157 emoji rasterizations per frame.
-        // Now a baked sprite is stamped, and in lite mode it's also thinned to one in four.
-        let mStep = this.lite() ? 4 : 2;
+        let mStep = this.mountainStep(lite);
         state.mapBorder.forEach((pt, index) => {
-            if(index % mStep === 0) {
-                let sz = 42 + ((index * 37) % 24); // a broken silhouette instead of a regular repeat
-                this.emoji(ctx, '🏔️', pt.x, pt.y + 20 + (index % 3) * 6, sz);
-            }
+            if(index % mStep === 0) this.emoji(ctx, '🏔️', pt.x, pt.y + 20 + (index % 3) * 6, this.mountainSize(index));
         });
 
-        // NPCs (only those in sight range)
-        state.npcParties.forEach(npc => {
-            let dx = npc.x - state.player.x;
-            let dy = npc.y - state.player.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > this.spotRange(npc) + 45) return; // Don't draw if out of sight (or hidden in a forest)
-
-            let nf = FACTIONS[npc.faction] || {};
-            let band = BAND_KINDS[npc.band] || null;
-            // A band travels in its own color and its own silhouette: a wolf pack doesn't look like bandits
-            let nCol = band ? band.color : (npc.type === 'bandit' ? '#ff5a4a' : (nf.color || '#cccccc'));
-
+        sc.npcs.forEach(n => {
             // Faction ring
             ctx.beginPath();
-            ctx.ellipse(npc.x, npc.y + 22, 24, 9, 0, 0, Math.PI*2);
-            ctx.strokeStyle = nCol; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
-
-            // A charge on top: one more red ring around the outside. A charge is now only
-            // launched from within visible range, so this marker always arrives on time.
-            if(npc.charging) {
+            ctx.ellipse(n.x, n.y + 22, 24, 9, 0, 0, Math.PI*2);
+            ctx.strokeStyle = n.col; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+            if(n.charging) {
                 ctx.beginPath();
-                ctx.ellipse(npc.x, npc.y + 22, 32, 13, 0, 0, Math.PI*2);
+                ctx.ellipse(n.x, n.y + 22, 32, 13, 0, 0, Math.PI*2);
                 ctx.strokeStyle = '#e0463a'; ctx.lineWidth = 2.5;
-                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(performance.now() / 260));
+                ctx.globalAlpha = 0.5 + 0.35 * Math.abs(Math.sin(now / 260));
                 ctx.stroke(); ctx.globalAlpha = 1;
             }
-
-            // A gold ring for the one party a "find and defeat this exact gang" quest is locked
-            // onto (#132) — the same gold `docs/SYSTEMS.md`/#108-established color as the 📜 quest
-            // marker on a settlement, so it reads as "this one, specifically" among identical-
-            // looking bandit parties instead of just another red silhouette.
-            if(npc.questLocks) {
+            if(n.quest) {
                 ctx.beginPath();
-                ctx.ellipse(npc.x, npc.y + 22, 28, 11, 0, 0, Math.PI*2);
+                ctx.ellipse(n.x, n.y + 22, 28, 11, 0, 0, Math.PI*2);
                 ctx.strokeStyle = '#e0b062'; ctx.lineWidth = 2.5;
-                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(performance.now() / 400));
+                ctx.globalAlpha = 0.6 + 0.3 * Math.abs(Math.sin(now / 400));
                 ctx.stroke(); ctx.globalAlpha = 1;
-                this.emoji(ctx, '📜', npc.x, npc.y - 26, 20 * this.iconScale());
+                this.emoji(ctx, n.quest.ch, n.quest.x, n.quest.y, n.quest.size);
             }
-
-            // Bandits are on foot, nobles are mounted — the icon should make it obvious right away
-            let isMoving = (Math.abs(npc.targetX - npc.x) > 3 || Math.abs(npc.targetY - npc.y) > 3);
-            let lone = npc.type === 'wanderer';
-            this.drawPartyIcon(ctx, npc.x, npc.y + 22, {
-                id: npc.id, moving: isMoving,
-                kind: band ? (band.icon || 'foot') : (npc.type === 'bandit' || lone ? 'foot' : 'rider'),
-                mounted: npc.type !== 'bandit' && !lone,
-                size: npc.size || 1,
-                color: nCol,
-                scale: (npc.type === 'king' ? 1.15 : 1) * this.partyIconScale(npc.size || 1) * this.iconScale(),
-                bob: isMoving ? -Math.abs(Math.sin(performance.now()/150)) * 5 : 0,
-                dim: npc.type === 'bandit'
-            });
-
-            if(lone) {                                      // what their story is, at a glance (#119)
-                let w = this.WANDERERS.find(x => x.id === npc.wanderer);
-                if(w) this.emoji(ctx, w.icon, npc.x, npc.y - 30, 22 * this.iconScale());
-            }
-            // Crown: king/vizier
-            if(npc.type === 'king' || npc.type === 'vizier') {
-                let cs = npc.type === 'king' ? 30 : 24;
-                this.emoji(ctx, npc.type === 'king' ? '👑' : '🎖️', npc.x + 22, npc.y - 44 + cs*0.35, cs);
-            }
-            
-            // The label used to be trimmed to the first word to keep the map readable, but
-            // a band's name is a qualifier plus a noun and the first word is the throwaway
-            // half: "Orman Haydutları" showed as "Orman", "Forest Bandits" as "Forest" (#94).
-            // The full name is short enough in all three languages; the only thing worth
-            // dropping is a lord's army suffix, which repeats on every lord on screen.
-            let shortName = this.npcName(npc);
-            if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier') {
-                shortName = shortName.replace(T(' Ordusu'), '').replace(T(' Birliği'), '');
-            }
-            // The label used to be white for everyone, so a lord of a kingdom we are at war
-            // with read exactly like an allied one — the marker ring carries the faction's
-            // colour, which answers "whose is it", never "will it attack me" (#108). The
-            // answer comes from `atWar`, not from `isHostile`: hostility there depends on
-            // distance and relative strength, which would make the label flicker as you close in.
-            // Colour is not the only cue — a foe's name is prefixed with a blade for the
-            // colour-blind, since red against parchment is exactly the pair that fails.
-            let pf = this.playerFaction();
-            // `npc.type === 'bandit'` covers every roaming band -- bandit, wolf, forest and
-            // mountain all come out of `spawnBand` with that type; `npc.band` does not, because
-            // caravans and villagers carry a `BAND_KINDS` entry of their own.
-            let foe = this.mapPartyIsFoe(npc);
-            let friend = !foe && !!npc.faction && (npc.faction === pf || this.allied(pf, npc.faction));
-            let txtCol = foe ? '#ff6b5a' : friend ? '#7fd4ff' : '#d8d2c4';
-            this.mapLabel(ctx, `${foe ? '⚔ ' : ''}${shortName} (${npc.size})`, npc.x, npc.y + 50, txtCol, nCol);
+            this.drawPartyIcon(ctx, n.x, n.y + 22, n.icon);
+            if(n.badge) this.emoji(ctx, n.badge.ch, n.badge.x, n.badge.y, n.badge.size);
         });
 
-        // Player
-        // While captive, the only party moving on the map is the one holding you; you have
-        // no separate group. The player icon + name + "Captive" text used to be drawn at the
-        // same point as the captor's icon and label (overlapping text).
-        let isPrisoner = !!state.player.prisoner;
-        if(isPrisoner) {
-            this.emoji(ctx, '⛓️', state.player.x - 30, state.player.y - 30, 30);
-        } else {
-            // Player base — a pulsing gold ring
-            let pp = 1 + Math.sin(performance.now()/450) * 0.1;
+        let pl = sc.player;
+        if(pl.chain) this.emoji(ctx, pl.chain.ch, pl.chain.x, pl.chain.y, pl.chain.size);
+        else {
             ctx.beginPath();
-            ctx.ellipse(state.player.x, state.player.y + 28, 36*pp, 13*pp, 0, 0, Math.PI*2);
+            ctx.ellipse(pl.x, pl.y + 28, 36*pl.pulse, 13*pl.pulse, 0, 0, Math.PI*2);
             ctx.strokeStyle = 'rgba(255,204,0,0.9)';
             ctx.lineWidth = 4; ctx.stroke();
-
-            if(state.player.wait) {
-                // The party is stationary while time accelerates: the map should say camp,
-                // not show a rider apparently standing in the middle of nowhere.
-                this.emoji(ctx, '⛺', state.player.x, state.player.y + 28, 54 * this.iconScale());
-            } else {
-                // If we have a horse, we appear mounted on the map (like in Warband)
-                this.drawPartyIcon(ctx, state.player.x, state.player.y + 28, {
-                    id: 'player', moving: state.player.status === 'moving', bobAmp: 6,
-                    mounted: !!state.player.equipment.horse,
-                    size: state.player.party.length + 1,
-                    color: this.bannerColor(),
-                    scale: 1.35 * this.partyIconScale(state.player.party.length + 1) * this.iconScale(),
-                    bob: state.player.status === 'moving' ? -Math.abs(Math.sin(performance.now()/150)) * 6 : 0
-                });
-            }
-
-            this.mapLabel(ctx, `${state.player.wait ? '⛺ ' : ''}${state.player.name} (${state.player.party.length + 1})`,
-                          state.player.x, state.player.y - 72, '#ffcc00', '#ffcc00');
+            if(pl.tent) this.emoji(ctx, pl.tent.ch, pl.tent.x, pl.tent.y, pl.tent.size);
+            else this.drawPartyIcon(ctx, pl.x, pl.y + 28, pl.icon);
         }
+        sc.partyLabels.forEach(l => this.paintLabel(ctx, l));
 
-        // Route (#35): a thin flowing dash + a small filled target marker. The arrowhead was
-        // removed — the line itself already told the direction. A drag route is pale and white,
-        // a confirmed route is gold: which one is active is clear at a glance.
-        let route = (t, live) => {
-            let z = this.camera.zoom;
-            ctx.save();
-            ctx.lineCap = 'round';
-            ctx.setLineDash([10 / z, 9 / z]); ctx.lineDashOffset = live ? -(performance.now() / 55) % (19 / z) : 0;
-            ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 3.4 / z;
-            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-            ctx.strokeStyle = live ? 'rgba(255,214,102,0.75)' : 'rgba(240,240,240,0.55)';
-            ctx.lineWidth = 1.6 / z;
-            ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(t.x, t.y); ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Target marker: screen-sized (doesn't shrink away when zoomed out) small filled dot + ring
-            let r = 6 / z, pulse = live ? 1 + Math.sin(performance.now()/380) * 0.12 : 1.15;
-            ctx.fillStyle = live ? 'rgba(255,214,102,0.9)' : 'rgba(240,240,240,0.6)';
-            ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = live ? 'rgba(60,40,0,0.55)' : 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2 / z;
-            ctx.stroke();
-            ctx.strokeStyle = live ? 'rgba(255,214,102,0.45)' : 'rgba(240,240,240,0.35)';
-            ctx.lineWidth = 1.2 / z;
-            ctx.beginPath(); ctx.arc(t.x, t.y, r * 2 * pulse, 0, Math.PI*2); ctx.stroke();
-            ctx.restore();
-        };
-        if(state.player.targetLocation && state.player.status === 'moving') route(state.player.targetLocation, true);
-        if(this.dragTarget) route(this.dragTarget, false);
+        sc.routes.forEach(r => this.drawRoute(ctx, r.t, r.live, now));
 
         // Location markers learned from lords
         Nobles.drawMarkers(ctx);
 
         ctx.restore();
-        this.drawHail(ctx, W, H);
+        if(this.hailOn()) this.hailPath(ctx, W, H);
     },
 
     handleMapHover(e) {
@@ -8460,6 +8553,7 @@ const Game = {
         if(cur) this.applyViewBg(cur.id.replace(/-view$/, ''));
         this.Music.sync();   // mute, volume and the music switch all land here
         if(typeof Battle !== 'undefined') Battle.prepareGfx();   // the battle renderer follows its setting (1.33.0)
+        this.prepareMapGfx();                                     // ...and so does the map's (1.34.0)
     },
     // Can this browser create a WebGL context, and is it a real GPU? Probed once; the probe
     // context is released right away. Node's harness has no WebGLRenderingContext: { ok: false }.
@@ -8483,6 +8577,49 @@ const Game = {
             } catch(e) { this._webgl = { ok: false, soft: false, gpu: '' }; }
         }
         return this._webgl;
+    },
+
+    // ---- Map renderer seam (1.34.0) — the battle's (Battle.rendererKind) twin, one setting for
+    // both: Game.opt('renderer') / ?renderer=. MapGL (map-gl.js) draws on its own #map-gl, which
+    // sits UNDER #map-canvas; while it draws, #map-canvas turns transparent (#map-view.gl) but
+    // stays on top, so every pointer handler, the cursor, the tooltip maths and the tutorial's
+    // highlight keep working on the element they always did.
+    mapRendererKind() {
+        let want = typeof Battle !== 'undefined' ? Battle.rendererWanted() : this.opt('renderer'), gl = this.webgl();
+        if(want === 'canvas' || this._mapGlBroken || !gl.ok || typeof PIXI === 'undefined' || typeof MapGL === 'undefined') return 'canvas';
+        return want === 'pixi' || !gl.soft ? 'pixi' : 'canvas';
+    },
+    prepareMapGfx() {
+        if(typeof MapGL === 'undefined') return;
+        if(this.mapRendererKind() === 'pixi') MapGL.init(document.getElementById('map-gl')).catch(e => this.mapGlFailed(e));
+        else if(MapGL.app) { MapGL.destroy(); this.showMapSurface('canvas'); }
+    },
+    mapGlFailed(e) {
+        this._mapGlBroken = true;
+        Debug.log('render', T('WebGL harita çizici başlatılamadı — Canvas2D ile devam'), { err: String((e && e.message) || e) });
+        this.showMapSurface('canvas');
+    },
+    // MapGL when it is the renderer and ready, otherwise null (= draw with Canvas2D)
+    liveMapGfx() {
+        let gl = typeof MapGL !== 'undefined' && this.mapRendererKind() === 'pixi' && MapGL.ready ? MapGL : null;
+        let want = gl ? 'gl' : 'canvas';
+        if(this._mapSurface !== want) this.showMapSurface(want);
+        return gl;
+    },
+    showMapSurface(which) {
+        this._mapSurface = which;
+        let v = document.getElementById('map-view'), gl = document.getElementById('map-gl');
+        if(v) v.classList.toggle('gl', which === 'gl');
+        if(gl) gl.hidden = which !== 'gl';
+    },
+    mapSurfaces() { return [this.mapCanvas, document.getElementById('map-gl')].filter(Boolean); },
+    // CPU ms per drawn map frame, smoothed — the debug report's render.mapRenderer
+    _mapCpu: 0,
+    mapCpuSample(ms) { this._mapCpu += (ms - this._mapCpu) * 0.05; },
+    mapGfxInfo() {
+        let gl = this._mapSurface === 'gl' && typeof MapGL !== 'undefined' ? MapGL : null, i = gl ? gl.info() : {};
+        return { setting: typeof Battle !== 'undefined' ? Battle.rendererWanted() : this.opt('renderer'), active: gl ? 'pixi' : 'canvas',
+                 resolution: gl ? i.resolution : '1x', drawCalls: gl ? i.drawCalls : '-', cpuMs: Math.round(this._mapCpu * 100) / 100 };
     },
     // --- Achievements (#127) ---
     ensureAchievements() {
@@ -8659,7 +8796,7 @@ const Game = {
         ${row(T('🎞️ Hareketi azalt'), rmBtn, T('Kamera yumuşatması, kıvılcım ve arayüz animasyonları kapanır'))}
         ${row(T('📱 Hafif mod'), liteBtn, T('Bütün oyunu sadeleştirir: deniz dalgası, orman ağaçları, ocak ışığı, savaş parçacıkları ve cam bulanıklığı düşer. Telefonda ve takılan cihazda kendiliğinden açılır.'))}
         ${row(T('🎯 Kare hızı hedefi'), fpsBtn, T`Cihaza göre: 60 ile başlar, takılma ölçülürse önce hafif moda, sonra 30'a kendiliğinden iner. Şu an: ${this.targetFps()} fps.`)}
-        ${row(T('🧩 Savaş çizimi'), rdBtn, T`Cihaza göre: ekran kartı varsa WebGL ile, keskin ve ekranın piksel yoğunluğunda çizer; yoksa Canvas'a döner. Şu an: ${rdNow}.`)}
+        ${row(T('🧩 Harita ve savaş çizimi'), rdBtn, T`Cihaza göre: ekran kartı varsa harita ve savaş WebGL ile, keskin ve ekranın piksel yoğunluğunda çizilir; yoksa Canvas'a döner. Şu an: ${rdNow}.`)}
         ${row(T('🖱️ Kenardan kaydırma'), epBtn, T('Fareyi haritanın kenarına götürünce kamera kayar. Dokunmatikte imleç olmadığı için kendiliğinden kapalıdır.'))}
         ${row(T('🩸 Kan ve cesetler'), sw('gore', T('Açık'), T('Kapalı')), T('Kapatmak zayıf makinede kare hızını rahatlatır'))}
         ${row(T('🖼️ Kare atlama kapısı'), sw('frameGate', T('Açık'), T('Kapalı')), `${T`Yüksek tazeleme hızlı ekranda fazla kareyi atar. Ölçülen:`} <b>${hz}</b>`)}

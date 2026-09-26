@@ -19,6 +19,7 @@ after changing it, update the "Measured" lines.
 | `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Anim`, `Game`, `Save` + `state` |
 | `battle.js` | `Battle`, `TournamentMinigame`; the Canvas2D battle drawing (`canvasGfx`) and the renderer seam |
 | `battle-gl.js` | `BattleGL` — the battle drawn with PixiJS/WebGL on `#battle-gl` (1.33.0) |
+| `map-gl.js` | `MapGL` — the world map drawn with PixiJS/WebGL on `#map-gl`, and `GLCtx`, the Canvas2D facade it runs the shared vector code through (1.34.0) |
 | `vendor/` | `pixi.min.js` (PixiJS 8.21 UMD, pinned) + `PIXI-LICENSE` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |
@@ -42,9 +43,9 @@ after changing it, update the "Measured" lines.
 checks `typeof Game`).
 
 **Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `vendor/pixi.min.js` → `app.js` →
-`battle.js` → `battle-gl.js` → `nobles.js` → `quests.js`. The order only prevents `const`
-collisions. `tools/harness.js` loads neither Pixi file — in Node the battle always draws through
-Canvas2D.
+`battle.js` → `battle-gl.js` → `map-gl.js` → `nobles.js` → `quests.js`. The order only prevents
+`const` collisions. `tools/harness.js` loads none of the Pixi files — in Node the battle and the
+map always draw through Canvas2D (`tools/test.js` loads `map-gl.js` on its own to test `GLCtx`).
 
 **One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
 `Save.migrate` is a single migration chain; a new field is usually enough with the
@@ -70,8 +71,8 @@ are `'auto' | true | false`.
 
 **`touch-action` is not inherited.** The gate is `* { touch-action: pan-x pan-y }` in
 `style.css`, not `html, body` — a rule on the body leaves every button inside it on `auto`
-and the browser keeps its double-tap zoom (#91). The seven elements that own their own
-gestures (four canvases — `#battle-gl` included —, two sticks, the block button) override it
+and the browser keeps its double-tap zoom (#91). The eight elements that own their own
+gestures (five canvases — `#map-gl` and `#battle-gl` included —, two sticks, the block button) override it
 with `none`; an id or class selector outranks `*`.
 
 **There's no single "mobile mode" switch for devices** — four separate questions, four
@@ -89,6 +90,12 @@ clocks and pose helpers (`unitPose`, `gait`, `dustPuff`, `hudLayout`, `tugBox`, 
 and write nothing — state belongs in `update()` (the tug bar, hoofbeats), dice never enter the
 draw path (`Battle.hash01`). Setting: `Game.opt('renderer')` `'auto' | 'pixi' | 'canvas'`,
 `?renderer=` overrides it for a session; `'auto'` skips software WebGL (SwiftShader).
+**The map the same way, same setting** (1.34.0): `Game.renderMap()` → `mapScene()` (what stands on
+the map, labels already laid out) → `liveMapGfx()` → `drawMapCanvas` or `MapGL`. Vector pieces
+(`drawCoast`, `drawRivers`, `drawRoads`, `drawFigure`, `drawRoute`…) are ctx functions both use —
+MapGL runs them through `GLCtx` — so change the picture there, once. Random decor is rolled in
+`mapDecor()`, never while drawing. `#map-gl` lies under `#map-canvas`, which only turns
+see-through (`#map-view.gl`) and stays the input surface.
 
 **The game loop** genuinely stops while `Battle.active || TournamentMinigame.active`
 (`_loopId = null`); the only place that restarts it is `showScreen()`. Every rAF loop has a
@@ -141,8 +148,9 @@ npx playwright test [--project=tr-phone] [specs/quests.spec.js]
 
 Every spec runs in four projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop`), so the
 language projects *are* the translation test. Headless Chromium's WebGL is SwiftShader, so
-`'auto'` draws battles with Canvas2D there; `renderer.spec.js` forces each renderer, and
-`painted()` reads a screenshot of whichever battle canvas is on show. `e2e/fixtures.js` fails
+`'auto'` draws battles and the map with Canvas2D there; `renderer.spec.js` forces each renderer, and
+`painted(page, sel)` reads a screenshot of whichever canvas is on show. Locally Playwright runs 4
+workers, not half the cores: every WebGL test renders on the CPU there. `e2e/fixtures.js` fails
 any test — even one whose own steps passed — on a page error, a `console.error`, a failed request, an entry in
 `Debug.errors`, a `T()` key missing from the dictionary, or `{0}`/`undefined`/`NaN`/a
 Turkish-only letter painted on an EN/ID screen. Tests drive the real screens by click/tap;
