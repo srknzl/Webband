@@ -31,7 +31,15 @@ test('çeteye tıkla, savaş, kazan, sonuçları al, haritaya dön', async ({ pa
     if(isMobile) { await expect(page.locator('#btn-bpause')).toBeVisible(); await expect(page.locator('#btn-surrender')).toBeHidden(); }
     else await expect(page.locator('#btn-surrender')).toBeVisible();
     // The virtual sticks exist exactly where there is no mouse (#65)
-    if(isMobile) await expect(page.locator('#tstick')).toBeVisible();
+    if(isMobile) {
+        await expect(page.locator('#tstick')).toBeVisible();
+        // …and inside the screen, in its lower half: toBeVisible alone passed them 180 px above it
+        for(const id of ['tstick', 'tastick', 'tb-block']) {
+            const r = await page.evaluate(id => { const b = document.getElementById(id).getBoundingClientRect(); return { top: b.top, bottom: b.bottom, H: innerHeight }; }, id);
+            expect(r.top, `#${id} sits in the lower half`).toBeGreaterThan(r.H / 2);
+            expect(r.bottom, `#${id} ends on the screen`).toBeLessThanOrEqual(r.H);
+        }
+    }
     else await expect(page.locator('#touch-ui')).toBeHidden();
     await expect.poll(() => page.evaluate(() => Battle.battleTime)).toBeGreaterThan(0.5);
     expect(await painted(page)).toBeGreaterThan(1);

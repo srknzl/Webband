@@ -2092,6 +2092,7 @@ body.lite #map-view, body.lite #battle-view { box-shadow: none; }
 #settlement-name { margin-bottom: 0.2rem; }
 .set-sub { margin: 0 0 0.9rem; font: 500 var(--fs-sm)/1.4 'Inter', sans-serif; color: var(--text-muted); }
 .set-sub .ss-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; margin-right: 0.4em; vertical-align: 0.05em; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
+@media (max-width: 430px) { .set-sub { font-size: var(--fs-xs); margin-bottom: 0.6rem; } }
 .act-card { position: relative; }
 .ac-kbd { position: absolute; top: 6px; right: 8px; font: 600 0.62rem/1 'Inter', sans-serif; color: #8a8173;
     border: 1px solid rgba(236,230,218,0.14); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: rgba(0,0,0,0.25); }
@@ -2105,7 +2106,9 @@ body.touch .ac-kbd { display: none; }
 #btn-bpause { display: none; }
 @media (pointer: coarse) {
     #battle-view { position: relative; }
-    #battle-ui { position: absolute; left: 0; right: 0; top: 0; padding: 0; background: none; border: 0; pointer-events: none; z-index: 31; }
+    #battle-ui { position: absolute; inset: 0; padding: 0; background: none; border: 0; pointer-events: none; z-index: 31; }
+    /* the sticks no longer have a 59 px strip to clear: they drop to the thumb's natural rest */
+    #touch-ui { --tui-lift: calc(24px + env(safe-area-inset-bottom)); }
     #battle-ui > * { pointer-events: auto; }
     #battle-ui > .battle-logs { pointer-events: none; }
     #btn-surrender { display: none; }
