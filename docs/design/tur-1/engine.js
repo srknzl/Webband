@@ -136,127 +136,218 @@
   const EYESET = new Set(EYES.map(hkey));
   const STEEL = ['#1d1a22', '#3d4552', '#5f6b7d', '#8795a8', '#b9c6d4', '#e4ecf2'];
   const LEATHER = ['#1f130d', '#4a2c1a', '#6e4527', '#8f5d33', '#b07a45', '#c99a62'];
-  // Helmets are derived from the hair itself: the hair mask is "opened" (8-neighbour
-  // erode, then dilate) so the 1–2 px spikes fall away and the skull-shaped mass stays;
-  // that mass becomes the helmet. It never grows past the hair, fits every frame and
-  // works on a fallen, sideways head as well as a standing one.
+  // ---- hand-drawn helmets ----
+  // Each helmet is drawn once per facing, pixel by pixel, in the coordinates of that facing's
+  // reference head (level-1 Idle, frame 0). Every other frame gets the same drawing, moved by
+  // however far its head moved: the offset is found by matching the frame's head against the
+  // reference (skin, eyes, hair, outline must line up). Nothing is re-derived per frame, so the
+  // helmet cannot change shape between frames. A fallen head (Death) is matched against the
+  // reference turned by ±45/±90/180°, and the helmet turns with it.
+  //   O outline · 1–5 dark→light · N slit/hole · . empty
+  const HELM_TPL = {
+    nasal: {
+      down: { x: 25, y: 21, brim: 28, rows: [
+        '...OOOOOOO...',
+        '.OO3445432OO.',
+        'O33455543322O',
+        'O34554433221O',
+        'O34443333221O',
+        'O33333332221O',
+        'O22222222111O',
+        'OOOOOO3OOOOOO',
+        '......3......',
+        '......2......',
+        '......O......'] },
+      left: { x: 25, y: 21, brim: 28, rows: [
+        '....OOOOOOO...',
+        '..OO3445432OO.',
+        '.O34455433221O',
+        'O344554332211O',
+        'O344443332211O',
+        'O333333322211O',
+        'O222222221111O',
+        'OOOOOOOO22111O',
+        'O3......O2111O',
+        'O3.......O111O',
+        'OO........OOO.'] },
+      up: { x: 25, y: 21, brim: 29, rows: [
+        '...OOOOOOO...',
+        '.OO3445432OO.',
+        'O33455543322O',
+        'O34554433221O',
+        'O34443333221O',
+        'O33333332221O',
+        'O33333322211O',
+        'O22222222111O',
+        'OOOOOOOOOOOOO'] },
+    },
+    cap: {
+      down: { x: 25, y: 22, brim: 28, rows: [
+        '...OOOOOOO...',
+        '.OO4452432OO.',
+        'O34453233221O',
+        'O34432332211O',
+        'O33332322111O',
+        'O11111111111O',
+        'OOOOOOOOOOOOO'] },
+      left: { x: 25, y: 22, brim: 28, rows: [
+        '...OOOOOOOO...',
+        '.OO44534332OO.',
+        'O344532433211O',
+        'O344432333211O',
+        'O333322322111O',
+        'O111111111111O',
+        'OOOOOOOOOOOOOO'] },
+      up: { x: 25, y: 22, brim: 29, rows: [
+        '...OOOOOOO...',
+        '.OO4453432OO.',
+        'O34453233221O',
+        'O34432332211O',
+        'O33332322111O',
+        'O33332322111O',
+        'O11111111111O',
+        'OOOOOOOOOOOOO'] },
+    },
+    greathelm: {
+      down: { x: 25, y: 21, brim: 34, rows: [
+        '.OOOOOOOOOOO.',
+        'O34455443322O',
+        'O34554433221O',
+        'O34443333221O',
+        'O33333333221O',
+        'O33333333221O',
+        'O22222422211O',
+        'O33333433221O',
+        'O33333433221O',
+        'ONNNNNONNNNNO',
+        'O33333433221O',
+        'O33333433221O',
+        'O2N2N242N2N1O',
+        '.OOOOOOOOOOO.'] },
+      left: { x: 25, y: 21, brim: 34, rows: [
+        '.OOOOOOOOOOOO.',
+        'O344554332211O',
+        'O344554332211O',
+        'O344443332211O',
+        'O333333322211O',
+        'O333333322211O',
+        'O222222221111O',
+        'O333333322211O',
+        'O333333322211O',
+        'ONNNNN3322211O',
+        'O333333322211O',
+        'O333333322211O',
+        'ON3N3332211OO.',
+        '.OOOOOOOOOOO..'] },
+      up: { x: 25, y: 21, brim: 34, rows: [
+        '.OOOOOOOOOOO.',
+        'O34455443322O',
+        'O34554433221O',
+        'O34443333221O',
+        'O33333333221O',
+        'O33333333221O',
+        'O33333332221O',
+        'O33333322211O',
+        'O33333322211O',
+        'O22222222111O',
+        'O33333322211O',
+        'O33333322211O',
+        'O22222222111O',
+        '.OOOOOOOOOOO.'] },
+    },
+  };
+  const CLS = new Map();
+  HAIR.forEach(h => CLS.set(hkey(h), 1)); CLS.set(hkey(HAIR_LINE), 2);
+  SKIN.forEach(h => CLS.set(hkey(h), 3)); CLS.set(hkey('#552d24'), 3);
+  EYES.forEach(h => CLS.set(hkey(h), 4)); CLS.set(hkey('#110b00'), 5);
+  const classOf = (d, i) => d[i + 3] ? (CLS.get(key(d[i], d[i + 1], d[i + 2])) || 6) : 0;
+
+  // 64x64 grids: Uint8Array of classes, or of template symbols
+  const PIV = { x: 31, y: 28 };
+  function rotGrid(g, deg) {                    // nearest-neighbour rotation about the head pivot
+    if (!deg) return g;
+    const o = new Uint8Array(F * F), r = -deg * Math.PI / 180, c = Math.round(Math.cos(r) * 1e6) / 1e6, s = Math.round(Math.sin(r) * 1e6) / 1e6;
+    for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
+      const dx = x - PIV.x, dy = y - PIV.y;
+      const sx = Math.round(PIV.x + dx * c - dy * s), sy = Math.round(PIV.y + dx * s + dy * c);
+      if (sx >= 0 && sy >= 0 && sx < F && sy < F) o[y * F + x] = g[sy * F + sx];
+    }
+    return o;
+  }
+  const mirror = g => { const o = new Uint8Array(F * F); for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) o[y * F + x] = g[y * F + (F - 1 - x)]; return o; };
+  const SYM = { '.': 0, O: 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, N: 7 };
+  function tplGrids(t) {                        // symbols + the "above the brim" cut mask
+    const g = new Uint8Array(F * F), cut = new Uint8Array(F * F);
+    t.rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) g[(t.y + j) * F + t.x + i] = SYM[row[i]] || 0; });
+    const w = Math.max(...t.rows.map(r => r.length));
+    for (let y = 0; y <= t.brim; y++) for (let x = t.x - 3; x < t.x + w + 3; x++) if (x >= 0 && x < F) cut[y * F + x] = 1;
+    return { g, cut };
+  }
+  let _refs = null;
+  function refs() {                             // reference head class grids per facing
+    if (_refs) return _refs;
+    const img = imgs[partUrl(1, 'Idle', 'head')].__img;
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, img.width, img.height).data;
+    const grab = row => { const g = new Uint8Array(F * F); for (let y = 0; y < F; y++) for (let xx = 0; xx < F; xx++) g[y * F + xx] = classOf(d, ((row * F + y) * img.width + xx) * 4); return g; };
+    _refs = { down: grab(0), left: grab(1), up: grab(3) };
+    _refs.right = mirror(_refs.left);
+    return _refs;
+  }
+  const tplCache = {};
+  function tplFor(type, dir, deg) {
+    const k = type + dir + deg;
+    if (tplCache[k]) return tplCache[k];
+    const base = HELM_TPL[type][dir === 'right' ? 'left' : dir];
+    let { g, cut } = tplGrids(base);
+    let ref = refs()[dir];
+    if (dir === 'right') { g = mirror(g); cut = mirror(cut); }
+    const rr = rotGrid(ref, deg), pts = [];
+    for (let i = 0; i < F * F; i++) if (rr[i]) pts.push(i % F, (i / F) | 0, rr[i]);
+    return (tplCache[k] = { g: rotGrid(g, deg), cut: rotGrid(cut, deg), pts });
+  }
+  // how well a cell's head sits on a (turned) reference at offset dx,dy
+  function score(cell, pts, dx, dy) {
+    let s = 0;
+    for (let p = 0; p < pts.length; p += 3) {
+      const r = pts[p + 2], X = pts[p] + dx, Y = pts[p + 1] + dy;
+      const c = X >= 0 && Y >= 0 && X < F && Y < F ? cell[Y * F + X] : 0;
+      if (c === r) s += r === 1 ? 1 : 2;       // face features anchor harder than swaying hair
+      else if (!c) s -= 1;
+    }
+    return s;
+  }
+  const DIRS = ['down', 'left', 'right', 'up'];
+  const fits = {};                              // debug/inspection: chosen fit per cell
   function paintHelmets(id, type, anim) {
     const W = id.width, H = id.height, d = id.data;
-    const lying = anim === 'Death';
-    const ramp = type === 'cap' ? LEATHER : STEEL;
-    const N = F * F;
+    const RAMP = type === 'cap' ? LEATHER : STEEL;
+    const COL = [null, RAMP[0], RAMP[1], RAMP[2], RAMP[3], RAMP[4], RAMP[5], '#0d0b10'].map(h => h && hex2rgb(h));
+    const turning = anim === 'Death';
     for (let cy = 0; cy < H; cy += F) for (let cx = 0; cx < W; cx += F) {
-      const row = (cy / F) | 0, f = (cx / F) | 0;
-      const hair = new Uint8Array(N), face = new Uint8Array(N);
-      let any = false, eyeY = 99, sx0 = 99, sx1 = -1, sy1 = -1, sN = 0, sSum = 0;
-      for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
-        const i = ((cy + y) * W + cx + x) * 4;
-        if (!d[i + 3]) continue;
-        const k = key(d[i], d[i + 1], d[i + 2]);
-        if (HAIRSET.has(k)) { hair[y * F + x] = 1; any = true; }
-        else if (EYESET.has(k)) { face[y * F + x] = 1; eyeY = Math.min(eyeY, y); }
-        else if (SKINSET.has(k)) { face[y * F + x] = 1; sx0 = Math.min(sx0, x); sx1 = Math.max(sx1, x); sy1 = Math.max(sy1, y); sN++; sSum += x; }
-      }
+      const row = (cy / F) | 0, dir = DIRS[row];
+      const cell = new Uint8Array(F * F); let any = false;
+      for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) { const v = classOf(d, ((cy + y) * W + cx + x) * 4); cell[y * F + x] = v; if (v) any = true; }
       if (!any) continue;
-      const at = (m, x, y) => x >= 0 && y >= 0 && x < F && y < F && m[y * F + x];
-      const morph = (m, keepIf) => {
-        const o = new Uint8Array(N);
-        for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
-          let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) n += at(m, x + dx, y + dy) ? 1 : 0;
-          o[y * F + x] = keepIf(n, m[y * F + x]) ? 1 : 0;
-        }
-        return o;
-      };
-      const erode = m => morph(m, (n, v) => v && n === 9);
-      const dilate = m => morph(m, n => n > 0);
-      const opaque = new Uint8Array(N);
-      for (let i = 0; i < N; i++) opaque[i] = d[((cy + ((i / F) | 0)) * W + cx + (i % F)) * 4 + 3] ? 1 : 0;
-      const count = mm => mm.reduce((a, v) => a + v, 0);
-      // radius 1 keeps an open helmet organic; the closed helm wants radius 2 so it reads as one block
-      let m = type === 'greathelm' ? dilate(dilate(erode(erode(hair)))) : dilate(erode(hair));
-      if (count(m) < 14) m = dilate(erode(hair));
-      for (let i = 0; i < N; i++) m[i] &= hair[i];               // an opening never grows past the hair
-      const rowFill = mm => {                                      // smooth, convex rows inside the head
-        for (let y = 0; y < F; y++) {
-          let a = -1, b = -1; for (let x = 0; x < F; x++) if (mm[y * F + x]) { if (a < 0) a = x; b = x; }
-          for (let x = a + 1; x < b; x++) if (opaque[y * F + x]) mm[y * F + x] = 1;
-        }
-        return mm;
-      };
-      if (type === 'greathelm') m = rowFill(m);
-      // An open helmet stops at the brow; the hair below it (sideburns, nape) stays hair,
-      // which is what makes it read as a helmet and not as a grey haircut.
-      let cut = 99;
-      if (!lying && type !== 'greathelm') {
-        let t0 = 99, t1 = -1; for (let i = 0; i < N; i++) if (m[i]) { const y = (i / F) | 0; t0 = Math.min(t0, y); t1 = Math.max(t1, y); }
-        cut = eyeY < 99 && row !== ROW.up ? eyeY - 2 : t0 + Math.round((t1 - t0) * 0.68);
-        for (let i = 0; i < N; i++) if (((i / F) | 0) > cut) m[i] = 0;
-      }
-      if (type === 'greathelm') {                                 // a closed helm swallows the face too
-        for (let i = 0; i < N; i++) m[i] |= face[i];
-        m = rowFill(m);
-      }
-      for (let i = 0; i < N; i++) {                               // fill pin-holes
-        const x = i % F, y = (i / F) | 0;
-        if (!m[i] && at(m, x - 1, y) && at(m, x + 1, y) && at(m, x, y - 1) && at(m, x, y + 1)) m[i] = 1;
-      }
-      // round the corners (only the crown's when standing, all of them on a fallen head):
-      // a pixel with three or fewer of its eight neighbours is a convex corner
-      {
-        let t0 = 99, t1 = -1; for (let i = 0; i < N; i++) if (m[i]) { const y = (i / F) | 0; t0 = Math.min(t0, y); t1 = Math.max(t1, y); }
-        const lim = lying ? 99 : t0 + (t1 - t0) * 0.5;
-        for (let pass = 0; pass < (type === 'greathelm' ? 1 : 2); pass++) {
-          const drop = [];
-          for (let i = 0; i < N; i++) if (m[i]) {
-            const x = i % F, y = (i / F) | 0; if (y > lim) continue;
-            let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && at(m, x + dx, y + dy)) n++;
-            if (n <= 3) drop.push(i);
-          }
-          drop.forEach(i => m[i] = 0);
+      let best = null;
+      // a head seen from behind falls straight down (it never turns); the others may roll
+      const degs = turning && dir !== 'up' ? [0, 45, -45, 90, -90, 180] : [0];
+      for (const deg of degs) {
+        const { pts } = tplFor(type, dir, deg), R = turning ? 12 : 7;
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+          const s = score(cell, pts, dx, dy) - (deg ? 4 : 0);   // prefer upright on a tie
+          if (!best || s > best.s) best = { s, deg, dx, dy };
         }
       }
-      let bx0 = 99, bx1 = -1, by0 = 99, by1 = -1;
-      for (let i = 0; i < N; i++) if (m[i]) { const x = i % F, y = (i / F) | 0; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
-      const put = (x, y, hex) => {
-        if (x < 0 || y < 0 || x >= F || y >= F) return;
-        const i = ((cy + y) * W + cx + x) * 4, [r, g, b] = hex2rgb(hex);
-        d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = 255;
-      };
-      // spikes that did not make it into the helmet go
-      for (let i = 0; i < N; i++) if (hair[i] && !m[i] && ((i / F) | 0) <= cut) d[((cy + ((i / F) | 0)) * W + cx + (i % F)) * 4 + 3] = 0;
-      if (bx1 < 0) continue;
-      const bw = Math.max(1, bx1 - bx0), bh = Math.max(1, by1 - by0);
-      const edge = (x, y) => !at(m, x - 1, y) || !at(m, x + 1, y) || !at(m, x, y - 1) || !at(m, x, y + 1);
-      for (let i = 0; i < N; i++) if (m[i]) {
-        const x = i % F, y = (i / F) | 0;
-        if (edge(x, y)) { put(x, y, ramp[0]); continue; }
-        const u = (x - bx0) / bw, v = (y - by0) / bh;
-        let t = 3;
-        if (u + v < 0.62) t = 4;
-        if (u > 0.74 || v > 0.8) t = 2;
-        put(x, y, ramp[t]);
-      }
-      // specular glint on the crown, upper left
-      for (let y = by0 + 1; y <= by1; y++) { const x = Math.round(bx0 + bw * 0.32); if (at(m, x, y) && !edge(x, y)) { put(x, y, ramp[5]); break; } }
-      const standing = !lying, faceOn = standing && row !== ROW.up && sN > 0;
-      const side = row === ROW.left || row === ROW.right, facing = row === ROW.right ? 1 : row === ROW.left ? -1 : 0;
-      if (standing && type !== 'greathelm') {                    // rim: the lowest inner pixel of each column
-        for (let x = bx0 + 1; x < bx1; x++) { let yb = -1; for (let y = by1; y >= by0; y--) if (at(m, x, y)) { yb = y; break; } if (yb > 0 && at(m, x, yb - 1) && !edge(x, yb - 1)) put(x, yb - 1, ramp[type === 'cap' ? 1 : 2]); }
-      }
-      if (type === 'nasal' && faceOn) {
-        const nx = side ? (facing > 0 ? sx1 - 1 : sx0 + 1) : Math.round(sSum / sN - 0.5);
-        let yb = -1; for (let y = by1; y >= by0; y--) if (at(m, nx, y)) { yb = y; break; }
-        if (yb > 0) { put(nx, yb + 1, ramp[3]); put(nx, yb + 2, ramp[3]); put(nx, yb + 3, ramp[1]); }
-        if (!side) for (let y = by0 + 1; y < by1 - 1; y++) if (at(m, nx, y) && !edge(nx, y)) put(nx, y, ramp[4]);
-      }
-      if (type === 'cap' && standing) { const mx = Math.round((bx0 + bx1) / 2); for (let y = by0 + 1; y < by1 - 1; y += 2) if (at(m, mx, y) && !edge(mx, y)) put(mx, y, ramp[2]); }
-      if (type === 'greathelm' && faceOn && eyeY < 99) {
-        let a = 99, b = -1; for (let x = 0; x < F; x++) if (at(m, x, eyeY) && !edge(x, eyeY)) { a = Math.min(a, x); b = Math.max(b, x); }
-        if (side) { if (facing > 0) a = Math.max(a, Math.round((bx0 + bx1) / 2)); else b = Math.min(b, Math.round((bx0 + bx1) / 2)); }
-        else { a += 1; b -= 1; }
-        for (let x = a; x <= b; x++) put(x, eyeY, '#0d0b10');
-        for (let x = a + 1; x < b; x += 2) if (at(m, x, eyeY + 2) && !edge(x, eyeY + 2)) put(x, eyeY + 2, ramp[1]);
-        if (!side) { const mx = Math.round((a + b) / 2); for (let y = eyeY + 1; y < by1; y++) if (at(m, mx, y) && !edge(mx, y)) put(mx, y, ramp[4]); }
+      fits[anim + ':' + row + ':' + (cx / F)] = best;
+      const { g, cut } = tplFor(type, dir, best.deg);
+      for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
+        const X = x + best.dx, Y = y + best.dy;
+        if (X < 0 || Y < 0 || X >= F || Y >= F) continue;
+        const i = ((cy + Y) * W + cx + X) * 4, sym = g[y * F + x];
+        if (sym) { const [r, gg, b] = COL[sym]; d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = 255; }
+        else if (cut[y * F + x]) { const c = classOf(d, i); if (c === 1 || c === 2) d[i + 3] = 0; }
       }
     }
   }

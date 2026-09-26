@@ -411,7 +411,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
   </div>
   <div class="meta-row">
     <span class="pill">Yukarıdaki dördü <b>aynı sprite</b>, farklı katmanlar</span>
-    <span class="pill">Miğferler <b>kodla çizildi</b></span>
+    <span class="pill">Miğferler <b>elle, piksel piksel</b> çizildi</span>
     <span class="pill">Renkler <b>Nord</b> sancağı</span>
   </div>
 </header>
@@ -584,7 +584,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
       <div class="ctl"><span class="lbl">Yön</span><div class="seg" id="c-dir"></div></div>
       <div class="ctl"><span class="lbl">Zırh</span><div class="seg" id="c-armor"></div></div>
       <div class="ctl"><span class="lbl">Silah</span><div class="seg" id="c-weapon"></div></div>
-      <div class="ctl"><span class="lbl">Miğfer (kodla çizildi)</span><div class="seg" id="c-helm"></div></div>
+      <div class="ctl"><span class="lbl">Miğfer (elle çizildi)</span><div class="seg" id="c-helm"></div></div>
       <div class="ctl"><span class="lbl">Sancak rengi</span><div class="seg" id="c-cloth"></div></div>
       <div class="ctl"><span class="lbl">Saç</span><div class="seg" id="c-hair"></div></div>
       <div class="ctl"><span class="lbl">Ten</span><div class="seg" id="c-skin"></div></div>
@@ -592,7 +592,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
   </div>
   <div class="notes" style="margin-top:18px">
     <div class="rule"><b>Önerdiğim kural</b>Zırh gövdeyi, silah kılıcı, miğfer başı belirler. Oyun başında paçavra, sopa ve açık baş. Zincir ve plaka zırh şimdilik aynı görünüyor. Plakaya omuzluk ve göğüs katmanını Tur 2'de çizerim.</div>
-    <div class="note"><b>Miğferler nasıl yapıldı</b>Pakette miğfer yok. Her karede kafa katmanındaki saçı buluyorum, dikenlerini kırpıyorum ve geriye kalan kafatası şeklini miğfere çeviriyorum. Açık miğferler kaş hizasında bitiyor, altında saç kalıyor. Bu yüzden miğfer hiçbir zaman kafadan büyük olmuyor. Kafa yere yatsa da çalışıyor, hasar ve ölüm karelerinde de miğfer duruyor. Paketin kırmızı hasar katmanı çıplak kafanın silüetini taşıdığı için onu kullanmıyorum. Kırmızılığı, giyilen her şeyin üstüne kendim uyguluyorum.</div>
+    <div class="note"><b>Miğferler nasıl yapıldı</b>Pakette miğfer yok. Her miğferi yön başına bir kez elle, piksel piksel çizdim: ön, arka ve yan (diğer yan aynalanıyor). Her karede kafanın ne kadar kaydığını referans kafayla eşleştirerek buluyorum ve aynı çizimi oraya koyuyorum. Miğferin şekli hiçbir karede değişmiyor, bu yüzden titreme yok. Yere düşen kafada çizim kafayla birlikte dönüyor. Kırmızı hasar flaşını da giyilen her şeyin üstüne kendim uyguluyorum.</div>
     <div class="note"><b>Balta ve topuz</b>Pakette sadece kılıç var. Balta ve topuz kafasını kılıç katmanının ucuna kodla çizmek mümkün. Bunu Tur 2'de denerim.</div>
   </div>
 </section>
@@ -845,7 +845,7 @@ footer { padding-block: 40px 60px; color: var(--faint); font-size: .82rem; borde
         <label><input type="radio" name="q4" value="ikisi">Kıyafet + zemin halkası</label>
         <label><input type="radio" name="q4" value="halka">Sadece halka (bugünkü gibi)</label>
       </div></fieldset>
-    <fieldset class="q"><legend>5. Kodla çizilen miğferler</legend>
+    <fieldset class="q"><legend>5. Elle çizilen miğferler</legend>
       <p class="why">Beğenmezsen hazır miğferli bir paket ararız.</p>
       <div class="opts">
         <label><input type="radio" name="q5" value="devam" checked>İyi, bu yolla devam</label>

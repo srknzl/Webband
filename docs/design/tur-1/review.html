@@ -1,0 +1,13 @@
+<meta charset="utf-8"><body style="background:#3d5a3a;margin:0;font:12px monospace;color:#fff"><canvas id=c></canvas>
+<script src="engine.js"></script><script>
+(async()=>{ await SW.preload(); const [helm, lvl, set] = decodeURIComponent(location.hash.slice(1)).split('|');
+ const anims = set==='a' ? ['Idle','Walk','Run'] : ['attack','Hurt','Death'];
+ const S=3, CW=40, CH=46, c=document.getElementById('c'); c.width=12*CW*S+60; c.height=anims.length*4*CH*S; const x=c.getContext('2d'); x.imageSmoothingEnabled=false;
+ const t=document.createElement('canvas'); t.width=t.height=64; const tx=t.getContext('2d');
+ let r=0; for(const a of anims) for(const d of ['down','left','right','up']){ 
+   for(let f=0; f<SW.ANIM[a].n; f++){ tx.clearRect(0,0,64,64); SW.drawUnit(tx,{armor:+lvl,weapon:+lvl,helm,skin:0,hair:0,cloth:null,anim:a,dir:d,t:0},32,44,{frame:f,noRed:true,noSwing:true});
+     x.fillStyle=(f%2)?'#3a5537':'#42603e'; x.fillRect(60+f*CW*S, r*CH*S, CW*S, CH*S);
+     x.drawImage(t,12,8,CW,CH,60+f*CW*S,r*CH*S,CW*S,CH*S); }
+   x.fillStyle='#fff'; x.fillText(a.slice(0,5),2,r*CH*S+20); x.fillText(d,2,r*CH*S+36); r++; }
+ window.done=1; })().catch(e=>{document.body.innerHTML+='<pre style=color:#fff>'+e.stack+'</pre>';window.done=1});
+</script>
