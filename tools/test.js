@@ -898,6 +898,124 @@ test('battle motion: swings, hits and falls start their clocks; the fallen are d
     B.active = false;
 });
 
+// --- Battle renderer seam (1.33.0) ---
+// Two renderers, one setting: 'auto'/'pixi' draw through PixiJS when a WebGL context exists,
+// 'canvas' — and every case without WebGL — through the Canvas2D code. The harness has no
+// WebGL and never loads battle-gl.js, so here it is always Canvas2D until a test fakes both in.
+test('renderer: auto/pixi/canvas resolve through one gate, and fall back without WebGL', () => {
+    const ctx = gw._ctx, vm = require('vm'), B = gw.Battle, G = gw.Game, S = gw.state;
+    const run = src => vm.runInContext(src, ctx);
+    const kinds = () => ['auto', 'pixi', 'canvas'].map(v => { G.setOpt('renderer', v); return B.rendererKind(); });
+    assert.strictEqual(G.OPTS.renderer, 'auto', 'the default is auto');
+    assert.strictEqual(G.webgl().ok, false, 'the harness has no WebGL');
+    assert.deepStrictEqual(kinds(), ['canvas', 'canvas', 'canvas'], 'no Pixi loaded: Canvas2D whatever the setting');
+    let inits = 0;
+    run('globalThis.PIXI = {}; globalThis.BattleGL = { name: "pixi", ready: false, app: null, init() { globalThis.__glInits = (globalThis.__glInits || 0) + 1; return Promise.resolve(); }, destroy() {} };');
+    const hadGl = G._webgl;
+    try {
+        G._webgl = { ok: false, soft: false, gpu: '' };
+        assert.deepStrictEqual(kinds(), ['canvas', 'canvas', 'canvas'], 'Pixi loaded but no WebGL context: Canvas2D');
+        G._webgl = { ok: true, soft: true, gpu: 'SwiftShader' };
+        assert.deepStrictEqual(kinds(), ['canvas', 'pixi', 'canvas'], 'software GL: auto keeps Canvas2D, pixi forces WebGL');
+        G._webgl = { ok: true, soft: false, gpu: 'Apple GPU' };
+        assert.deepStrictEqual(kinds(), ['pixi', 'pixi', 'canvas'], 'hardware WebGL: auto and pixi draw with Pixi, canvas stays Canvas2D');
+        inits = run('globalThis.__glInits || 0');
+        assert.ok(inits > 0, 'choosing pixi starts the WebGL renderer ahead of the battle');
+        // Pixi is still initialising (or failed): the battle draws with Canvas2D meanwhile
+        G.setOpt('renderer', 'pixi');
+        S.player.party = [];
+        B.start('Çapulcular', 3);
+        assert.strictEqual(B.gfx.name, 'canvas', 'not ready yet: Canvas2D carries the first frames');
+        B.render();
+        B._glBroken = true;
+        assert.strictEqual(B.rendererKind(), 'canvas', 'a failed or lost WebGL context drops to Canvas2D for the session');
+        B._glBroken = false;
+        // ?renderer= overrides the saved setting for the session
+        gw._sandbox.location = { search: '?renderer=canvas' };
+        assert.strictEqual(B.rendererKind(), 'canvas', 'URL override');
+        gw._sandbox.location = { search: '?renderer=pixi' };
+        G.setOpt('renderer', 'canvas');
+        assert.strictEqual(B.rendererKind(), 'pixi', 'URL override wins over the setting');
+        B.active = false;
+    } finally {
+        delete gw._sandbox.location;
+        G._webgl = hadGl;
+        run('delete globalThis.PIXI; delete globalThis.BattleGL; delete globalThis.__glInits;');
+        G.setOpt('renderer', 'auto');
+    }
+});
+test('renderer: the settings row writes through Game.setOpt and reads through Game.opt', () => {
+    const G = gw.Game, S = gw.state;
+    let html = '';
+    const orig = G.showModal;
+    G.showModal = h => { html = h; };
+    try {
+        G.showSettings();
+        for(const v of ['auto', 'pixi', 'canvas']) assert.ok(html.includes(`Game.setOpt('renderer', '${v}')`), 'a button for ' + v);
+        G.setOpt('renderer', 'canvas');
+        assert.strictEqual(G.opt('renderer'), 'canvas');
+        assert.strictEqual(S.settings.renderer, 'canvas', 'a deviation lands in state.settings');
+        G.setOpt('renderer', 'auto');
+        assert.strictEqual(G.opt('renderer'), 'auto');
+    } finally { G.showModal = orig; }
+});
+test('renderer: drawing is side-effect free — two renders leave Battle exactly as they found it', () => {
+    const B = gw.Battle, G = gw.Game, S = gw.state;
+    S.player.party = ['Svadya Köylüsü', 'Svadya Okçusu', 'Svadya Süvarisi'].map((name, i) => ({ id: 'se' + i, name, level: 12 }));
+    S.player.equipment.horse = { id: 'horse', name: 'At', hSpd: 0, hDef: 0 };
+    B.start('Çapulcular', 6);
+    const mine = B.units.filter(u => u.isPlayerTeam), foes = B.units.filter(u => !u.isPlayerTeam);
+    foes.forEach((f, i) => { f.x = mine[i % mine.length].x + 22; f.y = mine[i % mine.length].y; });   // straight into melee
+    B.dealMelee(mine[1], foes[0], 1e6);                // one mid-fall
+    for(let i = 0; i < 40; i++) B.update(1 / 60);      // swings, hits, arrows, floating text
+    const pl = B.units.find(u => u.id === 'player');
+    pl.vx = 120; pl.vy = 0;                            // a galloping mount: the old draw path played hoofbeats
+    B.render();                                        // the first frame bakes the ground (that one draws dice)
+    const snap = () => JSON.stringify({
+        units: B.units, projectiles: B.projectiles, floatingTexts: B.floatingTexts, sparks: B.sparks, swings: B.swings,
+        bloodStains: B.bloodStains, corpses: B.corpses, cam: B.cam, camZoom: B.camZoom, tugRatio: B.tugRatio,
+        shakeT: B.shakeT, battleTime: B.battleTime, cmdSlots: B.cmdSlots, arrows: B.arrows, currentCommand: B.currentCommand
+    });
+    const vm = require('vm'), box = gw._sandbox, sfx = G.sfx, before = snap();
+    let dice = 0, sounds = 0;
+    box.__rnd0 = vm.runInContext('Math.random', gw._ctx);
+    box.__die = () => { dice++; return box.__rnd0(); };
+    vm.runInContext('Math.random = __die;', gw._ctx);
+    G.sfx = () => { sounds++; };
+    const realNow = box.performance.now;
+    try {
+        for(const t of [1000, 1234.5, 4321]) { box.performance.now = () => t; B.render(); }
+    } finally { vm.runInContext('Math.random = __rnd0;', gw._ctx); G.sfx = sfx; box.performance.now = realNow; }
+    assert.strictEqual(snap(), before, 'a render changed battle state');
+    assert.strictEqual(dice, 0, 'the draw path consumed the game\'s random stream');
+    assert.strictEqual(sounds, 0, 'the draw path played a sound');
+    assert.ok(B.units.some(u => u.hp <= 0 && u.deadT < B.DIE_T) && B.units.some(u => u.hitT < 0.3) && B.floatingTexts.length,
+        'the scene had a fall, a hit and floating text to draw');
+    B.active = false;
+    S.player.equipment.horse = null;
+});
+test('renderer: hoofbeats moved to update — one clop per stride peak, from the same gait the pose uses', () => {
+    const B = gw.Battle, G = gw.Game, S = gw.state;
+    S.player.party = [];
+    S.player.equipment.horse = { id: 'horse', name: 'At', hSpd: 0, hDef: 0 };
+    B.start('Çapulcular', 2);
+    B.update(1 / 60);
+    const pl = B.units.find(u => u.id === 'player');
+    pl.vx = 100; pl.vy = 0;
+    const gt = B.gait(pl, 0), peak = (Math.PI / 2 - gt.offset) * gt.strideMs;   // |sin| = 1 here
+    let sounds = 0; const sfx = G.sfx; G.sfx = k => { if(k === 'hoofbeat') sounds++; };
+    try {
+        B.tickHooves(peak); B.tickHooves(peak + 1);
+        assert.strictEqual(sounds, 1, 'one peak, one clop');
+        B.tickHooves(peak + gt.strideMs * Math.PI / 2);   // the trough re-arms it
+        B.tickHooves(peak + gt.strideMs * Math.PI);        // the next peak
+        assert.strictEqual(sounds, 2, 'the next stride clops again');
+        pl.vx = 0;
+        B.tickHooves(peak + gt.strideMs * Math.PI * 2);
+        assert.strictEqual(sounds, 2, 'standing still is silent');
+    } finally { G.sfx = sfx; B.active = false; S.player.equipment.horse = null; }
+});
+
 // --- Mounted battle speed (#132) ---
 // Nerfed ~20% (base and riding coefficient both cut) — mounted was overwhelmingly faster than
 // foot at every riding level, not just the top end. This pins the formula itself so a future

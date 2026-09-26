@@ -1,7 +1,8 @@
 # WebBand
 
 A Mount & Blade: Warband-style single-page RPG that runs in the browser. Turkish UI.
-No build, no dependencies — `index.html` opens directly in the browser.
+No build, no npm at runtime — `index.html` opens directly in the browser. The one library, PixiJS 8
+(the battle's WebGL renderer), is vendored and pinned in `vendor/`; never load anything from a CDN.
 
 **Deploy**: the live site is `serkanozel.me/webband` — to update it, copy this repo's files
 to `~/git/serkanozelme/blog/public/webband/` and push that repo (auto-deploy fires).
@@ -16,7 +17,9 @@ after changing it, update the "Measured" lines.
 |---|---|
 | `index.html` | DOM skeleton for every screen |
 | `app.js` | Core — map, time, settlements, diplomacy, saves. `Debug`, `Input`, `Anim`, `Game`, `Save` + `state` |
-| `battle.js` | `Battle`, `TournamentMinigame` |
+| `battle.js` | `Battle`, `TournamentMinigame`; the Canvas2D battle drawing (`canvasGfx`) and the renderer seam |
+| `battle-gl.js` | `BattleGL` — the battle drawn with PixiJS/WebGL on `#battle-gl` (1.33.0) |
+| `vendor/` | `pixi.min.js` (PixiJS 8.21 UMD, pinned) + `PIXI-LICENSE` |
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |
 | `i18n.js` | `I18N` + global `T` |
@@ -38,8 +41,10 @@ after changing it, update the "Measured" lines.
 **lexical** global — it isn't looked up as `window.Game` (which is why the `alert` override
 checks `typeof Game`).
 
-**Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `app.js` → `battle.js` →
-`nobles.js` → `quests.js`. The order only prevents `const` collisions.
+**Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `vendor/pixi.min.js` → `app.js` →
+`battle.js` → `battle-gl.js` → `nobles.js` → `quests.js`. The order only prevents `const`
+collisions. `tools/harness.js` loads neither Pixi file — in Node the battle always draws through
+Canvas2D.
 
 **One `state`**; `Save` writes it to localStorage (3 manual slots + a ring of 5 autosaves,
 `Save.migrate` is a single migration chain; a new field is usually enough with the
@@ -65,9 +70,9 @@ are `'auto' | true | false`.
 
 **`touch-action` is not inherited.** The gate is `* { touch-action: pan-x pan-y }` in
 `style.css`, not `html, body` — a rule on the body leaves every button inside it on `auto`
-and the browser keeps its double-tap zoom (#91). The six elements that own their own
-gestures (three canvases, two sticks, the block button) override it with `none`; an id or
-class selector outranks `*`.
+and the browser keeps its double-tap zoom (#91). The seven elements that own their own
+gestures (four canvases — `#battle-gl` included —, two sticks, the block button) override it
+with `none`; an id or class selector outranks `*`.
 
 **There's no single "mobile mode" switch for devices** — four separate questions, four
 knobs: *how input arrives* `Game.isTouch()` (= `pointer: coarse`; `body.touch`, help text,
@@ -77,6 +82,13 @@ knobs: *how input arrives* `Game.isTouch()` (= `pointer: coarse`; `body.touch`, 
 
 **Battle damage passes through a single choke point**: `Battle.afterArmor(dmgType, raw, def,
 tgt)` — armor, damage type, and the difficulty multiplier (`Game.dmgMult`) all live there.
+
+**Battle drawing is side-effect free and goes through one seam**: `Battle.render()` →
+`Battle.liveGfx()` → `canvasGfx` (Canvas2D) or `BattleGL` (Pixi). Both read the same state,
+clocks and pose helpers (`unitPose`, `gait`, `dustPuff`, `hudLayout`, `tugBox`, `statusLine`…)
+and write nothing — state belongs in `update()` (the tug bar, hoofbeats), dice never enter the
+draw path (`Battle.hash01`). Setting: `Game.opt('renderer')` `'auto' | 'pixi' | 'canvas'`,
+`?renderer=` overrides it for a session; `'auto'` skips software WebGL (SwiftShader).
 
 **The game loop** genuinely stops while `Battle.active || TournamentMinigame.active`
 (`_loopId = null`); the only place that restarts it is `showScreen()`. Every rAF loop has a
@@ -94,11 +106,16 @@ The bottleneck isn't JS, it's the **compositor**: battle JS runs ~1.2 ms per fra
 - Expensive things are baked once (`buildGroundTexture`, `Battle.buildGround`, `unitSprite`,
   `Game.emoji/radial/textW`) — no gradient is generated per frame.
 - Canvases are opaque; `battle-canvas` is shared by both engines, both read from
-  `Game.battleCtx()`.
+  `Game.battleCtx()`. A canvas can't hold a `2d` and a `webgl` context at once, so Pixi draws on
+  its own `#battle-gl`; exactly one of the two is shown (`Battle.showSurface`), and the hidden
+  `#battle-canvas` keeps carrying the field size that the camera, clamps and mouse mapping read.
+- The WebGL path bakes every shape once at *device pixels × camera zoom* and stamps pooled
+  Sprites — no display object is created per frame; only arcs that change shape every frame
+  (swing sweep, trails, shields, boss telegraph, shimmer) are rebuilt `Graphics`.
 
 ## Measurement and tests
 
-`tools/harness.js` is the single entry point: it builds a fake DOM, runs the four scripts in
+`tools/harness.js` is the single entry point: it builds a fake DOM, runs the four game scripts in
 **one `vm` context**, and the same seed gives the same world via seeded `mulberry32`. It
 exports: `{ load, world, run, mulberry32, args, seeds, writeReport }` — there's no `boot`.
 
@@ -117,8 +134,10 @@ npx playwright test [--project=tr-phone] [specs/quests.spec.js]
 ```
 
 Every spec runs in four projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop`), so the
-language projects *are* the translation test. `e2e/fixtures.js` fails any test — even one
-whose own steps passed — on a page error, a `console.error`, a failed request, an entry in
+language projects *are* the translation test. Headless Chromium's WebGL is SwiftShader, so
+`'auto'` draws battles with Canvas2D there; `renderer.spec.js` forces each renderer, and
+`painted()` reads a screenshot of whichever battle canvas is on show. `e2e/fixtures.js` fails
+any test — even one whose own steps passed — on a page error, a `console.error`, a failed request, an entry in
 `Debug.errors`, a `T()` key missing from the dictionary, or `{0}`/`undefined`/`NaN`/a
 Turkish-only letter painted on an EN/ID screen. Tests drive the real screens by click/tap;
 world setup (pinning a quest offer, arriving at a gate) goes through the game's own calls.

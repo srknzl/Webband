@@ -3,6 +3,21 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 1.33.0 — Keskin Meydan (2026-09-26)
+
+Savaş artık ekran kartıyla çiziliyor. Görüntü ve hareketler aynı, sadece daha keskin.
+
+- **Savaş alanı keskin.** Telefonda ve yüksek çözünürlüklü ekranlarda savaş şimdiye kadar
+  ekranın yarı ya da üçte bir çözünürlüğünde çiziliyordu. Askerler, oklar, yazılar ve can
+  barları biraz bulanık görünüyordu. Artık savaş ekranın kendi piksel yoğunluğunda, WebGL ile
+  çiziliyor. Piksel sanatı askerler net, zemin ayrıntılı.
+- **Oyun aynı.** Aynı askerler, aynı hareketler (atılma, sarsılma, devrilme, at yürüyüşü),
+  aynı güç çubuğu, komut kutusu ve küçük harita. Savaşın kendisinde hiçbir şey değişmedi.
+- **Yeni ayar: 🧩 Savaş çizimi.** "Cihaza göre" ekran kartı varsa WebGL'i seçiyor; yoksa ya da
+  bir sorun çıkarsa eski çizime (Canvas) kendiliğinden dönüyor. İstersen ayarlardan elle
+  "WebGL" ya da "Canvas" seçebilirsin.
+- **Tavuk kovalamaca** eskisi gibi çiziliyor.
+
 ## 1.32.1 — Omuz Omuza (2026-09-26)
 
 - **Destek verdiğin lordun askerleri artık yanında savaşıyor.** Haritada kapışan iki partiden

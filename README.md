@@ -12,7 +12,8 @@
 
 A single-page, Mount & Blade: Warband-style RPG that runs entirely in the browser.
 Turkish, English and Bahasa Indonesia UI, chosen on first launch. No build step, no
-dependencies, no server.
+server, nothing to install — the one library (PixiJS, which draws the battles) ships in
+`vendor/`.
 
 ```bash
 git clone https://github.com/srknzl/Webband.git

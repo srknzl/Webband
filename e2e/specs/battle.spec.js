@@ -1,7 +1,7 @@
 // Encounter → battle → result → back on the map: the loop the whole game hangs on. The
 // battle itself is not played out stroke by stroke (tools/duel.js measures that); the
 // test checks the screen lives, then ends the fight and walks the result screens.
-const { test, expect, L, modal, modalBtn, okAlert, actionBtn, newGame, enter, placeParty, tapWorld } = require('../fixtures');
+const { test, expect, L, modal, modalBtn, okAlert, actionBtn, newGame, enter, placeParty, tapWorld, painted } = require('../fixtures');
 
 /** A two-man human band (animals never talk and some back off) parked `dx` east of the party. */
 function band(page, dx = 70) {
@@ -11,14 +11,6 @@ function band(page, dx = 70) {
         return { id: b.id, x: b.x, y: b.y };
     }, dx);
 }
-
-/** The battle canvas is actually being painted: more than one colour on it. */
-const painted = page => page.evaluate(() => {
-    const c = document.getElementById('battle-canvas'), ctx = c.getContext('2d'), seen = new Set();
-    for(let i = 1; i < 8; i++) for(let j = 1; j < 8; j++)
-        seen.add(ctx.getImageData(Math.floor(c.width * i / 8), Math.floor(c.height * j / 8), 1, 1).data.join(','));
-    return seen.size;
-});
 
 test('çeteye tıkla, savaş, kazan, sonuçları al, haritaya dön', async ({ page, isMobile }) => {
     await newGame(page);

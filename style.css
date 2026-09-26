@@ -530,12 +530,15 @@ input[type="text"]:focus {
 /* Battle */
 #battle-view { padding: 0; display: none; flex-direction: column; overflow: hidden; }
 #battle-view.active { display: flex; }
-#battle-canvas {
+#battle-canvas, #battle-gl {
     flex: 1;
     width: 100%;
+    min-height: 0;
     display: block;
     background: #2d422a;
 }
+/* One of the two battle canvases shows (1.33.0); an id selector outranks the UA's [hidden] rule */
+#battle-view > canvas[hidden] { display: none; }
 #battle-ui {
     padding: 0.8rem;
     background: rgba(0,0,0,0.8);
@@ -1197,7 +1200,7 @@ body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::aft
    #scene-canvas hariç: onun kendi pan/pinch kodu yok, sadece tıklama (#renderScene). `none`
    bırakılırsa üstünden başlayan bir parmak kaydırması ne native scroll'a ne bize gider,
    sessizce yutulur — şehir ekranı mobilde en alta kadar kaydırılamaz hale gelir. */
-#map-canvas, #battle-canvas { touch-action: none; }
+#map-canvas, #battle-canvas, #battle-gl { touch-action: none; }
 /* Pinch-zooming the whole UI breaks the game (panel sizes are computed from the
    screen, so after a zoom nothing sits where it belongs). Scrolling stays free, pinch
    is gone, and `pan-x pan-y` closes the double-tap zoom with it.
