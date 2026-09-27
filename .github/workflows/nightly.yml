@@ -1,0 +1,79 @@
+# Gecelik böcek avı: her gece yeni tohumlarla oyunu kendi kendine oynatır.
+#  - e2e/specs/monkey.spec.js  — tohumlu rastgele oynanış, dört projede (TR/EN/ID, masaüstü/telefon)
+#  - e2e/specs/lairsweep.spec.js — her in, her düzen, her giriş yolu, gündüz ve gece
+#  - tools/career.js            — 150 günlük senaryolu kariyer, her eylemden sonra kurallar
+# Tohumlar yılın gününden türer: her gece başka bir oyun, ama bir bulgu aynı tohumla tekrar
+# üretilebilir (issue'da yazar). Bir şey bulursa "nightly" etiketli tek bir issue açar; açık olan
+# varsa ona yorum ekler. Elle de başlatılabilir (Actions → nightly → Run workflow).
+name: nightly
+on:
+  schedule:
+    - cron: '0 1 * * *'        # 01:00 UTC = 04:00 İstanbul
+  workflow_dispatch:
+    inputs:
+      seeds: { description: 'Maymun tohumları (virgülle), boşsa günden türer', required: false, default: '' }
+      steps: { description: 'Maymun adım sayısı', required: false, default: '300' }
+permissions:
+  contents: read
+  issues: write
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm, cache-dependency-path: e2e/package-lock.json }
+      - id: seeds
+        run: |
+          d=$((10#$(date -u +%j)))
+          m="${{ inputs.seeds }}"
+          [ -n "$m" ] || m="$((d * 2 + 100)),$((d * 2 + 101))"
+          echo "monkey=$m" >> "$GITHUB_OUTPUT"
+          echo "career=$((d * 8 + 1))-$((d * 8 + 8))" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+        working-directory: e2e
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      # Her adım kendi raporunu yazar ve kırmızı olsa da sonraki adım koşar
+      - name: career
+        continue-on-error: true
+        run: node tools/career.js --days 150 --seed ${{ steps.seeds.outputs.career }} 2>&1 | tee career.txt; exit ${PIPESTATUS[0]}
+      - name: monkey
+        continue-on-error: true
+        working-directory: e2e
+        env: { MONKEY: '1', MONKEY_SEED: '${{ steps.seeds.outputs.monkey }}', MONKEY_STEPS: '${{ inputs.steps || 300 }}' }
+        run: npx playwright test specs/monkey.spec.js specs/lairsweep.spec.js --retries=0 --reporter=list 2>&1 | tee ../monkey.txt; exit ${PIPESTATUS[0]}
+      - name: report
+        if: always()
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          found=$( { grep -E '^seed [0-9]+ day ' career.txt || true; \
+                     grep -E '^MK ' monkey.txt || true; } \
+                   | awk '{ k = $0; sub(/#[0-9]+ /, "", k); if(!s[substr(k, 1, 160)]++) print }' | head -60)
+          failed=$(grep -cE '^\s+[0-9]+\) ' monkey.txt || true)
+          if [ -z "$found" ] && [ "$failed" = "0" ]; then echo "temiz gece"; exit 0; fi
+          {
+            echo "Gecelik av ($(date -u +%F)) — maymun tohumları \`${{ steps.seeds.outputs.monkey }}\`, kariyer tohumları \`${{ steps.seeds.outputs.career }}\`, commit ${GITHUB_SHA::7}."
+            echo
+            echo "Tekrar üretmek için: \`MONKEY=1 MONKEY_SEED=<tohum> MONKEY_STEPS=${{ inputs.steps || 300 }} npx playwright test specs/monkey.spec.js --project=<proje>\` · \`node tools/career.js --seed <tohum>\`"
+            echo
+            echo '```'
+            echo "${found:-(bulgu satırı yok; kırmızı test sayısı: $failed — ayrıntı run'da)}"
+            echo '```'
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > body.md
+          gh label create nightly --color B60205 --description "Gecelik böcek avının bulguları" --force >/dev/null
+          open=$(gh issue list --label nightly --state open --json number -q '.[0].number')
+          if [ -n "$open" ]; then gh issue comment "$open" --body-file body.md
+          else gh issue create --title "Gecelik av bir şey buldu" --label nightly --body-file body.md; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-hunt
+          retention-days: 14
+          path: |
+            career.txt
+            monkey.txt
+            e2e/test-results

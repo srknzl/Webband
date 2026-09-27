@@ -134,6 +134,8 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         }
     }
     console.log(`MONKEY LOG (seed ${SEED}):\n` + log.slice(-40).join('\n'));
-    console.log(`MONKEY FOUND:\n` + (found.join('\n') || 'nothing'));
+    // one line per finding, with what it takes to replay it (the nightly job greps `MK `)
+    const where = `${test.info().project.name} seed ${SEED}`;
+    console.log(`MONKEY FOUND:\n` + (found.map(f => `MK ${where} ${f}`).join('\n') || 'nothing'));
     expect(found).toEqual([]);
 });

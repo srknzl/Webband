@@ -35,7 +35,7 @@ test('lair sweep', async ({ page }) => {
         }, [layout, way, hour, men, si]);
         if(r) found.push(`site${si}/${layout}/${way}/h${hour}/men${men}: ${r}`);
     }
-    console.log('LAIR SWEEP:\n' + (found.join('\n') || 'nothing'));
+    console.log('LAIR SWEEP:\n' + (found.map(f => `MK ${test.info().project.name} lair ${f}`).join('\n') || 'nothing'));
     await page.evaluate(() => { Debug.errors.length = 0; });
     expect(found).toEqual([]);
 });

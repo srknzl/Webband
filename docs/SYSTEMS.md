@@ -1520,7 +1520,11 @@ in for `Math.random`. Everything else is built on it:
 Bug hunting in the browser: `MONKEY=1 MONKEY_SEED=1,2,3 MONKEY_STEPS=400 npx playwright test
 specs/monkey.spec.js` (seeded random play, reports the step and the element behind any error,
 missing key or broken text) and `MONKEY=1 npx playwright test specs/lairsweep.spec.js` (every lair,
-layout, way in, time of day). Both are skipped in the regular run.
+layout, way in, time of day). Both are skipped in the regular run. `.github/workflows/nightly.yml`
+runs them every night at 01:00 UTC with seeds from the day of the year (two monkey seeds × the
+four projects at 300 steps, the lair sweep, `career.js` on eight seeds) and opens — or comments
+on — one `nightly`-labelled issue with each finding's project and seed. Actions → nightly → Run
+workflow starts it by hand with chosen seeds and steps.
 
 `tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
 run it with `node`. None of `tools/` is loaded by `index.html`; `.github/workflows/test.yml`

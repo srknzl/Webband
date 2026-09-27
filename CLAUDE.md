@@ -164,6 +164,9 @@ Turkish-only letter painted on an EN/ID screen. Tests drive the real screens by 
 world setup (pinning a quest offer, arriving at a gate) goes through the game's own calls.
 Labels are looked up with `L(page, 'Türkçe anahtar')`, never hard-coded.
 
+`nightly.yml` is the bug hunt: every night the seeded monkey, the lair sweep and
+`tools/career.js` play new seeds and file their findings in one `nightly` issue.
+
 `native.yml` is the second pipeline — it assembles `native/www` from these same files, runs
 `npx cap add`, and leaves a sideloadable Android `.apk` plus a compiled iOS build as run
 artifacts. npm lives only under `native/` and `e2e/`. The expected numbers are
