@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.2 — Sözleşme (2026-09-28)
+
+- **Tavuk kovalamacasındaki skor yazısı artık her dilde.** İngilizce ve Endonezcede ekranın
+  köşesinde Türkçe "Skor" yazıyordu.
+- **Eski, kullanılmayan turnuva mini oyunu kaldırıldı.** Oyuncunun göreceği bir fark yok; ama
+  "Şike" görevini her seferinde yakacak bir hatayı içinde taşıyordu.
+
 ## 2.4.1 — Haber Dili (2026-09-28)
 
 - **Haberler dil değiştirince de doğru dilde.** Kalradya'nın Hâli'ndeki son haberler ve haritadaki

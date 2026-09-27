@@ -5,8 +5,9 @@
 #                                  kariyer sahte dilde (xx) de oynanır, dünya her gün aynı olmalı
 # Maymun ve in taraması beş projede koşar: TR/EN/ID ve sahte dil xx (çevrilmemiş metin, iki kez
 # çevrilen metin, kayda donmuş çeviri). Maymun ayrıca eski veri gösteren ekranı ve taşan metni arar.
-# Kapsam haritası: maymun, in taraması ve normal e2e (tr-desktop) COVERAGE=1 ile koşar;
-# tools/coverage.js hiçbirinin çalıştırmadığı fonksiyonları run özetine yazar (yeni senaryo nereye).
+# Kapsam haritası: maymun, in taraması ve normal e2e (tr-desktop) COVERAGE=1 ile, kariyer ve
+# tools/test.js NODE_V8_COVERAGE ile koşar; tools/coverage.js hiçbirinin çalıştırmadığı
+# fonksiyonları run özetine yazar (yeni senaryo nereye).
 # Tohumlar yılın gününden türer: her gece başka bir oyun, ama bir bulgu aynı tohumla tekrar
 # üretilebilir (issue'da yazar). Bir şey bulursa "nightly" etiketli tek bir issue açar; açık olan
 # varsa ona yorum ekler. Elle de başlatılabilir (Actions → nightly → Run workflow).
@@ -43,6 +44,7 @@ jobs:
       # Her adım kendi raporunu yazar ve kırmızı olsa da sonraki adım koşar
       - name: career
         continue-on-error: true
+        env: { NODE_V8_COVERAGE: .coverage-node }
         # --lang xx: the same careers in the pseudo-locale must end in the same world, day by day
         run: node tools/career.js --days 150 --seed ${{ steps.seeds.outputs.career }} --lang xx 2>&1 | tee career.txt; exit ${PIPESTATUS[0]}
       - name: monkey
@@ -82,7 +84,9 @@ jobs:
           else gh issue create --title "Gecelik av bir şey buldu" --label nightly --body-file body.md; fi
       - name: coverage map
         if: always()
-        run: node tools/coverage.js --top 60 --md coverage.md >> "$GITHUB_STEP_SUMMARY" || true
+        run: |
+          NODE_V8_COVERAGE=.coverage-node node tools/test.js > /dev/null 2>&1 || true
+          node tools/coverage.js --top 60 --md coverage.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

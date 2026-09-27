@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.1', date: '2026-09-28', name: 'Haber Dili' };  // the version name is not translated
+const VERSION = { no: '2.4.2', date: '2026-09-28', name: 'Sözleşme' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -5466,13 +5466,13 @@ const Game = {
     indecisive() { return (state.player.indecisionUntil || 0) > state.time.day * 24 + state.time.hour; },
     // One result hook for every tournament implementation. Keeping the win counter, ambition
     // and quest event together prevents one arena path from waiting until the daily fallback.
-    tournamentFinished(won, details = {}) {
+    tournamentFinished(won, wins) {
         if(won) {
             state.player.tourneyWins = (state.player.tourneyWins || 0) + 1;
             state.pendingDedication = true;
             this.ambitionTick();
         }
-        Quests.emit('tournament_end', Object.assign({ won: !!won }, details));
+        Quests.emit('tournament_end', { won: !!won, wins });
     },
 
     // Time spent on a roadside choice belongs to the moving world too. Advancing roaming
@@ -7022,7 +7022,7 @@ const Game = {
                         () => this.besiegeLocation(loc, !state.player.vassalOf));
         } else {
             let chickenQ = state.player.quests.find(q => q.id === 'crazy_chickens' && q.data.locId === loc.id);
-            if(chickenQ) this.addBtn(ac, T('🐔 Tavukları Kovala (25 sn)'), () => TournamentMinigame.start({ mode:'chicken', goal:16, time:25, loc }));
+            if(chickenQ) this.addBtn(ac, T('🐔 Tavukları Kovala (25 sn)'), () => TournamentMinigame.start({ goal:16, time:25, loc }));
             if(loc.owner === 'player' && loc.type !== 'village') {
                 this.addBtn(ac, T`🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
                 this.addBtn(ac, T`📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));
@@ -9655,8 +9655,7 @@ const Game = {
                 state.player.money += pay;
                 (state.tourneyChampions || (state.tourneyChampions = {}))[t.locId] =
                     { name: t.champion.name, day: state.time.day };
-                // The bracket has no hit score; rounds survived ride as both names for old consumers.
-                this.tournamentFinished(!!t.champion.you, { wins: t.wins, score: t.wins });
+                this.tournamentFinished(!!t.champion.you, t.wins);
                 this.updateTopBar();
             }
             let won = this.TOURNEY_PRIZE.slice(0, t.wins).reduce((a, b) => a + b, 0);

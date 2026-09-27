@@ -3706,30 +3706,12 @@ const Battle = {
 const TournamentMinigame = {
     canvas:null, ctx:null, active:false, score:0, targets:[], spawnTimer:0, timeLeft:0, loopId:null, clickHandler:null,
 
-    // The tournament eliminates round by round (#26). Each round draws a random piece of gear:
-    // a long-ranged weapon shrinks the target but keeps it up longer, a mace with a shield does
-    // the opposite. The betting odds depend on the round you're eliminated in — winning the championship pays ×5.
-    ROUNDS: 4,
-    ODDS: [0, 0.3, 0.8, 1.6, 5],
-    GEAR: [
-        { icon:'🗡️', name:T('Tahta Kılıç'),     size:1.00, life:1.00 },
-        { icon:'🔱', name:T('Mızrak'),           size:0.85, life:1.30 },
-        { icon:'🏹', name:T('Yay'),              size:0.70, life:1.55 },
-        { icon:'🛡️', name:T('Topuz ve Kalkan'),  size:1.30, life:0.75 }
-    ],
-    rollGear() { return this.GEAR[Math.floor(Math.random() * this.GEAR.length)]; },
-
     start(opts = {}) {
-        // Chicken chasing is the only thing left riding this engine: the tournament moved to the
-        // real Battle rig and a bracket (#122). The 'tournament' branches below stay because they
-        // are the click-minigame's own round/gear machinery — but nothing defaults into them.
-        this.mode = opts.mode || 'chicken';
+        // Chicken chasing is all that rides this engine: the tournament moved to the real Battle
+        // rig and a bracket (#122), and its old click-rounds mode — bet, gear draws and a
+        // `tournament_end` without the rounds a quest reads — was taken out (2.4.2).
         this.goal = opts.goal || 12;
-        this.bet = opts.bet || 0;
         this.loc = opts.loc || null;
-        this.round = 1;
-        this.perRound = Math.max(1, Math.ceil(this.goal / this.ROUNDS));
-        this.gear = this.mode === 'chicken' ? null : this.rollGear();
         this.canvas = document.getElementById('battle-canvas');
         this.ctx = Game.battleCtx();   // single gate to the shared canvas (#54)
         Battle.showSurface('canvas');   // the chase stays Canvas2D; a WebGL battle may have been showing
@@ -3746,9 +3728,7 @@ const TournamentMinigame = {
         this.timeLeft = opts.time || 25;
         this.spawnTimer = 0;
 
-        document.getElementById('battle-log-left').innerHTML = this.mode === 'chicken'
-            ? `<b>${T`🐔 Tavuk Avı!</b> ${this.goal} tavuk yakala. Kimseye anlatma.`}`
-            : `<b>${T`🏆 1. Tur!</b> Kuradan ${this.gear.icon} <b>${T(this.gear.name)}</b> çıktı — ${this.perRound} isabet bir tur eder.`}`;
+        document.getElementById('battle-log-left').innerHTML = `<b>${T`🐔 Tavuk Avı!</b> ${this.goal} tavuk yakala. Kimseye anlatma.`}`;
 
         this.clickHandler = (e) => this.onClick(e);
         this.canvas.addEventListener('mousedown', this.clickHandler);
@@ -3783,9 +3763,9 @@ const TournamentMinigame = {
             this.targets.push({
                 x: 40 + Math.random()*(this.canvas.width-80),
                 y: 40 + Math.random()*(this.canvas.height-80),
-                radius: (24 + agiBonus * 0.8) * rush * (this.gear ? this.gear.size : 1),
-                timeLeft: (0.8 + strBonus * 0.12) * (this.gear ? this.gear.life : 1),
-                bad: this.mode === 'chicken' && Math.random() < 0.25
+                radius: (24 + agiBonus * 0.8) * rush,
+                timeLeft: 0.8 + strBonus * 0.12,
+                bad: Math.random() < 0.25
             });
             this.spawnTimer = 0.25 + Math.random()*0.3;
         }
@@ -3805,16 +3785,8 @@ const TournamentMinigame = {
         ctx.fillRect(0,0,W,H);
 
         ctx.fillStyle = '#fff'; ctx.font = '18px Inter';
-        ctx.fillText(`Skor: ${this.score}/${this.goal}`, 15, 25);
+        ctx.fillText(T`Skor: ${this.score}/${this.goal}`, 15, 25);
         ctx.fillText(T`Süre: ${Math.ceil(this.timeLeft)}`, 15, 50);
-        if(this.mode !== 'chicken') {
-            ctx.fillStyle = '#e0b062';
-            ctx.fillText(T`${this.round}. Tur / ${this.ROUNDS}  ·  ${this.gear.icon} ${T(this.gear.name)}`, 15, 75);
-            if(this.bet) {
-                let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
-                ctx.fillText(T`🎲 Bahis ${this.bet} → şu an ${Math.round(this.bet * this.ODDS[cleared])} dinar`, 15, 100);
-            }
-        }
 
         this.targets.forEach(t => {
             let alpha = Math.min(t.timeLeft, 1);
@@ -3842,16 +3814,7 @@ const TournamentMinigame = {
                     break;
                 }
                 this.score++;
-                let msg = `${this.mode === 'chicken' ? T('Yakaladın!') : T('İsabet!')} (${this.score}/${this.goal})`;
-                // Round over: a new draw, a clean field, and a breather between rounds
-                if(this.mode !== 'chicken' && this.score < this.goal && this.score % this.perRound === 0) {
-                    this.round++;
-                    this.gear = this.rollGear();
-                    this.targets = [];
-                    this.timeLeft += 6;
-                    msg = `<b>${T`${this.round}. Tur!</b> Kuradan ${this.gear.icon} <b>${T(this.gear.name)}</b> çıktı. (+6 sn)`}`;
-                }
-                document.getElementById('battle-log-left').innerHTML = msg;
+                document.getElementById('battle-log-left').innerHTML = `${T('Yakaladın!')} (${this.score}/${this.goal})`;
                 break;
             }
         }
@@ -3862,35 +3825,13 @@ const TournamentMinigame = {
         this.canvas.removeEventListener('mousedown', this.clickHandler);
         cancelAnimationFrame(this.loopId);
 
-        if(this.mode === 'chicken') {
-            // Win or lose, you're still standing in the courtyard — dumping the player out to
-            // the map screen meant retrying a failed attempt was a walk back out through the
-            // gate and in again every single time (#132 report). Back into the settlement
-            // instead, so a miss is just another click on the same button.
-            if(this.loc) Game.enterLocation(this.loc); else Game.showScreen('map');
-            Quests.emit('chickens_caught', { won, score: this.score });
-            if(won) alert(T`Son tavuğu ahırın arkasında kıstırdın. ${this.score}/${this.goal}.`);
-            Game.updateTopBar();
-            return;
-        }
-        Game.showScreen('map');
-
-        // Bet: the money was taken at entry, payout is based on the round you were eliminated in (#26)
-        let betTxt = '';
-        if(this.bet) {
-            let cleared = Math.min(this.ROUNDS, Math.floor(this.score / this.perRound));
-            let pay = Math.round(this.bet * this.ODDS[cleared]);
-            state.player.money += pay;
-            betTxt = T`\n\n🎲 Bahis: ${this.bet} dinar × ${this.ODDS[cleared]} = ${pay} dinar `
-                   + (pay > this.bet ? `(+${pay - this.bet} kâr)` : T`(−${this.bet - pay} zarar)`);
-        }
-        if(won) {
-            state.player.money += 500; state.player.renown += 20;
-            alert(T('Turnuvayı kazandın! +500 Dinar, +20 Nam') + betTxt + T('\n\nArenada zaferini bir leydiye ithaf edebilirsin — salona git.'));
-        } else {
-            alert(T`${this.round}. turda elendin! Skor: ${this.score}/${this.goal}` + betTxt);
-        }
-        Game.tournamentFinished(won, { score: this.score });
+        // Win or lose, you're still standing in the courtyard — dumping the player out to
+        // the map screen meant retrying a failed attempt was a walk back out through the
+        // gate and in again every single time (#132 report). Back into the settlement
+        // instead, so a miss is just another click on the same button.
+        if(this.loc) Game.enterLocation(this.loc); else Game.showScreen('map');
+        Quests.emit('chickens_caught', { won, score: this.score });
+        if(won) alert(T`Son tavuğu ahırın arkasında kıstırdın. ${this.score}/${this.goal}.`);
         Game.updateTopBar();
     }
 };

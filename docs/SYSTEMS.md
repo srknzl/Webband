@@ -430,8 +430,12 @@ denars + 30 meat/cheese for +5 relation, +15 renown.
 ### Quests (`quests.js`)
 Event-driven engine. `Quests.emit(ev, data)` fires on `entered_location`, `bought_item`,
 `battle_won`, `escaped_captivity`, `tournament_end`, `chickens_caught`, `talked_to`,
-`poem_recited_lord`, `raided`; `Quests.dailyTick()` runs each quest's `day()` hook and checks
-deadlines.
+`poem_recited_lord`, `raided`, `lair_cleared`, `lair_captive_freed`; `Quests.dailyTick()` runs
+each quest's `day()` hook and checks deadlines. **The event contract** (2.4.2): the quest suite's
+drivers emit events themselves, so they prove the engine, not the game — `tools/test.js` also
+reads every `Quests.emit('x', { … })` literal in the game against every `on()` body and fails on
+an event nobody sends or a `d.field` no send of that event carries. Keep emits as plain object
+literals so the scan can read them.
 
 A quest definition has 4 hooks (only `desc`/`where` mandatory): `setup(q, giver)` (assume the
 precondition — `can` already filtered), `can(giver)` (is it currently offerable), `desc(q)`
@@ -722,8 +726,10 @@ eliminated. Prize: Çeyrek Final 50 / Yarı Final 150 / Final 500+20 renown. Bet
 the actual field strength (`tourneyOdds`, clamped 1.2–6), not a fixed table. Fought in a round
 sand-pit arena, not the open-field terrain generator.
 
-**The chicken-chase minigame** (`TournamentMinigame`) still exists but only as a quest
-encounter now — its tournament branch is unreachable, `start()` defaults to chicken mode.
+**The chicken-chase minigame** (`TournamentMinigame`) is only the quest's chicken chase. Its old
+click-rounds tournament mode (bet, gear draws, rounds) was removed in 2.4.2: unreachable, it still
+sent a `tournament_end` without `wins`, which would have failed the fixed-match quest on every
+entry. `Game.tournamentFinished(won, wins)` is the bracket's one result hook.
 
 **Arena** (`Battle.startArena`): always open, no party/loot/renown/prisoners — practice against
 a leveled foe, always infantry (an archer would kite a 1v1 forever). A win pays a small purse

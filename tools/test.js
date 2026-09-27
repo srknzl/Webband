@@ -1609,7 +1609,7 @@ test('tournament: eight enter, one is crowned, and the ladder pays per round (#1
 test('chicken: a goose costs a bird, and the closing seconds shrink the birds (#123)', () => {
     reset();
     const M = g.TournamentMinigame;
-    Object.assign(M, { active: true, mode: 'chicken', goal: 16, gear: null, score: 0, targets: [] });
+    Object.assign(M, { active: true, goal: 16, score: 0, targets: [] });
     M.canvas = { width: 400, height: 300, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
     // One spawn per update: zero dt, zero spawn timer, and take the bird straight back off the field.
     const spawn = (timeLeft, n) => {
@@ -1622,10 +1622,7 @@ test('chicken: a goose costs a bird, and the closing seconds shrink the birds (#
         `the closing seconds scale the bird by ${late[0].radius / early[0].radius}`);
     const geese = early.filter(t => t.bad).length / early.length;
     between(geese, 0.15, 0.35, 'share of geese among the birds');
-    M.mode = 'tournament'; M.gear = { size: 1, life: 1 };
-    assert.ok(!spawn(20, 100).some(t => t.bad), 'a goose wandered into the tournament minigame');
-
-    M.mode = 'chicken'; M.score = 3;
+    M.score = 3;
     const click = bad => {
         M.targets = [{ x: 100, y: 100, radius: 20, timeLeft: 1, bad }];
         M.onClick({ clientX: 100, clientY: 100 });
@@ -1791,10 +1788,10 @@ test('tournament: the shared result hook completes the ambition immediately and 
     state.player.ambition = { id:'champion', day:state.time.day };
     state.player.ambitionsDone = [];
     const wins = state.player.tourneyWins || 0;
-    Game.tournamentFinished(false, { score:0 });
+    Game.tournamentFinished(false, 0);
     assert.strictEqual(state.player.tourneyWins || 0, wins, 'a tournament loss incremented the win hook');
     assert.strictEqual(state.player.ambition.id, 'champion', 'a loss completed the champion ambition');
-    Game.tournamentFinished(true, { score:3 });
+    Game.tournamentFinished(true, 3);
     assert.strictEqual(state.player.tourneyWins, wins + 1, 'the win hook did not increment the tournament counter');
     assert.ok(!state.player.ambition && state.player.ambitionsDone.includes('champion'),
         'the shared result hook deferred ambition completion until day end');
@@ -2228,7 +2225,7 @@ function questSuite() {
             enter(seat.id);
         },
         bring_poem: q => Quests.emit('poem_recited_lord', { lordId: q.giverId }),
-        arena_champion: () => Quests.emit('tournament_end', { won: true, score: 12 }),
+        arena_champion: () => Quests.emit('tournament_end', { won: true, wins: 3 }),
         chain_market: q => {
             for(let i = 0; i < q.data.need; i++) state.player.prisoners.push({ id: 'p' + i, name: 'Çapulcu', level: 5 });
             enter(q.data.locId);
@@ -2326,6 +2323,35 @@ function questSuite() {
     });
 }
 questSuite();
+
+// The drivers above emit quest events themselves, so they prove the engine, not the game: a
+// quest listening for an event the game never sends, or reading a field the game never fills,
+// passes them and can never finish in play. The minigame's old tournament mode sent
+// `tournament_end` without the `wins` the fixed-match quest reads — it failed on every entry.
+// This reads both sides of the contract: every `Quests.emit('x', { … })` in the game against
+// every `on()` body in quests.js.
+test('quest: every event a quest waits for is sent by the game, with the fields it reads', () => {
+    const fs = require('fs'), path = require('path');
+    const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    const sent = {};
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'lair.js', 'map-art.js'])
+        for(const [, ev, body] of read(f).matchAll(/Quests\.emit\('(\w+)',\s*\{([^{}]*)\}\)/g))
+            body.split(',').map(p => (/^\s*(\w+)\s*(?::|$)/.exec(p) || [])[1]).filter(Boolean)
+                .forEach(k => (sent[ev] = sent[ev] || new Set()).add(k));
+    const src = read('quests.js'), bad = [];
+    for(const m of src.matchAll(/\bon\(q, ev, d\)\s*\{/g)) {
+        let i = m.index + m[0].length, depth = 1;
+        for(; depth; i++) depth += src[i] === '{' ? 1 : src[i] === '}' ? -1 : 0;
+        const body = src.slice(m.index, i), line = src.slice(0, m.index).split('\n').length;
+        const evs = [...body.matchAll(/ev [!=]== '(\w+)'/g)].map(x => x[1]);
+        evs.filter(e => !sent[e]).forEach(e => bad.push(`quests.js:${line} waits for '${e}', which the game never sends`));
+        const has = new Set(evs.flatMap(e => [...(sent[e] || [])]));
+        [...new Set([...body.matchAll(/\bd\.(\w+)/g)].map(x => x[1]))].filter(k => !has.has(k))
+            .forEach(k => bad.push(`quests.js:${line} reads d.${k}, which no '${evs.join("'/'")}' the game sends carries`));
+    }
+    assert.ok(Object.keys(sent).length >= 10, `only ${Object.keys(sent).length} emitted events found — the scan broke`);
+    assert.ok(!bad.length, `${bad.length} broken: ${bad.join(' · ')}`);
+});
 
 // A "find and defeat this exact bandit gang" quest (brother_in_chains and its two siblings)
 // keeps its narrative meaning — the tracked party stays a specific target (#132) — but it's
