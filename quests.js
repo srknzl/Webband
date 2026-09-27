@@ -538,6 +538,55 @@ QUESTS.clear_lair = {
     }
 };
 
+// A noble held in a lair (2.2.0). A lord's ward or heir was taken on the road and is kept in
+// the lair nearest their hall; the lord names it and pins it. Getting them out is the job:
+// sneak in, cut their ropes and walk them out through the exit (Lair emits
+// `lair_captive_freed`), or storm the lair with the army (clearing it frees them too). Without
+// this quest a lair's prisoners are ordinary captives who join your party.
+QUESTS.lair_captive = {
+    title: 'İndeki Soylu',
+    givers: ['martial', 'goodnatured', 'quarrelsome', 'debauched'],
+    minRelation: 5,
+    days: 25,
+    reward: { money: 1400, renown: 14, rel: 18 },
+    // raw proper names, translated where shown
+    HEIRS: ['Genç Lord Ardan', 'Genç Lord Tolun', 'Genç Lord Veyrin', 'Genç Lord Harun', 'Genç Lord Emrys', 'Genç Lord Kaan'],
+    can(giver) { return !giver.isGuild && Game.lairs().length > 0; },
+    setup(q, giver) {
+        let home = LOCATIONS.find(l => l.id === giver.homeLocId) || { x: 4500, y: 4500 };
+        let l = Game.lairs().slice().sort((a, b) => Game.dist(a, home) - Game.dist(b, home))[0];
+        l.seen = true;                       // the lord's men tracked them there: now you know it too
+        let lady = LADIES.find(x => x.guardianId === giver.id);
+        let heirs = QUESTS.lair_captive.HEIRS;
+        let kind = lady && Math.random() < 0.6 ? 'lady' : 'lord';
+        q.data = { lairId: l.id, kind, name: kind === 'lady' ? lady.name : heirs[Math.floor(Math.random() * heirs.length)],
+                   ladyId: kind === 'lady' ? lady.id : null, faction: giver.faction, power: Math.round(l.strength) };
+    },
+    offer(q) {
+        return q.data.kind === 'lady'
+            ? T`"<b>${T(q.data.name)}</b> yolda kaçırıldı. Adamlarım izi bir haydut inine kadar sürdü — kabaca <b>${q.data.power} kişi</b>.<br><br>
+                Yerini haritana işaretledim. İstersen sessizce sız, istersen ordunla bas; yeter ki onu sağ çıkar."`
+            : T`"Oğlum <b>${T(q.data.name)}</b> av dönüşü haydutlara esir düştü. Bir inde tutuyorlar — kabaca <b>${q.data.power} kişi</b>.<br><br>
+                Yerini haritana işaretledim. Onu bana geri getir; bunun karşılığını ömrüm boyunca unutmam."`;
+    },
+    desc(q) {
+        let l = Game.lairs().find(x => x.id === q.data.lairId);
+        return l ? T`<b>${T(q.data.name)}</b> işaretli ☠️ <b>Haydut İni</b>nde tutuluyor: sız, iplerini çöz ve çıkışa kadar getir — ya da ini ordunla bas`
+                 : T`<b>${T(q.data.name)}</b> kurtarıldı — lorda haber ver.`;
+    },
+    where(q) {
+        let l = Game.lairs().find(x => x.id === q.data.lairId);
+        if(!l) return null;
+        let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, l) - Game.dist(y, l))[0];
+        return near ? near.id : null;
+    },
+    on(q, ev, d) {
+        if((ev === 'lair_captive_freed' || ev === 'lair_cleared') && d.lairId === q.data.lairId) return 'done';
+    },
+    // a lady remembers who carried her out
+    onDone(q) { if(q.data.ladyId) Nobles.addAff(q.data.ladyId, 15); }
+};
+
 // --- EXTRA CONTRACTS (#129) ---
 // These use events already emitted by the real game. They add variety without creating
 // quest-only buttons or invisible counters that the rest of the world cannot satisfy.
