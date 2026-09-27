@@ -129,6 +129,16 @@ const I18N = {
         return this._values;
     },
 
+    // A `Tx` text in the language on show now: a string is a value (a name, an old save's
+    // already-worded line) and shows as is; `{ t, a }` is a key looked up now, its values shown
+    // the same way; an array is its parts joined.
+    show(v) {
+        if(Array.isArray(v)) return v.map(x => this.show(x)).join('');
+        if(!v || typeof v !== 'object') return v == null ? '' : String(v);
+        const text = this.lang === 'tr' ? this.norm(v.t) : this.lookup(v.t);
+        return v.a ? text.replace(/\{(\d+)\}/g, (m, i) => (v.a[+i] !== undefined ? this.show(v.a[+i]) : m)) : text;
+    },
+
     // First-launch suggestion from the browser's language — the default until the player picks one
     guess() {
         const l = (navigator.language || 'tr').slice(0, 2).toLowerCase();
@@ -160,6 +170,15 @@ function T(x, ...vals) {
     const key = x.reduce((a, s, i) => a + '{' + (i - 1) + '}' + s);
     const out = I18N.lookup(key);
     return out.replace(/\{(\d+)\}/g, (m, i) => (vals[+i] !== undefined ? vals[+i] : m));
+}
+
+// T, later: the same two call forms, but it returns the key and its values as data instead of
+// the text — for words that are *stored* (the news feed, a map mark) and must come back in the
+// language on show when they're read, not the one of the day they were said. Values may be
+// `Tx` texts themselves; `I18N.show()` turns it all into text.
+function Tx(x, ...vals) {
+    if(!x || !x.raw) return { t: String(x) };
+    return { t: x.reduce((a, s, i) => a + '{' + (i - 1) + '}' + s), a: vals };
 }
 
 // The static text's key is stamped before the page draws anything dynamic.

@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.1 — Haber Dili (2026-09-28)
+
+- **Haberler dil değiştirince de doğru dilde.** Kalradya'nın Hâli'ndeki son haberler ve haritadaki
+  söylenti/sefer işaretleri, dili değiştirdiğinde eski dilde kalıyordu; artık hepsi seçtiğin dilde
+  görünür. Eski kayıtlardaki haberler geldikleri dilde kalır, yenileri doğru çıkar.
+
 ## 2.4.0 — Hata Bildir (2026-09-28)
 
 - **Oyunun içinden hata bildirebilirsin.** Duraklatma menüsünde, telefondaki ⋯ Daha menüsünde,

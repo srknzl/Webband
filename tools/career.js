@@ -173,13 +173,10 @@ function run(seed, lang) {
     return { problems, days, summary: `seed ${seed}: day ${DAYS}, lvl ${state.player.stats.level}, party ${state.player.party.length}, ${Math.round(state.player.money)} dinars, renown ${state.player.renown}` };
 }
 
-// The whole world as data, keys sorted, minus what is legitimately a moment's words: the clock
-// stamps, the debug log, and the history kept in the language it was said in (the news feed,
-// a map mark's label)
+// The whole world as data, keys sorted, minus the clock stamps and the debug log
 function canonical(g) {
     const d = JSON.parse(JSON.stringify(g.Save.snapshot()));
-    delete d.savedAt; delete d.state.meta; delete d.state.warLog;
-    Object.values(d.state.knownLocations || {}).forEach(m => delete m.label);
+    delete d.savedAt; delete d.state.meta;
     const sort = v => Array.isArray(v) ? v.map(sort) : v && typeof v === 'object'
         ? Object.keys(v).sort().reduce((o, k) => (o[k] = sort(v[k]), o), {}) : v;
     return sort(d);

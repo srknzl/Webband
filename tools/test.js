@@ -3653,10 +3653,35 @@ test('i18n: a rumour mark and a campaign mark draw without a dictionary miss', (
     const city = LOCATIONS.find(l => l.type === 'city');
     state.player.proficiencies.spotting.level = 8;
     for(let i = 0; i < 12; i++) { state.player.money = 500; Game.listenRumor(city.id); Game.closeModal(); }
-    state.knownLocations.campaign = { x: city.x, y: city.y, radius: 200, day: state.time.day, label: w.T`Sefer: ${w.T(city.name)}` };
+    state.knownLocations.campaign = { x: city.x, y: city.y, radius: 200, day: state.time.day, label: w.Tx`Sefer: ${w.Tx(city.name)}` };
     I18N.missing.clear();
     Nobles.markers().forEach(m => Nobles.markerText(m));
     assert.deepStrictEqual([...I18N.missing], [], 'a map mark missed the dictionary');
+});
+
+// The news feed and a map mark are stored as keys (`Tx`) and worded when read: they used to be
+// stored translated, and a language switch left the last 20 lines in the old language.
+test('i18n: old news and a map mark reword after a language switch', () => {
+    const w = H.world({ seed: 9, lang: 'en' });
+    const { Game, Nobles, state, FACTIONS, LOCATIONS, I18N } = w;
+    const fs = Object.keys(FACTIONS).filter(f => f !== 'player_kingdom');
+    const [a, b] = fs.flatMap(x => fs.map(y => [x, y])).find(([x, y]) => x !== y && !Game.atWar(x, y) && !Game.allied(x, y));
+    Game.declareWar(a, b);
+    Game.startTowerReveal = () => {};
+    state.knownLocations.x = { x: 0, y: 0, radius: 200, day: state.time.day, label: Game.npcTx(state.npcParties.find(n => n.trade)) };
+    const shown = () => [I18N.show(state.warLog[0].msg), Nobles.markerText(state.knownLocations.x)];
+    const en = shown();
+    assert.ok(en[0].includes(Game.factionName(a)) && !/savaşa girdi/.test(en[0]), en[0]);
+    const saved = JSON.stringify(state.warLog[0]);
+    I18N.set('tr');
+    const tr = shown();
+    assert.ok(tr[0].includes('savaşa girdi') && tr[0].includes(Game.factionName(b)), tr[0]);
+    assert.ok(/Kervanı|Köylüleri/.test(tr[1]) && tr[1] !== en[1], tr[1]);
+    assert.strictEqual(JSON.stringify(state.warLog[0]), saved, 'reading the feed wrote to it');
+    // an old save's line, already worded, shows as it was
+    state.warLog.unshift({ day: 1, msg: 'Old line.' });
+    assert.strictEqual(I18N.show(state.warLog[0].msg), 'Old line.');
+    I18N.set('en');
 });
 
 // The morale breakdown's line names are object keys shown through T() on the party screen and

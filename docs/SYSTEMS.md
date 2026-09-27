@@ -917,8 +917,8 @@ not a letter, and cutting or splitting a translation keeps it circled. The fixtu
   anything under `translate="no"` (a track's title, a renderer's name, a date);
 - a circled key reaching `T()` (`I18N.doubled`, a translation translated again — also recorded
   in every player's debug report, from the reverse lookup of the dictionary's values);
-- circled text anywhere in `Save.snapshot()` (a translation frozen into the state), except the
-  two deliberate history fields, `warLog[].msg` and a map mark's `label`.
+- circled text anywhere in `Save.snapshot()` (a translation frozen into the state) — no exceptions
+  since 2.4.1.
 Its first runs found item and village names printed raw in 17 quest lines ("10 units Demir" in
 English), `21.1 saat` in the wait panel, a raw `dinar` in the dowry and the treasury, the
 caravan's translated people-name and five translated NPC/boss names stored in the save, and the
@@ -933,9 +933,14 @@ T's placeholder used to be invisible) and only takes `//` or `/*` after whitespa
 
 Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
 changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
-**Known limit**: `state.warLog` news lines and map-mark labels are stored already-translated, so
-switching language mid-game leaves old news in the old language (accepted, and the one exception
-the pseudo-locale's save check allows — fixing it needs a structured news format).
+**Stored text** (2.4.1): words that are kept in the state — a news line (`state.warLog[].msg`), a
+map mark's `label` — are built with `Tx`, `T`'s twin with the same two call forms, which returns
+the key and its values as data (`{ t, a }`, values may nest, an array is parts joined) instead of
+the text. `I18N.show(v)` words it in the language on show, so a switch rewords the whole feed.
+`Game.factionTx/facTx/peopleTx/npcTx` are the stored forms of the name helpers, and the text
+helpers are `show()` of them — one source. A plain string is a value shown as is: a hero's name,
+or an old save's already worded line (no migration; they age out of the 20-line feed). The key
+extractor takes `Tx` like `T`.
 
 ### Balance visibility
 What changed isn't the numbers, it's whether the player **sees** them before committing: peak

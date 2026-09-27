@@ -124,10 +124,7 @@ const test = base.test.extend({
             // pseudo-locale: circled letters anywhere in the save are a translation frozen into the state
             stored: (() => {
                 if(typeof I18N === 'undefined' || I18N.lang !== 'xx' || typeof Save === 'undefined' || !document.getElementById('main-ui').classList.contains('active')) return '';
-                // Deliberate: the news feed and a map mark's label are history, kept in the words
-                // they were said in (a language switch shows the next ones in the new language)
-                const OK = [/^save\.state\.warLog\./, /^save\.state\.knownLocations\.[^.]+\.label$/];
-                const find = (v, path) => typeof v === 'string' ? (I18N.CIRCLED.test(v) && !OK.some(re => re.test(path)) ? path + ' = ' + v.slice(0, 60) : '')
+                const find = (v, path) => typeof v === 'string' ? (I18N.CIRCLED.test(v) ? path + ' = ' + v.slice(0, 60) : '')
                     : v && typeof v === 'object' ? Object.keys(v).reduce((hit, k) => hit || find(v[k], path + '.' + k), '') : '';
                 try { return find(JSON.parse(JSON.stringify(Save.snapshot())), 'save'); } catch(e) { return ''; }
             })(),

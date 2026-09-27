@@ -37,7 +37,7 @@ function simulate(seed, days) {
 
     const news = Game.news.bind(Game);
     Game.news = (msg, mine) => {
-        let m = String(msg).trim(), hit = NEWS_KINDS.find(([, test]) => test(m));
+        let m = g.I18N.show(msg).trim(), hit = NEWS_KINDS.find(([, test]) => test(m));
         if(hit) c[hit[0]]++;
         return news(msg, mine);
     };

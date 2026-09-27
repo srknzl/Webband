@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.0', date: '2026-09-28', name: 'Hata Bildir' };  // the version name is not translated
+const VERSION = { no: '2.4.1', date: '2026-09-28', name: 'Haber Dili' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -783,7 +783,7 @@ const state = {
     pendingDedication: false, duel: null,
     feast: null, scheduledFeasts: [], nextFeastDay: 8,
     wars: {},            // 'a|b' (ordered faction pair) -> the day the war started
-    warLog: [],          // recent events: { day, msg }
+    warLog: [],          // recent events: { day, msg } — msg a stored text (Tx), worded by I18N.show
     lordRespawn: {},     // a lord party routed on the front -> which day it comes back
     grudges: {},         // lordId -> the day the blood feud started (#53/1.3): hunts you for 30 days
     warSeeded: false,    // whether the first war was assigned when the world was created
@@ -1565,7 +1565,7 @@ const Game = {
             let html = far ? T`Kuleden bakınca toz bulutu gördün: <b>${T(far.name)}</b>.<br>📍 Haritaya bir işaret düştü (3 gün geçerli).`
                            : T('Ufukta kıpırdayan uzak bir şey yok — ama yakını avucunun içi gibi görüyorsun.');
             if(far) state.knownLocations[s.id] = { x: far.x, y: far.y, radius: 200,
-                day: state.time.day, name: far.name, label: Game.npcName(far), live: false };
+                day: state.time.day, name: far.name, label: Game.npcTx(far), live: false };
             return { html: html + `<br>${T`Pencereyi kapatınca çevre birkaç saniyeliğine açılacak — o sırada zaman durur.`}`,
                      then: () => Game.startTowerReveal() };
         }},
@@ -2127,7 +2127,7 @@ const Game = {
                     // party a "find and defeat this exact gang" quest (#132) can't let vanish out
                     // from under it. Everyone else disbands as before.
                     if(b.questLocks) b.size = Math.max(1, b.size);
-                    else { b.size = 0; this.news(T`🛡️ ${this.npcName(t)}, ${T(b.name)} baskınını püskürttü.`); }
+                    else { b.size = 0; this.news(Tx`🛡️ ${this.npcTx(t)}, ${Tx(b.name)} baskınını püskürttü.`); }
                 }
                 return;
             }
@@ -2142,7 +2142,7 @@ const Game = {
             // Cargo that never arrives lowers the destination's prosperity
             let dest = LOCATIONS.find(l => l.id === t.trade.toId);
             if(dest) dest.prosperity = Math.max(10, (dest.prosperity || 50) - (t.trade.kind === 'caravan' ? 1.5 : 0.5));
-            this.news(T`🗡️ ${T(b.name)}, ${this.npcName(t)} kafilesini bastı — yük çetenin elinde.`);
+            this.news(Tx`🗡️ ${Tx(b.name)}, ${this.npcTx(t)} kafilesini bastı — yük çetenin elinde.`);
         });
         state.npcParties = state.npcParties.filter(n => n.size > 0 || n.lordId);
     },
@@ -2187,7 +2187,7 @@ const Game = {
                     // lord can farm it again.
                     band.size = Math.max(1, band.size);
                     band.patrolSafeUntil = state.time.day + 3;
-                    this.news(T`🛡️ ${T(lord.name)}, ${T(band.name)} çetesini dağıttı.`);
+                    this.news(Tx`🛡️ ${Tx(lord.name)}, ${Tx(band.name)} çetesini dağıttı.`);
                 }
             } else {
                 band.size = Math.max(3, Math.round(band.size * (0.78 + roll(5) * 0.12)));
@@ -2195,7 +2195,7 @@ const Game = {
                 if(lord.size < 8) {
                     lord.size = 0;
                     this.scheduleLordRespawn(lord.lordId, 4 + Math.floor(roll(7) * 6));
-                    this.news(T`☠️ ${T(band.name)}, ${T(lord.name)} ordusunu bozguna uğrattı.`);
+                    this.news(Tx`☠️ ${Tx(band.name)}, ${Tx(lord.name)} ordusunu bozguna uğrattı.`);
                 }
             }
         }
@@ -2279,12 +2279,14 @@ const Game = {
     // Single display point for the party's name. Band/noble names come from a data table
     // (they have a dictionary key); caravan and village-convoy names are composite,
     // so they're translated as a template rather than a key.
-    npcName(npc) {
+    npcName(npc) { return I18N.show(this.npcTx(npc)); },
+    // …and as a stored text (`Tx`), for the news feed and a map mark
+    npcTx(npc) {
         if(!npc) return '';
         if(npc.trade) return npc.trade.kind === 'caravan'
-            ? T`${this.factionPeople(npc.faction)} Kervanı`
-            : T`${T(npc.trade.homeName || '')} Köylüleri`;
-        return T(npc.name);
+            ? Tx`${this.peopleTx(npc.faction)} Kervanı`
+            : Tx`${Tx(npc.trade.homeName || '')} Köylüleri`;
+        return Tx(npc.name);
     },
 
     // A new band/party doesn't spawn in the player's lap. The player starts at
@@ -9395,7 +9397,7 @@ const Game = {
             if(!target) return null;
             let at = L(target);
             return { html: T`"<b>${T(a.name)}</b> ordusunu <b>${T(at.name)}</b> kapısına dayamış. Surlar ne kadar dayanır bilinmez."`,
-                     mark: { x: at.x, y: at.y, radius: 150, name: T`Kuşatma: ${T(at.name)}` } };
+                     mark: { x: at.x, y: at.y, radius: 150, name: Tx`Kuşatma: ${Tx(at.name)}` } };
         }},
         { tier: 2, run(here, L) {
             let f = Object.keys(state.campaigns)[0];
@@ -9405,7 +9407,7 @@ const Game = {
             let at = L(target);
             return { html: T`"<b>${T(c.marshalName)}</b> mareşal seçilmiş. ${Game.factionName(f)} ordusu
                 <b>${T(at.name)}</b> üzerine yürüyor — oralarda işin varsa acele et."`,
-                     mark: { x: at.x, y: at.y, radius: 200, name: T`Sefer: ${T(at.name)}` } };
+                     mark: { x: at.x, y: at.y, radius: 200, name: Tx`Sefer: ${Tx(at.name)}` } };
         }},
         { tier: 2, run(here, L) {
             let lp = state.npcParties.filter(n => n.lordId && Game.dist(n, here) < 2500)
@@ -9414,7 +9416,7 @@ const Game = {
             let at = L(lp);
             return { html: T`"<b>${T(lp.name)}</b> geçen gün buradan geçti, ${T(String(lp.size))} kişi kadar vardılar.
                 Şu sıra ${Nobles.compass(at)} tarafta olmalı."`,
-                     mark: { x: at.x, y: at.y, radius: 500, name: T(lp.name) } };
+                     mark: { x: at.x, y: at.y, radius: 500, name: Tx(lp.name) } };
         }},
         // --- tier 3: numbers and dates ---
         { tier: 3, run(here, L) {
@@ -9439,7 +9441,7 @@ const Game = {
                 : null;
             let at = L(feast);
             return { html: T`"<b>${T(at.name)}</b>'da şölen var, soylular oraya akıyor. Namın varsa kapıdan çevirmezler."`,
-                     mark: { x: at.x, y: at.y, radius: 150, name: T(at.name) } };
+                     mark: { x: at.x, y: at.y, radius: 150, name: Tx(at.name) } };
         }},
         { tier: 3, run(here, L) {
             let l = Game.lairs().filter(x => x.purse > 150)
@@ -9449,7 +9451,7 @@ const Game = {
             if(at === l) l.seen = true;   // a true rumour genuinely puts the lair on the map
             return { html: T`"${Nobles.compass(at)} tarafta bir haydut ini var. Soydukları neredeyse
                 <b>${Math.round(l.purse)} dinar</b> etmiş diyorlar. Kimse üstüne gitmeye cesaret edemiyor."`,
-                     mark: { x: at.x, y: at.y, radius: 250, name: T('Haydut İni') } };
+                     mark: { x: at.x, y: at.y, radius: 250, name: Tx('Haydut İni') } };
         }}
     ],
 
@@ -9779,31 +9781,36 @@ const Game = {
     // The independent player has a flag too ('player'): otherwise `atWar` always returned false,
     // an enemy city's market stayed open, and an enemy lord walked right past you (#48).
     playerFaction() { return state.player.vassalOf || 'player'; },
-    factionName(f) {
-        if(f === 'player') return (state.player.name || T('Bağımsız')) + T(' Bölüğü');
-        return this.facName(FACTIONS[f] || { name: f || T('Bağımsız') });
+    factionName(f) { return I18N.show(this.factionTx(f)); },
+    // The same name as a stored text (`Tx`): the news feed keeps it and words it when read
+    factionTx(f) {
+        if(f === 'player') return [state.player.name || Tx('Bağımsız'), Tx(' Bölüğü')];
+        return this.facTx(FACTIONS[f] || { name: f || 'Bağımsız' });
     },
     // A kingdom's name on screen. The player's own is built from its ruler at display: stored
     // translated, it froze in the language of the day it was founded and missed the dictionary
     // on every screen after (#133).
-    facName(f) { return !f ? '?' : f.id === 'player_kingdom' ? T`${f.ruler} Krallığı` : T(f.name); },
+    facName(f) { return I18N.show(this.facTx(f)); },
+    facTx(f) { return !f ? '?' : f.id === 'player_kingdom' ? Tx`${f.ruler} Krallığı` : Tx(f.name); },
     // The people's name, not the state's: "Khergit Khanate Caravan" doesn't fit on a
     // map label line. Same word as the troop names ("Khergit Rider") — one consistent term.
-    factionPeople(f) {
+    factionPeople(f) { return I18N.show(this.peopleTx(f)); },
+    peopleTx(f) {
         let k = FACTIONS[f];
-        return k && k.people ? T(k.people) : this.factionName(f);
+        return k && k.people ? Tx(k.people) : this.factionTx(f);
     },
-    // The news feed; an event that concerns the player's kingdom also becomes a notification
+    // The news feed; an event that concerns the player's kingdom also becomes a notification.
+    // `msg` is a stored text (`Tx`), worded in whatever language is on when the feed is read.
     news(msg, mine) {
         state.warLog.unshift({ day: state.time.day, msg });
         if(state.warLog.length > 20) state.warLog.pop();
-        if(mine) alert(msg);
+        if(mine) alert(I18N.show(msg));
     },
     declareWar(a, b) {
         if(!a || !b || a === b || this.atWar(a, b) || this.allied(a, b)) return;
         state.wars[this.warKey(a, b)] = state.time.day;
         let mine = this.playerFaction() === a || this.playerFaction() === b;
-        this.news(T`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaşa girdi.`, mine);
+        this.news(Tx`⚔️ ${this.factionTx(a)} ile ${this.factionTx(b)} savaşa girdi.`, mine);
     },
     // Player-initiated, one-sided only (#132) — no peace-offer negotiation, matching how
     // raiding a village already declares war as a side effect. `declareWar` itself is
@@ -9831,7 +9838,7 @@ const Game = {
                 if(home) { n.targetX = home.x; n.targetY = home.y; }
             });
         }
-        this.news(T`🕊️ ${this.factionName(a)} ile ${this.factionName(b)} barış imzaladı.`, mine);
+        this.news(Tx`🕊️ ${this.factionTx(a)} ile ${this.factionTx(b)} barış imzaladı.`, mine);
     },
     // ---- ALLIANCE ----
     // Allies don't declare war on each other; one's enemy becomes the other's enemy too.
@@ -9845,7 +9852,7 @@ const Game = {
         if(!a || !b || a === b || this.allied(a, b) || this.atWar(a, b)) return;
         state.allies[this.warKey(a, b)] = state.time.day;
         let mine = this.playerFaction() === a || this.playerFaction() === b;
-        this.news(T`🤝 ${this.factionName(a)} ile ${this.factionName(b)} ittifak kurdu.`, mine);
+        this.news(Tx`🤝 ${this.factionTx(a)} ile ${this.factionTx(b)} ittifak kurdu.`, mine);
         // The cost of an alliance: your ally's front becomes your front too
         this.warsOf(a).concat(this.warsOf(b)).forEach(f => {
             if(f === a || f === b) return;
@@ -9855,7 +9862,7 @@ const Game = {
     breakAlliance(a, b) {
         if(!this.allied(a, b)) return;
         delete state.allies[this.warKey(a, b)];
-        this.news(T`💔 ${this.factionName(a)} ile ${this.factionName(b)} ittifakı bozuldu.`,
+        this.news(Tx`💔 ${this.factionTx(a)} ile ${this.factionTx(b)} ittifakı bozuldu.`,
                   this.playerFaction() === a || this.playerFaction() === b);
     },
 
@@ -9881,7 +9888,7 @@ const Game = {
             if(!loc || !this.atWar(f, loc.faction) || state.time.day - c.day > this.CAMPAIGN_MAX_DAYS) { this.endCampaign(f); continue; }
             // The campaign marker stays on the map (Nobles.drawMarkers clears it after 3 days, refreshed daily)
             if(c.pledged) state.knownLocations['campaign'] =
-                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, label: T`Sefer: ${T(loc.name)}` };
+                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, label: Tx`Sefer: ${Tx(loc.name)}` };
         }
         Object.keys(FACTIONS).forEach(f => {
             // A new campaign summons shouldn't stomp the finished one's reward modal
@@ -9897,7 +9904,7 @@ const Game = {
             state.campaigns[f] = { marshalId: mine ? 'player' : marshal.lordId,
                                    marshalName: mine ? state.player.name : marshal.name,
                                    targetLocId: target.id, day: state.time.day, pledged: mine || undefined };
-            this.news(T`🎖️ ${T(state.campaigns[f].marshalName)} mareşal seçildi — ${this.factionName(f)} ordusu ${T(target.name)} üzerine yürüyor.`);
+            this.news(Tx`🎖️ ${Tx(state.campaigns[f].marshalName)} mareşal seçildi — ${this.factionTx(f)} ordusu ${Tx(target.name)} üzerine yürüyor.`);
             // The marshal isn't summoned to arms, the marshal picks where the arms go
             if(mine) this.chooseCampaignTarget(f);
             else if(f === this.playerFaction() && f !== 'player_kingdom') this.summonToArms(f);
@@ -9910,14 +9917,14 @@ const Game = {
         state.campaignCooldown[f] = state.time.day;
         let loc = LOCATIONS.find(l => l.id === c.targetLocId);
         let won = loc && loc.faction === f;
-        this.news(won ? T`🎖️ ${this.factionName(f)} seferi ${T(loc.name)} ile taçlandı.`
-                      : T`🏳️ ${this.factionName(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
+        this.news(won ? Tx`🎖️ ${this.factionTx(f)} seferi ${Tx(loc.name)} ile taçlandı.`
+                      : Tx`🏳️ ${this.factionTx(f)} ordusu dağıldı, sefer sonuçsuz kaldı.`);
         // A marshal serves one campaign; the post has to be asked for again (#69)
         if(state.marshalOf === f) {
             state.marshalOf = null;
             if(won) { state.player.renown += 10; state.player.rightToRule += 5; }
-            this.news(won ? T`🎖️ Mareşallik görevin zaferle bitti (+10 nam, +5 idare hakkı).`
-                          : T`🎖️ Mareşallik görevin sonuçsuz bitti; sancak başkasına geçti.`, true);
+            this.news(won ? Tx`🎖️ Mareşallik görevin zaferle bitti (+10 nam, +5 idare hakkı).`
+                          : Tx`🎖️ Mareşallik görevin sonuçsuz bitti; sancak başkasına geçti.`, true);
         }
         if(c.pledged === undefined || f !== this.playerFaction()) return;
         delete state.knownLocations['campaign'];
@@ -10065,7 +10072,7 @@ const Game = {
         this.closeModal();
         state.marshalOf = f;
         LORDS.filter(l => l.faction === f && l.id !== lordId).forEach(l => Nobles.addRel(l.id, -2));   // the passed-over lords sulk
-        this.news(T`🎖️ ${state.player.name} mareşal seçildi — ${this.factionName(f)} ordusu senin hedefine yürüyecek.`);
+        this.news(Tx`🎖️ ${state.player.name} mareşal seçildi — ${this.factionTx(f)} ordusu senin hedefine yürüyecek.`);
         let c = state.campaigns[f];
         if(c) {                       // a campaign already under way: you take the banner over mid-march
             c.marshalId = 'player'; c.marshalName = state.player.name; c.pledged = true;
@@ -10095,7 +10102,7 @@ const Game = {
         if(!c || !loc) return;
         c.targetLocId = locId;
         c.day = state.time.day;         // the clock restarts with the new target
-        this.news(T`🎖️ Mareşal ${state.player.name} ordunun yönünü ${T(loc.name)} üzerine çevirdi.`, true);
+        this.news(Tx`🎖️ Mareşal ${state.player.name} ordunun yönünü ${Tx(loc.name)} üzerine çevirdi.`, true);
     },
 
     // One front starts open when the world is built (Calradia is never at peace)
@@ -10106,7 +10113,7 @@ const Game = {
         let a = fs[Math.floor(Math.random() * fs.length)];
         let b = fs.filter(f => f !== a)[Math.floor(Math.random() * (fs.length - 1))];
         state.wars[this.warKey(a, b)] = 1;
-        state.warLog.unshift({ day: 1, msg: T`⚔️ ${this.factionName(a)} ile ${this.factionName(b)} savaş hâlinde.` });
+        state.warLog.unshift({ day: 1, msg: Tx`⚔️ ${this.factionTx(a)} ile ${this.factionTx(b)} savaş hâlinde.` });
     },
     // Daily roll: a war that drags on ends in peace, no faction opens more than two fronts
     diplomacyTick() {
@@ -10192,7 +10199,7 @@ const Game = {
         // party is actually routed, and never pops a notification (otherwise you'd eat a modal every day of a war).
         if(lose.size < 8) {
             lose.size = 0;
-            this.news(T`🩸 ${T(win.name)} (${this.factionName(win.faction)}), ${T(lose.name)} kuvvetlerini dağıttı.`);
+            this.news(Tx`🩸 ${Tx(win.name)} (${this.factionTx(win.faction)}), ${Tx(lose.name)} kuvvetlerini dağıttı.`);
         }
     },
     captureSettlement(loc, atk) {
@@ -10210,11 +10217,11 @@ const Game = {
         if(wasMine) {
             let lost = (loc.garrison || []).length;
             loc.owner = null; loc.garrison = [];
-            lostFief = `<br><b style="color:#e0463a">${T`⚔️ ${T(loc.name)} senin tımarındı!`}</b> `
-                + (lost ? T`${lost} kişilik garnizonun kılıçtan geçti.` : T('Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.'));
+            lostFief = ['<br><b style="color:#e0463a">', Tx`⚔️ ${Tx(loc.name)} senin tımarındı!`, '</b> ',
+                lost ? Tx`${lost} kişilik garnizonun kılıçtan geçti.` : Tx('Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.')];
         }
         let mine = wasMine || [old, atk.faction].indexOf(this.playerFaction()) !== -1;
-        this.news(T`🏰 ${T(loc.name)}, ${this.factionName(old)}'ndan alındı — artık ${this.factionName(atk.faction)} toprağı.${lostFief}`, mine);
+        this.news(Tx`🏰 ${Tx(loc.name)}, ${this.factionTx(old)}'ndan alındı — artık ${this.factionTx(atk.faction)} toprağı.${lostFief}`, mine);
     },
     // Diplomacy screen: who's at war with whom, who holds how much land, the latest news
     showDiplomacy() {
@@ -10250,7 +10257,7 @@ const Game = {
                             : c.pledged === false ? T('<span style="color:var(--danger)">· çağrıyı reddettin</span>') : ''}</div>`;
         }).join('');
         let log = state.warLog.length
-            ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${T`${n.day}. gün`}</span> — ${n.msg}</div>`).join('')
+            ? state.warLog.map(n => `<div style="padding:0.2rem 0"><span style="color:var(--text-muted)">${T`${n.day}. gün`}</span> — ${I18N.show(n.msg)}</div>`).join('')
             : T('<p style="color:var(--text-muted)">Henüz haber yok.</p>');
         this.showModal(`<h3>${T`🌍 Kalradya'nın Hâli`}</h3>
             ${mine === 'player'
@@ -10361,7 +10368,7 @@ const Game = {
         // The lords who were hoping for that land take it personally.
         LORDS.filter(l => l.faction === loc.faction && l.id !== lordId).forEach(l => Nobles.addRel(l.id, -2));
         this.closeModal();
-        this.news(T`🏰 ${T(loc.name)} ${state.player.name} adına tımar oldu.`);
+        this.news(Tx`🏰 ${Tx(loc.name)} ${state.player.name} adına tımar oldu.`);
         alert(T`${T(loc.name)} artık senin tımarın. Vergisi her gün kesene girecek; garnizonunu da sen kuracaksın.<br><br>
             Toprağı gözü olan lordlar bu karardan hoşlanmadı (−2 ilişki).`);
     },
@@ -10488,7 +10495,7 @@ const Game = {
             state.vassals.push(lordId);
             this.applyVassals();
             LORDS.filter(l => l.faction === old).forEach(l => Nobles.addRel(l.id, -10));
-            this.news(T`👑 ${T(lord.name)}, ${this.factionName(old)}'dan ayrılıp senin krallığına katıldı.`, true);
+            this.news(Tx`👑 ${Tx(lord.name)}, ${this.factionTx(old)}'dan ayrılıp senin krallığına katıldı.`, true);
         }
         let n = (loc.garrison || []).length;
         loc.owner = lordId;
@@ -10498,7 +10505,7 @@ const Game = {
         // The jealousy from Warband: a vassal left empty-handed while land is handed out sulks
         this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
                       .forEach(v => Nobles.addRel(v.id, -5));
-        this.news(T`🏰 ${T(loc.name)} tımarı ${T(lord.name)}'e verildi.`, true);
+        this.news(Tx`🏰 ${Tx(loc.name)} tımarı ${Tx(lord.name)}'e verildi.`, true);
         this.closeModal();
         alert(T`${T(loc.name)} artık ${T(lord.name)}'in tımarı.\n+20 ilişki${n ? T`, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
         this.updateTopBar();
@@ -10754,7 +10761,7 @@ const Game = {
         state.player.targetLocation = null;
         state.player.status = 'besieging';
         this.showScreen('map');
-        this.news(T`${T(loc.name)} kuşatma altında.`);   // the panel is already visible, no modal notification needed
+        this.news(Tx`${Tx(loc.name)} kuşatma altında.`);   // the panel is already visible, no modal notification needed
         this.renderSiegeUI();
     },
     // Daily siege processing (dailyUpdate)

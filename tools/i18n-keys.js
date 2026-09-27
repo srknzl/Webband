@@ -15,7 +15,7 @@ const unesc = s => s.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{
     return ESC[c] !== undefined ? ESC[c] : c;
 });
 
-/** Collects `T('…')` and `T`…`` keys from a single file. */
+/** Collects `T('…')` and `T`…`` keys (and their stored twins `Tx`) from a single file. */
 function keysIn(src, withSpans) {
     const out = [], n = src.length;
     for(let i = 0; i < n; i++) {
@@ -27,6 +27,7 @@ function keysIn(src, withSpans) {
         if(lead && src[i] === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i); if(i < 0) i = n; continue; }
         if(src[i] !== 'T' || /[A-Za-z0-9_$.]/.test(i ? src[i - 1] : ' ')) continue;
         let j = i + 1;
+        if(src[j] === 'x') j++;                               // Tx: the stored form, same keys
         if(src[j] === '(') {                                  // T('…')
             let k = j + 1;
             const q = src[k];
