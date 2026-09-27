@@ -9413,7 +9413,7 @@ const Game = {
         let odds = this.tourneyOdds(), last = (state.tourneyChampions || {})[loc.id];
         this.showModal(`<h3>${T`🏆 ${T(loc.name)} Turnuvası`}</h3>
         <p>${T`Sekiz dövüşçü, üç tur, tahta silahlar. Her turu <b>kendin</b> dövüşürsün; canın turlar arasında yenilenmez.`}</p>
-        ${last ? `<p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Geçen turnuvayı <b>${T(last.name)}</b> kazanmıştı.`}</p>` : ''}
+        ${last ? `<p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Geçen turnuvayı <b>${this.tourneyName(last.name)}</b> kazanmıştı.`}</p>` : ''}
         ${this.tourneyBracketHtml()}
         <div style="margin-top:0.9rem;padding:0.8rem;border:1px solid var(--panel-border);border-radius:var(--r-md)">
             <b>${T`🎲 Bahis`}</b> <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`— kendine yatırırsın; oran cetveldeki rakiplerin gücünden çıkar.`}</span>
@@ -9491,6 +9491,9 @@ const Game = {
         this.showModal(`<h3>${T`🏆 ${T((LOCATIONS.find(l => l.id === t.locId) || {}).name || 'Turnuva')} Turnuvası`}</h3>
         ${this.tourneyBracketHtml()}${msg}${btn}`, '640px');
     },
+    // The bracket holds lords, regulars and companions — names with a dictionary entry — and the
+    // player, whose typed name has none: T() on it is a miss on every EN/ID screen (#133).
+    tourneyName(n) { return n === state.player.name ? n : T(n); },
     tourneyClose() { state.tourney = null; this.closeModal(); },
 
     tourneyFight() {
@@ -9569,7 +9572,7 @@ const Game = {
         let cls = (f.you ? ' me' : '') + (f.out ? ' out' : '')
                 + ((state.tourney.fresh || []).includes(r + ':' + i) ? ' adv' : '');
         return `<div class="tbr-c${cls}" style="animation-delay:${(i * 0.1).toFixed(2)}s">
-            <span class="tbr-n">${f.you ? '⚔️ ' : ''}${T(f.name)}</span><span class="tbr-l">${f.lv}</span></div>`;
+            <span class="tbr-n">${f.you ? '⚔️ ' : ''}${this.tourneyName(f.name)}</span><span class="tbr-l">${f.lv}</span></div>`;
     },
 
     // Garrison grows with prosperity — the siege screen and the map tooltip both use the same number

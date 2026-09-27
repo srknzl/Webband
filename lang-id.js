@@ -3276,5 +3276,12 @@ I18N.dicts.id = {
   "📂 Dosyadan Yükle": "📂 Muat dari Berkas",
   "✅ Kayıt dosyası indirildi.": "✅ Berkas simpanan diunduh.",
   "⚠️ Son dosya yedeğin {0} gün önce. Tarayıcı kayıtları silebilir; yeni bir yedek al.": "⚠️ Cadangan berkas terakhirmu {0} hari yang lalu. Peramban bisa menghapus simpanan; buat cadangan baru.",
-  "⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.": "⚠️ Kamu belum mencadangkan ke berkas. Peramban bisa menghapus simpanan; buat cadangan."
+  "⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.": "⚠️ Kamu belum mencadangkan ke berkas. Peramban bisa menghapus simpanan; buat cadangan.",
+  "Tek Kollu Baturhan": "Baturhan si Lengan Satu",
+  "Şişman Ansen": "Ansen si Gendut",
+  "Kumlu Derviş": "Darwis si Pasir",
+  "Sessiz Ymira": "Ymira si Pendiam",
+  "Kalkancı Runa": "Runa si Perisai",
+  "Kırık Dişli Orhan": "Orhan si Gigi Patah",
+  "Değirmenci Vasil": "Vasil si Tukang Giling"
 };

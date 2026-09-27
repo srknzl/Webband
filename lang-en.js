@@ -3276,5 +3276,12 @@ I18N.dicts.en = {
   "📂 Dosyadan Yükle": "📂 Load from File",
   "✅ Kayıt dosyası indirildi.": "✅ Save file downloaded.",
   "⚠️ Son dosya yedeğin {0} gün önce. Tarayıcı kayıtları silebilir; yeni bir yedek al.": "⚠️ Your last file backup was {0} days ago. The browser can clear saves; take a fresh one.",
-  "⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.": "⚠️ You haven't backed up to a file yet. The browser can clear saves; take a backup."
+  "⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.": "⚠️ You haven't backed up to a file yet. The browser can clear saves; take a backup.",
+  "Tek Kollu Baturhan": "One-Armed Baturhan",
+  "Şişman Ansen": "Fat Ansen",
+  "Kumlu Derviş": "Sandy Dervish",
+  "Sessiz Ymira": "Silent Ymira",
+  "Kalkancı Runa": "Runa the Shieldmaiden",
+  "Kırık Dişli Orhan": "Broken-Tooth Orhan",
+  "Değirmenci Vasil": "Vasil the Miller"
 };

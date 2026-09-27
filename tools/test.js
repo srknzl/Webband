@@ -3562,6 +3562,14 @@ test('i18n: faction people-names are in both dictionaries', () => {
     assert.strictEqual(missing.length, 0, `people-name with no dictionary entry: ${missing.join(', ')}`);
 });
 
+// The circuit regulars fill a tournament bracket through T() at display (#133 found them
+// missing: every EN/ID bracket showed the Turkish epithets).
+test('i18n: tournament regulars are in both dictionaries', () => {
+    const d = require('./i18n-keys').dicts();
+    const missing = g.Game.TOURNEY_REGULARS.filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(missing.length, 0, `regular with no dictionary entry: ${missing.join(', ')}`);
+});
+
 // Same blind spot again: the keyboard/touch help table is rendered with `T(k)`/`T(v)`
 // (showKeys()), so a redesigned control scheme (the old single-stick+button touch
 // layout became the current dual-stick one) can change Game.TOUCH_HELP's strings
