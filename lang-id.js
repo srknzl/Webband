@@ -3267,5 +3267,7 @@ I18N.dicts.id = {
   "Genç Lord Veyrin": "Tuan Muda Veyrin",
   "Genç Lord Harun": "Tuan Muda Harun",
   "Genç Lord Emrys": "Tuan Muda Emrys",
-  "Genç Lord Kaan": "Tuan Muda Kaan"
+  "Genç Lord Kaan": "Tuan Muda Kaan",
+  "{0}'da bir işletme açılsın mı? Günde +{1} dinar getirir, kendini {2} günde amorti eder.": "Buka usaha di {0}? Menghasilkan +{1} dinar per hari dan modalnya kembali dalam {2} hari.",
+  "Evet, aç": "Ya, buka"
 };

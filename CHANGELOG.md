@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.2.1 — Rahat Kamp (2026-09-27)
+
+- **Şehirde beklerken artık kimse etrafına toplanmıyor.** Kamp çemberi seni görmemiş haydutları
+  ve lordları da uzaktan çadırına çekiyordu; 3 gün bekleyince kapıda bir düzine çete buluyordun.
+  Artık çember yalnız seni gerçekten kovalayanları dışarıda tutuyor, diğerleri kendi işinde.
+- **Arenada Acemi Dövüşçü gerçekten acemi.** Oyunun başında ikiniz de birbirinize 1 vuruyordunuz
+  ve dövüş dakikalarca sürüyordu. Acemi artık zırhsız ve daha az canlı: silahsız bir kahraman
+  bile vuruş başına 5 hasar veriyor, sekiz vuruşta yere seriyor.
+- **İşletme satın almadan önce soruluyor.** Şehir sahnesindeki binaya ya da karta tıklamak
+  3000 dinarı hemen harcıyordu. Artık kazancı ve kaç günde amorti edeceği yazan bir onay çıkıyor.
+- **Uzun saçlı kadın arkadan bakınca titremiyor.** Bazı karelerde saç bir anda ince bir çubuğa
+  dönüp geri geliyordu. Bütün saç stilleri, yönler ve hareketler tek tek tarandı; artık her karede
+  aynı.
+- **Haydut ininde alarm çalınca müzik değişiyor.** Fark edilince gergin kovalamaca müziği
+  başlıyor, seni kaybedince sessiz parçalara dönüyor.
+
 ## 2.2.0 — Haydut İni (2026-09-27)
 
 Haritadaki haydut inleri artık içine girilen yerler.

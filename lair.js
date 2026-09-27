@@ -653,7 +653,6 @@ const Snd = {
     alarm() {
         const ac = Game.ac();
         if(ac && this.out) try { const t = ac.currentTime; for(const [f, i] of [[220, 0], [233, 0], [165, 1]]) this.tone(f, t + i * .16, .5, 'sawtooth', .09, f * .94); } catch(e) {}
-        Game.Music.sync();
     },
     // how much open sky is round the hero: the share of outdoor tiles within four (the camp is all sky)
     openness() {
@@ -1227,7 +1226,6 @@ function updateAmbush() {
         say(G.solo ? T('Pusu! İkişer ikişer saldırıyorlar, sakin ol.') : T('Pusu! Askerlerin yanında.'));
         if(!G.alarm) { G.alarms++; Snd.alarm(); }
         G.alarm = 12;
-        Game.Music.sync();
     }
 }
 function checkAmbushOver() {
@@ -1287,8 +1285,12 @@ function update(dt) {
     if(G.alarm > 0) {
         G.alarm -= dt;
         if(G.chars.some(g => g.kind === 'guard' && g.state === 'alert' && g.sees)) G.alarm = Math.max(G.alarm, 6);
-        if(G.alarm <= 0) { for(const g of G.chars) if(g.kind === 'guard' && g.state === 'alert') { g.state = 'search'; g.searchT = 7; g.sus = .5; } say(T('Seni kaybettiler. Arıyorlar…')); Game.Music.sync(); }
+        if(G.alarm <= 0) { for(const g of G.chars) if(g.kind === 'guard' && g.state === 'alert') { g.state = 'search'; g.searchT = 7; g.sus = .5; } say(T('Seni kaybettiler. Arıyorlar…')); }
     }
+    // The music follows the alarm itself, whichever path raised or dropped it. Snd.alarm() used
+    // to sync it, but raiseAlarm played the stab before setting G.alarm, so the sync still read a
+    // quiet lair and the stealth pieces played on through the whole chase.
+    if((G.alarm > 0) !== !!G.chaseMusic) { G.chaseMusic = G.alarm > 0; Game.Music.sync(); }
     // discovered tiles for the minimap
     if(((G.t * 10) | 0) !== G.seenTick) {
         G.seenTick = (G.t * 10) | 0;

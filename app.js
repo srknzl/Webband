@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.2.0', date: '2026-09-27', name: 'Haydut İni' };  // the version name is not translated
+const VERSION = { no: '2.2.1', date: '2026-09-27', name: 'Rahat Kamp' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3833,21 +3833,13 @@ const Game = {
             }
 
             // A camp is a protected time-skip, not a way to let a pursuer overlap the
-            // player and trigger on the first frame after waking. Hostile parties can keep
-            // moving on the campaign map, but hold outside the camp's safety perimeter.
-            // This used to fire for every `hostile` npc, full stop — and `hostile` just means
-            // "at war / grudge / hated", not "aware of you": during a war, EVERY enemy lord on
-            // the whole map counts, so camping quietly pulled all of them toward your tent
-            // regardless of distance, and you'd surface surrounded by lords who never actually
-            // noticed you (#132 report: "getting caught a lot" right after camping — the
-            // perimeter itself never let anyone through, but by the time you broke camp a dozen
-            // strangers had queued up at its edge). Held to the same `dp < sense` reach as a
-            // normal notice above (not `playerTargetId`, which the new-pursuit suppression right
-            // above this can leave unset on the very tick a genuinely nearby party first closes
-            // in) — plus an active blood-feud hunt (`hunting`), which has no distance gate of its
-            // own by design. Anyone outside both stays on its own business instead of being
-            // magnetized in from across the map.
-            if(this.campProtected() && hostile && (dp < sense || npc.hunting === 'player')) {
+            // player and trigger on the first frame after waking. The perimeter only *repels*:
+            // a hostile party whose target lies inside it (a pursuer, a blood-feud hunt, or a
+            // wander point that happens to land on your tent) holds at its edge instead. It
+            // used to also *attract* every hostile within `sense` (up to 1000 units) — a camp in
+            // a town surfaced a dozen bands and lords that never noticed you queued at its edge.
+            if(this.campProtected() && hostile
+               && Math.hypot(npc.targetX - state.player.x, npc.targetY - state.player.y) < this.CAMP_SAFE_RADIUS) {
                 let awayX = npc.x - state.player.x, awayY = npc.y - state.player.y;
                 let away = Math.hypot(awayX, awayY) || 1;
                 npc.targetX = state.player.x + awayX / away * this.CAMP_SAFE_RADIUS;
@@ -10188,12 +10180,21 @@ const Game = {
     myEnterprises() { return LOCATIONS.filter(l => l.enterprise); },
     // An enterprise in a city that falls to the enemy doesn't work
     enterpriseWorks(loc) { return !!loc.enterprise && !this.atWar(this.playerFaction(), loc.faction); },
-    buyEnterprise(loc) {
+    buyEnterprise(loc, sure = false) {
         if(loc.enterprise) {
             return alert(T`${T(loc.name)}'daki işletmen günde +${this.enterpriseIncome(loc)} dinar getiriyor.`
                 + (this.enterpriseWorks(loc) ? '' : T('\nAma şehirle savaştasın: kapılar kapalı, kazanç duruyor.')));
         }
         if(state.player.money < this.ENTERPRISE_COST) return alert(T('Yeterli dinarın yok!'));
+        // 3000 dinars is the biggest single purchase in a town — the card and the scene's
+        // building both land here, so the question is asked once, for both.
+        if(!sure) {
+            let inc = this.enterpriseIncome(loc);
+            return this.showModal(`<h3>${T`🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`}</h3>
+            <p>${T`${T(loc.name)}'da bir işletme açılsın mı? Günde +${inc} dinar getirir, kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`}</p>
+            <button class="btn primary" onclick="Game.closeModal(); Game.buyEnterprise(LOCATIONS.find(l => l.id === '${loc.id}'), true)">${T`Evet, aç`}</button>
+            <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`, '380px');
+        }
         state.player.money -= this.ENTERPRISE_COST;
         loc.enterprise = true;
         this.updateTopBar(); this.enterLocation(loc);

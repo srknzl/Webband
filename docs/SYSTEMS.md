@@ -725,6 +725,9 @@ encounter now — its tournament branch is unreachable, `start()` defaults to ch
 a leveled foe, always infantry (an archer would kite a 1v1 forever). A win pays a small purse
 (`ARENA_PURSE`=10, scaled by town prosperity) with a 5-fight streak bonus; a loss pays **no XP**
 (it used to pay 40%, making deliberate losses the fastest weapon-skill grind in the game).
+The ladder's novice (`ARENA_FOES[0]`) carries `def: 0, hpMul: 0.7` (2.2.1). Measured, a fresh
+hero (no weapon, proficiency 1) against it: 5 damage a hit, down in 8 (before: defense 6 and 56
+hp — the swing sank to the armour floor, 1 a hit, and a shielded hero took 1 back).
 
 ### Bosses and relics (#37, #38, #132)
 4 renown-gated bosses surface as unique solo units (Kurt Ana 60 renown, Bozkır Hanı 130, Demirci
@@ -888,6 +891,12 @@ weak target).
 Any encounter interrupts it (`triggerEncounter`'s first line calls `stopWait()`). Resting at a
 tavern also costs 8 hours now, not just 10 denars.
 
+**The camp perimeter** (`CAMP_SAFE_RADIUS` 120) only repels: a hostile party whose target lies
+inside it (a pursuer, a blood-feud hunt, a wander point on the tent) holds at its edge. It no
+longer pulls in every hostile within `sense` (2.2.1). Measured (seeds 1–5, day 25, lone hero in a
+friendly city, 72 h wait): hostile parties within 200 at the end 0/0/0/0/0 (before: 6/7/12/3/5,
+every one of them had never noticed the hero).
+
 ### Honor — the second reputation axis
 `state.player.honor` (−100..100); the old "bandit stain"/infamy label is just its negative side
 (`Game.infamy()` = `−honor`). Raiding a village is −12, robbing peacetime trade is −5/−8,
@@ -920,7 +929,8 @@ renown) — deliberately not a stacking permanent bonus (that's what `RELICS` is
 achievement's name becomes a cosmetic title shown on the character screen.
 
 ### Enterprise and the fief treasury
-**Enterprise** (`Game.buyEnterprise`, 3000₺): `prosperity × 0.55`/day, folded into `fiefIncome()`
+**Enterprise** (`Game.buyEnterprise`, 3000₺; asks first — the card and the scene's building
+both call it): `prosperity × 0.55`/day, folded into `fiefIncome()`
 as a `trade` line; earnings stop (not lost) while at war with the town. **Treasury**
 (`loc.treasury`): money deposited here isn't looted on defeat — `Game.defeatLootRatio()` =
 `0.6 + 0.3 × (1 − share in treasury)` only touches the purse on hand, so storage is real
@@ -1017,7 +1027,9 @@ real HUD and buttons, pausing the lair; keyboard and touch texts differ, and tou
 list on the scouting card (`Lair.help`) and the pause menu's "Nasıl oynanır?".
 
 **Sound.** Music is the game's player: `'lair'` (three quiet pieces, −22 LUFS) while you sneak,
-`'lairchase'` (three fight pieces) while `Lair.alarmed()`. At night outside the cave a cricket
+`'lairchase'` (three fight pieces) while `Lair.alarmed()`. The lair's update syncs the music
+on every change of `G.alarm > 0`, whichever path raised or dropped it (2.2.1: the stab used to
+sync before `raiseAlarm` set the alarm, so the stealth pieces played through the chase). At night outside the cave a cricket
 loop (`lair/crickets.mp3`, Web Audio buffer, looped) sits over it at `.12 + .88 × openness`
 (the share of outdoor tiles within 4; the camp is all sky), faded to 0 during an alarm. The cave
 drips instead. Pebble, knockout, coins, hits and the alarm stab are synthesized.
@@ -1270,6 +1282,11 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
 - **Sprite looks** (Swordsman bake): `fem` trims the pack's spiky crop to a smooth dome
   (`headBox`, `smoothDome`) and draws a hairstyle by code (`femHair`), not on the death frames.
   - Styles: `'tail'` ponytail (the default), `'bun'`, `'braid'`, `'long'` shoulder-length.
+  - Facing up, `headBox` always takes the skull's width from the lower half (2.2.1): some back
+    frames show an ear or the neck, and those skin pixels were read as a face — the dome shrank
+    to a sliver and long hair flickered to a spike (Idle 2/6/10, Hurt, the swing). Measured: a
+    scan of every armour × style × helm × anim × facing frame finds no frame under 80 % of its
+    row's median (only attack frame 0, the wind-up pose).
   - The parts that hang behind the head are drawn before it. Braid and long hair are painted
     on their own cell and outlined once all round (`mass`), so only the outer silhouette shows.
   - Strand ends are uneven by a fixed table (`RAG`), the same on every frame.

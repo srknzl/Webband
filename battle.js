@@ -135,7 +135,10 @@ const Battle = {
     // `tier` is each foe's own fixed weak/normal/armored look (#132) — the ladder is real
     // (harder fights pay more xp), but the art doesn't derive from that live difficulty number.
     ARENA_FOES: [
-        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  tier: 0, desc: 'Kolay lokma, az ter.' },
+        // `def`/`hpMul` make the novice what its card says. With the stock kit (defense 6+,
+        // hp 56 at level 1) a fresh hero's 35 %-proficiency swing sank to the armour floor —
+        // 1 damage a hit — and a shielded hero took 1 back: a two-minute stalemate.
+        { name: 'Acemi Dövüşçü',   dLv: -3, xp: 80,  tier: 0, def: 0, hpMul: 0.7, desc: 'Kolay lokma, az ter.' },
         { name: 'Arena Gediklisi', dLv: 2,  xp: 180, tier: 1, desc: 'Senden bir gömlek üstün.' },
         { name: 'Arena Şampiyonu', dLv: 8,  xp: 340, tier: 2, desc: 'Dayak yersin ama çok şey öğrenirsin.' }
     ],
@@ -150,9 +153,9 @@ const Battle = {
         if(!e) return;
         let lv = Math.max(1, foe.lv || state.player.stats.level + (foe.dLv || 0));
         e.level = lv;
-        e.hp = e.maxHp = 50 + lv * 6;
+        e.hp = e.maxHp = Math.round((50 + lv * 6) * (foe.hpMul || 1));
         e.attack = 10 + lv;
-        e.defense = 6 + Math.floor(lv / 3);
+        e.defense = foe.def !== undefined ? foe.def : 6 + Math.floor(lv / 3);
         // Wooden weapon: blunt, i.e. it knocks out instead of killing — nobody dies on the sand
         e.name = foe.name; e.type = 'infantry'; e.dmgType = 'blunt';
         e.speed = 70; e.radius = 9; e.color = color || '#ffcc55';
@@ -4287,7 +4290,7 @@ const Swordsman = (() => {
     // hair palette, so colourMap recolours it with the rest of the hair. Styles under review
     // (tur 5, 2.1.1): 'tail' ponytail, 'bun', 'braid', 'long' shoulder-length — the player picks one.
     const HAIR_SET = new Set([...HAIR, HAIR_LINE].map(hkey)), SKIN_SET = new Set(SKIN.map(hkey));
-    function headBox(hx) {
+    function headBox(hx, dir) {
         const d = hx.getImageData(0, 0, F, F).data;
         let x0 = F, y0 = F, x1 = -1, y1 = -1, s0 = F, s1 = -1, sy = F;
         for(let i = 0; i < F * F; i++) {
@@ -4297,8 +4300,12 @@ const Swordsman = (() => {
             if(SKIN_SET.has(key(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]))) { if(px < s0) s0 = px; if(px > s1) s1 = px; if(py < sy) sy = py; }
         }
         if(x1 < 0) return null;
-        if(s1 < 0) {                                    // seen from behind: no face, so the skull's width comes from
-            const mid = y0 + ((y1 - y0) >> 1);          // the lower half, which the spikes never reach
+        // Seen from behind there is no face, so the skull's width comes from the lower half, which
+        // the spikes never reach. Decided by the facing, not by "no skin pixels": some back frames
+        // (Idle 2/6/10, Hurt, the swing) show an ear or the neck, and those few pixels were taken
+        // for the face — the skull shrank to a sliver and the hair flickered to a spike.
+        if(s1 < 0 || dir === 'up') {
+            const mid = y0 + ((y1 - y0) >> 1);
             s0 = F; s1 = -1;
             for(let i = mid * F; i < F * F; i++) if(d[i * 4 + 3]) { const px = i % F; if(px < s0) s0 = px; if(px > s1) s1 = px; }
             s0 += 2; s1 -= 2; sy = y0 + Math.round((y1 - y0) * 0.55);
@@ -4477,7 +4484,7 @@ const Swordsman = (() => {
         const wl = hasAnim(look.weapon, a) ? look.weapon : 2;
         const head = cell(), hx = head.getContext('2d');
         layer(hx, look.armor, a, 'head', fr, row);
-        const fem = look.fem && a !== 'Death', hb = fem ? headBox(hx) : null, style = look.hairStyle || femStyle;
+        const fem = look.fem && a !== 'Death', hb = fem ? headBox(hx, dir) : null, style = look.hairStyle || femStyle;
         const sway = a === 'Walk' || a === 'Run' ? FEM_SWAY[fr % 4] : 0;
         if(hb) smoothDome(hx, hb);
         if(look.helm) { const id = hx.getImageData(0, 0, F, F); helmet(id, look.helm, a, row, fr, look.armor); hx.putImageData(id, 0, 0); }

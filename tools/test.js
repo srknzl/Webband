@@ -2433,6 +2433,21 @@ test('wait: hostile parties hold outside the camp perimeter and cannot stack for
         'a hostile party crossed the protected camp perimeter');
 });
 
+test('wait: the camp perimeter repels but never attracts a band that has not noticed you', () => {
+    const g = H.world({ seed: 41 });
+    const { Game, state } = g;
+    state.time.day = 20;
+    state.player.party = [];
+    state.player.wait = { until: 99 }; state.player.status = 'waiting';
+    const band = Game.createNPC('Çapulcular', 'bandit', 20, '#800');
+    band.x = state.player.x + 300; band.y = state.player.y;          // inside `sense`, never noticed
+    band.targetX = state.player.x + 2000; band.targetY = state.player.y;
+    band.playerTargetId = null;
+    state.npcParties = [band];
+    Game.updateNPCs(1);
+    assert.strictEqual(band.targetX, state.player.x + 2000, 'a camp pulled an unaware band toward the tent');
+});
+
 test('wait: friendly cities and castles offer a place to pass time, enemy settlements do not', () => {
     const g = H.world({ seed: 39 });
     const { Game, LOCATIONS } = g;
