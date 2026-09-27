@@ -3283,5 +3283,6 @@ I18N.dicts.en = {
   "Sessiz Ymira": "Silent Ymira",
   "Kalkancı Runa": "Runa the Shieldmaiden",
   "Kırık Dişli Orhan": "Broken-Tooth Orhan",
-  "Değirmenci Vasil": "Vasil the Miller"
+  "Değirmenci Vasil": "Vasil the Miller",
+  "{0} Krallığı": "Kingdom of {0}"
 };

@@ -201,7 +201,7 @@ const QUESTS = {
                 Ordularını boş ovaya yürütsünler.<br><br>
                 Bir uyarı: yalan dolaşır. Bir süre sonra sana da yalan söylemeye başlarlar."`}`;
         },
-        desc(q) { return T`${T(FACTIONS[q.data.faction] ? FACTIONS[q.data.faction].name : '?')} lordlarıyla salonlarında konuş ve
+        desc(q) { return T`${Game.facName(FACTIONS[q.data.faction])} lordlarıyla salonlarında konuş ve
             <b>${T(q.data.aboutName)}</b> hakkındaki yalanı yay — <b>${q.data.told.length}/${q.data.need}</b> lord`; },
         where(q) { return Quests.nearestSeat(l => l.faction === q.data.faction && !q.data.told.includes(l.id) && l.id !== q.data.about); },
         on(q, ev, d) {
@@ -220,7 +220,7 @@ const QUESTS = {
             let about = Nobles.lord(q.data.about);
             q.data.told.forEach(id => Nobles.addRel(id, -8));
             state.liars = { until: state.time.day + 5, faction: about.faction };
-            alert(T`Yalan tuttu. Ama artık ${T(FACTIONS[about.faction].name)} lordları da sana doğruyu söylemiyor (5 gün).`);
+            alert(T`Yalan tuttu. Ama artık ${Game.facName(FACTIONS[about.faction])} lordları da sana doğruyu söylemiyor (5 gün).`);
         }
     },
 

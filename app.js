@@ -2175,7 +2175,7 @@ const Game = {
         if(o.renown)  out.push(T`${o.renown > 0 ? '+' : ''}${o.renown} nam`);
         if(o.item)    out.push(T`${ITEMS[o.item].icon} ${T(ITEMS[o.item].name)} (kuşanılmış)`);
         if(o.relAll)  out.push(T`bütün lordlarla ${o.relAll} ilişki`);
-        if(o.relFaction) out.push(T`${T(FACTIONS[o.relFaction.id].name)} lordlarıyla +${o.relFaction.n} ilişki`);
+        if(o.relFaction) out.push(T`${Game.facName(FACTIONS[o.relFaction.id])} lordlarıyla +${o.relFaction.n} ilişki`);
         return out.join(' · ');
     },
 
@@ -6937,7 +6937,7 @@ const Game = {
     settlementSubline(loc) {
         let f = FACTIONS[loc.faction] || { name: '?', color: '#888' };
         let pr = Math.round(loc.prosperity || 50), prLbl = pr >= 75 ? T('Zengin') : pr >= 58 ? T('Müreffeh') : pr >= 42 ? T('İdare eder') : T('Yoksul');
-        let parts = [`<span class="ss-dot" style="background:${f.color}"></span>${T(f.name)}`, T`Refah: ${prLbl}`];
+        let parts = [`<span class="ss-dot" style="background:${f.color}"></span>${Game.facName(f)}`, T`Refah: ${prLbl}`];
         if(loc.type !== 'village' && typeof Nobles !== 'undefined') {
             let here = Nobles.lordsAt(loc.id).sort((a, b) => (b.rank === 'king') - (a.rank === 'king'));
             if(here.length === 1) parts.push(T`${T(here[0].name)} kalede`);
@@ -9591,8 +9591,12 @@ const Game = {
     playerFaction() { return state.player.vassalOf || 'player'; },
     factionName(f) {
         if(f === 'player') return (state.player.name || T('Bağımsız')) + T(' Bölüğü');
-        return T((FACTIONS[f] || { name: f || T('Bağımsız') }).name);
+        return this.facName(FACTIONS[f] || { name: f || T('Bağımsız') });
     },
+    // A kingdom's name on screen. The player's own is built from its ruler at display: stored
+    // translated, it froze in the language of the day it was founded and missed the dictionary
+    // on every screen after (#133).
+    facName(f) { return !f ? '?' : f.id === 'player_kingdom' ? T`${f.ruler} Krallığı` : T(f.name); },
     // The people's name, not the state's: "Khergit Khanate Caravan" doesn't fit on a
     // map label line. Same word as the troop names ("Khergit Rider") — one consistent term.
     factionPeople(f) {
@@ -10037,7 +10041,7 @@ const Game = {
             // behalf of (#132).
             let canDeclare = this.isKing() && f !== mine && !this.atWar(mine, f) && !this.allied(mine, f);
             return `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.35rem 0;border-bottom:1px solid var(--panel-border)">
-                <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${T(FACTIONS[f].name)}</span>
+                <span style="color:${FACTIONS[f].color};font-weight:600;min-width:150px">${Game.facName(FACTIONS[f])}</span>
                 <span style="color:var(--text-muted);min-width:70px">${T`${holds} toprak`}</span>
                 <span>${foes.length ? '⚔️ ' + foes.map(x => this.factionName(x)).join(', ')
                                     : T('<span style="color:#2ecc71">🕊️ Barış içinde</span>')}${
@@ -10438,7 +10442,7 @@ const Game = {
     // beside their own troops also show up (captivity model: state.player.prisoner).
     npcTipHtml(npc) {
         let bk = BAND_KINDS[npc.band];
-        let fname = T((FACTIONS[npc.faction] || { name: 'Bağımsız' }).name);
+        let fname = FACTIONS[npc.faction] ? Game.facName(FACTIONS[npc.faction]) : T('Bağımsız');
         let what = bk ? (bk.trade ? `${fname} · ${npc.trade && npc.trade.kind === 'caravan' ? T('Kervan') : T('Köylü kafilesi')}`
                                   : (bk.beast ? T('Yaratık sürüsü') : T('Haydut çetesi')))
                       : fname;
@@ -10478,7 +10482,7 @@ const Game = {
         // A settlement's state is either seen with your own eyes or remembered (#74). There's no way to know
         // a distant castle's garrison if you've never been there — its location is known, its inside isn't.
         let live = this.locLive(loc), i = loc.intel;
-        if(!live && !i) return `${T(f.name)} · ${type}<br>`
+        if(!live && !i) return `${Game.facName(f)} · ${type}<br>`
             + `<span style="color:var(--text-muted)">${T`Durumunu bilmiyorsun — yaklaş ya da içeri gir.`}</span><br>` + gate;
 
         let g = live ? this.garrisonOf(loc) : i.g;
@@ -10489,7 +10493,7 @@ const Game = {
         let days = live ? 0 : state.time.day - i.d;
         let ageLine = live ? '' : `<span style="color:var(--text-muted)">${days <= 0 ? T`Bugünkü haber:` : T`${days} gün önce:`}</span><br>`;
 
-        return `${T(f.name)} · ${type}<br>` + ageLine
+        return `${Game.facName(f)} · ${type}<br>` + ageLine
             + (lord ? `${T`Sahibi: ${T(lord.name)} (${Nobles.relLabel(rel)})`}<br>` : '')
             + `${T`Refah: ${prLbl}`} <span style="color:var(--text-muted)">(${pr})</span><br>`
             + (g ? `${T`Garnizon: ~${g} asker`}<br>` : '')
@@ -11008,19 +11012,19 @@ const Game = {
                 let f = FACTIONS[l.faction] || { name:T('Bilinmiyor'), color:'#fff' };
                 let home = LOCATIONS.find(x => x.id === l.homeLocId);
                 modalHtml += row(frame(Nobles.portraitCss(l, 140)), f.color, T(l.name),
-                    `${T(f.name)} · ${T(PERSONALITIES[l.personality].name)}${home ? ' · ' + T(home.name) : ''}`, T(l.lore));
+                    `${Game.facName(f)} · ${T(PERSONALITIES[l.personality].name)}${home ? ' · ' + T(home.name) : ''}`, T(l.lore));
             });
             LADIES.forEach(L => {
                 let f = FACTIONS[L.faction] || { name:T('Bilinmiyor'), color:'#fff' };
                 modalHtml += row(frame(Nobles.portraitCss(L, 140)), '#ff9ec4', T(L.name),
-                    T`${T(f.name)} · ${T(LADY_TRAITS[L.trait].name)} · Vasisi: ${T((Nobles.lord(L.guardianId)||{name:'?'}).name)}`, T(L.lore));
+                    T`${Game.facName(f)} · ${T(LADY_TRAITS[L.trait].name)} · Vasisi: ${T((Nobles.lord(L.guardianId)||{name:'?'}).name)}`, T(L.lore));
             });
         } else {
             Object.values(FACTIONS).forEach(f => {
                 if(f.id === 'player' || f.id === 'player_kingdom') return;
                 let crest = this.crestCss(f.crest, 140,
                     `filter:sepia(0.2) contrast(1.1) ${f.crestFx || ''};`);
-                modalHtml += row(frame(crest), f.color, T(f.name), `${T(f.ruler)} · ${T(f.vizier)}`, T(f.lore));
+                modalHtml += row(frame(crest), f.color, Game.facName(f), `${T(f.ruler)} · ${T(f.vizier)}`, T(f.lore));
             });
         }
 
@@ -11078,7 +11082,7 @@ const Game = {
             <p>${T`Nam: ${p.renown} | İdare Hakkı: ${p.rightToRule}`}${this.honorTier()
                 ? ` | <span style="color:${this.honor() < 0 ? 'var(--danger)' : '#7fd8a0'}"
                      title="${T('Şeref: eylemlerinin ikinci itibar ekseni (−100..100)')}">${this.honorLabel()} (${this.honor()})</span>` : ''}</p>
-            <p>${T`Bağlılık: ${p.vassalOf ? T((FACTIONS[p.vassalOf]||{name:p.vassalOf}).name) : T('Bağımsız')}</p>
+            <p>${T`Bağlılık: ${p.vassalOf ? Game.facName(FACTIONS[p.vassalOf] || { name: p.vassalOf }) : T('Bağımsız')}</p>
             <p>Eş: ${p.spouse ? T((Nobles.any(p.spouse) || {name:p.spouse}).name) : T('Yok')}`}</p>
             <div style="display:flex;gap:0.8rem;align-items:center;margin-top:0.8rem">
                 ${this.bannerCss(p.banner || 0, 64)}
@@ -11745,7 +11749,7 @@ const Game = {
         ps.forEach(p => {
             if(p.noble) {
                 html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:var(--r-sm);margin-bottom:0.5rem">
-                    <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`${T((FACTIONS[p.faction]||{name:''}).name)} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
+                    <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`${Game.facName(FACTIONS[p.faction] || { name: '' })} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
                     <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
                         <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">${T`💰 Fidye İste (${p.ransom} Dinar)`}</button>
                         <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">${T`🕊️ Onurunla Salıver`}</button>

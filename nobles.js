@@ -349,7 +349,7 @@ const Nobles = {
         let renown = Game.peakRenown();   // gates look at peak renown reached (#55)
 
         let html = `<h3>${T`👑 Lordlar Salonu — ${T(loc.name)}`}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T(f.name)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${Game.facName(f)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
 
         html += `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`Salondaki Soylular`}</h4>`;
         if(lords.length === 0) {
@@ -406,7 +406,7 @@ const Nobles = {
         state.player.vassalOf = fid;
         state.player.rightToRule += 5;
         LORDS.filter(l => l.faction === fid).forEach(l => this.addRel(l.id, 10));
-        alert(T`Artık ${T(FACTIONS[fid].name)} derebeyisin! Krallığın lordları seni tanımaya başladı.`, () => Game.updateTopBar());
+        alert(T`Artık ${Game.facName(FACTIONS[fid])} derebeyisin! Krallığın lordları seni tanımaya başladı.`, () => Game.updateTopBar());
     },
 
     // ---------- Dialogue ----------
@@ -426,7 +426,7 @@ const Nobles = {
             <div style="flex:1;min-width:0">
                 <h3 style="margin:0;color:${FACTIONS[n.faction].color}">${T(n.name)}</h3>
                 <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:0.6rem">
-                    ${T`${T(FACTIONS[n.faction].name)} · ${T(p.name)} · ${this.traitOb(id).icon} ${T(this.traitOb(id).name)} · İlişki: ${this.relLabel(r)} (${r})
+                    ${T`${Game.facName(FACTIONS[n.faction])} · ${T(p.name)} · ${this.traitOb(id).icon} ${T(this.traitOb(id).name)} · İlişki: ${this.relLabel(r)} (${r})
                     <br>Gözünde ağırlığın:`} <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
                     <span style="opacity:0.7">${T`(nam + ilişki + kapıya getirdiğin ordu)`}</span>
                     ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${T`${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda ${Game.infamyTier() > 1 ? T('hiç') : 'zor'} geçer.`}</span>` : ''}
@@ -834,7 +834,7 @@ const Nobles = {
 
         // Two more lines are added to the pool from the world's current state
         let world = [
-            T`${T(FACTIONS[n.faction].name)}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
+            T`${Game.facName(FACTIONS[n.faction])}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
             T`Duyduğuma göre ${T(LORDS[Math.floor(Math.random()*LORDS.length)].name)} yine bir sınırda dolaşıyormuş.`
         ];
         this.say(id, this.lineFor('chat', id, world),
@@ -1094,7 +1094,7 @@ const Nobles = {
             <div style="flex:1">
                 <h3 style="margin:0;color:#ff9ec4">${T(L.name)}</h3>
                 <div style="font-size:var(--fs-sm);color:var(--text-muted)">
-                    ${T(FACTIONS[L.faction].name)} · ${T(t.name)} · ${L.suitor ? T('Efendisi') : T('Vasisi')}: ${g ? T(g.name) : '—'}
+                    ${Game.facName(FACTIONS[L.faction])} · ${T(t.name)} · ${L.suitor ? T('Efendisi') : T('Vasisi')}: ${g ? T(g.name) : '—'}
                 </div>
                 <p style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:0.4rem;font-style:italic">${T(L.lore)}</p>
                 <div style="margin-top:0.8rem">
@@ -1311,7 +1311,7 @@ const Nobles = {
         if(Math.random() < 0.30) {
             LORDS.filter(l => l.faction === rl.faction).forEach(l => this.addRel(l.id, -25));
             this.addAff(ladyId, -10);
-            alert(T`Yaydığın dedikodu geri tepti. Kimin uydurduğu anlaşıldı.\n${T(FACTIONS[rl.faction].name)}'nın bütün lordlarıyla −25 ilişki, −10 ilgi.`, () => this.courtMenu(ladyId));
+            alert(T`Yaydığın dedikodu geri tepti. Kimin uydurduğu anlaşıldı.\n${Game.facName(FACTIONS[rl.faction])}'nın bütün lordlarıyla −25 ilişki, −10 ilgi.`, () => this.courtMenu(ladyId));
         } else {
             r.affection = Math.max(0, r.affection - 20);
             alert(T`Meyhanelerde ${T(rl.name)} hakkında anlatılanlar salona kadar ulaştı.\nRakibinin ilgisi −20 düştü.`, () => this.courtMenu(ladyId));
@@ -1385,7 +1385,7 @@ const Nobles = {
         let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`${dLabel} Hesabı`}</h4>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--r-md);font-size:var(--fs-md);line-height:1.7">
             <div>${T`Temel bedel: <b>${d.base}</b> dinar</div>
-            <div>${T(FACTIONS[this.lady(ladyId).faction].name)}'nın ${d.fiefs} kalesi/şehri var:`} <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
+            <div>${Game.facName(FACTIONS[this.lady(ladyId).faction])}'nın ${d.fiefs} kalesi/şehri var:`} <span style="color:var(--danger)">+${d.fiefAdd}</span></div>
             <div>${T`Namın (${p.renown}) sayesinde:`} <span style="color:var(--success)">−${d.renownCut}</span></div>
             <div>${T`${T(d.guardian.name)} ile aran (${this.rel(d.guardian.id)}) sayesinde:`} <span style="color:var(--success)">−${d.relCut}</span></div>
             <div>${T`Mevkiin: <b>×${d.statusMult}</b> ${p.vassalOf === 'player_kingdom' ? T('(kendi krallığın)') : p.vassalOf ? T('(derebeyi)') : T('(bağımsız maceracı)')}</div>
@@ -1456,7 +1456,7 @@ const Nobles = {
             <p>Gece yarısı, arka kapı, iki at. Drahoma yok, tören yok.`}</p>
             <p style="color:var(--danger)">${T`Bedeli:<br>
             • ${T(this.lord(L.guardianId).name)} ile <b>−60</b> ilişki<br>
-            • ${T(FACTIONS[L.faction].name)}'nın bütün lordlarıyla <b>−20</b><br>
+            • ${Game.facName(FACTIONS[L.faction])}'nın bütün lordlarıyla <b>−20</b><br>
             • <b>−30</b> nam, <b>−20</b> şeref<br>
             • ${T(L.name)}'nın ilgisi <b>−10</b> (böyle hayal etmemişti)`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem">
@@ -1508,7 +1508,7 @@ const Nobles = {
         });
         Game.closeModal();
         Game.updateTopBar();
-        alert(T`${msg}\n\n💍 ${T(L.name)} ile evlendin!\n+15 idare hakkı, ${T(FACTIONS[L.faction].name)} lordlarıyla +20 ilişki, günlük +50 dinar drahoma geliri.`);
+        alert(T`${msg}\n\n💍 ${T(L.name)} ile evlendin!\n+15 idare hakkı, ${Game.facName(FACTIONS[L.faction])} lordlarıyla +20 ilişki, günlük +50 dinar drahoma geliri.`);
     },
 
     // ---------- Daily ----------
@@ -1619,7 +1619,7 @@ const Feast = {
         let ladies = Nobles.courtables().filter(l => l.faction === f.faction);
 
         let html = `<h3>${T`🍷 Şölen — ${T(loc.name)}`}</h3>
-            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`${T(FACTIONS[f.faction].name)}'nın bütün soyluları burada.
+            <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`${Game.facName(FACTIONS[f.faction])}'nın bütün soyluları burada.
             Herkesle bir kez selamlaşabilirsin (+2 ilişki).`}</p>`;
 
         if(state.pendingWedding && state.pendingWedding.locId === loc.id && state.time.day >= state.pendingWedding.day) {
@@ -1673,6 +1673,6 @@ const Feast = {
         state.player.renown += 15;
         Game.updateTopBar();
         Game.closeModal();
-        alert(T`Şölenin başladı! ${T(FACTIONS[loc.faction].name)}'nın bütün soyluları geldi.\nHer biriyle +5 ilişki, +15 nam.`);
+        alert(T`Şölenin başladı! ${Game.facName(FACTIONS[loc.faction])}'nın bütün soyluları geldi.\nHer biriyle +5 ilişki, +15 nam.`);
     }
 };

@@ -3283,5 +3283,6 @@ I18N.dicts.id = {
   "Sessiz Ymira": "Ymira si Pendiam",
   "Kalkancı Runa": "Runa si Perisai",
   "Kırık Dişli Orhan": "Orhan si Gigi Patah",
-  "Değirmenci Vasil": "Vasil si Tukang Giling"
+  "Değirmenci Vasil": "Vasil si Tukang Giling",
+  "{0} Krallığı": "Kerajaan {0}"
 };

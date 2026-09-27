@@ -3445,7 +3445,8 @@ const Battle = {
                 if(loc) {
                     let oldF = loc.faction;   // war begins with the kingdom you conquered from
                     if(s.foundingKingdom) {
-                        FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+T(' Krallığı'), color:Game.bannerColor(), ruler:state.player.name};
+                        // raw name: Game.facName builds the shown one from the ruler (#133)
+                        FACTIONS['player_kingdom'] = {id:'player_kingdom', name:state.player.name+' Krallığı', color:Game.bannerColor(), ruler:state.player.name};
                         state.player.vassalOf = 'player_kingdom';
                         loc.faction = 'player_kingdom';
                         Game.grantFief(loc, oldF);
@@ -3455,7 +3456,7 @@ const Battle = {
                         loc.faction = state.player.vassalOf;
                         Game.grantFief(loc, oldF);
                         Game.declareWar(state.player.vassalOf, oldF);
-                        conquestTxt = `<b>${T`${T(loc.name)} fethedildi!</b> ${T((FACTIONS[state.player.vassalOf]||{name:'?'}).name)} adına aldın; kralın burayı sana tımar verdi.`}`;
+                        conquestTxt = `<b>${T`${T(loc.name)} fethedildi!</b> ${Game.facName(FACTIONS[state.player.vassalOf])} adına aldın; kralın burayı sana tımar verdi.`}`;
                     }
                     // Conquest info stays in the victory modal: alert() used to clash with the victory screen
                     if(conquestTxt) conquestTxt += `<br>${T`Tımar geliri`} <b style="color:#ffcc00">${T`+${Game.fiefTax(loc)} dinar/gün`}</b>. `
