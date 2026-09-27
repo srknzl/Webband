@@ -1519,6 +1519,20 @@ dependencies), and on green push to `main` a `release` job cuts a GitHub release
 `VERSION.no` + that version's `CHANGELOG.md` section (skipped if the tag already exists, and it
 fails loudly if the bump forgot a CHANGELOG line).
 
+### e2e coverage (#133)
+`e2e/specs/` drives the real game in Chromium, every spec in the four projects (TR/EN/ID,
+desktop/phone). Beyond the first round (boot, menus, save/load, quests, map, battle, lair,
+scene, i18n) each system has its own spec: `tournament` (arena purse, the three-round bracket
+and the bet), `siege` (camp → ladder day → assault → own kingdom, and lifting it), `captivity`
+(plan, a failed try, one try a day, ransom), `nobles` (fealty, courtship to the wedding feast,
+hosting a feast), `fief` (garrison, storehouse and treasury, raid, tribute), `events` (the
+10-second hail clock, walking the hail, winter coal, a wanderer joining). Writing them found
+seven bugs, all in EN/ID or in a stale screen: the player's typed name and the circuit regulars
+T()'d in the bracket, the player kingdom's name frozen at founding (now `Game.facName`), the
+spouse's frozen name, an untranslated `zor`, T() calls nested in another T's placeholder that
+the key extractor never saw (it recurses now), and town cards that kept their counts after a
+garrison/storage/tribute change (`Game.redrawTown`).
+
 ## Two pipelines: the site and the app
 `test.yml` is the web pipeline (game logic + a release). `native.yml` wraps the same files in a
 Capacitor shell and leaves an installable `.apk` (debug-signed, sideloadable) + an unsigned iOS

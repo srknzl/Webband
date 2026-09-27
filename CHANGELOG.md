@@ -3,6 +3,26 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.3.0 — Sağlam Kayıt (2026-09-27)
+
+- **Kayıtlarını dosyaya yedekleyebilirsin.** Tarayıcı kayıtları kendiliğinden silebilir (Safari
+  bir hafta girilmeyen sitenin verisini siliyor). 💾 Kayıtlar panelinde artık **Dosyaya Yedekle**
+  ve **Dosyadan Yükle** var. Oyun ilk kayıtta tarayıcıdan kalıcı depolama istiyor ve panelde
+  sonucunu yazıyor. Hiç yedek almadıysan ya da son yedeğin bir haftadan eskiyse panel hatırlatıyor.
+- **Bir Dalda Usta artık hak ediliyor.** Demirci baba ve paralı asker geçmişi seçenler başarımı
+  ilk gün hiçbir şey yapmadan alıyordu. Artık yalnız kendi kazandığın kademeler sayılıyor.
+- **İngilizce ve Endonezce ekranlarda kalan Türkçe temizlendi.** Kaçış şansı "%35" yerine "35%"
+  yazıyor; kuşatma kampındaki "eritti" ve "asker" çevriliyor. Turnuva cetvelindeki gezgin
+  dövüşçülerin lakapları, kendi adın, kurduğun krallığın adı ve evlendiğin kişinin adı artık her
+  dilde doğru görünüyor. Dili sonradan değiştirsen de eski dilde kalmıyorlar.
+- **Kötü şöhretin lord konuşmasında doğru okunuyor.** "Köy yakan adamın sözü bu salonda zor
+  geçer" satırı İngilizce ve Endonezcede yarım çevriliydi.
+- **Kaledeki kartlar güncel.** Garnizona asker koyunca, depoya eşya bırakınca ya da bir köyü
+  haraca bağlayınca yerleşim kartları eski sayıyı göstermeye devam ediyordu.
+- **Oyunun geri kalanı da tarayıcıda test ediliyor.** Arena, turnuva, kuşatma, esaret, bağlılık,
+  kur ve düğün, şölen, tımar, yağma, haraç, dolu, kış ve gezginler artık her sürümde dört dilde ve
+  iki ekran boyunda gerçekten oynanarak sınanıyor. Yukarıdaki hataların çoğunu bu testler buldu.
+
 ## 2.2.1 — Rahat Kamp (2026-09-27)
 
 - **Şehirde beklerken artık kimse etrafına toplanmıyor.** Kamp çemberi seni görmemiş haydutları
