@@ -172,7 +172,9 @@ world setup (pinning a quest offer, arriving at a gate) goes through the game's 
 Labels are looked up with `L(page, 'Türkçe anahtar')`, never hard-coded.
 
 `nightly.yml` is the bug hunt: every night the seeded monkey, the lair sweep and
-`tools/career.js` play new seeds and file their findings in one `nightly` issue.
+`tools/career.js` play new seeds and file their findings in one `nightly` issue. `COVERAGE=1` on
+any e2e run records which game functions it called; `node tools/coverage.js` lists the ones no run
+reached (the nightly writes this map into its run summary).
 
 `native.yml` is the second pipeline — it assembles `native/www` from these same files, runs
 `npx cap add`, and leaves a sideloadable Android `.apk` plus a compiled iOS build as run

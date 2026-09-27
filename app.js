@@ -11860,7 +11860,7 @@ const Game = {
                 let g = groups[name];
                 html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                     <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(tanesi ${g.value} dinar)`}</span></span>
-                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${T(name).replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
+                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
             }
             html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">${T`Hepsini Sat (+${total} Dinar)`}</button>`;
@@ -11970,7 +11970,7 @@ const Game = {
             let g = groups[name];
             html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                 <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
-                <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${T(name).replace(/'/g,"\\'")}')">${T`Salıver`}</button>
+                <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${name.replace(/'/g,"\\'")}')">${T`Salıver`}</button>
             </li>`;
         }
         return html + '</ul>';

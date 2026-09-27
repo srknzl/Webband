@@ -3390,6 +3390,40 @@ test('i18n: no hand-written %${…} outside T() (#134)', () => {
     assert.ok(bad.length === 0, `${bad.length} hand-written percent(s) outside T(), first: ${bad[0]}`);
 });
 
+// The per-group "Sell" and "Set free" buttons passed the *translated* troop name and the handler
+// matched it against the raw one in the save: on EN/ID both did nothing (found by the gate below).
+test('prisoners: the per-group sell and release buttons work on EN', () => {
+    const w = H.world({ seed: 4, lang: 'en' });
+    const { Game, state } = w;
+    const press = (html, fn) => require('vm').runInContext(html.match(new RegExp(`onclick="(Game\\.${fn}\\('[^"]*)"`))[1], w._ctx);
+    const captives = (n, name) => Array.from({ length: n }, (_, i) => ({ id: name + i, name, level: 1 }));
+    state.player.prisoners = [...captives(3, 'Çapulcu'), ...captives(2, 'Haydut')];
+    Game.openSlaveTrader();
+    press(w._sandbox.document.getElementById('modal-body').innerHTML, 'sellPrisoners');
+    assert.strictEqual(state.player.prisoners.length, 2, 'the group sale sold nothing');
+    press(Game.prisonersHtml(), 'releasePrisoners');
+    assert.strictEqual(state.player.prisoners.length, 0, 'the group release freed nobody');
+});
+
+// Translated text into the state or baked into an onclick (i18n-keys leakedT): the pseudo-locale's
+// save check only sees the paths a test walks; this sees every line. The warLog line it would
+// have caught before 2.4.1 is the first sample.
+test('i18n: no translation written into state or baked into an onclick', () => {
+    const fs = require('fs'), path = require('path');
+    const K = require('./i18n-keys');
+    const rules = src => K.leakedT(src).map(h => h.rule);
+    assert.deepStrictEqual(rules("state.warLog.unshift({ day: 1, msg: T`${a} savaş hâlinde.` });"), ['state']);
+    assert.deepStrictEqual(rules("state.warLog.unshift({ day: 1, msg: Tx`${a} savaş hâlinde.` });"), []);
+    assert.deepStrictEqual(rules("state.x = {\n  label: T('Sefer') };"), ['state']);
+    assert.deepStrictEqual(rules("state.x = y; alert(T('Tamam'));"), []);
+    assert.deepStrictEqual(rules("`<b onclick=\"Game.go('${T(l.name)}')\">`"), ['onclick']);
+    assert.deepStrictEqual(rules("`<b onclick=\"Nobles.marry('${id}', T('Şölen'))\">`"), []);
+    const bad = [];
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js'])
+        K.leakedT(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).forEach(h => bad.push(`${f}:${h.line} [${h.rule}] ${h.text}`));
+    assert.ok(bad.length === 0, `${bad.length} translation(s) leaking into logic, first: ${bad[0]}`);
+});
+
 // A quest's pitch and objective line are the two strings a player reads most, and #129
 // shipped twelve of them as bare template literals — the Indonesian build showed a Turkish
 // brief under an Indonesian header. The gate below is the shape-based one: it does not care

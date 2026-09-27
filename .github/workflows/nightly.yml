@@ -5,6 +5,8 @@
 #                                  kariyer sahte dilde (xx) de oynanır, dünya her gün aynı olmalı
 # Maymun ve in taraması beş projede koşar: TR/EN/ID ve sahte dil xx (çevrilmemiş metin, iki kez
 # çevrilen metin, kayda donmuş çeviri). Maymun ayrıca eski veri gösteren ekranı ve taşan metni arar.
+# Kapsam haritası: maymun, in taraması ve normal e2e (tr-desktop) COVERAGE=1 ile koşar;
+# tools/coverage.js hiçbirinin çalıştırmadığı fonksiyonları run özetine yazar (yeni senaryo nereye).
 # Tohumlar yılın gününden türer: her gece başka bir oyun, ama bir bulgu aynı tohumla tekrar
 # üretilebilir (issue'da yazar). Bir şey bulursa "nightly" etiketli tek bir issue açar; açık olan
 # varsa ona yorum ekler. Elle de başlatılabilir (Actions → nightly → Run workflow).
@@ -46,8 +48,14 @@ jobs:
       - name: monkey
         continue-on-error: true
         working-directory: e2e
-        env: { MONKEY: '1', MONKEY_SEED: '${{ steps.seeds.outputs.monkey }}', MONKEY_STEPS: '${{ inputs.steps || 300 }}' }
-        run: npx playwright test specs/monkey.spec.js specs/lairsweep.spec.js --retries=0 --reporter=list 2>&1 | tee ../monkey.txt; exit ${PIPESTATUS[0]}
+        env: { MONKEY: '1', COVERAGE: '1', MONKEY_SEED: '${{ steps.seeds.outputs.monkey }}', MONKEY_STEPS: '${{ inputs.steps || 300 }}' }
+        run: npx playwright test specs/monkey.spec.js specs/lairsweep.spec.js --retries=0 --reporter=list --output=test-results/monkey 2>&1 | tee ../monkey.txt; exit ${PIPESTATUS[0]}
+      # The regular suite once, only for the coverage map (CI already gates it on every push)
+      - name: suite coverage
+        continue-on-error: true
+        working-directory: e2e
+        env: { COVERAGE: '1' }
+        run: npx playwright test --project=tr-desktop --reporter=dot --output=test-results/suite > ../suite.txt 2>&1
       - name: report
         if: always()
         env: { GH_TOKEN: '${{ github.token }}' }
@@ -72,6 +80,9 @@ jobs:
           open=$(gh issue list --label nightly --state open --json number -q '.[0].number')
           if [ -n "$open" ]; then gh issue comment "$open" --body-file body.md
           else gh issue create --title "Gecelik av bir şey buldu" --label nightly --body-file body.md; fi
+      - name: coverage map
+        if: always()
+        run: node tools/coverage.js --top 60 --md coverage.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -80,4 +91,6 @@ jobs:
           path: |
             career.txt
             monkey.txt
+            suite.txt
+            coverage.md
             e2e/test-results

@@ -930,6 +930,11 @@ changes words, so the worlds must never part; the nightly job runs it on eight s
 **Key extraction** (`tools/i18n-keys.js`) recurses into a template's `${…}` (a T inside another
 T's placeholder used to be invisible) and only takes `//` or `/*` after whitespace as a comment
 (`accept="image/*"` once hid every key below it).
+**Leak gate** (`leakedT`, 2.4.1): a `T` call (not `Tx`) in a statement that assigns to or pushes
+into `state.…`, or a `${T(…)}` baked into an `onclick` attribute, fails `tools/test.js` — it reads
+every line, where the pseudo-locale's save check only sees the paths a test walks. Its first run
+found the prisoner trader's per-group Sell and the party screen's Set free passing the translated
+troop name to a handler that matched it against the raw one: both did nothing on EN/ID.
 
 Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
 changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
@@ -1567,6 +1572,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/framegate.js` | `Game.skipFrame` gate correctness + the #42 loop-parity regression |
 | `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
+| `tools/coverage.js [--dir e2e/test-results] [--top 40] [--md f]` | the coverage map: merges every e2e run made with `COVERAGE=1` and lists the game functions none of them called, biggest first |
 
 Bug hunting in the browser: `MONKEY=1 MONKEY_SEED=1,2,3 MONKEY_STEPS=400 npx playwright test
 specs/monkey.spec.js` (seeded random play, reports the step and the element behind any error,
@@ -1576,6 +1582,16 @@ runs them every night at 01:00 UTC with seeds from the day of the year (two monk
 four projects at 300 steps, the lair sweep, `career.js` on eight seeds) and opens — or comments
 on — one `nightly`-labelled issue with each finding's project and seed. Actions → nightly → Run
 workflow starts it by hand with chosen seeds and steps.
+
+**Coverage map** (2.4.1): with `COVERAGE=1` the e2e fixture records V8's call count of every game
+function for each test (started before the first script, so a function never called is listed
+with 0) into the test's `coverage.json`; `tools/coverage.js` merges them and lists only the
+outermost never-run functions — where the next scenario should go. The nightly job runs the monkey,
+the lair sweep and the regular suite on tr-desktop with it and writes the map into the run summary.
+Measured, regular suite on tr-desktop alone: app.js 59% of functions, battle.js 89%, map-art.js 98%,
+lair.js 72%, nobles.js 60%, **quests.js 13%**; the biggest unreached are the long-haired hair
+(`femHair`, no female unit in any spec), the lady portrait, and the pre-sprite map silhouettes
+(`drawRider/Footman/Wolf`, a fallback the loaded sprite sheets never need).
 
 `tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
 run it with `node`. None of `tools/` is loaded by `index.html`; `.github/workflows/test.yml`

@@ -96,7 +96,7 @@ const test = base.test.extend({
     storedLang: [undefined, { option: true }],
     seed: [1, { option: true }],
 
-    page: async ({ page, lang, storedLang, seed }, use) => {
+    page: async ({ page, lang, storedLang, seed }, use, testInfo) => {
         const errors = [];
         page.on('pageerror', e => errors.push(`pageerror: ${e.message} @ ${(e.stack || '').split('\n').slice(1, 3).map(l => l.trim()).join(' ← ')}`));
         // A test that provokes a failing request on purpose lists it: page.expectHttpError(/re/)
@@ -112,9 +112,18 @@ const test = base.test.extend({
         });
         page.on('response', r => { if(r.status() >= 400 && !ok(r.url())) errors.push(`HTTP ${r.status()}: ${r.url()}`); });
         await page.addInitScript(pageInit, { lang: storedLang === undefined ? lang : storedLang, seed });
+        // COVERAGE=1: which game functions this test ran, for tools/coverage.js (V8's own count,
+        // started before the first script so a function never called is listed with 0)
+        if(process.env.COVERAGE) await page.coverage.startJSCoverage({ resetOnNavigation: false });
 
         await use(page);
 
+        if(process.env.COVERAGE && !page.isClosed()) {
+            const game = (await page.coverage.stopJSCoverage())
+                .filter(e => /\/[\w-]+\.js$/.test(new URL(e.url).pathname) && !/\/vendor\//.test(e.url))
+                .map(e => ({ file: new URL(e.url).pathname.split('/').pop(), functions: e.functions.map(f => [f.functionName, f.ranges[0].startOffset, f.ranges[0].endOffset, f.ranges[0].count]) }));
+            require('fs').writeFileSync(testInfo.outputPath('coverage.json'), JSON.stringify(game));
+        }
         if(page.isClosed()) return;
         const inPage = await page.evaluate(() => ({
             debug: typeof Debug === 'undefined' ? [] : Debug.errors.map(e => `${e.kind}: ${e.msg}`),
