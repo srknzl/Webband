@@ -26,6 +26,8 @@ jobs:
         with: { node-version: '20', cache: npm, cache-dependency-path: e2e/package-lock.json }
       - run: npm ci
         working-directory: e2e
+      # Tip denetimi: tsc oyunun JS'ini okur, derlemez; yalnız tabanda olmayan yeni hata kırar
+      - run: node tools/typecheck.js
       - run: npx playwright install --with-deps chromium
         working-directory: e2e
       - run: npx playwright test

@@ -15,7 +15,7 @@ const unesc = s => s.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{
     return ESC[c] !== undefined ? ESC[c] : c;
 });
 
-/** Collects `T('…')` and `T`…`` keys from a single file. */
+/** Collects `T('…')` and `T`…`` keys (and their stored twins `Tx`) from a single file. */
 function keysIn(src, withSpans) {
     const out = [], n = src.length;
     for(let i = 0; i < n; i++) {
@@ -27,6 +27,7 @@ function keysIn(src, withSpans) {
         if(lead && src[i] === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i); if(i < 0) i = n; continue; }
         if(src[i] !== 'T' || /[A-Za-z0-9_$.]/.test(i ? src[i - 1] : ' ')) continue;
         let j = i + 1;
+        if(src[j] === 'x') j++;                               // Tx: the stored form, same keys
         if(src[j] === '(') {                                  // T('…')
             let k = j + 1;
             const q = src[k];
@@ -103,6 +104,44 @@ function rawUiText(src) {
 }
 
 /**
+ * Translated text going where only raw text belongs — the two ways a translation leaks into
+ * logic that the pseudo-locale's save check only sees when a test happens to walk that path:
+ *  - `state` — a `T` (not a `Tx`) in a statement that assigns to or pushes into `state.…`;
+ *    stored words must be raw keys or `Tx` texts, worded at display.
+ *  - `onclick` — a `${T(…)}` baked into an onclick attribute: the handler receives a
+ *    translation as data, and an apostrophe in it ("Lord's") breaks the handler's quoting.
+ *    A `T(…)` written in the attribute itself runs at click time and is fine.
+ * A direct write only: `Game.news(T…)` passes through a function and is the save check's job.
+ */
+function leakedT(src) {
+    // every T call, a literal key or not (`T(l.name)` has no key but is a translation all the same)
+    const calls = [...src.matchAll(/(?<![\w$.])T[(`]/g)].map(m => m.index), out = [];
+    const line = i => src.slice(0, i).split('\n').length;
+    // the statement's end: a `;` or a line break outside any bracket
+    const end = i => {
+        for(let d = 0; i < src.length; i++) {
+            const c = src[i];
+            if('([{'.includes(c)) d++;
+            else if(')]}'.includes(c)) { if(--d < 0) return i; }
+            else if(!d && (c === ';' || c === '\n')) return i;
+        }
+        return i;
+    };
+    let re = /\bstate\.[\w.$[\]'"]+?(?:\s*=(?![=>])|\.(?:push|unshift|splice)\()/g, m;
+    while((m = re.exec(src))) {
+        const a = m.index, b = end(a + m[0].length);
+        if(calls.some(t => t > a && t < b)) out.push({ rule: 'state', line: line(a), text: src.slice(a, Math.min(b, a + 90)).replace(/\s+/g, ' ') });
+    }
+    re = /onclick="[^"]*"/g;
+    while((m = re.exec(src))) {
+        const a = m.index, b = a + m[0].length;
+        const baked = calls.some(t => t > a && t < b && src.lastIndexOf('${', t) > Math.max(a, src.lastIndexOf('}', t)));
+        if(baked) out.push({ rule: 'onclick', line: line(a), text: m[0].slice(0, 90) });
+    }
+    return out;
+}
+
+/**
  * Turkish prose inside an `offer(q)` / `desc(q)` body that sits outside every T() span.
  * These two return the quest pitch and the objective line — pure prose, no data — so a
  * single untagged letter there ships Turkish to every language (#129 shipped twelve quests
@@ -137,4 +176,4 @@ function untaggedProse(src) {
     return out;
 }
 
-module.exports = { keysIn, norm, codeKeys, dicts, rawUiText, untaggedProse };
+module.exports = { keysIn, norm, codeKeys, dicts, rawUiText, untaggedProse, leakedT };

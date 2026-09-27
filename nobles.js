@@ -1009,9 +1009,9 @@ const Nobles = {
     },
     MARKER_FONT: 'bold 30px Inter',
     // `name` is a raw key (a lord's, a band's); a composed mark — a rumour's "Siege: Praven", a
-    // caravan's built name — carries the words it was dropped with in `label` (bug hunt: T() of
-    // an already translated line missed the dictionary on every EN/ID map)
-    markerText(m) { return `📍 ${m.label || T(m.name)}`; },
+    // caravan's built name — keeps it as a stored text (`Tx`) in `label`, worded when drawn (a
+    // string label is an old save's, already worded)
+    markerText(m) { return `📍 ${m.label ? I18N.show(m.label) : T(m.name)}`; },
     markerRing(ctx, m) {
         ctx.save();
         // A watchtower look leaves faint ghosts of every band it saw (#128): a thin, pale,
@@ -1387,7 +1387,7 @@ const Nobles = {
         let d = this.dowryFor(ladyId);
         let o = state.dowryOffer;
         let p = state.player;
-        let dLabel = this.lady(ladyId).suitor ? T('Başlık') : T('Drahoma');
+        let dLabel = this.lady(ladyId).suitor ? T('Başlık parası') : T('Drahoma');
         let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`${dLabel} Hesabı`}</h4>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--r-md);font-size:var(--fs-md);line-height:1.7">
             <div>${T`Temel bedel: <b>${d.base}</b> dinar</div>

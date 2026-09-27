@@ -3357,6 +3357,21 @@ test('i18n: every T key in the code is in both dictionaries', () => {
     assert.ok(missing.length === 0, `${missing.length} keys missing from a dictionary, first: ${JSON.stringify(missing[0])}`);
 });
 
+// One Turkish word, two meanings: "Başlık" was both the helmet slot and the bride price, the
+// dictionary held the key twice, and the later entry won — the bride-price screen said "Helmet"
+// (found by the type check). A repeated key is always a lost translation.
+test('i18n: no key appears twice in a dictionary', () => {
+    const fs = require('fs'), path = require('path');
+    for(const f of ['lang-en.js', 'lang-id.js']) {
+        const seen = new Set(), twice = [];
+        for(const m of fs.readFileSync(path.join(__dirname, '..', f), 'utf8').matchAll(/^\s*("(?:[^"\\]|\\.)*")\s*:/gm)) {
+            const k = JSON.parse(m[1]);
+            if(seen.has(k)) twice.push(k); else seen.add(k);
+        }
+        assert.deepStrictEqual(twice, [], `${f} repeats a key`);
+    }
+});
+
 // The dictionary gate above only sees prose that is already wrapped in T(). Prose that
 // was never wrapped is invisible to it and ships Turkish to every language — which is
 // exactly how #129 shipped the spouse menu. This gate reads the other direction: Turkish
@@ -3388,6 +3403,40 @@ test('i18n: no hand-written %${…} outside T() (#134)', () => {
         }
     }
     assert.ok(bad.length === 0, `${bad.length} hand-written percent(s) outside T(), first: ${bad[0]}`);
+});
+
+// The per-group "Sell" and "Set free" buttons passed the *translated* troop name and the handler
+// matched it against the raw one in the save: on EN/ID both did nothing (found by the gate below).
+test('prisoners: the per-group sell and release buttons work on EN', () => {
+    const w = H.world({ seed: 4, lang: 'en' });
+    const { Game, state } = w;
+    const press = (html, fn) => require('vm').runInContext(html.match(new RegExp(`onclick="(Game\\.${fn}\\('[^"]*)"`))[1], w._ctx);
+    const captives = (n, name) => Array.from({ length: n }, (_, i) => ({ id: name + i, name, level: 1 }));
+    state.player.prisoners = [...captives(3, 'Çapulcu'), ...captives(2, 'Haydut')];
+    Game.openSlaveTrader();
+    press(w._sandbox.document.getElementById('modal-body').innerHTML, 'sellPrisoners');
+    assert.strictEqual(state.player.prisoners.length, 2, 'the group sale sold nothing');
+    press(Game.prisonersHtml(), 'releasePrisoners');
+    assert.strictEqual(state.player.prisoners.length, 0, 'the group release freed nobody');
+});
+
+// Translated text into the state or baked into an onclick (i18n-keys leakedT): the pseudo-locale's
+// save check only sees the paths a test walks; this sees every line. The warLog line it would
+// have caught before 2.4.1 is the first sample.
+test('i18n: no translation written into state or baked into an onclick', () => {
+    const fs = require('fs'), path = require('path');
+    const K = require('./i18n-keys');
+    const rules = src => K.leakedT(src).map(h => h.rule);
+    assert.deepStrictEqual(rules("state.warLog.unshift({ day: 1, msg: T`${a} savaş hâlinde.` });"), ['state']);
+    assert.deepStrictEqual(rules("state.warLog.unshift({ day: 1, msg: Tx`${a} savaş hâlinde.` });"), []);
+    assert.deepStrictEqual(rules("state.x = {\n  label: T('Sefer') };"), ['state']);
+    assert.deepStrictEqual(rules("state.x = y; alert(T('Tamam'));"), []);
+    assert.deepStrictEqual(rules("`<b onclick=\"Game.go('${T(l.name)}')\">`"), ['onclick']);
+    assert.deepStrictEqual(rules("`<b onclick=\"Nobles.marry('${id}', T('Şölen'))\">`"), []);
+    const bad = [];
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js'])
+        K.leakedT(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).forEach(h => bad.push(`${f}:${h.line} [${h.rule}] ${h.text}`));
+    assert.ok(bad.length === 0, `${bad.length} translation(s) leaking into logic, first: ${bad[0]}`);
 });
 
 // A quest's pitch and objective line are the two strings a player reads most, and #129
@@ -3653,10 +3702,35 @@ test('i18n: a rumour mark and a campaign mark draw without a dictionary miss', (
     const city = LOCATIONS.find(l => l.type === 'city');
     state.player.proficiencies.spotting.level = 8;
     for(let i = 0; i < 12; i++) { state.player.money = 500; Game.listenRumor(city.id); Game.closeModal(); }
-    state.knownLocations.campaign = { x: city.x, y: city.y, radius: 200, day: state.time.day, label: w.T`Sefer: ${w.T(city.name)}` };
+    state.knownLocations.campaign = { x: city.x, y: city.y, radius: 200, day: state.time.day, label: w.Tx`Sefer: ${w.Tx(city.name)}` };
     I18N.missing.clear();
     Nobles.markers().forEach(m => Nobles.markerText(m));
     assert.deepStrictEqual([...I18N.missing], [], 'a map mark missed the dictionary');
+});
+
+// The news feed and a map mark are stored as keys (`Tx`) and worded when read: they used to be
+// stored translated, and a language switch left the last 20 lines in the old language.
+test('i18n: old news and a map mark reword after a language switch', () => {
+    const w = H.world({ seed: 9, lang: 'en' });
+    const { Game, Nobles, state, FACTIONS, LOCATIONS, I18N } = w;
+    const fs = Object.keys(FACTIONS).filter(f => f !== 'player_kingdom');
+    const [a, b] = fs.flatMap(x => fs.map(y => [x, y])).find(([x, y]) => x !== y && !Game.atWar(x, y) && !Game.allied(x, y));
+    Game.declareWar(a, b);
+    Game.startTowerReveal = () => {};
+    state.knownLocations.x = { x: 0, y: 0, radius: 200, day: state.time.day, label: Game.npcTx(state.npcParties.find(n => n.trade)) };
+    const shown = () => [I18N.show(state.warLog[0].msg), Nobles.markerText(state.knownLocations.x)];
+    const en = shown();
+    assert.ok(en[0].includes(Game.factionName(a)) && !/savaşa girdi/.test(en[0]), en[0]);
+    const saved = JSON.stringify(state.warLog[0]);
+    I18N.set('tr');
+    const tr = shown();
+    assert.ok(tr[0].includes('savaşa girdi') && tr[0].includes(Game.factionName(b)), tr[0]);
+    assert.ok(/Kervanı|Köylüleri/.test(tr[1]) && tr[1] !== en[1], tr[1]);
+    assert.strictEqual(JSON.stringify(state.warLog[0]), saved, 'reading the feed wrote to it');
+    // an old save's line, already worded, shows as it was
+    state.warLog.unshift({ day: 1, msg: 'Old line.' });
+    assert.strictEqual(I18N.show(state.warLog[0].msg), 'Old line.');
+    I18N.set('en');
 });
 
 // The morale breakdown's line names are object keys shown through T() on the party screen and
