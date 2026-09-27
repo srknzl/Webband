@@ -3,6 +3,28 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.3.1 — Böcek Avı (2026-09-27)
+
+Oyunu yüzlerce adım boyunca kendi kendine oynayan bir "maymun" ve 150 günlük senaryolu bir
+kariyerle hata avı yapıldı. Bulunanlar:
+
+- **İngilizce ve Endonezcede asker terfisi çalışmıyordu.** Terfi düğmesi parayı alıyor, sonra
+  hata verip askeri tanınmayan bir sınıfa çeviriyordu. Artık her dilde doğru terfi ediyor.
+- **Pazarda al-sat ile sınırsız para kazanılabiliyordu.** Ticaret yeteneği yükselince aynı
+  pazarda bir malı alıp hemen satmak kâr bırakıyordu. Ticaret artık alış-satış farkını daraltıyor
+  ama kapatmıyor; yetenek hâlâ işe yarıyor, bedava para yok.
+- **Harabede eşya bulunca pencere çöküyordu.** Sandıktan silah ya da zırh çıkınca pencere
+  açılmıyordu (eşya çantaya giriyordu).
+- **Atlıyken kazanılan savaştan sonra can, azami canı aşıyordu.** Atın verdiği fazladan can
+  artık savaş alanında kalıyor.
+- **Can ipucunda "+undefined" yazıyordu.** İpucu artık seviyeden, dirayetten, bütün zırh
+  parçalarından ve perklerden gelen canı doğru gösteriyor.
+- **Savaş öğreticisi İngilizce ve Endonezcede Türkçe çıkıyordu.** Bütün adımları çevrildi.
+- **Başka Türkçe kalıntılar temizlendi:** karakter ekranındaki nitelik açıklamaları, moral
+  dökümündeki "Aşırı yük", haritadaki söylenti ve sefer işaretleri, kervana esir düşünce "Seni
+  tutan" satırı, savaş kütüğünde ve haberlerde senin adın.
+- **Esir alınan lord sonuç ekranında "(Lvl undefined)" diye görünüyordu.**
+
 ## 2.3.0 — Sağlam Kayıt (2026-09-27)
 
 - **Kayıtlarını dosyaya yedekleyebilirsin.** Tarayıcı kayıtları kendiliğinden silebilir (Safari

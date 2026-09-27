@@ -327,7 +327,11 @@ in the party. 20 denar/day wage + 1 food.
 
 ### Inventory & equipment
 Weapon/armor/horse slots; armor→max HP, weapon→attack, horse→map speed (66→105). Sell price is
-×0.7 of buy. **Weapon tiers**: 5 base weapons × 4 quality tiers each (T1 base → T4, price growing
+×0.7 of buy. The trade edge (Ticaret skill `(lvl−1)×0.02` + perks + the merchant relic, capped
+0.40) narrows that spread from both ends — buy `1 − 0.3×edge`, sell `0.7 + 0.3×edge`
+(`TRADE_EDGE_K`) — and never closes it: 6 % is left at the cap. Measured (bug hunt, 2.3.1): the
+old `(1−edge)` / `0.7×(1+edge)` crossed at edge 0.18, and a buy-5/sell-5 round trip in one market
+paid up to +175 dinars (swords); now no item in any town pays a round trip, at the full edge. **Weapon tiers**: 5 base weapons × 4 quality tiers each (T1 base → T4, price growing
 faster than attack). Carry capacity (`Game.cargoCap()` = `20 + 5×heads + 4×mounted`) gates
 purchases (`buyItem` stops at whichever of money/stock/room runs out first) and speed
 (`cargoMult()` = `max(0.5, 1 − overload/capacity×0.5)`). Everything sellable can be sold back
@@ -1511,6 +1515,12 @@ in for `Math.random`. Everything else is built on it:
 | `tools/economy.js --days 60 --troops 10` | a player script's net-worth curve |
 | `tools/framegate.js` | `Game.skipFrame` gate correctness + the #42 loop-parity regression |
 | `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
+| `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
+
+Bug hunting in the browser: `MONKEY=1 MONKEY_SEED=1,2,3 MONKEY_STEPS=400 npx playwright test
+specs/monkey.spec.js` (seeded random play, reports the step and the element behind any error,
+missing key or broken text) and `MONKEY=1 npx playwright test specs/lairsweep.spec.js` (every lair,
+layout, way in, time of day). Both are skipped in the regular run.
 
 `tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
 run it with `node`. None of `tools/` is loaded by `index.html`; `.github/workflows/test.yml`
