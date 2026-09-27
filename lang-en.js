@@ -3287,5 +3287,21 @@ I18N.dicts.en = {
   "Değirmenci Vasil": "Vasil the Miller",
   "{0} Krallığı": "Kingdom of {0}",
   "{0} (Eş)": "{0} (Spouse)",
-  " Hancı sana bir de yan yan baktı.": " The innkeeper gave you a sidelong look, too."
+  " Hancı sana bir de yan yan baktı.": " The innkeeper gave you a sidelong look, too.",
+  "🗡️ Meydan": "🗡️ The Field",
+  "WASD ile yürürsün ve kılıcın imlecin baktığı yere gider — yürüdüğün yere değil. Sol tık savurur, sağ tık (ya da Shift) kalkanı kaldırır: blok yalnız önden geleni keser.": "You walk with WASD, and your sword goes where the cursor points — not where you walk. Left click swings, right click (or Shift) raises the shield: a block only stops what comes from the front.",
+  "Sol çubukla yürür, sağ çubukla kılıcına yön verirsin. Nişanın nereye baktığını oyuncunun önündeki sarı yay gösterir.": "The left stick walks, the right stick aims your sword. The yellow arc in front of you shows where you are aiming.",
+  "Hareket.": "Movement.",
+  "Hareket. Parmağını nereye çekersen oraya yürürsün.": "Movement. Drag your finger the way you want to walk.",
+  "Nişan.": "Aim.",
+  "Kılıcın yönü. Çektiğin yön nişanındır, parmağını kaldırınca savurur — sürüklemeden dokunmak son yöne vurur. Yayın varsa aynı düğme ok atar.": "Your sword's direction. The way you drag is where you aim; lift your finger to swing — a tap without dragging strikes the last direction. With a bow the same button looses an arrow.",
+  "🚩 Emirler": "🚩 Orders",
+  "Savaşın içinde emir fırsatları doğar: 1 Takip, 2 Hücum, 3 Mevzi. Kapalı emre basarsan adamların duymaz — emir açılınca kütüğe düşer.": "Order chances open up during the battle: 1 Follow, 2 Charge, 3 Hold. Press an order that isn't open and your men won't hear it — once it opens, it shows in the log.",
+  "Savaşın içinde emir fırsatları doğar: Takip / Hücum / Mevzi düğmeleri. Kapalı emre basarsan adamların duymaz — emir açılınca kütüğe düşer.": "Order chances open up during the battle: the Follow / Charge / Hold buttons. Press an order that isn't open and your men won't hear it — once it opens, it shows in the log.",
+  "🏳️ Kaybediyorsan": "🏳️ If you're losing",
+  "Teslim ol her an açık: esir düşersin, paran ve namın yanar ama ordun tamamen kırılmaz. Sen ölürsen savaş bitmez — bayılırsın, adamların dövüşmeye devam eder.": "Surrender is always open: you are taken prisoner and lose money and renown, but your army isn't wiped out. If you fall the battle goes on — you are knocked out and your men keep fighting.",
+  "🎯 İki ipucu": "🎯 Two tips",
+  "Zırhlı düşmana kılıç işlemez: mızrak ve ok zırhın yarısını deler, topuz öldürmez ama bayıltır — bayılan düşman esir düşer. Ve blok yalnız önden korur, yan kanattan dolaşmak işe yarar.": "A sword does little against armour: spears and arrows pierce half of it, a mace doesn't kill but knocks out — and a knocked-out enemy is taken prisoner. A block only guards the front, so going round the flank works.",
+  "Aşırı yük": "Overloaded",
+  "Perkler": "Perks"
 };

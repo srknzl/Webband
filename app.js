@@ -1363,7 +1363,7 @@ const Game = {
                        'cap','nasal','greathelm','gloves','gauntlets','shoes','greaves'];
             let id = ids[Math.floor(Math.random() * ids.length)];
             Game.addItem(id, 1);
-            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${this.itemIco(ITEMS[id])} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
+            return { html: `${T`Paslı bir sandığın dibinde işe yarar tek şey kalmış: <b>${Game.itemIco(ITEMS[id])} ${T(ITEMS[id].name)}</b>.<br>Envanterine girdi.`}` };
         }},
         food: { run(s) {
             let foods = Object.values(ITEMS).filter(i => i.type === 'food');
@@ -4084,6 +4084,9 @@ const Game = {
         state.player.prisoner = {
             npcId: npc ? npc.id : null,
             npcName: npc ? npc.name : 'Bilinmeyen',
+            // what npcName() needs to name the captor after it is gone: a caravan's name is built,
+            // not a dictionary key (bug hunt — "Vaegir Kervanı" missed on every EN/ID screen)
+            npcTrade: npc && npc.trade ? { kind: npc.trade.kind, homeName: npc.trade.homeName } : null, npcFaction: npc ? npc.faction : null,
             troops: npc ? npc.size : 0,          // the captor's own troops
             fellows: this.rollFellows(band),     // those dragged along with you
             daysLeft: days,
@@ -4097,7 +4100,7 @@ const Game = {
     // An animal pack doesn't take prisoners; a band might be dragging along a few other unlucky souls
     rollFellows(band) {
         if(band && band.beast) return [];
-        let pool = [T('Köylü'), T('Kervancı'), T('Gezgin Tüccar'), T('Yaralı Asker'), T('Değirmenci'), T('Ozan'), T('Çırak')];
+        let pool = ['Köylü', 'Kervancı', 'Gezgin Tüccar', 'Yaralı Asker', 'Değirmenci', 'Ozan', 'Çırak'];   // raw; T at display
         let out = [];
         for(let i = Math.floor(Math.random()*4); i > 0; i--) {
             out.push(pool[Math.floor(Math.random()*pool.length)]);
@@ -5697,10 +5700,16 @@ const Game = {
             R(T('Mareşal adaylığı'), T`${this.RENOWN_GATES.marshal} nam`, this.peakRenown() >= this.RENOWN_GATES.marshal),
             T('Nam kazandıran: savaş zaferi +3, turnuva +20, şölen vermek +15. Drahomayı da düşürür.')));
 
+        let hpGear = ['shield', 'armor', 'helmet', 'gloves', 'boots'].reduce((n, k) => n + ((p.equipment[k] || {}).defense || 0), 0);
         this.setHtml('tip-hp', this.tipBox(T('Can'),
             R(T('Şu an'), `${Math.floor(p.stats.hp)}/${p.stats.maxHp}`, p.stats.hp > p.stats.maxHp * 0.4) +
+            // the same parts updateStatsFromEquip adds up (bug hunt: this read `armor.armor`, a field
+            // no item has — "+undefined" — and left vitality and the other armour pieces out)
             R(T('Seviyeden'), 50 + (p.stats.level - 1) * 10, true) +
-            (p.equipment.armor ? R(T`Zırh (${T(p.equipment.armor.name)})`, '+' + p.equipment.armor.armor, true) : R(T('Zırh'), T('yok'), false)),
+            (Math.round((this.attr('vit') - 10) * 5) ? R(T('Dirayet'), (this.attr('vit') >= 10 ? '+' : '') + Math.round((this.attr('vit') - 10) * 5), this.attr('vit') >= 10) : '') +
+            (hpGear ? R(T('Zırh'), '+' + hpGear, true) : R(T('Zırh'), T('yok'), false)) +
+            (this.perkMod('maxHpBonus') ? R(T('Perkler'), '+' + this.perkMod('maxHpBonus'), true) : '') +
+            (this.relicMod('maxHpPct') ? R(T('Demir Yürek'), this.pct(this.relicMod('maxHpPct'), true), true) : ''),
             T('Her gün +5 iyileşirsin. Savaşta canın biterse ölmezsin, bayılırsın — adamların dövüşmeye devam eder ama ödül yarıya iner.')));
 
         this.setHtml('mute-ico', this.icon(this.opt('muted') ? 'mute' : 'sound'));
@@ -5805,11 +5814,11 @@ const Game = {
 
         let p = state.player.prisoner;
         this.setHtml('prisoner-info',
-              `${T`Seni tutan:`} <b>${T(p.npcName)}</b><br>`
+              `${T`Seni tutan:`} <b>${this.npcName({ name: p.npcName, trade: p.npcTrade, faction: p.npcFaction })}</b><br>`
             + `${T`Muhafız: <b>${p.troops || '?'}</b> kişi`}<br>`
             + `${T`Kalan süre: <b>${Math.max(0, p.daysLeft)}</b> gün`}<br>`
             + (p.fellows && p.fellows.length
-                ? `${T`Diğer esirler:`} <b>${p.fellows.join(', ')}</b>`
+                ? `${T`Diğer esirler:`} <b>${p.fellows.map(f => T(f)).join(', ')}</b>`
                 : T`Zincirdeki tek esir sensin.`));
         document.getElementById('ui-escape-chance').innerText = this.pct(p.escapeChance);
         
@@ -9875,7 +9884,7 @@ const Game = {
         this.closeModal();
         state.marshalOf = f;
         LORDS.filter(l => l.faction === f && l.id !== lordId).forEach(l => Nobles.addRel(l.id, -2));   // the passed-over lords sulk
-        this.news(T`🎖️ ${T(state.player.name)} mareşal seçildi — ${this.factionName(f)} ordusu senin hedefine yürüyecek.`);
+        this.news(T`🎖️ ${state.player.name} mareşal seçildi — ${this.factionName(f)} ordusu senin hedefine yürüyecek.`);
         let c = state.campaigns[f];
         if(c) {                       // a campaign already under way: you take the banner over mid-march
             c.marshalId = 'player'; c.marshalName = state.player.name; c.pledged = true;
@@ -9905,7 +9914,7 @@ const Game = {
         if(!c || !loc) return;
         c.targetLocId = locId;
         c.day = state.time.day;         // the clock restarts with the new target
-        this.news(T`🎖️ Mareşal ${T(state.player.name)} ordunun yönünü ${T(loc.name)} üzerine çevirdi.`, true);
+        this.news(T`🎖️ Mareşal ${state.player.name} ordunun yönünü ${T(loc.name)} üzerine çevirdi.`, true);
     },
 
     // One front starts open when the world is built (Calradia is never at peace)
@@ -10171,7 +10180,7 @@ const Game = {
         // The lords who were hoping for that land take it personally.
         LORDS.filter(l => l.faction === loc.faction && l.id !== lordId).forEach(l => Nobles.addRel(l.id, -2));
         this.closeModal();
-        this.news(T`🏰 ${T(loc.name)} ${T(state.player.name)} adına tımar oldu.`);
+        this.news(T`🏰 ${T(loc.name)} ${state.player.name} adına tımar oldu.`);
         alert(T`${T(loc.name)} artık senin tımarın. Vergisi her gün kesene girecek; garnizonunu da sen kuracaksın.<br><br>
             Toprağı gözü olan lordlar bu karardan hoşlanmadı (−2 ilişki).`);
     },
@@ -10473,7 +10482,7 @@ const Game = {
         let pr = state.player.prisoner;
         if(pr && pr.npcId === npc.id) {
             html += `<br><span style="color:#ff8f82">${T`⛓️ Esirleri:</span> ${state.player.name} (sen)`}`
-                  + (pr.fellows && pr.fellows.length ? `, ${pr.fellows.join(', ')}` : '');
+                  + (pr.fellows && pr.fellows.length ? `, ${pr.fellows.map(f => T(f)).join(', ')}` : '');
         }
         return html;
     },
@@ -11070,7 +11079,7 @@ const Game = {
             ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:var(--r-xs);height:5px;margin:0.3rem 0;max-width:220px">
                 <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:var(--r-xs)"></div></div>`}
             <div style="font-size:var(--fs-xs);color:var(--text-muted)">${this.attrEffect(k)}</div>
-            ${done ? '' : `<div style="font-size:var(--fs-xs);color:#cbb26b">${T`Gelişimi: ${a.how}`}</div>`}
+            ${done ? '' : `<div style="font-size:var(--fs-xs);color:#cbb26b">${T`Gelişimi: ${T(a.how)}`}</div>`}
         </li>`;
     },
     renderCharacterScreen() {
@@ -11391,7 +11400,7 @@ const Game = {
                     upgradeChoices.forEach(choice => {
                         // Which option is infantry, which is mounted archer — a promotion shouldn't be a blind pick (#51)
                         let ci = this.troopStats({ name: choice.name });
-                        html += `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${T(choice.name).replace(/'/g,"\\'")}', ${choice.cost})">
+                        html += `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.3rem 0.6rem" onclick="Game.promoteTroop('${g.base.replace(/'/g,"\\'")}', '${choice.name.replace(/'/g,"\\'")}', ${choice.cost})">
                             ${T`Sınıf Terfisi: ${ci.icon} ${T(choice.name)} (${choice.cost} Dinar)`}
                             <div style="font-size:var(--fs-xs);opacity:0.8">${this.troopClassName(ci)}${DMG_TYPES[ci.dmgType] ? ' · ' + T(DMG_TYPES[ci.dmgType].name) : ''}</div>
                         </button>`;
@@ -11778,7 +11787,10 @@ const Game = {
         return html + '</ul>';
     },
 
+    // Both names are raw TROOP_TYPES keys. The button passed the *translated* one (#bug hunt):
+    // in EN/ID the lookup below threw after the money was taken and left an unknown troop.
     promoteTroop(oldName, newName, cost) {
+        if(!TROOP_TYPES[newName]) return;
         if(state.player.money < cost) { this.sfx('error'); return alert(T('Yeterli dinarın yok!')); }
         // Cavalry promotions consume a mount from the stable/inventory (#30). The unique mare is spared.
         let toCav = (TROOP_TYPES[newName] || {}).type === 'cavalry';
@@ -11804,7 +11816,7 @@ const Game = {
             this.updateTopBar();
             this.renderPartyScreen();
             this.feedback('upgrade', null, -cost);
-            alert(T`Asker başarıyla ${newName} sınıfına terfi ettirildi!`);
+            alert(T`Asker başarıyla ${T(newName)} sınıfına terfi ettirildi!`);
         }
     },
 

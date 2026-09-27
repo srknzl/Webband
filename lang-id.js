@@ -3287,5 +3287,21 @@ I18N.dicts.id = {
   "Değirmenci Vasil": "Vasil si Tukang Giling",
   "{0} Krallığı": "Kerajaan {0}",
   "{0} (Eş)": "{0} (Pasangan)",
-  " Hancı sana bir de yan yan baktı.": " Pemilik penginapan juga melirikmu dengan curiga."
+  " Hancı sana bir de yan yan baktı.": " Pemilik penginapan juga melirikmu dengan curiga.",
+  "🗡️ Meydan": "🗡️ Medan",
+  "WASD ile yürürsün ve kılıcın imlecin baktığı yere gider — yürüdüğün yere değil. Sol tık savurur, sağ tık (ya da Shift) kalkanı kaldırır: blok yalnız önden geleni keser.": "Kau berjalan dengan WASD, dan pedangmu mengarah ke tempat kursor menunjuk — bukan ke arah kau berjalan. Klik kiri mengayun, klik kanan (atau Shift) mengangkat perisai: blok hanya menahan serangan dari depan.",
+  "Sol çubukla yürür, sağ çubukla kılıcına yön verirsin. Nişanın nereye baktığını oyuncunun önündeki sarı yay gösterir.": "Tongkat kiri untuk berjalan, tongkat kanan untuk mengarahkan pedang. Busur kuning di depanmu menunjukkan arah bidikanmu.",
+  "Hareket.": "Gerak.",
+  "Hareket. Parmağını nereye çekersen oraya yürürsün.": "Gerak. Seret jarimu ke arah yang ingin kau tuju.",
+  "Nişan.": "Bidik.",
+  "Kılıcın yönü. Çektiğin yön nişanındır, parmağını kaldırınca savurur — sürüklemeden dokunmak son yöne vurur. Yayın varsa aynı düğme ok atar.": "Arah pedangmu. Arah seretan adalah bidikanmu; angkat jari untuk mengayun — ketukan tanpa seret memukul ke arah terakhir. Jika membawa busur, tombol yang sama melepaskan anak panah.",
+  "🚩 Emirler": "🚩 Perintah",
+  "Savaşın içinde emir fırsatları doğar: 1 Takip, 2 Hücum, 3 Mevzi. Kapalı emre basarsan adamların duymaz — emir açılınca kütüğe düşer.": "Peluang perintah muncul selama pertempuran: 1 Ikuti, 2 Serbu, 3 Bertahan. Menekan perintah yang belum terbuka tak akan didengar pasukanmu — begitu terbuka, ia muncul di catatan.",
+  "Savaşın içinde emir fırsatları doğar: Takip / Hücum / Mevzi düğmeleri. Kapalı emre basarsan adamların duymaz — emir açılınca kütüğe düşer.": "Peluang perintah muncul selama pertempuran: tombol Ikuti / Serbu / Bertahan. Menekan perintah yang belum terbuka tak akan didengar pasukanmu — begitu terbuka, ia muncul di catatan.",
+  "🏳️ Kaybediyorsan": "🏳️ Jika kau kalah",
+  "Teslim ol her an açık: esir düşersin, paran ve namın yanar ama ordun tamamen kırılmaz. Sen ölürsen savaş bitmez — bayılırsın, adamların dövüşmeye devam eder.": "Menyerah selalu bisa: kau ditawan, uang dan kemasyhuranmu berkurang, tapi pasukanmu tidak musnah. Jika kau tumbang pertempuran berlanjut — kau pingsan dan pasukanmu terus bertarung.",
+  "🎯 İki ipucu": "🎯 Dua kiat",
+  "Zırhlı düşmana kılıç işlemez: mızrak ve ok zırhın yarısını deler, topuz öldürmez ama bayıltır — bayılan düşman esir düşer. Ve blok yalnız önden korur, yan kanattan dolaşmak işe yarar.": "Pedang kurang mempan pada zirah: tombak dan panah menembus separuhnya, gada tidak membunuh tapi membuat pingsan — musuh yang pingsan menjadi tawanan. Blok hanya melindungi depan, jadi mengitari sayap berhasil.",
+  "Aşırı yük": "Muatan berlebih",
+  "Perkler": "Perk"
 };

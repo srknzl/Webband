@@ -717,6 +717,14 @@ const Battle = {
     },
     playerWeaponProf() { return this.prof(this.playerWeaponType()); },
     playerHasBow() { return this.playerWeaponType() === 'bow'; },
+    // The hp a fight hands back. A horse's buffer (+33 %, #132) is spent first and never carried
+    // off the field: the rider keeps what he rode in with, less whatever got through (bug hunt —
+    // a mounted win used to write the unspent buffer into hp, up to 1.33 × maxHp).
+    hpAfter(u) {
+        if(!u) return 1;
+        let hp = u.dismountFloor !== undefined ? Math.min(u.hp, u.dismountFloor) : u.hp;
+        return Math.floor(Math.min(hp, state.player.stats.maxHp));
+    },
     playerDmgType() { let w = state.player.equipment.weapon; return (w && w.dmgType) || 'cut'; },
     playerHasShield() { return !!state.player.equipment.shield; },
 
@@ -3042,19 +3050,19 @@ const Battle = {
         }
         let capCorpse = Game.lite() ? 20 : 60;
         while(this.corpses.length > capCorpse) this.corpses.shift();
-        // #120: death record for the post-battle detail tab.
+        // a unit's name is a dictionary key — except the player's own, typed at creation (bug hunt)
+        let nm = u => u.id === 'player' ? u.name : T(u.name || (u.isPlayerTeam ? 'Dost Asker' : 'Çapulcu'));
+        let vName = nm(victim);
+        let kName = killer ? nm(killer) : T('Bilinmeyen');
+        // #120: death record for the post-battle detail tab — the names as shown, it lives one battle
         if(this._battleLog) this._battleLog.deaths.push({
-            name: victim.name || (victim.isPlayerTeam ? T('Dost Asker') : T('Çapulcu')),
-            isPlayerTeam: !!victim.isPlayerTeam, type: victim.type || 'infantry', level: victim.level || 1,
-            killerName: killer ? (killer.name || (killer.isPlayerTeam ? T('Dost Asker') : T('Çapulcu'))) : T('Bilinmeyen')
+            name: vName, isPlayerTeam: !!victim.isPlayerTeam, type: victim.type || 'infantry', level: victim.level || 1, killerName: kName
         });
         if(killer && killer.id === 'player' && !victim.isPlayerTeam && this._battleLog) this._battleLog.playerKills++;
         if(victim.id === 'player') {
             this.knockedOut = true;
             this.log(T('<span style="color:#ff4444"><b>Yere yığıldın!</b> Adamların savaşa devam ediyor…</span>'), 'right');
         }
-        let vName = T(victim.name || (victim.isPlayerTeam ? 'Dost Asker' : 'Çapulcu'));
-        let kName = killer ? T(killer.name || (killer.isPlayerTeam ? 'Dost Asker' : 'Çapulcu')) : T('Bilinmeyen');
         let msg = `☠ ${vName} <span style="opacity:.6">←</span> ${kName}`;
 
         if (victim.isPlayerTeam) {
@@ -3248,17 +3256,17 @@ const Battle = {
         let tds = 'padding:0.3rem 0.5rem;border-bottom:1px solid var(--panel-border)';
 
         let casRows = log.deaths.map(d => `<tr>
-            <td style="${tds}">${T(d.name)}</td>
+            <td style="${tds}">${d.name}</td>
             <td style="${tds};color:${d.isPlayerTeam ? '#ff8888' : '#88dd88'}">${d.isPlayerTeam ? T('Dost') : T('Düşman')}</td>
             <td style="${tds}">${typeName[d.type] || d.type}</td>
             <td style="${tds}">${d.level}</td>
-            <td style="${tds}">${T(d.killerName)}</td>
+            <td style="${tds}">${d.killerName}</td>
         </tr>`).join('');
 
         let xpRows = state.player.party.filter(t => log.xpGain[t.id]).map(t => {
             let ready = TROOP_UPGRADES[t.name] && t.xp >= t.xpNext;
             let promoBtns = ready ? TROOP_UPGRADES[t.name].map(choice =>
-                `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.15rem 0.4rem;margin-left:0.25rem" onclick="Game.promoteTroop('${t.name.replace(/'/g,"\\'")}','${T(choice.name).replace(/'/g,"\\'")}',${choice.cost})">${T(choice.name)}</button>`
+                `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.15rem 0.4rem;margin-left:0.25rem" onclick="Game.promoteTroop('${t.name.replace(/'/g,"\\'")}','${choice.name.replace(/'/g,"\\'")}',${choice.cost})">${T(choice.name)}</button>`
             ).join('') : '';
             return `<tr>
                 <td style="${tds}">${T(t.name)}</td>
@@ -3269,7 +3277,8 @@ const Battle = {
         }).join('');
 
         let newPrisoners = captured > 0 ? state.player.prisoners.slice(-captured) : [];
-        let prisTxt = newPrisoners.map(p => `${T(p.name)} (Lvl ${p.level})`).join(', ');
+        // a captured lord carries no troop level
+        let prisTxt = newPrisoners.map(p => T(p.name) + (p.level !== undefined ? ` (Lvl ${p.level})` : '')).join(', ');
 
         let block = (title, inner) => `<div style="background:rgba(0,0,0,0.25);padding:1rem;border-radius:var(--r-md);margin-bottom:1rem;text-align:left">
             <h3 style="color:var(--primary);margin-bottom:0.6rem;font-size:1rem">${title}</h3>${inner}</div>`;
@@ -3308,7 +3317,7 @@ const Battle = {
             state.player.party = this._duelParty || [];
             this._duelParty = null;
             let aUnit = this.units[0];
-            state.player.stats.hp = Math.max(5, aUnit ? Math.floor(aUnit.hp) : 5);
+            state.player.stats.hp = Math.max(5, this.hpAfter(aUnit));
             Game.showScreen('map');
             if(bracket) Game.tourneyRoundDone(won); else Game.finishArena(foe, won);
             return;
@@ -3319,7 +3328,7 @@ const Battle = {
             state.player.party = this._duelParty || [];
             this._duelParty = null;
             let pUnit = this.units[0];
-            state.player.stats.hp = Math.max(5, pUnit ? Math.floor(pUnit.hp) : 5);
+            state.player.stats.hp = Math.max(5, this.hpAfter(pUnit));
             Game.showScreen('map');
             Nobles.resolveDuel(won);
             return;
@@ -3615,7 +3624,7 @@ const Battle = {
 
         // Sync HP — so a defeat doesn't crush the 30% floor set above
         let pUnit = this.units[0];
-        if(won) state.player.stats.hp = Math.max(1, Math.floor(pUnit ? pUnit.hp : 1));
+        if(won) state.player.stats.hp = Math.max(1, this.hpAfter(pUnit));
 
         Game.updateTopBar();
         Game.showScreen('map');

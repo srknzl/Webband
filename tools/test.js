@@ -421,6 +421,41 @@ test('skipFrame: no frame is dropped when the gate is turned off in settings', (
     assert.strictEqual(gateFps(240, 2, { frameGate: false }), 240);
 });
 
+// A horse's +33 % hp buffer is spent first and stays on the field (bug hunt: a mounted win
+// wrote the unspent buffer into hp, so the hero rode off at up to 1.33 × maxHp).
+test('battle: the mount buffer is not carried off the field', () => {
+    const w = H.world({ seed: 4 });
+    const { Game, Battle, state, ITEMS } = w;
+    const fight = (entry, dmg) => {
+        state.player.equipment.horse = { ...ITEMS.horse, qty: 1 };
+        state.player.stats.hp = entry;
+        Battle.start('Çapulcular', 1);
+        const p = Battle.units[0];
+        p.hp -= dmg;
+        Battle.units.forEach(u => { if(!u.isPlayerTeam) u.hp = 0; });
+        Battle.endBattle(true); w.Game.closeModal();
+        return state.player.stats.hp;
+    };
+    const max = state.player.stats.maxHp;
+    assert.strictEqual(fight(max, 0), max, 'an untouched rider came back above his max hp');
+    assert.strictEqual(fight(40, 5), 40, 'a hit the buffer absorbed still cost hp');
+    assert.ok(fight(40, 30) < 40, 'a hit past the buffer cost nothing');
+});
+
+// Every outcome a site can roll, run once (bug hunt: 'gear' called `this.itemIco`, and inside
+// the outcome table `this` is the outcome, not Game — the crate crashed the modal, item and all).
+test('sites: every outcome runs and returns its text', () => {
+    const w = H.world({ seed: 5 });
+    const s = { id: 'x', kind: 'ruin', x: w.state.player.x + 900, y: w.state.player.y, usedDay: null };
+    for(const [key, o] of Object.entries(w.Game.SITE_OUTCOMES)) {
+        if(o.when && !o.when(s)) continue;
+        const r = o.run(s);
+        assert.ok(r && typeof r.html === 'string' && r.html.length > 10, `${key} returned no text`);
+        if(r.then) r.then();
+        w.Game.closeModal();
+    }
+});
+
 test('Save.migrate: v1 → v2 migration', () => {
     const d = {
         savedAt: 1700000000000,
@@ -3567,6 +3602,24 @@ test('i18n: faction people-names are in both dictionaries', () => {
     assert.ok(people.every(Boolean), 'a faction has no people-name');
     const missing = people.filter(t => !(t in d.en) || !(t in d.id));
     assert.strictEqual(missing.length, 0, `people-name with no dictionary entry: ${missing.join(', ')}`);
+});
+
+// The morale breakdown's line names are object keys shown through T() on the party screen and
+// the top-bar tooltip ('Aşırı yük' had no entry — bug hunt).
+test('i18n: every morale line is in both dictionaries', () => {
+    const d = require('./i18n-keys').dicts();
+    g.Game.morale();
+    const missing = Object.keys(g.state.player.moraleInfo).filter(k => !(k in d.en) || !(k in d.id));
+    assert.strictEqual(missing.length, 0, `morale line with no dictionary entry: ${missing.join(', ')}`);
+});
+
+// Both tutorials are data tables shown through T() (tutorStep). The battle tour was reworded
+// and never reached a dictionary — every EN/ID player met it in Turkish (bug hunt).
+test('i18n: the map and battle tutorials are in both dictionaries', () => {
+    const K = require('./i18n-keys'), d = K.dicts();
+    const missing = ['TUTOR', 'BATTLE_TUTOR'].flatMap(l => g.Game[l].flatMap(s => [s.t, s.m, s.d]))
+        .filter(Boolean).map(K.norm).filter(k => !(k in d.en) || !(k in d.id));
+    assert.strictEqual(missing.length, 0, `tutorial text with no dictionary entry: ${missing[0]}`);
 });
 
 // The circuit regulars fill a tournament bracket through T() at display (#133 found them

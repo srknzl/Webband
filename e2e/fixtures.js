@@ -55,7 +55,8 @@ function pageInit({ lang, seed }) {
         if(lang !== 'tr' && TURKISH.test(text))
             text.split(/\s+/).map(bare).filter(w => TURKISH.test(w) && !keptBy(lang).has(w)).forEach(w => note('turkish', w));
     };
-    const skip = n => { const p = n.nodeType === 3 ? n.parentElement : n; return !p || !!p.closest('script,style'); };
+    // a textarea holds data (the exported save's JSON), not interface text
+    const skip = n => { const p = n.nodeType === 3 ? n.parentElement : n; return !p || !!p.closest('script,style,textarea'); };
     // A node written and replaced within the same task never reached the screen — skipped.
     const walk = root => {
         if(!root.isConnected) return;
