@@ -134,10 +134,12 @@ const Debug = {
         if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
         else { ta.select(); document.execCommand('copy'); done(); }
     },
-    download() {
+    download() { this.saveAs(`webband-debug-gun${((state || {}).time || {}).day || 0}.json`, this.text()); },
+    // One way to hand the player a file: the debug report and the save backup (#132) both use it
+    saveAs(name, text) {
         let a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([this.text()], { type: 'application/json' }));
-        a.download = `webband-debug-gun${((state || {}).time || {}).day || 0}.json`;
+        a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+        a.download = name;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     }
@@ -12029,12 +12031,20 @@ const Save = {
     write(slot) {
         try {
             localStorage.setItem(this.key(slot), JSON.stringify(this.snapshot()));
+            this.persist();
             return true;
         } catch(e) {
             // If the quota's full, say so instead of locking up the game: let the player delete an old slot
             Debug.log('save', T('Kayıt yazılamadı: ') + e.message, { slot });
             return false;
         }
+    },
+    // localStorage is "best effort": Safari drops it after 7 days without a visit, Chrome when
+    // the disk fills (#132). Asked once, on the first save; the panel shows the answer.
+    persist() {
+        if(this._persistAsked || !(navigator.storage && navigator.storage.persist)) return;
+        this._persistAsked = true;
+        navigator.storage.persist().catch(() => {});
     },
     save(slot) {
         let ok = this.write(slot || '1');
@@ -12215,11 +12225,49 @@ const Save = {
         <ul style="list-style:none">${this.SLOTS.map(line).join('')}</ul>
         <h4 style="margin-top:0.8rem;color:var(--text-muted);font-size:var(--fs-sm)">${T`Otomatik kayıtlar (her oyun günü)`}</h4>
         <ul style="list-style:none">${this.AUTOS.map(line).join('')}${byId['legacy'] ? line('legacy') : ''}</ul>
+        ${this.backupNote(inGame)}
+        <p id="save-persist" style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:0.4rem"></p>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.9rem">
+            ${inGame ? `<button class="btn" onclick="Save.toFile()">${T`⬇️ Dosyaya Yedekle`}</button>` : ''}
+            <button class="btn" onclick="document.getElementById('save-file').click()">${T`📂 Dosyadan Yükle`}</button>
+            <input type="file" id="save-file" accept=".json,application/json" hidden onchange="Save.fromFile(this)">
             ${inGame ? `<button class="btn" onclick="Save.exportSave()">${T('📤 Dışa Aktar')}</button>` : ''}
             <button class="btn" onclick="Save.importSave()">${T`📥 İçe Aktar`}</button>
             <button class="btn primary" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div></div>`, '660px');
+        if(navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(on => {
+            let el = document.getElementById('save-persist');
+            if(el) el.textContent = on ? T('Kalıcı depolama: açık — tarayıcı kayıtları kendiliğinden silmez.')
+                                       : T('Kalıcı depolama: tarayıcı izin vermedi — kayıtları ara ara dosyaya yedekle.');
+        }).catch(() => {});
+    },
+
+    // --- File backup (#132): the one copy that survives a browser clearing its storage ---
+    BACKUP_KEY: 'webband_lastBackup',
+    BACKUP_DAYS: 7,
+    toFile() {
+        Debug.saveAs(`webband-kayit-gun${state.time.day}.json`, JSON.stringify(this.snapshot()));
+        try { localStorage.setItem(this.BACKUP_KEY, String(Date.now())); } catch(e) {}
+        this.open(T('✅ Kayıt dosyası indirildi.'));
+    },
+    // An old or missing file backup is said in the panel, where the button to fix it is
+    backupNote(inGame) {
+        if(!inGame) return '';
+        let t = 0; try { t = +localStorage.getItem(this.BACKUP_KEY) || 0; } catch(e) {}
+        let days = Math.floor((Date.now() - t) / 864e5);
+        if(t && days < this.BACKUP_DAYS) return '';
+        return `<p class="save-backup-note" style="color:var(--primary);font-size:var(--fs-sm);margin-top:0.8rem">${t
+            ? T`⚠️ Son dosya yedeğin ${days} gün önce. Tarayıcı kayıtları silebilir; yeni bir yedek al.`
+            : T('⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.')}</p>`;
+    },
+    fromFile(input) {
+        let f = input.files && input.files[0];
+        input.value = '';
+        if(!f) return;
+        f.text().then(txt => {
+            let err = this.importText(txt);
+            if(err) this.open(`<span style="color:var(--danger)">${err}</span>`);
+        });
     },
     // Downloading a file under file:// is problematic; the text is copied to the clipboard instead (same pattern as the #52 report)
     exportSave() {
@@ -12248,15 +12296,21 @@ const Save = {
         </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--danger);font-size:var(--fs-sm)"></div>`, '660px');
     },
     doImport() {
-        let ta = document.getElementById('save-text'), msg = document.getElementById('save-msg');
+        let err = this.importText(document.getElementById('save-text').value);
+        if(err) document.getElementById('save-msg').textContent = err;
+    },
+    // The pasted text and the backup file take the same road: validate, migrate, slot 1, open.
+    // Returns the reason it was refused; a refused text never touches an existing save.
+    importText(txt) {
         let d;
-        try { d = JSON.parse(ta.value); } catch(e) { msg.textContent = T('Metin geçerli JSON değil.'); return; }
-        if(!d || !d.state || !d.state.player) { msg.textContent = T('Bu bir WebBand kaydı değil.'); return; }
-        if(d.v > this.V) { msg.textContent = T('Kayıt oyunun daha yeni bir sürümünden.'); return; }
+        try { d = JSON.parse(txt); } catch(e) { return T('Metin geçerli JSON değil.'); }
+        if(!d || !d.state || !d.state.player) return T('Bu bir WebBand kaydı değil.');
+        if(d.v > this.V) return T('Kayıt oyunun daha yeni bir sürümünden.');
         this.migrate(d);
-        try { localStorage.setItem(this.key('1'), JSON.stringify(d)); } catch(e) { msg.textContent = T('Yazılamadı: ') + e.message; return; }
+        try { localStorage.setItem(this.key('1'), JSON.stringify(d)); } catch(e) { return T('Yazılamadı: ') + e.message; }
         this.apply(d);
         alert(T`Kayıt içe aktarıldı ve 1. slota yazıldı. Gün ${state.time.day}.`);
+        return null;
     }
 };
 

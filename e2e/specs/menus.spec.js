@@ -136,3 +136,28 @@ test('kaydet, sayfayı yenile, kayıttan devam et', async ({ page }) => {
     expect(await page.evaluate(() => state.player.name)).toBe('Kaydeden');
     await page.waitForFunction(() => Game._loopId);
 });
+
+// #132: localStorage is the browser's to clear. The file backup is the copy that survives it:
+// downloaded from the save panel, the storage wiped, then loaded back through the file picker.
+test('dosyaya yedekle, depoyu sil, dosyadan geri yükle (#132)', async ({ page }) => {
+    await newGame(page, 'Yedekçi');
+    await page.evaluate(() => { state.player.money = 1234; state.time.day = 9; Game.updateTopBar(); });
+    await openExtra(page, 'Save.open()');
+    await expect(modal(page).locator('.save-backup-note')).toBeVisible();   // never backed up: says so
+    const [download] = await Promise.all([page.waitForEvent('download'),
+        (await modalBtn(page, '⬇️ Dosyaya Yedekle')).click()]);
+    expect(download.suggestedFilename()).toBe('webband-kayit-gun9.json');
+    const file = await download.path();
+    await expect(modal(page)).toContainText(await L(page, '✅ Kayıt dosyası indirildi.'));
+    await expect(modal(page).locator('.save-backup-note')).toHaveCount(0);   // fresh backup: no nag
+
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await expect(page.locator('#start-screen')).toHaveClass(/\bactive\b/);
+    await page.evaluate(() => Save.open());
+    await modal(page).locator('#save-file').setInputFiles(file);
+    expect(await okAlert(page)).toContain(await L(page, 'Kayıt içe aktarıldı ve 1. slota yazıldı. Gün {0}.', 9));
+    await expect(page.locator('#ui-money')).toHaveText('1234');
+    expect(await page.evaluate(() => state.player.name)).toBe('Yedekçi');
+    await page.waitForFunction(() => Game._loopId);
+});

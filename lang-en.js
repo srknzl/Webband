@@ -3269,5 +3269,12 @@ I18N.dicts.en = {
   "Genç Lord Emrys": "Young Lord Emrys",
   "Genç Lord Kaan": "Young Lord Kaan",
   "{0}'da bir işletme açılsın mı? Günde +{1} dinar getirir, kendini {2} günde amorti eder.": "Open an enterprise in {0}? It brings in +{1} denars a day and pays for itself in {2} days.",
-  "Evet, aç": "Yes, open it"
+  "Evet, aç": "Yes, open it",
+  "Kalıcı depolama: açık — tarayıcı kayıtları kendiliğinden silmez.": "Persistent storage: on — the browser won't clear your saves on its own.",
+  "Kalıcı depolama: tarayıcı izin vermedi — kayıtları ara ara dosyaya yedekle.": "Persistent storage: the browser said no — back your saves up to a file now and then.",
+  "⬇️ Dosyaya Yedekle": "⬇️ Back Up to File",
+  "📂 Dosyadan Yükle": "📂 Load from File",
+  "✅ Kayıt dosyası indirildi.": "✅ Save file downloaded.",
+  "⚠️ Son dosya yedeğin {0} gün önce. Tarayıcı kayıtları silebilir; yeni bir yedek al.": "⚠️ Your last file backup was {0} days ago. The browser can clear saves; take a fresh one.",
+  "⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.": "⚠️ You haven't backed up to a file yet. The browser can clear saves; take a backup."
 };

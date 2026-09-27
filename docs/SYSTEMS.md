@@ -794,6 +794,16 @@ fires at the start of every game day. A corrupt save is moved to `webband_broken
 silently deleted. **The migration chain** `Save.migrate(d)` lives in one place, one `if` block
 per version bump — never scattered `if`s inside `load()`.
 
+**Surviving the browser (#132).** localStorage is best-effort: Safari clears it after 7 days
+without a visit, Chrome when the disk fills. The first successful `Save.write` asks
+`navigator.storage.persist()` once; the panel reads `persisted()` and says whether it held.
+The panel's **⬇️ Dosyaya Yedekle** downloads the snapshot as `webband-kayit-gun<N>.json`
+(`Debug.saveAs`, the debug report's own download) and stamps `webband_lastBackup`; with no
+backup, or one older than `BACKUP_DAYS` (7), the panel says so. **📂 Dosyadan Yükle** and the
+pasted-text import share `Save.importText`: parse → check → `migrate` → slot 1 → `apply`; a
+refused file never touches an existing save. e2e: backup → `localStorage.clear()` → reload →
+load the file → name, day and money match.
+
 ### Error visibility: badge and loop shield
 `Debug.guard(where, fn)` wraps the body of all three rAF loops — an exception is swallowed and
 logged (deduped by signature), but `requestAnimationFrame` on the next line still runs, so the

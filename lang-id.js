@@ -3269,5 +3269,12 @@ I18N.dicts.id = {
   "Genç Lord Emrys": "Tuan Muda Emrys",
   "Genç Lord Kaan": "Tuan Muda Kaan",
   "{0}'da bir işletme açılsın mı? Günde +{1} dinar getirir, kendini {2} günde amorti eder.": "Buka usaha di {0}? Menghasilkan +{1} dinar per hari dan modalnya kembali dalam {2} hari.",
-  "Evet, aç": "Ya, buka"
+  "Evet, aç": "Ya, buka",
+  "Kalıcı depolama: açık — tarayıcı kayıtları kendiliğinden silmez.": "Penyimpanan permanen: aktif — peramban tidak akan menghapus simpananmu sendiri.",
+  "Kalıcı depolama: tarayıcı izin vermedi — kayıtları ara ara dosyaya yedekle.": "Penyimpanan permanen: peramban menolak — cadangkan simpananmu ke berkas sesekali.",
+  "⬇️ Dosyaya Yedekle": "⬇️ Cadangkan ke Berkas",
+  "📂 Dosyadan Yükle": "📂 Muat dari Berkas",
+  "✅ Kayıt dosyası indirildi.": "✅ Berkas simpanan diunduh.",
+  "⚠️ Son dosya yedeğin {0} gün önce. Tarayıcı kayıtları silebilir; yeni bir yedek al.": "⚠️ Cadangan berkas terakhirmu {0} hari yang lalu. Peramban bisa menghapus simpanan; buat cadangan baru.",
+  "⚠️ Henüz dosyaya yedek almadın. Tarayıcı kayıtları silebilir; bir yedek al.": "⚠️ Kamu belum mencadangkan ke berkas. Peramban bisa menghapus simpanan; buat cadangan."
 };
