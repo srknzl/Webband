@@ -1395,7 +1395,7 @@ const Game = {
             let html = far ? T`Kuleden bakınca toz bulutu gördün: <b>${T(far.name)}</b>.<br>📍 Haritaya bir işaret düştü (3 gün geçerli).`
                            : T('Ufukta kıpırdayan uzak bir şey yok — ama yakını avucunun içi gibi görüyorsun.');
             if(far) state.knownLocations[s.id] = { x: far.x, y: far.y, radius: 200,
-                day: state.time.day, name: far.name, live: false };
+                day: state.time.day, name: far.name, label: Game.npcName(far), live: false };
             return { html: html + `<br>${T`Pencereyi kapatınca çevre birkaç saniyeliğine açılacak — o sırada zaman durur.`}`,
                      then: () => Game.startTowerReveal() };
         }},
@@ -8049,13 +8049,19 @@ const Game = {
     },
     // The price shouldn't come in as a parameter from the button's HTML: it could be
     // edited via the DOM to trade for free, and a missing parameter turned money into NaN.
+    // ponytail: at the 0.40 cap the spread is 0.3 − 2 × 0.3 × 0.4 = 6 %; raise k for a stronger
+    // skill, but keep 2 × k × 0.40 below 0.3 or a buy-then-sell turns a profit again
+    TRADE_EDGE_K: 0.3,
     marketPrice(id, selling = false) {
         let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
         if(!it) return null;
-        // Trade skill: a discount when buying, a premium when selling (25% cap)
+        // Trade skill, perks and the merchant's relic narrow the market's spread (buy 1.0, sell 0.7)
+        // from both ends — but never close it. It used to be buy × (1 − edge), sell × 0.7 × (1 + edge):
+        // past edge 0.18 (Ticaret 10 alone) the sell price beat the buy price in the same market,
+        // and buy-then-sell printed money (bug hunt: +175 dinars per five swords, at 0.40 +63 %).
         let edge = Math.min(0.40, (this.profLvl('trade') - 1) * 0.02 + this.perkMod('tradeEdge') / 100 + this.relicMod('tradeEdge') / 100);
-        let loc = this._marketLoc;
-        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 * (1 + edge) : 1 - edge);
+        let loc = this._marketLoc, k = this.TRADE_EDGE_K;
+        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 + k * edge : 1 - k * edge);
         // A village that has heard what you do to villages doesn't haggle kindly (#104)
         if(loc && loc.type === 'village' && this.infamyPenalty() > 0) mult *= selling ? 0.9 : 1.1;
         return Math.max(1, Math.floor(it.basePrice * mult));
@@ -9296,7 +9302,7 @@ const Game = {
 
         let r = bag[Math.floor(Math.random() * bag.length)];
         if(r && r.mark) state.knownLocations['rumor'] =
-            { x: r.mark.x, y: r.mark.y, radius: r.mark.radius, day: state.time.day, name: r.mark.name };
+            { x: r.mark.x, y: r.mark.y, radius: r.mark.radius, day: state.time.day, label: r.mark.name };
 
         this.showModal(`<h3>${T`👂 Söylenti — ${T(loc.name)}`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`${hours} saat kadar köşede oturdun, kadehleri ödedin (−${this.RUMOR_COST} dinar).`}</p>
@@ -9700,7 +9706,7 @@ const Game = {
             if(!loc || !this.atWar(f, loc.faction) || state.time.day - c.day > this.CAMPAIGN_MAX_DAYS) { this.endCampaign(f); continue; }
             // The campaign marker stays on the map (Nobles.drawMarkers clears it after 3 days, refreshed daily)
             if(c.pledged) state.knownLocations['campaign'] =
-                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, name: T`Sefer: ${T(loc.name)}` };
+                { x: loc.x, y: loc.y, radius: 200, day: state.time.day, label: T`Sefer: ${T(loc.name)}` };
         }
         Object.keys(FACTIONS).forEach(f => {
             // A new campaign summons shouldn't stomp the finished one's reward modal
@@ -11137,7 +11143,8 @@ const Game = {
             { id: 'prisonerMgmt', name: T('Esir Yönetimi'), d: () => T`Esir kapasitesi ${this.prisonerCapacity()}, kaçış şansı %${Math.max(1, 6 - L('prisonerMgmt')*0.5).toFixed(1)}` },
             { id: 'pathfinding', name: T('Yol Bulma'), d: () => T`Harita hızı +%${((L('pathfinding')-1)*2).toFixed(0)}` },
             { id: 'spotting', name: T('Gözcülük'), d: () => T`Görüş ${Math.round(this.getVisibility())} birim` },
-            { id: 'trade', name: T('Ticaret'), d: () => T`Alışta indirim / satışta prim %${Math.round(Math.min(0.25, (L('trade')-1)*0.02)*100)}` },
+            { id: 'trade', name: T('Ticaret'), d: () => { let e = this.TRADE_EDGE_K * Math.min(0.40, (L('trade') - 1) * 0.02);   // the skill's own share, as marketPrice reads it
+                return T`Alışta indirim ${this.pct(Math.round(e * 100))}, satışta prim ${this.pct(Math.round(e / 0.7 * 100))}`; } },
             { id: 'looting', name: T('Yağma'), d: () => T`Savaş ganimeti +%${((L('looting')-1)*4).toFixed(0)}` },
             { id: 'trainer', name: T('Eğitim'), d: () => T`Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` }
         ];

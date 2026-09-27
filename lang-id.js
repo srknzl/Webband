@@ -3303,5 +3303,6 @@ I18N.dicts.id = {
   "🎯 İki ipucu": "🎯 Dua kiat",
   "Zırhlı düşmana kılıç işlemez: mızrak ve ok zırhın yarısını deler, topuz öldürmez ama bayıltır — bayılan düşman esir düşer. Ve blok yalnız önden korur, yan kanattan dolaşmak işe yarar.": "Pedang kurang mempan pada zirah: tombak dan panah menembus separuhnya, gada tidak membunuh tapi membuat pingsan — musuh yang pingsan menjadi tawanan. Blok hanya melindungi depan, jadi mengitari sayap berhasil.",
   "Aşırı yük": "Muatan berlebih",
-  "Perkler": "Perk"
+  "Perkler": "Perk",
+  "Alışta indirim {0}, satışta prim {1}": "Diskon beli {0}, tambahan jual {1}"
 };

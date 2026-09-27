@@ -45,7 +45,7 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         typing: !!Game._type
     }));
     const snapshot = async () => page.evaluate(() => ({
-        debug: Debug.errors.slice(-3).map(e => `${e.kind}: ${e.msg}`),
+        debug: Debug.errors.slice(-3).map(e => `${e.kind}: ${e.msg}${e.stack ? ' @ ' + e.stack : ''}`),
         missing: [...I18N.missing].slice(-3), issues: (window.__e2eIssues || []).slice(-3), where: (window.__mkWhere || []).slice(-2)
     }));
 

@@ -442,6 +442,30 @@ test('battle: the mount buffer is not carried off the field', () => {
     assert.ok(fight(40, 30) < 40, 'a hit past the buffer cost nothing');
 });
 
+// The trade edge narrows the spread and never closes it (bug hunt: past edge 0.18 a sell beat
+// the buy in the same market, and buy-then-sell printed money).
+test('market: no buy-then-sell profit in one market, even at the full trade edge', () => {
+    const w = H.world({ seed: 2 });
+    const { Game, state, LOCATIONS, ITEMS } = w;
+    const edge = w.Game.perkMod;
+    Game.perkMod = k => k === 'tradeEdge' ? 40 : edge.call(Game, k);   // the 0.40 cap from perks alone
+    try {
+        for(const c of LOCATIONS.filter(l => l.type === 'city').slice(0, 4)) {
+            Game.enterLocation(c); Game.openMarket(c);
+            for(const id of Object.keys(ITEMS)) {
+                if(Game.marketPrice(id) === null) continue;
+                state.player.money = 1e6; state.player.inventory = [];
+                Game.buyItem(id, 5);
+                const got = state.player.inventory.find(i => i.id === id);
+                if(!got) continue;
+                Game.sellItem(id, got.qty);
+                assert.ok(state.player.money <= 1e6, `${c.id} ${id}: +${state.player.money - 1e6} from a round trip`);
+            }
+            Game.closeModal();
+        }
+    } finally { Game.perkMod = edge; }
+});
+
 // Every outcome a site can roll, run once (bug hunt: 'gear' called `this.itemIco`, and inside
 // the outcome table `this` is the outcome, not Game — the crate crashed the modal, item and all).
 test('sites: every outcome runs and returns its text', () => {
@@ -3602,6 +3626,20 @@ test('i18n: faction people-names are in both dictionaries', () => {
     assert.ok(people.every(Boolean), 'a faction has no people-name');
     const missing = people.filter(t => !(t in d.en) || !(t in d.id));
     assert.strictEqual(missing.length, 0, `people-name with no dictionary entry: ${missing.join(', ')}`);
+});
+
+// A map mark from a rumour or a campaign is a composed line ("Siege: Praven"); it used to be
+// stored translated and T()'d again when drawn, a miss on every EN/ID map (bug hunt).
+test('i18n: a rumour mark and a campaign mark draw without a dictionary miss', () => {
+    const w = H.world({ seed: 9, lang: 'en' });
+    const { Game, Nobles, state, LOCATIONS, I18N } = w;
+    const city = LOCATIONS.find(l => l.type === 'city');
+    state.player.proficiencies.spotting.level = 8;
+    for(let i = 0; i < 12; i++) { state.player.money = 500; Game.listenRumor(city.id); Game.closeModal(); }
+    state.knownLocations.campaign = { x: city.x, y: city.y, radius: 200, day: state.time.day, label: w.T`Sefer: ${w.T(city.name)}` };
+    I18N.missing.clear();
+    Nobles.markers().forEach(m => Nobles.markerText(m));
+    assert.deepStrictEqual([...I18N.missing], [], 'a map mark missed the dictionary');
 });
 
 // The morale breakdown's line names are object keys shown through T() on the party screen and

@@ -1007,7 +1007,10 @@ const Nobles = {
         return out;
     },
     MARKER_FONT: 'bold 30px Inter',
-    markerText(m) { return `📍 ${T(m.name)}`; },
+    // `name` is a raw key (a lord's, a band's); a composed mark — a rumour's "Siege: Praven", a
+    // caravan's built name — carries the words it was dropped with in `label` (bug hunt: T() of
+    // an already translated line missed the dictionary on every EN/ID map)
+    markerText(m) { return `📍 ${m.label || T(m.name)}`; },
     markerRing(ctx, m) {
         ctx.save();
         // A watchtower look leaves faint ghosts of every band it saw (#128): a thin, pale,

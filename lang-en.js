@@ -3303,5 +3303,6 @@ I18N.dicts.en = {
   "🎯 İki ipucu": "🎯 Two tips",
   "Zırhlı düşmana kılıç işlemez: mızrak ve ok zırhın yarısını deler, topuz öldürmez ama bayıltır — bayılan düşman esir düşer. Ve blok yalnız önden korur, yan kanattan dolaşmak işe yarar.": "A sword does little against armour: spears and arrows pierce half of it, a mace doesn't kill but knocks out — and a knocked-out enemy is taken prisoner. A block only guards the front, so going round the flank works.",
   "Aşırı yük": "Overloaded",
-  "Perkler": "Perks"
+  "Perkler": "Perks",
+  "Alışta indirim {0}, satışta prim {1}": "{0} off when buying, {1} more when selling"
 };
