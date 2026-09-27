@@ -3276,6 +3276,25 @@ test('i18n: no Turkish prose reaches the screen outside T()', () => {
     assert.ok(bad.length === 0, `${bad.length} untranslated UI string(s), first: ${bad[0]}`);
 });
 
+// A percent sign written by hand outside T() is Turkish word order in every language: the
+// EN/ID screen read "escape chance %35" (#134). Inside a T() key the dictionary moves it; outside
+// one, Game.pct is the gate — and its own body is the one place allowed to write `%${`.
+test('i18n: no hand-written %${…} outside T() (#134)', () => {
+    const fs = require('fs'), path = require('path');
+    const K = require('./i18n-keys');
+    const bad = [];
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js']) {
+        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), spans = K.keysIn(src, true), re = /%\$\{/g;
+        let m;
+        while((m = re.exec(src))) {
+            const ls = src.lastIndexOf('\n', m.index) + 1, line = src.slice(ls, src.indexOf('\n', m.index));
+            if(line.includes("I18N.lang === 'tr'") || line.trimStart().startsWith('//')) continue;   // Game.pct itself
+            if(!spans.some(s => m.index > s.a && m.index < s.b)) bad.push(`${f}:${src.slice(0, m.index).split('\n').length} ${line.trim().slice(0, 70)}`);
+        }
+    }
+    assert.ok(bad.length === 0, `${bad.length} hand-written percent(s) outside T(), first: ${bad[0]}`);
+});
+
 // A quest's pitch and objective line are the two strings a player reads most, and #129
 // shipped twelve of them as bare template literals — the Indonesian build showed a Turkish
 // brief under an Indonesian header. The gate below is the shape-based one: it does not care

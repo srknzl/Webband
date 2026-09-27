@@ -4025,8 +4025,8 @@ const Game = {
             <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.5rem">${!canFlee
                 ? T('Kaçış yok — savaş ya da teslim ol!')
                 : ambush === 'ambush'
-                ? `${T`Sarıldın: kaçmak yarı şansla mümkün, kaçış şansın`} <b>%${flee}</b>.`
-                : `${T`Kaçabilirsin ama hız farkı belirler: kaçış şansın`} <b>%${flee}</b>.`}</p>
+                ? T`Sarıldın: kaçmak yarı şansla mümkün, kaçış şansın <b>${this.pct(flee)}</b>.`
+                : T`Kaçabilirsin ama hız farkı belirler: kaçış şansın <b>${this.pct(flee)}</b>.`}</p>
             <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;justify-content:center">
             <button class="btn primary" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}', null, false, '${npc.band || ''}')">${T`⚔️ Savaş!`}</button>
             ${canAuto ? `<button class="btn" style="border-color:#8fd6ff;color:#8fd6ff" onclick="Game.autoBattle('${npc.id}')" title="Sen inmezsin, adamların halleder — kayıp daha yüksektir">${T`🎖️ Askerlerini Gönder`}</button>` : ''}
@@ -10612,8 +10612,8 @@ const Game = {
               `${T`Kuşatılan:`} <b>${T(loc.name)}</b><br>`
             + `${T`Yöntem:`} <b>${p.icon} ${T(p.name)}</b><br>`
             + (s.daysLeft > 0 ? `${T`Hazırlık: <b>${s.daysLeft}</b> gün kaldı`}<br>`
-                              : `${T`Hazırlık tamam — açlık garnizonu`} <b>%${Math.round((s.weaken || 0) * 100)}</b> eritti<br>`)
-            + `${T`Garnizon:`} <b>${this.siegeGarrison(loc, s)}</b> asker`);
+                              : `${T`Hazırlık tamam — açlık garnizonu <b>${this.pct(Math.round((s.weaken || 0) * 100))}</b> eritti`}<br>`)
+            + T`Garnizon: <b>${this.siegeGarrison(loc, s)}</b> asker`);
         let btn = document.getElementById('btn-siege-assault');
         btn.disabled = s.daysLeft > 0;
         btn.style.opacity = s.daysLeft > 0 ? 0.5 : 1;
