@@ -824,7 +824,7 @@ const ACHIEVEMENTS = [
     { id: 'quests_5',    tier: 'bronze', name: 'Güvenilir El',       desc: '5 görev tamamladın.',                        cond: () => (state.career && state.career.quests || 0) >= 5 },
     { id: 'quests_20',   tier: 'silver', name: 'Aranan Adam',        desc: '20 görev tamamladın.',                       cond: () => (state.career && state.career.quests || 0) >= 20 },
     { id: 'quests_50',   tier: 'gold',   name: 'Diyarın Hizmetkârı', desc: '50 görev tamamladın.',                       cond: () => (state.career && state.career.quests || 0) >= 50 },
-    { id: 'prof_master', tier: 'silver', name: 'Bir Dalda Usta',     desc: 'Bir yeterlilikte 5. kademeye ulaştın.',      cond: () => Object.values(state.player.proficiencies || {}).some(p => (p.level || 1) >= 5) },
+    { id: 'prof_master', tier: 'silver', name: 'Bir Dalda Usta',     desc: 'Bir yeterlilikte 5. kademeye ulaştın.',      cond: () => Object.entries(state.player.proficiencies || {}).some(([k, p]) => (p.level || 1) - Game.creationProf(k) >= 5) },
     // 31 → 50 (#127). What state can't show is tallied into `state.career` at its one choke
     // point (Game.tally): battle end, promotion, prisoner sale/release, the peddler, a tower,
     // a gate, the arena, the hail, the winter. Towers: the map holds three and they renew, so
@@ -2452,6 +2452,13 @@ const Game = {
         });
         this.updateStatsFromEquip();
         p.stats.hp = p.stats.maxHp;
+    },
+
+    // What the background handed a proficiency at creation (#135): an achievement counts only the
+    // levels earned since. Read back from `background`, so an old save needs no new field.
+    creationProf(k) {
+        let bg = state.player.background || {};
+        return BACKGROUND.reduce((n, q) => n + (((q.opts.find(o => o.id === bg[q.key]) || {}).prof || {})[k] || 0), 0);
     },
 
     finishCreation() {

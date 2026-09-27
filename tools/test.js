@@ -2314,6 +2314,18 @@ test('quests: a finished job says so everywhere the player looks for it (#106)',
     assert.ok(!Quests.awaiting(), 'the quest still reads as waiting after the hand-in');
 });
 
+test('achievements: Bir Dalda Usta counts earned levels, not the background\'s head start (#135)', () => {
+    const g = H.world({ seed: 12 });
+    const { Game, state } = g;
+    Game.creation = { sel: { gender: 'male', birth: 'nord', father: 'smith', job: 'merc' } };
+    Game.applyCreation();                                  // smith +2, mercenary +2 one-handed
+    assert.strictEqual(state.player.proficiencies.oneHanded.level, 5);
+    const got = () => { Game.checkAchievements(); return !!state.achievements.prof_master; };
+    assert.ok(!got(), 'the achievement unlocked on day one from the background alone');
+    state.player.proficiencies.oneHanded.level = 9;
+    assert.ok(got(), 'four earned levels on top of the head start did not count');
+});
+
 test('achievements: fifty of them, each new one reachable through its own hook (#127)', () => {
     const g = H.world({ seed: 12 });
     const { Game, Battle, state, ITEMS, LOCATIONS, ACHIEVEMENTS } = g;
