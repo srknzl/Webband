@@ -441,6 +441,13 @@ test('Save.migrate: v1 → v2 migration', () => {
     assert.strictEqual(d.state.meta.createdAt, 1700000000000);
     assert.strictEqual(d.state.meta.gocEdildi, true);
 });
+test('Save.migrate: a spouse saved under a translated name gets the raw one back (#133)', () => {
+    const L = g.LADIES[0];
+    const d = { v: 2, state: { player: { party: [{ id: 'spouse_' + L.id, name: 'Lady X (Spouse)', isSpouse: true }] }, meta: { v: 2 } } };
+    Save.migrate(d);
+    assert.strictEqual(d.state.player.party[0].name, L.name);
+    assert.strictEqual(Game.troopLabel(d.state.player.party[0]), L.name + ' (Eş)');
+});
 test('Save.migrate: leaves a current save untouched', () => {
     const d = { v: 2, state: { player: { party: [] }, meta: { v: 2, createdAt: 1, playtime: 99 } } };
     Save.migrate(d);

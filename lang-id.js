@@ -1,7 +1,6 @@
 // Bahasa Indonesia — WebBand sözlüğü. Anahtar = Türkçe kaynak metin.
 I18N.dicts.id = {
   "  ({0}%{1} hız)": "  (kecepatan {0}{1}%)",
-  " (Eş)": " (Pasangan)",
   " (Kale)": " (Benteng)",
   " (Köy)": " (Desa)",
   " (vasisi {0} çıkacak)": " ({0}, walinya, yang akan maju)",
@@ -1050,7 +1049,8 @@ I18N.dicts.id = {
   "{0} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%{1}, ücret ×{2}).": "Cap {0}: separuh desa bersembunyi di lumbung begitu melihatmu (sukarelawan −{1}%, upah ×{2}).",
   "{0} dinar": "{0} dinar",
   "{0} dinar · {1} saattir": "{0} dinar · selama {1} jam",
-  "{0} diye biliniyorsun — köy yakan adamın sözü bu salonda {1} geçer.": "Kau dikenal sebagai {0} — kata-kata pembakar desa {1} berbobot di aula ini.",
+  "{0} diye biliniyorsun — köy yakan adamın sözü bu salonda hiç geçmez.": "Kau dikenal sebagai {0} — kata-kata pembakar desa tak berbobot sama sekali di aula ini.",
+  "{0} diye biliniyorsun — köy yakan adamın sözü bu salonda zor geçer.": "Kau dikenal sebagai {0} — kata-kata pembakar desa nyaris tak berbobot di aula ini.",
   "{0} dizlerinin üstüne çöktü ve kılıcını bıraktı. \"Bu iş burada bitti,\" dedi ve salonu terk etti. +15 ilgi, +10 nam, {1} ile −25 ilişki.": "{0} jatuh berlutut dan melepaskan pedangnya.\n\"Urusan ini selesai di sini,\" katanya, lalu meninggalkan balai.\n\n+15 kasih sayang, +10 nama besar, −25 hubungan dengan {1}.",
   "{0} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!": "{0} lahir! Tak minta gaji, tak makan, dan luar biasa kuat!",
   "{0} dumanı görüp yetişti — yağma yarıda kaldı, ganimet yok.": "{0} melihat asapnya dan tiba tepat waktu — penjarahan gagal, tanpa rampasan.",
@@ -3284,5 +3284,6 @@ I18N.dicts.id = {
   "Kalkancı Runa": "Runa si Perisai",
   "Kırık Dişli Orhan": "Orhan si Gigi Patah",
   "Değirmenci Vasil": "Vasil si Tukang Giling",
-  "{0} Krallığı": "Kerajaan {0}"
+  "{0} Krallığı": "Kerajaan {0}",
+  "{0} (Eş)": "{0} (Pasangan)"
 };

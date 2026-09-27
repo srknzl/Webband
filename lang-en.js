@@ -1,7 +1,6 @@
 // English — WebBand sözlüğü. Anahtar = Türkçe kaynak metin.
 I18N.dicts.en = {
   "  ({0}%{1} hız)": "  ({0}{1}% speed)",
-  " (Eş)": " (Spouse)",
   " (Kale)": " (Castle)",
   " (Köy)": " (Village)",
   " (vasisi {0} çıkacak)": " ({0}, her guardian, will stand in her place)",
@@ -1050,7 +1049,8 @@ I18N.dicts.en = {
   "{0} damgası: köyün yarısı seni görünce ambara saklandı (gönüllü −%{1}, ücret ×{2}).": "The {0} brand: half the village hid in the barn at the sight of you (volunteers −{1}%, fee ×{2}).",
   "{0} dinar": "{0} denars",
   "{0} dinar · {1} saattir": "{0} denars · for {1} hours",
-  "{0} diye biliniyorsun — köy yakan adamın sözü bu salonda {1} geçer.": "You are known as {0} — a village-burner's word carries {1} weight in this hall.",
+  "{0} diye biliniyorsun — köy yakan adamın sözü bu salonda hiç geçmez.": "You are known as {0} — a village-burner's word carries no weight in this hall.",
+  "{0} diye biliniyorsun — köy yakan adamın sözü bu salonda zor geçer.": "You are known as {0} — a village-burner's word carries little weight in this hall.",
   "{0} dizlerinin üstüne çöktü ve kılıcını bıraktı. \"Bu iş burada bitti,\" dedi ve salonu terk etti. +15 ilgi, +10 nam, {1} ile −25 ilişki.": "{0} dropped to his knees and let go of his sword.\n\"This ends here,\" he said, and left the hall.\n\n+15 affection, +10 renown, −25 relation with {1}.",
   "{0} doğdu! Artık maaş istemez, yemek yemez ve muazzam güçlü!": "{0} is born! No wages, no food, and monstrously strong!",
   "{0} dumanı görüp yetişti — yağma yarıda kaldı, ganimet yok.": "{0} saw the smoke and arrived in time — the raid was cut short, no loot.",
@@ -3284,5 +3284,6 @@ I18N.dicts.en = {
   "Kalkancı Runa": "Runa the Shieldmaiden",
   "Kırık Dişli Orhan": "Broken-Tooth Orhan",
   "Değirmenci Vasil": "Vasil the Miller",
-  "{0} Krallığı": "Kingdom of {0}"
+  "{0} Krallığı": "Kingdom of {0}",
+  "{0} (Eş)": "{0} (Spouse)"
 };

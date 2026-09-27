@@ -429,7 +429,9 @@ const Nobles = {
                     ${T`${Game.facName(FACTIONS[n.faction])} · ${T(p.name)} · ${this.traitOb(id).icon} ${T(this.traitOb(id).name)} · İlişki: ${this.relLabel(r)} (${r})
                     <br>Gözünde ağırlığın:`} <b style="color:var(--primary)">${this.standingLabel(this.standing(id))}</b>
                     <span style="opacity:0.7">${T`(nam + ilişki + kapıya getirdiğin ordu)`}</span>
-                    ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${T`${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda ${Game.infamyTier() > 1 ? T('hiç') : 'zor'} geçer.`}</span>` : ''}
+                    ${Game.infamyTier() ? `<br><span style="color:var(--danger)">${Game.infamyTier() > 1
+                        ? T`${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda hiç geçmez.`
+                        : T`${Game.infamyLabel()} diye biliniyorsun — köy yakan adamın sözü bu salonda zor geçer.`}</span>` : ''}
                 </div>
                 <p id="lord-line" style="font-style:italic;color:#eee;line-height:1.5;min-height:4.5em"></p>
                 ${banter}
@@ -1503,7 +1505,9 @@ const Nobles = {
         LORDS.filter(l => l.faction === L.faction).forEach(l => this.addRel(l.id, 20));
         state.player.party = state.player.party.filter(t => !t.isSpouse);
         state.player.party.push({
-            id: 'spouse_' + ladyId, name: L.name + T(' (Eş)'), level: 10, xp: 0, xpNext: 999,
+            // the raw name, a dictionary key: troopLabel adds "(Eş)" at display (#133 — stored
+            // translated, the party screen and the battle log showed it in the wedding's language)
+            id: 'spouse_' + ladyId, name: L.name, level: 10, xp: 0, xpNext: 999,
             type: 'noble', isSpouse: true
         });
         Game.closeModal();

@@ -11398,7 +11398,7 @@ const Game = {
         html += this.prisonersHtml();
         document.getElementById('party-list').innerHTML = html;
     },
-    troopLabel(t) { return T(t.name); },
+    troopLabel(t) { return t.isSpouse ? T`${T(t.name)} (Eş)` : T(t.name); },
     // The party screen groups troops by this key; reordering and dismissal use the same key (#51)
     troopGroupKey(t) { return this.troopLabel(t) + (t.wounded ? T(' 🩹 (yaralı)') : ''); },
     troopClassName(st) {
@@ -12101,6 +12101,8 @@ const Save = {
             eq.armor = null;
         }
         let pl = (((d || {}).state || {}).player);      // #110: old saves had no perks array
+        // #133: a spouse rode under a translated "Leydi X (Eş)"; back to the raw name, a dictionary key
+        ((pl || {}).party || []).forEach(t => { let L = t.isSpouse && Nobles.lady(String(t.id).slice(7)); if(L) t.name = L.name; });
         if(pl && !Array.isArray(pl.perks)) pl.perks = [];
         if(pl && typeof pl.relics !== 'object') pl.relics = {};   // #37: relics
         if(pl && pl.currentBoss === undefined) pl.currentBoss = null;
