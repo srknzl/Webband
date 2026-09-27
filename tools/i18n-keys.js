@@ -39,21 +39,26 @@ function keysIn(src, withSpans) {
             if(src[k + 1] !== ')') continue;                  // T('a' + b): not a key
             out.push(withSpans ? { key: unesc(s), a: i, b: k + 1 } : unesc(s)); i = k + 1;
         } else if(src[j] === '`') {                           // T`… ${x} …`
-            let s = '', esc = false, depth = 0, arg = 0, k = j + 1;
+            let s = '', esc = false, depth = 0, arg = 0, k = j + 1, e0 = 0;
+            const inner = [];                                  // the ${…} expressions, searched below
             for(; k < n; k++) {
                 const c = src[k];
                 if(esc) { s += '\\' + c; esc = false; continue; }
                 if(c === '\\') { esc = true; continue; }
                 if(depth > 0) {
                     if(c === '{') depth++;
-                    else if(c === '}' && --depth === 0) s += '{' + (arg++) + '}';
+                    else if(c === '}' && --depth === 0) { s += '{' + (arg++) + '}'; inner.push([e0, k]); }
                     continue;
                 }
-                if(c === '$' && src[k + 1] === '{') { depth = 1; k++; continue; }
+                if(c === '$' && src[k + 1] === '{') { depth = 1; k++; e0 = k + 1; continue; }
                 if(c === '`') break;
                 s += c;
             }
             out.push(withSpans ? { key: unesc(s), a: i, b: k } : unesc(s)); i = k;
+            // A T inside another T's placeholder (`T`…${cond ? T`…` : ''}…``) is a key of its own;
+            // skipping the whole outer template hid it, and it shipped with no dictionary entry (#133)
+            for(const [x, y] of inner)
+                keysIn(src.slice(x, y), withSpans).forEach(h => out.push(withSpans ? { key: h.key, a: h.a + x, b: h.b + x } : h));
         }
     }
     return out;

@@ -2188,7 +2188,8 @@ I18N.dicts.en = {
   "Adamlarınla meydanda durdun, kılıç çekmedin. Köy yaşlısı hesabı kendi yaptı: günde <b>{0} dinar</b>, sen sağ oldukça.": "You stood in the square with your men and drew no sword. The village elder did the arithmetic himself: <b>{0} denars</b> a day, for as long as you live.",
   "{0} lordları <b>−4</b>, köyün refahı <b>−5</b>. Krallığıyla savaşa girersen haraç durur. <br>Karşılığında <b>+3 idare hakkı</b> — kendi krallığını kurduğunda bu rakam konuşur.": "{0} lords <b>−4</b>, the village's prosperity <b>−5</b>. Go to war with its kingdom and the tribute stops. <br>In return, <b>+3 right to rule</b> — that number speaks when you found your own kingdom.",
   "👑 Fiyatı Söyle": "👑 Name the Price",
-  "<b>{0}</b> haraca bağlandı — günde <b>{1} dinar</b>. {2}": "<b>{0}</b> is under tribute — <b>{1} denars</b> a day. {2}",
+  "<b>{0}</b> haraca bağlandı — günde <b>{1} dinar</b>.": "<b>{0}</b> is under tribute — <b>{1} denars</b> a day.",
+  "{0} bunu duyacak.": "{0} will hear of this.",
   "🕊️ {0} yolda ({1} gün)": "🕊️ {0} is on the road ({1} days)",
   "🕊️ Yoldaşını elçi gönder ({0} nam)": "🕊️ Send a companion as envoy ({0} renown)",
   "🎖️ Mareşal sensin": "🎖️ You are the marshal",
@@ -3285,5 +3286,6 @@ I18N.dicts.en = {
   "Kırık Dişli Orhan": "Broken-Tooth Orhan",
   "Değirmenci Vasil": "Vasil the Miller",
   "{0} Krallığı": "Kingdom of {0}",
-  "{0} (Eş)": "{0} (Spouse)"
+  "{0} (Eş)": "{0} (Spouse)",
+  " Hancı sana bir de yan yan baktı.": " The innkeeper gave you a sidelong look, too."
 };

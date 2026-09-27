@@ -10365,8 +10365,14 @@ const Game = {
             if(idx === -1) break;
             to.push(from.splice(idx, 1)[0]);
         }
+        this.redrawTown(loc);
         this.openGarrison(loc);
         this.updateTopBar();
+    },
+    // The town's cards carry counts (garrison men, storage lots, the tribute): a change made in a
+    // panel on top of them redraws them underneath, or they keep the number from walking in (#133)
+    redrawTown(loc) {
+        if(document.getElementById('settlement-view').classList.contains('active') && this._enteredLoc === loc.id) this.enterLocation(loc);
     },
     openStorage(loc) {
         loc.storage = loc.storage || [];
@@ -10426,6 +10432,7 @@ const Game = {
         if(dst) dst.qty += q; else to.push({ ...src, qty: q, decay: 0 });
         src.qty -= q;
         if(src.qty <= 0) from.splice(from.indexOf(src), 1);
+        this.redrawTown(loc);
         this.openStorage(loc);
         this.updateTopBar();
     },
@@ -10719,8 +10726,10 @@ const Game = {
              .forEach(l => Nobles.addRel(l.id, -4));
         state.player.rightToRule += 3;
         this.updateTopBar();
-        alert(T`<b>${T(loc.name)}</b> haraca bağlandı — günde <b>${this.tributeOf(loc)} dinar</b>.
-            ${owner ? T`${T(owner.name)} bunu duyacak.` : ''}`);
+        this.redrawTown(loc);
+        // the lord's line is its own key: a T nested in another T's template is invisible to the extractor
+        let heard = owner ? T`${T(owner.name)} bunu duyacak.` : '';
+        alert(T`<b>${T(loc.name)}</b> haraca bağlandı — günde <b>${this.tributeOf(loc)} dinar</b>.` + (heard ? ' ' + heard : ''));
     },
 
     startRaid(locId, count) {

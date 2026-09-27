@@ -2188,7 +2188,8 @@ I18N.dicts.id = {
   "Adamlarınla meydanda durdun, kılıç çekmedin. Köy yaşlısı hesabı kendi yaptı: günde <b>{0} dinar</b>, sen sağ oldukça.": "Kau berdiri di alun-alun bersama orang-orangmu tanpa menghunus pedang. Tetua desa menghitung sendiri: <b>{0} dinar</b> sehari, selama kau masih hidup.",
   "{0} lordları <b>−4</b>, köyün refahı <b>−5</b>. Krallığıyla savaşa girersen haraç durur. <br>Karşılığında <b>+3 idare hakkı</b> — kendi krallığını kurduğunda bu rakam konuşur.": "Para lord {0} <b>−4</b>, kemakmuran desa <b>−5</b>. Kalau kau berperang dengan kerajaannya, upeti berhenti. <br>Sebagai gantinya <b>+3 hak memerintah</b> — angka itu berbicara saat kau mendirikan kerajaanmu sendiri.",
   "👑 Fiyatı Söyle": "👑 Sebutkan Harganya",
-  "<b>{0}</b> haraca bağlandı — günde <b>{1} dinar</b>. {2}": "<b>{0}</b> kini membayar upeti — <b>{1} dinar</b> sehari. {2}",
+  "<b>{0}</b> haraca bağlandı — günde <b>{1} dinar</b>.": "<b>{0}</b> kini membayar upeti — <b>{1} dinar</b> sehari.",
+  "{0} bunu duyacak.": "{0} akan mendengar hal ini.",
   "🕊️ {0} yolda ({1} gün)": "🕊️ {0} sedang di jalan ({1} hari)",
   "🕊️ Yoldaşını elçi gönder ({0} nam)": "🕊️ Kirim kawanmu sebagai utusan ({0} nama besar)",
   "🎖️ Mareşal sensin": "🎖️ Kaulah marsekalnya",
@@ -3285,5 +3286,6 @@ I18N.dicts.id = {
   "Kırık Dişli Orhan": "Orhan si Gigi Patah",
   "Değirmenci Vasil": "Vasil si Tukang Giling",
   "{0} Krallığı": "Kerajaan {0}",
-  "{0} (Eş)": "{0} (Pasangan)"
+  "{0} (Eş)": "{0} (Pasangan)",
+  " Hancı sana bir de yan yan baktı.": " Pemilik penginapan juga melirikmu dengan curiga."
 };
