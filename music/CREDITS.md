@@ -5,7 +5,7 @@ Every piece here is **CC0 1.0** (public domain dedication) from
 is given anyway, and the author's name also shows in the game's top bar while the piece plays.
 
 Transcoded to 96 kbps stereo MP3 and levelled with two-pass EBU R128 loudness normalisation
-(map −19 LUFS, battle and stings −16 LUFS) so the set plays at one volume. Sources were
+(map −19 LUFS, lair stealth −22 LUFS, battle, lair chase and stings −16 LUFS) so the set plays at one volume. Sources were
 otherwise untouched.
 
 | File | Title | Author | Source |
@@ -23,7 +23,20 @@ otherwise untouched.
 | `battle-medieval.mp3` | Medieval: Battle | randommind | https://opengameart.org/content/medieval-battle |
 | `battle-pursuit.mp3` | Determined Pursuit (epic orchestra loop) | emmama | https://opengameart.org/content/determined-pursuit-epic-orchestra-loop |
 | `battle-knight-templar.mp3` | Knight Templar | iamoneabe | https://opengameart.org/content/knight-templar-0 |
+| `lair-deliberate-concealment.mp3` | Deliberate Concealment | northivanastan | https://opengameart.org/content/deliberate-concealment |
+| `lair-infiltration.mp3` | Infiltration | Adiutorium | https://opengameart.org/content/infiltration |
+| `lair-night-prowler.mp3` | Night Prowler | section31 | https://opengameart.org/content/night-prowler |
+| `chase-knights-challenge.mp3` | A Knight's Challenge | Umplix | https://opengameart.org/content/a-knights-challenge |
+| `chase-epic-combat.mp3` | Epic Combat | Chester01 | https://opengameart.org/content/epic-combat |
+| `chase-heavy-battle.mp3` | Heavy battle music | Davieplier | https://opengameart.org/content/heavy-battle-music |
 | `sting-victory.mp3` | Medieval: Victory Theme | randommind | https://opengameart.org/content/medieval-victory-theme |
 | `sting-defeat.mp3` | Medieval: Defeat Theme | randommind | https://opengameart.org/content/medieval-defeat-theme |
 
-15 files, 20.8 MB total. Not in the service worker's precache list — each piece is cached the first time it is played (`sw.js`).
+21 files, 28.7 MB total. The six lair pieces (2.2.0) were chosen by the player from an audition of 26. Not in the service worker's precache list — each piece is cached the first time it is played (`sw.js`).
+
+## Lair ambience
+
+`lair/crickets.mp3` — "Crickets Ambient Noise - loopable" by Wolfgang_ (CC0),
+https://opengameart.org/content/crickets-ambient-noise-loopable. Re-encoded to 64 kbps mono; it
+is a sound effect the lair loops under its stealth music at night, so it lives beside the lair's
+props and is precached with them.

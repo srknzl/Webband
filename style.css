@@ -2141,3 +2141,92 @@ body.touch .ac-kbd { display: none; }
     #tstick:not(:active), #tastick:not(:active) { opacity: 0.72; }
     #tcmds button, #tbtns button:not(:active) { opacity: 0.82; }
 }
+
+/* ============ BANDIT LAIR (2.2.0) ============
+   A full-screen scene like the battle: #lair-view covers the viewport while it is up (the
+   top bar and sidebar are hidden by body.in-battle). lair.js builds everything inside it. */
+#lair-view { padding: 0; }
+#lair-view.active { position: fixed; inset: 0; z-index: 30; display: block; background: #050407; overflow: hidden; border-radius: 0; animation: none; }
+#lair-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#lair-hud { position: absolute; left: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px 0; display: flex; flex-direction: column;
+    gap: 6px; align-items: flex-start; pointer-events: none; z-index: 5; max-width: calc(100% - 170px); }
+.lchips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: var(--r-pill); background: rgba(10,9,8,.78);
+    border: 1px solid rgba(236,230,218,.1); font: 600 var(--fs-xs)/1.2 'Inter', system-ui, sans-serif; white-space: nowrap; color: var(--text-color); }
+.lchip b { color: var(--primary-hover); font-variant-numeric: tabular-nums; }
+.lchip.st-crouch { border-color: rgba(108,201,138,.5); color: #b9ecc9; }
+.lchip.st-run { border-color: rgba(240,182,74,.6); color: #ffd99a; }
+.lhp { width: 92px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+.lhp i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #b8423c, #e0605a); transition: width .2s; }
+#lair-goal { font: 500 var(--fs-xs)/1.35 'Inter', system-ui, sans-serif; color: var(--text-muted); max-width: 380px; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+#lair-goal b { color: var(--text-color); font-weight: 600; }
+#lair-goal .lmsg { color: var(--primary-hover); }
+#lair-mini { position: absolute; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 5; border-radius: 8px;
+    border: 1px solid var(--panel-border); background: rgba(8,7,6,.82); image-rendering: pixelated; pointer-events: none; }
+#lair-pausebtn { position: absolute; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 112px); z-index: 6; width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--panel-border); background: rgba(10,9,8,.8); color: var(--primary-hover); display: grid; place-items: center; cursor: pointer; font-weight: 700; }
+#lair-banner { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 86px); transform: translateX(-50%); z-index: 6;
+    padding: 7px 16px; border-radius: var(--r-pill); font: 700 13px/1 'Inter', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+    background: rgba(120,24,20,.9); border: 1px solid #ff8a7a; color: #fff; pointer-events: none; white-space: nowrap; }
+#lair-banner.calm { background: rgba(60,48,18,.9); border-color: var(--primary); }
+#lair-prompt { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); transform: translateX(-50%); z-index: 6;
+    padding: 7px 14px; border-radius: var(--r-sm); background: rgba(10,9,8,.86); border: 1px solid var(--panel-border); font: 600 13px/1.2 'Inter', sans-serif; pointer-events: none; white-space: nowrap; }
+#lair-keys { position: absolute; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); z-index: 5; font: 500 11px/1.6 'Inter', sans-serif; color: #736c61; pointer-events: none; }
+#lair-keys kbd { font: 700 10px/1 'Inter', sans-serif; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(236,230,218,.12); color: var(--text-muted); }
+#lair-touch { display: none; }
+body.touch #lair-keys { display: none; }
+body.touch #lair-touch { display: block; }
+#lair-stickzone { position: absolute; left: 0; bottom: 0; width: 55%; height: 55%; z-index: 4; touch-action: none; }
+#lair-stick { position: fixed; width: 116px; height: 116px; margin: -58px 0 0 -58px; border-radius: 50%; z-index: 4; pointer-events: none;
+    border: 2px solid rgba(212,175,55,.45); background: radial-gradient(circle, rgba(212,175,55,.1), rgba(0,0,0,.35)); opacity: .75; }
+#lair-knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f0e3c0, #8a6a1c); box-shadow: 0 3px 10px rgba(0,0,0,.7); }
+#lair-tbtns { position: absolute; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); z-index: 5; display: grid;
+    grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 12px; align-items: end; }
+.ltb { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--panel-border); background: rgba(12,11,9,.72); color: var(--text-color);
+    font: 700 11px/1.1 'Inter', sans-serif; display: grid; place-items: center; text-align: center; padding: 4px; touch-action: none; }
+.ltb.big { width: 78px; height: 78px; font-size: 12px; border-color: rgba(224,96,90,.6); }
+.ltb.on { background: rgba(60,120,80,.55); border-color: #9fe0b0; }
+.ltb.cancel { background: rgba(140,40,34,.8); border-color: #ff8a7a; color: #fff; }
+.ltb.ctx { border-color: rgba(245,215,110,.7); color: var(--primary-hover); }
+.ltb.ctx.idle { opacity: .4; }
+.ltb.ctx.bad { border-color: #ff8a70; color: #ff8a70; }
+#lair-act { grid-column: 1; grid-row: 1; } #lair-crouch { grid-column: 1; grid-row: 2; } #lair-throw { grid-column: 2; grid-row: 1; } #lair-atk { grid-column: 2; grid-row: 2; }
+#lair-over { position: absolute; inset: 0; z-index: 20; overflow-y: auto; display: grid; place-items: center; padding: 18px 16px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(42,33,22,.94) 0%, rgba(13,12,11,.96) 70%); }
+#lair-over[hidden] { display: none; }
+.lpanel { width: min(560px, 100%); display: grid; gap: 14px; }
+.lpanel h2 { font: 700 clamp(24px, 6vw, 36px)/1.1 'Cinzel', Georgia, serif; color: var(--primary-hover); margin: 0; text-wrap: balance; }
+.leyebrow { font: 600 11px/1 'Inter', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--primary); }
+.llead, .lnote { color: var(--text-muted); margin: 0; }
+.lnote { font-size: var(--fs-xs); }
+.lrow { display: flex; flex-wrap: wrap; gap: 10px; }
+.lres { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; background: rgba(18,16,13,.9); border: 1px solid var(--panel-border); border-radius: var(--r-sm); }
+.lres td { padding: 7px 12px; border-bottom: 1px solid rgba(236,230,218,.08); }
+.lres td:last-child { text-align: right; color: var(--primary-hover); font-weight: 600; }
+.lres tr:last-child td { border-bottom: 0; }
+/* the scouting card, inside the ordinary modal */
+.lair-brief { display: grid; gap: 10px; text-align: left; }
+/* the three ways in stay above the fold on a 768 px laptop: the intel is the part that scrolls */
+@media (min-width: 681px) { .lb-intel { max-height: 38vh; overflow-y: auto; } }
+.lair-brief h3 { margin: 2px 0 0; }
+.lb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.lb-help { width: 38px; height: 38px; padding: 0; border-radius: 50%; font-weight: 700; flex: none; }
+.lb-lead { color: var(--text-muted); margin: 0; font-size: var(--fs-sm); }
+.lb-intel { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); background: rgba(22,19,15,.9); border: 1px solid var(--panel-border); border-radius: var(--r-sm); padding: 12px; }
+@media (max-width: 680px) { .lb-intel { grid-template-columns: 1fr; } }
+.lb-intel ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; font-size: var(--fs-xs); line-height: 1.4; }
+.lb-intel li.unk { color: #736c61; font-style: italic; }
+.lb-intel li b { color: var(--primary-hover); }
+.lb-t { color: var(--primary); font-size: var(--fs-sm); }
+#lair-sketch { width: 100%; height: auto; border-radius: 8px; border: 1px solid rgba(236,230,218,.1); background: #0a0908; image-rendering: pixelated; }
+.lb-ways { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+.lb-way { text-align: left; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--panel-border); background: rgba(30,26,21,.95); color: var(--text-color); cursor: pointer; display: grid; gap: 4px; font: inherit; }
+.lb-way:hover:not([disabled]) { border-color: var(--primary); }
+.lb-way b { color: var(--primary-hover); }
+.lb-way span { font-size: var(--fs-xs); color: var(--text-muted); }
+.lb-way .lb-warn { color: #f0b64a; font-weight: 600; }
+.lb-way[disabled] { opacity: .45; cursor: default; }
+.lb-foot { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.lb-howto { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: var(--fs-sm); max-height: 60vh; overflow-y: auto; }
+.lb-howto b { color: var(--primary-hover); }

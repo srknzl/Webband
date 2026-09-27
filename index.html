@@ -346,6 +346,10 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Bandit lair (2.2.0): lair.js builds its canvas, HUD and touch controls in here
+                         on first entry, every word through T() -->
+                    <div id="lair-view" class="view"></div>
                 </main>
             </div>
         </div>
@@ -417,6 +421,7 @@
     <script src="map-art.js"></script>
     <script src="nobles.js"></script>
     <script src="quests.js"></script>
+    <script src="lair.js"></script>
     <!-- Offline copy. The native app now loads the live site (capacitor.config.json's
          `server.url`), so it wants the worker too — that is what keeps it playable with
          no signal. The one case to skip is Capacitor serving its own bundled copy from

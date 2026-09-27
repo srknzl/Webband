@@ -525,7 +525,8 @@ spawned band bound to one; **the emptiest lair sends the next band** so populati
 instead of piling onto one unlucky lair. An undiscovered lair is invisible until it enters sight
 range. A lair grows daily (purse, headcount) and drains nearby settlements' prosperity
 (`LAIR_RANGE`, doesn't stack when ranges overlap) until assaulted (`assaultLair` → normal battle
-→ `Game.clearLair`); respawns every `LAIR_RESPAWN`=20 days.
+→ `Game.clearLair`); respawns every `LAIR_RESPAWN`=20 days. Since 2.2.0 a lair is also a place
+you walk into — see **Bandit lairs (2.2.0)** below.
 
 | Band | Character |
 |---|---|
@@ -942,14 +943,104 @@ revokes them):
 - **800 — marshal candidacy** (vassal only): as marshal, *you* pick the campaign target instead
   of being summoned to one.
 
+## Bandit lairs (2.2.0)
+
+`lair.js` (`Lair`): a lair on the map (`state.sites`, `kind:'lair'`) is a place you can walk into.
+Clicking it opens the **scouting card** (`Lair.brief`), not a straight battle. Measured numbers
+below come from `Lair._bench` in headless Chromium (software raster, so a real GPU is faster).
+
+**Which lair.** Three hand-drawn levels: `house` (Değirmencinin Evi, 30×13), `cave` (Yarasa İni,
+32×17), `camp` (Kurt Tepesi, 34×21). A site's level is `s.layout` if set, else
+`hash(s.id) % 3` — fixed per lair, no save field. Day or night comes from `Game.isNight()`: at
+night the `night: 'sleep'` guards lie on bedrolls and the ambient light drops (house .34 → .07).
+
+**The scouting card** reads `Game.profLvl('spotting')` (companions count). Thresholds
+(`Lair.INTEL`): ≥2 the real guard count, the ways in and the prisoners (below that a vague
+range and one entrance); ≥4 the sketch, guard posts and rounds, the traps (trapped chests and
+spikes start *known* in the lair too, and the minimap is revealed); ≥5 whether an ambush is laid;
+≥7 the secret way in and the leader's habits. The ambush is rolled once per lair per day
+(`s.lairAmbush`, 40%), so reopening the card doesn't reroll what the scout saw; it's consumed on
+entry. An active **İndeki Soylu** quest adds a 📜 line naming who is held there.
+
+**Three ways in.** *Alone*. *With soldiers*: `min(6, 1 + ⌊İdare/2⌋)` of your healthiest
+(non-wounded, highest level first), disabled with none. *Whole army*: the ordinary battle
+(`Game.assaultLair(id, 1.35)`) against 1.35× the lair's count — the bandits whistle for help; the
+card says so in orange before you pick it. A win still goes through `Game.clearLair`.
+
+**Stealth model** (unchanged from the playtested prototype). A guard sees in a cone: half-angle
+1.25 rad (143°), dice players .85, the tower lookout .95 at 1.75× range. Range =
+`220 × (.3 + .7 × light) × (crouched .78)`; alert or searching ×1.25. Suspicion fills at
+`4.2 × (.45 + light) × (1.35 − d/range) × (crouched .6) × (standing still .7) × (a follower .75) ×
+(within 48 px ×2.5)` per second and drains .22/s; >.35 suspicious, 1 = alarm (12 s, refreshed
+while seen). Noise rings: walking 40, running 150, water 70/115, a creaking door 70, a pebble
+175, a hit 200 (a miss 60), bats 90/170, a spooked horse pen 300; sleepers hear at .45×. A body
+on the floor seen by a guard is an alarm. Light is baked per tile with line of sight; torches can
+be doused (a guard walks over to relight) and the lever, doors and rubble rebuild it.
+
+**Fair fights.** Only so many bandits press in at once: 3 alone, 2 in an ambush, +1 per standing
+soldier; the rest hang back at 80–110 px. Every blow telegraphs (.45 s red arc) and passes
+**`Battle.afterArmor`**: the hero's `10 + str + weapon attack` × `DAMAGE_PACE` (×3 on a bandit who
+hadn't seen it coming), a bandit's `attack + 12` (leader ×1.3, a solo ambusher ×.7) in the band's
+damage type, a soldier's `troopStats.attack × PACE × 1.2`, spikes 26 and a chest trap 30 pierce.
+Guards take their numbers from the band's `BAND_KINDS` footman (hp ×1.4) and leader (hp ×1.2). A
+blunt weapon knocks out instead of killing (`DMG_TYPES.blunt.knock`). The hero enters with
+`stats.hp` and leaves with what's left.
+
+**Chased means busy.** While an alert bandit is within 8 tiles nothing can be used — no chest,
+no hiding place, no exit; the button reads "Peşindeler!" in red and a task under way is cut
+short. Hidden, a guard sees you only within 22 px.
+
+**What comes home.** Leaving by an exit tile: the dinars found go to `money`; a trapped chest's
+item (house leather, cave steel sword, camp nasal helmet) to the inventory; each prisoner walked
+out joins via `Game.addRecruit` (+2 renown if there's no room); taking the purse (`max(60,
+s.purse)`) empties the lair's purse; every bandit knocked out or struck down takes .6 off
+`s.strength` (floor 4); nobody left standing (ambushers aside) runs `Game.clearLair`. Spotting
+XP 25 + 5 per knockout. Fallen soldiers are wounded 3 days. Beaten: 25% of the carried money
+is gone, hp drops to 20% of max, the lair gains 1 strength — no captivity.
+
+**İndeki Soylu** (`QUESTS.lair_captive`, lords only): the giver's ward (a lady whose
+`guardianId` is the giver, 60%) or a named heir is held in the lair nearest his hall, which is
+revealed. That lair's first prisoner becomes the noble (a lady wears the long hair); walking
+them out emits `lair_captive_freed`, and storming the lair (`lair_cleared`) frees them too. A
+rescued lady's affection +15. Reward 1400 dinars, 14 renown, 18 relation.
+
+**Controls.** Keyboard: WASD (the layout-independent `Input.keys`), Shift run, C crouch, E use,
+Q held + mouse to aim a pebble, Space strike, Esc pause. Touch: a floating stick on the left
+55%×55% (full push = run), Etkileşim / Eğil / Taş / Saldır. The Taş button: tap = throw ahead,
+press and drag = aim (110 px of drag = the full 7 tiles), back over the button = red "İptal".
+While aiming, a "?" marks every bandit who will hear it.
+
+**Tutorial.** The first entry asks whether to take the tour (`webband_ltutor_done`, a "no" is
+remembered). The tour is the game's coach (`Game.startTutorial` with `Lair.TUTOR`), ringing the
+real HUD and buttons, pausing the lair; keyboard and touch texts differ, and touch-only steps
+(the stick, the crouch button) are skipped on a desktop. The same thirteen texts are the "?"
+list on the scouting card (`Lair.help`) and the pause menu's "Nasıl oynanır?".
+
+**Sound.** Music is the game's player: `'lair'` (three quiet pieces, −22 LUFS) while you sneak,
+`'lairchase'` (three fight pieces) while `Lair.alarmed()`. At night outside the cave a cricket
+loop (`lair/crickets.mp3`, Web Audio buffer, looped) sits over it at `.12 + .88 × openness`
+(the share of outdoor tiles within 4; the camp is all sky), faded to 0 during an alarm. The cave
+drips instead. Pebble, knockout, coins, hits and the alarm stab are synthesized.
+
+**Loop and cost.** Its own rAF loop (`Game.skipFrame` gate, double-start safe); the map loop
+stops while `Lair.active` (`Game.inScene`), and `showScreen('map')` restarts it on the way out.
+Under a modal the picture holds still (no redraw behind the blurred backdrop). The dark layer is
+a quarter-resolution canvas stretched smoothed; glows and the sight hole are baked gradients;
+lite mode skips the glows, casts 14 cone rays instead of 22 and caps the canvas at 2× density.
+
+- Measured (2.2.0, headless Chromium, night): update 0.09–0.12 ms per frame on either device;
+  render 4.3 ms (house) / 4.7 ms (camp) at 1366×768, 5.3 / 4.6 ms on a Pixel 7 in lite mode.
+  Before the quarter-res dark layer and the lite density cap: 8.3–8.9 ms desktop, 13.6–18.1 ms
+  phone.
+
 ## Audio layer
 Two independent systems. **Transaction SFX** are still synthesized (WebAudio oscillator
-envelopes, `Game.SFX`, no files). **Music** is 15 recorded CC0 tracks (10 map / 3 fight / 2
-stings), loudness-normalized (EBU R128, map −19 LUFS / fight+stings −16) so no per-track mixer
-is needed. Not precached by the service worker — a second fetch branch caches each track on
+envelopes, `Game.SFX`, no files). **Music** is 21 recorded CC0 tracks (10 map / 3 fight / 3 lair
+stealth / 3 lair chase / 2 stings), loudness-normalized (EBU R128, map −19 LUFS, lair stealth −22,
+fight, lair chase and stings −16) so no per-track mixer is needed. Not precached by the service worker — a second fetch branch caches each track on
 first play, so install stays light. Played via `<audio>` elements, not Web Audio (streams
 immediately, no decode-then-play stall, and sidesteps iOS's AudioContext-resume bugs entirely).
-`Music.sync()` picks `'map' | 'battle' | null` from the current screen + a 10-in-view-hours
+`Music.sync()` picks `'map' | 'battle' | 'lair' | 'lairchase' | null` from the current screen + a 10-in-view-hours
 "chase" flag (`Game.chaseTick`) and only switches on an actual mode change, so a modal opening
 over the map doesn't restart the track. Victory/defeat stings play over `Battle.endBattle`
 (the single exit from every kind of fight) without interrupting whatever plays next.

@@ -2159,6 +2159,8 @@ function questSuite() {
         // Drives the real path (Game.clearLair emits the event); on day 1 the lair's
         // purse is still empty, so the quest reward is the only money paid.
         clear_lair: q => Game.clearLair(q.data.lairId),
+        // the lair run emits this when the noble walks out of the exit with you (lair.js endGame)
+        lair_captive: q => Quests.emit('lair_captive_freed', { lairId: q.data.lairId }),
         royal_courier: q => enter(q.data.locId),
         border_inspection: q => q.data.stops.forEach(enter),
         grain_levy: q => { Quests.emit('bought_item', { itemId:'wheat', qty:q.data.need, locId:q.data.locId }); enter(q.data.locId); },
@@ -3253,7 +3255,7 @@ test('i18n: no Turkish prose reaches the screen outside T()', () => {
     const fs = require('fs'), path = require('path');
     const K = require('./i18n-keys');
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js'])
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js'])
         K.rawUiText(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'))
             .forEach(h => bad.push(`${f}:${h.line} ${JSON.stringify(h.text.slice(0, 60))}`));
     assert.ok(bad.length === 0, `${bad.length} untranslated UI string(s), first: ${bad[0]}`);
@@ -3455,7 +3457,7 @@ test('the soundtrack table names files that exist, one scene each (#131)', () =>
         assert.ok(!seen.has(t.f), 'one entry per file: ' + t.f); seen.add(t.f);
         assert.ok(fs.existsSync(path.join(dir, t.f + '.mp3')), 'music/' + t.f + '.mp3 ships');
         assert.ok(t.t && t.a, t.f + ' credits its title and author');
-        assert.ok(['map', 'battle', 'sting'].includes(t.s), t.f + ' is in a known scene: ' + t.s);
+        assert.ok(['map', 'battle', 'sting', 'lair', 'lairchase'].includes(t.s), t.f + ' is in a known scene: ' + t.s);
     });
     // A stray .mp3 in music/ is 1-3 MB of dead weight the player still downloads offline.
     fs.readdirSync(dir).filter(f => f.endsWith('.mp3'))
@@ -3523,6 +3525,26 @@ test('i18n: keyboard/touch help entries are in both dictionaries', () => {
     const cells = [...g.Game.KEYS, ...g.Game.TOUCH_HELP].flat();
     const missing = cells.filter(t => !(t in d.en) || !(t in d.id));
     assert.strictEqual(missing.length, 0, `help entry with no dictionary entry: ${missing.join(', ')}`);
+});
+
+// The bandit lairs (2.2.0) keep their level tables and the in-lair tour as raw Turkish and
+// translate at display (T(lv.name), T(s.m)...), which the extractor can't see. lair.js does
+// nothing at load time, so it is evaluated on its own here and asked for every shown string;
+// the lair quest's noble names ride along.
+test('i18n: lair tables and the lair tour are in both dictionaries', () => {
+    const fs = require('fs'), path = require('path'), vm = require('vm');
+    const d = require('./i18n-keys').dicts(), ctx = {};
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'lair.js'), 'utf8') + ';this.Lair = Lair;', ctx);
+    const strs = [...ctx.Lair.strings(), g.QUESTS.lair_captive.title, ...g.QUESTS.lair_captive.HEIRS];
+    const missing = strs.filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(missing.length, 0, `lair text with no dictionary entry: ${missing.slice(0, 3).join(' | ')}`);
+    // every level has an exit, a start, a purse and prisoners, and every row is the same width
+    for(const [k, lv] of Object.entries(ctx.Lair.LEVELS)) {
+        const map = lv.map.join('\n');
+        assert.ok(/@/.test(map) && /\$/.test(map) && /P/.test(map), `${k}: needs a start, a purse and prisoners`);
+        assert.ok(lv.map.every(r => r.length === lv.map[0].length), `${k}: ragged map rows`);
+    }
 });
 
 test('i18n: top-level data tables are language-independent', () => {

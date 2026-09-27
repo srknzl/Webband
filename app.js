@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.1.1', date: '2026-09-26', name: 'Canlanış' };  // the version name is not translated
+const VERSION = { no: '2.2.0', date: '2026-09-27', name: 'Haydut İni' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -75,7 +75,7 @@ const Debug = {
                 };
             }, T('oyun başlamamış')),
             render: {
-                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active),
+                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active), lairActive: g(() => typeof Lair !== 'undefined' && Lair.active),
                 mapLoopId: g(() => Game._loopId), battleLoopId: g(() => Battle.loopId),
                 targetFps: g(() => Game.targetFps()), fpsSetting: g(() => Game.opt('fps')),
                 adaptive: g(() => { let p = Game.perfState();
@@ -723,7 +723,7 @@ const Input = {
             // Esc in battle goes through the same pause door as the map (#113), just without a menu.
             if(e.key === 'Escape' && Battle.active) { Game.togglePause(); return; }
             // Menu shortcuts (Warband-style) — inactive while battle/tournament/a modal is open
-            if(!Battle.active && !TournamentMinigame.active && !e.ctrlKey && !e.metaKey &&
+            if(!Game.inScene() && !e.ctrlKey && !e.metaKey &&
                document.getElementById('modal-overlay').classList.contains('hidden') &&
                document.getElementById('main-ui').classList.contains('active')) {
                 let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[k];
@@ -1011,7 +1011,7 @@ const Game = {
     // (renderMap returns early), a hidden tab gets no frames at all.
     perfDrawing() {
         if(document.hidden) return false;
-        if(Battle.active || TournamentMinigame.active) return true;
+        if(this.inScene()) return true;
         let mv = document.getElementById('map-view'), mo = document.getElementById('modal-overlay');
         return !!(mv && mv.classList.contains('active') && mo && mo.classList.contains('hidden'));
     },
@@ -1534,13 +1534,15 @@ const Game = {
         return T`<b>İn dağıtıldı.</b> Biriken kese <b>${Math.round(l.purse)} dinar</b> senin;
             çevredeki yerleşimler nefes aldı ve buradan yeni çete çıkmayacak.`;
     },
-    assaultLair(id) {
+    // `reinforce` (2.2.0): storming a lair openly — the scouting card's "whole army" — lets the
+    // bandits whistle for help, so the field holds that many times the lair's count.
+    assaultLair(id, reinforce = 1) {
         let l = this.lairs().find(x => x.id === id);
         if(!l) return this.closeModal();
         this.closeModal();
         state.player.currentEncounterNpcId = null;
         state.player.currentLair = l.id;
-        Battle.start(BAND_KINDS[l.band].name, Math.round(l.strength));
+        Battle.start(BAND_KINDS[l.band].name, Math.round(l.strength * reinforce));
     },
 
     // --- BOSS LAIRS (#38) ---
@@ -1634,14 +1636,8 @@ const Game = {
     enterSite(s) {
         let k = this.SITE_KINDS[s.kind];
         if(k.boss) return this.enterBoss(s);
-        if(k.lair) return this.showModal(`<h3>${k.icon} ${T(k.name)}</h3>
-            <p style="font-style:italic;color:var(--text-muted)">${T(k.desc)}</p>
-            <p>${T`Nöbetçileri saydın: kabaca <b>${Math.round(s.strength)} kişi</b>.
-                Bastığın gün biriktirdikleri de senin olur.`}</p>
-            <div style="display:flex;gap:0.5rem;margin-top:1rem">
-                <button class="btn primary" onclick="Game.assaultLair('${s.id}')">${T`⚔️ İni Bas`}</button>
-                <button class="btn" onclick="Game.closeModal()">${T`🚪 Yoluna Devam Et`}</button>
-            </div>`);
+        // A lair is a place you can walk into (2.2.0): the scouting card offers the three ways in
+        if(k.lair) return Lair.brief(s.id);
         let ready = this.siteReady(s);
         this.showModal(`<h3>${k.icon} ${T(k.name)}</h3>
             <p style="font-style:italic;color:var(--text-muted)">${T(k.desc)}</p>
@@ -2588,7 +2584,7 @@ const Game = {
         const loop = (t) => {
             // Battle/tournament runs its own loop; the map loop steps aside.
             // showScreen() restarts it when returning to a non-battle screen.
-            if(Battle.active || TournamentMinigame.active) { this._loopId = null; return; }
+            if(this.inScene()) { this._loopId = null; return; }
             if(this.skipFrame(t)) { this._loopId = requestAnimationFrame(loop); return; }
             let dt = (t - lastTime) / 1000;
             if(dt > 0.1) dt = 0.1;
@@ -3162,7 +3158,7 @@ const Game = {
     },
 
     update(dt) {
-        if (Battle.active || TournamentMinigame.active) return;
+        if (this.inScene()) return;
         state.meta.playtime = (state.meta.playtime || 0) + dt;   // playtime shown in the save info card
         
         // Mouse Edge Panning — gated by Game.edgePan(), can be turned off from ⚙️ Settings.
@@ -5875,7 +5871,7 @@ const Game = {
         // stayed stopped (only a battle-end restarts it) — a screen that's "active" in the DOM
         // but never drawn to. Refusing the switch here is the single choke point for every
         // caller; leaving battle only ever happens through its own end-of-battle flow (#132).
-        if(screenId !== 'battle' && (Battle.active || TournamentMinigame.active)) return;
+        if(screenId !== 'battle' && screenId !== 'lair' && this.inScene()) return;
         this.perfGrace();   // the frames right after a switch are loading, not the device's pace
         let wasMap = document.getElementById('map-view').classList.contains('active');
         this.resetMapInteractionState();   // the map starts every screen from a clean input state (#96)
@@ -5891,7 +5887,7 @@ const Game = {
         // 345px canvas: `drawHud`'s top strip, the battle log, and the controls
         // overlapped each other. Both are hidden during battle; nobody taps them on a screen
         // that isn't being played anyway.
-        document.body.classList.toggle('in-battle', screenId === 'battle');
+        document.body.classList.toggle('in-battle', screenId === 'battle' || screenId === 'lair');
         // The map fills the viewport with the chrome floating over it as glass edge panels (#40);
         // other views keep the ordinary flow layout. resizeCanvases() below sees the new box.
         document.body.classList.toggle('view-map', screenId === 'map');
@@ -5904,7 +5900,7 @@ const Game = {
         this.resizeCanvases();
 
         // Every path out of a battle/tournament goes through here: restart the map loop
-        if(screenId !== 'battle' && !this._loopId && !Battle.active && !TournamentMinigame.active) {
+        if(screenId !== 'battle' && screenId !== 'lair' && !this._loopId && !this.inScene()) {
             this.startGameLoop();
         }
 
@@ -6420,7 +6416,7 @@ const Game = {
     },
 
     handleMapHover(e) {
-        if(Battle.active || TournamentMinigame.active) return;
+        if(this.inScene()) return;
         // The screen -> world transform is in mapPos; the tooltip used to look half a screen away from the cursor.
         let m = this.mapPos(e), mx = m.x, my = m.y;
         if(this.dragTarget) {                       // a temporary target while dragging (#35)
@@ -6733,7 +6729,7 @@ const Game = {
     targetGrabRadius() { return (this.isTouch() ? 28 : 16) / this.camera.zoom + 6; },
 
     startTargetDrag(e) {
-        if(e.button !== 0 || Battle.active || TournamentMinigame.active) return;
+        if(e.button !== 0 || this.inScene()) return;
         if(state.player.wait) return;
         if(state.player.status !== 'moving' || !state.player.targetLocation) return;
         let m = this.mapPos(e);
@@ -6798,7 +6794,7 @@ const Game = {
     },
 
     handleMapClick(e) {
-        if(Battle.active || TournamentMinigame.active) return;   // map input is ignored while a battle is open (#42)
+        if(this.inScene()) return;   // map input is ignored while a battle or a lair is open (#42)
         // Raiding, like captivity, holds you in place: you can't walk while emptying the storehouse (#49)
         if(state.player.status === 'raiding' || state.player.status === 'prisoner' || state.player.wait) return;
         if(this.suppressClick) { this.suppressClick = false; return; }
@@ -8240,6 +8236,14 @@ const Game = {
             { f: 'battle-medieval',       t: 'Medieval: Battle',         a: 'randommind', s: 'battle' },
             { f: 'battle-pursuit',        t: 'Determined Pursuit',       a: 'emmama',     s: 'battle' },
             { f: 'battle-knight-templar', t: 'Knight Templar',           a: 'iamoneabe',  s: 'battle' },
+            // A bandit lair (2.2.0): quiet pieces while you sneak, levelled 3 dB under the map set
+            // (−22 LUFS) so the crickets carry over them; fight pieces once the alarm is up.
+            { f: 'lair-deliberate-concealment', t: 'Deliberate Concealment', a: 'northivanastan', s: 'lair' },
+            { f: 'lair-infiltration',     t: 'Infiltration',             a: 'Adiutorium', s: 'lair' },
+            { f: 'lair-night-prowler',    t: 'Night Prowler',            a: 'section31',  s: 'lair' },
+            { f: 'chase-knights-challenge', t: "A Knight's Challenge",   a: 'Umplix',     s: 'lairchase' },
+            { f: 'chase-epic-combat',     t: 'Epic Combat',              a: 'Chester01',  s: 'lairchase' },
+            { f: 'chase-heavy-battle',    t: 'Heavy Battle Music',       a: 'Davieplier', s: 'lairchase' },
             { f: 'sting-victory',         t: 'Medieval: Victory Theme',  a: 'randommind', s: 'sting' },
             { f: 'sting-defeat',          t: 'Medieval: Defeat Theme',   a: 'randommind', s: 'sting' }
         ],
@@ -8410,6 +8414,9 @@ const Game = {
             this.set(!live || !live.classList.contains('active') || Game.opt('muted') || !Game.opt('music') ? null
                 // Fight music covers a real battle, the arena and a tournament round (all three
                 // are the `battle` screen) — and a chase, which is not a battle yet (#131).
+                // A lair (2.2.0): the stealth pieces while you sneak, its own fight pieces once
+                // the alarm is up (Lair.alarmed) — back to stealth when they lose you.
+                : typeof Lair !== 'undefined' && Lair.active ? (Lair.alarmed() ? 'lairchase' : 'lair')
                 : document.body.classList.contains('in-battle') || Game._chasing ? 'battle' : 'map');
         }
     },
@@ -8435,6 +8442,10 @@ const Game = {
     // If the target is on your side this is the damage "taken", otherwise "dealt".
     // The single call site is `Battle.afterArmor` — melee and arrows both pass through it.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
+    // A full-screen scene that runs its own loop and owns the input: a battle, the arena, or a
+    // bandit lair walked into on foot (2.2.0). The map loop, map input and the menu shortcuts
+    // all step aside while one is up. `Lair` isn't loaded in the Node harness, hence typeof.
+    inScene() { return Battle.active || TournamentMinigame.active || (typeof Lair !== 'undefined' && Lair.active); },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
 
     // A JS literal that survives a double-quoted inline handler: JSON.stringify('auto')
@@ -8811,6 +8822,7 @@ const Game = {
         if(!force && localStorage.getItem(this.tutorKey)) return;
         this.tutor = 0;
         if(typeof Battle !== 'undefined' && Battle.active) Battle.paused = true;
+        if(typeof Lair !== 'undefined') Lair.setPaused(true);
         this.tutorStep(0);
     },
     tutorStep(i) {
@@ -8861,6 +8873,7 @@ const Game = {
         if(gecici) return;                       // between steps: the battle stays paused
         this.tutor = null;
         if(typeof Battle !== 'undefined') Battle.paused = false;
+        if(typeof Lair !== 'undefined') Lair.setPaused(false);
         try { localStorage.setItem(this.tutorKey || this.TUTOR_KEY, '1'); } catch(e) {}
     },
     flash(el, ok = true) {

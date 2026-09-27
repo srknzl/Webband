@@ -1,0 +1,13 @@
+Props in this folder (chests, crates, barrels, sacks, the lever, trapdoor, torch, fire,
+spikes, rubble, purse, stool, table, shadow...) come from the CraftPix.net freebie
+"Free Top-Down Roguelike Game Kit Pixel Art" —
+  https://craftpix.net/freebies/free-top-down-roguelike-game-kit-pixel-art/
+the same pack the hooded archer in troops/ comes from. Royalty-free use in unlimited
+personal/commercial projects, no attribution required (see
+https://craftpix.net/file-licenses/ for the full terms — raw source files may not be
+resold or redistributed on their own).
+
+Each prop is one sprite cut from the kit's sheets, pixels unaltered; lair.js draws them
+at 2x. Doors, tents, the palisade, the watchtower, hiding places, the cage and the horse
+pen are drawn by code in lair.js; the people are battle.js's Swordsman and the horses its
+Horse.

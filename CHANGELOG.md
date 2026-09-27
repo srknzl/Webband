@@ -3,6 +3,36 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.2.0 — Haydut İni (2026-09-27)
+
+Haritadaki haydut inleri artık içine girilen yerler.
+
+- **Keşif kartı.** Bir ine tıklayınca önce keşif kartı açılıyor. Gözcülük ne kadar yüksekse o
+  kadar çok şey biliyorsun: kaç haydut var, girişler, tutsaklar, bir kroki, tuzaklar, kurulmuş bir
+  pusu, gizli yol ve reisin alışkanlıkları.
+- **Üç yol.** Tek başına sızabilir, birkaç askerinle sızabilir (kaç kişi götüreceğini İdare
+  belirler) ya da bütün orduyla basabilirsin. Açık baskında haydutlar destek çağırır, meydan
+  savaşında sayıları artar.
+- **Gerçek zamanlı gizlilik.** Haydutlar önlerindeki koniyle görür, karanlıkta daha az görür,
+  koşunca, suya basınca ya da dövüşünce seni duyar. Eğilerek sessiz ilerle, seni görmemiş olanı
+  arkadan bayılt, samana, dolaba ya da kaya kovuğuna saklan, çakıl taşı atıp birini başka yere
+  çek, meşaleyi söndür, kampta atları ürküt.
+- **Yeşil çerçeveli her şey kullanılır.** Sandıklar, çuvallar, variller, kollar, zemin kapakları,
+  pencereler, kafesler ve reisin kesesi. Kovalanırken hiçbir şey kullanılamaz.
+- **Tutsaklar.** İplerini çöz, seni takip etsinler; dışarı çıkardıklarının grubuna katılıyor.
+- **Yeni görev: İndeki Soylu.** Bir lord, kaçırılan leydisini ya da oğlunu bir inde bulmanı
+  istiyor. Onu sağ çıkarırsan para, nam ve lordun dostluğu seninle.
+- **Sızarsan in yerinde kalır.** Aldığını alıp çıkışa dönmen gerekiyor. Yakalanırsan dövüp soyup
+  dışarı atıyorlar. İnde ayakta kimse bırakmazsan in dağılıyor.
+- **Nasıl oynandığı anlatılıyor.** İlk inde öğreticiyi görmek isteyip istemediğin soruluyor.
+  Sonra keşif kartındaki ? düğmesinden ya da duraklatma menüsünden açabilirsin. Telefonda hareket
+  kolunu sonuna kadar itince koşuyorsun, taş düğmesini sürükleyerek nişan alıyorsun.
+- **Kendi müziği.** Sızarken sessiz, gergin üç parça çalıyor; gece açık havada altından cırcır
+  böcekleri duyuluyor, mağarada damlalar. Alarm çalınca üç tempolu parçadan biri giriyor, seni
+  kaybedince yine gizlilik müziğine dönüyor.
+- Üç in var: bir haydut evi, bir mağara ve kazıklı çitle çevrili bir kamp. Üçü de Türkçe,
+  İngilizce ve Endonezce.
+
 ## 2.1.1 — Canlanış (2026-09-26)
 
 - **Kadın kahramana dört saç.** Karakteri yaratırken kahramanın altındaki düğmeyle at kuyruğu,
