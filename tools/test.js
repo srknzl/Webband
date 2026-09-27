@@ -3357,6 +3357,21 @@ test('i18n: every T key in the code is in both dictionaries', () => {
     assert.ok(missing.length === 0, `${missing.length} keys missing from a dictionary, first: ${JSON.stringify(missing[0])}`);
 });
 
+// One Turkish word, two meanings: "Başlık" was both the helmet slot and the bride price, the
+// dictionary held the key twice, and the later entry won — the bride-price screen said "Helmet"
+// (found by the type check). A repeated key is always a lost translation.
+test('i18n: no key appears twice in a dictionary', () => {
+    const fs = require('fs'), path = require('path');
+    for(const f of ['lang-en.js', 'lang-id.js']) {
+        const seen = new Set(), twice = [];
+        for(const m of fs.readFileSync(path.join(__dirname, '..', f), 'utf8').matchAll(/^\s*("(?:[^"\\]|\\.)*")\s*:/gm)) {
+            const k = JSON.parse(m[1]);
+            if(seen.has(k)) twice.push(k); else seen.add(k);
+        }
+        assert.deepStrictEqual(twice, [], `${f} repeats a key`);
+    }
+});
+
 // The dictionary gate above only sees prose that is already wrapped in T(). Prose that
 // was never wrapped is invisible to it and ships Turkish to every language — which is
 // exactly how #129 shipped the spouse menu. This gate reads the other direction: Turkish

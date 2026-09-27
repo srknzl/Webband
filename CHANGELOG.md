@@ -8,6 +8,8 @@ başlangıç ekranının sağ alt köşesinde yazar.
 - **Haberler dil değiştirince de doğru dilde.** Kalradya'nın Hâli'ndeki son haberler ve haritadaki
   söylenti/sefer işaretleri, dili değiştirdiğinde eski dilde kalıyordu; artık hepsi seçtiğin dilde
   görünür. Eski kayıtlardaki haberler geldikleri dilde kalır, yenileri doğru çıkar.
+- **Başlık parası artık "Helmet" değil.** İngilizce ve Endonezcede nişan ekranındaki başlık
+  parası, miğfer yuvasıyla aynı kelime olduğu için "Helmet/Helm" yazıyordu.
 - **Esirleri grup grup satmak ve salıvermek İngilizce ve Endonezcede de çalışıyor.** Köle
   tüccarındaki "Sat" ve grup ekranındaki "Salıver" düğmeleri bu dillerde hiçbir şey yapmıyordu.
 

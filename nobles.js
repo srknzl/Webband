@@ -1387,7 +1387,7 @@ const Nobles = {
         let d = this.dowryFor(ladyId);
         let o = state.dowryOffer;
         let p = state.player;
-        let dLabel = this.lady(ladyId).suitor ? T('Başlık') : T('Drahoma');
+        let dLabel = this.lady(ladyId).suitor ? T('Başlık parası') : T('Drahoma');
         let html = `<h4 style="margin-top:1.2rem;color:var(--primary)">${T`${dLabel} Hesabı`}</h4>
             <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:var(--r-md);font-size:var(--fs-md);line-height:1.7">
             <div>${T`Temel bedel: <b>${d.base}</b> dinar</div>

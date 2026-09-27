@@ -1,0 +1,20 @@
+{
+  // The type check (tools/typecheck.js): the game's own scripts, in index.html's order, checked as
+  // plain JavaScript — nothing is compiled, the game stays build-free. They are classic scripts
+  // sharing one global scope, which is exactly how tsc reads files that aren't modules.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "skipLibCheck": true
+  },
+  "files": [
+    "globals.d.ts",
+    "../i18n.js", "../lang-en.js", "../lang-id.js",
+    "../app.js", "../battle.js", "../battle-gl.js", "../map-gl.js", "../map-art.js",
+    "../nobles.js", "../quests.js", "../lair.js"
+  ]
+}

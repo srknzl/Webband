@@ -1572,6 +1572,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/framegate.js` | `Game.skipFrame` gate correctness + the #42 loop-parity regression |
 | `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
+| `tools/typecheck.js [--update]` | tsc over the game's JS (`tools/tsconfig.json`, nothing compiled; typescript from `e2e/node_modules`): fails on an error not in `tools/tsc-baseline.json` |
 | `tools/coverage.js [--dir e2e/test-results] [--top 40] [--md f]` | the coverage map: merges every e2e run made with `COVERAGE=1` and lists the game functions none of them called, biggest first |
 
 Bug hunting in the browser: `MONKEY=1 MONKEY_SEED=1,2,3 MONKEY_STEPS=400 npx playwright test
@@ -1582,6 +1583,15 @@ runs them every night at 01:00 UTC with seeds from the day of the year (two monk
 four projects at 300 steps, the lair sweep, `career.js` on eight seeds) and opens — or comments
 on — one `nightly`-labelled issue with each finding's project and seed. Actions → nightly → Run
 workflow starts it by hand with chosen seeds and steps.
+
+**Type check** (2.4.1, the e2e CI job): `tools/typecheck.js` runs tsc on the game's own scripts as
+plain JavaScript. Day one: 170 errors, frozen in `tools/tsc-baseline.json` counted by file, code and
+the name they're about (not by line); a new one fails, and a fixed one fails until `--update` locks
+the lower count in. Its reach is local: `Game`, `Battle`, `state` and the other big globals refer to
+themselves in their own initializers, so tsc types them `any` (`Game.closeModl()` passes). The
+first run found one real bug — "Başlık" twice in both dictionaries, the bride price and the helmet
+slot, the later entry winning (the bride-price screen said "Helmet"); the bride price is now
+"Başlık parası", and `tools/test.js` fails on any repeated dictionary key.
 
 **Coverage map** (2.4.1): with `COVERAGE=1` the e2e fixture records V8's call count of every game
 function for each test (started before the first script, so a function never called is listed

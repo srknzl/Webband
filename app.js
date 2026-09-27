@@ -10213,7 +10213,7 @@ const Game = {
             .forEach(l => { l.faction = atk.faction; l.owner = null; l.tributeTo = null; });   // a new lord honours no old tribute (#69)
         // A fief you left undefended is lost; its garrison is put to the sword
         // ponytail: the storage doesn't change hands — the new owner is assumed not to find the cellar
-        let lostFief = '';
+        let lostFief = [];
         if(wasMine) {
             let lost = (loc.garrison || []).length;
             loc.owner = null; loc.garrison = [];
