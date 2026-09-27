@@ -4,7 +4,7 @@ test.skip(!process.env.MONKEY, 'bug-hunt run');
 test.setTimeout(10 * 60_000);
 
 test('lair sweep', async ({ page }) => {
-    await newGame(page, 'Tarayıcı');
+    await newGame(page, 'Sweeper');   // a name with no Turkish-only letter: the fixture reads it on EN/ID screens
     const found = [];
     const layouts = await page.evaluate(() => Object.keys(Lair.LAYOUTS || Lair.LEVELS));
     const sites = await page.evaluate(() => Game.lairs().map((s, i) => i));

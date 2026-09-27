@@ -59,7 +59,7 @@ jobs:
             echo "Tekrar üretmek için: \`MONKEY=1 MONKEY_SEED=<tohum> MONKEY_STEPS=${{ inputs.steps || 300 }} npx playwright test specs/monkey.spec.js --project=<proje>\` · \`node tools/career.js --seed <tohum>\`"
             echo
             echo '```'
-            echo "${found:-(bulgu satırı yok; kırmızı test sayısı: $failed — ayrıntı run'da)}"
+            echo "${found:-(bulgu satırı yok; kırmızı test sayısı: $failed — ayrıntı run sayfasında)}"
             echo '```'
             echo
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
