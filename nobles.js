@@ -739,11 +739,10 @@ const Nobles = {
         let src = this.LORD_LINES[kind] || {}, b = this.band(this.standing(id));
         let mine = src[this.traitOf(id)] || [];
         if(kind === 'greet') mine = mine[b] || [];
-        // The pool text passed through `T` while the script loaded — the language was
-        // always 'tr' at that point, so it stayed Turkish; translation happens at
-        // selection time. `extra` arrives from the caller already translated.
-        let pool = mine.concat(src['b' + b] || []).map(x => Array.isArray(x) ? x.map(s => T(s)) : T(x));
-        return this.fresh(pool.concat(extra), kind + b);
+        // Picked from the raw pool, translated after: the no-repeat memory (state.recentLines)
+        // keeps keys, not the words of whatever language was on when the line was said
+        let out = this.fresh(mine.concat(src['b' + b] || [], extra), kind + b);
+        return Array.isArray(out) ? out.map(s => T(s)) : out && out.say ? out.say() : out && T(out);
     },
     // Retinue banter: doesn't cut in on every dialogue, only one time in three
     retinueHtml(id) {
@@ -811,7 +810,7 @@ const Nobles = {
         if(r <= -15) return T('Yüzünü görmek bile keyfimi kaçırıyor. Çabuk söyle derdini.');
         if(r >= 60)  return T('Gel bakalım! Otur şöyle. Senin geldiğin gün kötü haber gelmez bu kapıya.');
         // Character trait + standing band pool; the old GREETS tier pool stays mixed in
-        return this.lineFor('greet', n.id, (this.GREETS[String(this.standing(n.id))] || []).map(s => T(s)));
+        return this.lineFor('greet', n.id, this.GREETS[String(this.standing(n.id))] || []);
     },
 
     smallTalk(id) {
@@ -835,9 +834,11 @@ const Nobles = {
         }
 
         // Two more lines are added to the pool from the world's current state
+        // (a line built from the world is an { id, say } pair: the no-repeat memory keeps the id)
+        let rumoured = LORDS[Math.floor(Math.random()*LORDS.length)];
         let world = [
-            T`${Game.facName(FACTIONS[n.faction])}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.`,
-            T`Duyduğuma göre ${T(LORDS[Math.floor(Math.random()*LORDS.length)].name)} yine bir sınırda dolaşıyormuş.`
+            { id: 'world-tax', say: () => T`${Game.facName(FACTIONS[n.faction])}'nda vergiler yine arttı. Kimse konuşmuyor ama herkes biliyor.` },
+            { id: 'world-border', say: () => T`Duyduğuma göre ${T(rumoured.name)} yine bir sınırda dolaşıyormuş.` }
         ];
         this.say(id, this.lineFor('chat', id, world),
             `${T`Gözünde ağırlığın: <b>${this.standingLabel(sc)}</b> · +${gain} ilişki`}`);
@@ -1396,7 +1397,7 @@ const Nobles = {
             <div>${T`Mevkiin: <b>×${d.statusMult}</b> ${p.vassalOf === 'player_kingdom' ? T('(kendi krallığın)') : p.vassalOf ? T('(derebeyi)') : T('(bağımsız maceracı)')}</div>
             <div>${T(PERSONALITIES[d.guardian.personality].name)} mizacı:`} <b>×${d.persMult}</b></div>
             <hr style="border-color:var(--panel-border);margin:0.6rem 0">
-            <div style="font-size:1.2rem">${T`İstenen:`} <b style="color:#ffcc00">${o.amount} dinar</b> ${T`(kesende ${Math.floor(p.money)})`}</div>
+            <div style="font-size:1.2rem">${T`İstenen:`} <b style="color:#ffcc00">${T`${o.amount} dinar`}</b> ${T`(kesende ${Math.floor(p.money)})`}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
 

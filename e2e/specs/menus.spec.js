@@ -96,6 +96,7 @@ test('diplomasi ve sıradaki parça her düzende erişilebilir', async ({ page }
 });
 
 test('ayarlar: ses aç/kapa ve oyun içinde dil değiştirme', async ({ page, lang }) => {
+    test.skip(lang === 'xx', 'switches between the real languages; the pseudo-locale is not in the menu');
     await newGame(page);
     await openExtra(page, 'Game.showSettings()');
     await expect(modal(page).locator('#settings-panel')).toBeVisible();

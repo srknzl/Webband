@@ -5,6 +5,7 @@ test.describe('ilk açılış', () => {
     test.use({ storedLang: null });
 
     test('dil sorulur, seçim hatırlanır', async ({ page, lang }) => {
+        test.skip(lang === 'xx', 'picks a real language from the menu; the pseudo-locale is not in it');
         await page.goto('/');
         const ask = page.locator('#lang-ask');
         await expect(ask).toBeVisible();

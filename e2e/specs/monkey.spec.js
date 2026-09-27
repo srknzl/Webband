@@ -18,7 +18,7 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
     let r = SEED * 2654435761 >>> 0;
     const rnd = () => { r ^= r << 13; r >>>= 0; r ^= r >> 17; r ^= r << 5; r >>>= 0; return r / 4294967296; };
     const pick = a => a[Math.floor(rnd() * a.length)];
-    const log = [], found = [];
+    const log = [], found = [], reported = new Set();
     let step = 0, last = 'start';
     page.on('pageerror', e => found.push(`#${step} [${last}] pageerror: ${e.message} @ ${(e.stack || '').split('\n')[1] || ''}`));
     page.on('console', m => { if(m.type() === 'error') found.push(`#${step} [${last}] console.error: ${m.text()}`); });
@@ -127,6 +127,38 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         last = did;
         log.push(`#${step} ${did}`);
         await page.waitForTimeout(120);
+        // Stale screen: redraw the open screen from the state; if its words change, it was
+        // showing numbers from before the last action (the town cards kept the garrison count)
+        if(!(await inPage().catch(() => ({ modal: true }))).modal) {
+            const stale = await page.evaluate(() => {
+                const v = document.querySelector('.view.active');
+                const redraw = v && {
+                    'quests-view': () => Quests.render(), 'character-view': () => Game.renderCharacterScreen(),
+                    'party-view': () => Game.renderPartyScreen(), 'inventory-view': () => Game.renderInventoryScreen(),
+                    'settlement-view': () => { const l = LOCATIONS.find(x => x.id === Game._enteredLoc); if(l) Game.enterLocation(l); }
+                }[v.id];
+                if(!redraw || Battle.active) return null;
+                const text = () => (v.id === 'settlement-view' ? document.getElementById('settlement-actions') : v).innerText;
+                const before = text(); redraw(); const after = text();
+                if(before === after) return null;
+                const a = before.split('\n'), b = after.split('\n'); let i = 0; while(i < a.length && a[i] === b[i]) i++;
+                return `${v.id}: "${(a[i] || '').slice(0, 60)}" → "${(b[i] || '').slice(0, 60)}"`;
+            }).catch(() => null);
+            if(stale && !reported.has('stale ' + stale.split(':')[0])) { reported.add('stale ' + stale.split(':')[0]); found.push(`#${step} [${did}] stale screen — ${stale}`); }
+        }
+        // Overflow: the page scrolls sideways, or a clipped box cuts its own text
+        const over = await page.evaluate(() => {
+            if(document.documentElement.scrollWidth > innerWidth + 1) return `the page scrolls sideways (${document.documentElement.scrollWidth} > ${innerWidth})`;
+            const root = [...document.querySelectorAll('.view.active, #modal-overlay:not(.hidden), #top-bar')];
+            for(const r of root) for(const e of r.querySelectorAll('button, .btn, h3, h4, .hud-chip, td, li')) {
+                const st = getComputedStyle(e);
+                if(!e.offsetParent || !/hidden|clip/.test(st.overflowX) || st.textOverflow === 'ellipsis') continue;
+                if(e.scrollWidth > e.clientWidth + 2 && e.innerText.trim())
+                    return `${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''} cuts its text: "${e.innerText.trim().slice(0, 50)}" (${e.scrollWidth} > ${e.clientWidth})`;
+            }
+            return null;
+        }).catch(() => null);
+        if(over && !reported.has('over ' + over.slice(0, 40))) { reported.add('over ' + over.slice(0, 40)); found.push(`#${step} [${did}] overflow — ${over}`); }
         const after = await inPage().catch(() => null);
         if(after && (after.debug > before.debug || after.missing > before.missing || after.issues > before.issues)) {
             const snap = await snapshot();

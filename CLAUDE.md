@@ -64,6 +64,12 @@ raw Turkish, `T` is called at the display site; name-based comparisons (`=== 'Or
 language-independent this way. If a data field stays raw, **every** path that displays it
 must go through `T`.
 
+**Every new text goes through the pseudo-locale.** The e2e project `xx-desktop` shows each
+translation with its letters circled; a plain-letter word on screen, a translation passed to `T()`
+again, or translated text in the save fails the run. Names that are the same in every language
+(a track's title, a date) go under `translate="no"`. Store raw keys in the state and call `T` at
+display; `tools/career.js --lang xx` must end every day in the same world as Turkish.
+
 **Dictionaries are generated.** If you change a `T()` key, update `lang-en.js` **and**
 `lang-id.js` in the same pass; `tools/test.js`'s *"every T key exists in both dictionaries"*
 assertion is the regression gate for this. Percent formatting is `Game.pct(n, signed)`.
@@ -151,7 +157,8 @@ cd e2e && npm ci && npx playwright install chromium   # once
 npx playwright test [--project=tr-phone] [specs/quests.spec.js]
 ```
 
-Every spec runs in four projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop`), so the
+Every spec runs in five projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desktop` and the
+pseudo-locale `xx-desktop`; `page.expectHttpError(/re/)` allows a failing request on purpose), so the
 language projects *are* the translation test; `i18n.spec.js` additionally sweeps every main
 screen on EN/ID for Turkish source text that never went through `T()` (text, `title`,
 `aria-label`, placeholder). Any new text ships in all three languages. Headless Chromium's WebGL is SwiftShader, so

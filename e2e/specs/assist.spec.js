@@ -13,7 +13,7 @@ function stageClash(page) {
         // Held still for the setup; the lord gets its pace back once the fight is over
         ally._speed = ally.speed; ally.speed = 0; foe._speed = foe.speed; foe.speed = 0;
         foe.x = ally.x + 100; foe.y = ally.y;
-        state.player.party = [1, 2, 3].map(i => ({ id: 'as' + i, name: 'Svadya Köylüsü', level: 1 }));
+        state.player.party = [1, 2, 3].map(i => ({ id: 'as' + i, name: 'Svadya Köylüsü', level: 1, xp: 0, xpNext: 3 }));
         return { ally: { id: ally.id, name: ally.name, size: ally.size, x: ally.x, y: ally.y }, foe: { id: foe.id, x: foe.x, y: foe.y } };
     });
 }

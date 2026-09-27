@@ -23,7 +23,7 @@ for(const renderer of ['pixi', 'canvas']) {
         await page.evaluate(r => Game.setOpt('renderer', r), renderer);
         if(renderer === 'pixi') await page.waitForFunction(() => BattleGL.ready);
         // A few men of your own, so there is a line to watch walk forward
-        await page.evaluate(() => { state.player.party = [1, 2, 3].map(i => ({ id: 'rr' + i, name: 'Svadya Köylüsü', level: 1 })); });
+        await page.evaluate(() => { state.player.party = [1, 2, 3].map(i => ({ id: 'rr' + i, name: 'Svadya Köylüsü', level: 1, xp: 0, xpNext: 3 })); });
         const b = await band(page);
         await tapWorld(page, b);
         await modal(page).locator('button[onclick*="Battle.start"]').click({ timeout: 20_000 });

@@ -16,44 +16,12 @@ const a = H.args();
 const DAYS = +a.days || 120;
 const seeds = H.seeds(a.seed, [1, 2, 3, 4, 5]);
 
-function invariants(g) {
-    const { state, LOCATIONS, Game } = g, p = state.player, bad = [];
-    const fin = (v, what) => { if(typeof v !== 'number' || !Number.isFinite(v)) bad.push(`${what} = ${v}`); };
-    fin(p.money, 'money'); if(p.money < 0) bad.push(`money negative: ${p.money}`);
-    fin(p.stats.hp, 'hp'); fin(p.stats.maxHp, 'maxHp');
-    if(p.stats.hp > p.stats.maxHp + 1e-6) bad.push(`hp ${p.stats.hp} > maxHp ${p.stats.maxHp}`);
-    if(p.stats.hp <= 0 && !p.prisoner) bad.push(`hp ${p.stats.hp} while free`);
-    fin(p.renown, 'renown'); fin(p.x, 'x'); fin(p.y, 'y'); fin(Game.morale(), 'morale');
-    if(p.party.length > Game.getPartyCapacity() + 5) bad.push(`party ${p.party.length} over capacity ${Game.getPartyCapacity()}`);
-    const ids = new Set();
-    p.party.forEach(t => {
-        if(!t.name) bad.push(`troop without a name: ${JSON.stringify(t)}`);
-        if(ids.has(t.id)) bad.push(`two troops share id ${t.id}`); ids.add(t.id);
-        fin(t.level, `troop ${t.name} level`); fin(t.xp, `troop ${t.name} xp`);
-        if(!t.isCompanion && !t.isSpouse && !g.TROOP_TYPES[t.name]) bad.push(`troop of unknown type: ${t.name}`);
-    });
-    p.inventory.forEach(i => {
-        fin(i.qty, `item ${i.id} qty`);
-        if(!(i.qty > 0)) bad.push(`item ${i.id} with qty ${i.qty}`);
-        if(!g.ITEMS[i.id] && !i.unique) bad.push(`unknown item ${i.id}`);
-    });
-    LOCATIONS.forEach(l => {
-        fin(l.prosperity === undefined ? 50 : l.prosperity, `${l.id} prosperity`);
-        if(l.prosperity < 0 || l.prosperity > 100) bad.push(`${l.id} prosperity ${l.prosperity}`);
-        if(l.volunteersAvailable < 0) bad.push(`${l.id} volunteers ${l.volunteersAvailable}`);
-        Object.entries(l.stock || {}).forEach(([k, v]) => { fin(v, `${l.id} stock ${k}`); if(v < 0) bad.push(`${l.id} stock ${k} ${v}`); });
-        if(!g.FACTIONS[l.faction]) bad.push(`${l.id} belongs to unknown faction ${l.faction}`);
-    });
-    state.npcParties.forEach(n => {
-        fin(n.x, `${n.id} x`); fin(n.y, `${n.id} y`); fin(n.size, `${n.id} size`);
-        if(n.size <= 0 && !n.wanderer) bad.push(`${n.id} (${n.type}) has size ${n.size}`);
-    });
-    Object.entries(state.relations || {}).forEach(([k, v]) => fin(v, `relation ${k}`));
-    return bad;
-}
+// The rules live in the game (Debug.invariants): the same list runs in players' browsers,
+// in every e2e test, and here after every scripted action
+const invariants = g => g.Debug.invariants();
 
-function run(seed) {
-    const g = H.world({ seed });
+function run(seed, lang) {
+    const g = H.world({ seed, lang });
     // the harness has no media element; a load syncs the music through one
     g._sandbox.Audio = function() { return { play: () => Promise.resolve(), pause() {}, load() {}, addEventListener() {}, removeEventListener() {}, volume: 1 }; };
     const { Game, Battle, Save, Quests, state, LOCATIONS } = g;
@@ -61,9 +29,10 @@ function run(seed) {
     const pick = arr => arr[Math.floor(rnd() * arr.length)];
     const problems = [];
     let day = 0, action = 'start';
+    state.player.name = 'Kariyer';   // typed at creation in the game; the same in every language
     state.player.money = 2000;
     state.player.stats.hp = state.player.stats.maxHp;
-    const seen = new Set();
+    const seen = new Set(), days = [];
     const note = (msg) => { const k = msg.replace(/\d+(\.\d+)?/g, '#'); if(seen.has(k)) return; seen.add(k); problems.push(`seed ${seed} day ${day} [${action}] ${msg}`); };
     const go = loc => { Object.assign(state.player, { x: loc.x, y: loc.y, status: 'idle', targetLocation: null }); Game.enterLocation(loc); };
     const friendly = l => !Game.atWar(Game.playerFaction(), l.faction);
@@ -199,14 +168,45 @@ function run(seed) {
             Game.closeModal();
         } catch(e) { note(`threw: ${e.message} @ ${(e.stack || '').split('\n')[1].trim()}`); }
         invariants(g).forEach(note);
+        if(a.lang) days.push(JSON.stringify(canonical(g)));   // compared day by day in --lang mode
     }
-    return { problems, summary: `seed ${seed}: day ${DAYS}, lvl ${state.player.stats.level}, party ${state.player.party.length}, ${Math.round(state.player.money)} dinars, renown ${state.player.renown}` };
+    return { problems, days, summary: `seed ${seed}: day ${DAYS}, lvl ${state.player.stats.level}, party ${state.player.party.length}, ${Math.round(state.player.money)} dinars, renown ${state.player.renown}` };
 }
 
+// The whole world as data, keys sorted, minus what is legitimately a moment's words: the clock
+// stamps, the debug log, and the history kept in the language it was said in (the news feed,
+// a map mark's label)
+function canonical(g) {
+    const d = JSON.parse(JSON.stringify(g.Save.snapshot()));
+    delete d.savedAt; delete d.state.meta; delete d.state.warLog;
+    Object.values(d.state.knownLocations || {}).forEach(m => delete m.label);
+    const sort = v => Array.isArray(v) ? v.map(sort) : v && typeof v === 'object'
+        ? Object.keys(v).sort().reduce((o, k) => (o[k] = sort(v[k]), o), {}) : v;
+    return sort(d);
+}
+function firstDiffs(a, b, path = 'save', out = []) {
+    if(out.length >= 5 || JSON.stringify(a) === JSON.stringify(b)) return out;
+    if(a && b && typeof a === 'object' && typeof b === 'object')
+        new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => firstDiffs(a[k], b[k], path + '.' + k, out));
+    else out.push(`${path}: ${JSON.stringify(a)} ≠ ${JSON.stringify(b)}`.slice(0, 200));
+    return out;
+}
+
+// --lang xx: the same career in another language must end in the same world. The language layer
+// only changes words on screen; a difference means a translation leaked into the game's logic
+// (a translated troop name used as a type, a translated line kept in the state...).
+const other = a.lang;
 let all = [];
 for(const s of seeds) {
     const r = run(s);
     console.log(r.summary + (r.problems.length ? `, ${r.problems.length} problem(s)` : ', clean'));
     all = all.concat(r.problems);
+    if(other) {
+        const o = run(s, other), day = r.days.findIndex((d, i) => d !== o.days[i]);
+        console.log(`seed ${s} in '${other}': ` + (day >= 0 ? `the worlds part on day ${day + 1}` : 'the same world, every day'));
+        if(day >= 0) firstDiffs(JSON.parse(r.days[day]), JSON.parse(o.days[day]))
+            .forEach(d => all.push(`seed ${s} day ${day + 1} [language '${other}'] ${d}`));
+        o.problems.forEach(p => all.push(p.replace(/^(seed \d+ day \d+ )\[/, `$1[${other}: `)));
+    }
 }
 if(all.length) { console.log('\n' + all.join('\n')); process.exit(1); }

@@ -33,7 +33,7 @@ const QUESTS = {
             q.data = { locId: c.id, locName: c.name, item: 'cheese', need: 15, got: 0 };
         },
         offer(q, giver) {
-            return `${T`"${q.data.locName} pazarında peynir bolluğu var. Bolluk canımı sıkıyor.<br><br>
+            return `${T`"${T(q.data.locName)} pazarında peynir bolluğu var. Bolluk canımı sıkıyor.<br><br>
                 Git, o pazardaki bütün peyniri satın al — <b>${q.data.need} birim</b>. Fiyat tavan yapsın, halkı homurdansın.
                 Kışın kimin ambarı doluysa savaşı o kazanır."`}`;
         },
@@ -86,7 +86,7 @@ const QUESTS = {
             q.data = { locId: v.id, locName: v.name, need: 20 };
         },
         offer(q) {
-            return `${T`"${q.data.locName} kışı çıkaramaz. <b>${q.data.need} birim yemek</b> lazım, buğday olur, ekmek olur.<br><br>
+            return `${T`"${T(q.data.locName)} kışı çıkaramaz. <b>${q.data.need} birim yemek</b> lazım, buğday olur, ekmek olur.<br><br>
                 Ama dikkat et: kendi adamların da o yükten yiyecek. Ne kadar kalabalıksan o kadar zor.
                 Erzağı bozdurmadan götürebilirsen köy senin adını anar."`}`;
         },
@@ -261,7 +261,7 @@ const QUESTS = {
             q.data = { locId: v.id, locName: v.name, waves: 0, need: 2, spawned: false };
         },
         offer(q) {
-            return `${T`"Hasat başlıyor, çapulcular da bunu biliyor. ${q.data.locName} köyünün yanında bekle.<br><br>
+            return `${T`"Hasat başlıyor, çapulcular da bunu biliyor. ${T(q.data.locName)} köyünün yanında bekle.<br><br>
                 <b>İki dalga</b> gelecek. İkisini de kır. Köylüler bir gün bile durmadan biçecek."`}`;
         },
         // The 500-unit gate in day() is invisible: out of range looks exactly like being
@@ -286,13 +286,13 @@ const QUESTS = {
             if(Math.random() < 0.5) {
                 // Two waves already make this an endurance job. Keep each one below a
                 // normal roaming warband so an early company can realistically defend it.
-                let n = Game.createNPC(T('Hasat Çapulcuları'), 'bandit', 5 + Math.floor(Math.random() * 8), '#8b0000');
+                let n = Game.createNPC('Hasat Çapulcuları', 'bandit', 5 + Math.floor(Math.random() * 8), '#8b0000');
                 n.x = v.x + (Math.random() - 0.5) * 300;
                 n.y = v.y + (Math.random() - 0.5) * 300;
                 n.targetX = state.player.x; n.targetY = state.player.y;
                 n.questWave = q.id;
                 state.npcParties.push(n);
-                alert(T`${q.data.locName} tarafından toz bulutu yükseliyor. Geliyorlar!`);
+                alert(T`${T(q.data.locName)} tarafından toz bulutu yükseliyor. Geliyorlar!`);
             }
         },
         on(q, ev, d) {
@@ -319,8 +319,8 @@ const QUESTS = {
             q.data = { pickLoc: v.id, pickName: v.name, toId: to.id, toName: to.name, has: false };
         },
         offer(q) {
-            return `${T`"Bir ulağım ${q.data.pickName} köyünde kayboldu. Üstünde mühürlü bir mektup vardı.<br><br>
-                Köye git, mektubu bul, <b>${q.data.toName}</b>'a ulaştır.<br>
+            return `${T`"Bir ulağım ${T(q.data.pickName)} köyünde kayboldu. Üstünde mühürlü bir mektup vardı.<br><br>
+                Köye git, mektubu bul, <b>${T(q.data.toName)}</b>'a ulaştır.<br>
                 Mühür kırılırsa anlarım. Merakını yenemezsen de anlarım."`}`;
         },
         desc(q) {
@@ -424,7 +424,7 @@ const QUESTS = {
             q.data = { locId: v.id, locName: v.name };
         },
         offer(q) {
-            return `${T`"${q.data.locName}'ın ambarı düşmanın ordusunu besliyor. O ambar yanarsa cephe de söner.<br><br>
+            return `${T`"${T(q.data.locName)}'ın ambarı düşmanın ordusunu besliyor. O ambar yanarsa cephe de söner.<br><br>
                 Git ve <b>köyü yağmala</b>. Dumanı görüp yetişen olursa kılıcını çekersin.
                 Peşin söyleyeyim: bu iş namını lekeler, kesemi değil."`}`;
         },
@@ -448,8 +448,8 @@ QUESTS.caravan_escort = {
         q.data = { locId: c.id, locName: c.name, need: 2, got: 0 };
     },
     offer(q) {
-        return `${T`"Kervanımız <b>${q.data.locName}</b>'a gidecek ama yol çapulcu kaynıyor. Muhafız tutmak pahalı, tabut daha pahalı.<br><br>
-            Sen önden git: <b>${q.data.need} çapulcu grubunu</b> dağıt, sonra ${q.data.locName}'a var ve oradaki adamımıza haber ver.
+        return `${T`"Kervanımız <b>${T(q.data.locName)}</b>'a gidecek ama yol çapulcu kaynıyor. Muhafız tutmak pahalı, tabut daha pahalı.<br><br>
+            Sen önden git: <b>${q.data.need} çapulcu grubunu</b> dağıt, sonra ${T(q.data.locName)}'a var ve oradaki adamımıza haber ver.
             Lonca borcunu unutmaz."`}`;
     },
     desc(q) {
@@ -477,8 +477,8 @@ QUESTS.guild_supply = {
         q.data = { locId: giver.homeLocId, locName: loc ? loc.name : '?', item, itemName: ITEMS[item].name, need: 10 };
     },
     offer(q) {
-        return `${T`"Atölyeler <b>${q.data.itemName}</b> bekliyor, tedarikçim iki haftadır ortada yok.<br><br>
-            <b>${q.data.need} birim ${q.data.itemName}</b> bul, ${q.data.locName}'a getir. Nereden bulduğun beni ilgilendirmez —
+        return `${T`"Atölyeler <b>${T(q.data.itemName)}</b> bekliyor, tedarikçim iki haftadır ortada yok.<br><br>
+            <b>${q.data.need} birim ${T(q.data.itemName)}</b> bul, ${T(q.data.locName)}'a getir. Nereden bulduğun beni ilgilendirmez —
             loncanın defterinde sadece rakamlar var."`}`;
     },
     desc(q) {
@@ -772,7 +772,7 @@ QUESTS.fever_relief = {
         let v = vils[Math.floor(Math.random() * vils.length)] || LOCATIONS[0];
         q.data = { locId: v.id, locName: v.name, need: 8 };
     },
-    offer(q) { return T`${q.data.locName}'da ateşli hastalık yayılıyor, ihtiyarlar bal ve kaynatılmış otla iyileşir derdi.
+    offer(q) { return T`${T(q.data.locName)}'da ateşli hastalık yayılıyor, ihtiyarlar bal ve kaynatılmış otla iyileşir derdi.
         <b>${q.data.need} birim bal</b> lazım — <b>altı gün</b> içinde ulaşmazsan geç kalırsın.`; },
     desc(q) {
         let n = (state.player.inventory.find(i => i.id === 'honey') || {}).qty || 0;
@@ -795,7 +795,7 @@ QUESTS.lady_escort = {
         let c = pool[Math.floor(Math.random() * pool.length)] || LOCATIONS[0];
         q.data = { locId: c.id, locName: c.name };
     },
-    offer(q) { return T`Yeğenimi <b>${q.data.locName}</b>'a göndermem gerekiyor ama yollar çapulcu kaynıyor.
+    offer(q) { return T`Yeğenimi <b>${T(q.data.locName)}</b>'a göndermem gerekiyor ama yollar çapulcu kaynıyor.
         Yanına birkaç muhafız takıyorum, sen önden git — kafile seni izleyecek, yol boyunca göz kulak ol.`; },
     desc(q) { return T`Kafileyle birlikte <b>${T(q.data.locName)}</b>'a sağ salim ulaş.`; },
     where(q) { return q.data.locId; },
@@ -812,7 +812,7 @@ QUESTS.enemy_muster = {
         let c = pool[Math.floor(Math.random() * pool.length)];
         q.data = { locId: c.id, locName: c.name };
     },
-    offer(q) { return T`${q.data.locName} surlarının ardında ne kadar asker biriktirdiklerini bilmem lazım.
+    offer(q) { return T`${T(q.data.locName)} surlarının ardında ne kadar asker biriktirdiklerini bilmem lazım.
         Sokul, say, sıvış — ama yakalanırsan zindanı boylarsın, seni tanımam.`; },
     desc(q) { return T`<b>${T(q.data.locName)}</b> surlarına kadar sokul ve nöbeti gözle.`; },
     where(q) { return q.data.locId; },
@@ -923,7 +923,7 @@ QUESTS.outpost_defense = {
         let c = castles[Math.floor(Math.random() * castles.length)] || LOCATIONS.find(l => l.id === giver.homeLocId) || LOCATIONS[0];
         q.data = { locId: c.id, locName: c.name, waves: 0, need: 3 };
     },
-    offer(q) { return T`${q.data.locName} karakolu zayıf kaldı, çapulcular bunu koklamış. <b>Üç dalga</b> gelecek, hepsini kır.`; },
+    offer(q) { return T`${T(q.data.locName)} karakolu zayıf kaldı, çapulcular bunu koklamış. <b>Üç dalga</b> gelecek, hepsini kır.`; },
     desc(q) {
         let v = LOCATIONS.find(l => l.id === q.data.locId);
         let watch = state.player.quests.includes(q) && v
@@ -939,13 +939,13 @@ QUESTS.outpost_defense = {
         let v = LOCATIONS.find(l => l.id === q.data.locId);
         if(Game.dist(state.player, v) > 500) return;
         if(Math.random() < 0.5) {
-            let n = Game.createNPC(T('Karakol Baskıncıları'), 'bandit', 6 + Math.floor(Math.random() * 9), '#8b0000');
+            let n = Game.createNPC('Karakol Baskıncıları', 'bandit', 6 + Math.floor(Math.random() * 9), '#8b0000');
             n.x = v.x + (Math.random() - 0.5) * 300;
             n.y = v.y + (Math.random() - 0.5) * 300;
             n.targetX = state.player.x; n.targetY = state.player.y;
             n.questWave = q.id;
             state.npcParties.push(n);
-            alert(T`${q.data.locName} yönünden toz bulutu — geliyorlar!`);
+            alert(T`${T(q.data.locName)} yönünden toz bulutu — geliyorlar!`);
         }
     },
     on(q, ev, d) {
@@ -1015,7 +1015,7 @@ QUESTS.shadow_dispatch = {
         let home = LOCATIONS.find(l => l.id === giver.homeLocId);
         q.data = { locId: c.id, locName: c.name, homeId: giver.homeLocId, homeName: home ? home.name : '?', stage: 'infiltrate' };
     },
-    offer(q) { return T`${q.data.locName} surlarının içinde bize yazılmış bir ferman var, kimin elinde olduğunu biliyorum.
+    offer(q) { return T`${T(q.data.locName)} surlarının içinde bize yazılmış bir ferman var, kimin elinde olduğunu biliyorum.
         Sokul, al, sıvış. Yakalanırsan seni tanımam — ama fermanı getirirsen krallık senin adını anar.`; },
     desc(q) {
         return q.data.stage === 'infiltrate'
@@ -1043,7 +1043,7 @@ QUESTS.merchant_convoy = {
         let c = pool[Math.floor(Math.random() * pool.length)] || LOCATIONS.find(l => l.id === giver.homeLocId) || LOCATIONS[0];
         q.data = { locId: c.id, locName: c.name, ambushed: false, cleared: false };
     },
-    offer(q) { return T`Kervanım <b>${q.data.locName}</b>'a mal götürecek. Yolun ortasında pusu kurulduğunu duydum ama nerede bilmiyorum.
+    offer(q) { return T`Kervanım <b>${T(q.data.locName)}</b>'a mal götürecek. Yolun ortasında pusu kurulduğunu duydum ama nerede bilmiyorum.
         Kervanla git, pusuya düşerlerse kurtar, sonunda kervanı sağ salim teslim et.`; },
     desc(q) {
         if(q.data.ambushed && !q.data.cleared) return T`Kervan pusuya düştü — saldıranları dağıt.`;
@@ -1054,7 +1054,7 @@ QUESTS.merchant_convoy = {
         if(q.data.ambushed || q.data.cleared) return;
         if(Math.random() < 0.15) {
             q.data.ambushed = true;
-            let n = Game.createNPC(T('Kervan Baskıncıları'), 'bandit', 5 + Math.floor(Math.random() * 6), '#8b0000');
+            let n = Game.createNPC('Kervan Baskıncıları', 'bandit', 5 + Math.floor(Math.random() * 6), '#8b0000');
             n.x = state.player.x + (Math.random() - 0.5) * 200;
             n.y = state.player.y + (Math.random() - 0.5) * 200;
             n.targetX = state.player.x; n.targetY = state.player.y;
@@ -1086,7 +1086,7 @@ QUESTS.siege_provisions = {
         let c = pool[Math.floor(Math.random() * pool.length)];
         q.data = { locId: c.id, locName: c.name, need: 15 };
     },
-    offer(q) { return T`${q.data.locName} kuşatma altında, ambarları tükeniyor. <b>${q.data.need} birim yemek</b> bul,
+    offer(q) { return T`${T(q.data.locName)} kuşatma altında, ambarları tükeniyor. <b>${q.data.need} birim yemek</b> bul,
         muhasara hattını yarıp içeri sok. Çabuk ol, açlık kılıçtan hızlı öldürür.`; },
     desc(q) {
         let f = Quests.foodCount();
@@ -1110,7 +1110,7 @@ QUESTS.noble_hostage_exchange = {
         q.data = { locId: c.id, locName: c.name, need: 3 };
     },
     offer(q) { return T`Düşman elimizdeki esirleri istiyor, karşılığında bizim adamlarımızı serbest bırakacaklar.
-        Soylu olmayan <b>${q.data.need} esiri</b> <b>${q.data.locName}</b> kapısına götür ve değiş tokuşu yap.`; },
+        Soylu olmayan <b>${q.data.need} esiri</b> <b>${T(q.data.locName)}</b> kapısına götür ve değiş tokuşu yap.`; },
     desc(q) { return T`Soylu olmayan esirlerle <b>${T(q.data.locName)}</b>'a gir — <b>${Quests.prisonerCount()}/${q.data.need}</b>.`; },
     where(q) { return q.data.locId; },
     on(q, ev, d) {
@@ -1130,7 +1130,7 @@ QUESTS.mist_point = {
         let px = anchor.x + (Math.random() - 0.5) * 700, py = anchor.y + (Math.random() - 0.5) * 700;
         q.data = { stage: 'seek', locId: anchor.id, locName: anchor.name, px, py, npcId: null };
     },
-    offer(q) { return T`"${q.data.locName} yakınlarında, sisin hiç dağılmadığı bir nokta var diyorlar.
+    offer(q) { return T`"${T(q.data.locName)} yakınlarında, sisin hiç dağılmadığı bir nokta var diyorlar.
         Oraya giden dönmüş ama eskisi gibi konuşmuyor artık.<br><br>
         Ben yaşlıyım, gidemem. Sen git — ne olduğunu öğren, dönebilirsen anlat."`; },
     desc(q) {
@@ -1142,7 +1142,7 @@ QUESTS.mist_point = {
     on(q, ev, d) {
         if(q.data.stage === 'seek' && ev === 'entered_location' && d.locId === q.data.locId) {
             q.data.stage = 'encounter';
-            let n = Game.createNPC(T('Sisteki Gölgeler'), 'bandit', 6 + Math.floor(Math.random() * 4), '#6a5acd');
+            let n = Game.createNPC('Sisteki Gölgeler', 'bandit', 6 + Math.floor(Math.random() * 4), '#6a5acd');
             n.x = q.data.px; n.y = q.data.py;
             n.targetX = state.player.x; n.targetY = state.player.y;
             n.questWave = q.id;

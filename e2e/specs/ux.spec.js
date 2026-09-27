@@ -45,7 +45,9 @@ function audit(page, where) {
     }, where);
 }
 
-test('yerleşim denetimi: bütün ekranlar ve pencereler', async ({ page, isMobile }) => {
+test('yerleşim denetimi: bütün ekranlar ve pencereler', async ({ page, isMobile, lang }) => {
+    // circled pseudo-letters are wider than any real language's: sizes are measured on real text
+    test.skip(lang === 'xx', 'the pseudo-locale checks where text comes from, not how wide it is');
     const found = [];
     const look = async where => found.push(...await audit(page, where));
 

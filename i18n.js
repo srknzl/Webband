@@ -16,6 +16,28 @@ const I18N = {
     lang: 'tr',
     dicts: {},          // { en: {...}, id: {...} } — filled in by lang-*.js
     missing: new Set(), // untranslated keys; feeds the debug report
+    doubled: new Set(), // T() given an already translated text (a value, not a key); also reported
+
+    // The pseudo-locale (tests only, never in the menu): every translation comes back with its
+    // letters circled — "Beni Bul" → "Ⓑⓔⓝⓘ Ⓑⓤⓛ" — and a key counts as known if the English
+    // dictionary has it. A circled letter is a symbol, not a letter, so any plain letter left on
+    // screen never went through T(); a circled key reaching T() is a translation translated
+    // again; circled text in a save is a translation frozen into the state; and one reaching a
+    // lookup table breaks the logic out loud. Cutting or splitting a translation keeps it circled.
+    PSEUDO: 'xx',
+    CIRCLED: /[\u24B6-\u24E9]/,
+    pseudo(key) {
+        const up = 'ÇĞİÖŞÜ', low = 'çğıöşü', base = 'CGIOSU';
+        const one = ch => {
+            let i = up.indexOf(ch); if(i >= 0) ch = base[i];
+            i = low.indexOf(ch); if(i >= 0) ch = base[i].toLowerCase();
+            const c = ch.charCodeAt(0);
+            return c >= 65 && c <= 90 ? String.fromCharCode(0x24B6 + c - 65)
+                 : c >= 97 && c <= 122 ? String.fromCharCode(0x24D0 + c - 97) : ch;
+        };
+        // markup, placeholders and entities stay as they are
+        return key.split(/(<[^>]*>|\{\d+\}|&[a-z#0-9]+;)/i).map((part, i) => i % 2 ? part : part.replace(/[A-Za-zÇĞİÖŞÜçğıöşü]/g, one)).join('');
+    },
 
     LANGS: [
         { id: 'tr', flag: '🇹🇷', name: 'Türkçe' },
@@ -81,7 +103,7 @@ const I18N = {
         });
     },
 
-    dict() { return this.dicts[this.lang] || null; },
+    dict() { return this.dicts[this.lang === this.PSEUDO ? 'en' : this.lang] || null; },
 
     // A template string spanning multiple lines mixes newlines and indentation
     // into the key. The dictionary is written as one line, so the lookup key
@@ -93,8 +115,18 @@ const I18N = {
         const d = this.dict();
         if(!d) return key;
         const hit = d[key];
-        if(hit === undefined) { this.missing.add(key); return key; }
-        return hit;
+        if(hit === undefined) {
+            this.missing.add(key);
+            if(this.CIRCLED.test(key) || this.values().has(key)) this.doubled.add(key);
+            return key;
+        }
+        return this.lang === this.PSEUDO ? this.pseudo(key) : hit;
+    },
+    // The current dictionary's translations, to tell "a key nobody wrote" from "a translation
+    // passed to T() again" (built on the first miss only; a hit never pays for it)
+    values() {
+        if(this._valuesOf !== this.lang) { this._valuesOf = this.lang; this._values = new Set(Object.values(this.dict() || {})); }
+        return this._values;
     },
 
     // First-launch suggestion from the browser's language — the default until the player picks one
@@ -104,7 +136,7 @@ const I18N = {
     },
 
     set(lang) {
-        if(!this.LANGS.some(x => x.id === lang)) return;
+        if(lang !== this.PSEUDO && !this.LANGS.some(x => x.id === lang)) return;
         this.lang = lang;
         try { localStorage.setItem('webband_lang', lang); } catch(_) {}
         document.documentElement.setAttribute('lang', lang);

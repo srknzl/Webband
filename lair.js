@@ -1749,7 +1749,7 @@ function build() {
             <div id="lair-goal"></div>
         </div>
         <canvas id="lair-mini" width="150" height="96"></canvas>
-        <button id="lair-pausebtn" aria-label="${T('Duraklat')}" title="${T('Duraklat')}">II</button>
+        <button id="lair-pausebtn" translate="no" aria-label="${T('Duraklat')}" title="${T('Duraklat')}">II</button>
         <div id="lair-banner" hidden></div>
         <div id="lair-prompt" hidden></div>
         <div id="lair-keys"><kbd>WASD</kbd> ${T('yürü')} · <kbd>Shift</kbd> ${T('koş')} · <kbd>C</kbd> ${T('eğil')} · <kbd>E</kbd> ${T('etkileşim')} · <kbd>Q</kbd> ${T('taş at')} · <kbd>${T('Boşluk')}</kbd> ${T('saldır')} · <kbd>Esc</kbd> ${T('duraklat')}</div>
@@ -1778,6 +1778,7 @@ function pauseMenu() {
             <button class="btn primary" onclick="Lair.resume()">${T('Devam et')}</button>
             <button class="btn" onclick="Lair.tutorial()">${T('❔ Nasıl oynanır?')}</button>
             <button class="btn" ${ch ? 'disabled' : ''} onclick="Lair.retreat()">${T('🚪 Geri çekil')}</button>
+            <button class="btn" onclick="Debug.bug()">${T('🐞 Hata Bildir')}</button>
         </div>
         <p class="lnote">${ch ? T('Peşinde haydutlar varken geri çekilemezsin.') : T('Geri çekilirsen bulduklarını alıp inden çıkarsın; in yerinde kalır.')}</p>`);
 }

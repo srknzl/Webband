@@ -466,6 +466,23 @@ test('market: no buy-then-sell profit in one market, even at the full trade edge
     } finally { Game.perkMod = edge; }
 });
 
+// The rules the game checks on itself every day (Debug.invariants): a fresh world keeps them,
+// a broken one is caught, and the same break is logged once however often it's seen.
+test('invariants: a fresh world is clean, a break is caught and logged once', () => {
+    const w = H.world({ seed: 6 });
+    const { Debug, state } = w;
+    H.run(w, 3);
+    const fresh = Debug.invariants();
+    assert.strictEqual(fresh.length, 0, `a fresh world breaks a rule: ${fresh.join(' | ')}`);
+    state.player.stats.hp = state.player.stats.maxHp + 40;
+    state.player.party.push({ id: 'x', name: 'Swadian Militia', level: 1, xp: 0 });   // a translated name as a type
+    const errs = Debug.errors.length;
+    Debug.checkInvariants('test'); Debug.checkInvariants('test');
+    const logged = Debug.errors.slice(errs).map(e => e.msg);
+    assert.strictEqual(logged.length, 2, `expected two rules broken, logged: ${logged.join(' | ')}`);
+    assert.ok(logged.some(m => /hp .* > maxHp/.test(m)) && logged.some(m => /unknown type: Swadian Militia/.test(m)));
+});
+
 // Every outcome a site can roll, run once (bug hunt: 'gear' called `this.itemIco`, and inside
 // the outcome table `this` is the outcome, not Game — the crate crashed the modal, item and all).
 test('sites: every outcome runs and returns its text', () => {

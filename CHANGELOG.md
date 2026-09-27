@@ -3,6 +3,25 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.0 — Hata Bildir (2026-09-28)
+
+- **Oyunun içinden hata bildirebilirsin.** Duraklatma menüsünde, telefondaki ⋯ Daha menüsünde,
+  savaşta ve inde **🐞 Hata Bildir** var. Ne olduğunu yaz, gönder: ekranın görüntüsü kendiliğinden
+  eklenir, istersen telefonundaki bir görseli de ekleyebilirsin. GitHub hesabı gerekmez; bildirim
+  herkese açık bir hata kaydına dönüşür, bağlantısı sana gösterilir.
+- **İngilizce ve Endonezcede kalan çeviri hataları temizlendi.** Görev metinlerindeki eşya ve
+  köy adları ("10 units Demir"), bekleme panelindeki "saat/dakika", drahoma ve hazinedeki
+  "dinar", "Hasat Nöbeti" gibi görevlerde saldıran çetelerin adları ve kervanların adı artık her
+  dilde doğru. Dil değiştirince lordların aynı sözü tekrar etmemesi de artık bozulmuyor.
+- **Küçük ekran düzeltmesi.** Telefonda harabe kartındaki "Araştır" düğmesi yazısını kesiyordu.
+- **Oyun kendi kurallarını denetliyor.** Para, can, asker türü, stok gibi hiç bozulmaması
+  gereken şeyler her gün ve her savaştan sonra kontrol ediliyor; bir tuhaflık olursa hata
+  raporuna düşüyor.
+- **Yeni yazıların çeviri hatası vermemesi için yeni bir test dili.** Her metin testlerde
+  harfleri daire içine alınmış olarak görünüyor; çevrilmeden ekrana giden, iki kez çevrilen ya da
+  kayda çevrilmiş olarak yazılan her metin testi kırıyor. Aynı oyun Türkçe ve bu dilde her gece
+  oynanıp gün gün karşılaştırılıyor: dil, oyunun kendisini asla değiştirmemeli.
+
 ## 2.3.1 — Böcek Avı (2026-09-27)
 
 Oyunu yüzlerce adım boyunca kendi kendine oynayan bir "maymun" ve 150 günlük senaryolu bir

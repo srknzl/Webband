@@ -3625,6 +3625,7 @@ const Battle = {
         // Sync HP — so a defeat doesn't crush the 30% floor set above
         let pUnit = this.units[0];
         if(won) state.player.stats.hp = Math.max(1, this.hpAfter(pUnit));
+        Debug.checkInvariants('after a battle');
 
         Game.updateTopBar();
         Game.showScreen('map');
@@ -3645,6 +3646,7 @@ const Battle = {
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.6rem">
                 <button class="btn primary" onclick="Game.closeModal()">${T`⚔️ Savaşa Dön`}</button>
                 <button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Battle.askSurrender()">${T`🏳️ Teslim Ol`}</button>
+                <button class="btn" onclick="Debug.bug()">${T`🐞 Hata Bildir`}</button>
             </div>`, '340px');
     },
     askSurrender() {

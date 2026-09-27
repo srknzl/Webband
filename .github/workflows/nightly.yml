@@ -1,7 +1,10 @@
 # Gecelik böcek avı: her gece yeni tohumlarla oyunu kendi kendine oynatır.
 #  - e2e/specs/monkey.spec.js  — tohumlu rastgele oynanış, dört projede (TR/EN/ID, masaüstü/telefon)
 #  - e2e/specs/lairsweep.spec.js — her in, her düzen, her giriş yolu, gündüz ve gece
-#  - tools/career.js            — 150 günlük senaryolu kariyer, her eylemden sonra kurallar
+#  - tools/career.js            — 150 günlük senaryolu kariyer, her eylemden sonra kurallar; aynı
+#                                  kariyer sahte dilde (xx) de oynanır, dünya her gün aynı olmalı
+# Maymun ve in taraması beş projede koşar: TR/EN/ID ve sahte dil xx (çevrilmemiş metin, iki kez
+# çevrilen metin, kayda donmuş çeviri). Maymun ayrıca eski veri gösteren ekranı ve taşan metni arar.
 # Tohumlar yılın gününden türer: her gece başka bir oyun, ama bir bulgu aynı tohumla tekrar
 # üretilebilir (issue'da yazar). Bir şey bulursa "nightly" etiketli tek bir issue açar; açık olan
 # varsa ona yorum ekler. Elle de başlatılabilir (Actions → nightly → Run workflow).
@@ -38,7 +41,8 @@ jobs:
       # Her adım kendi raporunu yazar ve kırmızı olsa da sonraki adım koşar
       - name: career
         continue-on-error: true
-        run: node tools/career.js --days 150 --seed ${{ steps.seeds.outputs.career }} 2>&1 | tee career.txt; exit ${PIPESTATUS[0]}
+        # --lang xx: the same careers in the pseudo-locale must end in the same world, day by day
+        run: node tools/career.js --days 150 --seed ${{ steps.seeds.outputs.career }} --lang xx 2>&1 | tee career.txt; exit ${PIPESTATUS[0]}
       - name: monkey
         continue-on-error: true
         working-directory: e2e

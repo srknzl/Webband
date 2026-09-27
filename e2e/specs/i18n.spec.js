@@ -71,7 +71,7 @@ test('çeviri taraması: İngilizce/Endonezce ekranlarda Türkçe kaynak metin k
 
     // A fight and its result screen
     await openView(page, 'map');
-    await page.evaluate(() => { state.player.party = [1, 2, 3].map(i => ({ id: 'tr' + i, name: 'Svadya Avcısı', level: 1 })); });
+    await page.evaluate(() => { state.player.party = [1, 2, 3].map(i => ({ id: 'tr' + i, name: 'Svadya Avcısı', level: 1, xp: 0, xpNext: 3 })); });
     const band = await page.evaluate(() => {
         const b = state.npcParties.find(n => n.type === 'bandit' && !(BAND_KINDS[n.band] || {}).beast);
         Object.assign(b, { size: 2, x: state.player.x + 70, y: state.player.y, speed: 0 });

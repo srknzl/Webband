@@ -33,6 +33,9 @@ function pageInit({ lang, seed }) {
     // Letters English and Indonesian never use; ç/ö/ü are left out because proper names
     // borrowed from other languages carry them legitimately.
     const TURKISH = /[ğĞşŞıİ]/;
+    // Words the pseudo-locale check lets through: units and marks that are the same in every
+    // language (the release name is taken out separately below)
+    const PSEUDO_OK = /^(Lvl|XP|HP|WASD|Esc|Shift|Ctrl|Space|F11|px|ms|fps|x\d+|v\d.*)$/i;
     const note = (kind, text) => {
         const key = kind + '|' + text;
         if(seen.has(key)) return;
@@ -52,11 +55,20 @@ function pageInit({ lang, seed }) {
         // The release name is a stamp, deliberately never translated (see VERSION in app.js)
         if(typeof VERSION !== 'undefined') text = text.split(VERSION.name).join('');
         const lang = document.documentElement.lang;
+        if(lang === 'xx') {
+            // pseudo-locale: translated letters are circled (symbols, not letters), so a word
+            // with plain letters never went through T(). The hero's typed name is the player's.
+            const own = (typeof state !== 'undefined' && state.player && state.player.name) || '';
+            text.split(/\s+/).map(bare).filter(w => /\p{L}{2,}/u.test(w) && w !== own && !PSEUDO_OK.test(w))
+                .forEach(w => note('unwrapped', w + ' ← ' + text.trim().slice(0, 60)));
+            return;
+        }
         if(lang !== 'tr' && TURKISH.test(text))
             text.split(/\s+/).map(bare).filter(w => TURKISH.test(w) && !keptBy(lang).has(w)).forEach(w => note('turkish', w));
     };
-    // a textarea holds data (the exported save's JSON), not interface text
-    const skip = n => { const p = n.nodeType === 3 ? n.parentElement : n; return !p || !!p.closest('script,style,textarea'); };
+    // a textarea holds data (the exported save's JSON), not interface text; translate="no" marks
+    // names that are the same in every language (a track's title, a renderer's name)
+    const skip = n => { const p = n.nodeType === 3 ? n.parentElement : n; return !p || !!p.closest('script,style,textarea,[translate="no"]'); };
     // A node written and replaced within the same task never reached the screen — skipped.
     const walk = root => {
         if(!root.isConnected) return;
@@ -87,14 +99,18 @@ const test = base.test.extend({
     page: async ({ page, lang, storedLang, seed }, use) => {
         const errors = [];
         page.on('pageerror', e => errors.push(`pageerror: ${e.message} @ ${(e.stack || '').split('\n').slice(1, 3).map(l => l.trim()).join(' ← ')}`));
-        page.on('console', m => { if(m.type() === 'error') errors.push(`console.error: ${m.text()}`); });
+        // A test that provokes a failing request on purpose lists it: page.expectHttpError(/re/)
+        const allowed = [];
+        page.expectHttpError = re => allowed.push(re);
+        const ok = url => allowed.some(re => re.test(url || ''));
+        page.on('console', m => { if(m.type() === 'error' && !ok((m.location() || {}).url)) errors.push(`console.error: ${m.text()}`); });
         // ERR_ABORTED is the browser cancelling its own load — a music track swapped mid-download
         // when the screen changes — not a request that failed.
         page.on('requestfailed', r => {
             const why = r.failure() && r.failure().errorText;
-            if(why !== 'net::ERR_ABORTED') errors.push(`request failed: ${r.url()} (${why})`);
+            if(why !== 'net::ERR_ABORTED' && !ok(r.url())) errors.push(`request failed: ${r.url()} (${why})`);
         });
-        page.on('response', r => { if(r.status() >= 400) errors.push(`HTTP ${r.status()}: ${r.url()}`); });
+        page.on('response', r => { if(r.status() >= 400 && !ok(r.url())) errors.push(`HTTP ${r.status()}: ${r.url()}`); });
         await page.addInitScript(pageInit, { lang: storedLang === undefined ? lang : storedLang, seed });
 
         await use(page);
@@ -103,7 +119,18 @@ const test = base.test.extend({
         const inPage = await page.evaluate(() => ({
             debug: typeof Debug === 'undefined' ? [] : Debug.errors.map(e => `${e.kind}: ${e.msg}`),
             lang: typeof I18N === 'undefined' ? 'tr' : I18N.lang,
-            missing: typeof I18N === 'undefined' ? [] : [...I18N.missing],
+            missing: typeof I18N === 'undefined' ? [] : [...I18N.missing].filter(k => !(I18N.CIRCLED && I18N.CIRCLED.test(k))),
+            doubled: typeof I18N === 'undefined' ? [] : [...(I18N.doubled || [])],
+            // pseudo-locale: circled letters anywhere in the save are a translation frozen into the state
+            stored: (() => {
+                if(typeof I18N === 'undefined' || I18N.lang !== 'xx' || typeof Save === 'undefined' || !document.getElementById('main-ui').classList.contains('active')) return '';
+                // Deliberate: the news feed and a map mark's label are history, kept in the words
+                // they were said in (a language switch shows the next ones in the new language)
+                const OK = [/^save\.state\.warLog\./, /^save\.state\.knownLocations\.[^.]+\.label$/];
+                const find = (v, path) => typeof v === 'string' ? (I18N.CIRCLED.test(v) && !OK.some(re => re.test(path)) ? path + ' = ' + v.slice(0, 60) : '')
+                    : v && typeof v === 'object' ? Object.keys(v).reduce((hit, k) => hit || find(v[k], path + '.' + k), '') : '';
+                try { return find(JSON.parse(JSON.stringify(Save.snapshot())), 'save'); } catch(e) { return ''; }
+            })(),
             text: window.__e2eIssues || []
         })).catch(() => null);
         if(!inPage) return;   // navigated away mid-teardown (a reload test); the listeners already ran
@@ -113,7 +140,10 @@ const test = base.test.extend({
             ...(inPage.lang === 'tr' ? [] : inPage.missing.map(k => `missing ${inPage.lang} translation: ${JSON.stringify(k)}`)),
             ...inPage.text.map(i => i.kind === 'turkish'
                 ? `Turkish text on a ${inPage.lang} screen: ${JSON.stringify(i.text)}`
-                : `broken text on screen: ${JSON.stringify(i.text)}`)
+                : i.kind === 'unwrapped' ? `text that never went through T(): ${JSON.stringify(i.text)}`
+                : `broken text on screen: ${JSON.stringify(i.text)}`),
+            ...inPage.doubled.map(k => `T() given an already translated text: ${JSON.stringify(k)}`),
+            ...(inPage.stored ? [`translated text stored in the save: ${inPage.stored}`] : [])
         ];
         expect(problems, 'the page stayed clean for the whole test').toEqual([]);
     }
@@ -131,7 +161,7 @@ async function L(page, key, ...vals) {
         if(I18N.lang !== 'tr') {
             const hit = I18N.dict()[I18N.norm(k)];
             if(hit === undefined) return { missing: k };
-            s = hit;
+            s = I18N.lang === 'xx' ? I18N.pseudo(I18N.norm(k)) : hit;
         }
         return s.replace(/\{(\d+)\}/g, (m, i) => (v[+i] !== undefined ? String(v[+i]) : m));
     }, [key, vals]);

@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.3.1', date: '2026-09-27', name: 'Böcek Avı' };  // the version name is not translated
+const VERSION = { no: '2.4.0', date: '2026-09-28', name: 'Hata Bildir' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -107,6 +107,9 @@ const Debug = {
                 memory: g(() => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + T(' MB') : 'unknown')
             },
             errors: this.errors.slice(),
+            // untranslated keys and translations given to T() again, in the player's language
+            i18n: g(() => ({ lang: I18N.lang, missing: [...I18N.missing].slice(0, 30), doubled: [...I18N.doubled].slice(0, 30) }), {}),
+            invariants: g(() => this.invariantLog.slice(), []),
             swallowedRepeats: Object.keys(this._sig).map(k => `${k} x${this._sig[k]}`)
         };
     },
@@ -123,6 +126,7 @@ const Debug = {
             <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
                 <button class="btn primary" onclick="Debug.copy()">${T`📋 Panoya Kopyala`}</button>
                 <button class="btn" onclick="Debug.download()">${T`💾 Dosya Olarak İndir`}</button>
+                <button class="btn" onclick="Debug.bug()">${T`🐞 Hata Bildir`}</button>
                 <button class="btn" onclick="Game.closeModal()">${T`Kapat`}</button>
             </div>
             <div id="debug-msg" style="text-align:center;margin-top:0.5rem;font-size:var(--fs-sm);color:var(--success)"></div>`, '720px');
@@ -133,6 +137,172 @@ const Debug = {
         // If clipboard permission is unavailable (file:// or an old browser), select and fall back to execCommand
         if(navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
         else { ta.select(); document.execCommand('copy'); done(); }
+    },
+    // ---- What must always hold ----
+    // Checked at the end of every game day and after every fight, in the player's browser as in
+    // every test: a break is logged once (kind 'kural') — so it lights the red badge, rides along
+    // in a bug report, fails any e2e run and shows in the nightly career. tools/career.js reads
+    // this same list. Only rules that no legitimate play breaks belong here.
+    invariantLog: [],
+    invariants() {
+        let p = state.player, bad = [];
+        let fin = (v, what) => { if(typeof v !== 'number' || !Number.isFinite(v)) bad.push(`${what} = ${v}`); };
+        fin(p.money, 'money'); if(p.money < 0) bad.push(`money negative: ${p.money}`);
+        fin(p.stats.hp, 'hp'); fin(p.stats.maxHp, 'maxHp');
+        if(p.stats.hp > p.stats.maxHp + 1e-6) bad.push(`hp ${p.stats.hp} > maxHp ${p.stats.maxHp}`);
+        if(p.stats.hp <= 0 && !p.prisoner) bad.push(`hp ${p.stats.hp} while free`);
+        fin(p.renown, 'renown'); fin(p.x, 'x'); fin(p.y, 'y'); fin(Game.morale(), 'morale');
+        if(p.party.length > Game.getPartyCapacity() + 5) bad.push(`party ${p.party.length} over capacity ${Game.getPartyCapacity()}`);
+        let ids = new Set();
+        p.party.forEach(t => {
+            if(!t.name) bad.push(`troop without a name: ${JSON.stringify(t).slice(0, 80)}`);
+            if(ids.has(t.id)) bad.push(`two troops share id ${t.id}`); ids.add(t.id);
+            fin(t.level, `troop ${t.name} level`); fin(t.xp, `troop ${t.name} xp`);
+            if(!t.isCompanion && !t.isSpouse && !TROOP_TYPES[t.name]) bad.push(`troop of unknown type: ${t.name}`);
+        });
+        p.inventory.forEach(i => {
+            fin(i.qty, `item ${i.id} qty`);
+            if(!(i.qty > 0)) bad.push(`item ${i.id} with qty ${i.qty}`);
+            if(!ITEMS[i.id] && !i.unique) bad.push(`unknown item ${i.id}`);
+        });
+        LOCATIONS.forEach(l => {
+            fin(l.prosperity === undefined ? 50 : l.prosperity, `${l.id} prosperity`);
+            if(l.prosperity < 0 || l.prosperity > 100) bad.push(`${l.id} prosperity ${l.prosperity}`);
+            if(l.volunteersAvailable < 0) bad.push(`${l.id} volunteers ${l.volunteersAvailable}`);
+            Object.entries(l.stock || {}).forEach(([k, v]) => { fin(v, `${l.id} stock ${k}`); if(v < 0) bad.push(`${l.id} stock ${k} ${v}`); });
+            if(!FACTIONS[l.faction]) bad.push(`${l.id} belongs to unknown faction ${l.faction}`);
+        });
+        state.npcParties.forEach(n => {
+            fin(n.x, `${n.id} x`); fin(n.y, `${n.id} y`); fin(n.size, `${n.id} size`);
+            if(n.size <= 0 && !n.wanderer) bad.push(`${n.id} (${n.type}) has size ${n.size}`);
+        });
+        Object.entries(state.relations || {}).forEach(([k, v]) => fin(v, `relation ${k}`));
+        return bad;
+    },
+    checkInvariants(where) {
+        let bad;
+        try { bad = this.invariants(); } catch(e) { bad = ['the check itself threw: ' + e.message]; }
+        bad.forEach(b => {
+            let sig = b.replace(/-?\d+(\.\d+)?/g, '#');   // one entry per kind of break, not per number
+            if(this.invariantLog.some(x => x.sig === sig)) return;
+            this.invariantLog.push({ sig, msg: b, where, day: state.time.day });
+            this.log('kural', `${where}: ${b}`);
+        });
+        return bad;
+    },
+
+    // ---- 🐞 Hata Bildir: a report straight from the game ----
+    // The site's endpoint (serkanozel.me /api/webband/report) opens a GitHub issue with the
+    // player's words, the screenshots and this debug report — nothing to sign into. Off the
+    // site (a local file, a dev server, the endpoint not set up) the same form offers the
+    // prefilled GitHub page and the report file instead.
+    REPORT_URL: '/api/webband/report',
+    REPORT_ISSUES: 'https://github.com/srknzl/Webband/issues/new',
+    SHOTS_MAX: 3,
+    shots: [],
+    // What the player is looking at: every canvas on screen, where it sits. The WebGL ones are
+    // drawn and read in the same task, which is all a non-preserved drawing buffer allows.
+    // The HTML panels on top don't come along; the canvases carry the picture.
+    capture() {
+        try {
+            let W = innerWidth, H = innerHeight, k = Math.min(1, 1600 / Math.max(W, H));
+            let c = document.createElement('canvas'), x = c.getContext('2d'), n = 0;
+            c.width = Math.round(W * k); c.height = Math.round(H * k);
+            x.fillStyle = '#0a0a0e'; x.fillRect(0, 0, c.width, c.height); x.scale(k, k);
+            document.querySelectorAll('canvas').forEach(cv => {
+                let r = cv.getBoundingClientRect();
+                if(cv.hidden || !cv.width || !cv.offsetParent || r.width < 2 || r.height < 2 || r.bottom < 0 || r.right < 0 || r.top > H || r.left > W) return;
+                [typeof MapGL !== 'undefined' && MapGL, typeof BattleGL !== 'undefined' && BattleGL]
+                    .forEach(g => { if(g && g.app && g.app.canvas === cv) try { g.app.render(); } catch(e) {} });
+                try { x.drawImage(cv, r.left, r.top, r.width, r.height); n++; } catch(e) {}
+            });
+            return n ? c.toDataURL('image/jpeg', 0.8) : null;
+        } catch(e) { return null; }
+    },
+    // A picture from the player's own gallery, made small enough to travel (≤ 1600 px, JPEG)
+    shrink(file) {
+        return new Promise(done => {
+            let url = URL.createObjectURL(file), img = new Image();
+            img.onload = () => {
+                let k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+                c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                URL.revokeObjectURL(url);
+                let q = 0.82, d = c.toDataURL('image/jpeg', q);
+                while(d.length > 1.9e6 && q > 0.4) d = c.toDataURL('image/jpeg', q -= 0.15);   // ~1.4 MB of bytes
+                done(d);
+            };
+            img.onerror = () => { URL.revokeObjectURL(url); done(null); };
+            img.src = url;
+        });
+    },
+    bug() {
+        this.shots = [];
+        let s = this.capture();
+        if(s) this.shots.push(s);
+        this._bugText = '';
+        this.bugForm();
+    },
+    bugForm(msg, bad) {
+        let ta = document.getElementById('bug-text');
+        if(ta) this._bugText = ta.value;
+        let thumbs = this.shots.map((d, i) => `<div style="position:relative">
+                <img src="${d}" alt="" style="height:78px;border-radius:var(--r-sm);border:1px solid var(--panel-border)">
+                <button class="btn" aria-label="${T('Kaldır')}" onclick="Debug.dropShot(${i})" style="position:absolute;top:2px;right:2px;padding:0 0.4rem;font-size:var(--fs-xs)">✕</button></div>`).join('');
+        Game.showModal(`<h3>${T`🐞 Hata Bildir`}</h3>
+            <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Ne oldu, ne bekliyordun? Oyunun sürümü, ekranın ve hata kaydı kendiliğinden eklenir.`}</p>
+            <textarea id="bug-text" maxlength="4000" rows="5" placeholder="${T('Örn: Arenada rakip hiç düşmüyor, 3 dakikadır vuruşuyoruz.')}"
+                style="width:100%;background:rgba(0,0,0,0.45);color:var(--text-color);border:1px solid var(--panel-border);border-radius:var(--r-sm);padding:0.5rem;font:inherit">${(this._bugText || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-top:0.6rem">${thumbs}
+                ${this.shots.length < this.SHOTS_MAX ? `<label class="btn" style="cursor:pointer">${T`📎 Görsel ekle`}
+                    <input type="file" id="bug-file" accept="image/*" multiple hidden onchange="Debug.addShots(this)"></label>` : ''}
+            </div>
+            <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:0.5rem">${T`Bildirim, herkesin görebileceği bir GitHub sayfasında yayımlanır.`}</p>
+            <div id="bug-msg" style="font-size:var(--fs-sm);margin:0.4rem 0;color:${bad ? 'var(--danger)' : 'var(--success)'}">${msg || ''}</div>
+            <div style="display:flex;gap:0.5rem;justify-content:center">
+                <button class="btn primary" id="bug-send" onclick="Debug.sendBug()">${T`📨 Gönder`}</button>
+                <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>
+            </div>`, '560px');
+    },
+    dropShot(i) { this.shots.splice(i, 1); this.bugForm(); },
+    async addShots(input) {
+        let files = [...(input.files || [])].slice(0, this.SHOTS_MAX - this.shots.length);
+        for(const f of files) { let d = await this.shrink(f); if(d) this.shots.push(d); }
+        this.bugForm();
+    },
+    async sendBug() {
+        let text = (document.getElementById('bug-text') || {}).value || '';
+        this._bugText = text;
+        if(text.trim().length < 10) return this.bugForm(T('Bir iki cümleyle ne olduğunu yaz.'), true);
+        let btn = document.getElementById('bug-send');
+        if(btn) { btn.disabled = true; btn.textContent = T('Gönderiliyor…'); }
+        let report = this.text();
+        if(report.length > 110000) report = report.slice(0, 110000) + '\n…';
+        let res = null, data = {};
+        try {
+            res = await fetch(this.REPORT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, lang: I18N.lang, version: VERSION.no, report, images: this.shots,
+                                       device: `${navigator.userAgent} · ${innerWidth}×${innerHeight}@${devicePixelRatio}` }) });
+            data = await res.json().catch(() => ({}));
+        } catch(e) { res = null; }
+        if(res && res.ok && data.url) {
+            this.shots = []; this._bugText = '';
+            return Game.showModal(`<h3>${T`🐞 Teşekkürler!`}</h3>
+                <p>${T`Bildirimin iletildi. Durumunu buradan takip edebilirsin:`}</p>
+                <p><a href="${data.url}" target="_blank" rel="noopener" translate="no" style="color:var(--primary)">${data.url.replace('https://github.com/', '')}</a></p>
+                <button class="btn primary" onclick="Game.closeModal()">${T`Tamam`}</button>`, '460px');
+        }
+        if(res && res.status === 429) return this.bugForm(T('Az önce bir bildirim gönderdin; bir dakika sonra tekrar dene.'), true);
+        if(res && res.status >= 400 && res.status < 500 && res.status !== 404) return this.bugForm(T('Bildirim kabul edilmedi — metni kısaltmayı ya da görselleri azaltmayı dene.'), true);
+        // The endpoint isn't there (offline, a local copy, not set up): the prefilled GitHub page
+        let url = `${this.REPORT_ISSUES}?labels=player-report&title=${encodeURIComponent('🐞 ' + text.split('\n')[0].slice(0, 70))}&body=${encodeURIComponent(text + '\n\n' + T`Sürüm ${VERSION.no} · ${I18N.lang}` + '\n\n' + T('(Hata raporunu indirip bu sayfaya sürükleyebilirsin.)'))}`;
+        Game.showModal(`<h3>${T`🐞 Hata Bildir`}</h3>
+            <p>${T`Bildirim şu an doğrudan gönderilemedi. GitHub'da açarak ya da raporu indirerek iletebilirsin.`}</p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:0.8rem">
+                <a class="btn primary" href="${url}" target="_blank" rel="noopener">${T`GitHub'da Aç`}</a>
+                <button class="btn" onclick="Debug.download()">${T`💾 Raporu İndir`}</button>
+                <button class="btn" onclick="Debug.bugForm()">${T`← Geri`}</button>
+            </div>`, '460px');
     },
     download() { this.saveAs(`webband-debug-gun${((state || {}).time || {}).day || 0}.json`, this.text()); },
     // One way to hand the player a file: the debug report and the save backup (#132) both use it
@@ -1607,7 +1777,7 @@ const Game = {
         state.player.currentBoss = s.bossKey;
         state.finalBoss = !!b.final;
         // Guards are gone (#132) — every boss fight is a solo unit now, `enemyCount` is always 1.
-        Battle.start(T(b.name), 1, this.bossBaseLevel() + b.dLevel);
+        Battle.start(b.name, 1, this.bossBaseLevel() + b.dLevel);   // raw: the unit's name is T()'d where it is shown
     },
     bossRelicCount() { return Object.keys(BOSSES).filter(k => state.player.relics[BOSSES[k].relic]).length; },
 
@@ -1645,7 +1815,7 @@ const Game = {
             <p style="font-style:italic;color:var(--text-muted)">${T(k.desc)}</p>
             <p>${ready ? T('İçeride ne olduğunu ancak girince öğrenirsin.')
                        : T`Burayı ${this.agoText(s.usedDay)} altını üstüne getirdin; daha toparlanmamış.`}</p>
-            <div style="display:flex;gap:0.5rem;margin-top:1rem">
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem">
                 ${ready ? `<button class="btn primary" onclick="Game.investigateSite('${s.id}')">${T`🔍 Araştır`}</button>` : ''}
                 <button class="btn" onclick="Game.closeModal()">${T`🚪 Yoluna Devam Et`}</button>
             </div>`);
@@ -1840,7 +2010,8 @@ const Game = {
         let size = k.min + Math.floor(Math.random() * (k.max - k.min + 1));
         // `npc.name` stays raw (a fallback for places like the battle title that
         // don't translate); the display name always comes from `npcName()`.
-        let name = kind === 'caravan' ? `${this.factionPeople(home.faction)} Kervanı` : `${home.name} Köylüleri`;
+        // raw: factionPeople() translates, and a translated people-name froze into the save
+        let name = kind === 'caravan' ? `${(FACTIONS[home.faction] || {}).people || ''} Kervanı` : `${home.name} Köylüleri`;
         let npc = this.createNPC(name, kind, size, k.color, home.faction, 1);
         npc.band = kind;
         npc.speed = kind === 'caravan' ? 58 : 52;
@@ -2653,6 +2824,7 @@ const Game = {
             ${it('▶️', T('Devam Et'), 'Game.closeModal()')}
             ${it('💾', T('Kaydet'), 'Save.open()')}
             ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}
+            ${it('🐞', T('Hata Bildir'), 'Debug.bug()')}
             ${it('🏠', T('Ana Menü'), 'Game.confirmMainMenu()')}
         </div>`, '340px');
     },
@@ -3555,7 +3727,7 @@ const Game = {
         let left = Math.max(0, w.until - (state.time.day * 24 + state.time.hour));
         let p = state.player;
         this.setHtml('wait-info',
-            `<div>${T`Kalan:`} <b>${left < 1 ? Math.round(left * 60) + ' dakika' : left.toFixed(1) + ' saat'}</b></div>
+            `<div>${T`Kalan:`} <b>${left < 1 ? T`${Math.round(left * 60)} dakika` : T`${left.toFixed(1)} saat`}</b></div>
              <div style="color:var(--text-muted);font-size:var(--fs-sm)">
                 ${T`❤️ ${Math.round(p.stats.hp)}/${Math.round(p.stats.maxHp)} · 🎺 ${Math.round(this.morale())} · zaman ×${this.WAIT_SCALE}`}</div>`);
     },
@@ -5543,6 +5715,7 @@ const Game = {
         this.ensureTraders();   // new caravans set out to replace robbed ones
         this.dailyEvent();      // daily event pool (#35) — last, after the day's accounting closes
         this.checkAchievements();   // milestone sweep (#127) — non-modal, won't clobber the event
+        Debug.checkInvariants('day ' + state.time.day);
     },
 
     // ---- "11+2": what arrived since the player last looked (#111) ----
@@ -6799,7 +6972,7 @@ const Game = {
             if(site.kind === 'lair' && !site.seen) continue;
             if(this.dist(site, m) < 30) { state.player.targetLocation = site; state.player.status = 'moving'; return; }
         }
-        state.player.targetLocation = { x: m.x, y: m.y, name: T('Hedef Bölge'), type: null };
+        state.player.targetLocation = { x: m.x, y: m.y, name: 'Hedef Bölge', type: null };   // raw, like a settlement's name
         state.player.status = 'moving';
     },
 
@@ -8415,7 +8588,7 @@ const Game = {
         nowPlaying() {
             if(!this._mode || !this._now) return T('🎶 Müzik kapalı');
             if(this._busy) return T('🎶 Müzik yükleniyor…');
-            return T`🎶 Çalan: <b>${this._now.t}</b> · ${this._now.a}`;
+            return T`🎶 Çalan: <b>${`<span translate="no">${this._now.t}</span>`}</b> · ${`<span translate="no">${this._now.a}</span>`}`;
         },
 
         // Music follows the screen. Called from showScreen (which knows the screen), from
@@ -8691,6 +8864,7 @@ const Game = {
             ${it('💾', T('Kayıtlar'), 'Save.open()')}
             ${it(sesli ? '🔊' : '🔇', sesli ? T('Ses Açık') : T('Ses Kapalı'), 'Game.toggleMute(); Game.showMoreMenu()')}
             ${it('⚙️', T('Ayarlar'), 'Game.showSettings()')}
+            ${it('🐞', T('Hata Bildir'), 'Debug.bug()')}
             ${(document.documentElement.requestFullscreen && !this.isTouch())
                 ? it(document.fullscreenElement ? '🗗' : '⛶', T('Tam Ekran'), 'Game.closeModal(); Game.toggleFullscreen()')
                 : ''}
@@ -8723,8 +8897,9 @@ const Game = {
             onclick="Game.setOpt('edgePan', ${this.lit(v)})">${v === 'auto' ? T('Cihaza göre') : v ? T('Açık') : T('Kapalı')}</button>`).join(' ');
         let rd = this.opt('renderer');
         let rdBtn = ['auto', 'pixi', 'canvas'].map(v => `<button class="btn${rd === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
-            onclick="Game.setOpt('renderer', '${v}')">${v === 'auto' ? T('Cihaza göre') : v === 'pixi' ? 'WebGL' : 'Canvas'}</button>`).join(' ');
-        let rdNow = typeof Battle !== 'undefined' && Battle.rendererKind() === 'pixi' ? 'WebGL' : 'Canvas';
+            onclick="Game.setOpt('renderer', '${v}')">${v === 'auto' ? T('Cihaza göre') : `<span translate="no">${v === 'pixi' ? 'WebGL' : 'Canvas'}</span>`}</button>`).join(' ');
+        // a renderer's and a track's name are the same in every language: translate="no"
+        let rdNow = `<span translate="no">${typeof Battle !== 'undefined' && Battle.rendererKind() === 'pixi' ? 'WebGL' : 'Canvas'}</span>`;
         let df = this.opt('difficulty');
         let dfBtn = Object.keys(this.DIFFS).map(v => `<button class="btn${df === v ? ' primary' : ''}" style="font-size:var(--fs-sm);padding:0.25rem 0.6rem"
             onclick="Game.setOpt('difficulty', '${v}')">${T(this.DIFFS[v].name)}</button>`).join(' ');
@@ -10405,7 +10580,7 @@ const Game = {
         this.showModal(`<h3>${T`📦 ${T(loc.name)} Deposu`}</h3>
         <p style="color:var(--text-muted)">${T`Depodaki erzak bozulmaz (bozulma yalnız yanında taşıdığına işler) ve yenilgide yağmalanmaz.`}</p>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.5rem 0;border-top:1px solid var(--panel-border);border-bottom:1px solid var(--panel-border)">
-            <span>${T`🏦 Kasa:`} <b>${tre}</b> dinar <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(yenilgide yağmalanmaz)</span></span>
+            <span>${T`🏦 Kasa:`} <b>${tre}</b> ${T('dinar')} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(yenilgide yağmalanmaz)</span></span>
             <span>Yatır: ${money.map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'in')">${v === money[money.length-1] && money.length > 1 ? T('Hepsi') : v}</button>`).join(' ')}
                   ${tre ? T(' · Çek: ') + back.map(v => `<button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.moveTreasury('${loc.id}',${v},'out')">${v === back[back.length-1] && back.length > 1 ? T('Hepsi') : v}</button>`).join(' ') : ''}`}</span>
         </div>
@@ -10659,7 +10834,7 @@ const Game = {
     startSiege(locId, count, founding, plan = 'ladder') {
         state.player.currentSiege = { locId, foundingKingdom: founding };
         let loc = LOCATIONS.find(l => l.id === locId);
-        Battle.start(T('Garnizon'), count, null, loc ? loc.faction : null, this.SIEGE_PLANS[plan]);
+        Battle.start('Garnizon', count, null, loc ? loc.faction : null, this.SIEGE_PLANS[plan]);
     },
 
     // --- VILLAGE ---
@@ -12247,7 +12422,7 @@ const Save = {
             let info = !r ? T('<span style="color:var(--text-muted)">boş</span>')
                 : r.bozuk ? `<span style="color:var(--danger)">${T`bozuk (${r.kb} KB)`}</span>`
                 : `<b>${r.ad || '—'}</b> ${T`· ${r.gun}. gün · Sv.${r.seviye || 1}`}
-                   <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`${new Date(r.savedAt).toLocaleString(I18N.lang)} · ${r.kb} KB · v${r.surum}`}</span>`;
+                   <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`${`<span translate="no">${new Date(r.savedAt).toLocaleString(I18N.lang)}</span>`} · ${r.kb} KB · v${r.surum}`}</span>`;
             return `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;padding:0.45rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="min-width:5rem">${this.slotName(slot)}</span>
                 <span style="flex:1;font-size:var(--fs-md)">${info}</span>

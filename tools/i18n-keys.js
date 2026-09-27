@@ -19,9 +19,12 @@ const unesc = s => s.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{
 function keysIn(src, withSpans) {
     const out = [], n = src.length;
     for(let i = 0; i < n; i++) {
-        // Comments are skipped: a `` T` `` in prose was producing false positives
-        if(src[i] === '/' && src[i + 1] === '/') { while(i < n && src[i] !== '\n') i++; continue; }
-        if(src[i] === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i); if(i < 0) i = n; continue; }
+        // Comments are skipped: a `` T` `` in prose was producing false positives. Only a `//` or
+        // `/*` after whitespace (or at the start) opens one — `accept="image/*"` in markup once
+        // swallowed every key down to the next `*/`, and 'https://' cut its line short.
+        const lead = !i || /\s/.test(src[i - 1]);
+        if(lead && src[i] === '/' && src[i + 1] === '/') { while(i < n && src[i] !== '\n') i++; continue; }
+        if(lead && src[i] === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i); if(i < 0) i = n; continue; }
         if(src[i] !== 'T' || /[A-Za-z0-9_$.]/.test(i ? src[i - 1] : ' ')) continue;
         let j = i + 1;
         if(src[j] === '(') {                                  // T('…')

@@ -808,6 +808,29 @@ pasted-text import share `Save.importText`: parse → check → `migrate` → sl
 refused file never touches an existing save. e2e: backup → `localStorage.clear()` → reload →
 load the file → name, day and money match.
 
+### Rules the game checks on itself (2.4.0)
+`Debug.invariants()` lists what no legitimate play breaks: finite money (≥ 0), hp, renown,
+position and morale; hp ≤ maxHp; a party within capacity + 5, unique troop ids, every troop of a
+known type; items of a known id with qty > 0; prosperity 0–100, stock ≥ 0, a known faction per
+settlement; finite, non-empty parties on the map; finite relations. `Debug.checkInvariants(where)`
+runs it at the end of every game day and after every battle and logs each *kind* of break once
+(kind `kural`): the red badge, the debug report (`invariants`), every e2e run and the nightly
+career see it. `tools/career.js` uses the same list.
+
+### 🐞 Hata Bildir — in-game bug report (2.4.0)
+From the pause menu, the phone's ⋯ Daha menu, the battle and lair pause menus and the debug
+report. `Debug.capture()` composites every canvas on screen into a JPEG (≤ 1600 px; the WebGL
+ones are drawn and read in the same task), taken as the form opens; the player can remove it and
+add up to three pictures of their own (`shrink`, JPEG ≤ ~1.4 MB). `Debug.sendBug()` posts text,
+screenshots, version, language, device and the debug report to `/api/webband/report` on the
+same origin — a route of the `serkanozelme` Cloudflare Worker (blog repo,
+`src/services/webbandReport.ts`) that rate-limits per IP (2/min), checks sizes and image magic
+bytes, commits the screenshots to the Webband repo's `player-reports` branch and opens an issue
+labelled `player-report` with them inline. The token is the Worker secret `WEBBAND_GITHUB_TOKEN`
+(fine-grained, Webband only: Issues + Contents write). Without it (503), offline, or on a local
+copy (404) the form offers the prefilled GitHub page and the report file instead. e2e:
+`report.spec.js` (endpoint mocked). The text is public: players are told so on the form.
+
 ### Error visibility: badge and loop shield
 `Debug.guard(where, fn)` wraps the body of all three rAF loops — an exception is swallowed and
 logged (deduped by signature), but `requestAnimationFrame` on the next line still runs, so the
@@ -885,11 +908,34 @@ the F11 hint's close button reading "Kapat" aloud: static `aria-label`s were not
 covered. A string that reaches the screen only after a week of play still needs the manual
 pass.
 
+**The pseudo-locale `xx` (2.4.0)** closes the "never touches `T`" gap for good. Not in the menu;
+the e2e project `xx-desktop` and the nightly hunt run in it. `I18N.pseudo(key)` returns the key
+with every letter circled (`Beni Bul` → `Ⓑⓔⓝⓘ Ⓑⓤⓛ`), markup, `{n}` and entities untouched; a
+key counts as known if the English dictionary has it. A circled letter is a Unicode *symbol*,
+not a letter, and cutting or splitting a translation keeps it circled. The fixture then fails on:
+- a plain-letter word on screen (it never went through `T()`), except the hero's typed name and
+  anything under `translate="no"` (a track's title, a renderer's name, a date);
+- a circled key reaching `T()` (`I18N.doubled`, a translation translated again — also recorded
+  in every player's debug report, from the reverse lookup of the dictionary's values);
+- circled text anywhere in `Save.snapshot()` (a translation frozen into the state), except the
+  two deliberate history fields, `warLog[].msg` and a map mark's `label`.
+Its first runs found item and village names printed raw in 17 quest lines ("10 units Demir" in
+English), `21.1 saat` in the wait panel, a raw `dinar` in the dowry and the treasury, the
+caravan's translated people-name and five translated NPC/boss names stored in the save, and the
+lords' line memory keeping translated lines. Layout checks skip `xx` (circled glyphs are wider
+than any real script). **Language independence**: `tools/career.js --lang xx` plays the same
+career in the pseudo-locale and compares the whole save day by day: the language layer only
+changes words, so the worlds must never part; the nightly job runs it on eight seeds.
+
+**Key extraction** (`tools/i18n-keys.js`) recurses into a template's `${…}` (a T inside another
+T's placeholder used to be invisible) and only takes `//` or `/*` after whitespace as a comment
+(`accept="image/*"` once hid every key below it).
+
 Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
 changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
-**Known limit**: `state.warLog` news lines are stored already-translated, so switching language
-mid-game leaves old news in the old language (accepted gap — fixing it needs a structured news
-format).
+**Known limit**: `state.warLog` news lines and map-mark labels are stored already-translated, so
+switching language mid-game leaves old news in the old language (accepted, and the one exception
+the pseudo-locale's save check allows — fixing it needs a structured news format).
 
 ### Balance visibility
 What changed isn't the numbers, it's whether the player **sees** them before committing: peak

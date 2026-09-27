@@ -44,6 +44,10 @@ module.exports = defineConfig({
         { name: 'tr-desktop', use: { ...desktop, lang: 'tr' } },
         { name: 'tr-phone', use: { ...phone, lang: 'tr' } },
         { name: 'en-phone', use: { ...phone, lang: 'en' } },
-        { name: 'id-desktop', use: { ...desktop, lang: 'id' } }
+        { name: 'id-desktop', use: { ...desktop, lang: 'id' } },
+        // The pseudo-locale (i18n.js PSEUDO): every translation shows as ⟦Turkish key⟧, so text
+        // that skipped T(), a translation translated twice and translated text saved into the
+        // state all fail the run — whatever language the text was written in
+        { name: 'xx-desktop', use: { ...desktop, lang: 'xx' } }
     ]
 });
