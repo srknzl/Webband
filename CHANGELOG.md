@@ -15,7 +15,8 @@ başlangıç ekranının sağ alt köşesinde yazar.
   düğmelere basmayı engelliyordu.
 - **Başarımlar listesi ve "… nerede?" listesi kutu içinde kutu değil.** Pencerenin kendisi
   kayıyor.
-- **Esirler listesindeki "Salıver" düğmesi telefonda sıkışmıyor.**
+- **Esirler listesindeki "Salıver", köle tüccarındaki "Sat" ve hata bildirimindeki düğmeler dar
+  telefonlarda sıkışmıyor.**
 - **Haydut ininin keşif kartında da kutu içinde kutu yok.** Keşif bilgisi ve "nasıl oynanır"
   listesi pencereyle birlikte kayıyor; üç giriş yolu yine ekranda.
 

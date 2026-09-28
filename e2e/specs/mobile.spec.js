@@ -62,9 +62,12 @@ async function sweep(page, where, root, found, done) {
     }
 }
 
-test('her pencere, bir kat derine: kayan ekran, iç içe kaydırma, taşan pencere yok', async ({ page, lang }) => {
+test('her pencere, bir kat derine: kayan ekran, iç içe kaydırma, taşan pencere yok', async ({ page, lang, isMobile }) => {
     test.skip(lang === 'xx', 'the pseudo-locale checks where text comes from, not how wide it is');
     test.setTimeout(240_000);
+    // two phone widths for one walk each: the Turkish phone at 360x640, the narrowest common
+    // Android (buttons squeezed under their labels there first), the English one at the Pixel's 412
+    if(isMobile && lang === 'tr') await page.setViewportSize({ width: 360, height: 640 });
     const found = [], done = new Map();
 
     // Before a game: the start screen and its windows (the lords, the kingdoms, the saves)

@@ -259,7 +259,7 @@ const Debug = {
             </div>
             <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:0.5rem">${T`Bildirim, herkesin görebileceği bir GitHub sayfasında yayımlanır.`}</p>
             <div id="bug-msg" style="font-size:var(--fs-sm);margin:0.4rem 0;color:${bad ? 'var(--danger)' : 'var(--success)'}">${msg || ''}</div>
-            <div style="display:flex;gap:0.5rem;justify-content:center">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center">
                 <button class="btn primary" id="bug-send" onclick="Debug.sendBug()">${T`📨 Gönder`}</button>
                 <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>
             </div>`, '560px');
@@ -11961,9 +11961,9 @@ const Game = {
             html += `<p style="color:var(--text-muted)">${T`Tüccar esirlerini tek tek süzüyor.`}</p><ul style="list-style:none;padding:0">`;
             for(let name in groups) {
                 let g = groups[name];
-                html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
+                html += `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                     <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(tanesi ${g.value} dinar)`}</span></span>
-                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
+                    <button class="btn" style="flex:none;font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
             }
             html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">${T`Hepsini Sat (+${total} Dinar)`}</button>`;
