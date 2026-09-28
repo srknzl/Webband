@@ -1614,9 +1614,9 @@ emit their wins straight at the engine — `tools/test.js` now plays harvest_wat
 and merchant_convoy through real days, waves and auto-resolved battles to the hand-in) and the
 lord/lady dialogues (a seeded walk that presses the buttons each window shows, 400 walks from
 states that open courtship, dowry, poems, rivals and feasts, in English — 2779 presses, clean;
-alone it reaches 80% of nobles.js). Still unreached: the long-haired hair (`femHair`, no female
-unit anywhere) and the pre-sprite map silhouettes (`drawRider/Footman/Wolf`, a fallback the loaded
-sprite sheets never need).
+alone it reaches 80% of nobles.js), and the long hair (`femHair`, no spec ever made the hero a
+woman — `heroine.spec.js` now does). Still unreached: the pre-sprite map silhouettes
+(`drawRider/Footman/Wolf`, a fallback the loaded sprite sheets never need).
 
 `tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
 run it with `node`. None of `tools/` is loaded by `index.html`; `.github/workflows/test.yml`
@@ -1626,13 +1626,17 @@ dependencies), and on green push to `main` a `release` job cuts a GitHub release
 fails loudly if the bump forgot a CHANGELOG line).
 
 ### e2e coverage (#133)
-`e2e/specs/` drives the real game in Chromium, every spec in the four projects (TR/EN/ID,
-desktop/phone). Beyond the first round (boot, menus, save/load, quests, map, battle, lair,
+`e2e/specs/` drives the real game in Chromium, every spec in the five projects (TR/EN/ID,
+desktop/phone, and the pseudo-locale). Beyond the first round (boot, menus, save/load, quests, map, battle, lair,
 scene, i18n) each system has its own spec: `tournament` (arena purse, the three-round bracket
 and the bet), `siege` (camp → ladder day → assault → own kingdom, and lifting it), `captivity`
 (plan, a failed try, one try a day, ransom), `nobles` (fealty, courtship to the wedding feast,
 hosting a feast), `fief` (garrison, storehouse and treasury, raid, tribute), `events` (the
-10-second hail clock, walking the hail, winter coal, a wanderer joining). Writing them found
+10-second hail clock, walking the hail, winter coal, a wanderer joining), `heroine` (2.4.2: a
+woman created with the hair button stepped through its four styles, into a battle wearing it; and
+the hair flicker's guard — the area the hair adds over the same man's frame, every style, armour,
+animation, facing and frame, may move ~20 px within a row; the broken frames fell 60-80 px below
+the row's median and fail it by name). Writing them found
 seven bugs, all in EN/ID or in a stale screen: the player's typed name and the circuit regulars
 T()'d in the bracket, the player kingdom's name frozen at founding (now `Game.facName`), the
 spouse's frozen name, an untranslated `zor`, T() calls nested in another T's placeholder that
