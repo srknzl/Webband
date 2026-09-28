@@ -1637,7 +1637,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
 | `tools/typecheck.js [--update]` | tsc over the game's JS (`tools/tsconfig.json`, nothing compiled; typescript from `e2e/node_modules`): fails on an error not in `tools/tsc-baseline.json` |
-| `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks from the settlements and the map's payouts (a bandit band, a lord prisoner, a ruin, a quest hand-in), replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
+| `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks from the settlements and the map's payouts (a bandit band and its battle fought by hand, a lord prisoner, a ruin, a quest hand-in), replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
 | `tools/mapwatch.js [--seed 1-3] [--days 40]` | map parties watched step by step in four scenes: a jump, a stuck party, a dithering one, a crowd, a siege from afar — one `MAP` line per find, exit 1 |
 | `tools/coverage.js [--dir e2e/test-results] [--top 40] [--md f]` | the coverage map: merges every e2e run made with `COVERAGE=1` and lists the game functions none of them called, biggest first |
 
@@ -1681,7 +1681,7 @@ woman — `heroine.spec.js` now does). Still unreached: the pre-sprite map silho
 **Money-pump hunt** (2.4.3): `tools/exploits.js` starts walks at eight gates — four settlements
 (an own city, a friendly city, a castle, a village; with a purse, goods, prisoners, troops and a
 fief) and four map payouts: a bandit band on the road (the encounter window, `autoBattle`, the
-result), a lord in your chains (ransom, release), a ruin to search, a quest waiting for its
+battle fought by hand, the result), a lord in your chains (ransom, release), a ruin to search, a quest waiting for its
 hand-in. A walk is up to six seeded presses — the gate's buttons, then every `onclick` the window
 that opens offers. The pick leans to the less pressed, by what a button calls before which one (a
 hundred `mktSelect` tiles are one choice, `mktGo` another), or the walks never reach a trade. Each
@@ -1696,9 +1696,18 @@ turns with the clock still is a pump. A press that throws is reported too. Prove
 (seed 1, 200-400 walks): the old trade-edge pump (spread closed) comes back as 74 pumps, a
 treasury withdrawal paying 10% extra as 4, a ransom that leaves the lord in chains, prisoners sold
 and kept, and a quest that pays and stays open (caught at the city gate, where walking in hands
-it in again). Measured, seeds 1-3 × 600 walks: ~6600 walks and ~6300 pairs, no pump, ~110 s a
-seed. The band gate is narrow by nature (six distinct timeless walks: fight, flee, give in; a
-hand-fought battle ends the walk). Its first find was no pump but a crash — the gate's "join the
+it in again). **The battle is played (#148):** `Battle.start` used to end the walk, so the band
+gate had six distinct walks (fight, flee, give in). Now a real battle is stepped frame by frame,
+as `duel.js` does. `~fight` is a press that runs it to its end or to the enemy breaking, and the
+field's own choices are presses: "Bırak Gitsinler" (`spareRouters`), surrender through its
+question window. A failed flee lands in the same battle. The hunt's band is a real one (the
+`bandit` kind, 10 strong, over `ROUT_MIN`, so it can break): without `band`, a band fell through
+to a lord's roster and the recruits never won. The hunt clears a scene it abandons
+(`abandon()`); only `endBattle` resets the arena mode, so an arena bout dropped mid-walk turned the
+next field battle into an arena one. Proven on a planted bug: a won battle that leaves the band on
+the map comes back as pumps (fight, spare the routers: +150–350 on every replay). Measured, seeds
+1-3 × 600 walks: 6754 walks and 10143 pairs, no pump, ~99 s a seed; the band gate 196 distinct
+walks (win and chase, win and spare, surrender mid-fight, flee into the fight). Its first find was no pump but a crash — the gate's "join the
 feast" after greeting the hall carried the feast past its last midnight. The nightly runs it on
 two seeds, plain and with the trade edge at its cap. Also since 2.4.3,
 `tools/test.js` offers every quest from every lord allowed to give it, on four seeds in TR and
