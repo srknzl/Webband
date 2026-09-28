@@ -903,7 +903,7 @@ const Input = {
                 if(scr) Game.showScreen(scr);
                 // 1-9 press a settlement card (2.1); on the map 1 2 3 pick the time speed
                 else if(/^[1-9]$/.test(e.key) && Game.settlementKey(e.key)) e.preventDefault();
-                else if(/^[1-3]$/.test(e.key) && onMap) Game.setTimeScale(Game.TIME_SCALES[e.key - 1]);
+                else if(/^[1-3]$/.test(e.key) && onMap) Game.setTimeScale(Game.TIME_SCALES[+e.key - 1]);
                 // Esc returns to the map from any screen; a second Esc — already on the map,
                 // nothing left to back out of — pauses the game (#113).
                 else if(e.key === 'Escape') {
