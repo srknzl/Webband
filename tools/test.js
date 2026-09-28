@@ -2172,12 +2172,10 @@ test('pwa: sw.js cache name tracks VERSION.no and precaches only real files', ()
 // quest events via `Quests.emit`/`dailyTick`, and `complete()` pays the
 // reward. The table is checked against the definition list — a new quest
 // added without a driver fails the test instead of silently never finishing.
-function questSuite() {
-    const gq = H.world({ seed: 3 });
-    const { Quests, QUESTS, LOCATIONS, LORDS, Nobles, Game, state } = gq;
-    const loc = id => LOCATIONS.find(l => l.id === id);
-    const enter = id => Quests.emit('entered_location', { locId: id, loc: loc(id) });
-    const give = (itemId, qty) => state.player.inventory.push({ ...gq.ITEMS[itemId], qty });
+// A world where every quest's `can()` can pass (shared with the text sweep below).
+function questWorld(opts) {
+    const gq = H.world(opts);
+    const { LOCATIONS, Game, state } = gq;
     // Achievements pay real money now (#132). This suite loops every quest type in one world,
     // so state.career.quests keeps climbing across sub-tests and quests_5/20/... would eventually
     // fire mid-loop, adding an unrelated payout right when some other quest's test asserts its
@@ -2201,6 +2199,24 @@ function questSuite() {
         sieger.siegeLocId = siegeCity.id;
         state.npcParties.push(sieger);
     }
+    return gq;
+}
+
+// Who may give a quest: personality + the world's `can` precondition (the first, or all of them)
+function giversFor(g, id, all = false) {
+    const { QUESTS, LORDS, LOCATIONS, Quests } = g, d = QUESTS[id];
+    if(d.givers.includes('guild')) return LOCATIONS.filter(l => l.type === 'city').slice(0, all ? 3 : 1).map(l => 'guild_' + l.id);
+    const ok = LORDS.filter(x => (!d.givers.length || d.givers.includes(x.personality))
+                              && (!d.can || d.can(Quests.giver(x.id)))).map(l => l.id);
+    return all ? ok : ok.slice(0, 1);
+}
+
+function questSuite() {
+    const gq = questWorld({ seed: 3 });
+    const { Quests, QUESTS, LOCATIONS, LORDS, Nobles, Game, state } = gq;
+    const loc = id => LOCATIONS.find(l => l.id === id);
+    const enter = id => Quests.emit('entered_location', { locId: id, loc: loc(id) });
+    const give = (itemId, qty) => state.player.inventory.push({ ...gq.ITEMS[itemId], qty });
     const bandNpc = band => { const n = Game.createNPC('Çete', 'bandit', 4, '#888'); n.band = band; state.npcParties.push(n); return n; };
 
     const drivers = {
@@ -2276,14 +2292,6 @@ function questSuite() {
     };
     assert.ok(!QUESTS.fog_dot, 'retired hidden-location quest is still in the offer pool');
 
-    // First eligible giver for a quest: personality + the world's `can` precondition
-    function giverFor(id) {
-        const d = QUESTS[id];
-        if(d.givers.includes('guild')) return 'guild_' + LOCATIONS.find(l => l.type === 'city').id;
-        const l = LORDS.find(x => (!d.givers.length || d.givers.includes(x.personality))
-                               && (!d.can || d.can(Quests.giver(x.id))));
-        return l && l.id;
-    }
 
     test('quest: every quest in the table has a test driver', () => {
         const missing = Object.keys(QUESTS).filter(id => !drivers[id]);
@@ -2292,7 +2300,7 @@ function questSuite() {
 
     Object.keys(QUESTS).forEach(id => {
         test(`quest: ${id} completes in the real engine`, () => {
-            const giverId = giverFor(id);
+            const giverId = giversFor(gq, id)[0];
             assert.ok(giverId, 'nobody around can give this quest');
             // Every quest starts with a clean player: the previous quest's inventory shouldn't count
             state.player.quests = []; state.player.inventory = []; state.player.prisoners = [];
@@ -2324,6 +2332,49 @@ function questSuite() {
 }
 questSuite();
 
+// The drivers above check that each quest can finish; none reads what the player is told on the
+// way. Every quest is offered by every lord allowed to give it, in several worlds, and each text
+// it shows — the offer window, the quest list while active, a few days on, and once it waits for
+// its hand-in — must not carry a hole: `undefined`, `NaN`, a `{0}` left unfilled, an object
+// printed whole, a place its id no longer finds ('?'), or (EN) a key missing from the dictionary.
+test('quest: every quest text, from every giver, in TR and EN, has no hole', () => {
+    const found = new Map();
+    let texts = 0;
+    for(const lang of ['tr', 'en']) for(const seed of [1, 2, 3, 4]) {
+        const g = questWorld({ seed, lang });
+        const { Quests, QUESTS, Game, I18N, state, Debug } = g;
+        const doc = g._sandbox.document;
+        const check = (html, where) => {
+            texts++;
+            const text = html.replace(/<[^>]+>/g, ' ');
+            const bad = /\bundefined\b|\bNaN\b|\{\d\}|\[object Object\]/.exec(text)
+                     || /<b>\?<\/b>|📍 \?/.exec(html);
+            if(bad) found.set(`${where}: ${text.slice(Math.max(0, bad.index - 60), bad.index + 30).replace(/\s+/g, ' ')}`, 1);
+            if(I18N.missing.size) { found.set(`${where}: missing EN key ${[...I18N.missing].join(' | ')}`, 1); I18N.missing.clear(); }
+            if(Debug.errors.length) { found.set(`${where}: ${Debug.errors[0].msg}`, 1); Debug.errors.length = 0; }
+        };
+        const listed = where => { Quests.render(); check(doc.getElementById('quest-list').innerHTML, where); };
+        state.player.quests = [];
+        for(const id of Object.keys(QUESTS)) for(const giverId of giversFor(g, id, true)) {
+            const at = `${lang} seed ${seed} ${id} from ${giverId}`;
+            const q = Quests.make(id, giverId);
+            state.questOffers = { [giverId]: q };           // offerMenu shows this pinned offer
+            Quests.offerMenu(giverId);
+            check(doc.getElementById('modal-body').innerHTML, at + ' offer');
+            Game.closeModal();
+            if(!state.player.quests.some(x => x.id === id)) state.player.quests.push(q);   // one of each in the list
+        }
+        state.questOffers = {};
+        listed(`${lang} seed ${seed} list`);
+        H.run(g, 3);                                        // days pass: day() ticks, counters move
+        listed(`${lang} seed ${seed} list, 3 days on`);
+        for(const q of state.player.quests) { q.state = 'awaiting'; q.turnInLocId = Quests.turnInLoc(q); }
+        listed(`${lang} seed ${seed} list, awaiting`);
+    }
+    assert.ok(texts > 300, `only ${texts} texts read`);
+    assert.ok(!found.size, [...found.keys()].slice(0, 15).join('\n    '));
+});
+
 // The drivers above emit quest events themselves, so they prove the engine, not the game: a
 // quest listening for an event the game never sends, or reading a field the game never fills,
 // passes them and can never finish in play. The minigame's old tournament mode sent
@@ -2351,6 +2402,29 @@ test('quest: every event a quest waits for is sent by the game, with the fields 
     }
     assert.ok(Object.keys(sent).length >= 10, `only ${Object.keys(sent).length} emitted events found — the scan broke`);
     assert.ok(!bad.length, `${bad.length} broken: ${bad.join(' · ')}`);
+});
+
+// The money-pump hunt's first find (tools/exploits.js): greeting the hall takes four hours, and
+// on a feast's last evening that crosses midnight and ends it. The gate still showed "join the
+// feast", and pressing it read the faction of a feast that was gone.
+test('feast: the gate\'s join button after the feast ended says so, and the gate redraws', () => {
+    const w = H.world({ seed: 4 });
+    const { Game, Feast, state, LOCATIONS } = w;
+    const c = LOCATIONS.find(l => l.type === 'city' && l.faction);
+    state.player.renown = 500;
+    Object.assign(state.player, { x: c.x, y: c.y });
+    state.feast = { faction: c.faction, locId: c.id, endDay: state.time.day + 1, greeted: [] };
+    state.time.hour = 22;
+    const ac = w._sandbox.document.getElementById('settlement-actions'), before = ac.children.length;
+    Game.enterLocation(c);
+    const join = ac.children.slice(before).find(b => /Şölene Katıl/.test(b.innerHTML));
+    assert.ok(join, 'no join button while the feast is on');
+    Feast.open(c); Feast.greetAll();
+    assert.strictEqual(state.feast, null, 'the greeting didn\'t carry the feast past its end');
+    const drawn = ac.children.length;
+    join.onclick();
+    assert.ok(/Şölen sona ermiş/.test(w._sandbox.document.getElementById('modal-body').innerHTML), 'the ended feast wasn\'t announced');
+    assert.ok(!ac.children.slice(drawn).some(b => /Şölene Katıl/.test(b.innerHTML)), 'the gate still offers the ended feast');
 });
 
 // The lords' and ladies' dialogues are a web of buttons no test walked (the coverage map: asking

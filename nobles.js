@@ -1622,7 +1622,13 @@ const Feast = {
             return alert(T`Teşrifatçı adını biliyor — fazlasıyla.\n"${Game.honorLabel()} birini bu salona sokamam."\n\n`
                 + T`Gereken şeref: ${this.HONOR_REQ} (sende ${Game.honor()})`);
         }
+        // The gate's button outlives the feast: greeting the hall takes four hours, and on its last
+        // day that crosses midnight and ends it (or a new one starts in another city)
         let f = state.feast;
+        if(!f || f.locId !== loc.id) {
+            alert(T('Şölen sona ermiş; salonda son kadehler toplanıyor.'));
+            return Game.redrawTown(loc);
+        }
         let guests = LORDS.filter(l => l.faction === f.faction);
         let ladies = Nobles.courtables().filter(l => l.faction === f.faction);
 
