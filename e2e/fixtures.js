@@ -52,8 +52,9 @@ function pageInit({ lang, seed }) {
         if(!text || !text.trim()) return;
         const b = text.match(BROKEN);
         if(b) note('broken', text.slice(Math.max(0, b.index - 40), b.index + 40).trim());
-        // The release name is a stamp, deliberately never translated (see VERSION in app.js)
-        if(typeof VERSION !== 'undefined') text = text.split(VERSION.name).join('');
+        // The release name is a stamp, deliberately never translated (see VERSION in app.js) —
+        // taken out as a whole word only: 2.4.6 "Hazine" must not cut "Hazinedar" down to "dar"
+        if(typeof VERSION !== 'undefined') text = text.replace(new RegExp(`(?<!\\p{L})${VERSION.name}(?!\\p{L})`, 'gu'), '');
         const lang = document.documentElement.lang;
         if(lang === 'xx') {
             // pseudo-locale: translated letters are circled (symbols, not letters), so a word

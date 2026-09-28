@@ -138,6 +138,29 @@ test('kaydet, sayfayı yenile, kayıttan devam et', async ({ page }) => {
     await page.waitForFunction(() => Game._loopId);
 });
 
+// #147: a load from inside a game lays the save over the world a freshly opened page has, not
+// over the running game — money put in a fief's treasury after saving came back to the purse
+// with the save and stayed in the treasury, a pump.
+test('oyun içinden yükle: kayıttan sonrası geri alınır, hazine para basmaz (#147)', async ({ page }) => {
+    await newGame(page, 'Hazinedar');
+    const fief = await page.evaluate(() => {
+        const k = LOCATIONS.find(l => l.type === 'castle');
+        k.owner = 'player'; state.player.money = 5000; Game.updateTopBar();
+        return k.id;
+    });
+    await openExtra(page, 'Save.open()');
+    await modal(page).locator(`button[onclick="Save.save('1')"]`).click();
+    await page.evaluate(() => Game.closeModal());
+    await page.evaluate(id => { Game.moveTreasury(id, 4000, 'in'); Game.closeModal(); Game.updateTopBar(); }, fief);
+    await expect(page.locator('#ui-money')).toHaveText('1000');
+
+    await openExtra(page, 'Save.open()');
+    await modal(page).locator(`button[onclick="Save.load('1')"]`).click();
+    expect(await okAlert(page)).toContain(await L(page, 'Kayıt yüklendi ({0}). Gün {1}.', await page.evaluate(() => Save.slotName('1')), 1));
+    await expect(page.locator('#ui-money')).toHaveText('5000');
+    expect(await page.evaluate(id => LOCATIONS.find(l => l.id === id).treasury || 0, fief)).toBe(0);
+});
+
 // #132: localStorage is the browser's to clear. The file backup is the copy that survives it:
 // downloaded from the save panel, the storage wiped, then loaded back through the file picker.
 test('dosyaya yedekle, depoyu sil, dosyadan geri yükle (#132)', async ({ page }) => {

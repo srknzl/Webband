@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.5', date: '2026-09-28', name: 'Dokunuş' };  // the version name is not translated
+const VERSION = { no: '2.4.6', date: '2026-09-28', name: 'Hazine' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1373,6 +1373,7 @@ const Game = {
         this.layoutWorld();
         this.spawnSites();
         this.spawnNPCs();
+        Save.keepFresh();   // the world a load starts from
     },
 
     // --- SETTLEMENT PLACEMENT (#57) ---
@@ -12459,6 +12460,7 @@ const Save = {
     },
 
     apply(d) {
+        this.resetWorld();
         if(d.playerKingdom) FACTIONS['player_kingdom'] = d.playerKingdom;
         this.mergeInto(state, d.state);
         Game._counters = {}; Game._hudLast = null;   // a loaded game's numbers are set, not "gained"
@@ -12501,6 +12503,32 @@ const Save = {
         Game.ensureLairs();      // old saves had no bandit lairs (#68)
         Game.ensureBosses();     // boss lairs appear at their renown gate (#38)
         Game.startGameLoop();
+    },
+
+    // A load starts from the world a freshly opened page has (the end of Game.init) and lays the
+    // save over it. Laid over the running game instead, whatever the save didn't carry kept the
+    // running game's value: money put into a fief's treasury after saving was still there after
+    // loading, beside the purse the save gave back — save, deposit, load, a pump (#147). The
+    // storehouse, a castle taken, a lord sworn in, a kingdom founded went the same way. The
+    // settings are the device's, not the save's: they stay, and the save's merge over them.
+    keepFresh() { this._fresh = JSON.stringify({ state, locations: LOCATIONS, factions: FACTIONS, lords: LORDS }); },
+    resetWorld() {
+        if(!this._fresh) return;
+        let f = JSON.parse(this._fresh);
+        this.resetInto(state, f.state, ['settings']);
+        LOCATIONS.forEach((l, i) => this.resetInto(l, f.locations[i]));
+        this.resetInto(FACTIONS, f.factions);
+        LORDS.forEach((l, i) => this.resetInto(l, f.lords[i]));
+    },
+    // In place: a plain object keeps its identity (code holds on to state.player, a LOCATIONS entry)
+    resetInto(target, src, keep = []) {
+        let plain = (o) => o && typeof o === 'object' && !Array.isArray(o);
+        for(let k in target) if(!(k in src) && !keep.includes(k)) delete target[k];
+        for(let k in src) {
+            if(keep.includes(k)) continue;
+            if(plain(src[k]) && plain(target[k])) this.resetInto(target[k], src[k]);
+            else target[k] = src[k];
+        }
     },
 
     // A key missing from the save stays at its default value. It used to be that any key
