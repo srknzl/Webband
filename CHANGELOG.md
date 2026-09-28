@@ -3,6 +3,24 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.4 — Kuşatma (2026-09-28)
+
+- **Kuşatma artık surların dibindeki ordudur.** Kampa bir çete dalınca kuşatma sessizce
+  bozuluyor, haritaya tıklayınca da ordun kuşatmayı yanında götürüyordu: günler saymaya devam
+  ediyor, surlara haritanın öbür ucundan saldırabiliyordun. Artık kamptaki bir çarpışmadan sonra
+  kuşatmaya geri dönersin, uzaklaşırsan kuşatma kalkar.
+- **Yardım ordusu yürüyerek geliyor.** Kuşatmayı yarmaya gelen lord 2500 birim öteden bir anda
+  kapının önüne ışınlanıyordu. Artık yola çıktığını haberlerden duyarsın, haritada yaklaştığını
+  görürsün; kampa varınca karşılar ya da kampı toplarsın.
+- **Lordların kuşatmaları gerçek.** Bir lord kuşattığı kaleyi bırakıp dolaşıyor, yine de gün
+  sayıyordu; üç ayrı uğrayış bir kaleyi düşürebiliyordu. Artık kuşatan ordu surların dibinde
+  bekler, ayrılırsa kuşatma sıfırlanır. Kuşatma uzadı: bir kale 12 günlük kuşatmayla düşer.
+- **Haritadaki saçma hareketler bitti.** Yarım düzine lordun tek bir çetenin peşinde günlerce
+  top gibi dolaşması, senden kaçan çetelerin görüş sınırında ileri geri gidip gelmesi, bir sefer
+  ordusunun şehrin tek bir noktasına yığılması, yoldaki kampının etrafında haftalarca dönen kurt
+  sürüleri, aynı adımla yürüyen köylü kafileleri ve kıyıda denizde doğup bir adımda karaya
+  sıçrayan çeteler artık yok.
+
 ## 2.4.3 — Kasa (2026-09-28)
 
 - **Biten şölenin kapısı artık oyunu bozmuyor.** Şölenin son akşamı salonu dolaşıp herkesi

@@ -1397,6 +1397,7 @@ I18N.dicts.id = {
   "🗺️ Birinin yerini sor": "🗺️ Tanyakan keberadaan seseorang",
   "🗺️ Harita bir yol tarif ediyor ama sonundaki kapı herkese açılmıyor.": "🗺️ Peta itu menggambarkan sebuah jalan, tapi pintu di ujungnya tak terbuka bagi semua orang.",
   "🗺️ {0}'a sor: \"… nerede?\"": "🗺️ Tanyakan pada {0}: \"di mana …?\"",
+  "🚩 {0}, {1} kişiyle {2} kuşatmasını yarmaya yola çıktı.": "🚩 {0} berangkat dengan {1} orang untuk mematahkan pengepungan {2}.",
   "🚩 Yardım Ordusu!</h3> <p><b>{0}</b> {1} kişiyle kuşatmayı yarmaya geldi. Surun dibinde iki ateş arasında kalamazsın: ya bu orduyu karşılarsın ya da kampı toplarsın.": "🚩 Pasukan bantuan!</h3> <p><b>{0}</b> datang dengan {1} orang untuk mematahkan pengepungan. Kau tak boleh terjepit di antara dua api di kaki tembok: hadapi pasukan ini atau bongkar kemahmu.",
   "🚩 {0} yaklaşıyor — {1} birim": "🚩 {0} mendekat — {1} satuan lagi",
   "🚪 Ayrıl": "🚪 Pergi",

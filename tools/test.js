@@ -2501,6 +2501,17 @@ test('quest: the wave quests play through their own days, battles and hand-in', 
         // on guard next to the post; the convoy walks from wherever it is
         const stand = id === 'merchant_convoy' ? LOCATIONS.find(l => l.id === giver.homeLocId) : post;
         let fights = 0;
+        // The convoy's ambush is a 15% daily roll: about one run in six has none in 12 days, and
+        // which seed gets which drifts with any change to the world. Roll it once here (the dice
+        // held at 0), so the fight path always plays.
+        if(id === 'merchant_convoy') {
+            Object.assign(state.player, { x: stand.x + 40, y: stand.y });
+            const M = require('vm').runInContext('Math', w._ctx), roll = M.random;
+            M.random = () => 0;
+            try { QUESTS[id].day(q); } finally { M.random = roll; }
+            Game.closeModal();
+            assert.ok(q.data.ambushed, 'merchant_convoy: the held dice raised no ambush');
+        }
         H.run(w, QUESTS[id].days - 1, () => {
             Object.assign(state.player, { x: stand.x + 40, y: stand.y, status: 'idle', targetLocation: null });
             state.npcParties.filter(n => n.questWave === q.id && n.size > 0).forEach(n => {
@@ -3198,6 +3209,170 @@ test('peace: a treaty lifts the player siege against the new partner', () => {
     Game.makePeace(mine, target.faction);
     assert.strictEqual(state.player.siege, null, 'peace left a siege camp active');
     assert.strictEqual(state.player.status, 'idle', 'peace left the player in besieging status');
+});
+
+// ---- Map parties: the moves tools/mapwatch.js caught (every one reproduced before its fix) ----
+// A foe castle, the player besieging it as a vassal of the other side of a war
+function siegeWorld(seed) {
+    const w = H.world({ seed });
+    const { Game, state, FACTIONS, LOCATIONS } = w;
+    Game.checkAchievements = () => {};
+    const castle = LOCATIONS.find(l => l.type === 'castle');
+    const mine = Object.keys(FACTIONS).find(f => f !== castle.faction && f !== 'player_kingdom');
+    if(!Game.atWar(mine, castle.faction)) Game.declareWar(mine, castle.faction);
+    state.player.vassalOf = mine;
+    state.player.party = Array.from({ length: 25 }, (_, i) => troop(4, { id: 'sw' + i }));
+    Game.beginSiege(castle.id, Object.keys(Game.SIEGE_PLANS)[0], false);
+    Game.closeModal();
+    return Object.assign(w, { castle, mine });
+}
+// a point `r` units from `at`, toward the middle of the map (always on land)
+const inland = (at, r) => {
+    const dx = 4500 - at.x, dy = 4500 - at.y, d = Math.hypot(dx, dy) || 1;
+    return { x: at.x + dx / d * r, y: at.y + dy / d * r };
+};
+
+test('siege: the camp is the army at the walls — an encounter pauses it, a march lifts it', () => {
+    const { Game, state, castle } = siegeWorld(7);
+    // a band walking into the camp leaves the party idle (the collision rule); the siege goes on
+    state.player.status = 'idle';
+    Game.holdSiege();
+    assert.ok(state.player.siege, 'an encounter at the camp ended the siege');
+    assert.strictEqual(state.player.status, 'besieging', 'after the encounter the party did not go back to the siege');
+    // walking off: the siege used to stay behind, counting days and ready to assault from anywhere
+    Object.assign(state.player, inland(castle, 1000));
+    const days = state.player.siege.daysLeft;
+    Game.siegeTick();
+    assert.strictEqual(state.player.siege, null, `a siege 1000 units from its walls still ran (${days} → ${state.player.siege && state.player.siege.daysLeft} days)`);
+    // and the assault button can't reach across the map either
+    state.player.siege = { locId: castle.id, plan: Object.keys(Game.SIEGE_PLANS)[0], daysLeft: 0, weaken: 0 };
+    let started = false;
+    Game.startSiege = () => { started = true; };
+    Game.assaultSiege();
+    assert.ok(!started, 'the walls were assaulted from 1000 units away');
+});
+
+test('siege: the relief army marches to the camp and meets it there', () => {
+    const { Game, state, castle } = siegeWorld(7);
+    const lord = state.npcParties.find(n => n.lordId && n.faction === castle.faction);
+    Object.assign(lord, inland(castle, 1500));
+    lord.size = 60;
+    state.npcParties = [lord];
+    const from = { x: lord.x, y: lord.y };
+    for(let i = 0; i < 200 && !lord.reliefLocId; i++) Game.siegeRelief(castle);
+    assert.strictEqual(lord.reliefLocId, castle.id, 'no relief set out');
+    assert.ok(lord.x === from.x && lord.y === from.y, 'the relief was set down at the gate instead of marching');
+    let shown = '', steps = 0;
+    Game.showModal = h => { shown = h; };
+    const cap = lord.speed * 0.25 * 1.18 * 1.5 + 1;
+    while(!Game.checkRelief() && steps++ < 400) {
+        const x = lord.x, y = lord.y;
+        Game.updateNPCs(0.25);
+        const d = Math.hypot(lord.x - x, lord.y - y);
+        assert.ok(d <= cap, `the relief stepped ${Math.round(d)} units in a quarter hour`);
+    }
+    assert.ok(/meetRelief/.test(shown), `the relief never reached the camp (${Math.round(Game.dist(lord, state.player))} units off after ${steps} steps)`);
+    assert.ok(!lord.reliefLocId, 'the relief kept marching after it arrived');
+    assert.ok(steps > 10, `1500 units in ${steps} quarter hours is not a march`);
+});
+
+test('AI siege: the besieger holds the walls, and one that marches off starts over', () => {
+    const { Game, state, LOCATIONS, FACTIONS, castle } = siegeWorld(7);
+    Game.liftSiege(true);
+    Object.assign(state.player, { x: 4500, y: -40000 });
+    const foe = Object.keys(FACTIONS).find(f => f !== castle.faction && f !== 'player_kingdom' && Game.atWar(f, castle.faction));
+    const atk = state.npcParties.find(n => n.lordId && n.faction === foe);
+    Object.assign(atk, inland(castle, 300), { size: 400, siegeLocId: castle.id, siegeDays: 2 });
+    state.npcParties = [atk];
+    for(let i = 0; i < 48; i++) Game.updateNPCs(0.25);
+    const d = Game.dist(atk, castle);
+    assert.ok(Math.abs(d - Game.SIEGE_RING) < 20, `a besieger stood ${Math.round(d)} units from the walls it besieges`);
+    // away from the walls, the count starts over: three passing visits used to take a castle
+    Object.assign(atk, inland(castle, 2000));
+    Game.warTick();
+    assert.notStrictEqual(atk.siegeLocId, castle.id, 'a lord 2000 units away still besieges the castle');
+    assert.ok(LOCATIONS.find(l => l.id === castle.id).faction === castle.faction, 'the castle fell to an army that had left');
+});
+
+test('flee: a band that runs keeps running once out of sight, not back and forth at its edge', () => {
+    const w = H.world({ seed: 7 });
+    const { Game, state } = w;
+    state.player.party = Array.from({ length: 25 }, (_, i) => troop(4, { id: 'fl' + i }));
+    Object.assign(state.player, { x: 4500, y: 4500 });
+    const band = Game.createNPC('Çapulcular', 'bandit', 5, '#000');
+    band.band = 'bandit';
+    Object.assign(band, { x: 4500 + 980, y: 4500, targetX: 4500 + 980, targetY: 4500 });
+    // a caravan behind the player: out of sight, the band used to turn at once to hunt it
+    const prey = Game.createNPC('Kervan', 'caravan', 1, '#000');
+    Object.assign(prey, { x: 4400, y: 4500, targetX: 4400, targetY: 4500, speed: 0, trade: { kind: 'caravan' } });
+    state.npcParties = [band, prey];
+    let last = Game.dist(band, state.player);
+    for(let i = 0; i < Game.FLEE_HOURS / 0.25; i++) {
+        Game.updateNPCs(0.25);
+        const d = Game.dist(band, state.player);
+        assert.ok(d >= last - 0.01, `hour ${(i * 0.25).toFixed(2)}: the fleeing band turned back (${Math.round(last)} → ${Math.round(d)})`);
+        last = d;
+    }
+});
+
+test('patrol: one lord per band, and a lord that catches it lets it go', () => {
+    const w = H.world({ seed: 7 });
+    const { Game, state } = w;
+    Object.assign(state.player, { x: 4500, y: -40000 });
+    state.campaigns = {};
+    const [a, b] = state.npcParties.filter(n => n.lordId).filter((n, i, all) => n.faction === all[0].faction);
+    const band = Game.createNPC('Çapulcular', 'bandit', 8, '#000');
+    band.band = 'bandit';
+    Object.assign(band, { x: 4500, y: 4500, targetX: 4500, targetY: 4500, speed: 0 });
+    Object.assign(a, { x: 4800, y: 4500, bandScanCd: 0 });
+    Object.assign(b, { x: 4500, y: 4800, bandScanCd: 0 });
+    state.npcParties = [a, b, band];
+    Game.updateNPCs(0.25);
+    assert.strictEqual([a, b].filter(l => l.bandTargetId === band.id).length, 1,
+        'both lords set out after the one band (a posse that crossed the map as one ball)');
+    const hunter = a.bandTargetId ? a : b;
+    Object.assign(hunter, { x: band.x + 10, y: band.y });
+    Game.updateNPCs(0.25);
+    assert.ok(!hunter.bandTargetId, 'a lord that caught its band walks beside it (only one clash resolves a day)');
+});
+
+test('wolves: a pack neither locks onto nor circles a party on the road', () => {
+    const w = H.world({ seed: 7 });
+    const { Game, state } = w;
+    state.player.party = [];
+    let spot = null;
+    for(let x = 1000; x < 8000 && !spot; x += 37) for(let y = 1000; y < 8000 && !spot; y += 41)
+        if(Game.onRoad(x, y) && Game.getTerrainInfo(x + 150, y).name === 'Düzlük') spot = { x, y };
+    assert.ok(spot, 'no road on the map');
+    Object.assign(state.player, spot);
+    state.time.day = 30;
+    const wolves = Game.createNPC('Kurt Sürüsü', 'bandit', 12, '#000');
+    wolves.band = Object.keys(w.BAND_KINDS).find(k => w.BAND_KINDS[k].beast);
+    Object.assign(wolves, { x: spot.x + 150, y: spot.y, targetX: spot.x + 150, targetY: spot.y });
+    state.npcParties = [wolves];
+    for(let i = 0; i < 16; i++) Game.updateNPCs(0.25);
+    assert.ok(!wolves.playerTargetId, 'the pack locked onto a party on the road it can never set foot on');
+    // off the road, the same pack comes for you
+    Object.assign(state.player, { x: spot.x + 150, y: spot.y + 60 });
+    Object.assign(wolves, { x: spot.x + 150, y: spot.y + 200 });
+    if(!Game.onRoad(state.player.x, state.player.y)) {
+        Game.updateNPCs(0.25);
+        assert.strictEqual(wolves.playerTargetId, 'player', 'the pack no longer hunts a party off the road');
+    }
+});
+
+test('spawns: new bands and wanderers appear on land, not in the sea a step from the coast', () => {
+    const w = H.world({ seed: 6 });
+    const { Game, state } = w;
+    Object.assign(state.player, { x: 4500, y: -40000 });
+    for(let i = 0; i < 150; i++) {
+        for(const n of [Game.spawnFromLair(), Game.spawnWanderer()]) {
+            if(!n) continue;
+            const p = { x: n.x, y: n.y };
+            Game.clampToMap(p);
+            assert.ok(Math.hypot(p.x - n.x, p.y - n.y) < 0.5, `${n.type} spawned ${Math.round(Math.hypot(p.x - n.x, p.y - n.y))} units off the coast`);
+        }
+    }
 });
 
 test('bandit lairs: bands spread across the lairs instead of piling on a few (#97)', () => {
@@ -4019,7 +4194,10 @@ function thresholds() {
         // raids went up too, but average prosperity (87.9–89.6) and erased
         // kingdoms (0) didn't budge — i.e. the economy is absorbing it, the
         // regime isn't changing. Range measured across 5 seeds is 119–206.
-        between(r.caravanRaid, 20, 260, 'caravan raids');
+        // 260→300 (2.4.4): the band that walked onto a convoy is now the one that raids it, and
+        // one band hunts one convoy; seed 1 went 249→264 raids, prosperity 66.3→67.6 (seeds 1–5:
+        // 264–396 raids, 61.3–71.8 prosperity, before 249–459 and 56.4–68.8).
+        between(r.caravanRaid, 20, 300, 'caravan raids');
         assert.ok(r.caravans > 0, 'no trade party left on the map');
         assert.strictEqual(r.errors, 0, 'exception during the sim');
     });

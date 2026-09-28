@@ -1,6 +1,7 @@
 # Gecelik böcek avı: her gece yeni tohumlarla oyunu kendi kendine oynatır.
 #  - e2e/specs/monkey.spec.js  — tohumlu rastgele oynanış, dört projede (TR/EN/ID, masaüstü/telefon)
 #  - e2e/specs/lairsweep.spec.js — her in, her düzen, her giriş yolu, gündüz ve gece
+#  - tools/mapwatch.js          — haritadaki her parti adım adım: sıçrama, takılma, ileri geri, yığılma
 #  - tools/career.js            — 150 günlük senaryolu kariyer, her eylemden sonra kurallar; aynı
 #                                  kariyer sahte dilde (xx) de oynanır, dünya her gün aynı olmalı
 # Maymun ve in taraması beş projede koşar: TR/EN/ID ve sahte dil xx (çevrilmemiş metin, iki kez
@@ -38,6 +39,7 @@ jobs:
           echo "monkey=$m" >> "$GITHUB_OUTPUT"
           echo "career=$((d * 8 + 1))-$((d * 8 + 8))" >> "$GITHUB_OUTPUT"
           echo "pump=$((d * 2 + 1)),$((d * 2 + 2))" >> "$GITHUB_OUTPUT"
+          echo "map=$((d * 4 + 1))-$((d * 4 + 4))" >> "$GITHUB_OUTPUT"
       - run: npm ci
         working-directory: e2e
       - run: npx playwright install --with-deps chromium
@@ -57,6 +59,10 @@ jobs:
           node tools/exploits.js --seed ${{ steps.seeds.outputs.pump }} > pumps.txt 2>&1 || a=$?
           node tools/exploits.js --seed ${{ steps.seeds.outputs.pump }} --edge --walks 300 >> pumps.txt 2>&1 || b=$?
           cat pumps.txt; exit $(( a || b ))
+      # Every map party watched step by step in four scenes: a jump, a stuck party, dithering, a crowd
+      - name: map parties
+        continue-on-error: true
+        run: node tools/mapwatch.js --seed ${{ steps.seeds.outputs.map }} --days 40 > map.txt 2>&1 || { a=$?; cat map.txt; exit $a; }
       - name: monkey
         continue-on-error: true
         working-directory: e2e
@@ -74,14 +80,15 @@ jobs:
         run: |
           found=$( { grep -E '^seed [0-9]+ day ' career.txt || true; \
                      grep -E '^(PUMP|THROW) ' pumps.txt || true; \
+                     grep -E '^MAP ' map.txt || true; \
                      grep -E '^MK ' monkey.txt || true; } \
                    | awk '{ k = $0; sub(/#[0-9]+ /, "", k); if(!s[substr(k, 1, 160)]++) print }' | head -60)
           failed=$(grep -cE '^\s+[0-9]+\) ' monkey.txt || true)
           if [ -z "$found" ] && [ "$failed" = "0" ]; then echo "temiz gece"; exit 0; fi
           {
-            echo "Gecelik av ($(date -u +%F)) — maymun tohumları \`${{ steps.seeds.outputs.monkey }}\`, kariyer tohumları \`${{ steps.seeds.outputs.career }}\`, pompa tohumları \`${{ steps.seeds.outputs.pump }}\`, commit ${GITHUB_SHA::7}."
+            echo "Gecelik av ($(date -u +%F)) — maymun tohumları \`${{ steps.seeds.outputs.monkey }}\`, kariyer tohumları \`${{ steps.seeds.outputs.career }}\`, pompa tohumları \`${{ steps.seeds.outputs.pump }}\`, harita tohumları \`${{ steps.seeds.outputs.map }}\`, commit ${GITHUB_SHA::7}."
             echo
-            echo "Tekrar üretmek için: \`MONKEY=1 MONKEY_SEED=<tohum> MONKEY_STEPS=${{ inputs.steps || 300 }} npx playwright test specs/monkey.spec.js --project=<proje>\` · \`node tools/career.js --seed <tohum>\` · \`node tools/exploits.js --seed <tohum> [--edge]\`"
+            echo "Tekrar üretmek için: \`MONKEY=1 MONKEY_SEED=<tohum> MONKEY_STEPS=${{ inputs.steps || 300 }} npx playwright test specs/monkey.spec.js --project=<proje>\` · \`node tools/career.js --seed <tohum>\` · \`node tools/exploits.js --seed <tohum> [--edge]\` · \`node tools/mapwatch.js --seed <tohum> --days 40\`"
             echo
             echo '```'
             echo "${found:-(bulgu satırı yok; kırmızı test sayısı: $failed — ayrıntı run sayfasında)}"
@@ -106,6 +113,7 @@ jobs:
           path: |
             career.txt
             pumps.txt
+            map.txt
             monkey.txt
             suite.txt
             coverage.md

@@ -473,7 +473,32 @@ prosperity on arrival (caravan +0.5, convoy +0.15).
 crossing convoy rolls a raid (guard resistance ×1.15 caravan / ×0.5 convoy); a repelled band is
 halved, a raided convoy is removed and its cargo passes to the band (whoever beats that band
 next gets it — no extra code, same loot pipeline). Idle bands within 1200 units actively chase
-the nearest trade party if it's a winnable fight.
+the nearest trade party if it's a winnable fight. **One band per convoy** (2.4.4): a convoy
+another band already hunts is skipped, a band keeps its own convoy unless another is `PREY_HOLD`
+(300) units nearer, a band skips one inside the sight of an army it would flee, and the band
+hunting a convoy is the one that raids it. Each convoy walks at its own pace (±10%): at one fixed
+speed on a fixed route, two that met once walked in lockstep for good.
+
+### Map movement rules (2.4.4, `tools/mapwatch.js`)
+`mapwatch.js` watches every party's every step (no player / a neutral company / a vassal at the
+front / a vassal besieging) for jumps, stuck parties, dithering and crowds. What it caught, and
+the rule each find became:
+- **Flight lasts** — a party that flees you keeps running `FLEE_HOURS` (4) once out of sight;
+  errands (a convoy, a patrol, a campaign) wait. It used to turn back at the edge of `sense` and
+  flee again, all day. A wolf pack in flight doesn't lean back in on blood scent or charge.
+- **One lord per band** — a patrol skips a band another lord is after; a lord within
+  `PATROL_CONTACT` (30) of its band lets it go and scans again in 24 h (only one lord-band clash
+  resolves a day). Before, every lord in reach took the nearest band and crossed the map beside
+  it as one ball for days.
+- **Besiegers and campaign armies stand on a ring** — each lord its own spot `SIEGE_RING` (90)
+  from the place (angle from `Battle.idHash`), instead of a dozen parties on its centre pixel.
+- **Wolves shun a party on the road** — a pack neither locks onto nor leans toward you while you
+  stand on a road (its road rule pushes every target off it: packs used to orbit a siege camp on
+  the high road for weeks). Off the road it hunts as before.
+- **Spawns on land** — a band or wanderer placed around a coastal lair/village is clamped ashore
+  before it appears (the first step snapped it up to 170 units).
+Measured: seeds 1–16 × 40 days × 4 scenes, no find (before: 43 finds on seed 1 in 20 days, ~170
+crowd finds on seeds 1–3).
 
 ### Fighting beside a clashing lord (#32)
 No NPC-vs-NPC battle engine — a "clash" is detected at the moment of encounter
@@ -679,8 +704,14 @@ and resets the plan. At the deadline: 40% free escape, else a ransom modal (75�
 (`Game.playerFaction()` returns `'player'`, not `null`) — an enemy town's gates close, a lord
 attacks, exactly like any real front; raiding a village is how an independent player opens a
 war. `Game.warTick()` daily: nearby enemy lords clash (winner loses ~20%, loser ~70%, a
-scattered party respawns 4–10 days later), a strong-enough army besieges a settlement over 3
-days, and 35% of a wartime lord's movement targets an enemy settlement.
+scattered party respawns 4–10 days later), a strong-enough army besieges a settlement over `AI_SIEGE_DAYS` (12) days at its walls, and 35% of a wartime lord's movement targets an enemy settlement.
+**The besieger holds the walls** (2.4.4): `updateNPCs` keeps it on its ring spot, the army already
+besieging a place carries on (a new one comes from lords not besieging), and a siege is dropped
+the day its army is 500+ units away, no longer outnumbers the garrison ×1.3, made peace, or the
+place became its owner's last holding. Before, it wandered off, the day count survived separate
+visits, and whichever lord was in reach could reset it; with honest sieges, 3 days tripled the
+conquests. Measured (`sim.js --days 200 --seed 1-5`): conquered 6–19 (before 7–12), campaigns
+23–26, wars 16–21, peace 15–22, raids 264–396, prosperity 61.3–71.8, 0 kingdoms erased.
 
 ### Marshal, campaign call, and alliance (#36)
 A kingdom at war has a 15%/day chance of picking a **marshal** (`pickMarshal`, biggest lord
@@ -697,10 +728,19 @@ to 2 fiefs gets a much better peace chance — no kingdom gets wiped out.
 ### Sieges & founding a kingdom (#25)
 Three stages: **camp** (pick a method: 🪜 Ladder 1-day prep/+40% defender advantage or 🗼 Siege
 Tower 3-day prep/+15%) → **preparation/starvation** (garrison erodes 7%/day while you wait, a
-25% daily chance of a relief army showing up) → **assault** (`Battle.siege`: a wall across 66%
+25% daily chance of a relief army setting out) → **assault** (`Battle.siege`: a wall across 66%
 of the arena, the defender holds the breach's mouth, arrows pass over the wall like a rock).
 Winning transfers the settlement to your liege (or founds your own kingdom if independent) and
 declares war on the former owner.
+
+**The camp is the army at the walls** (2.4.4, `Game.holdSiege()`, run every frame and at the
+start of `siegeTick`/`assaultSiege`): within `SIEGE_REACH` (150) units an encounter leaves the
+siege paused and the party goes back to it; farther (a map click, a captor) lifts it. The siege
+used to stay behind — days kept ticking and the walls could be assaulted from across the map.
+**The relief marches** (`siegeRelief`): the nearest enemy lord within 2500 gets `reliefLocId`,
+one relief at a time, and the camp hears of it in the news; it walks to you (it doesn't flee the
+army it came for), and at `RELIEF_REACH` (120) `checkRelief` opens the meet-or-lift choice. It
+used to be set down at the gate the instant it was rolled.
 
 ### Fief management (#23)
 `loc.owner === 'player'` opens tax (`Game.fiefTax(loc)` = `prosperity × (town 2/keep 0.7/village
@@ -1580,6 +1620,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
 | `tools/typecheck.js [--update]` | tsc over the game's JS (`tools/tsconfig.json`, nothing compiled; typescript from `e2e/node_modules`): fails on an error not in `tools/tsc-baseline.json` |
 | `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks from the settlements and the map's payouts (a bandit band, a lord prisoner, a ruin, a quest hand-in), replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
+| `tools/mapwatch.js [--seed 1-3] [--days 40]` | map parties watched step by step in four scenes: a jump, a stuck party, a dithering one, a crowd, a siege from afar — one `MAP` line per find, exit 1 |
 | `tools/coverage.js [--dir e2e/test-results] [--top 40] [--md f]` | the coverage map: merges every e2e run made with `COVERAGE=1` and lists the game functions none of them called, biggest first |
 
 Bug hunting in the browser: `MONKEY=1 MONKEY_SEED=1,2,3 MONKEY_STEPS=400 npx playwright test

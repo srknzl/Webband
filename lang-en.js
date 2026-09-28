@@ -1397,6 +1397,7 @@ I18N.dicts.en = {
   "🗺️ Birinin yerini sor": "🗺️ Ask where someone is",
   "🗺️ Harita bir yol tarif ediyor ama sonundaki kapı herkese açılmıyor.": "🗺️ The map describes a road, but the door at the end of it does not open for everyone.",
   "🗺️ {0}'a sor: \"… nerede?\"": "🗺️ Ask {0}: \"where is …?\"",
+  "🚩 {0}, {1} kişiyle {2} kuşatmasını yarmaya yola çıktı.": "🚩 {0} has set out with {1} men to break the siege of {2}.",
   "🚩 Yardım Ordusu!</h3> <p><b>{0}</b> {1} kişiyle kuşatmayı yarmaya geldi. Surun dibinde iki ateş arasında kalamazsın: ya bu orduyu karşılarsın ya da kampı toplarsın.": "🚩 A relief army!</h3> <p><b>{0}</b> has come with {1} men to break the siege. You cannot be caught between two fires at the foot of the wall: either you meet this army or you strike camp.",
   "🚩 {0} yaklaşıyor — {1} birim": "🚩 {0} is closing in — {1} units away",
   "🚪 Ayrıl": "🚪 Leave",
