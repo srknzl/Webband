@@ -1604,10 +1604,19 @@ function for each test (started before the first script, so a function never cal
 with 0) into the test's `coverage.json`; `tools/coverage.js` merges them and lists only the
 outermost never-run functions — where the next scenario should go. The nightly job runs the monkey,
 the lair sweep and the regular suite on tr-desktop with it and writes the map into the run summary.
-Measured, regular suite on tr-desktop alone: app.js 59% of functions, battle.js 89%, map-art.js 98%,
-lair.js 72%, nobles.js 60%, **quests.js 13%**; the biggest unreached are the long-haired hair
-(`femHair`, no female unit in any spec), the lady portrait, and the pre-sprite map silhouettes
-(`drawRider/Footman/Wolf`, a fallback the loaded sprite sheets never need).
+Node runs count too (2.4.2): under `NODE_V8_COVERAGE=.coverage-node` V8 writes its raw files and
+the harness runs each game file under its own name. A run recorded on older code (offsets moved)
+is skipped with a warning — e2e runs carry their source's sha1, Node files must be newer than
+every game file. Measured, `tools/test.js` + the regular suite on tr-desktop: app.js 85% of
+functions, battle.js 90%, quests.js 81%, nobles.js 73% (e2e alone: quests.js 13%, nobles.js 60%).
+The map then pointed at two gaps that now have tests: the wave quests' `day()` hooks (the drivers
+emit their wins straight at the engine — `tools/test.js` now plays harvest_watch, outpost_defense
+and merchant_convoy through real days, waves and auto-resolved battles to the hand-in) and the
+lord/lady dialogues (a seeded walk that presses the buttons each window shows, 400 walks from
+states that open courtship, dowry, poems, rivals and feasts, in English — 2779 presses, clean;
+alone it reaches 80% of nobles.js). Still unreached: the long-haired hair (`femHair`, no female
+unit anywhere) and the pre-sprite map silhouettes (`drawRider/Footman/Wolf`, a fallback the loaded
+sprite sheets never need).
 
 `tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
 run it with `node`. None of `tools/` is loaded by `index.html`; `.github/workflows/test.yml`

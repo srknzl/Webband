@@ -2353,6 +2353,102 @@ test('quest: every event a quest waits for is sent by the game, with the fields 
     assert.ok(!bad.length, `${bad.length} broken: ${bad.join(' · ')}`);
 });
 
+// The lords' and ladies' dialogues are a web of buttons no test walked (the coverage map: asking
+// where someone is, small talk, gifts, insults, poems, dowry haggling, rivals, feasts). This walks
+// it the way a player does — open a dialogue, press a button the window shows, again — on seeded
+// random paths from states that open the deep branches, with the world in English, and fails on
+// a throw, a Debug error, a key missing from the dictionary or broken text in the window.
+test('dialogues: seeded walks through every lord and lady window stay clean (EN)', () => {
+    const vm = require('vm');
+    const w = H.world({ seed: 5, lang: 'en' });
+    const { Game, Nobles, Feast, state, LORDS, LADIES, LOCATIONS, I18N, Debug, Battle } = w;
+    Game.checkAchievements = () => {};
+    const POEMS = vm.runInContext('POEMS', w._ctx), rnd = H.mulberry32(77);
+    const body = () => w._sandbox.document.getElementById('modal-body').innerHTML;
+    const unesc = s => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    const buttons = () => [...body().matchAll(/onclick="([^"]*)"/g)].map(m => unesc(m[1]))
+        .filter(h => !/this\.|location\.|Save\.(del|wipe|toFile)|Debug\.download|install|Fullscreen/.test(h));
+    const found = new Map(), note = (k, path) => found.has(k) || found.set(k, path.join(' > '));
+    Object.assign(state.player, { money: 100000, renown: 800 });
+    const starts = [...LORDS.slice(0, 12), ...LADIES.slice(0, 8)].map(l => l.id);
+    let steps = 0;
+    for(let walk = 0; walk < 400; walk++) {
+        const id = starts[walk % starts.length], n = Nobles.any(id);
+        const home = LOCATIONS.find(l => l.id === n.homeLocId) || LOCATIONS[0], party = Nobles.partyOf(id);
+        Nobles.addRel(id, (walk % 3) * 20 - 10);
+        Object.assign(state.player, { x: home.x, y: home.y, status: 'idle' });
+        if(party) Object.assign(party, { x: home.x, y: home.y });
+        // the states the deep branches need: poems known, a tournament to dedicate, a lady taken
+        // with you, a spouse, a heroine (courted by lords), a feast in the hall
+        const v = walk % 5, lady = n.guardianId !== undefined;
+        state.player.poems = v ? POEMS.map(p => p.id) : [];
+        state.pendingDedication = v === 1;
+        if(lady) state.affection[id] = v >= 2 ? 70 : 20;
+        state.player.spouse = v === 3 && lady ? id : null;
+        (state.player.background = state.player.background || {}).gender = v === 4 ? 'female' : 'male';
+        state.feast = v === 4 ? { faction: n.faction, locId: home.id, endDay: state.time.day + 4, greeted: [] } : null;
+        const path = [v === 4 ? `Feast.open(${home.id})` : `Nobles.talk(${id}) v${v}`];
+        try { if(v === 4) Feast.open(home); else Nobles.talk(id); } catch(e) { note('throw ' + e.message, path); continue; }
+        for(let d = 0; d < 7; d++) {
+            const bs = buttons();
+            if(!bs.length) break;
+            const h = bs[Math.floor(rnd() * bs.length)], errs = Debug.errors.length, miss = I18N.missing.size;
+            path.push(h.slice(0, 70));
+            try { vm.runInContext(`(function(event){ ${h} }).call({}, { stopPropagation(){}, preventDefault(){}, target: {} })`, w._ctx); steps++; }
+            catch(e) { note('throw ' + e.message, path); break; }
+            if(Debug.errors.length > errs) note('Debug.errors ' + Debug.errors[Debug.errors.length - 1].msg, path);
+            if(I18N.missing.size > miss) note('missing EN key ' + [...I18N.missing].pop(), path);
+            const text = body().replace(/<[^>]+>/g, ' '), bad = /\bundefined\b|\bNaN\b|\{\d\}|\[object Object\]/.exec(text);
+            if(bad) note('broken text ' + text.slice(Math.max(0, bad.index - 50), bad.index + 30).replace(/\s+/g, ' '), path);
+            if(Battle.active) { Battle.active = false; break; }   // a duel starts a real fight: the walk ends at its gate
+        }
+        Game.closeModal();
+    }
+    assert.ok(steps > 1500, `only ${steps} buttons pressed — the walk isn't getting into the dialogues`);
+    assert.ok(!found.size, [...found].map(([k, p]) => `${k}\n      after ${p}`).join('\n    '));
+});
+
+// Three quests are won by waves their own day() sends — and the drivers above emit battle_won
+// straight at the engine, so no test had ever run a day() (the coverage map's biggest quest gap).
+// Here the world runs: the day spawns the wave, the wave comes, a real auto-resolved battle
+// beats it, battle.js emits the win with the wave's tag, and the giver pays at the gate.
+test('quest: the wave quests play through their own days, battles and hand-in', () => {
+    const played = {};
+    for(const id of ['harvest_watch', 'outpost_defense', 'merchant_convoy']) {
+        const w = H.world({ seed: 11 });
+        const { Game, Battle, Quests, QUESTS, LORDS, LOCATIONS, Nobles, state } = w;
+        Game.checkAchievements = () => {};
+        const giver = LORDS.find(l => QUESTS[id].givers.includes(l.personality));
+        const q = Quests.make(id, giver.id);
+        state.player.quests.push(q);
+        state.player.party = Array.from({ length: 40 }, (_, i) => ({ id: 'w' + i, name: 'Svadya Şövalyesi', level: 25, xp: 0, xpNext: 999 }));
+        state.player.money = 5000;
+        const post = LOCATIONS.find(l => l.id === q.data.locId);
+        // on guard next to the post; the convoy walks from wherever it is
+        const stand = id === 'merchant_convoy' ? LOCATIONS.find(l => l.id === giver.homeLocId) : post;
+        let fights = 0;
+        H.run(w, QUESTS[id].days - 1, () => {
+            Object.assign(state.player, { x: stand.x + 40, y: stand.y, status: 'idle', targetLocation: null });
+            state.npcParties.filter(n => n.questWave === q.id && n.size > 0).forEach(n => {
+                state.player.currentEncounterNpcId = n.id;
+                Battle.start(n.name, n.size, null, '', null, true, null);
+                Game.closeModal(); fights++;
+            });
+            if(id === 'merchant_convoy' && q.data.cleared && q.state === 'active') Game.enterLocation(post);
+        });
+        assert.strictEqual(q.state, 'awaiting', `${id}: not finished after its days (${fights} fights, data ${JSON.stringify(q.data)})`);
+        // the giver collects wherever the trail says
+        const p = Nobles.partyOf(giver.id), at = LOCATIONS.find(l => l.id === q.turnInLocId);
+        Object.assign(p, { x: at.x, y: at.y });
+        const before = state.player.money;
+        Game.enterLocation(at);
+        assert.ok(!Quests.has(id), `${id}: not handed in at ${at.id}`);
+        assert.ok(state.player.money >= before + QUESTS[id].reward.money, `${id}: reward not paid`);
+        played[id] = fights;
+    }
+    assert.ok(played.harvest_watch >= 2 && played.outpost_defense >= 3 && played.merchant_convoy >= 1, JSON.stringify(played));
+});
+
 // A "find and defeat this exact bandit gang" quest (brother_in_chains and its two siblings)
 // keeps its narrative meaning — the tracked party stays a specific target (#132) — but it's
 // no longer allowed to just vanish out from under the quest: setup() marks it `questLocks++`,

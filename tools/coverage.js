@@ -25,17 +25,28 @@ function* runs(dir) {
     for(const e of fs.readdirSync(dir, { withFileTypes: true })) {
         const p = path.join(dir, e.name);
         if(e.isDirectory()) yield* runs(p);
-        else if(e.name === 'coverage.json') yield JSON.parse(fs.readFileSync(p, 'utf8'));
+        else if(e.name === 'coverage.json') yield [JSON.parse(fs.readFileSync(p, 'utf8')), fs.statSync(p).mtimeMs];
         else if(/^coverage-.*\.json$/.test(e.name))            // Node's raw V8 output, one per process
-            yield JSON.parse(fs.readFileSync(p, 'utf8')).result.filter(r => GAME.test(r.url))
-                .map(r => ({ file: r.url, functions: r.functions.map(f => [f.functionName, f.ranges[0].startOffset, f.ranges[0].endOffset, f.ranges[0].count]) }));
+            yield [JSON.parse(fs.readFileSync(p, 'utf8')).result.filter(r => GAME.test(r.url))
+                .map(r => ({ file: r.url, functions: r.functions.map(f => [f.functionName, f.ranges[0].startOffset, f.ranges[0].endOffset, f.ranges[0].count]) })),
+                fs.statSync(p).mtimeMs];
     }
 }
 
+// Offsets only mean something against the code they were recorded on: a run made before an edit
+// would list every function twice, at old and new offsets. An e2e run carries the hash of the
+// source it saw; Node's raw files carry none, so they have to be newer than every game file.
+// ponytail: an edit *during* a Node run slips past the mtime check; rerun after editing.
+const sha1 = f => require('crypto').createHash('sha1').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
+const hashes = {};
+const current = (run, mtime) => run.every(({ file, sha1: h }) => h ? h === (hashes[file] = hashes[file] || sha1(file))
+    : !fs.existsSync(path.join(ROOT, file)) || fs.statSync(path.join(ROOT, file)).mtimeMs <= mtime);
+
 // file → start offset → { name, end, ran }
 const fns = {};
-let count = 0;
-for(const dir of DIRS.filter(d => fs.existsSync(d))) for(const run of runs(dir)) {
+let count = 0, stale = 0;
+for(const dir of DIRS.filter(d => fs.existsSync(d))) for(const [run, mtime] of runs(dir)) {
+    if(!current(run, mtime)) { stale++; continue; }
     count++;
     for(const { file, functions } of run) {
         const m = fns[file] || (fns[file] = new Map());
@@ -47,6 +58,7 @@ for(const dir of DIRS.filter(d => fs.existsSync(d))) for(const run of runs(dir))
         }
     }
 }
+if(stale) console.error(`skipped ${stale} run(s) recorded on older code — rerun them for a full map`);
 if(!count) { console.error(`no coverage under ${DIRS.map(d => path.relative(ROOT, d)).join(', ')} — run the e2e specs with COVERAGE=1 or Node with NODE_V8_COVERAGE first`); process.exit(1); }
 
 const rows = [], unreached = [];
