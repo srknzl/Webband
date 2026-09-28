@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.8', date: '2026-09-28', name: 'Kümes' };  // the version name is not translated
+const VERSION = { no: '2.4.9', date: '2026-09-28', name: 'Dümen' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -899,24 +899,28 @@ const Input = {
                document.getElementById('modal-overlay').classList.contains('hidden') &&
                document.getElementById('main-ui').classList.contains('active')) {
                 let scr = { m:'map', c:'character', p:'party', i:'inventory', q:'quests' }[k];
+                let onMap = document.getElementById('map-view').classList.contains('active');
                 if(scr) Game.showScreen(scr);
-                // 1-9 press a settlement card (2.1): digits belong to nothing else outside battle
+                // 1-9 press a settlement card (2.1); on the map 1 2 3 pick the time speed
                 else if(/^[1-9]$/.test(e.key) && Game.settlementKey(e.key)) e.preventDefault();
+                else if(/^[1-3]$/.test(e.key) && onMap) Game.setTimeScale(Game.TIME_SCALES[+e.key - 1]);
                 // Esc returns to the map from any screen; a second Esc — already on the map,
                 // nothing left to back out of — pauses the game (#113).
                 else if(e.key === 'Escape') {
                     if(document.getElementById('map-view').classList.contains('active')) Game.togglePause();
                     else Game.showScreen('map');
                 }
-                // Space brings the camera back to the player (if the map was panned away from the edge)
-                else if(e.key === ' ' && document.getElementById('map-view').classList.contains('active')) Game.centerOnPlayer();
+                // Space stops and restarts the clock, as in most strategy games; H brings the camera
+                // back to the player (Space's job until 2.4.8)
+                else if(e.key === ' ' && onMap) Game.hold(!Game.held);
+                else if(k === 'h' && onMap) Game.centerOnPlayer();
                 // K: kingdoms' war/peace status
                 else if(k === 'k') Game.showDiplomacy();
                 // N: next piece — the music re-composes itself, so skipping is the only way
                 // to hear a different band without waiting out the current one
                 else if(k === 'n') Game.Music.skip();
                 // Z: cycle the time-flow speed (0.5x/1x/2x) — same key the map zoom used to own (#21)
-                else if(k === 'z' && document.getElementById('map-view').classList.contains('active')) Game.cycleTimeScale();
+                else if(k === 'z' && onMap) Game.cycleTimeScale();
             }
         });
         window.addEventListener('keyup', e => { 
@@ -929,6 +933,7 @@ const Input = {
         window.addEventListener('mousemove', e => {
             Input.mouse.clientX = e.clientX;
             Input.mouse.clientY = e.clientY;
+            Input.mouse.onMap = e.target === Game.mapCanvas;   // not over the menus floating on it
             Input.stick = null; Input.aim = null;   // if the mouse moved, it takes over aim, not the virtual stick
             
             // Measured against the battle canvas on show (#battle-gl under WebGL, 1.33.0) but
@@ -2784,6 +2789,7 @@ const Game = {
             Debug.guard('map loop', () => {
                 if(this.towerReveal) this.towerRevealTick(t);
                 Anim.tick(dt);   // UI tweens run even while the clock is stopped (a purchase in a modal)
+                this.updateCamera(dt);
                 if(!this.clockStopped()) this.update(dt);
                 this.renderMap();
                 this.tickScene(t);
@@ -2798,7 +2804,16 @@ const Game = {
     // lands on whichever loop is alive, and every caller asks through this one door. It sits on
     // `Game`, not in `state`, because `state` is what gets saved and a pause is a session thing.
     paused: false,
-    clockStopped() { return this.paused || !!this.towerReveal; },
+    // Space's hold: the player's own stop, kept apart from `paused` — closing any window lifts the
+    // pause menu's stop (#113), but a stop set on purpose waits for Space, a speed key or the speed
+    // button. Walking into a town or a fight lifts it too: the clock there is the scene's own.
+    held: false,
+    hold(on) {
+        this.held = on;
+        this.pauseBar('');
+        this.updateTopBar();
+    },
+    clockStopped() { return this.paused || this.held || !!this.towerReveal; },
     isPaused() { return (typeof Battle !== 'undefined' && Battle.active) ? Battle.paused : this.paused; },
     setPaused(on, msg) {
         if(typeof Battle !== 'undefined' && Battle.active) Battle.paused = on;
@@ -2810,6 +2825,7 @@ const Game = {
     pauseBar(msg) {
         let b = document.getElementById('pause-bar');
         if(!b) return;
+        msg = msg || (this.held ? T('⏸ DURAKLATILDI') : '');   // under a lifted banner, a hold still shows
         b.textContent = msg || '';
         // Under the campaign bar, not across it — the day, the purse and the food count are
         // exactly what the player wants to read while stopped. In battle that bar is hidden and
@@ -3351,10 +3367,10 @@ const Game = {
         return T`"Sana nasıl yardım edebilirim?"`;
     },
 
-    update(dt) {
+    // The camera runs on its own step, outside the clock: while time is stopped (Space's hold,
+    // the watchtower's look) the player can still pan, zoom and look around the frozen map.
+    updateCamera(dt) {
         if (this.inScene()) return;
-        state.meta.playtime = (state.meta.playtime || 0) + dt;   // playtime shown in the save info card
-        
         // Mouse Edge Panning — gated by Game.edgePan(), can be turned off from ⚙️ Settings.
         // Also gated on no modal being open (#132): renderMap() already skips drawing while a
         // modal is up, but this update loop doesn't stop, so the camera used to keep panning off
@@ -3368,17 +3384,21 @@ const Game = {
         let my = Input.mouse.clientY;
         let modalOpenNow = !document.getElementById('modal-overlay').classList.contains('hidden');
 
-        if (this.edgePan() && !modalOpenNow && document.getElementById('map-view').classList.contains('active') && mx !== undefined) {
+        // Only over the map itself: the menu, the HUD and the campaign bar float on the canvas, and
+        // reaching for one of their buttons used to slide the map away underneath. The campaign bar
+        // covers the whole top edge, so the top band starts under it instead.
+        if (this.edgePan() && !modalOpenNow && Input.mouse.onMap && document.getElementById('map-view').classList.contains('active') && mx !== undefined) {
             let rect = this.mapCanvas.getBoundingClientRect();
-            if (mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom) {
+            let top = Math.max(rect.top, document.getElementById('top-bar').getBoundingClientRect().bottom);
+            if (mx >= rect.left && mx <= rect.right && my >= top && my <= rect.bottom) {
                 let innerX = mx - rect.left;
-                let innerY = my - rect.top;
-                
+                let innerY = my - top;
+
                 if (innerX < edgeMargin) this.camera.offsetX -= panSpeed;
                 else if (innerX > rect.width - edgeMargin) this.camera.offsetX += panSpeed;
-                
+
                 if (innerY < edgeMargin) this.camera.offsetY -= panSpeed;
-                else if (innerY > rect.height - edgeMargin) this.camera.offsetY += panSpeed;
+                else if (innerY > rect.bottom - top - edgeMargin) this.camera.offsetY += panSpeed;
             }
         }
 
@@ -3387,7 +3407,7 @@ const Game = {
         // player + offset, so a constant offset dragged the view along as the player
         // walked: look at your destination and it slid away in your direction of travel
         // (#94). Cancelling the player's own step out of the offset holds the view still.
-        // Space and 🎯 Beni Bul zero the offset and resume following, as before.
+        // H and 🎯 Beni Bul zero the offset and resume following, as before.
         if(this._camPx !== undefined && (this.camera.offsetX || this.camera.offsetY)) {
             this.camera.offsetX -= state.player.x - this._camPx;
             this.camera.offsetY -= state.player.y - this._camPy;
@@ -3411,7 +3431,7 @@ const Game = {
         // panning (#44). It used to do the opposite, resetting the offset and locking the
         // camera to the player; the only way to look around the map by hand was to push
         // the mouse to the screen edge.
-        // Returning to the player is already possible with Space and 🎯 Find Me.
+        // Returning to the player is already possible with H and 🎯 Find Me.
         if(!modalOpenNow && document.getElementById('map-view').classList.contains('active')) {
             let k = Input.keys;
             if(k['a']||k['arrowleft'])  this.camera.offsetX -= panSpeed;
@@ -3422,6 +3442,12 @@ const Game = {
         // Don't lose the continent entirely: the map is 9000 units, the offset is capped to match
         this.camera.offsetX = Math.max(-9000, Math.min(9000, this.camera.offsetX));
         this.camera.offsetY = Math.max(-9000, Math.min(9000, this.camera.offsetY));
+    },
+
+    update(dt) {
+        if (this.inScene()) return;
+        state.meta.playtime = (state.meta.playtime || 0) + dt;   // playtime shown in the save info card
+        let modalOpenNow = !document.getElementById('modal-overlay').classList.contains('hidden');
 
         if(state.player.prisoner) {
             state.player.status = 'prisoner';
@@ -4392,11 +4418,16 @@ const Game = {
     // or slow down this baseline, but travel no longer burns through whole days in a few seconds.
     TIME_FLOW: 0.75,
     timeScale() { return state.timeScale || 1; },
+    TIME_SCALES: [0.5, 1, 2],   // the speed button's steps; keys 1 2 3 pick them directly
     cycleTimeScale() {
-        let steps = [0.5, 1, 2];
-        let i = steps.indexOf(this.timeScale());
-        state.timeScale = steps[(i + 1) % steps.length];
-        this.updateTopBar();
+        let steps = this.TIME_SCALES;
+        this.setTimeScale(steps[(steps.indexOf(this.timeScale()) + 1) % steps.length]);
+    },
+    // Picking a speed means "go": it lifts Space's hold as well
+    setTimeScale(v) {
+        state.timeScale = v;
+        if(this.held) this.hold(false);
+        else this.updateTopBar();
     },
 
     // A chase is not a battle yet, but it feels like one (#131): a hostile party that stays
@@ -6020,7 +6051,8 @@ const Game = {
         t.innerHTML = T(terrain.name) + mod;
         // line icons, not emoji (2.0.0): the terrain's own, and a clock on the speed button
         this.setHtml('map-terrain-ico', this.icon(this.TERRAIN_ICON[terrain.name] || 'compass'));
-        this.setHtml('btn-map-speed', this.icon('clock') + ' ×' + this.timeScale());
+        this.setHtml('btn-map-speed', this.icon('clock') + (this.held ? ' ⏸' : ' ×' + this.timeScale())
+            + (this.isTouch() ? '' : ` <kbd>${T('Boşluk')}</kbd> <kbd>1 2 3</kbd>`));
 
         let c = this.getPartyComposition();
         // Unspent points should show from the map and open the character screen (#35)
@@ -6037,7 +6069,7 @@ const Game = {
             `<span title="${T('Piyade')}">${this.icon('helm')} <b>${c.infantry}</b></span><span title="${T('Okçu')}">${this.icon('bow')} <b>${c.archer}</b></span><span title="${T('Süvari')}">${this.icon('horse')} <b>${c.cavalry}</b></span>`
             + pts
             + `<button id="btn-wait" onclick="Game.askWait()" title="${T('Kamp kur, zamanı geçir')}">${lbl('glass', T`⏳ Bekle`)}</button>`
-            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (Boşluk)')}">${lbl('target', T`🎯 Beni Bul`)}${touch ? '' : ` <kbd>${T('Boşluk')}</kbd>`}</button>`
+            + `<button id="btn-center" onclick="Game.centerOnPlayer()" title="${touch ? T('Kamerayı bana getir') : T('Kamerayı bana getir (H)')}">${lbl('target', T`🎯 Beni Bul`)}${touch ? '' : ' <kbd>H</kbd>'}</button>`
             + `<button id="btn-track" onclick="Game.Music.skip()" title="${touch ? T('Sıradaki parçaya geç') : T('Sıradaki parçaya geç (N)')}">${lbl('note', T`🎵 Sıradaki`)}${touch ? '' : ' <kbd>N</kbd>'}</button>`
             + `<button id="btn-diplo" onclick="Game.showDiplomacy()" title="${touch ? T('Krallıkların savaş/barış hâli') : T('Krallıkların savaş/barış hâli (K)')}">${lbl('globe', T`🌍 Diplomasi`)}${touch ? '' : ' <kbd>K</kbd>'}</button>`);
     },
@@ -6117,6 +6149,7 @@ const Game = {
         // but never drawn to. Refusing the switch here is the single choke point for every
         // caller; leaving battle only ever happens through its own end-of-battle flow (#132).
         if(screenId !== 'battle' && screenId !== 'lair' && this.inScene()) return;
+        if(this.held && /^(settlement|battle|lair)$/.test(screenId)) this.hold(false);
         this.perfGrace();   // the frames right after a switch are loading, not the device's pace
         let wasMap = document.getElementById('map-view').classList.contains('active');
         this.resetMapInteractionState();   // the map starts every screen from a clean input state (#96)
@@ -9005,9 +9038,10 @@ const Game = {
     // when the language is still 'tr', so translating here would freeze the translation)
     KEYS: [['M', 'Harita'], ['C', 'Karakter'], ['P', 'Grup'], ['I', 'Envanter'], ['Q', 'Görevler'],
            ['K', 'Diplomasi'], ['N', 'Sıradaki müzik parçası'], ['Esc', 'Haritaya dön / modalı kapat'], ['Enter', 'Modaldeki ana düğme'],
-           ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['Boşluk', 'Kamerayı oyuncuya getir'],
+           ['W A S D / Oklar', 'Haritada kamerayı kaydır'], ['H', 'Kamerayı oyuncuya getir'],
+           ['Boşluk', 'Zamanı durdur / sürdür'], ['1 2 3', 'Zamanın hızı: ×0.5 ×1 ×2'], ['Z', 'Sıradaki hız'],
            ['Savaşta W A S D', 'Hareket'], ['Sol tık / Boşluk', 'Vur veya ok at'],
-           ['Sağ tık / Shift', 'Blok'], ['1 2 3', 'Taktik emirleri']],
+           ['Sağ tık / Shift', 'Blok'], ['Savaşta 1 2 3', 'Taktik emirleri']],
     // The touch equivalent: how to do the same things without a keyboard (#65)
     TOUCH_HELP: [['👆 Dokun', 'Hedef koy / yerleşime gir'], ['👆 Basılı tut', 'Künyeyi aç'],
                  ['✋ Sürükle', 'Haritayı kaydır'], ['🤏 İki parmak', 'Yakınlaştır / uzaklaştır'],
@@ -9041,6 +9075,9 @@ const Game = {
         { el: '#map-hud', t: '🧭 Künye',
           m: 'Bulunduğun arazi hızını değiştirir — yoldan gitmek hızlı, nehir geçmek yavaştır. ⏳ Bekle ile kamp kurup zamanı geçirirsin: yaran iyileşir, turnuvalar açılır.',
           d: 'Bulunduğun arazi hızını değiştirir — yoldan gitmek hızlı, nehir geçmek yavaştır. ⏳ Bekle ile kamp kurup zamanı geçirirsin: yaran iyileşir, turnuvalar açılır.' },
+        { el: '#btn-map-speed', t: '⏱️ Zaman',
+          m: 'Zamanın akış hızı. Boşluk zamanı durdurur ve yeniden başlatır; dururken haritayı gezmeye devam edebilirsin. 1, 2 ve 3 hızı seçer: ×0.5, ×1, ×2.',
+          d: 'Zamanın akış hızı: her dokunuşta ×0.5, ×1 ve ×2 arasında geçer. Yavaş hız, bir takibi ya da bir kaçışı gözle izlemek içindir.' },
         { el: '#sidebar', t: '📋 Ekranlar',
           m: 'Karakterin, grubun, çantan ve görevlerin buradan açılır. Kısayolları da var: M C P I Q.',
           d: 'Alttaki şeritten karakterine, grubuna ve çantana bakarsın. Görevler, kayıtlar, ses ve ayarlar ⋯ Daha düğmesinin arkasında.' },

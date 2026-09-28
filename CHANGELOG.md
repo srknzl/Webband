@@ -3,6 +3,19 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.9 — Dümen (2026-09-28)
+
+- **Boşluk zamanı durdurur ve yeniden başlatır.** Durunca kamera serbest: kaydırıp yakınlaşarak
+  haritaya bakabilirsin. Bu sırada bir pencere açıp kapatmak oyunu kendiliğinden başlatmaz.
+- **1, 2 ve 3 zamanın hızını seçer** (×0.5, ×1, ×2) ve durmuş oyunu yeniden başlatır. Z hâlâ
+  sıradaki hıza geçer.
+- **Öğreticide yeni bir "⏱️ Zaman" adımı** hız düğmesini gösterip Boşluk ile 1 2 3'ü anlatıyor;
+  masaüstünde hız düğmesinin üstünde de tuşları yazıyor.
+- **Kamerayı sana getirmek artık H tuşunda** (eskiden Boşluk'taydı); 🎯 Beni Bul düğmesi yerinde.
+- **Fare, menülerin, alttaki araç çubuğunun ve üst çubuğun üstündeyken harita kaymıyor.** Kenar
+  kaydırma yalnız haritanın kendisinde çalışıyor; yukarı kaydırmak için üst çubuğun hemen altı
+  yeter. Alttaki araç çubuğuna tıklamak artık altındaki haritaya hedef koymuyor.
+
 ## 2.4.8 — Kümes (2026-09-28)
 
 - **Bulunduğun kalede geçen bir görevi alınca düğmesi hemen çıkıyor.** Lordun kaçan tavuklarını

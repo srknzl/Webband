@@ -1029,7 +1029,8 @@ body.view-map #map-hud { left: 212px; }   /* clear of the labelled strip (2.1.1:
     flex-direction: column;
     gap: 0.4rem;
     font-size: 0.76rem;
-    pointer-events: none;
+    /* solid, not click-through: it holds buttons now, and the pointer over it is on the panel,
+       not on the map — no marker dropped through it, no edge panning under it */
     background: rgba(8,9,12,0.86);
     border: 1px solid rgba(212,175,55,0.25);
 }
@@ -1191,7 +1192,7 @@ body.view-map #map-hud { left: 212px; }   /* clear of the labelled strip (2.1.1:
 /* Klavyesiz cihazda kenar menüsünün tuş rozetleri yalan (#65).
    Dar ekran kuralı yetmiyordu: tablet geniş ama parmakla sürülür. */
 body.touch .menu-btn kbd { display: none; }
-#map-comp kbd {
+#map-comp kbd, #btn-map-speed kbd {
     font-size: 0.62rem; padding: 0 4px; border-radius: var(--r-pill);
     background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); color: var(--text-muted);
 }
