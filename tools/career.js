@@ -20,7 +20,7 @@ const seeds = H.seeds(a.seed, [1, 2, 3, 4, 5]);
 // in every e2e test, and here after every scripted action
 const invariants = g => g.Debug.invariants();
 
-function run(seed, lang) {
+function run(seed, lang, days = DAYS, onDay) {
     const g = H.world({ seed, lang });
     // the harness has no media element; a load syncs the music through one
     g._sandbox.Audio = function() { return { play: () => Promise.resolve(), pause() {}, load() {}, addEventListener() {}, removeEventListener() {}, volume: 1 }; };
@@ -32,7 +32,7 @@ function run(seed, lang) {
     state.player.name = 'Kariyer';   // typed at creation in the game; the same in every language
     state.player.money = 2000;
     state.player.stats.hp = state.player.stats.maxHp;
-    const seen = new Set(), days = [];
+    const seen = new Set(), worlds = [];
     const note = (msg) => { const k = msg.replace(/\d+(\.\d+)?/g, '#'); if(seen.has(k)) return; seen.add(k); problems.push(`seed ${seed} day ${day} [${action}] ${msg}`); };
     const go = loc => { Object.assign(state.player, { x: loc.x, y: loc.y, status: 'idle', targetLocation: null }); Game.enterLocation(loc); };
     const friendly = l => !Game.atWar(Game.playerFaction(), l.faction);
@@ -78,9 +78,12 @@ function run(seed, lang) {
             go(c); Game.openTavern(c); Game.restAtTavern(); Game.closeModal();
         },
         quest() {
+            // the giver's own window, as a player reaches it: a finished job is handed in there,
+            // an open one refuses a second, otherwise it offers one (offerFrom skipped that gate
+            // and never handed in: 40 quests piled up by day 1000, #149)
             let lord = pick(g.LORDS);
-            let q = Quests.offerFrom(lord.id);
-            if(q && rnd() < 0.8 && Quests.accept) Quests.accept(lord.id);
+            Quests.offerMenu(lord.id);
+            if(state.pendingQuest) rnd() < 0.8 ? Quests.accept() : Quests.decline(lord.id);
             Game.closeModal();
         },
         grow() {                   // spend what the character screen offers
@@ -146,7 +149,7 @@ function run(seed, lang) {
     };
     const names = Object.keys(ACTIONS);
 
-    for(day = 1; day <= DAYS; day++) {
+    for(day = 1; day <= days; day++) {
         for(let k = 0; k < 3; k++) {
             action = state.player.prisoner ? 'captive' : pick(names);
             if(state.player.prisoner) {
@@ -168,9 +171,10 @@ function run(seed, lang) {
             Game.closeModal();
         } catch(e) { note(`threw: ${e.message} @ ${(e.stack || '').split('\n')[1].trim()}`); }
         invariants(g).forEach(note);
-        if(a.lang) days.push(JSON.stringify(canonical(g)));   // compared day by day in --lang mode
+        if(a.lang) worlds.push(JSON.stringify(canonical(g)));   // compared day by day in --lang mode
+        if(onDay) onDay(day, g);
     }
-    return { problems, days, summary: `seed ${seed}: day ${DAYS}, lvl ${state.player.stats.level}, party ${state.player.party.length}, ${Math.round(state.player.money)} dinars, renown ${state.player.renown}` };
+    return { problems, days: worlds, summary: `seed ${seed}: day ${days}, lvl ${state.player.stats.level}, party ${state.player.party.length}, ${Math.round(state.player.money)} dinars, renown ${state.player.renown}` };
 }
 
 // The whole world as data, keys sorted, minus the clock stamps and the debug log
@@ -192,18 +196,21 @@ function firstDiffs(a, b, path = 'save', out = []) {
 // --lang xx: the same career in another language must end in the same world. The language layer
 // only changes words on screen; a difference means a translation leaked into the game's logic
 // (a translated troop name used as a type, a translated line kept in the state...).
-const other = a.lang;
-let all = [];
-for(const s of seeds) {
-    const r = run(s);
-    console.log(r.summary + (r.problems.length ? `, ${r.problems.length} problem(s)` : ', clean'));
-    all = all.concat(r.problems);
-    if(other) {
-        const o = run(s, other), day = r.days.findIndex((d, i) => d !== o.days[i]);
-        console.log(`seed ${s} in '${other}': ` + (day >= 0 ? `the worlds part on day ${day + 1}` : 'the same world, every day'));
-        if(day >= 0) firstDiffs(JSON.parse(r.days[day]), JSON.parse(o.days[day]))
-            .forEach(d => all.push(`seed ${s} day ${day + 1} [language '${other}'] ${d}`));
-        o.problems.forEach(p => all.push(p.replace(/^(seed \d+ day \d+ )\[/, `$1[${other}: `)));
+if(require.main === module) {
+    const other = a.lang;
+    let all = [];
+    for(const s of seeds) {
+        const r = run(s);
+        console.log(r.summary + (r.problems.length ? `, ${r.problems.length} problem(s)` : ', clean'));
+        all = all.concat(r.problems);
+        if(other) {
+            const o = run(s, other), day = r.days.findIndex((d, i) => d !== o.days[i]);
+            console.log(`seed ${s} in '${other}': ` + (day >= 0 ? `the worlds part on day ${day + 1}` : 'the same world, every day'));
+            if(day >= 0) firstDiffs(JSON.parse(r.days[day]), JSON.parse(o.days[day]))
+                .forEach(d => all.push(`seed ${s} day ${day + 1} [language '${other}'] ${d}`));
+            o.problems.forEach(p => all.push(p.replace(/^(seed \d+ day \d+ )\[/, `$1[${other}: `)));
+        }
     }
+    if(all.length) { console.log('\n' + all.join('\n')); process.exit(1); }
 }
-if(all.length) { console.log('\n' + all.join('\n')); process.exit(1); }
+module.exports = { run };

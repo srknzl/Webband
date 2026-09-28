@@ -263,4 +263,29 @@ function writeReport(topic, markdown) {
     return path.relative(ROOT, file);
 }
 
-module.exports = { load, world, run, mulberry32, args, seeds, writeReport };
+/**
+ * What a long game piles up (#149): the save's size and the lists that could grow without end.
+ * `longgame.js` samples it every 50 days; a number that keeps climbing is a leak.
+ */
+function footprint(g) {
+    const { state, LOCATIONS } = g;
+    const snap = g.Save.snapshot();
+    const len = v => Array.isArray(v) ? v.length : v && typeof v === 'object' ? Object.keys(v).length : 0;
+    return {
+        saveKB: +(JSON.stringify(snap).length / 1024).toFixed(1),
+        npcParties: state.npcParties.length,
+        news: len(state.recentEvents),
+        warLog: len(state.warLog),
+        stockKeys: LOCATIONS.reduce((a, l) => a + len(l.stock), 0),
+        sites: len(state.sites),
+        feasts: len(state.scheduledFeasts),
+        quests: len(state.player.quests),
+        questOffers: len(state.questOffers),
+        inventory: state.player.inventory.length,
+        relations: len(state.relations),
+        grudges: len(state.grudges),
+        errors: g.Debug.errors.length
+    };
+}
+
+module.exports = { load, world, run, mulberry32, args, seeds, writeReport, footprint };
