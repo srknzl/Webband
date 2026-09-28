@@ -68,7 +68,7 @@ for(const renderer of ['pixi', 'canvas']) {
         await page.waitForFunction(() => Game._loopId && !Battle.active);
 
         // The chicken chase stays Canvas2D on #battle-canvas, whatever drew the last battle
-        await page.evaluate(() => TournamentMinigame.start({ mode: 'chicken', goal: 3, time: 20 }));
+        await page.evaluate(() => TournamentMinigame.start({ goal: 3, time: 20 }));
         await expect(page.locator('#battle-canvas')).toBeVisible();
         await expect(page.locator('#battle-gl')).toBeHidden();
         await expect.poll(() => painted(page)).toBeGreaterThan(1);

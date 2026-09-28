@@ -846,6 +846,7 @@ I18N.dicts.en = {
   "Süre dolarsa ya da vazgeçersen görev yanar ve {0} ile −10 ilişki.": "Miss the deadline or give up and the quest is lost: −10 relation with {0}.",
   "Süre dolarsa ya da vazgeçersen görev yanar, lonca defterine kırmızı bir çizik düşer.": "Miss the deadline or give up and the quest is lost, with a red mark in the guild's ledger.",
   "Süre doldu.": "Time ran out.",
+  "Skor: {0}/{1}": "Score: {0}/{1}",
   "Süre: {0}": "Time: {0}",
   "Süvari": "Cavalry",
   "Sınıf Terfisi: {0} {1} ({2} Dinar)": "Promote: {0} {1} ({2} denars)",

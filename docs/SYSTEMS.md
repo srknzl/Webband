@@ -430,8 +430,12 @@ denars + 30 meat/cheese for +5 relation, +15 renown.
 ### Quests (`quests.js`)
 Event-driven engine. `Quests.emit(ev, data)` fires on `entered_location`, `bought_item`,
 `battle_won`, `escaped_captivity`, `tournament_end`, `chickens_caught`, `talked_to`,
-`poem_recited_lord`, `raided`; `Quests.dailyTick()` runs each quest's `day()` hook and checks
-deadlines.
+`poem_recited_lord`, `raided`, `lair_cleared`, `lair_captive_freed`; `Quests.dailyTick()` runs
+each quest's `day()` hook and checks deadlines. **The event contract** (2.4.2): the quest suite's
+drivers emit events themselves, so they prove the engine, not the game — `tools/test.js` also
+reads every `Quests.emit('x', { … })` literal in the game against every `on()` body and fails on
+an event nobody sends or a `d.field` no send of that event carries. Keep emits as plain object
+literals so the scan can read them.
 
 A quest definition has 4 hooks (only `desc`/`where` mandatory): `setup(q, giver)` (assume the
 precondition — `can` already filtered), `can(giver)` (is it currently offerable), `desc(q)`
@@ -722,8 +726,10 @@ eliminated. Prize: Çeyrek Final 50 / Yarı Final 150 / Final 500+20 renown. Bet
 the actual field strength (`tourneyOdds`, clamped 1.2–6), not a fixed table. Fought in a round
 sand-pit arena, not the open-field terrain generator.
 
-**The chicken-chase minigame** (`TournamentMinigame`) still exists but only as a quest
-encounter now — its tournament branch is unreachable, `start()` defaults to chicken mode.
+**The chicken-chase minigame** (`TournamentMinigame`) is only the quest's chicken chase. Its old
+click-rounds tournament mode (bet, gear draws, rounds) was removed in 2.4.2: unreachable, it still
+sent a `tournament_end` without `wins`, which would have failed the fixed-match quest on every
+entry. `Game.tournamentFinished(won, wins)` is the bracket's one result hook.
 
 **Arena** (`Battle.startArena`): always open, no party/loot/renown/prisoners — practice against
 a leveled foe, always infantry (an archer would kite a 1v1 forever). A win pays a small purse
@@ -1598,9 +1604,18 @@ function for each test (started before the first script, so a function never cal
 with 0) into the test's `coverage.json`; `tools/coverage.js` merges them and lists only the
 outermost never-run functions — where the next scenario should go. The nightly job runs the monkey,
 the lair sweep and the regular suite on tr-desktop with it and writes the map into the run summary.
-Measured, regular suite on tr-desktop alone: app.js 59% of functions, battle.js 89%, map-art.js 98%,
-lair.js 72%, nobles.js 60%, **quests.js 13%**; the biggest unreached are the long-haired hair
-(`femHair`, no female unit in any spec), the lady portrait, and the pre-sprite map silhouettes
+Node runs count too (2.4.2): under `NODE_V8_COVERAGE=.coverage-node` V8 writes its raw files and
+the harness runs each game file under its own name. A run recorded on older code (offsets moved)
+is skipped with a warning — e2e runs carry their source's sha1, Node files must be newer than
+every game file. Measured, `tools/test.js` + the regular suite on tr-desktop: app.js 85% of
+functions, battle.js 90%, quests.js 81%, nobles.js 73% (e2e alone: quests.js 13%, nobles.js 60%).
+The map then pointed at two gaps that now have tests: the wave quests' `day()` hooks (the drivers
+emit their wins straight at the engine — `tools/test.js` now plays harvest_watch, outpost_defense
+and merchant_convoy through real days, waves and auto-resolved battles to the hand-in) and the
+lord/lady dialogues (a seeded walk that presses the buttons each window shows, 400 walks from
+states that open courtship, dowry, poems, rivals and feasts, in English — 2779 presses, clean;
+alone it reaches 80% of nobles.js), and the long hair (`femHair`, no spec ever made the hero a
+woman — `heroine.spec.js` now does). Still unreached: the pre-sprite map silhouettes
 (`drawRider/Footman/Wolf`, a fallback the loaded sprite sheets never need).
 
 `tools/playtest-scenario.js` is the one exception — paste it into the browser console, don't
@@ -1611,13 +1626,17 @@ dependencies), and on green push to `main` a `release` job cuts a GitHub release
 fails loudly if the bump forgot a CHANGELOG line).
 
 ### e2e coverage (#133)
-`e2e/specs/` drives the real game in Chromium, every spec in the four projects (TR/EN/ID,
-desktop/phone). Beyond the first round (boot, menus, save/load, quests, map, battle, lair,
+`e2e/specs/` drives the real game in Chromium, every spec in the five projects (TR/EN/ID,
+desktop/phone, and the pseudo-locale). Beyond the first round (boot, menus, save/load, quests, map, battle, lair,
 scene, i18n) each system has its own spec: `tournament` (arena purse, the three-round bracket
 and the bet), `siege` (camp → ladder day → assault → own kingdom, and lifting it), `captivity`
 (plan, a failed try, one try a day, ransom), `nobles` (fealty, courtship to the wedding feast,
 hosting a feast), `fief` (garrison, storehouse and treasury, raid, tribute), `events` (the
-10-second hail clock, walking the hail, winter coal, a wanderer joining). Writing them found
+10-second hail clock, walking the hail, winter coal, a wanderer joining), `heroine` (2.4.2: a
+woman created with the hair button stepped through its four styles, into a battle wearing it; and
+the hair flicker's guard — the area the hair adds over the same man's frame, every style, armour,
+animation, facing and frame, may move ~20 px within a row; the broken frames fell 60-80 px below
+the row's median and fail it by name). Writing them found
 seven bugs, all in EN/ID or in a stale screen: the player's typed name and the circuit regulars
 T()'d in the bracket, the player kingdom's name frozen at founding (now `Game.facName`), the
 spouse's frozen name, an untranslated `zor`, T() calls nested in another T's placeholder that

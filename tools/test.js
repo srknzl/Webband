@@ -1609,7 +1609,7 @@ test('tournament: eight enter, one is crowned, and the ladder pays per round (#1
 test('chicken: a goose costs a bird, and the closing seconds shrink the birds (#123)', () => {
     reset();
     const M = g.TournamentMinigame;
-    Object.assign(M, { active: true, mode: 'chicken', goal: 16, gear: null, score: 0, targets: [] });
+    Object.assign(M, { active: true, goal: 16, score: 0, targets: [] });
     M.canvas = { width: 400, height: 300, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
     // One spawn per update: zero dt, zero spawn timer, and take the bird straight back off the field.
     const spawn = (timeLeft, n) => {
@@ -1622,10 +1622,7 @@ test('chicken: a goose costs a bird, and the closing seconds shrink the birds (#
         `the closing seconds scale the bird by ${late[0].radius / early[0].radius}`);
     const geese = early.filter(t => t.bad).length / early.length;
     between(geese, 0.15, 0.35, 'share of geese among the birds');
-    M.mode = 'tournament'; M.gear = { size: 1, life: 1 };
-    assert.ok(!spawn(20, 100).some(t => t.bad), 'a goose wandered into the tournament minigame');
-
-    M.mode = 'chicken'; M.score = 3;
+    M.score = 3;
     const click = bad => {
         M.targets = [{ x: 100, y: 100, radius: 20, timeLeft: 1, bad }];
         M.onClick({ clientX: 100, clientY: 100 });
@@ -1791,10 +1788,10 @@ test('tournament: the shared result hook completes the ambition immediately and 
     state.player.ambition = { id:'champion', day:state.time.day };
     state.player.ambitionsDone = [];
     const wins = state.player.tourneyWins || 0;
-    Game.tournamentFinished(false, { score:0 });
+    Game.tournamentFinished(false, 0);
     assert.strictEqual(state.player.tourneyWins || 0, wins, 'a tournament loss incremented the win hook');
     assert.strictEqual(state.player.ambition.id, 'champion', 'a loss completed the champion ambition');
-    Game.tournamentFinished(true, { score:3 });
+    Game.tournamentFinished(true, 3);
     assert.strictEqual(state.player.tourneyWins, wins + 1, 'the win hook did not increment the tournament counter');
     assert.ok(!state.player.ambition && state.player.ambitionsDone.includes('champion'),
         'the shared result hook deferred ambition completion until day end');
@@ -2228,7 +2225,7 @@ function questSuite() {
             enter(seat.id);
         },
         bring_poem: q => Quests.emit('poem_recited_lord', { lordId: q.giverId }),
-        arena_champion: () => Quests.emit('tournament_end', { won: true, score: 12 }),
+        arena_champion: () => Quests.emit('tournament_end', { won: true, wins: 3 }),
         chain_market: q => {
             for(let i = 0; i < q.data.need; i++) state.player.prisoners.push({ id: 'p' + i, name: 'Çapulcu', level: 5 });
             enter(q.data.locId);
@@ -2326,6 +2323,131 @@ function questSuite() {
     });
 }
 questSuite();
+
+// The drivers above emit quest events themselves, so they prove the engine, not the game: a
+// quest listening for an event the game never sends, or reading a field the game never fills,
+// passes them and can never finish in play. The minigame's old tournament mode sent
+// `tournament_end` without the `wins` the fixed-match quest reads — it failed on every entry.
+// This reads both sides of the contract: every `Quests.emit('x', { … })` in the game against
+// every `on()` body in quests.js.
+test('quest: every event a quest waits for is sent by the game, with the fields it reads', () => {
+    const fs = require('fs'), path = require('path');
+    const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    const sent = {};
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'lair.js', 'map-art.js'])
+        for(const [, ev, body] of read(f).matchAll(/Quests\.emit\('(\w+)',\s*\{([^{}]*)\}\)/g))
+            body.split(',').map(p => (/^\s*(\w+)\s*(?::|$)/.exec(p) || [])[1]).filter(Boolean)
+                .forEach(k => (sent[ev] = sent[ev] || new Set()).add(k));
+    const src = read('quests.js'), bad = [];
+    for(const m of src.matchAll(/\bon\(q, ev, d\)\s*\{/g)) {
+        let i = m.index + m[0].length, depth = 1;
+        for(; depth; i++) depth += src[i] === '{' ? 1 : src[i] === '}' ? -1 : 0;
+        const body = src.slice(m.index, i), line = src.slice(0, m.index).split('\n').length;
+        const evs = [...body.matchAll(/ev [!=]== '(\w+)'/g)].map(x => x[1]);
+        evs.filter(e => !sent[e]).forEach(e => bad.push(`quests.js:${line} waits for '${e}', which the game never sends`));
+        const has = new Set(evs.flatMap(e => [...(sent[e] || [])]));
+        [...new Set([...body.matchAll(/\bd\.(\w+)/g)].map(x => x[1]))].filter(k => !has.has(k))
+            .forEach(k => bad.push(`quests.js:${line} reads d.${k}, which no '${evs.join("'/'")}' the game sends carries`));
+    }
+    assert.ok(Object.keys(sent).length >= 10, `only ${Object.keys(sent).length} emitted events found — the scan broke`);
+    assert.ok(!bad.length, `${bad.length} broken: ${bad.join(' · ')}`);
+});
+
+// The lords' and ladies' dialogues are a web of buttons no test walked (the coverage map: asking
+// where someone is, small talk, gifts, insults, poems, dowry haggling, rivals, feasts). This walks
+// it the way a player does — open a dialogue, press a button the window shows, again — on seeded
+// random paths from states that open the deep branches, with the world in English, and fails on
+// a throw, a Debug error, a key missing from the dictionary or broken text in the window.
+test('dialogues: seeded walks through every lord and lady window stay clean (EN)', () => {
+    const vm = require('vm');
+    const w = H.world({ seed: 5, lang: 'en' });
+    const { Game, Nobles, Feast, state, LORDS, LADIES, LOCATIONS, I18N, Debug, Battle } = w;
+    Game.checkAchievements = () => {};
+    const POEMS = vm.runInContext('POEMS', w._ctx), rnd = H.mulberry32(77);
+    const body = () => w._sandbox.document.getElementById('modal-body').innerHTML;
+    const unesc = s => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    const buttons = () => [...body().matchAll(/onclick="([^"]*)"/g)].map(m => unesc(m[1]))
+        .filter(h => !/this\.|location\.|Save\.(del|wipe|toFile)|Debug\.download|install|Fullscreen/.test(h));
+    const found = new Map(), note = (k, path) => found.has(k) || found.set(k, path.join(' > '));
+    Object.assign(state.player, { money: 100000, renown: 800 });
+    const starts = [...LORDS.slice(0, 12), ...LADIES.slice(0, 8)].map(l => l.id);
+    let steps = 0;
+    for(let walk = 0; walk < 400; walk++) {
+        const id = starts[walk % starts.length], n = Nobles.any(id);
+        const home = LOCATIONS.find(l => l.id === n.homeLocId) || LOCATIONS[0], party = Nobles.partyOf(id);
+        Nobles.addRel(id, (walk % 3) * 20 - 10);
+        Object.assign(state.player, { x: home.x, y: home.y, status: 'idle' });
+        if(party) Object.assign(party, { x: home.x, y: home.y });
+        // the states the deep branches need: poems known, a tournament to dedicate, a lady taken
+        // with you, a spouse, a heroine (courted by lords), a feast in the hall
+        const v = walk % 5, lady = n.guardianId !== undefined;
+        state.player.poems = v ? POEMS.map(p => p.id) : [];
+        state.pendingDedication = v === 1;
+        if(lady) state.affection[id] = v >= 2 ? 70 : 20;
+        state.player.spouse = v === 3 && lady ? id : null;
+        (state.player.background = state.player.background || {}).gender = v === 4 ? 'female' : 'male';
+        state.feast = v === 4 ? { faction: n.faction, locId: home.id, endDay: state.time.day + 4, greeted: [] } : null;
+        const path = [v === 4 ? `Feast.open(${home.id})` : `Nobles.talk(${id}) v${v}`];
+        try { if(v === 4) Feast.open(home); else Nobles.talk(id); } catch(e) { note('throw ' + e.message, path); continue; }
+        for(let d = 0; d < 7; d++) {
+            const bs = buttons();
+            if(!bs.length) break;
+            const h = bs[Math.floor(rnd() * bs.length)], errs = Debug.errors.length, miss = I18N.missing.size;
+            path.push(h.slice(0, 70));
+            try { vm.runInContext(`(function(event){ ${h} }).call({}, { stopPropagation(){}, preventDefault(){}, target: {} })`, w._ctx); steps++; }
+            catch(e) { note('throw ' + e.message, path); break; }
+            if(Debug.errors.length > errs) note('Debug.errors ' + Debug.errors[Debug.errors.length - 1].msg, path);
+            if(I18N.missing.size > miss) note('missing EN key ' + [...I18N.missing].pop(), path);
+            const text = body().replace(/<[^>]+>/g, ' '), bad = /\bundefined\b|\bNaN\b|\{\d\}|\[object Object\]/.exec(text);
+            if(bad) note('broken text ' + text.slice(Math.max(0, bad.index - 50), bad.index + 30).replace(/\s+/g, ' '), path);
+            if(Battle.active) { Battle.active = false; break; }   // a duel starts a real fight: the walk ends at its gate
+        }
+        Game.closeModal();
+    }
+    assert.ok(steps > 1500, `only ${steps} buttons pressed — the walk isn't getting into the dialogues`);
+    assert.ok(!found.size, [...found].map(([k, p]) => `${k}\n      after ${p}`).join('\n    '));
+});
+
+// Three quests are won by waves their own day() sends — and the drivers above emit battle_won
+// straight at the engine, so no test had ever run a day() (the coverage map's biggest quest gap).
+// Here the world runs: the day spawns the wave, the wave comes, a real auto-resolved battle
+// beats it, battle.js emits the win with the wave's tag, and the giver pays at the gate.
+test('quest: the wave quests play through their own days, battles and hand-in', () => {
+    const played = {};
+    for(const id of ['harvest_watch', 'outpost_defense', 'merchant_convoy']) {
+        const w = H.world({ seed: 11 });
+        const { Game, Battle, Quests, QUESTS, LORDS, LOCATIONS, Nobles, state } = w;
+        Game.checkAchievements = () => {};
+        const giver = LORDS.find(l => QUESTS[id].givers.includes(l.personality));
+        const q = Quests.make(id, giver.id);
+        state.player.quests.push(q);
+        state.player.party = Array.from({ length: 40 }, (_, i) => ({ id: 'w' + i, name: 'Svadya Şövalyesi', level: 25, xp: 0, xpNext: 999 }));
+        state.player.money = 5000;
+        const post = LOCATIONS.find(l => l.id === q.data.locId);
+        // on guard next to the post; the convoy walks from wherever it is
+        const stand = id === 'merchant_convoy' ? LOCATIONS.find(l => l.id === giver.homeLocId) : post;
+        let fights = 0;
+        H.run(w, QUESTS[id].days - 1, () => {
+            Object.assign(state.player, { x: stand.x + 40, y: stand.y, status: 'idle', targetLocation: null });
+            state.npcParties.filter(n => n.questWave === q.id && n.size > 0).forEach(n => {
+                state.player.currentEncounterNpcId = n.id;
+                Battle.start(n.name, n.size, null, '', null, true, null);
+                Game.closeModal(); fights++;
+            });
+            if(id === 'merchant_convoy' && q.data.cleared && q.state === 'active') Game.enterLocation(post);
+        });
+        assert.strictEqual(q.state, 'awaiting', `${id}: not finished after its days (${fights} fights, data ${JSON.stringify(q.data)})`);
+        // the giver collects wherever the trail says
+        const p = Nobles.partyOf(giver.id), at = LOCATIONS.find(l => l.id === q.turnInLocId);
+        Object.assign(p, { x: at.x, y: at.y });
+        const before = state.player.money;
+        Game.enterLocation(at);
+        assert.ok(!Quests.has(id), `${id}: not handed in at ${at.id}`);
+        assert.ok(state.player.money >= before + QUESTS[id].reward.money, `${id}: reward not paid`);
+        played[id] = fights;
+    }
+    assert.ok(played.harvest_watch >= 2 && played.outpost_defense >= 3 && played.merchant_convoy >= 1, JSON.stringify(played));
+});
 
 // A "find and defeat this exact bandit gang" quest (brother_in_chains and its two siblings)
 // keeps its narrative meaning — the tracked party stays a specific target (#132) — but it's

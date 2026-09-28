@@ -121,7 +121,7 @@ const test = base.test.extend({
         if(process.env.COVERAGE && !page.isClosed()) {
             const game = (await page.coverage.stopJSCoverage())
                 .filter(e => /\/[\w-]+\.js$/.test(new URL(e.url).pathname) && !/\/vendor\//.test(e.url))
-                .map(e => ({ file: new URL(e.url).pathname.split('/').pop(), functions: e.functions.map(f => [f.functionName, f.ranges[0].startOffset, f.ranges[0].endOffset, f.ranges[0].count]) }));
+                .map(e => ({ file: new URL(e.url).pathname.split('/').pop(), sha1: require('crypto').createHash('sha1').update(e.source).digest('hex'), functions: e.functions.map(f => [f.functionName, f.ranges[0].startOffset, f.ranges[0].endOffset, f.ranges[0].count]) }));
             require('fs').writeFileSync(testInfo.outputPath('coverage.json'), JSON.stringify(game));
         }
         if(page.isClosed()) return;

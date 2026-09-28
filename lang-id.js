@@ -846,6 +846,7 @@ I18N.dicts.id = {
   "Süre dolarsa ya da vazgeçersen görev yanar ve {0} ile −10 ilişki.": "Kalau tenggat lewat atau kamu membatalkannya, tugas hangus: −10 hubungan dengan {0}.",
   "Süre dolarsa ya da vazgeçersen görev yanar, lonca defterine kırmızı bir çizik düşer.": "Kalau tenggat lewat atau kamu membatalkannya, tugas hangus dan buku gilda mendapat coretan merah.",
   "Süre doldu.": "Waktu habis.",
+  "Skor: {0}/{1}": "Skor: {0}/{1}",
   "Süre: {0}": "Waktu: {0}",
   "Süvari": "Kavaleri",
   "Sınıf Terfisi: {0} {1} ({2} Dinar)": "Naik kelas: {0} {1} ({2} Dinar)",
