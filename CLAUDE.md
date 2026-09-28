@@ -141,15 +141,17 @@ noise must never disturb them.
 
 `tools/harness.js` is the single entry point: it builds a fake DOM, runs the four game scripts in
 **one `vm` context**, and the same seed gives the same world via seeded `mulberry32`. It
-exports: `{ load, world, run, mulberry32, args, seeds, writeReport }` — there's no `boot`.
+exports: `{ load, world, run, mulberry32, args, seeds, writeReport, footprint }` — there's no `boot`.
 
 ```
-node tools/test.js [--fast]     # 93 assertions ~5s / pure-logic only ~0.15s
+node tools/test.js [--fast]     # everything ~80s / --fast ~3s: no thresholds, no slow() tests
 node tools/framegate.js         # frame-skip gate + #42 parity regression
 node tools/sim.js --days 200 --seed 1-5 | duel.js --n 200 | economy.js --days 60 --troops 10
 ```
 
-CI runs the first two on every push; the game itself has no `npm install` step. The `e2e`
+A test that plays worlds or duels over seeds and days is declared with `slow(...)`, not `test(...)`:
+`--fast` is the quick loop and skips it. CI runs the first two in full on every push; the game
+itself has no `npm install` step. The `e2e`
 job is the browser half:
 
 ```

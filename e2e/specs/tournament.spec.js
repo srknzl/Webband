@@ -50,6 +50,9 @@ test('tournament: a bet, three rounds on the sand, the champion is paid once', a
     await (await modalBtn(page, '⚔️ Kuraya Gir')).click();
     expect(await page.evaluate(() => state.player.money)).toBe(900);
     expect(await page.evaluate(id => !!state.activeTournaments[id], city), 'the tournament left the city list').toBe(false);
+    // ...and the town under the bracket says so: the way back in, not a second entry (nightly monkey)
+    await expect(page.locator('#settlement-actions')).toContainText(await L(page, '🏆 Cetvele Dön'));
+    await expect(page.locator('#settlement-actions')).not.toContainText(await L(page, '🏆 Turnuvaya Katıl'));
 
     for(const [round, size] of [['Çeyrek Final', 4], ['Yarı Final', 2], ['Final', 1]]) {
         await expect(modal(page)).toContainText(await L(page, round));

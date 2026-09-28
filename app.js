@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.7', date: '2026-09-28', name: 'Tercüman' };  // the version name is not translated
+const VERSION = { no: '2.4.8', date: '2026-09-28', name: 'Kümes' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3557,7 +3557,7 @@ const Game = {
         state.player.edgeDwell = 0;
         this.showModal(`<div style="text-align:center"><h3>${T('🧭 Sınırda')}</h3>
             <p>${T('Haritanın kenarına dayandın. Bu yöne gidilmez — hedefi bırakmak ister misin?')}</p>
-            <div style="display:flex;gap:0.6rem;justify-content:center;margin-top:1.2rem">
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;justify-content:center;margin-top:1.2rem">
                 <button class="btn primary" onclick="Game.leaveRegion()">${T('Evet, hedefi bırak')}</button>
                 <button class="btn" onclick="Game.stayAtEdge()">${T('Hayır, kal')}</button>
             </div></div>`);
@@ -9692,6 +9692,7 @@ const Game = {
         state.player.money -= t.bet;
         delete state.activeTournaments[t.locId];
         this.updateTopBar();
+        this.redrawTown(LOCATIONS.find(l => l.id === t.locId));   // "Turnuvaya Katıl" → "Cetvele Dön" underneath
         this.tourneyBoard();
     },
 
@@ -11738,7 +11739,7 @@ const Game = {
         if(!n) return;
         this.showModal(`<h3>${T`➖ Gruptan Çıkar</h3>
             <p><b>${key}</b> — elinde ${n} tane var. Çıkardığın asker yoluna gider, geri gelmez.`}</p>
-            <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:1rem">
                 <button class="btn" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', 1)">${T`Bir Tane`}</button>
                 ${n > 1 ? `<button class="btn" style="border-color:var(--danger);color:var(--danger)" onclick="Game.doDismiss('${key.replace(/'/g, "\\'")}', ${n})">${T`Hepsi (${n})`}</button>` : ''}
                 <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>
@@ -12628,7 +12629,7 @@ const Save = {
         Game.showModal(`<h3>${T`📤 Kaydı Dışa Aktar`}</h3>
         <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Aşağıdaki metni saklayabilir ya da hata raporuna ekleyebilirsin (${Math.round(txt.length / 1024)} KB).`}</p>
         <textarea id="save-text" readonly style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:var(--r-sm);font:0.7rem/1.3 monospace;padding:0.5rem">${txt.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
-        <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:0.8rem">
             <button class="btn primary" onclick="Save.copyText()">${T`📋 Panoya Kopyala`}</button>
             <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
         </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--success);font-size:var(--fs-sm)"></div>`, '660px');
@@ -12643,7 +12644,7 @@ const Save = {
         Game.showModal(`<h3>${T`📥 Kaydı İçe Aktar`}</h3>
         <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Dışa aktarılmış kayıt metnini yapıştır; 1. slota yazılır ve açılır.`}</p>
         <textarea id="save-text" style="width:100%;height:180px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:var(--r-sm);font:0.7rem/1.3 monospace;padding:0.5rem"></textarea>
-        <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:0.8rem">
             <button class="btn primary" onclick="Save.doImport()">${T`Yükle`}</button>
             <button class="btn" onclick="Save.open()">${T`← Kayıtlar`}</button>
         </div><div id="save-msg" style="text-align:center;margin-top:0.5rem;color:var(--danger);font-size:var(--fs-sm)"></div>`, '660px');

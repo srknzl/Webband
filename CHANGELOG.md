@@ -3,6 +3,16 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.8 — Kümes (2026-09-28)
+
+- **Bulunduğun kalede geçen bir görevi alınca düğmesi hemen çıkıyor.** Lordun kaçan tavuklarını
+  onun kalesinde kabul edince "Tavukları Kovala" düğmesi, kaleden çıkıp yeniden girene kadar
+  görünmüyordu.
+- **Turnuvada kuraya girince şehrin düğmesi "Cetvele Dön" oluyor.** Çetveli kapatınca şehirde hâlâ
+  "Turnuvaya Katıl" yazıyordu.
+- **Dar ekranda kalan son düğme sıraları da alt satıra geçiyor:** askeri gruptan çıkarma, harita
+  kenarı uyarısı, kayıt dışa/içe aktarma ve savaş sonucunun sekmeleri.
+
 ## 2.4.7 — Tercüman (2026-09-28)
 
 - **Oyunun içinde dil değiştirince ayarların arkasındaki ekran da çevriliyor.** Görevler ekranı
