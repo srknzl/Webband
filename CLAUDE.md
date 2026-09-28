@@ -161,7 +161,10 @@ Every spec runs in five projects (`tr-desktop`, `tr-phone`, `en-phone`, `id-desk
 pseudo-locale `xx-desktop`; `page.expectHttpError(/re/)` allows a failing request on purpose), so the
 language projects *are* the translation test; `i18n.spec.js` additionally sweeps every main
 screen on EN/ID for Turkish source text that never went through `T()` (text, `title`,
-`aria-label`, placeholder). Any new text ships in all three languages. Headless Chromium's WebGL is SwiftShader, so
+`aria-label`, placeholder). `mobile.spec.js` opens every window one level deep from each root
+screen and runs the shared layout `audit()` (`fixtures.js`) on it: nothing scrolls sideways, no
+scroll box inside a scrolling window, labels fit, thumbs can hit — a new window is covered once
+it has a button. Any new text ships in all three languages. Headless Chromium's WebGL is SwiftShader, so
 `'auto'` draws battles and the map with Canvas2D there; `renderer.spec.js` forces each renderer, and
 `painted(page, sel)` reads a screenshot of whichever canvas is on show. Locally Playwright runs 4
 workers, not half the cores: every WebGL test renders on the CPU there. `e2e/fixtures.js` fails

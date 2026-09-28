@@ -920,6 +920,24 @@ diverge even on the same device (a tablet: coarse pointer + wide screen):
   `≤430px` additionally shrinks HUD text and hides keyboard digits from command buttons.
   `body.in-battle` (set only under `pointer: coarse`) hides the campaign bar and menu strip
   during a fight so the whole screen is arena.
+- **One scroller per window, nothing slides** (2.4.5): a screen, view or window never scrolls
+  sideways, no box scrolls both ways, and no scroll box sits inside a scrolling window. The
+  start screen slid 24px sideways under the thumb (its title's 130%-wide glow) and scrolled on a
+  phone with its browser bars showing (796px of content in iPhone Safari's 390×664); the start
+  screen's Lordlar/Krallıklar list was a 250px box scrolling both ways inside the modal; the
+  achievements list scrolled inside its scrolling window on desktop. `#start-screen` clips
+  sideways (`overflow-x: hidden`, `overscroll-behavior: contain`) and drops its ornaments under
+  760px tall. Gate: `e2e/specs/mobile.spec.js` — a walk that opens every window one level deep
+  from each root screen (every button whose handler only opens something, every settlement
+  action with a window, a mid-game party/bag/prisoners/quests) and runs the shared `audit()`
+  (`e2e/fixtures.js`, also `ux.spec`) on each; touch swipes on the start screen and the map
+  bars must move nothing; the start screen fits 390×664; a scenes test audits the lair's scouting
+  card, its how-to, the lair, its result card and the tournament. The Turkish phone walks at 360×640 (the narrowest common
+  Android), the English one at the Pixel 7's 412. Measured: 47 windows on a phone, 45 on desktop.
+  At 360 the walk found the slave merchant's "Sat (+n)" and the bug form's buttons squeezed under
+  their labels. The lair card's intel (`max-height: 38vh`) and how-to (`60vh`) boxes are gone:
+  unboxed, the three ways in still end on screen (702 px of 720, 705 of 768). The walk also found an achievement toast that ate taps for 5 s over the bottom bar
+  (now `pointer-events: none`) and the prisoner list's "Salıver" squeezed under its label.
 - **Battle camera zoom** (`Battle.camZoomFor`, 1.31.5): desktop keeps `CAM_ZOOM` 2.3; on touch
   the screen's short side shows `MOBILE_VIEW` = 280 arena px (clamped 1.2–2.3) — 1.39 on a
   390px-wide iPhone, which shows ~1.65× the width 2.3 did.

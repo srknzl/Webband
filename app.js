@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.4', date: '2026-09-28', name: 'Kuşatma' };  // the version name is not translated
+const VERSION = { no: '2.4.5', date: '2026-09-28', name: 'Dokunuş' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -259,7 +259,7 @@ const Debug = {
             </div>
             <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:0.5rem">${T`Bildirim, herkesin görebileceği bir GitHub sayfasında yayımlanır.`}</p>
             <div id="bug-msg" style="font-size:var(--fs-sm);margin:0.4rem 0;color:${bad ? 'var(--danger)' : 'var(--success)'}">${msg || ''}</div>
-            <div style="display:flex;gap:0.5rem;justify-content:center">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center">
                 <button class="btn primary" id="bug-send" onclick="Debug.sendBug()">${T`📨 Gönder`}</button>
                 <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>
             </div>`, '560px');
@@ -8857,7 +8857,9 @@ const Game = {
         list.forEach((a, k) => {
             let tier = ACH_TIERS[a.tier];
             let el = document.createElement('div');
-            el.style.cssText = `pointer-events:auto;min-width:220px;max-width:300px;padding:10px 14px;border-radius:var(--r-md);
+            // taps go through it: it has nothing to press, and for five seconds it sat on the
+            // phone's bottom bar and on a window's buttons, eating the taps meant for them
+            el.style.cssText = `pointer-events:none;min-width:220px;max-width:300px;padding:10px 14px;border-radius:var(--r-md);
                 background:rgba(20,18,14,0.94);border:1px solid ${tier.col};box-shadow:0 6px 24px rgba(0,0,0,0.5);
                 color:#f0e6d2;font-size:13px;opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s`;
             let rewardTxt = T`+${tier.money} dinar` + (tier.renown ? T` · +${tier.renown} nam` : '');
@@ -8891,7 +8893,7 @@ const Game = {
             </div>`;
         }).join('');
         this.showModal(`<h3>${T`🏆 Başarımlar`} <span style="font-size:0.7em;opacity:0.6">(${got}/${ACHIEVEMENTS.length})</span></h3>
-            <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:60vh;overflow-y:auto;margin:0.6rem 0">${rows}</div>
+            <div style="display:flex;flex-direction:column;gap:0.4rem;margin:0.6rem 0">${rows}</div>
             <button class="btn primary" style="margin-top:0.4rem" onclick="Game.closeModal()">${T`Kapat`}</button>`, '440px');
     },
     // Cosmetic only (#132) — no stat, that's what relics are for. A gold achievement's own name
@@ -11295,21 +11297,22 @@ const Game = {
     // --- LORE ---
     showLore(type) {
         let title = type === 'lords' ? T('Kalradya Lordları') : T('Kalradya Krallıkları');
-        let modalHtml = `<div style="text-align:center;">
-            <h2 style="font-family:'Cinzel',serif;color:#ffcc00;font-size:2.5rem;margin-bottom:2rem;text-shadow:0 0 10px rgba(255,204,0,0.5);">${title}</h2>
-            <div style="display:flex;flex-direction:column;gap:1.5rem;text-align:left;max-height:65vh;overflow-y:auto;padding-right:1rem;">`;
+        // One scroller, the modal's own: the list used to be a second, 65vh-high scroll box
+        // inside it, and on a phone the wide rows scrolled sideways in it too (a small window
+        // scrolling both ways inside a page that scrolls). The layout lives in style.css.
+        let modalHtml = `<div class="lore">
+            <h2>${title}</h2>
+            <div class="lore-list">`;
 
-        const frame = inner => `<div style="padding:12px;background:linear-gradient(135deg,#5c3a21,#2a160b);
-            box-shadow:inset 0 0 15px #000,0 10px 20px rgba(0,0,0,0.9);border:2px solid #111;display:inline-block;">
-            <div style="border:6px ridge #dca243;padding:4px;background:#1a0b02;box-shadow:inset 0 0 10px #000;">${inner}</div></div>`;
+        const frame = inner => `<div class="lore-frame"><div>${inner}</div></div>`;
 
         const row = (imgHtml, color, name, sub, text) => `
-            <div style="display:flex;gap:2rem;align-items:center;background:rgba(0,0,0,0.6);padding:1.2rem 2rem;border-radius:var(--r-md);">
+            <div class="lore-row">
                 ${imgHtml}
                 <div>
-                    <h3 style="color:${color};font-size:1.6rem;margin-bottom:0.2rem;font-family:'Cinzel',serif;">${name}</h3>
-                    <div style="color:var(--text-muted);font-size:var(--fs-sm);margin-bottom:0.5rem">${sub}</div>
-                    <p style="color:#eee;line-height:1.4;font-size:1.2rem;font-family:'Cormorant Garamond','Georgia',serif;font-style:italic;">${text}</p>
+                    <h3 style="color:${color}">${name}</h3>
+                    <div class="lore-sub">${sub}</div>
+                    <p>${text}</p>
                 </div>
             </div>`;
 
@@ -11335,7 +11338,7 @@ const Game = {
         }
 
         modalHtml += `</div>
-            <button class="btn primary" style="margin-top:2rem;width:200px;" onclick="Game.closeModal()">${T`Kapat`}</button>
+            <button class="btn primary lore-close" onclick="Game.closeModal()">${T`Kapat`}</button>
         </div>`;
         this.showModal(modalHtml, '1000px', 'bg_hdr.jpg');
     },
@@ -11958,9 +11961,9 @@ const Game = {
             html += `<p style="color:var(--text-muted)">${T`Tüccar esirlerini tek tek süzüyor.`}</p><ul style="list-style:none;padding:0">`;
             for(let name in groups) {
                 let g = groups[name];
-                html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
+                html += `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.6rem;background:rgba(0,0,0,0.25);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                     <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="color:var(--text-muted);font-size:var(--fs-sm)">${T`(tanesi ${g.value} dinar)`}</span></span>
-                    <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
+                    <button class="btn" style="flex:none;font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.sellPrisoners('${name.replace(/'/g,"\\'")}')">${T`Sat (+${g.count * g.value})`}</button>
                 </li>`;
             }
             html += `</ul><button class="btn primary" style="width:100%" onclick="Game.sellPrisoners()">${T`Hepsini Sat (+${total} Dinar)`}</button>`;
@@ -12057,7 +12060,7 @@ const Game = {
             if(p.noble) {
                 html += `<li style="padding:0.8rem;background:rgba(0,0,0,0.25);border:1px solid #e59b3d;border-radius:var(--r-sm);margin-bottom:0.5rem">
                     <b style="color:#e59b3d">👑 ${T(p.name)}</b> <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`${Game.facName(FACTIONS[p.faction] || { name: '' })} · İlişki: ${Nobles.relLabel(Nobles.rel(p.lordId))}`}</span>
-                    <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
+                    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem">
                         <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem" onclick="Game.ransomLord('${p.id}')">${T`💰 Fidye İste (${p.ransom} Dinar)`}</button>
                         <button class="btn" style="font-size:var(--fs-sm);padding:0.3rem 0.6rem;border-color:#2ecc71;color:#2ecc71" onclick="Game.releaseLord('${p.id}')">${T`🕊️ Onurunla Salıver`}</button>
                     </div></li>`;
@@ -12068,9 +12071,10 @@ const Game = {
         });
         for(let name in groups) {
             let g = groups[name];
-            html += `<li style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
+            // flex:none: a long troop name squeezed the button narrower than its own label on a phone
+            html += `<li style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--panel-border);border-radius:var(--r-sm);margin-bottom:0.4rem">
                 <span>⛓️ <b>${T(name)}</b> x${g.count} <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(tanesi ~${g.value} dinar)`}</span></span>
-                <button class="btn" style="font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${name.replace(/'/g,"\\'")}')">${T`Salıver`}</button>
+                <button class="btn" style="flex:none;font-size:var(--fs-xs);padding:0.25rem 0.5rem" onclick="Game.releasePrisoners('${name.replace(/'/g,"\\'")}')">${T`Salıver`}</button>
             </li>`;
         }
         return html + '</ul>';

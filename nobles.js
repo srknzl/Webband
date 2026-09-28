@@ -929,7 +929,7 @@ const Nobles = {
         let html = `<h3>${T`🗺️ ${T(asked.name)}'a sor: "… nerede?"`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">
             ${T`Alacağın cevabın doğruluğu onunla aranın iyiliğine bağlı. Kırgın bir adam seni bilerek yanlış yola sürer.`}</p>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem;max-height:45vh;overflow-y:auto">`;
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem">`;   // the window scrolls, not a box in it
         others.forEach(l => {
             html += `<button class="btn" style="font-size:var(--fs-sm)" onclick="Nobles.askWhere('${askedId}','${l.id}')">${T(l.name)}</button>`;
         });
