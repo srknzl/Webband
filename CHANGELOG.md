@@ -16,6 +16,8 @@ başlangıç ekranının sağ alt köşesinde yazar.
 - **Başarımlar listesi ve "… nerede?" listesi kutu içinde kutu değil.** Pencerenin kendisi
   kayıyor.
 - **Esirler listesindeki "Salıver" düğmesi telefonda sıkışmıyor.**
+- **Haydut ininin keşif kartında da kutu içinde kutu yok.** Keşif bilgisi ve "nasıl oynanır"
+  listesi pencereyle birlikte kayıyor; üç giriş yolu yine ekranda.
 
 ## 2.4.4 — Kuşatma (2026-09-28)
 

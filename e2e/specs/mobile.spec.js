@@ -193,3 +193,34 @@ test('başlangıç ekranı tarayıcı çubuklu bir telefona kaydırmadan sığı
     expect(s.sh, `start screen content ${s.sh}px in ${s.ch}px`).toBeLessThanOrEqual(s.ch + 1);
     expect(await audit(page, '390×664 başlangıç')).toEqual([]);
 });
+
+// The scenes the walk above never reaches: a lair's scouting card and the lair itself with its
+// touch controls, and the arena's tournament. The battle is ux.spec's.
+test('sahneler: in kartı, in, turnuva', async ({ page, lang }) => {
+    test.skip(lang === 'xx', 'the pseudo-locale checks where text comes from, not how wide it is');
+    const found = [];
+    await newGame(page);
+    await page.evaluate(() => {
+        state.time.hour = 23; state.player.proficiencies.spotting.level = 8;   // the whole card
+        const s = Game.lairs()[0];
+        s.layout = 'house'; s.seen = true; s.lairAmbush = { day: state.time.day, on: false };
+        Game.enterSite(s);
+    });
+    await expect(modal(page).locator('.lair-brief')).toBeVisible();
+    found.push(...await audit(page, 'in kartı'));
+    await modal(page).locator('.lb-help').click();
+    found.push(...await audit(page, 'in kartı → nasıl oynanır'));
+    await page.evaluate(() => { localStorage.setItem(Lair.TUTOR_KEY, '1'); Lair.enter(Game.lairs()[0].id, 'solo'); });
+    await expect(page.locator('#lair-view')).toHaveClass(/\bactive\b/);
+    await page.waitForFunction(() => Lair.active && Lair.run());
+    found.push(...await audit(page, 'in'));
+    // backing out: the result card over the lair
+    await page.evaluate(() => Lair.retreat());
+    await expect(page.locator('#lair-over .lres')).toBeVisible();
+    found.push(...await audit(page, 'in sonucu'));
+    await page.evaluate(() => { Lair.leave(); Game.closeModal(); });
+    await page.evaluate(() => { Game.showScreen('map'); TournamentMinigame.start({ goal: 3, time: 20 }); });
+    found.push(...await audit(page, 'turnuva'));
+    await page.evaluate(() => TournamentMinigame.end(false));
+    expect(found).toEqual([]);
+});

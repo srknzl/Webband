@@ -931,8 +931,10 @@ diverge even on the same device (a tablet: coarse pointer + wide screen):
   from each root screen (every button whose handler only opens something, every settlement
   action with a window, a mid-game party/bag/prisoners/quests) and runs the shared `audit()`
   (`e2e/fixtures.js`, also `ux.spec`) on each; touch swipes on the start screen and the map
-  bars must move nothing; the start screen fits 390×664. Measured: 47 windows on a phone, 45 on
-  desktop. The walk also found an achievement toast that ate taps for 5 s over the bottom bar
+  bars must move nothing; the start screen fits 390×664; a scenes test audits the lair's scouting
+  card, its how-to, the lair, its result card and the tournament. Measured: 47 windows on a phone,
+  45 on desktop. The lair card's intel (`max-height: 38vh`) and how-to (`60vh`) boxes are gone:
+  unboxed, the three ways in still end on screen (702 px of 720, 705 of 768). The walk also found an achievement toast that ate taps for 5 s over the bottom bar
   (now `pointer-events: none`) and the prisoner list's "Salıver" squeezed under its label.
 - **Battle camera zoom** (`Battle.camZoomFor`, 1.31.5): desktop keeps `CAM_ZOOM` 2.3; on touch
   the screen's short side shows `MOBILE_VIEW` = 280 arena px (clamped 1.2–2.3) — 1.39 on a

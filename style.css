@@ -2244,8 +2244,6 @@ body.touch #lair-touch { display: block; }
 .lres tr:last-child td { border-bottom: 0; }
 /* the scouting card, inside the ordinary modal */
 .lair-brief { display: grid; gap: 10px; text-align: left; }
-/* the three ways in stay above the fold on a 768 px laptop: the intel is the part that scrolls */
-@media (min-width: 681px) { .lb-intel { max-height: 38vh; overflow-y: auto; } }
 .lair-brief h3 { margin: 2px 0 0; }
 .lb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .lb-help { width: 38px; height: 38px; padding: 0; border-radius: 50%; font-weight: 700; flex: none; }
@@ -2265,5 +2263,5 @@ body.touch #lair-touch { display: block; }
 .lb-way .lb-warn { color: #f0b64a; font-weight: 600; }
 .lb-way[disabled] { opacity: .45; cursor: default; }
 .lb-foot { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.lb-howto { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: var(--fs-sm); max-height: 60vh; overflow-y: auto; }
+.lb-howto { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: var(--fs-sm); }
 .lb-howto b { color: var(--primary-hover); }
