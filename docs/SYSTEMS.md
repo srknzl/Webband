@@ -854,6 +854,25 @@ pasted-text import share `Save.importText`: parse → check → `migrate` → sl
 refused file never touches an existing save. e2e: backup → `localStorage.clear()` → reload →
 load the file → name, day and money match.
 
+**A load starts from a fresh world (2.4.6, #147).** `Save.apply` used to merge the save into the
+running game, so what the save didn't carry kept the running game's value. A field left out of the
+JSON (`undefined`: a settlement's `treasury`, `storage`, `owner`, `garrison`…) and the tables the
+save never holds (`LORDS`' factions, `FACTIONS.player_kingdom`) all outlived an in-game load. Save,
+deposit 4000 in a fief's treasury, load: the purse was 5000 again and the treasury still held 4000,
+a money pump; the storehouse duplicated items; a castle taken, a lord sworn in, a kingdom founded
+after the save stayed. `Save.keepFresh()` copies `state`, `LOCATIONS`, `FACTIONS` and `LORDS` at the
+end of `Game.init` (the world a just-opened page has). `apply` first `resetWorld()`s to that copy,
+in place (`resetInto`, so `state.player` and each settlement keep their identity), then merges the
+save as before. A field an old save lacks still gets its default, now the fresh page's, not the
+running game's. `state.settings` is kept out of the reset: settings are the device's, and the save's
+merge over them as they always did. Gate: `tools/test.js` "kayıt ara durumda (#147)". Each
+in-between state (tournament between rounds, siege camp, ladder day, a wait, a quest awaiting its
+hand-in, an open encounter, captivity, a feast) is saved and loaded twice, into a just-opened
+world and into a game sitting in the next scene. The snapshot must come back identical, the
+invariants hold, and the scene carries on. A last test covers the treasury/storehouse/castle/vassal/
+kingdom leftovers; e2e `menus.spec` loads from the save panel mid-game. Measured: all eight
+in-between states resumed correctly before the fix too — the leak was only in what a save leaves out.
+
 ### Rules the game checks on itself (2.4.0)
 `Debug.invariants()` lists what no legitimate play breaks: finite money (≥ 0), hp, renown,
 position and morale; hp ≤ maxHp; a party within capacity + 5, unique troop ids, every troop of a

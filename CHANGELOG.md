@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.6 — Hazine (2026-09-28)
+
+- **Oyunun içinden kayıt yüklemek artık para ve eşya basmıyor.** Kaydettikten sonra bir tımarın
+  hazinesine para yatırıp kaydı yükleyince kese kayıttaki hâline dönüyor, hazine ise parayı
+  tutmaya devam ediyordu. Aynısı depoya konan eşyalar için de geçerliydi. Artık yükleme, dünyayı
+  kaydın alındığı ana döndürüyor.
+- **Kayıttan sonra alınan bir kale, bağlılık yemini eden bir lord ya da kurulan bir krallık,
+  daha eski bir kayıt yüklenince ortadan kalkıyor.** Önceden yeni oyundan kalıyorlardı.
+
 ## 2.4.5 — Dokunuş (2026-09-28)
 
 - **Telefonda başlangıç ekranı artık kaymıyor.** Başlıktaki ışıltı ekrandan taşıyordu. Bu yüzden

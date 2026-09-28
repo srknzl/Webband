@@ -4220,8 +4220,169 @@ function thresholds() {
     });
 }
 
+// ---------- 3. A save taken in the middle of things (#147) ----------
+// Each in-between state is set up with the game's own calls and saved. The save is loaded twice:
+// into a page just opened (another world) and into a game sitting in the next scene of the list —
+// a load from the pause menu lands on whatever is running. Both must come back as the very save
+// (snapshot for snapshot), pass the invariants, and carry on: the tournament plays its next round,
+// the siege counts its day, the wait runs out, the quest is handed in...
+function midScene() {
+    const canon = w => {
+        const d = JSON.parse(JSON.stringify(w.Save.snapshot()));
+        delete d.savedAt; delete d.state.meta;
+        return d;
+    };
+    const diffs = (a, b, path = 'save', out = []) => {
+        // undefined → value: a lazy field the load sets up (career.js's rule too)
+        if(out.length >= 4 || a === undefined || JSON.stringify(a) === JSON.stringify(b)) return out;
+        if(a && b && typeof a === 'object' && typeof b === 'object')
+            new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => diffs(a[k], b[k], path + '.' + k, out));
+        else out.push(`${path}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`.slice(0, 140));
+        return out;
+    };
+    const world = seed => {
+        const w = H.world({ seed });
+        // the harness has no media element; a load syncs the music through one
+        w._sandbox.Audio = function() { return { play: () => Promise.resolve(), pause() {}, load() {}, addEventListener() {}, removeEventListener() {}, volume: 1 }; };
+        const p = w.state.player, names = Object.keys(w.TROOP_TYPES);
+        p.party = Array.from({ length: 10 }, (_, i) => ({ id: 'ms' + i, name: names[i % 8], level: 8, xp: 0, xpNext: 99 }));
+        p.money = 3000;
+        return w;
+    };
+    const at = (w, l) => Object.assign(w.state.player, { x: l.x, y: l.y, status: 'idle', targetLocation: null });
+    const city = w => w.LOCATIONS.find(l => l.type === 'city');
+    const castle = w => w.LOCATIONS.find(l => l.type === 'castle');
+    const bandit = w => w.state.npcParties.find(n => n.type === 'bandit' && n.size > 0);
+    const day = (w, n = 1) => { H.run(w, n); w.Game.closeModal(); };
+
+    const SCENES = {
+        'turnuvanın iki turu arası': {
+            set(w) {
+                const c = city(w); at(w, c); w.state.activeTournaments[c.id] = true;
+                w.Game.joinTournament(c); w.Game.startTournament(); w.Game.tourneyRoundDone(true); w.Game.closeModal();
+            },
+            goOn(w) {
+                const t = w.state.tourney;
+                assert.ok(t && t.started && t.round === 1 && !t.done, `tournament after the load: ${JSON.stringify(t && { round: t.round, done: t.done })}`);
+                w.Game.joinTournament(city(w));   // the city's "Cetvele Dön"
+                w.Game.tourneyRoundDone(true); w.Game.tourneyRoundDone(true);
+                assert.ok(t.done && t.champion.you && t.paid, 'the tournament plays out to its champion');
+            }
+        },
+        'kuşatma kampı': {
+            set(w) { const k = castle(w); at(w, k); w.Game.beginSiege(k.id, 'tower'); day(w); },
+            goOn(w) {
+                assert.strictEqual(w.state.player.siege && w.state.player.siege.daysLeft, 2, 'the tower is two days off');
+                day(w);
+                assert.strictEqual(w.state.player.siege && w.state.player.siege.daysLeft, 1, 'a day of carpentry passes');
+            }
+        },
+        'merdiven günü': {
+            set(w) { const k = castle(w); at(w, k); w.Game.beginSiege(k.id, 'ladder'); day(w); },
+            goOn(w) {
+                const s = w.state.player.siege;
+                assert.ok(s && s.daysLeft === 0 && !s.weaken, 'the ladders are ready');
+                day(w);
+                assert.ok(w.state.player.siege && w.state.player.siege.weaken > 0, 'waiting on starves the garrison');
+            }
+        },
+        'bekleme sürerken': {
+            set(w) { w.Game.startWait(10); },
+            goOn(w) {
+                assert.ok(w.state.player.wait && w.state.player.status === 'waiting', 'still camped');
+                day(w); w.Game.waitTick();
+                assert.ok(!w.state.player.wait && w.state.player.status === 'idle', 'the wait runs out');
+            }
+        },
+        'görev teslimi beklerken': {
+            set(w) {
+                const lord = w.LORDS.find(l => (w._q = w.Quests.pick(l.id, true)));
+                w._giver = lord.id; w.state.player.quests.push(w._q); w.Quests.markDone(w._q); w.Game.closeModal();
+            },
+            goOn(w) {
+                const q = w.state.player.quests.find(x => x.state === 'awaiting');
+                assert.ok(q, 'the finished job still waits for its hand-in');
+                const money = w.state.player.money;
+                w.Quests.offerMenu(q.giverId); w.Game.closeModal();
+                assert.ok(!w.state.player.quests.includes(q) && w.state.player.money > money, 'handed in, paid');
+            }
+        },
+        'karşılaşma penceresi açık': {
+            set(w) { const b = bandit(w); at(w, { x: b.x - 20, y: b.y }); w.state.time.day = 20; w.Game.triggerEncounter(b); },
+            goOn(w) {
+                w.Game.closeModal();
+                const b = bandit(w); at(w, { x: b.x - 20, y: b.y }); w.state.encounterCooldown = 0;
+                w.Game.triggerEncounter(b);
+                assert.strictEqual(w.state.player.currentEncounterNpcId, b.id, 'the next band can be met');
+                w.Game.closeModal(); day(w);
+            }
+        },
+        'esaret': {
+            set(w) { w.Game.beginCaptivity(bandit(w), 5); w.Game.closeModal(); },
+            goOn(w) {
+                assert.ok(w.state.player.prisoner && w.state.player.status === 'prisoner', 'still a captive');
+                const left = w.state.player.prisoner.daysLeft;
+                day(w);
+                assert.strictEqual(w.state.player.prisoner && w.state.player.prisoner.daysLeft, left - 1, 'captivity counts its days');
+            }
+        },
+        'şölen sürerken': {
+            set(w) { const c = city(w); w.Feast.schedule(c.faction, c.id, w.state.time.day); w.Feast.dailyTick(); },
+            goOn(w) {
+                const f = w.state.feast;
+                assert.ok(f && f.endDay > w.state.time.day, 'the feast is on');
+                day(w, f.endDay - w.state.time.day + 1);
+                assert.ok(w.state.feast !== f && !(w.state.feast && w.state.feast.endDay === f.endDay), 'the feast ends on its day');
+            }
+        }
+    };
+
+    const names = Object.keys(SCENES);
+    names.forEach((name, i) => test(`kayıt ara durumda (#147): ${name}`, () => {
+        const w = world(10 + i);
+        SCENES[name].set(w);
+        const before = canon(w);
+        w.Save.save('1'); w.Game.closeModal();
+        const raw = w._sandbox.localStorage.getItem(w.Save.key('1'));
+        const next = names[(i + 1) % names.length];
+        for(const [where, into] of [['a page just opened', world(40 + i)], [`a game in "${next}"`, (() => { const o = world(70 + i); SCENES[next].set(o); return o; })()]]) {
+            into._sandbox.localStorage.setItem(into.Save.key('1'), raw);
+            into.Save.load('1'); into.Game.closeModal();
+            const d = diffs(before, canon(into));
+            assert.deepStrictEqual(d, [], `loaded into ${where}, the save came back different: ${d.join(' | ')}`);
+            const bad = into.Debug.invariants();
+            assert.strictEqual(bad.length, 0, `loaded into ${where}: ${bad.join(' | ')}`);   // a sandbox array: lengths, not deepStrictEqual
+            SCENES[name].goOn(into);
+            assert.strictEqual(into.Debug.errors.length, 0, `errors after going on in ${where}: ${into.Debug.errors.map(e => e.msg).join(' | ')}`);
+        }
+    }));
+
+    // A load used to lay the save over the running game, so whatever the save didn't carry kept the
+    // running game's value (#147): save, put money in a fief's treasury and bread in its storehouse,
+    // load — the save's purse came back and the treasury kept the deposit, a pump. A castle taken,
+    // a lord sworn in and a kingdom founded after the save outlived the load the same way.
+    test('kayıt ara durumda (#147): yükleme dünyayı kayıttaki hâline döndürür (hazine, depo, kale, vasal, krallık)', () => {
+        const w = world(99), k = castle(w), other = w.LOCATIONS.find(l => l.type === 'castle' && l !== k), lord = w.LORDS[2];
+        k.owner = 'player'; at(w, k);
+        w.state.player.inventory.push(Object.assign({}, w.ITEMS.bread, { qty: 5 }));
+        const faction = lord.faction;
+        w.Save.save('1'); w.Game.closeModal();
+        w.Game.moveTreasury(k.id, 2000, 'in'); w.Game.moveStorage(k.id, 'bread', 5, 'in'); w.Game.closeModal();
+        assert.ok(k.treasury === 2000 && k.storage.length, 'the deposit went in');
+        other.owner = 'player';
+        w.FACTIONS.player_kingdom = { name: 'Test', color: '#fff' };
+        w.state.vassals = [lord.id]; w.Game.applyVassals();
+        w.Save.load('1'); w.Game.closeModal();
+        assert.strictEqual(w.state.player.money, 3000, 'the save\'s purse');
+        assert.ok(!k.treasury && !(k.storage || []).length, `the treasury (${k.treasury}) and storehouse are the save's, empty`);
+        assert.strictEqual(other.owner, undefined, 'the castle taken after the save is not yours');
+        assert.strictEqual(lord.faction, faction, 'the lord sworn in after the save serves his old king');
+        assert.ok(!w.FACTIONS.player_kingdom, 'the kingdom founded after the save is gone');
+    });
+}
+
 // ---------- Output ----------
-if(!H.args().fast && !H.args().hizli) thresholds();
+if(!H.args().fast && !H.args().hizli) { thresholds(); midScene(); }
 
 const bad = results.filter(r => !r.ok);
 results.forEach(r => console.log(`${r.ok ? '  ok' : 'FAIL'}  ${r.name}${r.ok ? '' : '\n        ' + r.msg}`));
