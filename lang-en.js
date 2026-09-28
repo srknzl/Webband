@@ -351,6 +351,7 @@ I18N.dicts.en = {
   "Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.": "A man who lies in this hall doesn't sit twice. Please, sit.",
   "Bu slotta kayıt yok.": "There's no save in this slot.",
   "Bu şehirde şu an boşta adam yok.": "There is no one for hire in this town right now.",
+  "Şölen sona ermiş; salonda son kadehler toplanıyor.": "The feast is over; the last cups are being cleared from the hall.",
   "Bu şölende herkesi zaten selamladın.": "You have already greeted everyone at this feast.",
   "Bugün konuk yok.": "No guests today.",
   "Bugün kılıçlarımız kan içecek! {0} okçuları koru, {1} hücuma geç!": "Our blades drink blood today! {0}, cover the archers; {1}, charge!",

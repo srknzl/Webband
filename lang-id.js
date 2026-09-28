@@ -351,6 +351,7 @@ I18N.dicts.id = {
   "Bu salonda yalan söyleyen adam iki kere oturmaz. Buyur, otur.": "Orang yang berbohong di balai ini tak akan duduk dua kali. Silakan, duduklah.",
   "Bu slotta kayıt yok.": "Tidak ada simpanan di slot ini.",
   "Bu şehirde şu an boşta adam yok.": "Tak ada orang yang bisa disewa di kota ini saat ini.",
+  "Şölen sona ermiş; salonda son kadehler toplanıyor.": "Pesta sudah usai; cawan-cawan terakhir sedang dibereskan dari aula.",
   "Bu şölende herkesi zaten selamladın.": "Kamu sudah menyapa semua orang di pesta ini.",
   "Bugün konuk yok.": "Tak ada tamu hari ini.",
   "Bugün kılıçlarımız kan içecek! {0} okçuları koru, {1} hücuma geç!": "Hari ini pedang kita minum darah! {0}, lindungi pemanah; {1}, serbu!",

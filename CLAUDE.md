@@ -174,7 +174,9 @@ Labels are looked up with `L(page, 'Türkçe anahtar')`, never hard-coded.
 `nightly.yml` is the bug hunt: every night the seeded monkey, the lair sweep and
 `tools/career.js` play new seeds and file their findings in one `nightly` issue. `COVERAGE=1` on
 any e2e run records which game functions it called; `node tools/coverage.js` lists the ones no run
-reached (the nightly writes this map into its run summary). The e2e CI job also runs
+reached (the nightly writes this map into its run summary). `node tools/exploits.js` hunts money pumps: button walks
+through the settlements, replayed, that leave the player richer every time with no time passing
+(the nightly runs it too). The e2e CI job also runs
 `node tools/typecheck.js`: tsc reads the game's JS (nothing compiled) and fails only on an error
 missing from `tools/tsc-baseline.json`; after fixing some, `--update` locks the lower count in.
 

@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.3 — Kasa (2026-09-28)
+
+- **Biten şölenin kapısı artık oyunu bozmuyor.** Şölenin son akşamı salonu dolaşıp herkesi
+  selamlarsan saat gece yarısını geçiyor ve şölen bitiyordu; şehrin kapısındaki "Şölene Katıl"
+  düğmesi yine de duruyor, basınca hata veriyordu. Artık şölenin bittiğini söyler ve düğme kalkar.
+
 ## 2.4.2 — Sözleşme (2026-09-28)
 
 - **Tavuk kovalamacasındaki skor yazısı artık her dilde.** İngilizce ve Endonezcede ekranın

@@ -99,6 +99,7 @@ function fakeEl(tag, doc) {
         contains(c) { return this.children.indexOf(c) !== -1; },
         toDataURL() { return 'data:,'; },
         focus() {}, blur() {}, click() {}, select() {}, scrollIntoView() {},
+        cloneNode() { return Object.assign(fakeEl(tag, doc), { innerHTML: this.innerHTML }); },
         setSelectionRange() {}
     };
     return el;
