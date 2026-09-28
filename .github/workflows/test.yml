@@ -15,6 +15,8 @@ jobs:
       - run: node tools/test.js
       # #42 regresyonu: kare kapısı iki döngüyü ayırırsa araç 1 ile çıkar
       - run: node tools/framegate.js
+      # Harita: partiler sıçramasın, takılmasın, ileri geri gitmesin, yığılmasın (tools/mapwatch.js)
+      - run: node tools/mapwatch.js --seed 1-2 --days 30
 
   # Uçtan uca: oyun gerçek bir Chromium'da, masaüstü ve telefon düzeninde, üç dilde oynanır
   # (e2e/). npm yalnız e2e/ içinde; oyunun kendisi hâlâ derlemesiz, sayfayı Python sunar.

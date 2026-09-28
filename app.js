@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.3', date: '2026-09-28', name: 'Kasa' };  // the version name is not translated
+const VERSION = { no: '2.4.4', date: '2026-09-28', name: 'Kuşatma' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1981,6 +1981,7 @@ const Game = {
             for(let i = 0; i < 20; i++) {
                 let a = Math.random() * Math.PI * 2, r = 200 + Math.random() * 300;
                 let p = { x: lair.x + Math.cos(a) * r, y: lair.y + Math.sin(a) * r };
+                this.clampToMap(p);   // a coastal lair's spot can lie in the sea: the first step snapped it ashore
                 if(this.dist(p, state.player) < this.SPAWN_SAFE) continue;
                 npc.x = npc.targetX = p.x; npc.y = npc.targetY = p.y;
                 npc.lairId = lair.id;
@@ -2014,7 +2015,9 @@ const Game = {
         let name = kind === 'caravan' ? `${(FACTIONS[home.faction] || {}).people || ''} Kervanı` : `${home.name} Köylüleri`;
         let npc = this.createNPC(name, kind, size, k.color, home.faction, 1);
         npc.band = kind;
-        npc.speed = kind === 'caravan' ? 58 : 52;
+        // each its own pace (±10%): at one fixed speed on a fixed home↔market route, two convoys
+        // that met once walked in lockstep for good, a clump of carts with bands trailing each
+        npc.speed = Math.round((kind === 'caravan' ? 58 : 52) * (0.9 + Math.random() * 0.2));
         npc.trade = { kind, homeId: home.id, homeName: home.name, fromId: home.id, toId: home.id };
         if(kind === 'villager') {
             let market = LOCATIONS.filter(l => l.type === 'city')
@@ -2115,7 +2118,10 @@ const Game = {
                                                    && !(BAND_KINDS[n.band] || {}).beast);
         if(!raiders.length) return;
         state.npcParties.filter(t => t.trade && t.size > 0).forEach(t => {
-            let b = raiders.find(r => r.size > 0 && this.dist(r, t) < 400);
+            // the band that walked onto this convoy raids it, not the first one in reach — the
+            // hunter used to trail a convoy some other band had already hit, day after day
+            let b = raiders.find(r => r.size > 0 && r.hunting === t.id && this.dist(r, t) < 400)
+                 || raiders.find(r => r.size > 0 && this.dist(r, t) < 400);
             if(!b) return;
             let pw = p => p.size * (0.7 + Math.random() * 0.6);
             // A caravan guard earns their pay, a villager party can't run
@@ -2980,6 +2986,10 @@ const Game = {
     },
 
     getTerrainMultiplier(x, y) { return this.getTerrainInfo(x, y).mult; },
+    onRoad(x, y) {
+        let name = this.getTerrainInfo(x, y).name;
+        return Object.values(this.ROAD_KINDS).some(k => k.name === name);
+    },
 
     // Terrain gives both the speed multiplier and the name shown in the info card — single source
     getTerrainInfo(x, y) {
@@ -3415,6 +3425,7 @@ const Game = {
         if(state.player.prisoner) {
             state.player.status = 'prisoner';
         }
+        this.holdSiege();
 
         let isMapActive = document.getElementById('map-view').classList.contains('active');
         let isModalOpen = modalOpenNow;
@@ -3508,6 +3519,8 @@ const Game = {
         }
 
         if(timeFlows && !this.campProtected()) this.checkAmbush(dt);
+
+        if(timeFlows && this.checkRelief()) return;
 
         // NPC -> player collision. Friendly nobles may cross the player's path, but a conversation
         // only starts when the player deliberately targets them; hostile parties still intercept.
@@ -3824,8 +3837,16 @@ const Game = {
         return false;
     },
 
+    FLEE_HOURS: 4,     // how long a party that fled keeps running once out of sight
+    SIEGE_RING: 90,
+    PATROL_CONTACT: 30,   // a patrolling lord this close to its band has caught it
+    PREY_HOLD: 300,       // a band switches convoys only for one this much nearer than its own    // a besieger's (or campaign lord's) distance from the place it holds
     updateNPCs(dt) {
         let ps = state.player.party.length + 1;
+        // A pack shuns the roads (the wolf rules below push its every target off them), so it
+        // neither locks onto nor leans toward a party standing on one: it could only circle at
+        // the roadside, a ring of packs around a siege camp on the high road for weeks.
+        let roadSafe = this.onRoad(state.player.x, state.player.y);
         state.npcParties.forEach(npc => {
             let dxP = state.player.x - npc.x, dyP = state.player.y - npc.y;
             let dp = Math.sqrt(dxP*dxP + dyP*dyP);
@@ -3852,6 +3873,7 @@ const Game = {
             // keeps closing in and holds at the safety perimeter below, exactly as before — this
             // only blocks a fresh lock-on while camped, not an ongoing one.
             if(this.campProtected() && might > ps && npc.playerTargetId !== 'player') notices = false;
+            if(roadSafe && might > ps && (BAND_KINDS[npc.band] || {}).beast) notices = false;
             // A quest wave was summoned to fight *you*, and it is deliberately smaller than
             // your army — so the generic "a weak band runs" rule below sent it fleeing from
             // the very fight the quest promises, and Hasat Nöbeti became a chase (#94).
@@ -3865,7 +3887,14 @@ const Game = {
                 } else {
                     npc.targetX = npc.x - dxP * 2; npc.targetY = npc.y - dyP * 2;
                     npc.playerTargetId = null;
+                    npc.fleeLeft = this.FLEE_HOURS;
                 }
+            } else if((npc.fleeLeft = (npc.fleeLeft || 0) - dt) > 0) {
+                // Out of sight is not safe yet: a party that fled keeps running for a few hours.
+                // It used to turn back the moment it left `sense` — toward the caravan it hunts,
+                // the band it patrols after, the castle it marches on — straight back into sight,
+                // and flee again: a band at the edge of your sight walked in place all day.
+                npc.playerTargetId = null;
             } else {
                 npc.playerTargetId = null;
                 let dtx = npc.targetX - npc.x, dty = npc.targetY - npc.y;
@@ -3918,11 +3947,19 @@ const Game = {
 
             // A bandit hunts caravans (#38): heads for the nearest convoy in range; banditTick
             // resolves the raid itself. A band that isn't strong enough doesn't give chase.
-            if(npc.type === 'bandit' && !notices && !(BAND_KINDS[npc.band] || {}).beast) {
+            let fleeing = npc.fleeLeft > 0;
+            if(npc.type === 'bandit' && !notices && !fleeing && !(BAND_KINDS[npc.band] || {}).beast) {
                 let prey = null, bd = 1200;
                 state.npcParties.forEach(t => {
                     if(!t.trade || t.size <= 0) return;
-                    let d2 = this.dist(t, npc);
+                    // one band per convoy, or every band in reach trailed it as one pack for days
+                    if(state.npcParties.some(o => o !== npc && o.hunting === t.id)) return;
+                    // nor one under the eyes of an army it runs from: it went for it, saw you, ran,
+                    // and came back for it, all day long
+                    if(might <= ps && this.dist(t, state.player) < sense) return;
+                    // and it keeps the convoy it hunts: two passing on one road had it turning to
+                    // whichever was nearer, back and forth, until both were gone
+                    let d2 = this.dist(t, npc) - (t.id === npc.hunting ? this.PREY_HOLD : 0);
                     if(d2 < bd) { bd = d2; prey = t; }
                 });
                 npc.hunting = null;
@@ -3936,11 +3973,23 @@ const Game = {
             // by lordBanditTick; movement remains visible continuously on the campaign map.
             let patrolCampaign = npc.lordId && state.campaigns[npc.faction];
             let campaignTarget = patrolCampaign && LOCATIONS.find(l => l.id === patrolCampaign.targetLocId);
-            if(campaignTarget && !npc.siegeLocId) {
+            let siegeAt = npc.siegeLocId && LOCATIONS.find(l => l.id === npc.siegeLocId);
+            if(npc.reliefLocId && !(state.player.siege && state.player.siege.locId === npc.reliefLocId)) delete npc.reliefLocId;
+            if(npc.reliefLocId && state.player.status !== 'prisoner') {
+                // marching to break your siege (siegeRelief): it doesn't flee the army it came for
+                npc.targetX = state.player.x; npc.targetY = state.player.y;
+            } else if(notices || fleeing) {
+                // the player's own pull (chase or flight, set above) outranks every errand below
+            } else if(siegeAt || campaignTarget) {
+                // A besieger stands at the walls until warTick takes the place or calls it off; it
+                // used to wander off mid-siege and still count the days from across the map. A
+                // campaign army gathers at its target. Each lord has its own spot on a ring around
+                // the place: they all used to stand on its one centre pixel, a dozen as one dot.
+                let at = siegeAt || campaignTarget, a = (Battle.idHash(npc) % 360) * Math.PI / 180;
                 npc.bandTargetId = null;
-                npc.targetX = campaignTarget.x;
-                npc.targetY = campaignTarget.y;
-            } else if(npc.lordId && !hostile && !npc.siegeLocId) {
+                npc.targetX = at.x + Math.cos(a) * this.SIEGE_RING;
+                npc.targetY = at.y + Math.sin(a) * this.SIEGE_RING;
+            } else if(npc.lordId && !hostile) {
                 npc.bandScanCd = (npc.bandScanCd || 0) - dt;
                 // Its quarry just took you prisoner: drop the chase at once rather than walk on to
                 // the last point it was aimed at (the next tick picks a fresh wander target)
@@ -3953,13 +4002,22 @@ const Game = {
                     let best = 900;
                     state.npcParties.forEach(b => {
                         if(b.type !== 'bandit' || b.size <= 0 || (b.patrolSafeUntil || 0) > state.time.day || this.holdsPlayer(b)) return;
+                        // One lord per band: every lord in reach used to pick the same nearest band,
+                        // and half a dozen of them crossed the map after it as one ball for days.
+                        // ponytail: O(parties²) per scan, once an hour per lord; index claims if parties grow
+                        if(state.npcParties.some(o => o !== npc && o.bandTargetId === b.id)) return;
                         let d2 = this.dist(b, npc);
                         if(d2 < best) { best = d2; outlaw = b; }
                     });
                     npc.bandScanCd = 1;
                     npc.bandTargetId = outlaw ? outlaw.id : null;
                 }
-                if(outlaw && this.dist(outlaw, npc) < 1100) {
+                if(outlaw && this.dist(outlaw, npc) < this.PATROL_CONTACT) {
+                    // Caught up. Only one lord-band clash resolves a day (lordBanditTick), so the
+                    // rest used to walk beside their band for days: a lord that reached its quarry
+                    // lets it go and looks for another tomorrow.
+                    npc.bandTargetId = null; npc.bandScanCd = 24;
+                } else if(outlaw && this.dist(outlaw, npc) < 1100) {
                     npc.targetX = outlaw.x;
                     npc.targetY = outlaw.y;
                 }
@@ -3991,14 +4049,16 @@ const Game = {
                                                   && this.dist(o, state.player) < 500);
                 let bleeding = hpFrac < 0.5 || hurt > 0 || fight;
                 let scentRange = this.getVisibility() * (bleeding ? 2.2 : 1.2);
-                if(bleeding && dp < scentRange) {
+                // a pack that is running from you doesn't lean back in: scent and charge used to
+                // undo the flight every tick, and a weak pack hovered at your camp for days
+                if(bleeding && dp < scentRange && !fleeing && !roadSafe) {
                     npc.targetX = npc.x + (state.player.x - npc.x) * 0.6;
                     npc.targetY = npc.y + (state.player.y - npc.y) * 0.6;
                     burst = Math.max(burst, 1.5);
                 }
 
                 // forest charge (existing pounce): full lock at ×1.6 when close and in cover
-                if(dp < this.spotRange(npc) && this.getTerrainInfo(npc.x, npc.y).name === 'Orman') {
+                if(dp < this.spotRange(npc) && !fleeing && this.getTerrainInfo(npc.x, npc.y).name === 'Orman') {
                     npc.targetX = state.player.x; npc.targetY = state.player.y;
                     burst = 1.6;
                     npc.charging = true;
@@ -4006,8 +4066,7 @@ const Game = {
 
                 // (c) shy of roads
                 if(!npc.charging) {
-                    let roadNames = Object.keys(this.ROAD_KINDS).map(k => this.ROAD_KINDS[k].name);
-                    if(roadNames.includes(this.getTerrainInfo(npc.targetX, npc.targetY).name)) {
+                    if(this.onRoad(npc.targetX, npc.targetY)) {
                         let vx = npc.targetX - npc.x, vy = npc.targetY - npc.y, vl = Math.hypot(vx, vy) || 1;
                         npc.targetX += -vy / vl * 120; npc.targetY += vx / vl * 120;
                         this.clampTargetToMap(npc);
@@ -4767,6 +4826,7 @@ const Game = {
             home = villages[Math.floor(Math.random() * villages.length)];
             let a = Math.random() * Math.PI * 2, r = 250 + Math.random() * 350;
             let q = { x: home.x + Math.cos(a) * r, y: home.y + Math.sin(a) * r };
+            this.clampToMap(q);   // a coastal village's spot can lie in the sea
             if(this.dist(q, state.player) > 500) p = q;
         }
         if(!p) return null;
@@ -4819,14 +4879,13 @@ const Game = {
         let p = state.player;
         let byDist = LOCATIONS.slice().sort((a, b) => this.dist(a, p) - this.dist(b, p));
         let ter = this.getTerrainInfo(p.x, p.y);
-        let roadNames = Object.keys(this.ROAD_KINDS).map(k => this.ROAD_KINDS[k].name);
         return {
             party: p.party.length, cap: this.getPartyCapacity(),
             near: byDist[0] && this.dist(byDist[0], p) < 900 ? byDist[0] : null,
             land: byDist[0] && byDist[0].faction,
             food: this.foodStock().total, morale: this.morale(), money: p.money,
             honor: this.honor(), night: this.isNight(), day: state.time.day,
-            terrain: ter.name, onRoad: roadNames.includes(ter.name)
+            terrain: ter.name, onRoad: this.onRoad(p.x, p.y)
         };
     },
 
@@ -10150,6 +10209,11 @@ const Game = {
     },
     // Front: enemy lord parties that meet clash, the stronger one takes the
     // enemy's settlement. Runs once a day, independent of the player.
+    // Days an AI army must hold a place's walls to take it. It was 3, but a besieger used to wander
+    // off and the count reset whenever another lord in reach was picked, so most sieges never
+    // finished. With the besieger holding the walls, 3 days tripled the conquests (7–12 → 24–51
+    // in 200 days, seeds 1–5); 12 brings them back (9–15, seeds 1–8).
+    AI_SIEGE_DAYS: 12,
     warTick() {
         if(!Object.keys(state.wars).length) return;
         let parties = state.npcParties.filter(n => n.lordId && n.faction);
@@ -10162,15 +10226,25 @@ const Game = {
                 this.resolveFieldBattle(A, B);
             }
         }
+        // A siege is an army at the walls. One that marched off, lost the numbers, made peace or
+        // whose target became its owner's last holding gives it up and starts over next time;
+        // the days used to pile up across separate visits, so three passing lords took a castle.
+        let lastHolding = loc => LOCATIONS.filter(l => l.type !== 'village' && l.faction === loc.faction).length <= 1;
+        let canBesiege = (p, loc) => p.size > 0 && this.atWar(p.faction, loc.faction) && this.dist(p, loc) < 500
+                                     && p.size > this.garrisonOf(loc) * 1.3;
+        parties.forEach(p => {
+            let loc = p.siegeLocId && LOCATIONS.find(l => l.id === p.siegeLocId);
+            if(p.siegeLocId && (!loc || lastHolding(loc) || !canBesiege(p, loc))) { p.siegeLocId = null; p.siegeDays = 0; }
+        });
         LOCATIONS.forEach(loc => {
             if(loc.type === 'village') return;
             // Since the campaign system musters armies onto a single target, conquest sped up; a
             // kingdom that lost its last city/castle was wiped off the map. The last holding
             // can't be taken — that kingdom is now forced into peace instead (diplomacyTick).
-            if(LOCATIONS.filter(l => l.type !== 'village' && l.faction === loc.faction).length <= 1) return;
-            let g = this.garrisonOf(loc);
-            let atk = parties.find(p => p.size > 0 && this.atWar(p.faction, loc.faction)
-                                        && this.dist(p, loc) < 500 && p.size > g * 1.3);
+            if(lastHolding(loc)) return;
+            // the army already at these walls carries on; a new one comes from those not besieging
+            let atk = parties.find(p => p.siegeLocId === loc.id)
+                   || parties.find(p => !p.siegeLocId && canBesiege(p, loc));
             if(!atk) return;
             // A siege doesn't end in a day: the army has to wait at the gate for 3 days.
             // Otherwise every lord passing by grabbed the castle (measured: 38 changes
@@ -10179,7 +10253,7 @@ const Game = {
             atk.siegeDays = (atk.siegeDays || 1) + 1;
             // A newly fallen castle can't be retaken right away
             if(state.time.day - (loc.capturedDay || -99) < 10) return;
-            if(atk.siegeDays < 3) return;
+            if(atk.siegeDays < this.AI_SIEGE_DAYS) return;
             atk.siegeLocId = null; atk.siegeDays = 0;
             this.captureSettlement(loc, atk);
         });
@@ -10765,6 +10839,7 @@ const Game = {
     },
     // Daily siege processing (dailyUpdate)
     siegeTick() {
+        this.holdSiege();
         let s = state.player.siege;
         if(!s) return;
         let loc = LOCATIONS.find(l => l.id === s.locId);
@@ -10780,12 +10855,24 @@ const Game = {
         this.renderSiegeUI();
         this.siegeRelief(loc);
     },
-    // An army coming to break the siege: the nearest enemy lord party within 2500 units
+    // An army coming to break the siege: the nearest enemy lord party within 2500 units. It marches
+    // (updateNPCs aims it at the walls) and the camp hears of it when it sets out; it used to be
+    // set down at the gate the same instant, from as far as 2500 units away.
     siegeRelief(loc) {
+        if(state.npcParties.some(n => n.reliefLocId === loc.id)) return;   // one relief at a time
         let foes = state.npcParties.filter(n => n.lordId && n.faction === loc.faction && this.dist(n, loc) < 2500);
         if(!foes.length || Math.random() > 0.25) return;
         let n = foes.reduce((a, b) => this.dist(a, loc) <= this.dist(b, loc) ? a : b);
-        n.x = loc.x + 40; n.y = loc.y + 40;
+        n.reliefLocId = loc.id;
+        this.news(Tx`🚩 ${this.npcTx(n)}, ${n.size} kişiyle ${Tx(loc.name)} kuşatmasını yarmaya yola çıktı.`, true);
+    },
+    // The relief reaches the camp: fight it at the walls, or strike the camp
+    RELIEF_REACH: 120,
+    checkRelief() {
+        let s = state.player.siege;
+        let n = s && state.npcParties.find(p => p.reliefLocId === s.locId && p.size > 0 && this.dist(p, state.player) < this.RELIEF_REACH);
+        if(!n) return false;
+        delete n.reliefLocId;
         this.showModal(`<h3>${T`🚩 Yardım Ordusu!</h3>
         <p><b>${this.npcName(n)}</b> ${n.size} kişiyle kuşatmayı yarmaya geldi. Surun dibinde iki ateş arasında
         kalamazsın: ya bu orduyu karşılarsın ya da kampı toplarsın.`}</p>
@@ -10796,13 +10883,27 @@ const Game = {
         let n = state.npcParties.find(p => p.id === npcId);
         if(n) this.triggerEncounter(n);
     },
+    // The siege camp is the army standing at the walls, and nothing else keeps it. An encounter at
+    // the camp leaves the party idle and the siege picks up where it was; a march away (a map
+    // click, a captor dragging you off) lifts it. It used to stay behind: the days kept ticking
+    // wherever you went, and the assault could be launched from across the map.
+    SIEGE_REACH: 150,
+    holdSiege() {
+        let s = state.player.siege;
+        if(!s) return;
+        let loc = LOCATIONS.find(l => l.id === s.locId);
+        if(!loc || this.dist(state.player, loc) > this.SIEGE_REACH) return this.liftSiege(!!state.player.prisoner);
+        if(state.player.status === 'idle') state.player.status = 'besieging';
+    },
     liftSiege(silent) {
         state.player.siege = null;
+        state.npcParties.forEach(n => delete n.reliefLocId);   // the march to break it has no siege left
         if(state.player.status === 'besieging') state.player.status = 'idle';
         this.renderSiegeUI();
         if(!silent) alert(T('Kuşatma kaldırıldı. Ordun kampı toplayıp çekildi.'));
     },
     assaultSiege() {
+        this.holdSiege();   // the assault is made from the camp, not from wherever you walked to
         let s = state.player.siege;
         if(!s) return;
         if(s.daysLeft > 0) return alert(T`Hazırlık bitmedi — ${s.daysLeft} gün daha gerek.`);
