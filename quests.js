@@ -1450,6 +1450,10 @@ const Quests = {
         state.player.quests.push(q);
         Game.trainAttr('int', 1);   // taking a quest trains intelligence
         Game.closeModal();
+        // A quest set in the town you're standing in (a lord's chickens in his own castle's yard)
+        // puts its button on the town now, not after walking out and back in
+        let here = LOCATIONS.find(l => l.id === Game._enteredLoc);
+        if(here) Game.redrawTown(here);
         alert(T`Görev kabul edildi: ${T(QUESTS[q.id].title)}\nSüre: ${QUESTS[q.id].days} gün.`);
     },
 

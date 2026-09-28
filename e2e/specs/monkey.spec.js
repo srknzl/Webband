@@ -138,7 +138,10 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
                     'settlement-view': () => { const l = LOCATIONS.find(x => x.id === Game._enteredLoc); if(l) Game.enterLocation(l); }
                 }[v.id];
                 if(!redraw || Battle.active) return null;
-                const text = () => (v.id === 'settlement-view' ? document.getElementById('settlement-actions') : v).innerText;
+                // The roster's "11+2/16" mark shows what was new on the way in and is then marked
+                // seen (#111), so a redraw drops it by design — not a stale number
+                const text = () => (v.id === 'settlement-view' ? document.getElementById('settlement-actions') : v).innerText
+                    .replace(/(\d)\+\d+\//g, '$1/');
                 const before = text(); redraw(); const after = text();
                 if(before === after) return null;
                 const a = before.split('\n'), b = after.split('\n'); let i = 0; while(i < a.length && a[i] === b[i]) i++;

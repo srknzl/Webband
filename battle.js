@@ -3569,7 +3569,7 @@ const Battle = {
                 <button class="btn primary" style="font-size:1.2rem;padding:0.8rem 2rem;box-shadow:0 0 15px rgba(255,170,0,0.4);border-radius:var(--r-md)" onclick="Game.closeModal(); Game.checkLevelUp(); Game.updateTopBar()">${T`Kazanımları Al ve İlerle`}</button>
             </div>`;
             let resultHtml = `<div>
-                <div style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:1rem">
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-bottom:1rem">
                     <button id="bres-tab-ozet" class="btn primary" style="padding:0.4rem 1.2rem" onclick="Battle.switchResultTab('ozet')">${T('Özet')}</button>
                     <button id="bres-tab-detay" class="btn" style="padding:0.4rem 1.2rem" onclick="Battle.switchResultTab('detay')">${T('Ayrıntı')}</button>
                 </div>

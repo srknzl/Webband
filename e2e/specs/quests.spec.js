@@ -163,6 +163,21 @@ test('lord görevi: salonda al, pazarda bitir, haritada karşılaşınca teslim 
     await expect(turnInDot(page)).toHaveCount(0);
 });
 
+// A quest set in the town it was taken in (the lord's chickens run loose in his own yard) puts its
+// button on the town right away — the nightly monkey found it missing until walking out and back.
+test('bulunduğun şehirde geçen görev, kabul edilince düğmesini hemen getirir', async ({ page }) => {
+    await newGame(page);
+    const lord = await lordAtHome(page, 'crazy_chickens');
+    const q = await pinOffer(page, 'crazy_chickens', lord.id);
+    expect(q.data.locId).toBe(lord.home);
+
+    await talkInHall(page, lord);
+    await (await modalBtn(page, '📜 Bana bir iş var mı?')).click();
+    await (await modalBtn(page, 'Kabul Ediyorum')).click();
+    expect(await okAlert(page)).toContain(await L(page, q.title));
+    await expect(await actionBtn(page, '🐔 Tavukları Kovala (25 sn)')).toBeVisible();
+});
+
 test('bitmiş görev, verenin bulunduğu şehre girince kendiliğinden teslim edilir', async ({ page }) => {
     await newGame(page);
     const lord = await lordAtHome(page, 'butter_blockade');

@@ -15,7 +15,7 @@
 //      conquests is as broken as 20.
 //
 //   node tools/test.js            # everything
-//   node tools/test.js --fast     # pure logic only (thresholds take ~5 s)
+//   node tools/test.js --fast     # pure logic only: no thresholds, no `slow` tests
 // ============================================================
 'use strict';
 const assert = require('assert');
@@ -26,6 +26,10 @@ function test(name, fn) {
     try { fn(); results.push({ name, ok: true }); }
     catch(e) { results.push({ name, ok: false, msg: e.message.split('\n')[0] }); }
 }
+// A test that plays worlds or duels over many seeds and days (a second or more each): part of
+// the full run CI makes, left out of --fast so the quick loop stays quick.
+const FAST = H.args().fast || H.args().hizli;
+function slow(name, fn) { if(!FAST) test(name, fn); }
 // Range assertion: the world is random, so no single number is expected.
 function between(actual, lo, hi, what) {
     assert.ok(actual >= lo && actual <= hi, `${what}: ${actual} ∉ [${lo}, ${hi}]`);
@@ -858,7 +862,7 @@ test('assist: the lord you back fights beside you, not just your own party', () 
     assert.ok(mine > own,
         `only your own ${own} are on your side (${mine} player-team units) — ${ally.name}'s ${ally.size} men never join the fight`);
 });
-test('assist: after losing, the lord you backed does not march alongside your captor', () => {
+slow('assist: after losing, the lord you backed does not march alongside your captor', () => {
     const { w, G, s, ally, foe } = assistSetup();
     G.assistFight(ally.lordId, foe.id);
     w.Battle.active = false;
@@ -1251,7 +1255,7 @@ test('map renderer: PixCtx puts images, rects and paths where Canvas2D would, in
     assert.throws(() => fx.createRadialGradient(0, 0, 0, 0, 0, 1), /gradients/, 'a gradient fails loudly, not as a black blot');
 });
 
-test('map: MapArt draws through Canvas2D and PixCtx without touching game state; labels never overlap', () => {
+slow('map: MapArt draws through Canvas2D and PixCtx without touching game state; labels never overlap', () => {
     const G = gw.Game, S = gw.state, vm = require('vm'), fs = require('fs'), path = require('path'), box = gw._sandbox;
     if(!vm.runInContext('typeof ImageData', gw._ctx).startsWith('f'))
         vm.runInContext('globalThis.ImageData = class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };', gw._ctx);
@@ -1410,7 +1414,7 @@ test('battle: dismount fires when the buffer is spent, not at a flat 50% of the 
     gw.state.player.stats.hp = gw.state.player.stats.maxHp;
 });
 
-test('battle terrain: a siege wall cannot persist into the next field battle', () => {
+slow('battle terrain: a siege wall cannot persist into the next field battle', () => {
     const plan = { name:'Test siege', defBonus:0.2, gaps:1 };
     gw.Battle.start('Garnizon', 8, null, '', plan);
     gw.Battle.buildGround();
@@ -1679,7 +1683,7 @@ test('arena: a bout pays, and the streak bonus starts over at five (#115)', () =
 // A village-burner used to recruit almost as well as a clean lord: x0.4 turnout and a 16-denar
 // fee at the very bottom of the honor scale. The gap has to be felt, and it has to be slow to
 // undo -- otherwise waiting a few days is the whole penalty.
-test('infamy: burning villages empties the recruiting tent, and the stain is slow (#104)', () => {
+slow('infamy: burning villages empties the recruiting tent, and the stain is slow (#104)', () => {
     const gw = H.world({ seed: 7 });
     const { Game, state } = gw;
     const terms = h => { state.player.honor = h; return Game.volunteerTerms(); };
@@ -2084,23 +2088,23 @@ test('kite: even if foot can\'t catch cavalry, the battle resolves', () => {
 const { duel } = require('./duel');
 const rate = (a, b, n = 1) => duel(a, b, n, 25, 2).winRateA;
 
-test('anchor: spearmen contest light cavalry (brace)', () => {
+slow('anchor: spearmen contest light cavalry (brace)', () => {
     const w = rate('Rodok Mızraklısı', 'Kergit Süvarisi');
     assert.ok(w >= 40 && w <= 72, `spear vs light cav ${w}% — anti-cav brace off band`);
 });
-test('anchor: a shield line contests heavy cavalry', () => {
+slow('anchor: a shield line contests heavy cavalry', () => {
     const w = rate('Rodok Kalkanlısı', 'Svadya Şövalyesi');
     assert.ok(w >= 38 && w <= 72, `shield vs heavy cav ${w}% — off band`);
 });
-test('anchor: two same-tier infantry are an even fight', () => {
+slow('anchor: two same-tier infantry are an even fight', () => {
     const w = rate('Nord Baltacısı', 'Rodok Kalkanlısı');
     assert.ok(w >= 40 && w <= 66, `elite infantry mirror ${w}% — not an even fight`);
 });
-test('anchor: plain infantry loses to elite cavalry (bring spears)', () => {
+slow('anchor: plain infantry loses to elite cavalry (bring spears)', () => {
     const w = rate('Nord Baltacısı', 'Svadya Şövalyesi');
     assert.ok(w <= 30, `axeman vs knight ${w}% — infantry should not beat elite cavalry head-on`);
 });
-test('anchor: cavalry runs down archers', () => {
+slow('anchor: cavalry runs down archers', () => {
     const w = rate('Svadya Şövalyesi', 'Rodok Tatar Yaylısı', 6);
     assert.ok(w >= 75, `cavalry vs archers ${w}% — horse should reach the bow line`);
 });
@@ -2337,7 +2341,7 @@ questSuite();
 // it shows — the offer window, the quest list while active, a few days on, and once it waits for
 // its hand-in — must not carry a hole: `undefined`, `NaN`, a `{0}` left unfilled, an object
 // printed whole, a place its id no longer finds ('?'), or (EN) a key missing from the dictionary.
-test('quest: every quest text, from every giver, in TR and EN, has no hole', () => {
+slow('quest: every quest text, from every giver, in TR and EN, has no hole', () => {
     const found = new Map();
     let texts = 0;
     for(const lang of ['tr', 'en']) for(const seed of [1, 2, 3, 4]) {
@@ -2486,7 +2490,7 @@ test('dialogues: seeded walks through every lord and lady window stay clean (EN)
 // straight at the engine, so no test had ever run a day() (the coverage map's biggest quest gap).
 // Here the world runs: the day spawns the wave, the wave comes, a real auto-resolved battle
 // beats it, battle.js emits the win with the wave's tag, and the giver pays at the gate.
-test('quest: the wave quests play through their own days, battles and hand-in', () => {
+slow('quest: the wave quests play through their own days, battles and hand-in', () => {
     const played = {};
     for(const id of ['harvest_watch', 'outpost_defense', 'merchant_convoy']) {
         const w = H.world({ seed: 11 });
@@ -2962,7 +2966,7 @@ roadSuite();
 // i.e. a region a lord had cleared would stay empty for weeks (the map looked deserted).
 // Since #126 the target rises with the calendar instead of falling with the player's sight,
 // so the run checks both that the curve climbs and that the hourly refill keeps up with it.
-test('band population tracks a target that rises over 60 days', () => {
+slow('band population tracks a target that rises over 60 days', () => {
     const g = H.world({ seed: 4 });
     const start = g.Game.bandTarget();
     assert.strictEqual(g.Game.bandCount(), start, 'the world doesn\'t start at the target population');
@@ -3375,7 +3379,7 @@ test('spawns: new bands and wanderers appear on land, not in the sea a step from
     }
 });
 
-test('bandit lairs: bands spread across the lairs instead of piling on a few (#97)', () => {
+slow('bandit lairs: bands spread across the lairs instead of piling on a few (#97)', () => {
     // A random lair pick let the busiest of five lairs hold 29–62% of the bands on average
     // (worst 78%); the emptiest lair now sends the next band. Measured over 60 days, seeds 1–5:
     // the busiest of nine holds 14% on average, 20% at worst.
@@ -3391,7 +3395,7 @@ test('bandit lairs: bands spread across the lairs instead of piling on a few (#9
     assert.ok(worst <= 0.3, `one lair held ${Math.round(worst * 100)}% of the bands`);
 });
 
-test('bandit lair: erodes the region, pays out when cleared, and is a band source', () => {
+slow('bandit lair: erodes the region, pays out when cleared, and is a band source', () => {
     const g = H.world({ seed: 6 });
     const lairs = g.Game.lairs();
     assert.strictEqual(lairs.length, g.Game.LAIR_COUNT, 'the world doesn\'t start with lairs');
@@ -3492,7 +3496,7 @@ test('bosses: the final boss never auto-spawns from the renown loop, only from t
 // price in the world for nothing. Three claims: the tavern charges coin AND hours,
 // Spotting decides both which stories reach you and how often they're wrong, and a
 // false rumour is a true story pinned to the wrong place (not invented prose).
-test('rumour: the tavern charges coin and hours, and Spotting sets tier and lie rate', () => {
+slow('rumour: the tavern charges coin and hours, and Spotting sets tier and lie rate', () => {
     const g = H.world({ seed: 3 });
     const { Game, state, LOCATIONS } = g;
     H.run(g, 40);                      // a live world: bandits, lord parties, campaigns
@@ -3519,7 +3523,7 @@ test('rumour: the tavern charges coin and hours, and Spotting sets tier and lie 
     assert.strictEqual((state.time.day * 24 + state.time.hour), clock2, 'a penniless player still lost hours');
 });
 
-test('rumour: every generator produces a story, and a lie only moves the place', () => {
+slow('rumour: every generator produces a story, and a lie only moves the place', () => {
     const g = H.world({ seed: 3 });
     const { Game, state, LOCATIONS } = g;
     H.run(g, 40);
@@ -3624,7 +3628,7 @@ test('gate 300: tribute needs renown, independence and an army, then pays daily'
     assert.ok(!vil.tributeTo, 'the tribute survived the village changing hands');
 });
 
-test('gate 500: the envoy leaves the party, comes back, and only one rides at a time', () => {
+slow('gate 500: the envoy leaves the party, comes back, and only one rides at a time', () => {
     const g = H.world({ seed: 5 });
     const { Game, state, LORDS, Nobles } = g;
     const lord = LORDS.find(l => l.rank !== 'king');
@@ -3651,7 +3655,7 @@ test('gate 500: the envoy leaves the party, comes back, and only one rides at a 
 
 // The point of the post: the army marches where YOU point, not where it would have gone.
 // The target picked here is the enemy holding farthest from the kingdom's own lords.
-test('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords', () => {
+slow('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords', () => {
     let lords = 0, reached = 0, seeds = 0;
     // A wider seed sample (#132) — a fixed 4-seed list is brittle against any change that
     // shifts the shared RNG stream earlier in the run (e.g. the day/road event pools growing),
@@ -3696,7 +3700,7 @@ test('gate 800: a player marshal\'s target actually pulls the kingdom\'s lords',
         `the marshal's target pulled only ${reached}/${lords} lords in 20 days — the post is decorative`);
 });
 
-test('gate 800: the post lasts exactly one campaign', () => {
+slow('gate 800: the post lasts exactly one campaign', () => {
     const g = H.world({ seed: 3 });
     const { Game, state, LORDS } = g;
     // Wait for a kingdom that actually opens a campaign rather than guessing one at war on day
@@ -4382,7 +4386,7 @@ function midScene() {
 }
 
 // ---------- Output ----------
-if(!H.args().fast && !H.args().hizli) { thresholds(); midScene(); }
+if(!FAST) { thresholds(); midScene(); }
 
 const bad = results.filter(r => !r.ok);
 results.forEach(r => console.log(`${r.ok ? '  ok' : 'FAIL'}  ${r.name}${r.ok ? '' : '\n        ' + r.msg}`));

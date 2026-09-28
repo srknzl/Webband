@@ -1655,7 +1655,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/duel.js --n 200` | 1v1 troop balance, real `Battle.update` stepped frame by frame |
 | `tools/economy.js --days 60 --troops 10` | a player script's net-worth curve |
 | `tools/framegate.js` | `Game.skipFrame` gate correctness + the #42 loop-parity regression |
-| `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
+| `tools/test.js [--fast]` | the full assertion suite, ~80 s (`--fast` ~3 s: skips the day-200 sim, the mid-scene saves and every `slow()` test — the ones that play worlds or duels over seeds and days) |
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
 | `tools/typecheck.js [--update]` | tsc over the game's JS (`tools/tsconfig.json`, nothing compiled; typescript from `e2e/node_modules`): fails on an error not in `tools/tsc-baseline.json` |
 | `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks from the settlements and the map's payouts (a bandit band and its battle fought by hand, a lord prisoner, a ruin, a quest hand-in), replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
