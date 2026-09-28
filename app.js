@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.6', date: '2026-09-28', name: 'Hazine' };  // the version name is not translated
+const VERSION = { no: '2.4.7', date: '2026-09-28', name: 'Tercüman' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -123,7 +123,7 @@ const Debug = {
         Game.showModal(`<h3>${T`🐞 Debug Raporu`}</h3>
             <p style="font-size:var(--fs-sm);color:var(--text-muted)">${T`Tamponda <b>${n}</b> hata var. Aşağıdaki metni kopyalayıp doğrudan issue'ya yapıştırabilirsin.`}</p>
             <textarea id="debug-text" readonly style="width:100%;height:260px;background:rgba(0,0,0,0.45);color:#cfd6dc;border:1px solid var(--panel-border);border-radius:var(--r-sm);font:0.72rem/1.35 monospace;padding:0.5rem">${this.text().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</textarea>
-            <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.8rem">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:0.8rem">
                 <button class="btn primary" onclick="Debug.copy()">${T`📋 Panoya Kopyala`}</button>
                 <button class="btn" onclick="Debug.download()">${T`💾 Dosya Olarak İndir`}</button>
                 <button class="btn" onclick="Debug.bug()">${T`🐞 Hata Bildir`}</button>
@@ -5597,7 +5597,7 @@ const Game = {
                     this.showModal(`<div style="text-align:center">
                         <h3 style="margin-bottom:1rem;color:#ffaa00">${T`Fidye İsteği`}</h3>
                         <p style="font-size:1.1rem;margin-bottom:1.5rem">${T`Seni esir edenler özgürlüğün karşılığında senden <b>${amount} Dinar</b> istiyor. Kabul ediyor musun?`}</p>
-                        <div style="display:flex;gap:1rem;justify-content:center;">
+                        <div style="display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;">
                             <button class="btn primary" onclick="Game.payRansom(${amount})">${T`Öde ve Kurtul`}</button>
                             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.refuseRansom(${ratio})">${T`Reddet`}</button>
                         </div>
@@ -6803,13 +6803,15 @@ const Game = {
         this.renderLangRow('lang-ask-row');
         this.renderVerTag();
         I18N.applyDom(document.body);
-        if(document.getElementById('settings-panel')) return this.showSettings();
-        // While in-game, the open screen rebuilds its own text
+        // While in-game, the open screen rebuilds its own text — under the settings window too,
+        // where the language is changed in-game: it used to return first, and the quests screen
+        // behind it kept the old language until something redrew it (#150)
         const open = document.querySelector('.view.active');
         if(open && document.getElementById('main-ui').classList.contains('active')) {
             this.showScreen(open.id.replace('-view', ''));
             this.updateTopBar();
         }
+        if(document.getElementById('settings-panel')) this.showSettings();
     },
 
     // --- TOUCH (#65) ---

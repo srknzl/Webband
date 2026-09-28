@@ -1020,7 +1020,9 @@ found the prisoner trader's per-group Sell and the party screen's Set free passi
 troop name to a handler that matched it against the raw one: both did nothing on EN/ID.
 
 Language picked once on first launch (`#lang-ask`), stored in `localStorage.webband_lang`,
-changeable anytime from Settings — a live screen rebuilds its own text, no restart needed.
+changeable anytime from Settings — a live screen rebuilds its own text, no restart needed. The
+screen under the Settings window too (2.4.7, #150): `setLang` redrew Settings and returned before
+the open screen, and the quests screen kept the old language until something else redrew it.
 **Stored text** (2.4.1): words that are kept in the state — a news line (`state.warLog[].msg`), a
 map mark's `label` — are built with `Tx`, `T`'s twin with the same two call forms, which returns
 the key and its values as data (`{ t, a }`, values may nest, an array is parts joined) instead of

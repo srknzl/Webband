@@ -13,7 +13,7 @@ const closeAll = page => page.evaluate(() => {
 });
 
 // Handlers that open a window or a view and change nothing in the world
-const OPENS = /^\s*(Game\.(show\w+|open\w+|pauseMenu|envoyMenu|grantFiefMenu|guildPrices|setMarketCategory|mktMode|askWait|showLore)|Nobles\.(talk|courtMenu|spouseMenu|rivalMenu|poemMenu|giftMenu|complimentMenu|askWhereMenu)|Quests\.offerMenu|Save\.open|Debug\.bug)\(/;
+const OPENS = /^\s*(Game\.(show\w+|open\w+|pauseMenu|envoyMenu|grantFiefMenu|guildPrices|setMarketCategory|mktMode|askWait|showLore)|Nobles\.(talk|courtMenu|spouseMenu|rivalMenu|poemMenu|giftMenu|complimentMenu|askWhereMenu)|Quests\.offerMenu|Save\.open|Debug\.(bug|open))\(/;
 // ...except these: the victory screen ends the game, the install prompt is the browser's
 const NOT = /showVictory|showInstallBtn|showMapSurface/;
 // Settlement actions that open a window (their handlers are closures, so they go by label)
@@ -144,6 +144,8 @@ test('her pencere, bir kat derine: kayan ekran, iç içe kaydırma, taşan pence
     found.push(...await audit(page, 'duraklatma'));
     seen.push('duraklatma');
     await sweep(page, 'duraklatma', async () => { await map(); await page.evaluate(() => Game.pauseMenu()); }, found, done);
+    // the settings window: the debug report sits behind it, two levels from the map
+    await sweep(page, 'ayarlar', async () => { await map(); await page.evaluate(() => Game.showSettings()); }, found, done);
 
     // A lord's own window and what it opens (the talk window is reached from the hall above,
     // this reaches its sub-menus)
