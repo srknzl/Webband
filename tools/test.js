@@ -3934,9 +3934,9 @@ test('returning from a menu centers the map on the player', () => {
 test('a panned camera holds its world position while the player walks', () => {
     const { Game, state } = g;
     Game.camera.offsetX = 600; Game.camera.offsetY = 400;
-    Game.update(0.016);                                  // seeds the previous-position pair
+    Game.updateCamera(0.016);                                  // seeds the previous-position pair
     const tx = state.player.x + Game.camera.offsetX, ty = state.player.y + Game.camera.offsetY;
-    for(let i = 0; i < 50; i++) { state.player.x += 7; state.player.y += 4; Game.update(0.016); }
+    for(let i = 0; i < 50; i++) { state.player.x += 7; state.player.y += 4; Game.updateCamera(0.016); }
     // Sub-pixel, not bit-exact: fifty subtractions of the player's own drifting float position
     // leave rounding behind. The invariant is that the view does not slide, not that it is exact.
     assert.ok(Math.abs(state.player.x + Game.camera.offsetX - tx) < 0.5, 'the panned view slid sideways');
@@ -3944,7 +3944,7 @@ test('a panned camera holds its world position while the player walks', () => {
 
     // With no pan the camera still follows: a zero offset stays zero.
     Game.camera.offsetX = 0; Game.camera.offsetY = 0;
-    for(let i = 0; i < 50; i++) { state.player.x += 7; Game.update(0.016); }
+    for(let i = 0; i < 50; i++) { state.player.x += 7; Game.updateCamera(0.016); }
     assert.strictEqual(Game.camera.offsetX, 0);
 });
 

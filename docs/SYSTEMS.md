@@ -87,7 +87,11 @@ summary. Answers live in `state.player.background`.
   `canSee`/`spotRange`. Sight (`getVisibility()`) = `500 + (int−10)×30 + (Scouting−1)×25`, ×0.7
   at night, ×`TOWER_REVEAL_MUL`(4) during a watchtower reveal.
 - Camera: wheel zoom (`minZoom()`–3.0), edge pan, free WASD/arrow pan (offset clamped ±9000),
-  Space/🎯 recenters. Icons/labels scale with `Game.iconScale()`/`1/zoom` so they don't vanish
+  H/🎯 recenters. The camera is its own step (`updateCamera`, 2.4.9), outside the clock gate, so
+  it pans and zooms while time is stopped. Edge pan (2.4.9) only while the pointer is on the map
+  itself (`Input.mouse.onMap`): over the menu, the HUD (a solid panel since 2.4.9, no longer
+  click-through) or the campaign bar it stays still, and the top band starts under the campaign
+  bar, which covers the whole top edge. Icons/labels scale with `Game.iconScale()`/`1/zoom` so they don't vanish
   when zoomed out to see the whole 9000-unit continent.
 - **`body.view-map`** (set by `showScreen('map')`) makes the canvas fill the viewport with glass
   chrome floating over it; `enterLocation` goes through `showScreen('settlement')` like every
@@ -173,10 +177,16 @@ Time flows only on the map screen, only while not paused/tower-revealing and the
 moving or captive (`dt × Game.timeScale()`).
 
 **Pause**: `Game.setPaused(on)` writes `Battle.paused` mid-battle or `Game.paused` otherwise;
-`Game.clockStopped()` (`paused || towerReveal`) gates `update(dt)` — `renderMap()` stays outside
-that gate on purpose (a tower reveal is a frozen map you're meant to look at). Esc: close a
+`Game.clockStopped()` (`paused || held || towerReveal`) gates `update(dt)` — `renderMap()` and
+`updateCamera()` stay outside that gate on purpose (a stopped map is one you're meant to look at). Esc: close a
 window → go to map → pause (opens Resume/Save/Settings/Main Menu). `closeModal` is the one place
-that clears `Game.paused` directly. `state.timeScale` cycles 0.5→1→2 via the calendar badge.
+that clears `Game.paused` directly. **Space** (2.4.9) is the player's own stop, `Game.held`, kept
+apart from `paused`: closing a window doesn't lift it — Space again, a speed key or the speed
+button does, and so does walking into a town or a fight (`showScreen`). `pauseBar('')` falls back
+to the held banner, and the speed button shows ⏸. `state.timeScale` is one of `TIME_SCALES`
+(0.5, 1, 2): the HUD's speed button and **Z** cycle it, **1 2 3** pick it (`setTimeScale`, which
+also lifts the hold) — digits on the map only; in a town they press its cards, in battle they
+are the tactical orders.
 
 **Map speed** (`getPlayerSpeed`): `(base 66 + agility×1.5) × (1 + party bonus) × (1 + mounted
 ratio×0.5) × terrain × night(×0.85) × overload`. Party bonus: solo +50%, +20% at 10, 0 at 20,
@@ -218,7 +228,8 @@ daily (newest first). In battle, `Game.moraleMult()` = `0.8 + morale/250` scales
   (`Game.updateTips`) breaking down where the value comes from.
 - Tooltip overflow is solved once (`Game.initTooltipClamp()`), never per-badge.
 - Side menu: `M/C/P/I/Q` shortcuts, **K** diplomacy, **Esc** to map, **WASD**/arrows pan,
-  **Space** recenters — all via `Input.init`, disabled during a modal/battle.
+  **H** recenters, **Space** stops/starts time, **1 2 3 / Z** speed — all via `Input.init`,
+  disabled during a modal/battle.
 - Map HUD: terrain + speed, troop composition, Wait / Find Me / Next / Diplomacy, time-speed
   button. Since 2.0.0 all of them use line icons (`Game.icon`); the terrain's icon comes from
   `Game.TERRAIN_ICON` by name. The labels' dictionary keys still carry their old emoji, which
