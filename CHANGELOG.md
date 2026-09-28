@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.5 — Dokunuş (2026-09-28)
+
+- **Telefonda başlangıç ekranı artık kaymıyor.** Başlıktaki ışıltı ekrandan taşıyordu. Bu yüzden
+  ekran parmağın altında sağa sola kayıyordu. Tarayıcı çubukları açıkken de aşağı yukarı
+  kayıyordu. Artık ekrana sığıyor ve yerinde duruyor.
+- **Lordlar ve Krallıklar penceresi telefonda düzgün.** Liste, pencerenin içinde her yöne kayan
+  küçük bir kutuydu. Artık her lord alt alta tam genişlikte duruyor: portre üstte, hikâyesi
+  altında. Pencerenin kendisi kayıyor.
+- **Başarım bildirimi artık dokunuşları yutmuyor.** Sağ alttaki kutu beş saniye boyunca alttaki
+  düğmelere basmayı engelliyordu.
+- **Başarımlar listesi ve "… nerede?" listesi kutu içinde kutu değil.** Pencerenin kendisi
+  kayıyor.
+- **Esirler listesindeki "Salıver" düğmesi telefonda sıkışmıyor.**
+
 ## 2.4.4 — Kuşatma (2026-09-28)
 
 - **Kuşatma artık surların dibindeki ordudur.** Kampa bir çete dalınca kuşatma sessizce
