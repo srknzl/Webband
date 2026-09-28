@@ -1579,7 +1579,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/test.js [--fast]` | the full assertion suite (`--fast` = pure-logic only, skips the day-200 sim) |
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
 | `tools/typecheck.js [--update]` | tsc over the game's JS (`tools/tsconfig.json`, nothing compiled; typescript from `e2e/node_modules`): fails on an error not in `tools/tsc-baseline.json` |
-| `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks through every settlement kind, replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
+| `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks from the settlements and the map's payouts (a bandit band, a lord prisoner, a ruin, a quest hand-in), replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
 | `tools/coverage.js [--dir e2e/test-results] [--top 40] [--md f]` | the coverage map: merges every e2e run made with `COVERAGE=1` and lists the game functions none of them called, biggest first |
 
 Bug hunting in the browser: `MONKEY=1 MONKEY_SEED=1,2,3 MONKEY_STEPS=400 npx playwright test
@@ -1619,22 +1619,29 @@ alone it reaches 80% of nobles.js), and the long hair (`femHair`, no spec ever m
 woman — `heroine.spec.js` now does). Still unreached: the pre-sprite map silhouettes
 (`drawRider/Footman/Wolf`, a fallback the loaded sprite sheets never need).
 
-**Money-pump hunt** (2.4.3): `tools/exploits.js` stands at four gates (an own city, a friendly
-city, a castle, a village) with a purse, goods, prisoners, troops and a fief, and takes seeded
-walks of up to six presses — the gate's buttons, then every `onclick` the window that opens
-offers. The pick leans to the less pressed, by what a button calls before which one (a hundred
-`mktSelect` tiles are one choice, `mktGo` another), or the walks never reach a trade. Each walk
-that took no time is replayed five times from the gate, and so is every pair where one walk
-raised a holding (a good, stored goods, a treasury) and the other lowered it — a conversion and
-its inverse. Wealth counts the purse, fief treasuries, prisoners at their price and every good,
-bag and storage pooled per good, at what selling the whole lot here would bring (the game's own
-`marketQuote`); at one unit's price, buying looked like a pump, since each buy lifts the price of
-what's already held. Richer on all five turns with the clock still is a pump. A press that throws
-is reported too. Proven on planted bugs (seed 1, 400 walks): the old trade-edge pump (spread closed) comes back as
-74 pumps, a treasury withdrawal paying 10% extra as 4. Measured, seeds 1-3 × 600 walks:
-~4700 walks and ~6500 pairs, no pump; ~100 s a seed. Its first find was no pump but a crash — the
-gate's "join the feast" after greeting the hall carried the feast past its last midnight. The
-nightly runs it on two seeds, plain and with the trade edge at its cap. Also since 2.4.3,
+**Money-pump hunt** (2.4.3): `tools/exploits.js` starts walks at eight gates — four settlements
+(an own city, a friendly city, a castle, a village; with a purse, goods, prisoners, troops and a
+fief) and four map payouts: a bandit band on the road (the encounter window, `autoBattle`, the
+result), a lord in your chains (ransom, release), a ruin to search, a quest waiting for its
+hand-in. A walk is up to six seeded presses — the gate's buttons, then every `onclick` the window
+that opens offers. The pick leans to the less pressed, by what a button calls before which one (a
+hundred `mktSelect` tiles are one choice, `mktGo` another), or the walks never reach a trade. Each
+walk that took no time is replayed five times, and so is every pair where one walk raised a
+holding (a good, stored goods, a treasury) and the other lowered it — a conversion and its
+inverse. The map's sources are laid once per cycle, not per replay, so a replay that finds its
+source spent pays nothing: a pump there is a source that pays twice. Wealth counts the purse, fief
+treasuries, prisoners at their price and every good, bag and storage pooled per good, at what
+selling the whole lot here would bring (the game's own `marketQuote`); at one unit's price, buying
+looked like a pump, since each buy lifts the price of what's already held. Richer on all five
+turns with the clock still is a pump. A press that throws is reported too. Proven on planted bugs
+(seed 1, 200-400 walks): the old trade-edge pump (spread closed) comes back as 74 pumps, a
+treasury withdrawal paying 10% extra as 4, a ransom that leaves the lord in chains, prisoners sold
+and kept, and a quest that pays and stays open (caught at the city gate, where walking in hands
+it in again). Measured, seeds 1-3 × 600 walks: ~6600 walks and ~6300 pairs, no pump, ~110 s a
+seed. The band gate is narrow by nature (six distinct timeless walks: fight, flee, give in; a
+hand-fought battle ends the walk). Its first find was no pump but a crash — the gate's "join the
+feast" after greeting the hall carried the feast past its last midnight. The nightly runs it on
+two seeds, plain and with the trade edge at its cap. Also since 2.4.3,
 `tools/test.js` offers every quest from every lord allowed to give it, on four seeds in TR and
 EN, and reads each text it shows (offer, list, three days on, awaiting its hand-in) for a hole —
 `undefined`, `NaN`, an unfilled `{0}`, a place its id no longer finds, a missing EN key. Clean.
