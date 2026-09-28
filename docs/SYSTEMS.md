@@ -1657,6 +1657,7 @@ in for `Math.random`. Everything else is built on it:
 | `tools/career.js --days 150 --seed 1-8` | a scripted player (shop, recruit, fight, promote, arena, tournament, hire, perks, gear, save/load…) with invariants checked after every action |
 | `tools/typecheck.js [--update]` | tsc over the game's JS (`tools/tsconfig.json`, nothing compiled; typescript from `e2e/node_modules`): fails on an error not in `tools/tsc-baseline.json` |
 | `tools/exploits.js [--seed 1-3] [--walks 600] [--edge]` | the money-pump hunt: seeded button walks from the settlements and the map's payouts (a bandit band and its battle fought by hand, a lord prisoner, a ruin, a quest hand-in), replayed; fails on a walk (or a pair of walks) that leaves the player richer every time with the clock still |
+| `tools/longgame.js [--days 1000] [--seed 1] [--every 50] [--report]` | a 1000-day game, playerless and scripted career: the save's size, the lists that could grow (`H.footprint`) and the time a day takes, sampled every 50 days; fails on a number that never comes back down |
 | `tools/mapwatch.js [--seed 1-3] [--days 40]` | map parties watched step by step in four scenes: a jump, a stuck party, a dithering one, a crowd, a siege from afar — one `MAP` line per find, exit 1 |
 | `tools/coverage.js [--dir e2e/test-results] [--top 40] [--md f]` | the coverage map: merges every e2e run made with `COVERAGE=1` and lists the game functions none of them called, biggest first |
 
@@ -1668,6 +1669,21 @@ runs them every night at 01:00 UTC with seeds from the day of the year (two monk
 four projects at 300 steps, the lair sweep, `career.js` on eight seeds) and opens — or comments
 on — one `nightly`-labelled issue with each finding's project and seed. Actions → nightly → Run
 workflow starts it by hand with chosen seeds and steps.
+
+**A long game (#149):** `tools/longgame.js` plays 1000 days twice per seed: the playerless world
+(`H.run`) and the scripted career (`career.js`'s `run`, now exported with a per-day hook). Every 50
+days it samples `H.footprint(g)`: the save's size, map parties, news, war log, market stock
+entries, sites, feasts, quests and offers, the bag, relations, grudges, errors, and ms a day. A
+leak never comes back down, so a number is flagged when the second half's lowest sample stays
+25% (and 5, 8 KB for the save) above the first half's mean. Market stock swings 0-26 and back and
+isn't one. The first run flagged the career's quest list: 19 at day 500, 40 at day 1000. The game
+caps it at one per giver (`offerMenu` hands a finished job in and refuses a second), but
+`career.js` took quests through `offerFrom` straight past that gate and never handed any in; it
+now goes through the giver's window, so hand-ins are played too. Measured, seeds 1-3 (the report
+is `docs/measurements/2026-09-28-long-game.md`): nothing grows. The save stays at 65-71 KB in the
+playerless world and 75-86 KB in a career, map parties 59-75, news capped at 12, the war log at 20,
+sites at 23-27; a day takes ~60 ms playerless and ~220 ms with the career, flat to day 1000 (the
+odd 1-3 s sample is the machine busy with something else, and comes straight back).
 
 **Type check** (2.4.1, the e2e CI job): `tools/typecheck.js` runs tsc on the game's own scripts as
 plain JavaScript. Day one: 170 errors, frozen in `tools/tsc-baseline.json` counted by file, code and
