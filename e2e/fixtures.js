@@ -239,7 +239,8 @@ function audit(page, where) {
             const s = getComputedStyle(el), o = axis === 'x' ? s.overflowX : s.overflowY;
             return /auto|scroll/.test(o) && (axis === 'x' ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1);
         };
-        const boxes = [...document.querySelectorAll('body *')].filter(el => vis(el) && el.tagName !== 'CANVAS' && (scrolls(el, 'x') || scrolls(el, 'y')));
+        // a canvas draws its own world, a text field scrolls its own text: neither is a layout box
+        const boxes = [...document.querySelectorAll('body *')].filter(el => vis(el) && !/^(CANVAS|TEXTAREA)$/.test(el.tagName) && (scrolls(el, 'x') || scrolls(el, 'y')));
         for(const el of boxes) {
             const x = scrolls(el, 'x'), y = scrolls(el, 'y'), big = el.matches('.screen, .view, #modal-content');
             if(x && (y || big)) out.push(`${name(el)} scrolls sideways${y ? ' and down' : ''} (${el.scrollWidth} > ${el.clientWidth})`);

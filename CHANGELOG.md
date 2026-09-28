@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.7 — Tercüman (2026-09-28)
+
+- **Oyunun içinde dil değiştirince ayarların arkasındaki ekran da çevriliyor.** Görevler ekranı
+  açıkken ayarlardan dil değiştirilince ekran, başka bir şey onu yeniden çizene kadar eski dilde
+  kalıyordu.
+- **Dar ekranda hata raporu ve fidye penceresinin düğmeleri sığmayınca alt satıra geçiyor**,
+  yazıları düğmenin dışına taşmıyor.
+
 ## 2.4.6 — Hazine (2026-09-28)
 
 - **Oyunun içinden kayıt yüklemek artık para ve eşya basmıyor.** Kaydettikten sonra bir tımarın

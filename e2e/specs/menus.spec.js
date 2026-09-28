@@ -98,15 +98,19 @@ test('diplomasi ve sıradaki parça her düzende erişilebilir', async ({ page }
 test('ayarlar: ses aç/kapa ve oyun içinde dil değiştirme', async ({ page, lang }) => {
     test.skip(lang === 'xx', 'switches between the real languages; the pseudo-locale is not in the menu');
     await newGame(page);
+    // the quests screen underneath: its text is built from templates, not the static DOM
+    await openView(page, 'quests');
     await openExtra(page, 'Game.showSettings()');
     await expect(modal(page).locator('#settings-panel')).toBeVisible();
 
-    // Switching language in-game redraws the settings and the screen underneath
+    // Switching language in-game redraws the settings and the screen underneath (#150: the
+    // settings window returned first, and the quests screen kept the old language)
     const other = lang === 'en' ? 'id' : 'en';
     await modal(page).locator(`button[onclick="Game.setLang('${other}')"]`).click();
     await expect(page.locator('html')).toHaveAttribute('lang', other);
     await expect(modal(page).locator(`button[onclick="Game.setLang('${other}')"]`)).toHaveClass(/\bprimary\b/);
     await expect(page.locator('#sidebar .menu-btn[data-view="map"] .mb-lbl')).toHaveText(await L(page, 'Harita'));
+    await expect(page.locator('#quests-view')).toContainText(await L(page, '🎯 Hedefin'));
     await modal(page).locator(`button[onclick="Game.setLang('${lang}')"]`).click();
     await expect(page.locator('html')).toHaveAttribute('lang', lang);
     await page.evaluate(() => Game.closeModal());
