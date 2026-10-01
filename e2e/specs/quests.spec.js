@@ -199,6 +199,23 @@ test('bitmiş görev, verenin bulunduğu şehre girince kendiliğinden teslim ed
     expect(await page.evaluate(() => state.player.quests.length)).toBe(0);
 });
 
+// Closing a window redraws the town under it (#159), but redrawing isn't walking in: the village
+// that counts your sacks says so once, and "Tamam" closes it instead of asking again forever
+test('yetmeyen erzak uyarısı bir kez çıkar, Tamam onu kapatır', async ({ page }) => {
+    await newGame(page);
+    const vil = await page.evaluate(() => {
+        const giver = LORDS.find(l => QUESTS.hungry_army.givers.includes(l.personality)) || LORDS[0];
+        const q = Quests.make('hungry_army', giver.id);
+        state.player.quests.push(q);
+        state.player.inventory = state.player.inventory.filter(i => ITEMS[i.id] && ITEMS[i.id].type !== 'food');
+        return q.data.locId;
+    });
+    await enter(page, vil);
+    expect(await okAlert(page)).toContain(await L(page, 'Köy meydanında çuvalları saydılar. Yetmiyor. ({0}/{1})', 0, 20));
+    await expect(modal(page)).toBeHidden();
+    await expect(await actionBtn(page, '🧓 Köy Yaşlısıyla Konuş')).toBeVisible();
+});
+
 test('görevden vazgeçmek görevi düşürür ve ilişkiyi keser', async ({ page }) => {
     await newGame(page);
     const lord = await lordAtHome(page, 'butter_blockade');

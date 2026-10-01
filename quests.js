@@ -1449,11 +1449,9 @@ const Quests = {
         if(state.questOffers) delete state.questOffers[q.giverId];
         state.player.quests.push(q);
         Game.trainAttr('int', 1);   // taking a quest trains intelligence
+        // closing the offer redraws the town under it: a quest set right here (a lord's chickens
+        // in his own castle's yard) has its button now, not after walking out and back in
         Game.closeModal();
-        // A quest set in the town you're standing in (a lord's chickens in his own castle's yard)
-        // puts its button on the town now, not after walking out and back in
-        let here = LOCATIONS.find(l => l.id === Game._enteredLoc);
-        if(here) Game.redrawTown(here);
         alert(T`Görev kabul edildi: ${T(QUESTS[q.id].title)}\nSüre: ${QUESTS[q.id].days} gün.`);
     },
 

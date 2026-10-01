@@ -37,6 +37,21 @@ test('arena: the novice goes down and the purse is paid', async ({ page }) => {
     await page.waitForFunction(() => Game._loopId && !Battle.active);
 });
 
+// The town under a window follows whatever happened while it was open (#159): the nightly
+// monkey closed an alert and the city still hid the tournament announced in the meantime
+test('a tournament announced while a window is open is on the town when it closes', async ({ page }) => {
+    await newGame(page);
+    const city = await quietCity(page);
+    await page.evaluate(id => { delete state.activeTournaments[id]; }, city);
+    await enter(page, city);
+    await (await actionBtn(page, '🍺 Hana Gir')).click();
+    await expect(modal(page)).toBeVisible();
+    await page.evaluate(id => { state.activeTournaments[id] = true; }, city);
+    await page.keyboard.press('Escape');
+    await expect(modal(page)).toBeHidden();
+    await expect(await actionBtn(page, '🏆 Turnuvaya Katıl')).toBeVisible();
+});
+
 test('tournament: a bet, three rounds on the sand, the champion is paid once', async ({ page }) => {
     await newGame(page);
     const city = await quietCity(page);
