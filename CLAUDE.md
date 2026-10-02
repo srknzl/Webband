@@ -6,6 +6,8 @@ No build, no npm at runtime — `index.html` opens directly in the browser. The 
 
 **Deploy**: the live site is `serkanozel.me/webband` — to update it, copy this repo's files
 to `~/git/serkanozelme/blog/public/webband/` and push that repo (auto-deploy fires).
+`.github/workflows/deploy.yml` does this by itself after every green push to main (and by hand
+via `workflow_dispatch`).
 
 **Detail lives in `docs/SYSTEMS.md`** — every mechanic's design decision and measured number.
 Only invariant rules live here. Before changing a mechanic, read its section there;
