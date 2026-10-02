@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.4.10 — Perde (2026-10-01)
+
+- **Şehirde bir pencere kapanınca altındaki şehir güncelleniyor.** Pencere açıkken olan her şey
+  kapanınca görünüyor: salonda vasal olunca "Kuşat!" kartı kalkıyor, bu arada ilan edilen turnuva
+  "Turnuvaya Katıl" olarak çıkıyor. Eskiden şehirden çıkıp yeniden girmek gerekiyordu.
+
 ## 2.4.9 — Dümen (2026-09-28)
 
 - **Boşluk zamanı durdurur ve yeniden başlatır.** Durunca kamera serbest: kaydırıp yakınlaşarak

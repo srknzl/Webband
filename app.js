@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.9', date: '2026-09-28', name: 'Dümen' };  // the version name is not translated
+const VERSION = { no: '2.4.10', date: '2026-10-01', name: 'Perde' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -7088,6 +7088,13 @@ const Game = {
         let seen = state.career.visited = state.career.visited || [];
         if(!seen.includes(loc.id)) { seen.push(loc.id); this.checkAchievements(); }   // Haritacı (#127)
         if(loc.type === 'site') return this.enterSite(loc);   // discovery site (#58): a modal, not a screen
+        this.noteLoc(loc);   // sees everything that comes through the gate (#74)
+        Quests.emit('entered_location', { locId: loc.id, loc });
+        this.drawTown(loc);
+    },
+    // The town screen from the state, without walking in again: no quest event, so a quest's
+    // "not enough food" alert can't come back each time a window over the town closes (#159)
+    drawTown(loc) {
         // Walking in (not a redraw of the same town after a purchase) opens the scene and brings
         // the cards in one after another (2.1, style.css .entering)
         let arriving = !document.getElementById('settlement-view').classList.contains('active') || this._enteredLoc !== loc.id;
@@ -7106,9 +7113,6 @@ const Game = {
         // Gates are only closed to a kingdom you're at war with (like in Warband);
         // the market and tavern are open to you in a neighbor's city at peace.
         let isEnemy = this.atWar(this.playerFaction(), loc.faction);
-
-        this.noteLoc(loc);   // sees everything that comes through the gate (#74)
-        Quests.emit('entered_location', { locId: loc.id, loc });
 
         if(isEnemy && (loc.type==='city'||loc.type==='castle')) {
             // No civilian services at an enemy's gate: market, tavern, hall, volunteers — all closed.
@@ -8051,7 +8055,11 @@ const Game = {
         if(this.paused) { this.paused = false; this.pauseBar(''); }
         // The surrender question froze the fight; every way out of it unfreezes it (Battle.askSurrender)
         if(typeof Battle !== 'undefined' && Battle._askingSurrender) { Battle._askingSurrender = false; Battle.paused = false; }
-        document.getElementById('modal-overlay').classList.add('hidden');
+        let ov = document.getElementById('modal-overlay'), wasOpen = !ov.classList.contains('hidden');
+        ov.classList.add('hidden');
+        // Whatever happened in the window (an oath, hours in the hall, a new tournament, a purchase)
+        // shows on the town under it — one gate instead of a redraw in every action (#159)
+        if(wasOpen && !this.inScene()) this.redrawTown(LOCATIONS.find(l => l.id === this._enteredLoc));
     },
 
     // --- TYPEWRITER (#59) ---
@@ -10685,7 +10693,7 @@ const Game = {
     // The town's cards carry counts (garrison men, storage lots, the tribute): a change made in a
     // panel on top of them redraws them underneath, or they keep the number from walking in (#133)
     redrawTown(loc) {
-        if(document.getElementById('settlement-view').classList.contains('active') && this._enteredLoc === loc.id) this.enterLocation(loc);
+        if(loc && document.getElementById('settlement-view').classList.contains('active') && this._enteredLoc === loc.id) this.drawTown(loc);
     },
     openStorage(loc) {
         loc.storage = loc.storage || [];
