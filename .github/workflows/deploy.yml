@@ -1,0 +1,46 @@
+# A green push to main ships itself to serkanozel.me/webband: the game's files are copied into
+# the blog repo's blog/public/webband/ and pushed; the blog's own auto-deploy does the rest.
+#
+# It runs after `test` (test.yml) finishes green on a push to main, on the commit that was
+# tested, so a red build never reaches the site. `workflow_dispatch` ships main by hand.
+#
+# Writing to another repo needs a key: BLOG_DEPLOY_KEY is the private half of an SSH deploy key
+# that srknzl/serkanozelme accepts with write access (and nothing else).
+#
+# The copy is the game, not the repo: e2e/, tools/, docs/, native/ and the git files stay out,
+# and --delete-excluded clears them from the site too, so nothing stale lingers there.
+name: deploy
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+concurrency: { group: deploy, cancel-in-progress: false }
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          path: game
+      - uses: actions/checkout@v4
+        with:
+          repository: srknzl/serkanozelme
+          ssh-key: ${{ secrets.BLOG_DEPLOY_KEY }}
+          path: site
+      - working-directory: site
+        run: |
+          rsync -a --delete --delete-excluded \
+            --exclude '.git*' --exclude '/e2e/' --exclude '/tools/' --exclude '/docs/' --exclude '/native/' \
+            ../game/ blog/public/webband/
+          git add -A blog/public/webband
+          if git diff --cached --quiet; then echo "The site already has this build."; exit 0; fi
+          v=$(sed -n "s/^const VERSION = { no: '\([^']*\)', date: '[^']*', name: '\([^']*\)'.*/\1 \2/p" ../game/app.js)
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "Deploy WebBand $v"
+          git push
