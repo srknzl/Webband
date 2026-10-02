@@ -11,7 +11,7 @@
 //
 // docs/PLAN-smithing.md has the design and the phases. Phase 4 (2.7.0) adds the masterworks
 // (Demircilik 9 and a bar of crucible steel from the bandit mine), the Örs perks every number
-// below can bend (Game.perkMod: coalSave, ironSave, forgeHours, forgeCool, passEase, edgeBonus,
+// below can bend (Game.perkMod: coalSave, ironSave, forgeHours, blowFocus, passEase, edgeBonus,
 // scrapYield) and melting a piece back down to iron.
 // The model (Forge.MODEL + the pure step functions in Forge._model) is pinned by tools/test.js.
 // Drawn with Canvas2D on #forge-canvas into a small pixel buffer scaled up whole; its own loop,
@@ -35,10 +35,11 @@ const M = {
     K_IN: 0.2,          // how fast a segment takes the hearth's heat: the tang at 0.6×, the tip at 1.6×
     BURN_T: 1300,       // white: the steel starts to burn
     BURN_S: 0.8,        // seconds above it before a segment is burnt
-    COOL: 0.03, COOL_THIN: 0.04, COOL_TIP: 0.03,   // cooling on the anvil (1/s): base, finished, tip
-    K_STRIKE: 0.40,     // work one full-heat blow takes off its centre segment
-    SIGMA: 0.85,        // how far a blow spreads (segments)
-    CHILL: 8,           // °C a blow takes out of the metal it hits
+    COOL: 0.009, COOL_THIN: 0.012, COOL_TIP: 0.009,   // cooling on the anvil (1/s): base, finished, tip — the same for every smith
+    K_STRIKE: 0.30,     // work one full-heat blow takes off its centre segment
+    SIGMA: 0.6,         // how far a blow spreads (segments): a neighbour takes a quarter
+    OVER: 0.25,         // past the outline the metal stiffens: a blow moves it at this share
+    CHILL: 4,           // °C a blow takes out of the metal it hits
     COLD: 650,          // a hard blow below this is a cold strike (a flaw)
     EFF_LO: 600, EFF_HI: 950,     // the metal moves from LO, fully from HI
     Q_LO: 760, Q_HI: 900,         // the quench's ideal band
@@ -96,7 +97,7 @@ function prevOf(r) {
 }
 
 function newBar(r, lvl) {
-    const shape = SHAPES[r.shape], tier = tierOf(r), segs = [];
+    const shape = SHAPES[r.shape], tier = tierOf(r), segs = [], ease = clamp((lvl - r.req) / 6, 0, 1);
     for(let i = 0; i < M.N; i++) {
         const t = shape(i);
         // `w` is the share of this segment's work still to do: 1 raw, 0 on the outline, below 0
@@ -105,7 +106,7 @@ function newBar(r, lvl) {
         segs.push({ T: M.AMB, w: 1, w0: (0.35 + 0.65 * Math.abs(M.BILLET - t) / 9) * (1 + 0.15 * tier), t, burnT: 0, burned: false });
     }
     return { segs, F: M.F_IDLE, heats: 1, cold: 0, burned: 0, strikes: 0, tier,
-             ease: clamp((lvl - r.req) / 6, 0, 1), tol: 0.10 - 0.012 * tier, cool: 1 - perk('forgeCool'), passEase: perk('passEase') };
+             ease, tol: 0.10 - 0.012 * tier + 0.04 * ease, sigma: M.SIGMA * (1 - perk('blowFocus')), passEase: perk('passEase') };
 }
 // how much a blow moves the metal at this heat
 function eff(T) { return T < M.EFF_LO ? 0 : T >= M.EFF_HI ? 1 : (T - M.EFF_LO) / (M.EFF_HI - M.EFF_LO); }
@@ -127,7 +128,7 @@ function stepAnvil(g, dt) {
     g.F += (M.F_IDLE - g.F) * (1 - Math.exp(-M.F_DOWN * dt));
     g.segs.forEach((s, i) => {
         const thin = 1 - clamp(s.w, 0, 1);
-        const c = (M.COOL + M.COOL_THIN * thin + M.COOL_TIP * i / (M.N - 1)) * (1 - 0.3 * g.ease) * (g.cool || 1);
+        const c = M.COOL + M.COOL_THIN * thin + M.COOL_TIP * i / (M.N - 1);
         s.T += (M.AMB - s.T) * (1 - Math.exp(-c * dt));
     });
 }
@@ -136,10 +137,12 @@ function strike(g, u, p) {
     const c = clamp(Math.round(u), 0, M.N - 1), T = g.segs[c].T, cold = T < M.COLD && p > 0.3;
     let work = 0;
     g.segs.forEach((s, i) => {
-        const k = Math.exp(-((i - u) ** 2) / (2 * M.SIGMA * M.SIGMA));
+        const sg = g.sigma || M.SIGMA, k = Math.exp(-((i - u) ** 2) / (2 * sg * sg));
         if(k < 0.02) return;
-        const d = M.K_STRIKE * p * eff(s.T) * k / s.w0;
-        s.w -= d; work += d;
+        // up to the outline the blow moves the metal fully, past it only at OVER: a stray blow
+        // thins a finished spot a little, hammering on and on there still ruins it
+        const d = M.K_STRIKE * p * eff(s.T) * k / s.w0, free = clamp(s.w, 0, d), moved = free + (d - free) * M.OVER;
+        s.w -= moved; work += moved;
         s.T -= M.CHILL * p * k;
     });
     if(cold) g.cold++;
@@ -554,11 +557,16 @@ function drawAnvil() {
             b.globalCompositeOperation = 'lighter'; b.globalAlpha = heat01(s.T) * .55;
             b.drawImage(glowSprite(255, 120, 40), x - 22, faceY - hp - 22, 48, 48); b.globalAlpha = 1; b.globalCompositeOperation = 'source-over';
         }
-        // the outline to hammer down to: a dashed line, dark where it crosses the glowing metal,
-        // pale where the metal is already below it
+        // the outline to hammer down to: a dashed line while there's work left, solid gold once the
+        // segment is on it (within tolerance), red with a notch above where it was hammered past —
+        // an overworked spot is under a pixel thinner, so the line has to say so
         const ty = faceY - Math.max(1, Math.round(s.t * LY.hScale)) - 1;
-        b.fillStyle = ty >= faceY - hp ? 'rgba(20,8,4,.6)' : 'rgba(255,240,200,.6)';
-        for(let k = 0; k < segW; k += 3) b.fillRect(x + k, ty, Math.min(2, segW - k), 1);
+        if(s.w < -G.tol) { b.fillStyle = '#e8402c'; b.fillRect(x, ty, segW, 1); b.fillRect(x + (segW >> 1), ty - 3, 1, 2); }
+        else if(s.w <= G.tol) { b.fillStyle = 'rgba(255,214,110,.9)'; b.fillRect(x, ty, segW, 1); }
+        else {
+            b.fillStyle = ty >= faceY - hp ? 'rgba(20,8,4,.6)' : 'rgba(255,240,200,.6)';
+            for(let k = 0; k < segW; k += 3) b.fillRect(x + k, ty, Math.min(2, segW - k), 1);
+        }
     });
     // the hammer over where it will land
     const hm = G.hammer, u = clamp(hm.u, 0, M.N - 1), c = clamp(Math.round(u), 0, M.N - 1);
@@ -912,10 +920,10 @@ function open(loc, note) {
 // How it's done, as a list — for the window, before going in (and from the pause menu)
 const HELP = [
     ['🔥 Isıt', 'Körüğü bas: ocak beyazlaşır, demir ısınır. Rengine bak: koyu kırmızı soğuk, turuncu ve sarı dövülür, beyaz yanar. Turuncu-sarıya gelince örse al.'],
-    ['🔨 Döv', 'Çekici demirin üstüne getir; bas, basılı tut, bırak: ne kadar tutarsan o kadar sert vurur. Demir soluk çizgiye kadar dövülür. Bir yere fazla vurursan oradan incelir, geri gelmez: eşit döv.'],
+    ['🔨 Döv', 'Çekici demirin üstüne getir; bas, basılı tut, bırak: ne kadar tutarsan o kadar sert vurur. Demir kesik çizgiye kadar dövülür; biten yerde çizgi altın sarısı olur. Çizgiyi geçersen demir sertleşir ama yine incelir, çizgi kırmızıya döner: eşit döv.'],
     ['🌡️ Yeniden ısıt', 'İnce yerler ve uç önce soğur. Kızıllık gidince ocağa geri koy; soğuk demire sert vurmak çatlatır. Her kızdırma başarısızlık değildir ama çok kızdırmak işçiliği düşürür.'],
     ['💧 Su ver', 'Şekil tutunca Su ver açılır. Demir baştan uca kiraz-turuncuyken daldır; bir yeri karardıysa ya da hâlâ sarıysa iş zayıf çıkar.'],
-    ['🏅 Sonuç', 'Şekil, su verme ve ocak işçiliği birlikte puanlanır. İyi iş istediğin kademeyi verir; zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı kurtulur. Demircilik yükseldikçe demir daha yavaş soğur.'],
+    ['🏅 Sonuç', 'Şekil, su verme ve ocak işçiliği birlikte puanlanır. İyi iş istediğin kademeyi verir; zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı kurtulur. Demircilik yükseldikçe kademe daha kolay tutar.'],
     ['💠 Usta işi', 'Desenli parçalar Demircilik 9 ve bir pota çeliği ister; pota çeliği yalnız haydut madeninden çıkar. Tutmazsa çelik yine yanar.'],
     ['♨️ Erit', 'Çantandaki dövülebilir bir parçayı ocağa geri atarsın: demirinin yarısı hurda olarak döner. Pazarın verdiğinden azdır; pazarı olmayan yerde işe yarar.']
 ];
@@ -984,8 +992,8 @@ function updateHud() {
     const touch = Game.isTouch();
     setText('forge-hint', G.phase === 'forge' ? T('Körüğü bas: ateş beyazlaşır, demir ısınır. Turuncu-sarıya gelince örse al. Beyazda bırakma, yanar.')
         : G.phase === 'anvil' ? (ready ? T('Şekil tuttu. Baştan uca kiraz-turuncuyken su ver; uç kararmadan.')
-            : touch ? T('Parmağını demirin üstüne bas, istediğin yere kaydır, bırak: vurursun. Basılı tuttukça sert vurur. Soluk çizgiye kadar döv.')
-            : T('Demirin üstüne bas, basılı tut, bırak: vurursun. ← → ve Boşluk da olur. Soluk çizgiye kadar döv, fazlası incelir.'))
+            : touch ? T('Parmağını demirin üstüne bas, istediğin yere kaydır, bırak: vurursun. Basılı tuttukça sert vurur. Kesik çizgiye kadar döv: biten yer altın, fazlası kırmızı olur.')
+            : T('Demirin üstüne bas, basılı tut, bırak: vurursun. ← → ve Boşluk da olur. Kesik çizgiye kadar döv: biten yer altın, fazlası kırmızı olur.'))
         : T('Su veriliyor…'));
     const m = el('forge-msg');
     if(G.msgT > 0) { m.hidden = false; setText('forge-msg', G.msg); } else m.hidden = true;
@@ -1174,7 +1182,7 @@ function begin(r, run, lvl) {
     const scene = { t: 0, pumpPh: 0, msg: '', msgT: 0, quenchT: 0, job: R.job, result: null, score: null, coldSaid: false, hammer: { u: M.N / 2, charge: 0, drop: 0 } };
     G = R.job === 'grind' ? Object.assign(newEdge(r.shape, lvl), scene, { phase: 'grind', F: M.F_IDLE, heats: 1, grinding: false })
         : Object.assign(newBar(r, lvl), scene, { phase: 'forge' });
-    if(R.practice) Object.assign(G, { cool: 1, passEase: 0, max: GM.MAX });   // practice is Demircilik 1, perks and all
+    if(R.practice) Object.assign(G, { sigma: M.SIGMA, passEase: 0, max: GM.MAX });   // practice is Demircilik 1, perks and all
     FX.length = 0; TXT.clear(); pumpHeld = false; pressed = null; keyAim = 0; keyTilt = 0; drag = null;
     api.active = true; paused = false;
     if(R.practice) practiceScreen(true); else Game.showScreen('forge');

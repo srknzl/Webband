@@ -1245,11 +1245,18 @@ with its distance from the billet and by 15 % a tier.
 - **Hearth.** Bellows drive it to 1450 °C (rate 0.35/s), left alone it settles at 820 °C (0.2/s).
   Segments take its heat at 0.2/s × 0.6 (tang) … 1.6 (tip): the tip glows first. Above 1300 °C for
   0.8 s a segment burns (a flaw; marked on the bar).
-- **Anvil.** Cooling 0.03/s plus up to 0.04 for a finished segment and 0.03 at the tip, 30 % slower
-  for a smith 6 levels above the recipe. A blow takes `0.40 × power × eff(T) × gauss(σ 0.85) / w0`;
+- **Anvil** (2.7.1). Cooling 0.009/s plus up to 0.012 for a finished segment and 0.009 at the tip,
+  the same for every smith: from 1000 °C the tip stays workable (above 720 °C) for 14 s, the middle
+  17 s, the tang 23 s (before 2.7.1: 4/5/7 s, a little longer with Demircilik). A blow takes
+  `0.30 × power × eff(T) × gauss(σ 0.6) / w0` (a neighbour gets a quarter; σ was 0.85, half), and
+  past the outline only a quarter of that moves the metal (`OVER`): a stray blow barely thins a
+  finished spot, hammering on there still does;
   `eff` is 0 below 600 °C and 1 from 950 °C; holding the press charges power 0.35 → 1 over 0.7 s.
-  A blow of power > 0.3 on metal under 650 °C is a cold strike (a flaw). Each blow chills 8 °C.
-- **Quench** opens once every segment is within `0.10 − 0.012 × tier` of its outline. Score:
+  A blow of power > 0.3 on metal under 650 °C is a cold strike (a flaw). Each blow chills 4 °C.
+  On screen the outline is dashed while there's work left, solid gold once the segment is within
+  tolerance, red with a notch where it was hammered past.
+- **Quench** opens once every segment is within `0.10 − 0.012 × tier + 0.04 × ease` of its outline
+  (`ease` 0–1 for a smith 0–6 levels above the recipe). Score:
   `S = 0.55 shape + 0.30 quench + 0.15 care`; shape = `1 − 3 × mean error` (overwork counts 1.8×),
   quench = share of segments in 760–900 °C less a penalty for a spread over 200 °C, care loses
   0.06 a cold strike, 0.08 a burnt segment, 0.03 for each heat past `3 + tier`. The pass mark is
@@ -1284,9 +1291,14 @@ isn't there; leaving puts the start screen back.
 **Loop and cost.** Its own rAF loop (`Game.skipFrame` gate, double-start safe); the map loop stops
 while `Forge.active` (`Game.inScene`). Leaving redraws the town, then the hours pass there.
 
-- Measured (`tools/test.js`, the scripted careful smith): every recipe forged at its own tier,
-  S 0.82–0.95, 36–56 s of game time, 3–5 heats, no flaw. The careless smith (full blows anywhere,
-  reheating only when the bar is dark) cracks every piece tried (S 0.14–0.30).
+- Measured (2.7.1, `tools/test.js`, the scripted careful smith): every recipe, masterworks
+  included, forged at its own tier, S 0.95–0.99, 34–57 s of game time, 2–3 heats, no flaw. The
+  careless smith (full blows anywhere, reheating only when the bar is dark) cracks 79 of 81 tries
+  and gets the tier below in 2 (S 0.02–0.50).
+- Measured (2.7.1, `humanBot`, a smith who reads the bar in pixels and misses by up to half a
+  segment): shape 0.88–0.92, 0–1 of 24 segments overworked; missing by a whole segment, shape
+  0.78–0.89. Before 2.7.1 the same smiths scored 0.41–0.79 and 0.10–0.52, with 8–19 segments
+  overworked — the "shape is always 0" report.
 - Measured (2.5.0, `Forge._bench`, 1024×768 at 2× on an M-series Mac): update < 0.01 ms per frame;
   render 0.12 ms at the hearth, 0.07 ms at the anvil.
 
@@ -1372,7 +1384,7 @@ Dişi Hançeri (29).
 |---|---|
 | `coalSave`, `ironSave` (%) | `cost()`: coal and iron × (1 − mod), at least 1 iron |
 | `forgeHours` (%) | `cost()`: hours × (1 − mod), at least 1 |
-| `forgeCool` (%) | `newBar` → `g.cool`: anvil cooling × (1 − mod) |
+| `blowFocus` (%) | `newBar` → `g.sigma`: the blow's spread × (1 − mod) (2.7.1; was `forgeCool`) |
 | `passEase` (points) | `newBar` → `g.passEase`: the pass mark − mod/100 |
 | `edgeBonus` (points) | `newEdge` → `g.max`: the grindstone's best edge 20 + mod % |
 | `scrapYield` (%) | `meltIron`: melting yield × (1 + mod) |

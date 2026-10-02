@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.7.0', date: '2026-10-02', name: 'Damar' };  // the version name is not translated
+const VERSION = { no: '2.7.1', date: '2026-10-02', name: 'Tav' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1127,13 +1127,13 @@ const PERKS = [
         [{ id:'smith_bellows_a', name:'Körükçü',         desc:'Dövmede kömür daha az yanar.',          mod:{ coalSave:25 } },
          { id:'smith_whet_b',    name:'Bileyici',        desc:'Bileme taşı daha keskin ağız verir.',   mod:{ edgeBonus:4 } }],
         [{ id:'smith_thrift_a',  name:'Tutumlu Örs',     desc:'Bir parça daha az demir ister.',        mod:{ ironSave:10 } },
-         { id:'smith_patient_b', name:'Sabırlı Ateş',    desc:'Demir örste daha yavaş soğur.',         mod:{ forgeCool:15 } }],
+         { id:'smith_patient_b', name:'Sabit El',        desc:'Çekiç daha az yayılır; bitmiş komşu yer incelmez.', mod:{ blowFocus:20 } }],
         [{ id:'smith_scrap_a',   name:'Hurdacı',         desc:'Eritilen parçadan daha çok demir çıkar.',mod:{ scrapYield:40 } },
          { id:'smith_eye_b',     name:'Usta Gözü',       desc:'Kademe daha kolay tutar.',              mod:{ passEase:3 } }],
         [{ id:'smith_quick_a',   name:'Seri El',         desc:'Dövme daha kısa sürer.',                mod:{ forgeHours:25 } },
          { id:'smith_oilstone_b',name:'Yağ Taşı',        desc:'Bileme taşı daha da keskin ağız verir.',mod:{ edgeBonus:6 } }],
         [{ id:'smith_master_a',  name:'Demirhane Ağası', desc:'Demir ve kömür birlikte daha az gider.', mod:{ ironSave:15, coalSave:15 } },
-         { id:'smith_grand_b',   name:'Usta İşi',        desc:'Örsün zirvesi: kolay tutan, yavaş soğuyan demir.',mod:{ passEase:4, forgeCool:15 } }]
+         { id:'smith_grand_b',   name:'Usta İşi',        desc:'Örsün zirvesi: kolay tutan kademe, isabetli çekiç.',mod:{ passEase:4, blowFocus:15 } }]
     ] }
 ];
 const PERK_BY_ID = {};
@@ -11597,7 +11597,7 @@ const Game = {
                 healChance:'şifa', mapSpeed:'harita hız', vision:'görüş', tradeEdge:'ticaret', loot:'ganimet',
                 trainXp:'talim', maxHpBonus:'can', hpRegen:'yenilenme', wageReduce:'maaş−', renownGain:'nam',
                 blockAngle:'savuşturma', coalSave:'kömür−', ironSave:'demir−', forgeHours:'süre−', scrapYield:'hurda',
-                forgeCool:'soğuma−', passEase:'kademe', edgeBonus:'bileme' };
+                blowFocus:'isabet', passEase:'kademe', edgeBonus:'bileme' };
             let v = m[k]; let plus = v > 0 ? '+' : '';
             return `${T(names[k] || k)} ${plus}${v}`;
         }).join(', ');

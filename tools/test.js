@@ -4340,6 +4340,42 @@ test('forge: a careful smith forges every recipe, a careless one cracks it', () 
         assert.strictEqual(bad.out.kind, 'ruin', `${id}#${seed}: careless smith scored ${bad.sc.S.toFixed(2)}`);
     }
 });
+// 2.7.1: the anvil as a person plays it. This smith sees the bar only in pixels (an overworked
+// spot is under a pixel thinner), hits whatever looks most above its outline, misses by up to
+// half a segment either way, holds longer for a bigger excess and reheats when the spot looks dark.
+// Before 2.7.1 the metal cooled in 4–7 s, a blow took half its neighbours' work and nothing stopped
+// at the outline: this smith overworked 8–19 of 24 segments and scored shape 0.10–0.79.
+function humanBot(F, r, seed, aim) {
+    const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+    const m = F._model, M = F.MODEL, hS = 1.4, g = m.newBar(r, r.req), dt = 1 / 30;
+    const px = s => Math.max(1, Math.round((s.t + s.w * (M.BILLET - s.t) * (s.w < 0 ? .6 : 1)) * hS));
+    let x = seed, t = 0, hot = false;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647, noise = () => (rnd() + rnd() + rnd() - 1.5) * 1.4;
+    while(t < 400) {
+        if(!hot) { m.stepForge(g, dt, true); t += dt; hot = g.segs.every(s => s.T > 950) || g.segs.some(s => s.T > 1200); continue; }
+        for(let k = 0; k < 15; k++) { m.stepAnvil(g, dt); t += dt; }      // a blow every half second
+        if(m.shapeReady(g)) break;
+        let best = -1, ex = 0;
+        g.segs.forEach((s, i) => { const e = (px(s) - Math.max(1, Math.round(s.t * hS))) * Math.sign(M.BILLET - s.t || 1); if(e > ex) { ex = e; best = i; } });
+        if(best < 0) { best = g.segs.findIndex(s => s.w > g.tol); ex = .5; }
+        if(g.segs[best].T < 720) { hot = false; g.heats++; continue; }
+        m.strike(g, clamp(best + aim * noise(), 0, M.N - 1), clamp(.35 + .65 * Math.min(1, ex / 5) + .1 * noise(), .35, 1));
+    }
+    return m.score(g);
+}
+test('forge: a smith who reads the bar by eye forges a good piece, and the metal stays workable whatever the skill', () => {
+    const { Forge: F } = forgeWorld(), m = F._model;
+    for(const id of ['sword', 'axe', 'mace', 'lance', 'plate', 'sword_wootz']) {
+        const r = F.RECIPES.find(x => x.id === id), runs = [1, 2, 3, 4, 5, 6].map(k => humanBot(F, r, k * 7919, .35));
+        const shape = runs.reduce((a, sc) => a + sc.shape, 0) / runs.length;
+        assert.ok(shape >= .8, `${id}: a careful eye scores shape ${shape.toFixed(2)}`);
+        const sloppy = [1, 2, 3].map(k => humanBot(F, r, k * 104729, .7)).reduce((a, sc) => a + sc.shape, 0) / 3;
+        assert.ok(sloppy >= .6 && sloppy < shape, `${id}: a sloppier eye scores ${sloppy.toFixed(2)} against ${shape.toFixed(2)}`);
+    }
+    // from 1000 °C the middle of the bar stays above 720 °C for 15 s or more, at Demircilik 1 and at 10 alike
+    const secs = lvl => { const g = m.newBar(F.RECIPES[0], lvl); g.segs.forEach(s => { s.T = 1000; s.w = .5; }); let t = 0; while(g.segs[12].T >= 720) { m.stepAnvil(g, 1 / 30); t += 1 / 30; } return t; };
+    assert.ok(secs(1) >= 15 && Math.abs(secs(1) - secs(10)) < 1e-9, `workable for ${secs(1).toFixed(1)} s at Demircilik 1, ${secs(10).toFixed(1)} s at 10`);
+});
 test('forge: materials come from the bag, and from the storage only at your own fief', () => {
     const { Forge: F, state, LOCATIONS } = forgeWorld(), m = F._model;
     const loc = LOCATIONS.find(l => l.type === 'castle');
@@ -4403,7 +4439,7 @@ test('forge: masterworks need crucible steel, Örs perks bend the numbers, melti
     state.player.perks = ['smith_master_a', 'smith_grand_b', 'smith_oilstone_b', 'smith_quick_a'];
     const c1 = m.cost(sw), g1 = m.newBar(sw, 9), e1 = m.newEdge('blade', 1);
     assert.ok(c1.iron < c0.iron && c1.coal < c0.coal && c1.hours < c0.hours && c1.steel === c0.steel, `perks didn't spare: ${JSON.stringify([c0, c1])}`);
-    assert.ok(m.passMark(g1) < m.passMark(g0) && g1.cool < 1, 'the craft perks didn\'t ease the anvil');
+    assert.ok(m.passMark(g1) < m.passMark(g0) && g1.sigma < g0.sigma, 'the craft perks didn\'t ease the anvil');
     assert.strictEqual(e1.max - e0.max, 6, 'the oilstone didn\'t raise the grindstone\'s best edge');
     // melting: even with the scrapper's perk, the iron is worth at most half of what the piece costs
     state.player.perks = ['smith_scrap_a'];

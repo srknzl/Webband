@@ -3,6 +3,19 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.7.1 — Tav (2026-10-02)
+
+- **Dövmek artık adil.** Şekil puanı neredeyse hep sıfır çıkıyordu: fazla dövdüğün yer ekranda
+  görünmüyor ama ağır cezalanıyordu. Artık demir çizgiye gelince sertleşir; bir kaçık vuruş bitmiş
+  yeri az inceltir, ama orayı dövmeye devam edersen yine incelir. Çekiç komşu yerlere daha az
+  yayılır.
+- **Çizgi ne durumda olduğunu söylüyor.** İş bitince kesik çizgi altın sarısı olur, fazla
+  dövdüğün yerde kırmızıya döner.
+- **Demir daha geç soğur.** Örste her kızdırmada 15–20 saniye işlenebilir kalır (önceden 4–7).
+  Soğuma artık Demircilik'e bağlı değil; Demircilik kademeyi daha kolay tutturur.
+- **Örs dalında iki perk değişti:** Sabırlı Ateş artık **Sabit El** (çekiç daha az yayılır). Usta
+  İşi de soğuma yerine çekiç isabeti verir. Bu perkleri almış olan, yeni etkisini hemen alır.
+
 ## 2.7.0 — Damar (2026-10-02)
 
 - **Haydut madeni geldi.** Haritadaki inlerden biri artık haydutların ele geçirdiği bir demir madeni.
