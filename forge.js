@@ -255,49 +255,53 @@ function say(t, secs) { G.msg = t; G.msgT = secs || 2.4; }
 // Recorded takes (forge/CREDITS.md), picked by ear. A hammer blow mixes two of them by the bar's
 // heat — a dull thud on hot metal, the long ring of cold steel — so you hear the bar going cold.
 // The open hearth is a looped fire that the heat turns up, the bellows breathe once a stroke and
-// the bar boils in the trough. The tongs' clank and the grindstone's hiss are synthesized. The files are fetched and
+// the bar boils in the trough. At the grindstone the stone's crank turns under everything, the
+// blade's first touch scrapes once and the grinding loops while it's held on, brighter and faster
+// the nearer the angle is to right. Only the tongs' clank is synthesized. The files are fetched and
 // decoded on the first visit (the worker keeps them offline); until then those sounds are silent.
 // Same mute and volume as every other sound.
-const SFX = ['hit-hot', 'hit-cold', 'quench', 'fire', 'bellows'], BUF = {};
-const FIRE_LOOP = 10, BREATH = 1.3;   // forge/fire.mp3's loop and forge/bellows.mp3's breath, in s
+const SFX = ['hit-hot', 'hit-cold', 'quench', 'fire', 'bellows', 'grind-contact', 'grind-turn', 'grind-touch'], BUF = {};
+// the looped files and each one's loop length (s); the bellows' breath (s)
+const LOOPS = { fire: 10, 'grind-contact': 3, 'grind-turn': 6 }, BREATH = 1.3;
 let sfxAsked = false;
 function loadSfx(ac) {
     if(sfxAsked) return;
     sfxAsked = true;
     for(const k of SFX) fetch(`forge/${k}.mp3`).then(r => r.arrayBuffer()).then(a => ac.decodeAudioData(a))
-        .then(b => { BUF[k] = b; if(k === 'fire') Snd.fireOn(); }).catch(() => { sfxAsked = false; });
+        .then(b => { BUF[k] = b; if(LOOPS[k]) Snd.loops(); }).catch(() => { sfxAsked = false; });
 }
 const Snd = {
     on() { return !Game.opt('muted') && Game.opt('volume') > 0; },
-    start() {
+    start(job) {
         this.stop();
         if(!this.on()) return;
         const ac = Game.ac(); if(!ac) return;
         try {
             const out = this.out = ac.createGain(); out.gain.value = Math.min(1, Game.opt('volume') * 1.6); out.connect(ac.destination);
-            const len = ac.sampleRate, buf = this.noise = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+            const len = ac.sampleRate >> 2, buf = this.noise = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
             for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-            this.fireG = ac.createGain(); this.fireG.gain.value = 0; this.fireG.connect(out);
-            // the grindstone: noise through a band that rises with a good angle, faded in while the blade is on
-            const gs = ac.createBufferSource(), gf = this.gritF = ac.createBiquadFilter(), gg = this.gritG = ac.createGain();
-            gs.buffer = this.noise; gs.loop = true; gf.type = 'bandpass'; gf.Q.value = 1.4; gf.frequency.value = 2500; gg.gain.value = 0;
-            gs.connect(gf); gf.connect(gg); gg.connect(out); gs.start(); this.gritS = gs;
-            this.breathT = 0;
-            loadSfx(ac); this.fireOn();
+            // one gain per loop; the stone's crank only turns at the grindstone
+            this.gains = {}; this.src = {};
+            for(const k in LOOPS) { const g = this.gains[k] = ac.createGain(); g.gain.value = k === 'grind-turn' && job === 'grind' ? .6 : 0; g.connect(out); }
+            this.breathT = 0; this.touching = false;
+            loadSfx(ac); this.loops();
         } catch(e) { this.stop(); }
     },
-    // the fire loops from its first sound on, past whatever padding the MP3 decoder left in front
-    fireOn() {
-        const ac = Game.ac(), b = BUF.fire; if(!ac || !b || !this.fireG || this.fire) return;
-        const d = b.getChannelData(0); let i = 0;
-        while(i < d.length && Math.abs(d[i]) < 1e-4) i++;
-        const s = this.fire = ac.createBufferSource(), t0 = i / b.sampleRate;
-        s.buffer = b; s.loop = true; s.loopStart = t0; s.loopEnd = Math.min(b.duration, t0 + FIRE_LOOP);
-        s.connect(this.fireG); s.start(0, t0);
+    // each loop starts once decoded, from its first sound on, past whatever padding the MP3 decoder left in front
+    loops() {
+        const ac = Game.ac(); if(!ac || !this.gains) return;
+        for(const k in LOOPS) {
+            const b = BUF[k]; if(!b || this.src[k]) continue;
+            const d = b.getChannelData(0); let i = 0;
+            while(i < d.length && Math.abs(d[i]) < 1e-4) i++;
+            const s = this.src[k] = ac.createBufferSource(), t0 = i / b.sampleRate;
+            s.buffer = b; s.loop = true; s.loopStart = t0; s.loopEnd = Math.min(b.duration, t0 + LOOPS[k]);
+            s.connect(this.gains[k]); s.start(0, t0);
+        }
     },
     stop() {
-        for(const k of ['fire', 'gritS']) { try { if(this[k]) this[k].stop(); } catch(e) {} this[k] = null; }
-        this.fireG = null; this.breath = null; this.gritG = null; this.gritF = null;
+        for(const k in this.src || {}) { try { this.src[k].stop(); } catch(e) {} }
+        this.src = null; this.gains = null; this.breath = null;
         if(this.out) { try { this.out.disconnect(); } catch(e) {} }
         this.out = null;
     },
@@ -332,11 +336,15 @@ const Snd = {
     tick(dt, F, pump, grind) {
         const ac = Game.ac(); if(!ac || !this.out) return;
         const t = ac.currentTime;
-        if(this.gritG) {
-            this.gritG.gain.setTargetAtTime(grind == null ? 0 : .12 + .1 * Math.max(0, grind), t, .04);
-            if(grind != null) this.gritF.frequency.setTargetAtTime(1600 + 2600 * Math.max(0, grind), t, .05);
-        }
-        if(this.fireG) this.fireG.gain.setTargetAtTime(.25 + .55 * heat01(F), t, .3);
+        if(!this.gains) return;
+        this.gains.fire.gain.setTargetAtTime(.25 + .55 * heat01(F), t, .3);
+        // the blade on the stone: a scrape as it touches, then the grinding — the same curve as the
+        // sound page's bench, 0.55–1 of its level and 0.85–1.15 of its speed as the angle comes right
+        const m = grind == null ? 0 : Math.max(0, grind), c = this.src['grind-contact'];
+        if(grind != null && !this.touching) this.play('grind-touch', .8);
+        this.touching = grind != null;
+        this.gains['grind-contact'].gain.setTargetAtTime(grind == null ? 0 : .7 * (.55 + .45 * m), t, .04);
+        if(c && grind != null) c.playbackRate.setTargetAtTime(.85 + .3 * m, t, .05);
         // a breath every stroke while the bellows are worked; letting go cuts the breath short
         this.breathT -= dt;
         if(pump && this.breathT <= 0) { this.breathT = BREATH; this.breath = this.play('bellows', .7); }
@@ -1121,7 +1129,7 @@ function begin(r, run, lvl) {
     overlay('');
     resize();
     Game.curtain(T(ITEMS[r.id].name), where());
-    Snd.start();
+    Snd.start(R.job);
     Game.Music.sync();
     last = 0;
     if(!loopId) loopId = requestAnimationFrame(frame);

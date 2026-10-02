@@ -1305,7 +1305,9 @@ pointer drag moves it (sideways) and tilts it (up/down, 0.5° a buffer pixel), k
 do the same. The edge strip goes from dull grey to bright steel, straw then bronze above it as heat
 builds, blue where the temper ran; a small cross-section beside the stone shows the angle. Sparks
 are the angle's tell: a long bright shower at the right angle, short red spits too steep, a few
-faint ones too flat. The hiss is synthesized (noise through a band that rises with a good angle).
+faint ones too flat. The sound is recorded (2.6.1, picked from a page of candidates): the stone's
+crank loops under the scene, a scrape plays once as the blade touches, and the grinding loops while
+it's held on at 0.55–1 of its level and 0.85–1.15 of its speed as the angle's bite `m` rises.
 
 **Measured** (`tools/test.js` grindBot, 30 Hz): sweeping at 6 segments/s at 20° keens a blade to
 Q 0.95 in 26 s, an axe in 14 s, a spear in 16 s, no burns; at 26° the same takes up to 46 s. Sweeping
