@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.6.0 — Bileği (2026-10-02)
+
+- **Bileme taşı geldi.** Demirhanede ve kendi ocağında elindeki kılıcı, baltayı ya da mızrağı
+  bileyebilirsin. Bas ve sürükle: sağa sola bıçağı taşta gezdirir, yukarı-aşağı açıyı değiştirir.
+  Açıyı kıvılcımdan okursun: bol ve parlaksa doğru, kısa kırmızıysa fazla dik, seyrekse fazla yatık.
+  Bir yerde durma; çelik ısınır, tavı kaçan yer maviye döner ve bir daha tam bilenmez.
+- **Bilenmiş silah daha sert vurur:** iyi bir ağız en çok %20 fazla hasar verir ve sonraki 3 savaşta
+  yavaş yavaş körelir. Envanterde silahın üstünde ne kadar keskin olduğu yazar. Silahı değiştirirsen
+  bileme o silahta kalır.
+- Başlangıç ekranındaki 🔨 Demircilik denemesinde bileme taşı da var.
+
 ## 2.5.0 — Örs (2026-10-02)
 
 - **Demircilik geldi.** Şehirlerde yeni bir **🔨 Demirhane** kartı var; kendi kalende ve şehrinde

@@ -758,8 +758,12 @@ const Battle = {
     // Armor works by damage type: cut takes it in full, pierce takes half, blunt takes two-thirds
     // `tgt` is only for the difficulty multiplier: if the target is on the player's side it's "damage you take",
     // otherwise "damage you deal". At normal difficulty the multiplier is 1, so the balance table is unchanged.
-    afterArmor(dmgType, raw, def, tgt) {
+    afterArmor(dmgType, raw, def, tgt, src) {
         let t = DMG_TYPES[dmgType] || DMG_TYPES.cut;
+        // A sharpened blade (the grindstone, 2.6.0) bites harder — the player's own melee only,
+        // with the weapon that was sharpened in hand. Using it this battle dulls it a step at the end.
+        let edge = src && src.id === 'player' ? Game.edge() : 0;
+        if(edge) { raw *= 1 + edge / 100; this._edgeUsed = true; }
         // Armor blunts a blow but never trivializes it (#8): heavy plate used to drop a strong
         // hit to the Math.max(1) floor — "1 damage" — so an axeman could not scratch a knight.
         // A fraction of the type-adjusted raw always lands; armor scales how much between here and full.
@@ -865,7 +869,7 @@ const Battle = {
         // the whole line (#109). Cuts both ways: the same check on the other side of dealMelee's
         // caller means a lone rider can't just charge a spear wall down for free either.
         if(tgt.type === 'cavalry' && !tgt.beast) raw *= this.braceMult(src);
-        let dmg = this.afterArmor(src.dmgType, raw * bf * this.DAMAGE_PACE, tgt.defense, tgt);
+        let dmg = this.afterArmor(src.dmgType, raw * bf * this.DAMAGE_PACE, tgt.defense, tgt, src);
         tgt.hp -= dmg;
         // Attributes grow through play: strength if the player lands the hit, vitality if the player takes it.
         if(src.id === 'player') Game.trainAttr('str', 0.15);
@@ -3303,6 +3307,7 @@ const Battle = {
         // so the victory/defeat sting is hooked once (#131). It plays over the screen the
         // lines below switch to, and hands the playlist back when it ends.
         Game.Music.sting(won);
+        if(this._edgeUsed) { this._edgeUsed = false; Game.dullEdge(); }
         this.clearRoutPrompt();
         this.listen(false);
         window.removeEventListener('mouseup', this.upHandler);

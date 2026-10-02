@@ -1279,6 +1279,39 @@ while `Forge.active` (`Game.inScene`). Leaving redraws the town, then the hours 
 - Measured (2.5.0, `Forge._bench`, 1024×768 at 2× on an M-series Mac): update < 0.01 ms per frame;
   render 0.12 ms at the hearth, 0.07 ms at the anvil.
 
+## Grindstone (2.6.0)
+
+Sharpening, phase 2 of `docs/PLAN-smithing.md`: the smithy's window opens with a 🪨 Bileme taşı row
+for the weapon in hand (`Forge.grind`), rented at 5 in a town, free at your own fief, an hour either
+way. It runs in the forge's scene, loop and overlays (`R.job = 'grind'`, `G.phase = 'grind'`).
+
+**Model** (`Forge.GRIND`, the pure `newEdge/stepGrind/grindScore/matchOf` in `Forge._model`). The edge
+is the outline's working part on the same 24 segments (a blade from segment 3, an axe's bit from 14,
+a spear's head from 13), each with keenness `k` (starts 0.10–0.35, nicked unevenly) and heat `h`.
+The contact is a Gaussian (σ 0.8) round `u`. The angle's bite is `m = 1 − ((a − 20°)/9°)²`, clamped to
+[−1, 1]: positive keens (`k` approaches 1 at 1.4·m·c per s), negative rounds the edge down (0.56·m·c
+per s). Contact heats at 1.4·c per s (×1.5 when steep, −30 % at Demircilik 7) and the steel cools at
+0.8 per s throughout, so a still blade runs its temper in under a second and a moving one doesn't;
+`h ≥ 1` marks the segment blue and caps it at 0.5 for good. Score `Q = 0.65·mean + 0.35·worst − 0.06·burns`,
+bonus `round(20·Q)` %. Only edged melee weapons go on the stone (cut or pierce, not bows): maces don't.
+
+**In battle.** `state.player.sharp = { id, pct, left, n }`; `Game.edge()` is `pct·left/n` while a
+weapon of that id is in hand (it waits through a switch), read in `Battle.afterArmor` for the player's
+own melee only (the `src` argument; arrows and everyone else pass none). A battle the edge was used
+in calls `Game.dullEdge()` once in `endBattle`: 3 battles, +20 → 13 → 7 → gone for a perfect edge.
+
+**Scene.** The stone turns under the blade, which slides so the contact segment sits on its top;
+pointer drag moves it (sideways) and tilts it (up/down, 0.5° a buffer pixel), keys ←→/↑↓ and Space
+do the same. The edge strip goes from dull grey to bright steel, straw then bronze above it as heat
+builds, blue where the temper ran; a small cross-section beside the stone shows the angle. Sparks
+are the angle's tell: a long bright shower at the right angle, short red spits too steep, a few
+faint ones too flat. The hiss is synthesized (noise through a band that rises with a good angle).
+
+**Measured** (`tools/test.js` grindBot, 30 Hz): sweeping at 6 segments/s at 20° keens a blade to
+Q 0.95 in 26 s, an axe in 14 s, a spear in 16 s, no burns; at 26° the same takes up to 46 s. Sweeping
+at 2 segments/s runs the temper four times (Q 0.45–0.52); holding still at 32° scores 0. Render
+0.53 ms a frame on a 1280×800 headless desktop (the hearth 0.69 ms on the same screen).
+
 ## Audio layer
 Two independent systems. **Transaction SFX** are still synthesized (WebAudio oscillator
 envelopes, `Game.SFX`, no files). **Music** is 21 recorded CC0 tracks (10 map / 3 fight / 3 lair

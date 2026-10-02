@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.5.0', date: '2026-10-02', name: 'Örs' };  // the version name is not translated
+const VERSION = { no: '2.6.0', date: '2026-10-02', name: 'Bileği' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -12242,6 +12242,18 @@ const Game = {
         return bits.join(' · ');
     },
 
+    // A sharpened weapon (the grindstone, 2.6.0): state.player.sharp = { id, pct, left, n } — +pct %
+    // damage when fresh, a share less after every battle it's used in, gone after n. It belongs to
+    // that weapon: it counts only while a weapon of that id is in hand, and waits if you switch.
+    edge() {
+        let s = state.player.sharp, w = state.player.equipment.weapon;
+        return s && w && w.id === s.id && s.left > 0 ? Math.round(s.pct * s.left / s.n) : 0;
+    },
+    dullEdge() {
+        let s = state.player.sharp;
+        if(s && --s.left <= 0) state.player.sharp = null;
+    },
+
     // An item's pixel icon (MapArt.itemIcon, 2.0.0) as an <img>, or its emoji when there's no
     // drawing for it. Plain-text places (alerts, logs, tooltips) keep the emoji.
     itemIco(item, big) {
@@ -12260,10 +12272,11 @@ const Game = {
     // drop here (see the bag markup + _eqDrop).
     _eqSlot(slot, item) {
         let meta = this.EQUIP_SLOTS[slot] || { icon: '📦', label: slot };
-        let title = item ? T(item.name) + (this.itemNote(item) ? ' — ' + this.itemNote(item) : '')
+        let edge = slot === 'weapon' ? this.edge() : 0;
+        let title = item ? T(item.name) + (edge ? ' — ' + T`Bilenmiş: +%${edge} hasar` : '') + (this.itemNote(item) ? ' — ' + this.itemNote(item) : '')
                          : T(meta.label);
         // an empty slot shows the plainest item of its kind, faded (the pixel icon, else the emoji)
-        let inner = item ? this.itemIco(item, true) : `<span class="equip-slot-ph">${this.itemIco(ITEMS[this.EQUIP_PH[slot]] || meta, true)}</span>`;
+        let inner = item ? this.itemIco(item, true) + (edge ? `<span class="eq-edge">${this.pct(edge, true)}</span>` : '') : `<span class="equip-slot-ph">${this.itemIco(ITEMS[this.EQUIP_PH[slot]] || meta, true)}</span>`;
         return `<div class="equip-slot${item ? ' filled' : ''}" data-slot="${slot}" title="${String(title).replace(/"/g, '&quot;')}"
             ${item ? `onclick="Game.unequipItem('${slot}')"` : ''}
             ondragover="event.preventDefault();this.classList.add('drag-over')"
