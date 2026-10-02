@@ -185,8 +185,7 @@ const heat01 = T => clamp((T - 700) / 700, 0, 1);
 // ---------- live state ----------
 let G = null, R = null;   // the run (bar + scene) and its settings (recipe, place, cost)
 let canvas = null, ctx = null, buf = null, b = null;
-let W = 320, DPR = 1, S = 1, OX = 0, OY = 0, LY = null;
-const H = 180;
+let W = 320, H = 180, DPR = 1, S = 1, LY = null;
 let loopId = null, last = 0, paused = false, built = false;
 let pumpHeld = false, pressed = null, keyAim = 0;
 const TXT = new Map();
@@ -270,13 +269,19 @@ const Snd = {
 };
 
 // ---------- the scene ----------
-// One pixel buffer H=180 tall; its width follows the screen's shape (180–360), so a phone held
-// upright still gets the whole anvil, just narrower. Scaled up whole, so pixels stay pixels.
+// One pixel buffer that covers the whole screen: its short side is about 180–200 pixels and the
+// long side follows the screen's shape, so a phone held upright gets a tall picture, not a strip
+// between black bands. The scene is a 180-tall stage centred in it (`sy`); the wall, the floor,
+// the chimney and the anvil's stump run on to the edges. Upright, the bar is drawn thicker.
+const STAGE = 180;
 function layout() {
-    const cx = W >> 1, hw = Math.min(170, W - 96), hx = cx - (hw >> 1) + 18;
+    // the hearth takes what the bellows (44 px on its left) leave of the width
+    const cx = W >> 1, hw = Math.min(170, W - 60), hx = clamp(cx - (hw >> 1) + 18, 50, W - hw - 6);
+    const sy = Math.round((H - STAGE) / 2);
     const fstep = Math.max(2, Math.floor((hw - 14) / M.N));
-    const segW = Math.max(4, Math.floor((W - 56) / M.N));
-    LY = { cx, hw, hx, bedY: 108, fstep, fbarX: hx + 6, segW, barX: Math.round((W - segW * M.N) / 2) + 6, faceY: 124, hScale: 1.4 };
+    const segW = Math.max(4, Math.floor((W - Math.min(56, Math.round(W * .12))) / M.N));
+    LY = { cx, hw, hx, sy, bedY: sy + 108, floorY: sy + 150, fstep, fbarX: hx + 6, segW, barX: Math.round((W - segW * M.N) / 2) + 4,
+           faceY: sy + 124, hScale: 1.4 + 0.8 * clamp(H / W - 1, 0, 1) };
 }
 const BAKE = new Map();
 function bake(key, w, h, draw) {
@@ -290,13 +295,19 @@ function bake(key, w, h, draw) {
 }
 function hashRand(n) { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); }
 function wall(x) {
+    const fy = LY.floorY;
     x.fillStyle = '#16110e'; x.fillRect(0, 0, W, H);
-    for(let row = 0, y = 0; y < 150; row++, y += 9) for(let col = -1, xx = (row % 2) * -8; xx < W; col++, xx += 16) {
+    // brick courses laid down from the floor, so the stage's bricks sit the same at any height
+    for(let row = 0, y = fy - 9; y > -9; row++, y -= 9) for(let col = -1, xx = (row % 2) * -8; xx < W; col++, xx += 16) {
         const v = 26 + Math.floor(hashRand(row * 97 + col) * 12);
         x.fillStyle = `rgb(${v + 6},${v},${v - 4})`; x.fillRect(xx + 1, y + 1, 14, 7);
     }
-    x.fillStyle = '#100c0a'; x.fillRect(0, 150, W, H - 150);
-    for(let i = 0; i < W; i += 3) { x.fillStyle = hashRand(i) > .6 ? '#1a1410' : '#0c0908'; x.fillRect(i, 150 + Math.floor(hashRand(i + 5) * 28), 2, 1); }
+    // a soft fall-off into the dark above the hearth's light
+    const top = x.createLinearGradient(0, 0, 0, fy);
+    top.addColorStop(0, 'rgba(8,6,5,.85)'); top.addColorStop(Math.max(0, (LY.sy - 10) / fy), 'rgba(8,6,5,.45)'); top.addColorStop(1, 'rgba(8,6,5,0)');
+    x.fillStyle = top; x.fillRect(0, 0, W, fy);
+    x.fillStyle = '#100c0a'; x.fillRect(0, fy, W, H - fy);
+    for(let i = 0; i < W; i += 3) for(let y = fy; y < H; y += 28) { x.fillStyle = hashRand(i + y) > .6 ? '#1a1410' : '#0c0908'; x.fillRect(i, y + Math.floor(hashRand(i + y + 5) * 28), 2, 1); }
 }
 function glowSprite(r, g, bl) {
     return bake('glow' + r + g + bl, 64, 64, x => {
@@ -308,24 +319,27 @@ function glowSprite(r, g, bl) {
 function forgeBg() {
     return bake('forge', W, H, x => {
         wall(x);
-        const { hx, hw, bedY } = LY;
-        // hood and chimney, soot-dark
+        const { hx, hw, bedY, sy, floorY } = LY;
+        // hood and chimney, soot-dark; the chimney runs up out of the picture
         x.fillStyle = '#211a15';
-        for(let y = 18; y < 78; y++) { const k = (y - 18) / 60, half = lerp(22, hw / 2 + 6, k); x.fillRect(Math.round(hx + hw / 2 - half), y, Math.round(half * 2), 1); }
-        x.fillStyle = '#2b221b'; x.fillRect(Math.round(hx + hw / 2 - 18), 0, 36, 18);
-        x.fillStyle = '#0d0a08'; x.fillRect(Math.round(hx - 6), 78, hw + 12, 3);
+        for(let y = sy + 18; y < sy + 78; y++) { const k = (y - sy - 18) / 60, half = lerp(22, hw / 2 + 6, k); x.fillRect(Math.round(hx + hw / 2 - half), y, Math.round(half * 2), 1); }
+        x.fillStyle = '#2b221b'; x.fillRect(Math.round(hx + hw / 2 - 18), 0, 36, sy + 18);
+        x.fillStyle = '#0d0a08'; x.fillRect(Math.round(hx - 6), sy + 78, hw + 12, 3);
         // the hearth's brick body
-        for(let row = 0, y = bedY + 4; y < 150; row++, y += 6) for(let xx = hx + (row % 2) * 5; xx < hx + hw - 2; xx += 10) {
+        for(let row = 0, y = bedY + 4; y < floorY; row++, y += 6) for(let xx = hx + (row % 2) * 5; xx < hx + hw - 2; xx += 10) {
             const v = 70 + Math.floor(hashRand(row * 31 + xx) * 22);
             x.fillStyle = `rgb(${v + 30},${v - 18},${v - 30})`; x.fillRect(xx, y, Math.min(9, hx + hw - 2 - xx), 5);
         }
         x.fillStyle = '#3a2a20'; x.fillRect(hx - 2, bedY + 2, hw + 4, 3);
         // the bellows' frame and the pipe into the hearth
         const bx = hx - 44;
-        x.fillStyle = '#4a3220'; x.fillRect(bx, 112, 34, 3); x.fillRect(bx, 138, 34, 3);
-        x.fillStyle = '#5a5a5e'; x.fillRect(bx + 34, 124, hx - bx - 30, 4);
-        // the anvil, dim at the edge of the light
-        x.fillStyle = '#121214'; x.fillRect(W - 46, 128, 40, 6); x.fillRect(W - 36, 134, 20, 10); x.fillRect(W - 42, 144, 32, 6);
+        x.fillStyle = '#4a3220'; x.fillRect(bx, sy + 112, 34, 3); x.fillRect(bx, sy + 138, 34, 3);
+        x.fillStyle = '#5a5a5e'; x.fillRect(bx + 34, sy + 124, hx - bx - 30, 4);
+        // the anvil, dim at the edge of the light, where the screen is wide enough for it
+        if(W - 46 > hx + hw) {
+            x.fillStyle = '#121214';
+            x.fillRect(W - 46, sy + 128, 40, 6); x.fillRect(W - 36, sy + 134, 20, 10); x.fillRect(W - 42, sy + 144, 32, 6);
+        }
     });
 }
 function anvilBg() {
@@ -344,7 +358,7 @@ function anvilBg() {
         // the forge's light falls in from the left
         x.globalCompositeOperation = 'lighter';
         const gl = glowSprite(255, 120, 40);
-        x.globalAlpha = .35; x.drawImage(gl, -90, 20, 200, 200); x.globalAlpha = 1;
+        x.globalAlpha = .35; x.drawImage(gl, -90, LY.sy + 20, 200, 200); x.globalAlpha = 1;
         x.globalCompositeOperation = 'source-over';
     });
 }
@@ -352,10 +366,10 @@ function quenchBg() {
     return bake('quench', W, H, x => {
         wall(x);
         // the trough: a wooden tub of dark water across the middle
-        const x0 = Math.round(W * .12), x1 = Math.round(W * .88);
-        x.fillStyle = '#3b2617'; x.fillRect(x0, 112, x1 - x0, 46);
-        x.fillStyle = '#4c3220'; for(let y = 114; y < 158; y += 7) x.fillRect(x0, y, x1 - x0, 1);
-        x.fillStyle = '#1b2a30'; x.fillRect(x0 + 3, 116, x1 - x0 - 6, 8);
+        const x0 = Math.round(W * .12), x1 = Math.round(W * .88), sy = LY.sy;
+        x.fillStyle = '#3b2617'; x.fillRect(x0, sy + 112, x1 - x0, 46);
+        x.fillStyle = '#4c3220'; for(let y = sy + 114; y < sy + 158; y += 7) x.fillRect(x0, y, x1 - x0, 1);
+        x.fillStyle = '#1b2a30'; x.fillRect(x0 + 3, sy + 116, x1 - x0 - 6, 8);
     });
 }
 // the coals: lumps whose glow follows the hearth, each flickering on its own phase
@@ -406,17 +420,17 @@ function drawForge(t) {
     b.globalCompositeOperation = 'source-over';
     coals(t, false);
     // the bar in the coals: tip deep in the fire on the left, tang out to the right in the tongs
-    G.segs.forEach((s, i) => { b.fillStyle = heatRGB(s.T); b.fillRect(fbarX + (M.N - 1 - i) * fstep, bedY - 5, fstep, 3); });
+    G.segs.forEach((s, i) => { b.fillStyle = heatRGB(s.T); b.fillRect(fbarX + (M.N - 1 - i) * fstep, bedY - 6, fstep, 4); });
     const tx = fbarX + M.N * fstep;
     b.fillStyle = '#26262a';
     for(let x = tx; x < W; x++) { const y = bedY - 5 - Math.round((x - tx) * .32); b.fillRect(x, y, 1, 2); b.fillRect(x, y + 3 + Math.round((x - tx) * .05), 1, 1); }
     coals(t + 1.7, true);
     G.segs.forEach((s, i) => { if(s.T > M.BURN_T && Math.random() < .25) puff('spark', fbarX + (M.N - 1 - i) * fstep + 1, bedY - 6, 1); });
     // the bellows: leather folds that squeeze while you pump
-    const bx = hx - 44, open = 10 + Math.round(8 * (.5 + .5 * Math.cos(G.pumpPh)));
-    b.fillStyle = '#6a4a2c'; b.fillRect(bx + 2, 126 - open, 30, open * 2);
-    b.fillStyle = '#4e3520'; for(let y = 126 - open + 3; y < 126 + open; y += 4) b.fillRect(bx + 3, y, 28, 1);
-    b.fillStyle = '#5a3c22'; b.fillRect(bx, 124 - open, 34, 3); b.fillRect(bx, 126 + open, 34, 3);
+    const bx = hx - 44, open = 10 + Math.round(8 * (.5 + .5 * Math.cos(G.pumpPh))), my = LY.sy + 126;
+    b.fillStyle = '#6a4a2c'; b.fillRect(bx + 2, my - open, 30, open * 2);
+    b.fillStyle = '#4e3520'; for(let y = my - open + 3; y < my + open; y += 4) b.fillRect(bx + 3, y, 28, 1);
+    b.fillStyle = '#5a3c22'; b.fillRect(bx, my - 2 - open, 34, 3); b.fillRect(bx, my + open, 34, 3);
     drawFx();
 }
 function drawAnvil() {
@@ -455,11 +469,11 @@ function drawAnvil() {
 function drawQuench() {
     b.drawImage(quenchBg(), 0, 0);
     const k = clamp(G.quenchT / .45, 0, 1), sw = Math.max(3, Math.floor((W * .7) / M.N)), x0 = Math.round((W - sw * M.N) / 2);
-    const y = Math.round(lerp(96, 132, k));
+    const sy = LY.sy, y = Math.round(lerp(sy + 96, sy + 132, k));
     G.segs.forEach((s, i) => { const hp = Math.max(1, Math.round(barPx(s) * .7)); b.fillStyle = heatRGB(s.T); b.fillRect(x0 + i * sw, y - hp, sw, hp); });
     // the water closes over the bar
-    b.globalAlpha = .7; b.fillStyle = '#1b2a30'; b.fillRect(Math.round(W * .12) + 3, 124, Math.round(W * .76) - 6, 32); b.globalAlpha = 1;
-    b.fillStyle = '#2f4650'; b.fillRect(Math.round(W * .12) + 3, 124, Math.round(W * .76) - 6, 1);
+    b.globalAlpha = .7; b.fillStyle = '#1b2a30'; b.fillRect(Math.round(W * .12) + 3, sy + 124, Math.round(W * .76) - 6, 32); b.globalAlpha = 1;
+    b.fillStyle = '#2f4650'; b.fillRect(Math.round(W * .12) + 3, sy + 124, Math.round(W * .76) - 6, 1);
     drawFx();
 }
 function render() {
@@ -470,24 +484,24 @@ function render() {
     else if(G.phase === 'quench' || G.phase === 'done') drawQuench();
     else drawAnvil();
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#050407'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(buf, 0, 0, W, H, OX, OY, Math.round(W * S), Math.round(H * S));
+    ctx.drawImage(buf, 0, 0, W, H, 0, 0, Math.round(W * S), Math.round(H * S));
 }
 function resize() {
     if(!canvas) return;
     const r = canvas.getBoundingClientRect(), cw = Math.max(1, r.width), ch = Math.max(1, r.height);
     DPR = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(cw * DPR); canvas.height = Math.round(ch * DPR);
-    W = clamp(Math.round(H * cw / ch), 180, 360);
+    // pixel size: the short side gets 180 buffer pixels; the buffer is rounded up, so the last
+    // column or row may run a fraction off the edge, never short of it
+    S = Math.min(canvas.width, canvas.height) / STAGE;
+    W = Math.ceil(canvas.width / S); H = Math.ceil(canvas.height / S);
     buf.width = W; buf.height = H;
-    S = Math.min(canvas.width / W, canvas.height / H);
-    OX = Math.round((canvas.width - W * S) / 2); OY = Math.round((canvas.height - H * S) / 2);
     BAKE.clear();
     layout();
 }
 // a pointer on the canvas → a segment position on the anvil
 function segAt(clientX) {
-    const r = canvas.getBoundingClientRect(), bx = ((clientX - r.left) * DPR - OX) / S;
+    const r = canvas.getBoundingClientRect(), bx = (clientX - r.left) * DPR / S;
     return clamp((bx - LY.barX - LY.segW / 2) / LY.segW, 0, M.N - 1);
 }
 
@@ -500,7 +514,7 @@ function frame(t) {
     last = t;
     Debug.guard('forge loop', () => {
         if(!G) return;
-        if(!blocked()) update(dt);   // a pause, a window or the result: the metal waits
+        if(!blocked()) update(dt);
         render();
         updateHud();
     });
@@ -527,7 +541,7 @@ function update(dt) {
         G.quenchT += dt;
         const k = 1 - Math.exp(-2.6 * dt);
         G.segs.forEach(s => { s.T += (60 - s.T) * k; });
-        if(Math.random() < dt * 40) puff('steam', rnd(W * .2, W * .8), 122, 1);
+        if(Math.random() < dt * 40) puff('steam', rnd(W * .2, W * .8), LY.sy + 122, 1);
         if(G.quenchT > 1.9) finish();
     }
     stepFx(dt);
@@ -552,6 +566,8 @@ function blow(u, power) {
     puff('spark', x, y, Math.round(2 + 10 * power * eff(r.T)));
     if(r.T > 800) puff('scale', x, y, 2);
     Snd.strike(r.T, power);
+    // on a phone the blow is felt too: a short tick, harder for a full swing (ignored where unsupported)
+    if(Game.isTouch() && navigator.vibrate) try { navigator.vibrate(power > .7 ? 22 : 10); } catch(e) {}
     if(r.cold) say(T('Soğuk demire vurdun: çatlak riski!'), 2.6);
 }
 function quench() {
@@ -559,7 +575,7 @@ function quench() {
     G.score = score(G);          // judged at the moment it goes in, not after it cools
     G.phase = 'quench'; G.quenchT = 0;
     Snd.quench();
-    puff('steam', W / 2, 122, 18);
+    puff('steam', W / 2, LY.sy + 122, 18);
 }
 function finish() {
     const r = R.recipe, sc = G.score, out = outcome(G, r, sc.S);
@@ -706,7 +722,8 @@ function updateHud() {
 }
 
 // ---------- input ----------
-const blocked = () => paused || !el('modal-overlay').classList.contains('hidden') || !!(G && G.result);
+// a pause, a window, a tutorial coach still up (as in a lair) or the result: the metal waits
+const blocked = () => paused || Game.tutor != null || !el('modal-overlay').classList.contains('hidden') || !!(G && G.result);
 function bindInput() {
     const KEYS = new Set([' ', 'e', 'q', 'arrowleft', 'arrowright', 'a', 'd', 'escape']);
     window.addEventListener('keydown', e => {
@@ -868,7 +885,7 @@ const api = {
     _segPoint(i) {
         const r = canvas.getBoundingClientRect(), s = G.segs[i];
         const bx = LY.barX + i * LY.segW + LY.segW / 2, by = LY.faceY - barPx(s) / 2;
-        return { x: r.left + (bx * S + OX) / DPR, y: r.top + (by * S + OY) / DPR };
+        return { x: r.left + bx * S / DPR, y: r.top + by * S / DPR };
     },
     // the measured numbers in docs/SYSTEMS.md: ms per update and per render, averaged over n frames
     _bench(n = 120) { let u = 0, r = 0; for(let i = 0; i < n; i++) { let t = performance.now(); update(1 / 60); u += performance.now() - t; t = performance.now(); render(); r += performance.now() - t; } return { update: +(u / n).toFixed(3), render: +(r / n).toFixed(3) }; },

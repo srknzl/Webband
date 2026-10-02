@@ -1246,8 +1246,12 @@ with its distance from the billet and by 15 % a tier.
   below that it cracks and half the iron is saved. Every outcome trains Demircilik
   (`(40 + 40 × tier) × (0.4 + S)` before the focus multiplier) and strength.
 
-**The scene.** A 180-tall pixel buffer (width 180–360 by the screen's shape) scaled up whole: the
-hearth with its bellows and coals, the anvil, the quench tub. The heat colour is a blackbody ramp
+**The scene.** A pixel buffer that covers the whole screen, its short side 180 pixels and the long
+side following the screen's shape, scaled up whole: no black bands on a phone held either way. The
+hearth, the anvil and the quench tub sit on a 180-tall stage centred in it; the wall, floor, chimney
+and the anvil's stump run on to the edges, and held upright the bar on the anvil is drawn up to
+1.6× thicker. On touch the buttons are one bottom action bar and a blow ticks the vibration motor
+where there is one. A tutorial coach still up holds the forge still, as in a lair. The heat colour is a blackbody ramp
 (`heatRGB`, cached per 10 °C). Controls: hold Space / the Körük button / the canvas to pump; E or
 the button moves the bar between hearth and anvil; on the anvil the pointer (or ←/→) aims and a
 press-hold-release strikes; Q quenches; Esc pauses. The how-to shows on the first visit

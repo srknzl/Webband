@@ -2295,6 +2295,13 @@ body.touch #forge-keys { display: none; }
 .fbtn:disabled { opacity: .35; cursor: default; }
 .fbtn.on { background: rgba(150,70,20,.7); border-color: #ffb070; }
 #forge-pump { min-width: 96px; min-height: 64px; }
+/* touch: one action bar along the bottom, equal buttons a thumb can't miss (right-aligned and
+   capped when the phone lies sideways, so it stays off the anvil) */
+body.touch #forge-btns { left: 12px; right: 12px; max-width: 520px; margin-left: auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+body.touch .fbtn { min-height: 64px; font-size: 16px; border-radius: 16px; background: rgba(16,12,10,.88); }
+body.touch #forge-pump { min-width: 0; border-color: rgba(240,150,70,.65); }
+@media (orientation: landscape) { body.touch #forge-btns { max-width: 380px; } }
+body.touch .fbtn.on { background: rgba(150,70,20,.85); }
 #forge-over { position: absolute; inset: 0; z-index: 20; overflow-y: auto; display: grid; place-items: center; padding: 18px 16px;
     background: radial-gradient(ellipse at 50% 0%, rgba(42,33,22,.94) 0%, rgba(13,12,11,.96) 70%); }
 #forge-over[hidden] { display: none; }
