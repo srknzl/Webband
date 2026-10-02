@@ -489,11 +489,8 @@ QUESTS.guild_supply = {
     where(q) { return q.data.locId; },
     on(q, ev, d) {
         if(ev !== 'entered_location' || d.locId !== q.data.locId) return;
-        let idx = state.player.inventory.findIndex(i => i.id === q.data.item && i.qty >= q.data.need);
-        if(idx === -1) return;
-        let it = state.player.inventory[idx];
-        it.qty -= q.data.need;
-        if(it.qty <= 0) state.player.inventory.splice(idx, 1);
+        if(!state.player.inventory.some(i => i.id === q.data.item && i.qty >= q.data.need)) return;
+        Game.takeItem(q.data.item, q.data.need);
         return 'done';
     }
 };
@@ -525,14 +522,9 @@ QUESTS.clear_lair = {
         return l ? T`Haritada ☠️ <b>Haydut İni</b>ni bul ve bas — usta yerini işaretledi, ikon artık haritada`
                  : T('İn dağıtıldı — loncaya haber ver.');
     },
-    // Single source for "where": the location the lair is currently closest to.
-    // A lair doesn't move, so the pin is fixed; the real marker is the map icon itself.
-    where(q) {
-        let l = Game.lairs().find(x => x.id === q.data.lairId);
-        if(!l) return null;
-        let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, l) - Game.dist(y, l))[0];
-        return near ? near.id : null;
-    },
+    // The pin is the lair itself (a site id — Quests.place reads both): pinning the nearest
+    // settlement put the quest's name on a castle while the text sent you to the lair.
+    where(q) { return Game.lairs().some(x => x.id === q.data.lairId) ? q.data.lairId : null; },
     on(q, ev, d) {
         if(ev === 'lair_cleared' && d.lairId === q.data.lairId) return 'done';
     }
@@ -575,12 +567,7 @@ QUESTS.lair_captive = {
         return l ? T`<b>${T(q.data.name)}</b> işaretli ☠️ <b>Haydut İni</b>nde tutuluyor: sız, iplerini çöz ve çıkışa kadar getir — ya da ini ordunla bas`
                  : T`<b>${T(q.data.name)}</b> kurtarıldı — lorda haber ver.`;
     },
-    where(q) {
-        let l = Game.lairs().find(x => x.id === q.data.lairId);
-        if(!l) return null;
-        let near = LOCATIONS.slice().sort((x, y) => Game.dist(x, l) - Game.dist(y, l))[0];
-        return near ? near.id : null;
-    },
+    where(q) { return QUESTS.clear_lair.where(q); },
     on(q, ev, d) {
         if((ev === 'lair_captive_freed' || ev === 'lair_cleared') && d.lairId === q.data.lairId) return 'done';
     },
@@ -646,8 +633,8 @@ QUESTS.ale_for_feast = {
     where(q) { return q.data.locId; },
     on(q, ev, d) {
         if(ev !== 'entered_location' || d.locId !== q.data.locId) return;
-        let i = state.player.inventory.find(x => x.id === 'ale' && x.qty >= q.data.need);
-        if(!i) return; i.qty -= q.data.need; return 'done';
+        if(!state.player.inventory.some(x => x.id === 'ale' && x.qty >= q.data.need)) return;
+        Game.takeItem('ale', q.data.need); return 'done';
     }
 };
 
@@ -784,7 +771,7 @@ QUESTS.fever_relief = {
         if(ev !== 'entered_location' || d.locId !== q.data.locId) return;
         let i = state.player.inventory.find(x => x.id === 'honey' && x.qty >= q.data.need);
         if(!i) { alert(T`Yeterince bal yok. (${(state.player.inventory.find(x => x.id === 'honey') || {}).qty || 0}/${q.data.need})`); return; }
-        i.qty -= q.data.need; return 'done';
+        Game.takeItem('honey', q.data.need); return 'done';
     }
 };
 
@@ -1191,9 +1178,11 @@ const Quests = {
     // ---------- "Where?" ----------
     // The location name appeared in quest text via three separate spellings, and one
     // (the chickens) blew up on a deleted location. One gate: id → translated name, else '?'.
+    // A quest's "where" is a settlement or a map site (a lair): one lookup for both.
+    place(id) { return LOCATIONS.find(x => x.id === id) || (state.sites || []).find(x => x.id === id) || null; },
     locName(id) {
-        let l = LOCATIONS.find(x => x.id === id);
-        return l ? T(l.name) : '?';
+        let l = this.place(id);
+        return !l ? '?' : l.type === 'site' ? T(l.name || Game.SITE_KINDS[l.kind].name) : T(l.name);
     },
 
     // A lord is only found in their own hall (Nobles.isAt) — so the answer to
@@ -1270,7 +1259,7 @@ const Quests = {
     // Map speed is per hour (Game.getPlayerSpeed) — the day count shown on the
     // quest card and used in the "can I make it" decision is the same number.
     daysTo(locId) {
-        let l = LOCATIONS.find(x => x.id === locId);
+        let l = this.place(locId);
         if(!l) return null;
         let spd = Game.getPlayerSpeed().value;
         return spd > 0 ? Math.max(1, Math.round(Game.dist(state.player, l) / (spd * 24))) : null;

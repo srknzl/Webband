@@ -2315,9 +2315,17 @@ function questSuite() {
             const q = Quests.make(id, giverId);
             state.player.quests.push(q);
 
-            // The answer to "where" is either a real location or none at all
+            // The answer to "where" is either a real place (a settlement or a map site) or none at all
             const w = QUESTS[id].where && QUESTS[id].where(q);
-            assert.ok(!w || loc(w), `where() returned a place not on the map: ${w}`);
+            assert.ok(!w || Quests.place(w), `where() returned a place not on the map: ${w}`);
+            // a quest whose text sends you to a lair pins that lair, not the castle beside it
+            if(q.data.lairId) {
+                const lair = Quests.place(q.data.lairId);
+                assert.strictEqual(w, lair.id, 'the pin isn\'t on the lair the text names');
+                assert.ok(Quests.taskHtml(q).includes(`📍 ${Quests.locName(lair.id)}`), 'the 📍 line names another place');
+                assert.ok(Quests.daysTo(w) >= 1, 'no travel time to the lair');
+                assert.ok(Quests.targets()[lair.id], 'no map pin on the lair');
+            }
             assert.ok(QUESTS[id].desc(q).length > 10, 'desc is empty');
 
             drivers[id](q);
@@ -2333,6 +2341,9 @@ function questSuite() {
                 enter(q.turnInLocId);
             }
             assert.ok(!Quests.has(id), 'quest didn\'t finish — the driver\'s events don\'t reach the engine');
+            // #167: handing in exactly what was asked empties the stack — and it leaves the bag
+            const empty = state.player.inventory.find(i => !(i.qty > 0));
+            assert.ok(!empty, `the hand-in left ${empty && empty.id} at qty ${empty && empty.qty} in the bag`);
             assert.strictEqual(state.player.money, QUESTS[id].reward.money, 'reward wasn\'t paid');
         });
     });

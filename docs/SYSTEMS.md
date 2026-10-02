@@ -454,6 +454,9 @@ drivers emit events themselves, so they prove the engine, not the game — `tool
 reads every `Quests.emit('x', { … })` literal in the game against every `on()` body and fails on
 an event nobody sends or a `d.field` no send of that event carries. Keep emits as plain object
 literals so the scan can read them.
+**Where** (`where(q)`) is a settlement id or a map site's: the lair quests pin the lair itself
+(`Quests.place` reads both; the 📍 line, its day count and the 📜 map label all follow it). They
+used to pin the nearest settlement, which named a castle while the text sent you to the lair.
 
 A quest definition has 4 hooks (only `desc`/`where` mandatory): `setup(q, giver)` (assume the
 precondition — `can` already filtered), `can(giver)` (is it currently offerable), `desc(q)`

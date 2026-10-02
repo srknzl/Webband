@@ -4956,6 +4956,14 @@ const Game = {
         let ex = state.player.inventory.find(i => i.id === id);
         if(ex) ex.qty += qty; else state.player.inventory.push({ ...ITEMS[id], qty });
     },
+    // addItem's other half: an emptied stack leaves the bag (#167 — a stack left at 0 broke the bag's invariant)
+    takeItem(id, qty) {
+        let i = state.player.inventory.findIndex(x => x.id === id);
+        if(i < 0) return;
+        let it = state.player.inventory[i];
+        it.qty -= qty;
+        if(it.qty <= 0) state.player.inventory.splice(i, 1);
+    },
     takeFood(n) {
         let left = n, got = 0;
         for(let i = 0; i < state.player.inventory.length && left > 0; i++) {
@@ -6555,6 +6563,7 @@ const Game = {
     // discovery sites, parties and route are on show, how they're labelled and coloured. `art` is
     // MapArt, handed in by MapArt.render (map-art.js loads after app.js and isn't in Node at all).
     drawMapSites(ctx, art) {
+        const questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
         // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
         (state.sites || []).forEach(site => {
             if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
@@ -6567,8 +6576,12 @@ const Game = {
             art.site(ctx, site, big);
             ctx.globalAlpha = 1;
             // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
-            if(!((fresh || k.boss) && this.camera.zoom > 0.18)) return;
-            art.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
+            // — but a quest's lair is named and pinned like a settlement (the same edge and 📜 line)
+            const qm = questMarks[site.id];
+            if(!((fresh || k.boss || qm) && this.camera.zoom > 0.18)) return;
+            art.label(site.x, site.y + 12, T(site.name || k.name), { prio: qm ? 3 : 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5,
+                      must: !!qm, edge: qm ? 'rgba(224,176,98,0.85)' : null });
+            if(qm) art.label(site.x, site.y + 12, qm.map(q => '📜 ' + q.title).join(' · '), { prio: 4, color: '#e0b062', up: big * 0.9 + 26 / this.camera.zoom, down: 8 + 26 / this.camera.zoom, side: big * 0.5 });
         });
     },
     drawMapParties(ctx, art) {

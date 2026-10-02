@@ -21,6 +21,10 @@ başlangıç ekranının sağ alt köşesinde yazar.
   Askerlerin birbirine vuruşu değişmedi.
 - **Savaş sonucunun Ayrıntı sekmesinde** kayıpların tarafı artık savaş alanındaki renkle yazıyor:
   dost mavi, düşman kırmızı. Önceden dost kırmızı, düşman yeşildi.
+- **İn görevleri artık ini gösteriyor.** "İndeki Soylu" ve "İni Bas" görevlerinin haritadaki
+  işareti ve 📍 satırı ine en yakın kaleyi gösteriyordu. Artık inin kendisini gösteriyor.
+- **Bira, bal ve lonca malı teslim edince** elinde tam istenen kadar varsa çantada "0 adet"
+  satırı kalmıyor (#167).
 
 ## 2.7.0 — Damar (2026-10-02)
 
