@@ -25,6 +25,9 @@ başlangıç ekranının sağ alt köşesinde yazar.
   işareti ve 📍 satırı ine en yakın kaleyi gösteriyordu. Artık inin kendisini gösteriyor.
 - **Bira, bal ve lonca malı teslim edince** elinde tam istenen kadar varsa çantada "0 adet"
   satırı kalmıyor (#167).
+- **Hedefler artık seçilmeden sayılıyor.** Görevler sekmesindeki 🎯 hedeflerden önce birini seçmen
+  gerekiyordu; grubun 10 kişi olsa bile seçmeden ödül gelmiyordu. Artık açık hedeflerin hepsi aynı
+  anda sayılır, şartı tuttuğun an ödülü gelir.
 
 ## 2.7.0 — Damar (2026-10-02)
 

@@ -1579,16 +1579,15 @@ test('tournament: eight enter, one is crowned, and the ladder pays per round (#1
     gw.state.activeTournaments[city.id] = true;
     gw.Game.joinTournament(city);
     gw.Game.startTournament();
-    gw.state.player.ambition = { id: 'champion', day: gw.state.time.day };
-    gw.state.player.ambitionsDone = (gw.state.player.ambitionsDone || []).filter(id => id !== 'champion');
+    gw.state.player.ambitionsDone = gw.Game.AMBITIONS.map(a => a.id).filter(id => id !== 'champion');   // the one goal left open
     const m0 = gw.state.player.money, r0 = gw.state.player.renown, w0 = gw.state.player.tourneyWins || 0;
     for(let i = 0; i < 3; i++) gw.Game.tourneyRoundDone(true);
     assert.ok(gw.state.tourney.champion.you, 'the player won every round and was still not crowned');
     assert.strictEqual(gw.state.player.money - m0, 1200, 'the prize ladder and ambition rewards did not arrive');
     assert.strictEqual(gw.state.player.renown - r0, 30, 'the championship and ambition paid the wrong renown');
     assert.strictEqual((gw.state.player.tourneyWins || 0) - w0, 1, 'the ambition counter did not tick');
-    assert.ok(!gw.state.player.ambition && gw.state.player.ambitionsDone.includes('champion'),
-        'winning the tournament did not immediately complete the selected ambition');
+    assert.ok(gw.state.player.ambitionsDone.includes('champion'),
+        'winning the tournament did not immediately complete the open ambition');
     gw.state.tourney = null;
 
     // The board is topped up, not rolled once: a player crossing the map should keep running
@@ -1789,15 +1788,14 @@ test('tournament: a 4v4 round spawns two complete, colour-coded teams', () => {
 test('tournament: the shared result hook completes the ambition immediately and only on a win', () => {
     const gh = H.world({ seed: 123 });
     const { Game, state } = gh;
-    state.player.ambition = { id:'champion', day:state.time.day };
-    state.player.ambitionsDone = [];
+    state.player.ambitionsDone = Game.AMBITIONS.map(a => a.id).filter(id => id !== 'champion');
     const wins = state.player.tourneyWins || 0;
     Game.tournamentFinished(false, 0);
     assert.strictEqual(state.player.tourneyWins || 0, wins, 'a tournament loss incremented the win hook');
-    assert.strictEqual(state.player.ambition.id, 'champion', 'a loss completed the champion ambition');
+    assert.ok(!state.player.ambitionsDone.includes('champion'), 'a loss completed the champion ambition');
     Game.tournamentFinished(true, 3);
     assert.strictEqual(state.player.tourneyWins, wins + 1, 'the win hook did not increment the tournament counter');
-    assert.ok(!state.player.ambition && state.player.ambitionsDone.includes('champion'),
+    assert.ok(state.player.ambitionsDone.includes('champion'),
         'the shared result hook deferred ambition completion until day end');
 });
 
@@ -2802,15 +2800,32 @@ test('ambition: honourably releasing the last feuding lord completes blood money
     const g = H.world({ seed: 34 });
     const { Game, state, LORDS } = g;
     const lord = LORDS[0];
-    state.player.ambition = { id:'feud', day:state.time.day };
-    state.player.ambitionsDone = [];
+    state.player.ambitionsDone = Game.AMBITIONS.map(a => a.id).filter(id => id !== 'feud');
     state.player.hadGrudge = false;
     state.grudges[lord.id] = state.time.day;
     state.player.prisoners = [{ id:'held_lord', name:lord.name, noble:true, lordId:lord.id,
                                 faction:lord.faction, ransom:1000 }];
     Game.releaseLord('held_lord');
-    assert.ok(!state.player.ambition && state.player.ambitionsDone.includes('feud'),
-        'releasing the feud prisoner did not complete the selected goal');
+    assert.ok(state.player.ambitionsDone.includes('feud'),
+        'releasing the feud prisoner did not complete the open goal');
+});
+
+test('ambition: every open goal counts without being picked, and one it opens that already holds pays too', () => {
+    const g = H.world({ seed: 35 });
+    const { Game, state } = g;
+    state.player.ambitionsDone = [];
+    state.player.renown = 0;
+    Game.ambitionTick();
+    assert.deepStrictEqual(state.player.ambitionsDone, [], 'a fresh hero met a goal');
+    // ten men and a lord friend at 30: the head of the chain, then the friend goal it opens
+    state.player.party = Array.from({ length: 10 }, (_, i) => ({ id: 'amb' + i, name: 'Köylü', level: 1 }));
+    state.relations = Object.assign(state.relations || {}, { [g.LORDS[0].id]: 30 });
+    Game.ambitionTick();
+    assert.deepStrictEqual(state.player.ambitionsDone.slice().sort(), ['band', 'friend'], 'met goals waited to be picked');
+    assert.strictEqual(state.player.renown, 10, 'band and friend pay 5 renown each');
+    Game.ambitionTick();
+    assert.strictEqual(state.player.renown, 10, 'a goal paid twice');
+    assert.ok(!Game.ambitionHtml().includes('pickAmbition'), 'the goals panel still asks you to pick one');
 });
 
 test('lord prisoners: released nobles return only after recovery with a small retinue', () => {

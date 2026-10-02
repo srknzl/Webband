@@ -1103,9 +1103,11 @@ nearest caravan, or ransoming them opens a feud (releasing with honor clears it)
 instead of going home.
 
 ### The goal chain — `AMBITIONS`
-Battle Brothers-style: one active goal at a time, completing it rewards renown/honor and opens
-the next (party≥10 → tournament win / a friend lord → sworn oath → blood price / a landholder).
-Pure data + a daily `check()`, shown at the top of the Quests tab.
+Battle Brothers-style chain, without the picking (2.7.1): every open goal counts at once;
+completing one rewards renown/honor and opens the next (party≥10 → tournament win / a friend lord →
+sworn oath → blood price / a landholder), and a goal it opens that already holds pays in the same
+`ambitionTick`. Until 2.7.1 one goal had to be picked first, so a party of ten sat unrewarded until
+the player clicked it. Pure data + a daily `check()`, shown at the top of the Quests tab.
 
 ### Achievements
 50 one-time milestones (`ACHIEVEMENTS`), swept daily and on the Quests tab

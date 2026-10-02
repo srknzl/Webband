@@ -110,7 +110,7 @@ test('ayarlar: ses aç/kapa ve oyun içinde dil değiştirme', async ({ page, la
     await expect(page.locator('html')).toHaveAttribute('lang', other);
     await expect(modal(page).locator(`button[onclick="Game.setLang('${other}')"]`)).toHaveClass(/\bprimary\b/);
     await expect(page.locator('#sidebar .menu-btn[data-view="map"] .mb-lbl')).toHaveText(await L(page, 'Harita'));
-    await expect(page.locator('#quests-view')).toContainText(await L(page, '🎯 Hedefin'));
+    await expect(page.locator('#quests-view')).toContainText(await L(page, '🎯 Hedefler'));
     await modal(page).locator(`button[onclick="Game.setLang('${lang}')"]`).click();
     await expect(page.locator('html')).toHaveAttribute('lang', lang);
     await page.evaluate(() => Game.closeModal());

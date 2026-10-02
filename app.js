@@ -771,7 +771,6 @@ const state = {
         currentRaid: null,         // the village being raided: { locId }
         wait: null,                // camping: { until } — time flows ×4, an encounter cuts it short (#53/1.1)
         honor: 0,                  // honor −100..100; the negative side is the old "raider mark" (#53/1.5)
-        ambition: null,            // the selected goal: { id, day }
         ambitionsDone: [],         // ids of completed goals
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
@@ -3139,9 +3138,10 @@ const Game = {
     },
 
     // --- HEDEFLER (#53 madde 1.4) ---
-    // Battle Brothers' "ambition": a SINGLE active goal at a time, a reward on completion
-    // and new goals unlock. It's all data; conditions read the state, they don't listen for events —
-    // the daily tick and the Quests tab call the same `check`.
+    // Battle Brothers' "ambition", minus the picking: every open goal counts at once, a reward on
+    // completion and new goals unlock. Having to pick one first meant a goal you'd already met
+    // (a party of ten) sat unrewarded until you clicked it. It's all data; conditions read the
+    // state, they don't listen for events — the daily tick and the Quests tab call the same `check`.
     AMBITIONS: [
         { id: 'band',      title: 'Küçük bir bölük', desc: 'Grubunu 10 kişiye çıkar.',
           check: p => p.party.length >= 10, renown: 5, opens: ['champion', 'friend'] },
@@ -3158,7 +3158,6 @@ const Game = {
         { id: 'fief',      title: 'Toprak sahibi', desc: 'Bir tımarın olsun.',
           check: () => LOCATIONS.some(l => l.owner === 'player'), renown: 20, opens: [] }
     ],
-    ambition() { return this.AMBITIONS.find(a => a.id === (state.player.ambition || {}).id); },
     // Open goals: the head of the chain before any goal is finished, then whatever completed ones unlock
     openAmbitions() {
         let done = state.player.ambitionsDone || [];
@@ -3168,41 +3167,37 @@ const Game = {
         }, ['band']);
         return this.AMBITIONS.filter(a => done.indexOf(a.id) === -1 && opened.indexOf(a.id) !== -1);
     },
-    pickAmbition(id) {
-        if(!id) state.player.ambition = null;
-        else if(!this.AMBITIONS.some(a => a.id === id)) return;
-        else state.player.ambition = { id, day: state.time.day };
-        if(typeof Quests !== 'undefined') Quests.render();
-    },
-    // Daily fallback plus immediate event hooks: if the selected goal's condition is met,
-    // give the reward and open the chain. Tournament wins call this in the result hook itself.
+    // Daily fallback plus immediate event hooks: every open goal whose condition is met pays and
+    // opens its chain — and a goal it opens that already holds pays in the same pass.
+    // Tournament wins call this in the result hook itself.
     ambitionTick() {
         if(this.grudgeList().length) state.player.hadGrudge = true;   // "kan bedeli" kapanabilsin (kayda girer)
-        let a = this.ambition();
-        if(!a || !a.check(state.player)) return;
-        state.player.ambitionsDone = (state.player.ambitionsDone || []).concat(a.id);
-        state.player.ambition = null;
-        state.player.renown += a.renown;
-        if(a.money) state.player.money += a.money;
-        if(a.honor) this.addHonor(a.honor);
+        let met = [], ready;
+        while((ready = this.openAmbitions().filter(a => a.check(state.player))).length) {
+            ready.forEach(a => {
+                state.player.ambitionsDone = (state.player.ambitionsDone || []).concat(a.id);
+                state.player.renown += a.renown;
+                if(a.money) state.player.money += a.money;
+                if(a.honor) this.addHonor(a.honor);
+            });
+            met = met.concat(ready);
+        }
+        if(!met.length) return;
         this.updateTopBar();
-        alert(T`🎯 Hedefe ulaştın: ${T(a.title)}\n+${a.renown} nam${a.money ? T`, +${a.money} dinar` : ''}.`
+        let renown = met.reduce((n, a) => n + a.renown, 0), money = met.reduce((n, a) => n + (a.money || 0), 0);
+        alert(T`🎯 Hedefe ulaştın: ${met.map(a => T(a.title)).join(', ')}\n+${renown} nam${money ? T`, +${money} dinar` : ''}.`
             + (this.openAmbitions().length ? T('\n\nGörevler sekmesinde yeni hedefler açıldı.') : ''));
     },
     ambitionHtml() {
-        let a = this.ambition(), open = this.openAmbitions();
+        let open = this.openAmbitions();
         let done = (state.player.ambitionsDone || []).length;
         return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid #e0b062;
                 border-radius:var(--r-md);padding:1rem;margin-bottom:1rem">
-            <b style="font-size:1.1rem">${T`🎯 Hedefin`}</b>
+            <b style="font-size:1.1rem">${T`🎯 Hedefler`}</b>
             <span style="float:right;color:var(--text-muted);font-size:var(--fs-sm)">${T`${done} hedef tamamlandı`}</span>
-            ${a ? `<div style="margin-top:0.5rem"><b>${T(a.title)}</b> — ${T(a.desc)}</div>
-                   <button class="btn" style="margin-top:0.6rem;font-size:var(--fs-sm);padding:0.3rem 0.8rem"
-                           onclick="Game.pickAmbition('');Quests.render()">${T`Vazgeç`}</button>`
-                : open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">${T`Aynı anda tek hedef seçilir.`}</div>`
-                   + open.map(o => `<button class="btn" style="display:block;width:100%;text-align:left;margin-top:0.4rem"
-                        onclick="Game.pickAmbition('${o.id}')"><b>${T(o.title)}</b> — <span style="color:var(--text-muted)">${T(o.desc)}</span>
-                        <span style="color:#e0b062">${T`+${o.renown} nam`}</span></button>`).join('')
+            ${open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">${T`Hepsi aynı anda sayılır: şartı tuttuğunda ödülü kendiliğinden gelir.`}</div>`
+                   + open.map(o => `<div style="margin-top:0.4rem"><b>${T(o.title)}</b> — <span style="color:var(--text-muted)">${T(o.desc)}</span>
+                        <span style="color:#e0b062">${T`+${o.renown} nam`}</span></div>`).join('')
                 : `<div style="color:var(--text-muted);margin-top:0.4rem">${T`Bütün hedefleri kapattın.`}</div>`}
         </div>`;
     },
@@ -12570,6 +12565,7 @@ const Save = {
         if(pl && !Array.isArray(pl.perks)) pl.perks = [];
         if(pl && typeof pl.relics !== 'object') pl.relics = {};   // #37: relics
         if(pl && pl.currentBoss === undefined) pl.currentBoss = null;
+        if(pl) delete pl.ambition;                      // 2.7.1: goals aren't picked any more, every open one counts
         // #124: an elite troop's level no longer climbs past its tree step; saves from before
         // carry veterans at 21–50 whose level would otherwise keep costing wage and food.
         let lvlFix = t => { if(Game.isEliteTroop(t) && t.level > 20) { t.level = 20; t.xp = 0; } };
