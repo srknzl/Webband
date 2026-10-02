@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.4.10', date: '2026-10-01', name: 'Perde' };  // the version name is not translated
+const VERSION = { no: '2.5.0', date: '2026-10-02', name: 'Örs' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -75,7 +75,7 @@ const Debug = {
                 };
             }, T('oyun başlamamış')),
             render: {
-                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active), lairActive: g(() => typeof Lair !== 'undefined' && Lair.active),
+                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active), lairActive: g(() => typeof Lair !== 'undefined' && Lair.active), forgeActive: g(() => typeof Forge !== 'undefined' && Forge.active),
                 mapLoopId: g(() => Game._loopId), battleLoopId: g(() => Battle.loopId),
                 targetFps: g(() => Game.targetFps()), fpsSetting: g(() => Game.opt('fps')),
                 adaptive: g(() => { let p = Game.perfState();
@@ -344,7 +344,7 @@ const BACKGROUND = [
 { key:'father', q:'Baban ne iş yapardı?', hint:'Baba mesleği hem kese hem el alışkanlığı bırakır.', opts:[
   { id:'noble',    label:'🏰 Küçük bir soyluydu',   desc:'Adınız sofralarda anılırdı; kesen de boş değildi.', attr:{cha:1}, money:200, renown:10 },
   { id:'merchant', label:'💰 Tüccardı',             desc:'Terazinin hilesini de dürüstlüğünü de gördün.',      prof:{trade:2}, money:250 },
-  { id:'smith',    label:'🔨 Demirciydi',           desc:'Örsün başında kol kuvveti ve çelik bilgisi.',        attr:{str:1}, prof:{oneHanded:2} },
+  { id:'smith',    label:'🔨 Demirciydi',           desc:'Örsün başında kol kuvveti ve çelik bilgisi.',        attr:{str:1}, prof:{oneHanded:1, smithing:2} },
   { id:'soldier',  label:'🛡️ Askerdi',              desc:'Mızrak dizilişini yürümeden önce öğrendin.',         attr:{vit:1}, prof:{polearm:2} },
   { id:'herder',   label:'🐑 Çobandı',              desc:'Sürüyü ararken kıtanın yarısını çiğnedin.',          attr:{agi:1}, prof:{pathfinding:2} }
 ]},
@@ -745,7 +745,8 @@ const state = {
             spotting:  { level: 1, xp: 0, next: 100, focus: 0 },
             trade:     { level: 1, xp: 0, next: 100, focus: 0 },
             looting:   { level: 1, xp: 0, next: 100, focus: 0 },
-            trainer:   { level: 1, xp: 0, next: 100, focus: 0 }
+            trainer:   { level: 1, xp: 0, next: 100, focus: 0 },
+            smithing:  { level: 1, xp: 0, next: 100, focus: 0 }
         },
         skills: { fastRun: 0, wideSwing: 0, fastArrow: 0, homingArrow: 0 },
         perks: [],             // owned skill-tree perk ids (#110)
@@ -6148,8 +6149,9 @@ const Game = {
         // stayed stopped (only a battle-end restarts it) — a screen that's "active" in the DOM
         // but never drawn to. Refusing the switch here is the single choke point for every
         // caller; leaving battle only ever happens through its own end-of-battle flow (#132).
-        if(screenId !== 'battle' && screenId !== 'lair' && this.inScene()) return;
-        if(this.held && /^(settlement|battle|lair)$/.test(screenId)) this.hold(false);
+        let scene = /^(battle|lair|forge)$/.test(screenId);
+        if(!scene && this.inScene()) return;
+        if(this.held && (scene || screenId === 'settlement')) this.hold(false);
         this.perfGrace();   // the frames right after a switch are loading, not the device's pace
         let wasMap = document.getElementById('map-view').classList.contains('active');
         this.resetMapInteractionState();   // the map starts every screen from a clean input state (#96)
@@ -6165,7 +6167,7 @@ const Game = {
         // 345px canvas: `drawHud`'s top strip, the battle log, and the controls
         // overlapped each other. Both are hidden during battle; nobody taps them on a screen
         // that isn't being played anyway.
-        document.body.classList.toggle('in-battle', screenId === 'battle' || screenId === 'lair');
+        document.body.classList.toggle('in-battle', scene);
         // The map fills the viewport with the chrome floating over it as glass edge panels (#40);
         // other views keep the ordinary flow layout. resizeCanvases() below sees the new box.
         document.body.classList.toggle('view-map', screenId === 'map');
@@ -6178,7 +6180,7 @@ const Game = {
         this.resizeCanvases();
 
         // Every path out of a battle/tournament goes through here: restart the map loop
-        if(screenId !== 'battle' && screenId !== 'lair' && !this._loopId && !this.inScene()) {
+        if(!scene && !this._loopId && !this.inScene()) {
             this.startGameLoop();
         }
 
@@ -7126,6 +7128,9 @@ const Game = {
                 this.addBtn(ac, T`🛡️ Garnizon (${(loc.garrison || []).length} asker)`, () => this.openGarrison(loc));
                 this.addBtn(ac, T`📦 Depo (${(loc.storage || []).length} kalem)`, () => this.openStorage(loc));
             }
+            // The forge (2.5.0): a town's smithy rents its hearth; your own castle's is yours
+            if(typeof Forge !== 'undefined' && (loc.type === 'city' || (loc.type === 'castle' && loc.owner === 'player')))
+                this.addBtn(ac, T('🔨 Demirhane'), () => Forge.open(loc));
             if(loc.type === 'city') {
                 this.addBtn(ac, T('🛒 Pazara Git'), () => this.openMarket(loc));
                 // Enterprise: the answer to day 20's "what do I do with this money" (#53 item 1.6)
@@ -7199,6 +7204,7 @@ const Game = {
         '🛒': ['stall', 'trade', 'Erzak, silah ve zırh al-sat'],
         '🏭': ['anvil', 'trade', 'Her gün dinar getirir'],
         '⛓': ['chain', 'trade', 'Esirlerini sat'],
+        '🔨': ['hammer', 'places', 'Silah ve zırh döv'],
         '🍺': ['mug', 'places', 'Paralı asker, yoldaş, söylenti'],
         '🤺': ['swords', 'places', 'Talim dövüşü, ödül ve tecrübe'],
         '🏆': ['trophy', 'places', 'Turnuva meydanı'],
@@ -8711,6 +8717,8 @@ const Game = {
                 // A lair (2.2.0): the stealth pieces while you sneak, its own fight pieces once
                 // the alarm is up (Lair.alarmed) — back to stealth when they lose you.
                 : typeof Lair !== 'undefined' && Lair.active ? (Lair.alarmed() ? 'lairchase' : 'lair')
+                // The forge has its own sound: the hearth, the bellows and the hammer — no music over it
+                : typeof Forge !== 'undefined' && Forge.active ? null
                 : document.body.classList.contains('in-battle') || Game._chasing ? 'battle' : 'map');
         }
     },
@@ -8736,10 +8744,10 @@ const Game = {
     // If the target is on your side this is the damage "taken", otherwise "dealt".
     // The single call site is `Battle.afterArmor` — melee and arrows both pass through it.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
-    // A full-screen scene that runs its own loop and owns the input: a battle, the arena, or a
+    // A full-screen scene that runs its own loop and owns the input: a battle, the arena, the forge (2.5.0) or a
     // bandit lair walked into on foot (2.2.0). The map loop, map input and the menu shortcuts
     // all step aside while one is up. `Lair` isn't loaded in the Node harness, hence typeof.
-    inScene() { return Battle.active || TournamentMinigame.active || (typeof Lair !== 'undefined' && Lair.active); },
+    inScene() { return Battle.active || TournamentMinigame.active || (typeof Lair !== 'undefined' && Lair.active) || (typeof Forge !== 'undefined' && Forge.active); },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
 
     // A JS literal that survives a double-quoted inline handler: JSON.stringify('auto')
@@ -9417,7 +9425,7 @@ const Game = {
 
     profName(id) {
         let m = { surgery:T('Cerrahlık'), spotting:T('Gözcülük'), pathfinding:T('Yol Bulma'), trade:T('Ticaret'),
-                  looting:T('Yağma'), trainer:T('Eğitim'), prisonerMgmt:T('Esir Yönetimi'),
+                  looting:T('Yağma'), trainer:T('Eğitim'), prisonerMgmt:T('Esir Yönetimi'), smithing:T('Demircilik'),
                   oneHanded:T('Tek El'), twoHanded:T('Çift El'), polearm:T('Mızrak'), bow:T('Okçuluk'),
                   riding:T('Binicilik'), athletics:T('Atletizm'), leadership:T('İdare'), persuasion:T('İkna') };
         return m[id] || id;
@@ -11480,7 +11488,8 @@ const Game = {
             { id: 'trade', name: T('Ticaret'), d: () => { let e = this.TRADE_EDGE_K * Math.min(0.40, (L('trade') - 1) * 0.02);   // the skill's own share, as marketPrice reads it
                 return T`Alışta indirim ${this.pct(Math.round(e * 100))}, satışta prim ${this.pct(Math.round(e / 0.7 * 100))}`; } },
             { id: 'looting', name: T('Yağma'), d: () => T`Savaş ganimeti +%${((L('looting')-1)*4).toFixed(0)}` },
-            { id: 'trainer', name: T('Eğitim'), d: () => T`Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` }
+            { id: 'trainer', name: T('Eğitim'), d: () => T`Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` },
+            { id: 'smithing', name: T('Demircilik'), d: l => T`Dövebileceğin en iyi kılıç: ${T(ITEMS[['sword', 'sword_steel', 'sword_sham', 'sword_royal'][Math.min(3, (l - 1) >> 1)]].name)}` }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">${T`Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:var(--fs-md);">${T`(${fp} Odak Puanı Dağıtılabilir)`}</span>` : ''}`}</h3>

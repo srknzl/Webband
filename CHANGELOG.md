@@ -3,6 +3,27 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.5.0 — Örs (2026-10-02)
+
+- **Demircilik geldi.** Şehirlerde yeni bir **🔨 Demirhane** kartı var; kendi kalende ve şehrinde
+  de ocağın kendinin. Pazardan aldığın demir ve kömürle kılıç, balta, topuz, mızrak, miğfer ve zırh
+  dövebilirsin. Şehirde ocağı iş başına kiralarsın; kendi toprağında kira yok ve depodaki demirle
+  kömürü de kullanırsın.
+- **Demiri rengine bakarak dövüyorsun.** Körüğü bas, demir koyu kırmızıdan turuncuya, sarıya
+  ısınsın; beyaza varırsa yanar. Örste çekici bastığın yere indirirsin: ne kadar basılı tutarsan o
+  kadar sert vurur. Demiri soluk çizgiye kadar **eşit** döv; fazla vurduğun yer incelir ve geri
+  gelmez. Kızıllık gidince ocağa geri koy, soğuk demire vurmak çatlatır. Şekil tutunca demir baştan
+  uca kiraz-turuncuyken su ver.
+- **İyi iş istediğin kademeyi verir**, zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı
+  kurtulur. Vazgeçersen demir sana kalır.
+- **Yeni yetenek: Demircilik.** Her dövüşte gelişir; Çelik, Şam ve Kraliyet kademeleri için
+  3, 5 ve 7 gerekir. Yükseldikçe demir daha yavaş soğur. Demirci babanın çocuğu işe +2 ile başlar.
+- **Başlangıç ekranında 🔨 Demircilik.** Oyuna başlamadan ocağı dene: her parça açık, malzeme
+  harcanmaz; eşya, XP ve zaman yok. Bitince tekrar dene ya da başka parçaya geç.
+- **Gerçek demirci sesleri.** Sıcak demire vurmak tok bir "güm", soğumuş demire vurmak uzun bir
+  "çın" — demirin soğuduğunu kulağınla da duyarsın. Ocak çatırdar, körük her basışta nefes alır,
+  demir suda kaynar. Ocakta müzik çalmaz.
+
 ## 2.4.10 — Perde (2026-10-01)
 
 - **Şehirde bir pencere kapanınca altındaki şehir güncelleniyor.** Pencere açıkken olan her şey

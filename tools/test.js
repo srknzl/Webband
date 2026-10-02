@@ -2612,11 +2612,11 @@ test('achievements: Bir Dalda Usta counts earned levels, not the background\'s h
     const g = H.world({ seed: 12 });
     const { Game, state } = g;
     Game.creation = { sel: { gender: 'male', birth: 'nord', father: 'smith', job: 'merc' } };
-    Game.applyCreation();                                  // smith +2, mercenary +2 one-handed
-    assert.strictEqual(state.player.proficiencies.oneHanded.level, 5);
+    Game.applyCreation();                                  // smith +1, mercenary +2 one-handed
+    assert.strictEqual(state.player.proficiencies.oneHanded.level, 4);
     const got = () => { Game.checkAchievements(); return !!state.achievements.prof_master; };
     assert.ok(!got(), 'the achievement unlocked on day one from the background alone');
-    state.player.proficiencies.oneHanded.level = 9;
+    state.player.proficiencies.oneHanded.level = 8;
     assert.ok(got(), 'four earned levels on top of the head start did not count');
 });
 
@@ -3755,7 +3755,7 @@ test('i18n: no Turkish prose reaches the screen outside T()', () => {
     const fs = require('fs'), path = require('path');
     const K = require('./i18n-keys');
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js'])
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js'])
         K.rawUiText(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'))
             .forEach(h => bad.push(`${f}:${h.line} ${JSON.stringify(h.text.slice(0, 60))}`));
     assert.ok(bad.length === 0, `${bad.length} untranslated UI string(s), first: ${bad[0]}`);
@@ -3768,7 +3768,7 @@ test('i18n: no hand-written %${…} outside T() (#134)', () => {
     const fs = require('fs'), path = require('path');
     const K = require('./i18n-keys');
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js']) {
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js']) {
         const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), spans = K.keysIn(src, true), re = /%\$\{/g;
         let m;
         while((m = re.exec(src))) {
@@ -3809,7 +3809,7 @@ test('i18n: no translation written into state or baked into an onclick', () => {
     assert.deepStrictEqual(rules("`<b onclick=\"Game.go('${T(l.name)}')\">`"), ['onclick']);
     assert.deepStrictEqual(rules("`<b onclick=\"Nobles.marry('${id}', T('Şölen'))\">`"), []);
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js'])
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js'])
         K.leakedT(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).forEach(h => bad.push(`${f}:${h.line} [${h.rule}] ${h.text}`));
     assert.ok(bad.length === 0, `${bad.length} translation(s) leaking into logic, first: ${bad[0]}`);
 });
@@ -4163,6 +4163,108 @@ test('i18n: lair tables and the lair tour are in both dictionaries', () => {
         assert.ok(/@/.test(map) && /\$/.test(map) && /P/.test(map), `${k}: needs a start, a purse and prisoners`);
         assert.ok(lv.map.every(r => r.length === lv.map[0].length), `${k}: ragged map rows`);
     }
+});
+
+// The forge (2.5.0): forge.js does nothing at load time, so it is evaluated into its own world and
+// its model is played by two scripted smiths. The careful one heats until the unfinished metal is
+// orange, strikes where the most work is left (softly where little is), reheats when that spot
+// cools and quenches in the band; the careless one swings full blows anywhere until the whole bar
+// is dark. Every recipe must be forgeable by the first and the second must crack the piece.
+function forgeWorld() {
+    const fs = require('fs'), path = require('path'), vm = require('vm');
+    const w = H.world({ seed: 3 });
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'forge.js'), 'utf8') + ';this.Forge = Forge;', w._ctx);
+    w.Forge = w._ctx.Forge;
+    return w;
+}
+function forgeBot(F, r, careless, seed = 1) {
+    const m = F._model, M = F.MODEL, dt = 1 / 30, g = m.newBar(r, r.req);
+    let x = seed, t = 0, phase = 'forge';
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    const open = () => g.segs.filter(s => s.w > g.tol / 2);
+    while(t < 600) {
+        if(phase === 'forge') {
+            m.stepForge(g, dt, true); t += dt;
+            if(careless ? g.segs[0].T > 1000 : open().every(s => s.T >= 1000) || g.segs.some(s => s.T > 1250)) phase = 'anvil';
+            continue;
+        }
+        for(let k = 0; k < 12; k++) { m.stepAnvil(g, dt); t += dt; }
+        if(m.shapeReady(g)) break;
+        if(careless) {
+            if(g.segs.every(s => s.T < M.EFF_LO)) { phase = 'forge'; g.heats++; }
+            else m.strike(g, rnd() * (M.N - 1), 1);
+            continue;
+        }
+        let best = -1, most = 0;
+        g.segs.forEach((s, i) => { if(s.w > g.tol / 2 && s.T > 820 && s.w * s.w0 > most) { most = s.w * s.w0; best = i; } });
+        if(best < 0) { phase = 'forge'; g.heats++; continue; }
+        const s = g.segs[best];
+        m.strike(g, best, Math.min(1, Math.max(.35, s.w * s.w0 / (M.K_STRIKE * m.eff(s.T)))));
+    }
+    for(let k = 0; k < 600 && g.segs.some(s => s.T > M.Q_HI); k++) m.stepAnvil(g, dt);
+    const sc = m.score(g);
+    return { g, sc, t, out: m.outcome(g, r, sc.S) };
+}
+test('forge: tables are in both dictionaries and every recipe is a real item with a sane cost', () => {
+    const d = require('./i18n-keys').dicts(), { Forge: F, ITEMS } = forgeWorld();
+    const missing = F.strings().filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(missing.length, 0, `forge text with no dictionary entry: ${missing.slice(0, 3).join(' | ')}`);
+    for(const r of F.RECIPES) {
+        assert.ok(ITEMS[r.id], `${r.id}: no such item`);
+        assert.ok(F.FAMILIES.some(f => f[0] === r.fam), `${r.id}: unknown family`);
+        const c = F._model.cost(r), p = F._model.prevOf(r);
+        assert.ok(c.iron >= 1 && c.coal > c.iron && c.hours >= 2, `${r.id}: cost ${JSON.stringify(c)}`);
+        // the tier below is the same family, one step down, and armour has none
+        if(r.fam === 'armor') assert.strictEqual(p, null);
+        else if(p) assert.ok(p.fam === r.fam && p.req === r.req - 2, `${r.id}: falls back to ${p.id}`);
+    }
+    // raw iron is worth less than the piece; from tier 2 up the forge adds real value (a tier-1 mace
+    // is little more than its one bar of iron — training work), and the hours are its price
+    for(const r of F.RECIPES) {
+        const iron = F._model.cost(r).iron * ITEMS.iron.basePrice, price = ITEMS[r.id].basePrice;
+        assert.ok(iron < price && (r.req < 3 || iron <= price * 0.6), `${r.id}: ${iron} of iron for a ${price} piece`);
+    }
+});
+test('forge: the bellows burn the bar, the idle hearth never does; cold metal doesn\'t move', () => {
+    const { Forge: F } = forgeWorld(), m = F._model, M = F.MODEL, r = F.RECIPES[0];
+    let g = m.newBar(r, 1);
+    for(let i = 0; i < 30 * 120; i++) m.stepForge(g, 1 / 30, false);
+    assert.strictEqual(g.burned, 0, 'an idle hearth burnt the bar');
+    assert.ok(g.segs.every(s => s.T > M.EFF_LO), 'an idle hearth leaves the bar unworkable');
+    for(let i = 0; i < 30 * 60; i++) m.stepForge(g, 1 / 30, true);
+    assert.ok(g.burned > 0, 'a minute of bellows left the bar unburnt');
+    g = m.newBar(r, 1);
+    const hit = m.strike(g, 12, 1);
+    assert.ok(hit.cold && g.cold === 1 && hit.work === 0, 'a full blow on cold metal moved it or wasn\'t a flaw');
+    // the tip heats first: the colour gradient the player reads
+    for(let i = 0; i < 30 * 3; i++) m.stepForge(g, 1 / 30, true);
+    assert.ok(g.segs[M.N - 1].T > g.segs[0].T + 50, 'the tip and the tang heat alike');
+});
+test('forge: a careful smith forges every recipe, a careless one cracks it', () => {
+    const { Forge: F } = forgeWorld();
+    for(const r of F.RECIPES) {
+        const good = forgeBot(F, r, false);
+        assert.strictEqual(good.out.kind, 'item', `${r.id}: careful smith scored ${good.sc.S.toFixed(2)}`);
+        assert.ok(good.t < 90, `${r.id}: careful forging took ${Math.round(good.t)} s`);
+        assert.ok(good.g.cold === 0 && good.g.burned === 0, `${r.id}: careful smith flawed the bar`);
+    }
+    for(const id of ['sword', 'sword_royal', 'mace', 'nasal', 'plate']) for(const seed of [1, 2, 3]) {
+        const bad = forgeBot(F, F.RECIPES.find(r => r.id === id), true, seed);
+        assert.strictEqual(bad.out.kind, 'ruin', `${id}#${seed}: careless smith scored ${bad.sc.S.toFixed(2)}`);
+    }
+});
+test('forge: materials come from the bag, and from the storage only at your own fief', () => {
+    const { Forge: F, state, LOCATIONS } = forgeWorld(), m = F._model;
+    const loc = LOCATIONS.find(l => l.type === 'castle');
+    state.player.inventory = state.player.inventory.filter(i => i.id !== 'iron' && i.id !== 'coal');
+    state.player.inventory.push({ id: 'iron', qty: 1 });
+    loc.storage = [{ id: 'iron', qty: 5 }];
+    loc.owner = 'lord';
+    assert.strictEqual(m.stock(loc, 'iron'), 1, 'a lord\'s storage was reachable');
+    loc.owner = 'player';
+    assert.strictEqual(m.stock(loc, 'iron'), 6, 'your own storage wasn\'t reachable');
+    assert.ok(m.blockOf(loc, F.RECIPES[0]), 'forged without coal');
+    assert.ok(m.blockOf(loc, F.RECIPES[1]), 'forged a tier above the skill');
 });
 
 test('i18n: top-level data tables are language-independent', () => {

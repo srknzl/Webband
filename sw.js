@@ -15,7 +15,7 @@
 // check alone would install a second, stale copy of every asset on top of the one
 // Capacitor already ships in the bundle.
 // ============================================================
-const CACHE = 'webband-v2.4.10';
+const CACHE = 'webband-v2.5.0';
 
 // The soundtrack (#131) is 20.8 MB and deliberately NOT in FILES: precaching it would make
 // the install a 20 MB download before the game is playable at all. Each piece is cached the
@@ -26,7 +26,7 @@ const MUSIC = 'webband-music';
 
 const FILES = [
     './', 'index.html', 'style.css', 'manifest.webmanifest',
-    'i18n.js', 'lang-en.js', 'lang-id.js', 'vendor/pixi.min.js', 'app.js', 'battle.js', 'battle-gl.js', 'map-gl.js', 'map-art.js', 'nobles.js', 'quests.js', 'lair.js',
+    'i18n.js', 'lang-en.js', 'lang-id.js', 'vendor/pixi.min.js', 'app.js', 'battle.js', 'battle-gl.js', 'map-gl.js', 'map-art.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js',
     'bg_hdr.jpg', 'kingdom_crests.jpg', 'lord_portraits.jpg',
     'fonts/cinzel-latin.woff2', 'fonts/cinzel-latin-ext.woff2',
     'fonts/inter-latin.woff2', 'fonts/inter-latin-ext.woff2',
@@ -36,7 +36,8 @@ const FILES = [
     'troops/player_bow.png',
     'troops/swordsman_1.png', 'troops/swordsman_2.png', 'troops/swordsman_3.png', 'troops/archer_anim.png',
     'lair/barrel.png', 'lair/chest.png', 'lair/chest2.png', 'lair/crate.png', 'lair/fire.png', 'lair/lever.png', 'lair/pot.png', 'lair/purse.png',
-    'lair/rubble.png', 'lair/sack.png', 'lair/shadow.png', 'lair/spikes.png', 'lair/stool.png', 'lair/torch.png', 'lair/trapdoor.png', 'lair/crickets.mp3'
+    'lair/rubble.png', 'lair/sack.png', 'lair/shadow.png', 'lair/spikes.png', 'lair/stool.png', 'lair/torch.png', 'lair/trapdoor.png', 'lair/crickets.mp3',
+    'forge/hit-hot.mp3', 'forge/hit-cold.mp3', 'forge/quench.mp3', 'forge/fire.mp3', 'forge/bellows.mp3'
 ];
 
 self.addEventListener('install', e => {
