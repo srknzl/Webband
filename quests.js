@@ -119,7 +119,7 @@ const QUESTS = {
         // and draws a gold ring on the map so it reads as *the* gang, not just any bandit party.
         // Released back to normal in Quests.complete()/fail() once this quest is off the books.
         setup(q, giver) {
-            let b = state.npcParties.filter(n => n.type === 'bandit').sort((a, b) => b.size - a.size)[0];
+            let b = Quests.gangs().sort((a, b) => b.size - a.size)[0];
             if(b) b.questLocks = (b.questLocks || 0) + 1;
             q.data = { npcId: b ? b.id : null, npcName: b ? b.name : 'Çapulcular' };
         },
@@ -841,9 +841,9 @@ QUESTS.border_dispute = {
 QUESTS.hostage_rescue = {
     title: 'Rehin Tüccar', givers: ['quarrelsome', 'goodnatured'], minRelation: 10, days: 20,
     reward: { money: 1200, renown: 10, rel: 16 },
-    can() { return state.npcParties.some(n => n.type === 'bandit' && n.size > 0); },
+    can() { return Quests.gangs().length > 0; },
     setup(q) {
-        let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0);
+        let bands = Quests.gangs();
         let b = bands[Math.floor(Math.random() * bands.length)];
         if(b) b.questLocks = (b.questLocks || 0) + 1;   // see brother_in_chains for the rationale
         q.data = { npcId: b ? b.id : null, npcName: b ? b.name : T('Çapulcular') };
@@ -984,9 +984,9 @@ QUESTS.debt_collector = {
 QUESTS.rogue_company = {
     title: 'Kaçak Birlik', givers: ['martial', 'quarrelsome'], minRelation: 10, days: 20,
     reward: { money: 850, renown: 16, rel: 14 },   // prestij ağırlıklı: para az, nam çok
-    can() { return state.npcParties.some(n => n.type === 'bandit' && n.size > 0); },
+    can() { return Quests.gangs().length > 0; },
     setup(q) {
-        let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0);
+        let bands = Quests.gangs();
         let b = bands[Math.floor(Math.random() * bands.length)];
         if(b) b.questLocks = (b.questLocks || 0) + 1;   // see brother_in_chains for the rationale
         q.data = { npcId: b ? b.id : null, npcName: b ? b.name : T('Kaçak Birlik') };
@@ -1241,6 +1241,12 @@ const Quests = {
         }
         return QUESTS[q.id].desc(q);
     },
+
+    // The bands a "find this gang" quest may name: people, not a wolf pack. A pack holds no
+    // hostage, can't be a deserter unit or take you prisoner, and it outruns and out-senses a
+    // big army (it smells you from ~900 units, you see ~500, ~125 in its forest): a 21-man foot
+    // army chasing straight at one needed ~300 h, while the marker only names the town nearest it.
+    gangs() { return state.npcParties.filter(n => n.type === 'bandit' && n.size > 0 && !(BAND_KINDS[n.band] || {}).beast); },
 
     nearestTourney() {
         return this.nearestLoc(l => l.type === 'city' && state.activeTournaments[l.id]);
