@@ -315,7 +315,14 @@ club = blunt; cavalry counts as cutting (the charge already represents the lance
 #### Balance is a range rule, not a win-rate table
 Same tier **40–60%**, one-tier gap **65–80%**, two tiers **85%+**; a unit's counter-type
 (spear→cavalry, bow→light) gets **+10**. `ARMOR_FLOOR`(0.18) means a strong hit is never reduced
-below 18% of its type-adjusted raw. Anti-cavalry lives in the **brace**
+below 18% of its type-adjusted raw. **The hero's armour** (2.7.1) is a share instead:
+`× 60 / (60 + defense × typeArmor)` on the gear-armoured hero (field and lair; not the
+tournament's fixed kit). Its defense is five pieces summed (leather set 21, plate set 65), a scale
+no troop's attack reaches. Subtracted, a level-1 hero in leather took 1–3 a blow from mid and
+elite troops and died only after 24–71 of them. Measured (`afterArmor`): leather lets 74 % of a
+cut through, plate 48 %; that hero now falls to 6–11 blows from mid and elite troops. Troop
+against troop is unchanged — a global ratio was tried and broke the anchors (spear vs light
+cavalry 14–20 %, axeman vs knight 52–61 %). Anti-cavalry lives in the **brace**
 (`Battle.braceMult`), not the damage type — spear infantry ×1.5, a shield troop gets a lighter
 explicit `u.brace` so its identity doesn't leak into every matchup (`pierce` on a shield troop
 was tried and rejected — it halves armor in *every* fight, not just against horses).

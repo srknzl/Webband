@@ -4277,6 +4277,22 @@ test('grindstone: a blade kept moving at the right angle keens evenly; held stil
     const { sharpenable } = F._model, I = forgeWorld().ITEMS;
     assert.deepStrictEqual(['sword', 'axe', 'lance', 'mace', 'bow', 'mail'].map(id => sharpenable(I[id])), [true, true, true, false, false, false]);
 });
+// 2.7.1: the hero's armour is five pieces summed (leather 21, plate 65), on a scale no troop's attack
+// reaches; subtracted, a hero in a leather set took 1–3 from a sergeant's blow and cut down ten
+// armoured men alone. On the gear-armoured hero it's a share now; every other blow is unchanged.
+test('armour: the hero\'s gear takes a share of a blow, troops and the tournament kit still subtract', () => {
+    const { Battle, TROOP_TYPES } = H.world({ seed: 1 });
+    const sgt = TROOP_TYPES['Svadya Çavuşu'], raw = sgt.attack * Battle.DAMAGE_PACE;
+    const onHero = (def, r = raw) => Battle.afterArmor('cut', r, def, { isPlayerTeam: true, id: 'player', gearArmor: true });
+    const share = def => onHero(def, 100) / 100;     // a big blow, so rounding doesn't blur the share
+    assert.ok(share(21) >= .7 && share(21) <= .78, `a leather set lets ${Math.round(share(21) * 100)} % of a sergeant's blow through`);
+    assert.ok(share(65) >= .44 && share(65) <= .52, `a plate set lets ${Math.round(share(65) * 100)} % through`);
+    assert.ok(Math.ceil(71 / onHero(21)) <= 10, `a level-1 hero in leather (71 hp) outlasts ${Math.ceil(71 / onHero(21))} sergeant blows`);
+    // troop against troop and the tournament's fixed kit: armour still subtracts down to the floor
+    const plain = { isPlayerTeam: false };
+    assert.strictEqual(Battle.afterArmor('cut', raw, 12, plain), Math.round(raw - 12));
+    assert.strictEqual(Battle.afterArmor('cut', raw, 21, { isPlayerTeam: true, id: 'player', gearArmor: false }), Math.max(1, Math.round(raw * Battle.ARMOR_FLOOR)));
+});
 test('grindstone: the edge adds to the player\'s melee only, only with that weapon, and dulls battle by battle', () => {
     const w = forgeWorld(), { Game, Battle, state, ITEMS } = w;
     state.player.equipment.weapon = { ...ITEMS.sword, qty: 1 };

@@ -15,6 +15,10 @@ başlangıç ekranının sağ alt köşesinde yazar.
   Soğuma artık Demircilik'e bağlı değil; Demircilik kademeyi daha kolay tutturur.
 - **Örs dalında iki perk değişti:** Sabırlı Ateş artık **Sabit El** (çekiç daha az yayılır). Usta
   İşi de soğuma yerine çekiç isabeti verir. Bu perkleri almış olan, yeni etkisini hemen alır.
+- **Zırh artık kahramanı ölümsüz yapmıyor.** Deri setle bile askerlerin vuruşu 1–3 hasara iniyordu;
+  tek başına on zırhlı adamı kesebiliyordun. Artık zırhın vuruşun bir kısmını durdurur: deri
+  dörtte birini, plaka yarısını. Seviye 1'de deri giyen kahraman bir çavuşun 8 vuruşunda düşer.
+  Askerlerin birbirine vuruşu değişmedi.
 - **Savaş sonucunun Ayrıntı sekmesinde** kayıpların tarafı artık savaş alanındaki renkle yazıyor:
   dost mavi, düşman kırmızı. Önceden dost kırmızı, düşman yeşildi.
 

@@ -183,7 +183,7 @@ const Battle = {
         // and blunt wooden sword; mounts are forbidden for both teams.
         const standardise = (u, color) => {
             if(!u) return;
-            u.color = color; u.defense = 8; u.dmgType = 'blunt'; u.hasShield = false;
+            u.color = color; u.defense = 8; u.gearArmor = false; u.dmgType = 'blunt'; u.hasShield = false;
             u.type = 'infantry'; u.mounted = false; u.radius = 7;
             u.tier = 1;   // standard-issue tournament kit for everyone — fixed, not level-derived (#132)
         };
@@ -400,7 +400,7 @@ const Battle = {
             speed: mounted ? (80 + Game.attr('agi') * 0.5 + (this.prof('riding') - 1) * 2) * (1 + Game.perkMod('ridingSpeed')) * hSpd
                            : this.footSpeed(),
             attack: 10 + Game.attr('str') + weaponAtk,
-            defense: armorDef, type: mounted ? 'cavalry' : 'infantry', mounted,
+            defense: armorDef, gearArmor: true, type: mounted ? 'cavalry' : 'infantry', mounted,
             dmgType: this.playerDmgType(),
             hasShield: this.playerHasShield(),
             color: '#ffcc00', radius: mounted ? 9 : 8, atkCd: 0,
@@ -768,10 +768,17 @@ const Battle = {
         // hit to the Math.max(1) floor — "1 damage" — so an axeman could not scratch a knight.
         // A fraction of the type-adjusted raw always lands; armor scales how much between here and full.
         let base = raw * t.mult;
-        let landed = Math.max(base - (def || 0) * t.armor, base * this.ARMOR_FLOOR);
+        // The hero's armour is the sum of five pieces (a leather set 21, plate 65, a shield +10) —
+        // a scale no troop's attack (6–24) reaches. Subtracted, it left a hero in leather taking
+        // 1–3 a hit from sergeants. On the hero (gear-armoured: the field and the lair, not the
+        // tournament's fixed kit) it is a share instead: leather lets 74 % through, plate 48 %.
+        let landed = tgt && tgt.gearArmor
+            ? base * this.HERO_ARMOR_K / (this.HERO_ARMOR_K + (def || 0) * t.armor)
+            : Math.max(base - (def || 0) * t.armor, base * this.ARMOR_FLOOR);
         return Math.max(1, Math.round(landed * Game.dmgMult(tgt)));
     },
     ARMOR_FLOOR: 0.18,   // min share of a type-adjusted hit that pierces any armor (#8)
+    HERO_ARMOR_K: 60,    // the hero's armour: a hit lands × K / (K + defense × the type's armor)
 
     // Block: an attack is cut off if it lands within the arc the shield faces (0 = full block)
     blockFactor(tgt, sx, sy) {
