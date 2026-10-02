@@ -126,7 +126,7 @@ test('perks: every id is unique and maps to a branch/tier', () => {
         pair.forEach(pk => { assert.ok(!seen.has(pk.id), 'dup ' + pk.id); seen.add(pk.id);
             assert.strictEqual(PERK_BY_ID[pk.id].branch, br.id); assert.strictEqual(PERK_BY_ID[pk.id].tier, ti); });
     }));
-    assert.strictEqual(seen.size, 60);
+    assert.strictEqual(seen.size, 70);
 });
 test('perks: gates block, then a taken perk feeds perkMod', () => {
     const p = reset(); p.perks = [];
@@ -2086,7 +2086,7 @@ test('kite: even if foot can\'t catch cavalry, the battle resolves', () => {
 // shield troops must contest cavalry, plain infantry must lose to elite cavalry, cavalry must
 // run down archers. A win-rate that leaves its band means a stat or the brace broke the triangle.
 const { duel } = require('./duel');
-const rate = (a, b, n = 1) => duel(a, b, n, 25, 2).winRateA;
+const rate = (a, b, n = 1, rounds = 25) => duel(a, b, n, rounds, 2).winRateA;
 
 slow('anchor: spearmen contest light cavalry (brace)', () => {
     const w = rate('Rodok Mızraklısı', 'Kergit Süvarisi');
@@ -2096,8 +2096,11 @@ slow('anchor: a shield line contests heavy cavalry', () => {
     const w = rate('Rodok Kalkanlısı', 'Svadya Şövalyesi');
     assert.ok(w >= 38 && w <= 72, `shield vs heavy cav ${w}% — off band`);
 });
+// A mirror sits mid-band, where 25 duels are too few: over seeds 1–5 they gave 32–72 % (the
+// band is 40–66), 100 give 43–62 %. 2.7.0's mine drew one more random per lair at world start
+// and moved seed 2 from 40 to 32 without the fight changing (200 duels: 50 → 48 %).
 slow('anchor: two same-tier infantry are an even fight', () => {
-    const w = rate('Nord Baltacısı', 'Rodok Kalkanlısı');
+    const w = rate('Nord Baltacısı', 'Rodok Kalkanlısı', 1, 100);
     assert.ok(w >= 40 && w <= 66, `elite infantry mirror ${w}% — not an even fight`);
 });
 slow('anchor: plain infantry loses to elite cavalry (bring spears)', () => {
@@ -4194,10 +4197,12 @@ test('i18n: lair tables and the lair tour are in both dictionaries', () => {
     const strs = [...ctx.Lair.strings(), g.QUESTS.lair_captive.title, ...g.QUESTS.lair_captive.HEIRS];
     const missing = strs.filter(t => !(t in d.en) || !(t in d.id));
     assert.strictEqual(missing.length, 0, `lair text with no dictionary entry: ${missing.slice(0, 3).join(' | ')}`);
-    // every level has an exit, a start, a purse and prisoners, and every row is the same width
+    // every level has an exit and a start, and every row is the same width
     for(const [k, lv] of Object.entries(ctx.Lair.LEVELS)) {
         const map = lv.map.join('\n');
-        assert.ok(/@/.test(map) && /\$/.test(map) && /P/.test(map), `${k}: needs a start, a purse and prisoners`);
+        // a den holds prisoners; the mine (2.7.0) holds sacks of both ores, a cart and the foreman's chest instead
+        if(lv.mine) assert.ok(/@/.test(map) && /o/.test(map) && /q/.test(map) && /M/.test(map) && /C/.test(map) && !/P/.test(map), `${k}: needs a start, iron and coal sacks, a cart and the foreman's chest`);
+        else assert.ok(/@/.test(map) && /\$/.test(map) && /P/.test(map), `${k}: needs a start, a purse and prisoners`);
         assert.ok(lv.map.every(r => r.length === lv.map[0].length), `${k}: ragged map rows`);
     }
 });
@@ -4347,6 +4352,70 @@ test('forge: materials come from the bag, and from the storage only at your own 
     assert.strictEqual(m.stock(loc, 'iron'), 6, 'your own storage wasn\'t reachable');
     assert.ok(m.blockOf(loc, F.RECIPES[0]), 'forged without coal');
     assert.ok(m.blockOf(loc, F.RECIPES[1]), 'forged a tier above the skill');
+});
+
+// The bandit mine (2.7.0, smithing phase 3): a world always has one, its sacks and crucible steel
+// come back slowly, and taking it by force hands over whatever stock it holds.
+test('mine: always one on the map, its stock refills slowly, clearing it hands the stock over', () => {
+    const { Game, state, ITEMS } = H.world({ seed: 4 }), M = Game.MINE;
+    const mines = () => Game.lairs().filter(l => Game.isMine(l));
+    assert.ok(mines().length >= 1, 'a new world has no mine');
+    state.sites = state.sites.filter(s => !Game.isMine(s));
+    Game.ensureLairs();
+    assert.strictEqual(mines().length, 1, 'a world that lost its mine didn\'t get one back');
+    const m = mines()[0];
+    assert.ok(!Game.dens().includes(m), 'the mine counts as a den for the den quests');
+    m.ore = { iron: 0, coal: 0 }; m.steel = 0;
+    for(let d = 1; d <= M.steelDays; d++) { state.time.day = 24 * 10 + d; Game.lairTick(); }   // day 241–252: one steel day
+    assert.deepStrictEqual(m.ore, { iron: Math.min(M.ore.iron, M.steelDays / M.regrow), coal: Math.min(M.ore.coal, M.steelDays / M.regrow) });
+    assert.strictEqual(m.steel, 1, 'no crucible steel grew back in a steel period');
+    const bag = id => (state.player.inventory.find(i => i.id === id) || { qty: 0 }).qty;
+    const before = { iron: bag('iron'), coal: bag('coal'), crucible: bag('crucible') };
+    Game.clearLair(m.id);
+    assert.strictEqual(bag('iron'), before.iron + m.ore.iron * M.perSack.iron);
+    assert.strictEqual(bag('coal'), before.coal + m.ore.coal * M.perSack.coal);
+    assert.strictEqual(bag('crucible'), before.crucible + 1);
+    assert.strictEqual(ITEMS.crucible.rare, true, 'crucible steel is for sale');
+});
+
+// Smith's work (2.7.0, phase 4): the masterworks need Demircilik 9 and a bar of crucible steel and
+// fall back to the royal tier; the Örs perks bend cost, cooling, the pass mark and the stone; and
+// melting a piece pays well under what a market does for it, whatever the perks.
+test('forge: masterworks need crucible steel, Örs perks bend the numbers, melting is never a pump', () => {
+    const w = forgeWorld(), { Forge: F, state, LOCATIONS, ITEMS } = w, m = F._model;
+    const masters = F.RECIPES.filter(r => r.steel);
+    assert.strictEqual(masters.length, 5);
+    for(const r of masters) {
+        assert.ok(r.req === 9 && ITEMS[r.id].rare && ITEMS[r.id].master, `${r.id}: not a rare Demircilik 9 masterwork`);
+        const p = m.prevOf(r);
+        if(r.fam !== 'armor') assert.strictEqual(p.req, 7, `${r.id} falls back to ${p && p.id}`);
+    }
+    const loc = LOCATIONS.find(l => l.type === 'castle'), sw = masters[0];
+    loc.owner = 'player'; loc.storage = [];
+    state.player.proficiencies.smithing = { level: 9, xp: 0, next: 999 };
+    state.player.inventory = [{ ...ITEMS.iron, qty: 99 }, { ...ITEMS.coal, qty: 999 }];
+    assert.ok(m.blockOf(loc, sw), 'a masterwork forged without crucible steel');
+    state.player.inventory.push({ ...ITEMS.crucible, qty: 1 });
+    assert.strictEqual(m.blockOf(loc, sw), null);
+    // the perks
+    state.player.perks = [];
+    const c0 = m.cost(sw), g0 = m.newBar(sw, 9), e0 = m.newEdge('blade', 1);
+    state.player.perks = ['smith_master_a', 'smith_grand_b', 'smith_oilstone_b', 'smith_quick_a'];
+    const c1 = m.cost(sw), g1 = m.newBar(sw, 9), e1 = m.newEdge('blade', 1);
+    assert.ok(c1.iron < c0.iron && c1.coal < c0.coal && c1.hours < c0.hours && c1.steel === c0.steel, `perks didn't spare: ${JSON.stringify([c0, c1])}`);
+    assert.ok(m.passMark(g1) < m.passMark(g0) && g1.cool < 1, 'the craft perks didn\'t ease the anvil');
+    assert.strictEqual(e1.max - e0.max, 6, 'the oilstone didn\'t raise the grindstone\'s best edge');
+    // melting: even with the scrapper's perk, the iron is worth at most half of what the piece costs
+    state.player.perks = ['smith_scrap_a'];
+    for(const r of F.RECIPES) assert.ok(m.meltIron(r) * ITEMS.iron.basePrice <= ITEMS[r.id].basePrice * 0.5, `${r.id}: melts into ${m.meltIron(r)} iron`);
+    state.player.perks = [];
+    state.player.inventory.push({ ...ITEMS.sword_steel, qty: 1 });
+    const iron = state.player.inventory[0].qty, hour = state.time.day * 24 + state.time.hour;
+    F.melt(loc.id, 'sword_steel');
+    assert.ok(!state.player.inventory.some(i => i.id === 'sword_steel'), 'the piece is still in the bag');
+    assert.strictEqual(state.player.inventory[0].qty, iron + m.meltIron(F.RECIPES.find(r => r.id === 'sword_steel')));
+    assert.strictEqual(state.time.day * 24 + state.time.hour, hour + F.MELT.HOURS, 'melting took no time');
+    w.Game.closeModal();
 });
 
 test('i18n: top-level data tables are language-independent', () => {

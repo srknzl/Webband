@@ -9,7 +9,10 @@
 // quench it once the shape holds — cherry-orange all along, before the tip goes dark. The
 // score decides whether the piece comes out at its tier, a tier lower, or cracks.
 //
-// docs/PLAN-smithing.md has the design and the phases; this is phase 1 (existing tiers only).
+// docs/PLAN-smithing.md has the design and the phases. Phase 4 (2.7.0) adds the masterworks
+// (Demircilik 9 and a bar of crucible steel from the bandit mine), the Örs perks every number
+// below can bend (Game.perkMod: coalSave, ironSave, forgeHours, forgeCool, passEase, edgeBonus,
+// scrapYield) and melting a piece back down to iron.
 // The model (Forge.MODEL + the pure step functions in Forge._model) is pinned by tools/test.js.
 // Drawn with Canvas2D on #forge-canvas into a small pixel buffer scaled up whole; its own loop,
 // the map loop steps aside while `Forge.active` (Game.inScene). Every shown word goes through
@@ -20,6 +23,7 @@ const el = id => /** @type {any} */ (document.getElementById(id));
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const rnd = (a, b) => a + Math.random() * (b - a);
+const perk = k => Game.perkMod(k) / 100;   // the Örs branch, as a share
 
 // ---------- the model ----------
 const M = {
@@ -45,8 +49,9 @@ const M = {
 
 // Raw Turkish item names come from ITEMS and are translated where shown. `fam` groups one
 // weapon's tiers — a forge that misses its tier falls back one step in its family; armour has
-// no family below it. `req` is the Demircilik a piece needs: 1/3/5/7 for tiers 1–4 (every skill starts at 1). Leather
-// pieces (Deri Zırh, Deri Başlık...) are not a smith's work.
+// no family below it. `req` is the Demircilik a piece needs: 1/3/5/7/9 for tiers 1–5 (every skill starts at 1). Leather
+// pieces (Deri Zırh, Deri Başlık...) are not a smith's work. A masterwork (tier 5) also takes `steel`
+// bars of crucible steel, which only the bandit mine gives; a miss loses the bar.
 const RECIPES = [
     { id: 'sword', fam: 'sword', shape: 'blade', req: 1 }, { id: 'sword_steel', fam: 'sword', shape: 'blade', req: 3 },
     { id: 'sword_sham', fam: 'sword', shape: 'blade', req: 5 }, { id: 'sword_royal', fam: 'sword', shape: 'blade', req: 7 },
@@ -58,7 +63,10 @@ const RECIPES = [
     { id: 'lance_knight', fam: 'lance', shape: 'spear', req: 5 }, { id: 'lance_piercing', fam: 'lance', shape: 'spear', req: 7 },
     { id: 'nasal', fam: 'armor', shape: 'plate', req: 1 }, { id: 'gauntlets', fam: 'armor', shape: 'plate', req: 3 },
     { id: 'greaves', fam: 'armor', shape: 'plate', req: 3 }, { id: 'greathelm', fam: 'armor', shape: 'plate', req: 3 },
-    { id: 'mail', fam: 'armor', shape: 'plate', req: 3 }, { id: 'plate', fam: 'armor', shape: 'plate', req: 5 }
+    { id: 'mail', fam: 'armor', shape: 'plate', req: 3 }, { id: 'plate', fam: 'armor', shape: 'plate', req: 5 },
+    { id: 'sword_wootz', fam: 'sword', shape: 'blade', req: 9, steel: 1 }, { id: 'axe_wootz', fam: 'axe', shape: 'axe', req: 9, steel: 1 },
+    { id: 'mace_wootz', fam: 'mace', shape: 'mace', req: 9, steel: 1 }, { id: 'lance_wootz', fam: 'lance', shape: 'spear', req: 9, steel: 1 },
+    { id: 'plate_wootz', fam: 'armor', shape: 'plate', req: 9, steel: 1 }
 ];
 const FAMILIES = [['sword', 'Kılıçlar'], ['axe', 'Baltalar'], ['mace', 'Topuzlar'], ['lance', 'Mızraklar'], ['armor', 'Zırh ve miğfer']];
 
@@ -73,10 +81,12 @@ const SHAPES = {
 
 const recipe = id => RECIPES.find(r => r.id === id) || null;
 const tierOf = r => (r.req - 1) >> 1;
+// the iron a piece is worth, before any perk: what melting it down goes by
+const ironOf = r => Math.max(1, Math.round(ITEMS[r.id].basePrice * M.IRON_SHARE / ITEMS.iron.basePrice));
 function cost(r) {
-    const iron = Math.max(1, Math.round(ITEMS[r.id].basePrice * M.IRON_SHARE / ITEMS.iron.basePrice));
-    const tier = tierOf(r);
-    return { iron, coal: 2 + Math.round(iron * 1.5), hours: 2 + 2 * tier, rent: 10 + 10 * tier };
+    const iron = ironOf(r), tier = tierOf(r);
+    return { iron: Math.max(1, Math.round(iron * (1 - perk('ironSave')))), coal: Math.round((2 + Math.round(iron * 1.5)) * (1 - perk('coalSave'))),
+             hours: Math.max(1, Math.round((2 + 2 * tier) * (1 - perk('forgeHours')))), rent: 10 + 10 * tier, steel: r.steel || 0 };
 }
 // the step below in the same weapon family, or null (armour, or the first tier)
 function prevOf(r) {
@@ -95,7 +105,7 @@ function newBar(r, lvl) {
         segs.push({ T: M.AMB, w: 1, w0: (0.35 + 0.65 * Math.abs(M.BILLET - t) / 9) * (1 + 0.15 * tier), t, burnT: 0, burned: false });
     }
     return { segs, F: M.F_IDLE, heats: 1, cold: 0, burned: 0, strikes: 0, tier,
-             ease: clamp((lvl - r.req) / 6, 0, 1), tol: 0.10 - 0.012 * tier };
+             ease: clamp((lvl - r.req) / 6, 0, 1), tol: 0.10 - 0.012 * tier, cool: 1 - perk('forgeCool'), passEase: perk('passEase') };
 }
 // how much a blow moves the metal at this heat
 function eff(T) { return T < M.EFF_LO ? 0 : T >= M.EFF_HI ? 1 : (T - M.EFF_LO) / (M.EFF_HI - M.EFF_LO); }
@@ -117,7 +127,7 @@ function stepAnvil(g, dt) {
     g.F += (M.F_IDLE - g.F) * (1 - Math.exp(-M.F_DOWN * dt));
     g.segs.forEach((s, i) => {
         const thin = 1 - clamp(s.w, 0, 1);
-        const c = (M.COOL + M.COOL_THIN * thin + M.COOL_TIP * i / (M.N - 1)) * (1 - 0.3 * g.ease);
+        const c = (M.COOL + M.COOL_THIN * thin + M.COOL_TIP * i / (M.N - 1)) * (1 - 0.3 * g.ease) * (g.cool || 1);
         s.T += (M.AMB - s.T) * (1 - Math.exp(-c * dt));
     });
 }
@@ -152,7 +162,7 @@ function score(g) {
     return { shape, quench, care, S: 0.55 * shape + 0.30 * quench + 0.15 * care };
 }
 // the score a piece needs: higher for a finer tier, a little lower for a smith above the recipe
-const passMark = g => M.PASS + 0.04 * g.tier - 0.05 * g.ease;
+const passMark = g => M.PASS + 0.04 * g.tier - 0.05 * g.ease - (g.passEase || 0);
 function outcome(g, r, S) {
     if(S >= passMark(g)) return { kind: 'item', id: r.id };
     const p = prevOf(r);
@@ -181,6 +191,7 @@ const GM = {
     RENT: 5, HOURS: 1   // a town smithy's stone, by the job
 };
 const EDGE = { blade: 3, axe: 14, spear: 13 };   // the first segment of the edge, by shape
+const edgeMax = () => GM.MAX + Game.perkMod('edgeBonus');   // the Örs branch's whetstone perks
 // an edged weapon in hand: swords, axes, spears and daggers, not maces or bows
 const sharpenable = it => !!it && it.type === 'weapon' && it.weaponType !== 'bow' && (it.dmgType === 'cut' || it.dmgType === 'pierce');
 function shapeOf(it) {
@@ -191,7 +202,7 @@ function newEdge(shape, lvl) {
     const e0 = EDGE[shape] || EDGE.blade, segs = [];
     // the edge comes in dull and nicked, unevenly
     for(let i = 0; i < M.N; i++) segs.push({ t: SHAPES[shape](i), k: i < e0 ? 1 : .1 + .25 * hashRand(i * 7 + 3), h: 0, burned: false });
-    return { segs, e0, u: (e0 + M.N - 1) / 2, a: 32, burns: 0, ease: clamp((lvl - 1) / 6, 0, 1) };
+    return { segs, e0, u: (e0 + M.N - 1) / 2, a: 32, burns: 0, ease: clamp((lvl - 1) / 6, 0, 1), max: edgeMax() };
 }
 // how well the angle bites: 1 at A0, 0 at A0 ± AW, negative (rounding the edge) beyond
 const matchOf = a => clamp(1 - ((a - GM.A0) / GM.AW) ** 2, -1, 1);
@@ -215,7 +226,7 @@ function grindScore(g) {
     const ks = g.segs.slice(g.e0).map(s => Math.min(1, s.k));
     const mean = ks.reduce((a, k) => a + k, 0) / ks.length, lo = Math.min(...ks);
     const Q = clamp(.65 * mean + .35 * lo - .06 * g.burns, 0, 1);
-    return { mean, lo, Q, pct: Math.round(GM.MAX * Q) };
+    return { mean, lo, Q, pct: Math.round((g.max || GM.MAX) * Q) };
 }
 
 // ---------- the glow ----------
@@ -796,6 +807,7 @@ function blockOf(loc, r) {
     if(lvl < r.req) return T`Demircilik ${r.req} gerekir`;
     if(stock(loc, 'iron') < c.iron) return T`${c.iron} demir gerekir`;
     if(stock(loc, 'coal') < c.coal) return T`${c.coal} kömür gerekir`;
+    if(stock(loc, 'crucible') < c.steel) return T`${c.steel} pota çeliği gerekir`;
     if(state.player.money < rentOf(loc, r)) return T('Ocak kirasına paran yetmiyor');
     return null;
 }
@@ -825,14 +837,51 @@ function grindRow(loc) {
     const w = state.player.equipment.weapon, why = grindBlock(loc), rent = grindRent(loc), edge = Game.edge();
     return `<h4 class="fs-fam">${T('Bileme taşı')}</h4><div class="fs-list"><div class="fs-row">
         <span class="fs-ic">${w ? Game.itemIco(w) : '🪨'}</span>
-        <span class="fs-tx"><b>${w ? T(w.name) : T('Elinde silah yok')}</b><small>${edge ? T`Şu an keskin: +%${edge} hasar` : T`Bilenmiş ağız: en çok +%${GM.MAX} hasar`}${why ? ` · <em>${why}</em>` : ''}</small></span>
+        <span class="fs-tx"><b>${w ? T(w.name) : T('Elinde silah yok')}</b><small>${edge ? T`Şu an keskin: +%${edge} hasar` : T`Bilenmiş ağız: en çok +%${edgeMax()} hasar`}${why ? ` · <em>${why}</em>` : ''}</small></span>
         <span class="fs-cost"><span>⏳ ${T`${GM.HOURS} saat`}</span>${rent ? ` <span class="${state.player.money < rent ? 'fs-short' : ''}">💰 ${rent}</span>` : ''}</span>
         <button class="btn${why ? '' : ' primary'}" ${why ? 'disabled' : ''} onclick="Forge.grind('${loc.id}')">${T('🪨 Bile')}</button>
     </div></div>`;
 }
 
+// ---------- melting ----------
+// A piece in the bag that a smith could forge goes back into the hearth for scrap: half the iron
+// it is worth (the Örs branch's scrapYield adds to that), an hour, and in town the hearth's rent.
+// A masterwork's crucible steel doesn't survive the pot. The iron is worth well under what the
+// market pays for the piece, so melting is never a way to money — it's iron where there's no market.
+const MELT = { SHARE: 0.5, HOURS: 1, RENT: 5 };
+// a piece too small to give back a whole bar (a tier-1 mace) isn't worth the hearth: it isn't offered
+const meltIron = r => Math.floor(ironOf(r) * MELT.SHARE * (1 + perk('scrapYield')));
+const meltable = it => { const r = recipe(it.id); return !!r && !it.unique && meltIron(r) > 0; };
+const meltRent = loc => own(loc) ? 0 : MELT.RENT;
+function melt(locId, id) {
+    const loc = LOCATIONS.find(l => l.id === locId), r = recipe(id), inv = state.player.inventory, i = inv.findIndex(x => x.id === id);
+    if(!loc || i < 0 || !meltable(inv[i])) return;
+    if(state.player.money < meltRent(loc)) return alert(T('Ocak kirasına paran yetmiyor'));
+    state.player.money -= meltRent(loc);
+    if(--inv[i].qty <= 0) inv.splice(i, 1);
+    const iron = meltIron(r);
+    Game.addItem('iron', iron);
+    Game.closeModal();
+    Game.advanceTime(MELT.HOURS);
+    Game.updateTopBar();
+    Game.redrawTown(loc);
+    // whatever the hour brought (an event, a letter) keeps the screen; otherwise back to the hearth
+    if(el('modal-overlay').classList.contains('hidden')) open(loc, T`${T(ITEMS[id].name)} eritildi: <b>+${iron} demir</b>.`);
+}
+// the melting rows at the foot of the smithy's window: every forgeable piece in the bag
+function meltRows(loc) {
+    const list = state.player.inventory.filter(meltable), rent = meltRent(loc), poor = state.player.money < rent;
+    if(!list.length) return '';
+    return `<h4 class="fs-fam">${T('Erit')}</h4><div class="fs-list">${list.map(it => `<div class="fs-row">
+        <span class="fs-ic">${Game.itemIco(it)}</span>
+        <span class="fs-tx"><b>${T(it.name)}${it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>${T`Hurdadan ${meltIron(recipe(it.id))} demir çıkar`}${recipe(it.id).steel ? ` · ${T('pota çeliği yanar')}` : ''}</small></span>
+        <span class="fs-cost"><span>⏳ ${T`${MELT.HOURS} saat`}</span>${rent ? ` <span class="${poor ? 'fs-short' : ''}">💰 ${rent}</span>` : ''}</span>
+        <button class="btn" ${poor ? 'disabled' : ''} onclick="Forge.melt('${loc.id}','${it.id}')">${T('♨️ Erit')}</button>
+    </div>`).join('')}</div>`;
+}
+
 // ---------- the recipe window ----------
-function open(loc) {
+function open(loc, note) {
     if(!loc) return;
     const lvl = Game.profLvl('smithing'), mine = own(loc);
     const chip = h => `<span class="lchip">${h}</span>`;
@@ -844,7 +893,7 @@ function open(loc) {
             return `<div class="fs-row${lvl < r.req ? ' locked' : ''}">
                 <span class="fs-ic">${Game.itemIco(it)}</span>
                 <span class="fs-tx"><b>${T(it.name)}</b><small>${stat} · ${T`Demircilik ${r.req}`}${why ? ` · <em>${why}</em>` : ''}</small></span>
-                <span class="fs-cost"><span class="${need(stock(loc, 'iron'), c.iron)}">⛏️ ${c.iron}</span> <span class="${need(stock(loc, 'coal'), c.coal)}">🪨 ${c.coal}</span>
+                <span class="fs-cost"><span class="${need(stock(loc, 'iron'), c.iron)}">⛏️ ${c.iron}</span> <span class="${need(stock(loc, 'coal'), c.coal)}">🪨 ${c.coal}</span>${c.steel ? ` <span class="${need(stock(loc, 'crucible'), c.steel)}">💠 ${c.steel}</span>` : ''}
                     <span>⏳ ${T`${c.hours} saat`}</span>${rent ? ` <span class="${state.player.money < rent ? 'fs-short' : ''}">💰 ${rent}</span>` : ''}</span>
                 <button class="btn${why ? '' : ' primary'}" ${why ? 'disabled' : ''} onclick="Forge.start('${loc.id}','${r.id}')">${T('🔥 Döv')}</button>
             </div>`;
@@ -854,9 +903,9 @@ function open(loc) {
     Game.showModal(`<div class="forge-shop">
         <div class="lb-head"><div><div class="leyebrow">${mine ? T('Kendi ocağın') : T('Demirhane')}</div><h3>🔨 ${T(loc.name)}</h3></div>
             <button class="btn lb-help" onclick="Forge.help('${loc.id}')" title="${T('Nasıl dövülür?')}" aria-label="${T('Nasıl dövülür?')}">?</button></div>
-        <p class="lb-lead">${mine ? T('Kira yok; depodaki demir ve kömürü de kullanırsın.') : T('Ocağı iş başına kiralarsın. Demir ve kömür pazardan alınır.')}</p>
-        <div class="lchips">${chip(T`Demircilik <b>${lvl}</b>`)}${chip(T`⛏️ Demir <b>${stock(loc, 'iron')}</b>`)}${chip(T`🪨 Kömür <b>${stock(loc, 'coal')}</b>`)}${chip(`💰 <b>${Math.floor(state.player.money)}</b>`)}</div>
-        ${grindRow(loc)}${rows}
+        <p class="lb-lead">${note || (mine ? T('Kira yok; depodaki demir ve kömürü de kullanırsın.') : T('Ocağı iş başına kiralarsın. Demir ve kömür pazardan alınır.'))}</p>
+        <div class="lchips">${chip(T`Demircilik <b>${lvl}</b>`)}${chip(T`⛏️ Demir <b>${stock(loc, 'iron')}</b>`)}${chip(T`🪨 Kömür <b>${stock(loc, 'coal')}</b>`)}${stock(loc, 'crucible') ? chip(T`💠 Pota çeliği <b>${stock(loc, 'crucible')}</b>`) : ''}${chip(`💰 <b>${Math.floor(state.player.money)}</b>`)}</div>
+        ${grindRow(loc)}${rows}${meltRows(loc)}
         <div class="lb-foot"><button class="btn" onclick="Game.closeModal()">${T('Kapat')}</button></div>
     </div>`, '760px');
 }
@@ -866,7 +915,9 @@ const HELP = [
     ['🔨 Döv', 'Çekici demirin üstüne getir; bas, basılı tut, bırak: ne kadar tutarsan o kadar sert vurur. Demir soluk çizgiye kadar dövülür. Bir yere fazla vurursan oradan incelir, geri gelmez: eşit döv.'],
     ['🌡️ Yeniden ısıt', 'İnce yerler ve uç önce soğur. Kızıllık gidince ocağa geri koy; soğuk demire sert vurmak çatlatır. Her kızdırma başarısızlık değildir ama çok kızdırmak işçiliği düşürür.'],
     ['💧 Su ver', 'Şekil tutunca Su ver açılır. Demir baştan uca kiraz-turuncuyken daldır; bir yeri karardıysa ya da hâlâ sarıysa iş zayıf çıkar.'],
-    ['🏅 Sonuç', 'Şekil, su verme ve ocak işçiliği birlikte puanlanır. İyi iş istediğin kademeyi verir; zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı kurtulur. Demircilik yükseldikçe demir daha yavaş soğur.']
+    ['🏅 Sonuç', 'Şekil, su verme ve ocak işçiliği birlikte puanlanır. İyi iş istediğin kademeyi verir; zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı kurtulur. Demircilik yükseldikçe demir daha yavaş soğur.'],
+    ['💠 Usta işi', 'Desenli parçalar Demircilik 9 ve bir pota çeliği ister; pota çeliği yalnız haydut madeninden çıkar. Tutmazsa çelik yine yanar.'],
+    ['♨️ Erit', 'Çantandaki dövülebilir bir parçayı ocağa geri atarsın: demirinin yarısı hurda olarak döner. Pazarın verdiğinden azdır; pazarı olmayan yerde işe yarar.']
 ];
 const GRIND_HELP = [
     ['🪨 Taşa bas', 'Bas ve basılı tut: bıçak dönen taşa değer. Sağa sola sürükle: bıçak taşın üstünde kayar, ağzın her yeri bilenir.'],
@@ -1108,7 +1159,7 @@ function start(locId, id) {
     const why = blockOf(loc, r);
     if(why) return alert(why);
     const c = cost(r), rent = rentOf(loc, r);
-    take(loc, 'iron', c.iron); take(loc, 'coal', c.coal);
+    take(loc, 'iron', c.iron); take(loc, 'coal', c.coal); take(loc, 'crucible', c.steel);
     state.player.money -= rent;
     Game.updateTopBar();
     begin(r, { loc, cost: c, rent, own: own(loc) }, Game.profLvl('smithing'));
@@ -1123,6 +1174,7 @@ function begin(r, run, lvl) {
     const scene = { t: 0, pumpPh: 0, msg: '', msgT: 0, quenchT: 0, job: R.job, result: null, score: null, coldSaid: false, hammer: { u: M.N / 2, charge: 0, drop: 0 } };
     G = R.job === 'grind' ? Object.assign(newEdge(r.shape, lvl), scene, { phase: 'grind', F: M.F_IDLE, heats: 1, grinding: false })
         : Object.assign(newBar(r, lvl), scene, { phase: 'forge' });
+    if(R.practice) Object.assign(G, { cool: 1, passEase: 0, max: GM.MAX });   // practice is Demircilik 1, perks and all
     FX.length = 0; TXT.clear(); pumpHeld = false; pressed = null; keyAim = 0; keyTilt = 0; drag = null;
     api.active = true; paused = false;
     if(R.practice) practiceScreen(true); else Game.showScreen('forge');
@@ -1174,10 +1226,11 @@ function practice(id, job) {
         <div class="lb-foot"><button class="btn" onclick="Game.closeModal()">${T('Kapat')}</button></div>
     </div>`, '760px');
 }
-// Giving up: the bar is drawn back into iron; the coal burnt and the rent paid stay spent
+// Giving up: the bar is drawn back into iron (the crucible steel too); the coal burnt and the rent paid stay spent
 function abandon() {
     if(!G || G.result) return;
     if(!R.practice && R.cost.iron) Game.addItem('iron', R.cost.iron);
+    if(!R.practice && R.cost.steel) Game.addItem('crucible', R.cost.steel);   // the bar never went in the fire
     G.result = { abandoned: true };
     leave();
 }
@@ -1202,10 +1255,10 @@ function leave() {
 const api = {
     active: false,
     MODEL: M, GRIND: GM, RECIPES, FAMILIES, HELP,
-    open, help, start, grind, practice, resume, howto, abandon, leave, pauseMenu,
+    MELT, open, help, start, grind, melt, practice, resume, howto, abandon, leave, pauseMenu,
     // the pure model, for tools/test.js
     _model: { newBar, stepForge, stepAnvil, strike, score, outcome, passMark, eff, shapeReady, shapeDone, cost, prevOf, heatRGB, stock, blockOf,
-        newEdge, stepGrind, grindScore, matchOf, sharpenable, shapeOf },
+        newEdge, stepGrind, grindScore, matchOf, sharpenable, shapeOf, ironOf, meltIron },
     // for the tests and the debug report: the live run, read-only by convention
     run() { return G; }, runConfig() { return R; },
     // world setup for the e2e tests: where segment i sits on screen, in client pixels

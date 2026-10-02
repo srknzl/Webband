@@ -3,6 +3,23 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.7.0 — Damar (2026-10-02)
+
+- **Haydut madeni geldi.** Haritadaki inlerden biri artık haydutların ele geçirdiği bir demir madeni.
+  İçeri sızıp demir ve kömür çuvallarını sırtında çıkışa taşırsın. Çuval ağırdır: yavaş yürürsün,
+  eğilsen bile adımın duyulur, taş atamazsın. Çıkışa bıraktığın çuval senindir, sonra yakalansan
+  bile. Raydaki araba üç çuval alır ve ittiğin an gürleyerek kendi kendine çıkışa yuvarlanır;
+  bütün maden duyar. Ustabaşının sandığında nadir **pota çeliği** var. Madenin stoğu günler içinde
+  yavaşça dolar.
+- **Usta işi silahlar.** Demircilik 9'da, bir pota çeliğiyle beş desenli parça dövebilirsin:
+  kılıç, balta, topuz, mızrak ve plaka zırh. Kraliyet kademesinin bir üstündeler ve pazarda
+  satılmazlar. Tutmazsa bir alt kademe çıkar ama pota çeliği yine yanar.
+- **Örs yetenek dalı.** Yetenek ağacına yedinci dal geldi: daha az kömür ve demir, daha kısa
+  dövme, daha yavaş soğuyan demir, daha kolay tutan kademe, daha keskin bileme ve eritmede daha
+  çok hurda.
+- **Eritme.** Demirhanede çantandaki dövülebilir bir parçayı eritip demirine geri dönüştürebilirsin.
+  Pazarın verdiğinden azdır; pazarı olmayan yerde demir bulmanın yoludur.
+
 ## 2.6.2 — İz (2026-10-02)
 
 - **Görevin aradığı çete artık senden kaçmıyor.** Rehin Tüccar, Kaçak Birlik ve Zincirdeki

@@ -29,11 +29,12 @@ mine. A new skill, Demircilik, decides which tiers the player can forge.
 2. **The grindstone** (2.6.0): sharpening, a temporary damage bonus applied in `Battle.afterArmor`.
    Angle and dwell, read from the sparks and the heat tint; pressure is not modelled (a phone can't
    sense it).
-3. **The mine**: a new lair level in `lair.js`. Sacks are carried and slow you and make noise;
-   a mine cart is loud. Sacks set down at the exit are banked; the foreman's chest holds rare
-   steel.
-4. **Smith's work**: new top-tier items (smithing 8 and rare steel), the Örs perk branch, and
-   melting loot down for scrap.
+3. **The mine** (2.7.0): a new lair level in `lair.js`. Sacks are carried and slow you and make
+   noise; a mine cart is loud. Sacks set down at the exit are banked; the foreman's chest holds
+   rare steel (crucible steel).
+4. **Smith's work** (2.7.0): new top-tier items (Demircilik 9 and crucible steel), the Örs perk
+   branch, and melting pieces down for scrap. The plan said Demircilik 8; it became 9 because the
+   ladder is two levels a tier (1/3/5/7) and the tier sets cost, hours and the pass mark.
 
 ## Phase 1 model
 

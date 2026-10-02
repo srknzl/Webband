@@ -1137,8 +1137,8 @@ Clicking it opens the **scouting card** (`Lair.brief`), not a straight battle. M
 below come from `Lair._bench` in headless Chromium (software raster, so a real GPU is faster).
 
 **Which lair.** Three hand-drawn levels: `house` (Değirmencinin Evi, 30×13), `cave` (Yarasa İni,
-32×17), `camp` (Kurt Tepesi, 34×21). A site's level is `s.layout` if set, else
-`hash(s.id) % 3` — fixed per lair, no save field. Day or night comes from `Game.isNight()`: at
+32×17), `camp` (Kurt Tepesi, 34×21), and the mine (2.7.0, below). A site's level is `s.layout` if
+set, else `hash(s.id) % 3` — fixed per lair, no save field. Day or night comes from `Game.isNight()`: at
 night the `night: 'sleep'` guards lie on bedrolls and the ambient light drops (house .34 → .07).
 
 **The scouting card** reads `Game.profLvl('spotting')` (companions count). Thresholds
@@ -1230,7 +1230,7 @@ opens the forge scene (`#forge-view`). Phase 1 of `docs/PLAN-smithing.md`: exist
 The mechanics follow Kingdom Come: Deliverance II — the heat is read from the glow, never a number.
 
 **Recipes** (`Forge.RECIPES`): four weapon families of four tiers (sword, axe, mace, lance) and six
-armour pieces. Demircilik 1/3/5/7 opens tiers 1–4 (every skill starts at 1; the "Demirciydi"
+armour pieces, plus a fifth tier of masterworks (2.7.0, below). Demircilik 1/3/5/7 opens tiers 1–4 (every skill starts at 1; the "Demirciydi"
 background gives +2, so tier 2 from day one). Cost: iron `max(1, round(price × 0.5 / 150))`, coal
 `2 + 1.5 × iron`, `2 + 2 × tier` hours, rent `10 + 10 × tier` in a town and none at your own fief,
 where the storage counts as well as the bag. A tier-1 mace or lance is little more than its one bar
@@ -1324,6 +1324,71 @@ it's held on at 0.55–1 of its level and 0.85–1.15 of its speed as the angle'
 Q 0.95 in 26 s, an axe in 14 s, a spear in 16 s, no burns; at 26° the same takes up to 46 s. Sweeping
 at 2 segments/s runs the temper four times (Q 0.45–0.52); holding still at 32° scores 0. Render
 0.53 ms a frame on a 1280×800 headless desktop (the hearth 0.69 ms on the same screen).
+
+## The bandit mine (2.7.0)
+
+Phase 3 of `docs/PLAN-smithing.md`: a lair whose site carries `layout: 'mine'` (`Game.isMine`) plays
+`Lair.LEVELS.mine` (Kara Damar Madeni, 32×18, cave theme). A spawned lair becomes a mine one time
+in five (`Game.MINE.share`), and `ensureLairs` keeps at least one on the map: an old save turns a
+lair it hasn't found yet into the mine. `Game.dens()` is every lair but the mine, and the two lair
+quests (İni Bas, İndeki Soylu) pick from those only.
+
+**Stock.** The site holds `ore: { iron, coal }` in sacks (4 + 4 when full) and `steel` (crucible
+steel, 1–2). Every 2nd day a sack of each grows back, every 12th day a bar of steel, up to the full
+stock. One sack is 2 iron or 8 coal (`MINE.perSack`). Taking the mine by force (`clearLair`)
+hands over its whole stock with the purse.
+
+**In the level.** No prisoners. Sacks (`o` iron, `q` coal) beyond the site's stock start gone.
+E shoulders one (0.8 s, noise 45): you walk at 0.7×, footsteps carry 85 (walking), 180 (running),
+35 (crouched), you can't throw stones and a blow drops the sack (noise 90). Set down beside the
+mouth (or any exit) it is banked: counted even if you're caught later. The cart (`M`) holds 3
+sacks; pushed, it rolls the rail (`=`) to the mouth at 64 px/s, sounding a 210-wide noise ring
+every 0.6 s, and banks its load at the end. The foreman's chest (`C`) holds the site's steel.
+Leaving by an exit adds the bank (and a sack still on your back) to the bag and takes it off the
+site; a lost run keeps the bank but not the steel.
+
+- Measured (`e2e/specs/lairsweep.spec.js`, every lair and the mine × both ways in × day and
+  night, monkey input): no page errors. `e2e/specs/mine.spec.js`: a carried sack, the cart's
+  run and the foreman's steel, and a caught run keeping its bank.
+- Measured (2.7.0, `Lair._bench`, headless Chromium, night): render 0.36 ms at 1366×768 (the
+  cave 0.33, the camp 3.4, the house 4.4); 4.5 ms on a Pixel 7 in lite mode (the house 4.3).
+  Update 0.02–0.04 ms.
+
+## Smith's work (2.7.0)
+
+Phase 4 of `docs/PLAN-smithing.md`.
+
+**Masterworks.** Five pieces of crucible steel (`master: true, rare: true` in `ITEMS`, so never on
+a market): Desenli Kılıç (attack 26), Balta (38), Topuz (29), Mızrak (23) and Plaka Zırh (defence
+41). They are tier 5 (`req: 9`) and take `steel: 1` bar of crucible steel on top of iron and coal.
+A miss falls back to the royal tier like any weapon (the armour cracks); the steel is spent either
+way, and giving up returns it with the iron. The one-handed ones stay at or under the boss's Kurt
+Dişi Hançeri (29).
+
+**Örs**, the seventh perk branch (strength, Demircilik): `a` perks spare materials and time,
+`b` perks are the craft. The mods are read in `forge.js` through `perk(k)`:
+
+| Mod | Where |
+|---|---|
+| `coalSave`, `ironSave` (%) | `cost()`: coal and iron × (1 − mod), at least 1 iron |
+| `forgeHours` (%) | `cost()`: hours × (1 − mod), at least 1 |
+| `forgeCool` (%) | `newBar` → `g.cool`: anvil cooling × (1 − mod) |
+| `passEase` (points) | `newBar` → `g.passEase`: the pass mark − mod/100 |
+| `edgeBonus` (points) | `newEdge` → `g.max`: the grindstone's best edge 20 + mod % |
+| `scrapYield` (%) | `meltIron`: melting yield × (1 + mod) |
+
+Practice ignores them (Demircilik 1, no perks).
+
+**Melting** (`Forge.melt`, the smithy window's ♨️ Erit rows): a forgeable piece in the bag
+(not one in hand) goes back for `floor(iron × 0.5 × (1 + scrapYield))` iron, where `iron` is its
+recipe's iron before perks. It takes an hour, and 5 rent in a town. A piece too small to give a
+whole bar (a tier-1 mace) isn't offered. A masterwork's steel is lost.
+
+- Measured (`tools/test.js`, the scripted careful smith): every masterwork forged at its tier,
+  S 0.84–0.95 against a pass mark of 0.78, in 44–52 s and 4–5 heats. The careless smith cracks
+  them (S 0.02–0.30).
+- Measured: melting gives at most 0.35 of a piece's price in iron (with Hurdacı), against the
+  market's 0.7 sell. A sword_steel melts to 1 iron, a masterwork to 11–12.
 
 ## Audio layer
 Two independent systems. **Transaction SFX** are still synthesized (WebAudio oscillator

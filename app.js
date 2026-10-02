@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.6.2', date: '2026-10-02', name: 'İz' };  // the version name is not translated
+const VERSION = { no: '2.7.0', date: '2026-10-02', name: 'Damar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -467,6 +467,9 @@ const ITEMS = {
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺', desc:'Fıçı fıçı köpüklü bira. Her hanın vazgeçilmezi.' },
     coal:   { id:'coal',   name:'Kömür',         type:'trade', basePrice:6,   icon:'🪨', desc:'Kışın ordunun ısınacağı tek şey. Kömürsüz bir kış, askeri hasta eder.' },
     salt:   { id:'salt',   name:'Tuz',           type:'trade', basePrice:100, icon:'🧂', desc:'Eti bozulmaktan koruyan beyaz altın. Her yerde alıcısı var.' },
+    // A smith's material (2.7.0): no market stocks it (`rare`), a bandit-held mine's foreman keeps it
+    // in his chest, and the masterwork recipes need one. It sells like any good.
+    crucible: { id:'crucible', name:'Pota Çeliği', type:'material', basePrice:900, icon:'💠', rare:true, desc:'Kapalı potada eritilip yavaşça soğutulmuş çelik. Desenli, sert ve esnek; ancak usta bir demirci işleyebilir.' },
     // Weapons (#132): 4 quality tiers per weapon, base + 3. Price grows faster than attack does
     // (diminishing return per dinar, same ladder logic as the horses above) — see docs/SYSTEMS.md
     // "Weapon quality tiers" for the full table. kurt_disi_hancer/firtina_yayi (below) were bumped
@@ -487,6 +490,13 @@ const ITEMS = {
     lance_long: { id:'lance_long', name:'Uzun Mızrak',  type:'weapon', weaponType:'polearm',   dmgType:'pierce', basePrice:600,  attack:15, icon:'🔱', desc:'Standarttan daha uzun gönder, düşmanı önce sen bulursun.' },
     lance_knight:{ id:'lance_knight',name:'Şövalye Mızrağı',type:'weapon', weaponType:'polearm', dmgType:'pierce',basePrice:1900,attack:18, icon:'🔱', desc:'Şövalye eğitimiyle dövülmüş, şarjda ölümcül.' },
     lance_piercing:{ id:'lance_piercing',name:'Zırh Delen Mızrak',type:'weapon', weaponType:'polearm', dmgType:'pierce',basePrice:5000,attack:21, icon:'🔱', desc:'İnce, sert uçlu — zırhın en kalınını arar.' },
+    // Masterworks (2.7.0): forged only, from crucible steel (the bandit mine) at Demircilik 9 —
+    // `rare` keeps them off the market, `master` gives the icon its pattern. A step above the top
+    // tier you can buy, still under the boss uniques in their own weaponType.
+    sword_wootz:{ id:'sword_wootz',name:'Desenli Kılıç', type:'weapon', weaponType:'oneHanded', dmgType:'cut',    basePrice:7500, attack:26, icon:'⚔️', rare:true, master:true, desc:'Pota çeliğinden dövülmüş; ağzında su gibi dalgalanan desen var. Kılıç kılıç üstüne vurdukça değil, ustası öyle istediği için keskin.' },
+    axe_wootz:  { id:'axe_wootz',  name:'Desenli Balta', type:'weapon', weaponType:'twoHanded', dmgType:'cut',    basePrice:7500, attack:38, icon:'🪓', rare:true, master:true, desc:'Pota çeliğinden ağzı ince, sırtı ağır bir balta. Desenli çelik zırha girip çıkarken bükülmez.' },
+    mace_wootz: { id:'mace_wootz', name:'Desenli Topuz', type:'weapon', weaponType:'oneHanded', dmgType:'blunt',  basePrice:7000, attack:29, icon:'🔨', rare:true, master:true, desc:'Pota çeliğinden dökülüp dövülmüş başlık. Darbesi kalkanı da zırhı da sarsar.' },
+    lance_wootz:{ id:'lance_wootz',name:'Desenli Mızrak',type:'weapon', weaponType:'polearm',   dmgType:'pierce', basePrice:6500, attack:23, icon:'🔱', rare:true, master:true, desc:'Pota çeliğinden ince bir uç; zırh halkasını bulduğu yerden yarar.' },
     bow:        { id:'bow',        name:'Yay',          type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:220,  attack:10, icon:'🏹', desc:'Uzaktan vuran yay. Düşman yaklaşmadan zayiat verdirir.' },
     bow_steel:  { id:'bow_steel',  name:'Çelik Yay',    type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:650,  attack:13, icon:'🏹', desc:'Daha sert bir yay gövdesi, ok daha hızlı fırlar.' },
     bow_hunter: { id:'bow_hunter', name:'Avcı Yayı',    type:'weapon', weaponType:'bow',       dmgType:'pierce', basePrice:2000, attack:16, icon:'🏹', desc:'Ormanlık av için tasarlanmış hassas bir yay. Menzili uzun.' },
@@ -495,6 +505,7 @@ const ITEMS = {
     mail:   { id:'mail',   name:'Zincir Zırh',   type:'armor',  basePrice:500, defense:25, icon:'🦺', desc:'Halka halka örülmüş zırh. İyi koruma, orta ağırlık.' },
     leather:{ id:'leather',name:'Deri Zırh',     type:'armor',  basePrice:280, defense:14, icon:'🥋', desc:'Sertleştirilmiş deri. Hafif ve ucuz, yeni başlayana göre.' },
     plate:  { id:'plate',  name:'Plaka Zırh',    type:'armor',  basePrice:900, defense:38, icon:'🦺', desc:'Dövme çelik plakalar. Sıradan çeliğin sağladığı en iyi koruma.' },
+    plate_wootz:{ id:'plate_wootz', name:'Desenli Plaka Zırh', type:'armor', basePrice:2600, defense:41, icon:'🦺', rare:true, master:true, desc:'Pota çeliğinden plakalar: sıradan plakadan sağlam, ağırlığı ise aynı.' },
     cap:    { id:'cap',    name:'Deri Başlık',   type:'helmet', basePrice:90,  defense:3,  icon:'🧢', desc:'Basit deri başlık. Hiç yoktan iyidir.' },
     nasal:  { id:'nasal',  name:'Burunluklu Miğfer', type:'helmet', basePrice:260, defense:8, icon:'⛑️', desc:'Burun koruyuculu demir miğfer. Yüzü kılıçtan korur.' },
     greathelm:{ id:'greathelm', name:'Büyük Miğfer', type:'helmet', basePrice:520, defense:14, icon:'🪖', desc:'Başı tümüyle saran ağır miğfer. Görüşü daraltır ama can kurtarır.' },
@@ -1030,7 +1041,8 @@ const ACHIEVEMENTS = [
 function careerN(k) { return (state.career && state.career[k]) || 0; }
 
 // --- SKILL TREE (#110) ---
-// 6 branches x 5 tiers x 2 opposing perks = 60. Designed with Fable (docs/danisma/002).
+// 7 branches x 5 tiers x 2 opposing perks = 70. Designed with Fable (docs/danisma/002); the
+// seventh, Örs (2.7.0), is the smith's: its mods are read in forge.js (perk() there).
 // Each perk contributes to Game.perkMod(name); foodUse stacks multiplicatively (perkFoodMult).
 // Tier n needs: the previous tier in the branch, level >= REQ_LVL[n], the branch attribute
 // >= REQ_ATTR[n], and the branch proficiency >= REQ_PROF[n] — so no single stat unlocks a whole tree.
@@ -1109,6 +1121,19 @@ const PERKS = [
          { id:'raid_merchant_b', name:'Tüccar Prens',    desc:'Marj ve nam birlikte artar.',          mod:{ tradeEdge:6, renownGain:10 } }],
         [{ id:'raid_chieftain_a',name:'Çapulcu Reisi',   desc:'Çapulun zirvesi.',                     mod:{ loot:15, renownGain:10 } },
          { id:'raid_magnate_b',  name:'Ticaret Baronu',  desc:'Ticaretin zirvesi.',                   mod:{ tradeEdge:8, foodUse:0.90 } }]
+    ] },
+    // `a` spares the materials and the hours, `b` is the craft: the anvil, the pass mark, the stone
+    { id: 'smith', name: 'Örs', attr: 'str', prof: 'smithing', tiers: [
+        [{ id:'smith_bellows_a', name:'Körükçü',         desc:'Dövmede kömür daha az yanar.',          mod:{ coalSave:25 } },
+         { id:'smith_whet_b',    name:'Bileyici',        desc:'Bileme taşı daha keskin ağız verir.',   mod:{ edgeBonus:4 } }],
+        [{ id:'smith_thrift_a',  name:'Tutumlu Örs',     desc:'Bir parça daha az demir ister.',        mod:{ ironSave:10 } },
+         { id:'smith_patient_b', name:'Sabırlı Ateş',    desc:'Demir örste daha yavaş soğur.',         mod:{ forgeCool:15 } }],
+        [{ id:'smith_scrap_a',   name:'Hurdacı',         desc:'Eritilen parçadan daha çok demir çıkar.',mod:{ scrapYield:40 } },
+         { id:'smith_eye_b',     name:'Usta Gözü',       desc:'Kademe daha kolay tutar.',              mod:{ passEase:3 } }],
+        [{ id:'smith_quick_a',   name:'Seri El',         desc:'Dövme daha kısa sürer.',                mod:{ forgeHours:25 } },
+         { id:'smith_oilstone_b',name:'Yağ Taşı',        desc:'Bileme taşı daha da keskin ağız verir.',mod:{ edgeBonus:6 } }],
+        [{ id:'smith_master_a',  name:'Demirhane Ağası', desc:'Demir ve kömür birlikte daha az gider.', mod:{ ironSave:15, coalSave:15 } },
+         { id:'smith_grand_b',   name:'Usta İşi',        desc:'Örsün zirvesi: kolay tutan, yavaş soğuyan demir.',mod:{ passEase:4, forgeCool:15 } }]
     ] }
 ];
 const PERK_BY_ID = {};
@@ -1640,12 +1665,32 @@ const Game = {
     LAIR_DECAY: 0.5,         // prosperity per day (daily recovery is 0.4/0.15 — so the lair wins)
     LAIR_PURSE: 15,          // purse accumulated per day
     LAIR_RESPAWN: 20,        // a missing lair is rebuilt every this many days
+    // A bandit-held mine (2.7.0) is a lair with `layout: 'mine'`: the same site, the same three ways
+    // in, but what you carry out of it is iron and coal sacks (Lair.js), and its foreman's chest
+    // keeps crucible steel. The stock it holds regrows: a sack a kind every `regrow` days, a steel
+    // every `steelDays`. A sack is worth `perSack` of its material. Bandits only: a pack digs no ore.
+    MINE: { share: 0.2, ore: { iron: 4, coal: 4 }, perSack: { iron: 2, coal: 8 }, steel: 2, regrow: 2, steelDays: 12 },
     lairs() { return (state.sites || []).filter(s => s.kind === 'lair'); },
+    // the lairs that are dens (houses, caves, camps), not the mine: the quests about a den's
+    // prisoners or a gang's hideout want one of these
+    dens() { return this.lairs().filter(s => !this.isMine(s)); },
+    isMine(s) { return !!s && s.kind === 'lair' && s.layout === 'mine'; },
     ensureLairs() {
         this.ensureSites();
         for(let i = this.lairs().length; i < this.LAIR_COUNT; i++) this.spawnLair();
+        // there's always one mine: an older save gets one by turning a lair it hasn't found yet
+        // into a mine (or, everything found, by opening one more)
+        if(!this.lairs().some(s => this.isMine(s))) {
+            let l = this.lairs().find(s => !s.seen);
+            if(l) this.makeMine(l); else this.spawnLair(true);
+        }
     },
-    spawnLair() {
+    makeMine(l) {
+        Object.assign(l, { layout: 'mine', name: 'Haydut Madeni', icon: '⛏️', band: Math.random() < 0.5 ? 'mountain' : 'bandit',
+                           ore: { ...this.MINE.ore }, steel: 1 + Math.floor(Math.random() * this.MINE.steel) });
+        return l;
+    },
+    spawnLair(mine) {
         for(let k = 0; k < 200; k++) {
             let a = Math.random() * Math.PI * 2;
             let R = this.getMapRadius(4500 + Math.cos(a), 4500 + Math.sin(a));
@@ -1659,6 +1704,7 @@ const Game = {
                       name: 'Haydut İni', band: this.randomBandKind(),
                       x: p.x, y: p.y, strength: 8 + Math.floor(Math.random() * 5),
                       purse: 0, foundDay: state.time.day, seen: false };
+            if(mine || (mine === undefined && Math.random() < this.MINE.share)) this.makeMine(l);
             state.sites.push(l);
             return l;
         }
@@ -1687,6 +1733,11 @@ const Game = {
             this.lairSeen(x);                                 // counts as found if you passed near it during the day
             x.purse = Math.min(1200, x.purse + this.LAIR_PURSE);
             x.strength = Math.min(24, x.strength + 0.15);     // an old lair is a grown lair
+            if(this.isMine(x)) {                              // the miners dig on: the stock refills slowly
+                let M = this.MINE, d = state.time.day;
+                if(d % M.regrow === 0) for(let k in M.ore) x.ore[k] = Math.min(M.ore[k], (x.ore[k] || 0) + 1);
+                if(d % M.steelDays === 0) x.steel = Math.min(M.steel, (x.steel || 0) + 1);
+            }
         });
         // Decay doesn't stack, only the nearest lair counts (same reason as `worst()`
         // in terrain penalties): a village at the overlap of three lairs was losing 1.8 prosperity a day and dying.
@@ -1706,12 +1757,19 @@ const Game = {
         state.npcParties.forEach(n => { if(n.lairId === l.id) n.lairId = null; });   // don't leave a dangling id
         Quests.emit('lair_cleared', { lairId: l.id });
         state.player.money += Math.round(l.purse);
+        // a mine taken is a mine emptied: its sacks and its foreman's steel go with you
+        let haul = '';
+        if(this.isMine(l)) {
+            let got = { iron: (l.ore.iron || 0) * this.MINE.perSack.iron, coal: (l.ore.coal || 0) * this.MINE.perSack.coal, crucible: l.steel || 0 };
+            for(let id in got) if(got[id]) this.addItem(id, got[id]);
+            haul = ' ' + T`Madenin stoğu da senin: <b>${got.iron} demir, ${got.coal} kömür, ${got.crucible} pota çeliği</b>.`;
+        }
         LOCATIONS.forEach(x => {
             if(x.prosperity !== undefined && this.dist(x, l) < this.LAIR_RANGE)
                 x.prosperity = Math.min(100, x.prosperity + 5);
         });
         return T`<b>İn dağıtıldı.</b> Biriken kese <b>${Math.round(l.purse)} dinar</b> senin;
-            çevredeki yerleşimler nefes aldı ve buradan yeni çete çıkmayacak.`;
+            çevredeki yerleşimler nefes aldı ve buradan yeni çete çıkmayacak.` + haul;
     },
     // `reinforce` (2.2.0): storming a lair openly — the scouting card's "whole army" — lets the
     // bandits whistle for help, so the field holds that many times the lair's count.
@@ -1867,6 +1925,7 @@ const Game = {
     siteTipHtml(s) {
         let k = this.SITE_KINDS[s.kind];
         if(k.boss) { let b = BOSSES[s.bossKey]; return `<i>${T(b.siteDesc)}</i><br>${T`💀 Benzersiz boss — ${T(b.special.name)}`}`; }
+        if(this.isMine(s)) return `<i>${T('Haydutların ele geçirdiği bir demir madeni. Çuvallar hâlâ ocağın başında.')}</i><br>${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
         if(k.lair) return `<i>${T(k.desc)}</i><br>${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
         return `<i>${T(k.desc)}</i><br>${this.siteReady(s)
             ? T('🔍 Henüz araştırılmadı')
@@ -8132,7 +8191,7 @@ const Game = {
         { id: 'weapon', label: 'Silah',  types: ['weapon'] },
         { id: 'armor',  label: 'Zırh',   types: ['armor', 'helmet', 'gloves', 'boots', 'shield'] },
         { id: 'horse',  label: 'At',     types: ['horse'] },
-        { id: 'goods',  label: 'Mal',    types: ['trade'] },
+        { id: 'goods',  label: 'Mal',    types: ['trade', 'material'] },
         { id: 'food',   label: 'Yiyecek',types: ['food'] },
         { id: 'special',label: 'Özel',   types: ['special'] }
     ],
@@ -8382,7 +8441,8 @@ const Game = {
             .map(([k, l]) => `<button type="button" role="tab" aria-selected="${m.mode === k}" class="${m.mode === k ? 'on' : ''}" onclick="Game.mktMode('${k}')">${l}</button>`).join('');
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
         let matchesCat = type => !cat.types || cat.types.includes(type);
-        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && matchesCat(i.type))   // unique boss drops are earned, never bought (#38)
+        // unique boss drops are earned, never bought (#38); nor is a rare material or what only a forge makes (2.7.0)
+        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && !i.rare && matchesCat(i.type))
                                     : sellable.filter(i => matchesCat(i.type));
         let grid = document.getElementById('market-buy');
         grid.innerHTML = list.length ? list.map(item => {
@@ -9229,7 +9289,7 @@ const Game = {
     marketOpen() { return !!document.getElementById('market-buy'); },
     buyItem(id, n = 1) {
         if(!this.marketOpen()) return;
-        if(this.marketPrice(id) === null) return alert(T('Bu eşya pazarda yok.'));
+        if(this.marketPrice(id) === null || !ITEMS[id] || ITEMS[id].rare || ITEMS[id].unique) return alert(T('Bu eşya pazarda yok.'));
         let loc = this._marketLoc;
         // Priced unit by unit (marketQuote): each good bought lowers the stock and the lowered
         // stock makes the next one pricier — buying in bulk at one price would be too cheap.
@@ -11536,7 +11596,8 @@ const Game = {
                 partyCap:'kapasite', moraleBonus:'moral', prisonerCap:'esir kap.', escapeReduce:'kaçış−',
                 healChance:'şifa', mapSpeed:'harita hız', vision:'görüş', tradeEdge:'ticaret', loot:'ganimet',
                 trainXp:'talim', maxHpBonus:'can', hpRegen:'yenilenme', wageReduce:'maaş−', renownGain:'nam',
-                blockAngle:'savuşturma' };
+                blockAngle:'savuşturma', coalSave:'kömür−', ironSave:'demir−', forgeHours:'süre−', scrapYield:'hurda',
+                forgeCool:'soğuma−', passEase:'kademe', edgeBonus:'bileme' };
             let v = m[k]; let plus = v > 0 ? '+' : '';
             return `${T(names[k] || k)} ${plus}${v}`;
         }).join(', ');
