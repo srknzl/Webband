@@ -508,10 +508,10 @@ QUESTS.clear_lair = {
     minRelation: -100,
     days: 20,
     reward: { money: 1600, renown: 10, rel: 0 },
-    can(giver) { return Game.lairs().length > 0; },
+    can(giver) { return Game.dens().length > 0; },
     setup(q, giver) {
         let ev = LOCATIONS.find(l => l.id === giver.homeLocId) || { x: 4500, y: 4500 };
-        let l = Game.lairs().slice().sort((a, b) => Game.dist(a, ev) - Game.dist(b, ev))[0];
+        let l = Game.dens().sort((a, b) => Game.dist(a, ev) - Game.dist(b, ev))[0];
         l.seen = true;                       // what the master knows, you now know too
         q.data = { lairId: l.id, power: Math.round(l.strength) };
     },
@@ -551,10 +551,11 @@ QUESTS.lair_captive = {
     reward: { money: 1400, renown: 14, rel: 18 },
     // raw proper names, translated where shown
     HEIRS: ['Genç Lord Ardan', 'Genç Lord Tolun', 'Genç Lord Veyrin', 'Genç Lord Harun', 'Genç Lord Emrys', 'Genç Lord Kaan'],
-    can(giver) { return !giver.isGuild && Game.lairs().length > 0; },
+    // a mine holds no prisoners (2.7.0): the noble is always in a lair proper
+    can(giver) { return !giver.isGuild && Game.dens().length > 0; },
     setup(q, giver) {
         let home = LOCATIONS.find(l => l.id === giver.homeLocId) || { x: 4500, y: 4500 };
-        let l = Game.lairs().slice().sort((a, b) => Game.dist(a, home) - Game.dist(b, home))[0];
+        let l = Game.dens().sort((a, b) => Game.dist(a, home) - Game.dist(b, home))[0];
         l.seen = true;                       // the lord's men tracked them there: now you know it too
         let lady = LADIES.find(x => x.guardianId === giver.id);
         let heirs = QUESTS.lair_captive.HEIRS;

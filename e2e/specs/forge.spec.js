@@ -96,13 +96,50 @@ test('the smithy shows what a piece needs and locks the tiers above your skill',
     await enter(page, await quietCity(page));
     await (await actionBtn(page, '🔨 Demirhane')).click();
     // no iron: nothing can be forged (the grindstone needs none), and the royal sword asks for more skill
-    await expect(modal(page).locator('.fs-row button:not([disabled]):not([onclick^="Forge.grind"])')).toHaveCount(0);
+    await expect(modal(page).locator('.fs-row button:not([disabled]):not([onclick^="Forge.grind"]):not([onclick^="Forge.melt"])')).toHaveCount(0);
     const royal = modal(page).locator('.fs-row.locked', { hasText: await L(page, 'Kraliyet Kılıcı') });
     await expect(royal).toContainText(await L(page, 'Demircilik {0} gerekir', 7));
     await modal(page).locator('.lb-help').click();
-    await expect(modal(page).locator('.lb-howto li')).toHaveCount(5);
+    await expect(modal(page).locator('.lb-howto li')).toHaveCount(7);
     await (await modalBtn(page, '← Ocağa dön')).click();
     await expect(modal(page).locator('.forge-shop')).toBeVisible();
+});
+
+// Smith's work (2.7.0): the masterwork waits for a bar of crucible steel and gives it back if you
+// walk away; a piece from the bag melts back into iron, an hour at the hearth.
+test('a masterwork asks for crucible steel, giving up returns it; a piece melts back into iron', async ({ page }) => {
+    await newGame(page);
+    await page.evaluate(() => {
+        Game.setOpt('muted', true);
+        state.player.proficiencies.smithing.level = 9;
+        state.player.inventory = state.player.inventory.filter(i => !['iron', 'coal', 'crucible'].includes(i.id));
+        Game.addItem('iron', 40); Game.addItem('coal', 80); Game.addItem('sword_steel', 1);
+        state.player.money = 5000;
+        localStorage.setItem('webband_forge_help', '1');
+    });
+    await enter(page, await quietCity(page));
+    const smithy = async () => { await (await actionBtn(page, '🔨 Demirhane')).click(); await expect(modal(page).locator('.forge-shop')).toBeVisible(); };
+    await smithy();
+    const master = modal(page).locator('.fs-row', { hasText: await L(page, 'Desenli Kılıç') });
+    await expect(master).toContainText(await L(page, '{0} pota çeliği gerekir', 1));
+    await expect(master.locator('button')).toBeDisabled();
+    // melting: the piece leaves the bag, its scrap joins the iron, the hour passes, the window comes back
+    const hour = await page.evaluate(() => state.time.day * 24 + state.time.hour);
+    await modal(page).locator(`[onclick^="Forge.melt"][onclick*="'sword_steel'"]`).click();
+    await expect(modal(page).locator('.forge-shop .lb-lead')).toContainText(await L(page, 'Çelik Kılıç'));
+    expect(await page.evaluate(() => ({ iron: state.player.inventory.find(i => i.id === 'iron').qty, sword: state.player.inventory.some(i => i.id === 'sword_steel'),
+        hours: state.time.day * 24 + state.time.hour }))).toEqual({ iron: 41, sword: false, hours: hour + 1 });
+    // with the steel in the bag the masterwork opens; the bar goes in, and comes back out on giving up
+    await page.evaluate(() => { Game.addItem('crucible', 1); Game.closeModal(); });
+    await smithy();
+    await modal(page).locator(`[onclick*="'sword_wootz'"]`).click();
+    await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
+    const bag = () => page.evaluate(() => (state.player.inventory.find(i => i.id === 'crucible') || { qty: 0 }).qty);
+    expect(await bag()).toBe(0);
+    await page.locator('#forge-pausebtn').click();
+    await page.locator('#forge-over').getByText(await L(page, '🚪 Vazgeç')).click();
+    await expect(page.locator('#settlement-view')).toHaveClass(/\bactive\b/);
+    expect(await bag()).toBe(1);
 });
 
 test('the start screen opens a practice forge: every piece, nothing taken or given, back to the menu', async ({ page }) => {

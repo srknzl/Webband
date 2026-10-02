@@ -6,7 +6,7 @@ test.setTimeout(10 * 60_000);
 test('lair sweep', async ({ page }) => {
     await newGame(page, 'Sweeper');   // a name with no Turkish-only letter: the fixture reads it on EN/ID screens
     const found = [];
-    const layouts = await page.evaluate(() => Object.keys(Lair.LAYOUTS || Lair.LEVELS));
+    const layouts = await page.evaluate(() => Object.keys(Lair.LEVELS));   // LAYOUTS is an array: its keys were '0', '1', '2'
     const sites = await page.evaluate(() => Game.lairs().map((s, i) => i));
     for(const si of sites) for(const layout of layouts) for(const way of ['solo', 'squad']) for(const hour of [12, 23]) for(const men of [4]) {
         const r = await page.evaluate(async ([layout, way, hour, men, si]) => {

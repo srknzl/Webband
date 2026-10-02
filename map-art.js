@@ -515,6 +515,13 @@ const MapArt = (() => {
             for(let r = 0; r < 6; r++) { g.px(4 - r, 3 + r, r + 1, 1, '#b99a66'); g.px(5, 3 + r, r + 1, 1, '#94784c'); }
             for(let r = 0; r < 5; r++) { g.px(13 - r, 4 + r, r + 1, 1, '#a88a58'); g.px(14, 4 + r, r, 1, '#86693f'); }
             g.px(4, 6, 2, 3, '#2b2016'); g.px(8, 8, 3, 1, '#5a3d22'); g.px(9, 7, 1, 1, '#e0763a'); g.px(8, 9, 3, 1, '#5a5a5a');
+        } else if(kind === 'mine') {                      // a bandit-held mine: a timbered adit in a rock, a cart by it
+            g = sheet(20, 14);
+            g.px(1, 5, 18, 9, '#6f6a60'); g.px(4, 2, 12, 3, '#6f6a60'); g.px(7, 0, 6, 2, '#837d71'); g.px(4, 2, 5, 3, '#857f73');
+            g.px(14, 6, 5, 8, '#55514a'); g.px(1, 5, 4, 3, '#857f73');
+            g.px(6, 6, 7, 8, '#120f0c'); g.px(5, 5, 9, 1, '#7a5532'); g.px(5, 5, 1, 9, '#6b4a2c'); g.px(13, 5, 1, 9, '#6b4a2c');
+            g.px(2, 13, 17, 1, '#4a3a2a'); for(let x = 3; x < 19; x += 3) g.px(x, 12, 1, 2, '#5c4128');
+            g.px(14, 9, 5, 3, '#6b4a2c'); g.px(14, 9, 5, 1, '#8a633d'); g.px(15, 8, 3, 1, '#9a8f84'); g.px(15, 12, 1, 1, '#2a2016'); g.px(18, 12, 1, 1, '#2a2016');
         } else if(kind === 'lair') {
             g = sheet(18, 15);
             for(let i = 0; i < 18; i += 2) g.px(i, 7 + (i % 4 ? 0 : 1), 1, 8, i % 4 ? '#6e4c2e' : '#8a633d');
@@ -530,7 +537,7 @@ const MapArt = (() => {
         return (SITES[kind] = outline(g).c);
     }
     function site(ctx, s, big) {
-        const kind = Game.SITE_KINDS[s.kind] && Game.SITE_KINDS[s.kind].boss ? 'boss' : s.kind;
+        const kind = Game.SITE_KINDS[s.kind] && Game.SITE_KINDS[s.kind].boss ? 'boss' : Game.isMine(s) ? 'mine' : s.kind;
         const cv = SITES[kind] || buildSite(kind), k = big / 11;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(cv, s.x - cv.width * k / 2, s.y + 14 - cv.height * k, cv.width * k, cv.height * k);
@@ -1141,6 +1148,7 @@ const MapArt = (() => {
     // its metal (iron, steel, patterned Damascus, royal silver on gold) and grip; the same emoji
     // used to stand for all four swords.
     const METAL = [['#8d939b', '#b3b9c1', '#5f646b'], ['#b9c4cf', '#e3e9ef', '#7d8893'], ['#9ea5b3', '#d0d5de', '#636878'], ['#e3e9f0', '#ffffff', '#9aa6b2']];
+    const WOOTZ = ['#7a8290', '#d6dce6', '#454b57'];   // crucible steel (2.7.0): darker, with a watered ripple
     const GRIP = ['#6b4a2c', '#3e2c1f', '#8a5a2a', '#7a2a2a'], TRIM = ['#5f646b', '#7d8893', '#b07a3a', '#e0b852'];
     const ICON_URL = {};
     function tierOf(item) {
@@ -1150,31 +1158,34 @@ const MapArt = (() => {
         return Math.min(3, Math.max(0, same.indexOf(item)));
     }
     function drawItem(g, item) {
-        const t = tierOf(item), M = METAL[t], id = item.id, P = (x, y, c, w = 1, h = 1) => g.px(x, y, w, h, c);
+        const id = item.id, master = !!(ITEMS[id] || item).master, t = tierOf(item), M = master ? WOOTZ : METAL[t], P = (x, y, c, w = 1, h = 1) => g.px(x, y, w, h, c);
         const diag = (x0, y0, n, c, c2) => { for(let i = 0; i < n; i++) { P(x0 - i, y0 + i, c); if(c2) P(x0 - i + 1, y0 + i, c2); } };
         if(item.type === 'weapon' && item.weaponType === 'oneHanded' && !id.startsWith('mace')) {       // swords, the wolf-tooth dagger
             const dag = id === 'kurt_disi_hancer', n = dag ? 6 : 9, M2 = dag ? ['#c9c3b0', '#f0ead8', '#8a8470'] : M;
             diag(13, 1 + (9 - n), n, M2[0], M2[1]);
-            if(t === 2) for(let i = 1; i < n; i += 2) P(13 - i, 1 + (9 - n) + i, M2[2]);          // Damascus ripple
+            if(t === 2 || master) for(let i = 1; i < n; i += 2) P(13 - i, 1 + (9 - n) + i, M2[2]);          // Damascus ripple
             for(let i = -2; i <= 2; i++) P(4 + i, 11 + i, dag ? '#d8d0b8' : TRIM[t]);             // crossguard
             P(3, 12, GRIP[t]); P(2, 13, GRIP[t]); P(1, 14, TRIM[t], 2, 1);
         } else if(id.startsWith('mace')) {
             diag(9, 6, 7, GRIP[t]);
-            if(t === 3) { P(8, 2, M[0], 6, 3); P(8, 2, M[1], 6, 1); P(12, 5, M[2], 2, 1); }             // war hammer
+            if(t === 3 && !master) { P(8, 2, M[0], 6, 3); P(8, 2, M[1], 6, 1); P(12, 5, M[2], 2, 1); }  // war hammer
             else {
                 P(10, 2, M[0], 4, 4); P(11, 1, M[0], 2, 6); P(9, 3, M[0], 6, 2); P(11, 2, M[1], 1, 2);
                 if(t >= 1) { P(10, 1, M[2]); P(13, 1, M[2]); P(10, 6, M[2]); P(13, 6, M[2]); }
                 if(t === 2) { P(12, 0, M[1]); P(15, 3, M[1]); P(8, 3, M[1]); P(12, 7, M[1]); }          // spikes
+                if(master) { P(10, 3, M[2]); P(12, 4, M[2]); P(11, 6, M[2]); P(13, 2, M[2]); }
             }
         } else if(item.weaponType === 'twoHanded') {                                                     // axes
             diag(11, 3, 11, GRIP[t]);
             for(let y = 0; y < 8; y++) { const w = y < 1 || y > 6 ? 2 : y < 2 || y > 5 ? 3 : 4; P(11, y, M[y < 3 ? 1 : 0], w, 1); }
             P(14, 1, M[2], 1, 6);
-            if(t === 3) { P(8, 1, M[0], 2, 4); P(8, 1, M[1]); }                                        // the headsman's back spike
+            if(t === 3 && !master) { P(8, 1, M[0], 2, 4); P(8, 1, M[1]); }                             // the headsman's back spike
+            if(master) for(let y = 1; y < 7; y += 2) P(12 + (y >> 1) % 2, y, M[2]);                     // the pattern
             if(t >= 2) P(12, 3, TRIM[t], 1, 2);
         } else if(item.weaponType === 'polearm') {                                                      // lances
             diag(12, 3, 11, GRIP[t]);
             P(13, 0, M[0], 2, 3); P(12, 1, M[0], 2, 2); P(14, 0, M[1]); P(15, 0, M[1]);
+            if(master) { P(13, 1, M[2]); P(12, 2, M[2]); }
             if(t >= 1) P(10, 5, TRIM[t], 2, 1);
             if(t >= 2) { P(10, 3, t === 3 ? '#2e6fb8' : '#b8342a', 1, 3); P(9, 3, t === 3 ? '#2e6fb8' : '#b8342a', 1, 2); }
         } else if(item.weaponType === 'bow') {
@@ -1187,11 +1198,12 @@ const MapArt = (() => {
             for(let y = 1; y < 15; y++) { const hw = y < 9 ? 6 : Math.max(1, 6 - (y - 8)); P(8 - hw, y, '#9aa0a8'); P(8 + hw - 1, y, '#6f757c'); }
             P(2, 1, '#b3b9c1', 12, 1); P(7, 6, '#b3b9c1', 2, 3); P(6, 7, '#9aa0a8', 4, 1);
         } else if(item.type === 'armor') {
-            const C = id === 'leather' ? ['#9a6a3a', '#7a4f28', '#b8844c'] : id === 'mail' ? ['#9aa0a8', '#6f757c', '#c1c7ce'] : id === 'dev_orsu_zirhi' ? ['#4a4450', '#2e2a33', '#6e6678'] : ['#b9c4cf', '#7d8893', '#e3e9ef'];
+            const C = id === 'leather' ? ['#9a6a3a', '#7a4f28', '#b8844c'] : id === 'mail' ? ['#9aa0a8', '#6f757c', '#c1c7ce'] : id === 'dev_orsu_zirhi' ? ['#4a4450', '#2e2a33', '#6e6678'] : master ? [WOOTZ[0], WOOTZ[2], WOOTZ[1]] : ['#b9c4cf', '#7d8893', '#e3e9ef'];
             P(2, 2, C[0], 4, 3); P(10, 2, C[0], 4, 3); P(4, 3, C[0], 8, 11); P(7, 3, C[1], 2, 2);
             P(4, 3, C[2], 1, 10); P(11, 3, C[1], 1, 11); P(4, 11, C[1], 8, 1);
             if(id === 'mail') for(let y = 5; y < 13; y += 2) for(let x = 5 + (y & 2 ? 1 : 0); x < 11; x += 2) P(x, y, C[1]);
-            if(id === 'plate' || id === 'dev_orsu_zirhi') { P(5, 7, C[1], 6, 1); P(5, 9, C[1], 6, 1); if(id === 'dev_orsu_zirhi') P(4, 11, '#b8342a', 8, 1); }
+            if(master) for(let y = 5; y < 11; y += 2) for(let x = 6 + (y >> 1) % 2; x < 10; x += 2) P(x, y, C[2]);
+            if(id === 'plate' || master || id === 'dev_orsu_zirhi') { P(5, 7, C[1], 6, 1); P(5, 9, C[1], 6, 1); if(id === 'dev_orsu_zirhi') P(4, 11, '#b8342a', 8, 1); }
             if(id === 'leather') { for(let y = 5; y < 11; y += 2) P(7, y, '#e0c080'); P(4, 11, '#5a3a1a', 8, 1); }
         } else if(item.type === 'helmet') {
             if(id === 'cap') { P(3, 6, '#8a5a2a', 10, 5); P(4, 4, '#8a5a2a', 8, 2); P(6, 3, '#8a5a2a', 4, 1); P(4, 5, '#b07a3a', 3, 3); P(2, 10, '#6b4a2c', 12, 2); }
@@ -1235,6 +1247,10 @@ const MapArt = (() => {
                 coal: () => { P(3, 8, '#2a2a2e', 5, 5); P(7, 6, '#38383e', 6, 7); P(5, 10, '#1a1a1e', 6, 3); P(8, 7, '#55555c'); P(4, 9, '#55555c'); },
                 salt: () => { P(4, 5, '#d8cfb8', 8, 9); P(3, 7, '#d8cfb8', 10, 6); P(5, 3, '#b8ad90', 6, 2); P(6, 2, '#efeae0', 4, 2); P(4, 7, '#efe9dc', 2, 5); }
             }[id] || (() => P(4, 4, '#8a6a40', 8, 8)))();
+        } else if(id === 'crucible') {                                   // a crucible-steel cake, its watered face up
+            P(3, 6, WOOTZ[0], 10, 6); P(4, 5, WOOTZ[0], 8, 1); P(3, 11, WOOTZ[2], 10, 1);
+            for(let x = 4; x < 12; x += 2) P(x + (x >> 1) % 2, 7 + (x >> 1) % 3, WOOTZ[1]);
+            P(4, 5, WOOTZ[1], 3, 1);
         } else if(id === 'boss_map') {
             P(2, 3, '#d8c79a', 12, 10); P(2, 3, '#efe0b8', 12, 1); P(2, 12, '#b8a578', 12, 1); P(4, 6, '#8a7a50', 3, 1); P(7, 8, '#8a7a50', 3, 1);
             P(10, 5, '#b8342a'); P(12, 5, '#b8342a'); P(11, 6, '#b8342a'); P(10, 7, '#b8342a'); P(12, 7, '#b8342a');

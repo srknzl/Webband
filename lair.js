@@ -7,6 +7,10 @@
 // cones that shrink in the dark and hear running, splashing and fighting; you can take them
 // down from behind, hide, throw a pebble to pull one away, douse a torch, free prisoners,
 // steal the lair's purse — and you must get back out. A sneak leaves the lair standing.
+// A bandit-held mine (2.7.0, `Game.isMine`) is the same game with a load: iron and coal sacks
+// carried on your back (slow and loud), a rail cart that takes three at once and rumbles all
+// the way to the mouth, the foreman's chest with crucible steel. A sack set down at an exit is
+// yours even if they catch you afterwards; what's still on your back or in the cart is not.
 //
 // Drawn with Canvas2D on #lair-canvas, its own loop; the map loop steps aside while
 // `Lair.active` (Game.inScene). The people are battle.js's Swordsman and the horses its Horse;
@@ -40,7 +44,7 @@ function loadAssets() {
 // ~ water · ' ' rock/void · n tent · f fence · | cage bars · Y watchtower. Objects on a floor: b crate · B barrel
 // s sack · k table · h stool · T torch · F fire · C chest · c trapped chest · L lever · t trapdoor (pairs)
 // P prisoner · $ the lair's purse · S hidden spikes · v bats · H hiding place · A pen gate · K cage door
-// @ start (also an exit). Guards live in the list, not in the map. Every string shown goes through T().
+// = rail (floor) · o iron sack · q coal sack · M the mine cart (on a rail) · @ start (also an exit). Guards live in the list, not in the map. Every string shown goes through T().
 const LEVELS = {
     house: {
         name: 'Değirmencinin Evi', kind: 'Haydut evi', theme: 'house',
@@ -167,6 +171,48 @@ const LEVELS = {
             secret: 'Batı çitindeki gedikten girersen kapı nöbetçilerine hiç görünmezsin.',
             leader: { day: 'Reis kendi çadırında keseyle meşgul.', night: 'Reis çadırında uyuyor.' },
             traps: 'Kulede bir gözcü var, uzağı görüyor. Tutsak kafesi kilitli. Kulübenin önündeki sandık tuzaklı.'
+        }
+    },
+    mine: {
+        name: 'Kara Damar Madeni', kind: 'Maden', theme: 'cave', mine: true,
+        map: [
+            '################################',
+            '#o.o..=.##bk$k..C##q..q....bB###',
+            '#.....=.##.k.k...##.......q....E',
+            '#o..o.=.##..h....##..q.......s.E',
+            '#####.M.####D######.....H....###',
+            '#T....=......................T##',
+            '#.....=.b.........B......b....##',
+            '#.H...=........................#',
+            '#.....=........F..........H....#',
+            '#s....=........................#',
+            '#B....=......b......T......B...#',
+            '######=#######.#################',
+            '######=#######.#################',
+            '####..=........b.###############',
+            '####.H=........B.###############',
+            '####..=..........###############',
+            '#####E@E########################',
+            '#####EEE########################'],
+        ambient: { day: .06, night: .04 }, outside: { day: .6, night: .14 },
+        lights: [{ x: 13, y: 2, r: 100, i: .75, kind: 'candle' }, { x: 3.5, y: 2, r: 125, i: .7, kind: 'candle' }, { x: 24, y: 2.5, r: 120, i: .6, kind: 'candle' }],
+        dayLights: [{ x: 6, y: 16.5, r: 130, i: .5, kind: 'mouth' }, { x: 30.5, y: 2.5, r: 110, i: .45, kind: 'mouth' }],
+        guards: [
+            { x: 12, y: 14, type: 'post', face: 'up', night: 'sleep' },
+            { x: 13, y: 8, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 17, y: 8, type: 'dice', face: 'left', night: 'sleep' },
+            { x: 4, y: 6, type: 'patrol', route: [[4, 6], [27, 6], [27, 9], [4, 9]] },
+            { x: 26, y: 3, type: 'post', face: 'left', sweep: 1, night: 'sleep' },
+            { x: 14, y: 2, type: 'leader', face: 'left', night: 'sleep', leader: true }],
+        ambush: { room: [10, 1, 16, 3], doors: [[12, 4]], spawns: [[10, 3], [15, 3]], where: 'ustabaşının odası' },
+        chests: { C: [40, 80], c: [120, 160] }, loot: null,
+        news: null,
+        intel: {
+            entrances: 'Maden ağzı (güneyde), kömür deposunun doğusunda bir hava bacası',
+            entrance1: 'Maden ağzı (güneyde)',
+            secret: 'Kömür deposundaki hava bacasından girersen ana tünelden hiç geçmezsin.',
+            leader: { day: 'Ustabaşı odasında, sandığının başında defter tutuyor.', night: 'Ustabaşı odasında uyuyor.' },
+            traps: 'Tuzak yok. Ray boyunca itilen araba bütün madeni ayağa kaldırır.'
         }
     }
 };
@@ -327,6 +373,7 @@ function bakeGround() {
                 if(L.theme === 'house') { x.fillStyle = P.beam; x.fillRect(X, Y + 8, 16, 1); if(tx % 3 === 0) x.fillRect(X + 7, Y + 9, 2, 7); }
                 else for(let i = 0; i < 6; i++) px(X + (srand() * 16 | 0), Y + 10 + (srand() * 5 | 0), srand() < .5 ? P.faceHi : P.faceLo);
                 if(L.theme === 'cave') for(let i = 0; i < 16; i += 2) if(srand() < .5) px(X + i, Y + 8, P.face);
+                if(L.mine && tx % 4 === 1) { x.fillStyle = '#5c4128'; x.fillRect(X + 6, Y + 8, 4, 8); x.fillStyle = '#7a5532'; x.fillRect(X + 6, Y + 8, 1, 8); x.fillRect(X + 2, Y + 8, 12, 2); }
             }
             if(ch === 'W') {
                 x.fillStyle = '#3b2a1c'; x.fillRect(X + 2, Y + 3, 12, 11);
@@ -352,6 +399,13 @@ function bakeGround() {
             for(let i = 0; i < 26; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.f[1 + (srand() * 3 | 0)]);
             if(srand() < .25) { const a = srand() * 12 | 0, b = srand() * 12 | 0; x.fillStyle = P.seam; x.fillRect(X + a, Y + b, 3, 1); }
         }
+        // a rail: sleepers across the way it runs, two iron rails along it
+        if(ch === '=') {
+            const along = (dx, dy) => tile(tx + dx, ty + dy) === '=';
+            const h = along(-1, 0) || along(1, 0), v = along(0, -1) || along(0, 1);
+            if(v || !h) { x.fillStyle = '#4a3420'; for(let i = 1; i < 16; i += 4) x.fillRect(X + 2, Y + i, 12, 2); x.fillStyle = '#7d8893'; x.fillRect(X + 4, Y, 1, 16); x.fillRect(X + 11, Y, 1, 16); }
+            if(h) { x.fillStyle = '#4a3420'; for(let i = 1; i < 16; i += 4) x.fillRect(X + i, Y + 2, 2, 12); x.fillStyle = '#7d8893'; x.fillRect(X, Y + 4, 16, 1); x.fillRect(X, Y + 11, 16, 1); }
+        }
         // a wall above casts a short shadow onto the floor
         if(WALLS.has(tile(tx, ty - 1)) || tile(tx, ty - 1) === 'W') { x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(X, Y, 16, 3); }
     }
@@ -371,8 +425,12 @@ const OBJDEF = {
     k: { table: true, solid: true }, h: { img: 'stool' }, T: { img: 'torch', solid: true, torch: true, light: { r: 170, i: .95 } },
     F: { fire: true, solid: true, light: { r: 250, i: 1.1 } }, C: { chest: true, solid: true }, c: { chest: true, trapped: true, solid: true },
     L: { lever: true, solid: true }, t: { trapdoor: true }, $: { purse: true }, S: { spikes: true }, v: { bats: true },
-    H: { hide: true, solid: true, cover: true }, A: { pen: true, solid: true }, K: { cage: true, solid: true }
+    H: { hide: true, solid: true, cover: true }, A: { pen: true, solid: true }, K: { cage: true, solid: true },
+    o: { ore: 'iron', solid: true, cover: true }, q: { ore: 'coal', solid: true, cover: true }, M: { cart: true }
 };
+// the mine's numbers: how many sacks the cart takes and how fast it rolls (px/s); the stock, and
+// what a sack is worth, live on the map side (Game.MINE) so a site keeps them between visits
+const CART_CAP = 3, CART_SPEED = 64;
 
 // The hero as the battle draws them, on foot and with a blade in hand (a bow stays on the back)
 function heroLook() {
@@ -401,7 +459,7 @@ function newGame() {
     G = { w, h, grid: map.map(r => r.split('')), objs: new Array(w * h).fill(null), doors: {}, opened: new Set(), lights: [], t: 0,
           chars: [], fx: [], texts: [], gold: 0, items: [], freed: 0, kos: 0, downs: 0, alarms: 0, alarm: 0,
           approach: R.approach, seen: new Uint8Array(w * h), ambushOn: R.ambush, ambushState: 0, done: false, trapdoors: [], stepAcc: 0,
-          pebbles: 3, band: BS, purseTaken: false };
+          pebbles: 3, band: BS, purseTaken: false, carry: null, bank: { iron: 0, coal: 0 }, steel: 0, cart: null };
     seed = 3 + (hashStr(R.site.id) % 97);
     for(let y = 0; y < h; y++) for(let x = 0; x < w; x++) {
         const ch = G.grid[y][x];
@@ -409,11 +467,12 @@ function newGame() {
         if(OBJDEF[ch]) {
             const d = OBJDEF[ch], o = Object.assign({ ch, x, y, cx: x * TS + 16, cy: y * TS + 16, frame: 0 }, d);
             if(ch === 't') G.trapdoors.push(o);
+            if(d.cart) { o.load = { iron: 0, coal: 0 }; G.cart = o; }
             if(d.light) { o.lightRef = { px: o.cx, py: o.cy - 6, r: d.light.r, i: d.light.i, kind: ch === 'F' ? 'fire' : 'torch' }; G.lights.push(o.lightRef); }
             if(d.spikes || d.trapped) o.known = R.scout >= INTEL.sketch;
             if(d.search) { const r = srand(); o.loot = r < .42 ? null : r < .72 ? { gold: 6 + (srand() * 17 | 0) } : r < .86 ? { herb: true } : { pebbles: 2 }; }
             G.objs[y * w + x] = o;
-            G.grid[y][x] = '.';
+            G.grid[y][x] = d.cart ? '=' : '.';          // the cart stands on its rail
         }
         if(ch === 'P') { G.grid[y][x] = '.'; G.chars.push(makeChar('prisoner', x, y, { look: LOOKS.prisoner(G.chars.length), face: 'down', tied: true })); }
         if(ch === '@') G.start = { x, y };
@@ -457,6 +516,7 @@ function newGame() {
         g.state = type === 'sleep' ? 'sleep' : 'calm';
         G.chars.push(g);
     });
+    if(L.mine) stockMine();
     G.horses = (L.pen ? L.pen.horses : []).map(([x, y], i) => ({ x: x * TS + 16, y: y * TS + 24, coat: ['bay', 'grey', 'black'][i % 3], a: i * 2.1, face: i % 2 ? -1 : 1 }));
     buildLight();
     bakeGround();
@@ -762,7 +822,7 @@ function updatePlayer(dt) {
         return;
     }
     if(crouchToggle) { p.crouch = !p.crouch; crouchToggle = false; }
-    if(throwPressed) { throwPressed = false; if(!p.busy) throwPebble(); }
+    if(throwPressed) { throwPressed = false; if(G.carry) say(T('Sırtında çuval varken taş atamazsın.')); else if(!p.busy) throwPebble(); }
     if(p.busy && chaser()) { p.busy = null; say(T('Peşindeler! Yarım kaldı.')); }
     if(p.busy) { p.busy.t -= dt; if(p.busy.t <= 0) { const b = p.busy; p.busy = null; b.done(); } return; }
     let mx = 0, my = 0, run = false;
@@ -775,6 +835,7 @@ function updatePlayer(dt) {
     if(run && p.crouch) p.crouch = false;
     let speed = p.crouch ? 46 : run ? 128 : 78;
     if(inWater) speed *= .55;
+    if(G.carry) speed *= .7;
     if(p.atkT > 0) speed *= .35;
     p.running = run && m > 0;
     if(m > 0) {
@@ -786,6 +847,7 @@ function updatePlayer(dt) {
         if(G.stepAcc > 38) {
             G.stepAcc = 0;
             if(inWater) noise(p.x, p.y, p.crouch ? 70 : 115, null);
+            else if(G.carry) noise(p.x, p.y, p.running ? 180 : p.crouch ? 35 : 85, null);   // a sack on the back is never silent
             else if(p.running) noise(p.x, p.y, 150, null);
             else if(!p.crouch) noise(p.x, p.y, 40, null);
         }
@@ -800,7 +862,7 @@ function updatePlayer(dt) {
     if(o && o.spikes && !o.sprung) { o.sprung = true; o.known = true; hurtBy(p, 'pierce', 26, null); noise(o.cx, o.cy, 110, T('Diken tuzağı!')); }
     if(o && o.bats && !o.flown) { o.flown = true; noise(o.cx, o.cy, p.crouch ? 90 : 170, T('Yarasalar havalandı!')); G.fx.push({ kind: 'bats', x: o.cx, y: o.cy, t: 0 }); }
     p.cd -= dt; p.atkT -= dt;
-    if(atkPressed && p.cd <= 0) { atkPressed = false; playerAttack(); }
+    if(atkPressed && p.cd <= 0) { atkPressed = false; if(G.carry) dropSack(true); playerAttack(); }
     atkPressed = false;
     G.ctx = findInteraction();
     if(actPressed) { actPressed = false; if(G.ctx) G.ctx.run(); }
@@ -850,6 +912,7 @@ function chaser() { const p = G.player; return G.chars.find(g => g.kind === 'gua
 // what you face counts as nearer than what's behind you
 function findInteraction() {
     const p = G.player, tx = Math.floor(p.x / TS), ty = Math.floor(p.y / TS), cand = [];
+    if(G.carry) return carryInteraction(p, tx, ty);
     const add = (d, label, at, run) => {
         const ax = at ? (at.cx ?? at.x) : p.x, ay = at ? (at.cy ?? at.y) : p.y;
         const off = at && Math.hypot(ax - p.x, ay - p.y) > 8 ? Math.abs(angDiff(Math.atan2(ay - p.y, ax - p.x), p.a)) : 0;
@@ -884,6 +947,8 @@ function findInteraction() {
         if(o.cage && !o.open) add(d, T('Kilidi zorla'), o, () => busy(2.5, T('Kilit zorlanıyor…'), () => { o.open = true; o.solid = false; noise(o.cx, o.cy, 80, T('Kilit gıcırdayarak açıldı.')); floatText(o.cx, o.cy - 30, T('Kafes açık'), '#9fe0a0'); }));
         if(o.purse) add(d - 4, T('Keseyi al'), o, () => busy(.8, T('Kese alınıyor…'), () => takePurse(o)));
         if(o.trapdoor) add(d + 2, T('Kapaktan geç'), o, () => busy(.9, T('Kapaktan geçiliyor…'), () => useTrapdoor(o)));
+        if(o.ore) add(d, o.ore === 'iron' ? T('Demir çuvalını sırtla') : T('Kömür çuvalını sırtla'), o, () => shoulder(o));
+        if(o.cart && !o.rolling && !o.done && o.load.iron + o.load.coal > 0) add(d, T('Arabayı it'), o, () => pushCart(o));
     }
     for(const [dx] of [[1], [-1]]) if(tile(tx + dx, ty) === 'W')
         add(Math.abs((tx + dx) * TS + 16 - p.x), T('Pencereden geç'), { cx: (tx + dx) * TS + 16, cy: ty * TS + 16 }, () => busy(1.1, T('Pencereden geçiliyor…'), () => { p.x += dx * TS * 2; noise(p.x, p.y, 45, null); }));
@@ -989,7 +1054,9 @@ function openChest(o) {
     o.open = true; G.gold += g; Snd.fx('coin');
     const item = o.trapped && ITEMS[L.loot] ? L.loot : null;
     if(item) G.items.push(item);
-    floatText(o.cx, o.cy - 24, T`+${g} dinar` + (item ? ' · ' + T(ITEMS[item].name) : ''), '#f5d76e');
+    const steel = L.mine && o.ch === 'C' ? (R.site.steel || 0) : 0;   // the foreman keeps the crucible steel
+    G.steel += steel;
+    floatText(o.cx, o.cy - 24, T`+${g} dinar` + (item ? ' · ' + T(ITEMS[item].name) : '') + (steel ? ' · ' + T`${steel} pota çeliği` : ''), '#f5d76e');
     noise(o.cx, o.cy, 35, null);
 }
 function pullLever(o) {
@@ -1011,6 +1078,102 @@ function useTrapdoor(o) {
     p.x = spot.x; p.y = spot.y;
     for(const c of G.chars) if((c.kind === 'squad' && c.state !== 'down') || (c.kind === 'prisoner' && c.following)) { c.x = spot.x + rnd(-6, 6); c.y = spot.y + rnd(-4, 4); }
     G.trail = [];
+}
+
+// ---------- the mine ----------
+// The sacks the site still holds stand at the ore face and in the coal store; the rest were
+// carried off on an earlier visit and come back as the miners dig (Game.lairTick)
+function stockMine() {
+    const ore = R.site.ore || {};
+    for(const kind of ['iron', 'coal']) G.objs.filter(o => o && o.ore === kind).forEach((o, i) => { if(i >= (ore[kind] || 0)) o.gone = true; });
+    if(G.cart) G.cart.path = railPath(G.cart.x, G.cart.y);
+}
+// the rail from (x0, y0) to its end against an exit, tile by tile, the start first
+function railPath(x0, y0) {
+    const prev = new Map([[x0 + ',' + y0, null]]), q = [[x0, y0]], N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for(let i = 0; i < q.length; i++) {
+        const [x, y] = q[i];
+        if(N4.some(([dx, dy]) => isExit(x + dx, y + dy))) {
+            const out = [];
+            for(let k = x + ',' + y; k; k = prev.get(k)) out.unshift(k.split(',').map(Number));
+            return out;
+        }
+        for(const [dx, dy] of N4) {
+            const k = (x + dx) + ',' + (y + dy);
+            if(tile(x + dx, y + dy) === '=' && !prev.has(k)) { prev.set(k, x + ',' + y); q.push([x + dx, y + dy]); }
+        }
+    }
+    return [[x0, y0]];
+}
+function shoulder(o) {
+    busy(.8, T('Çuval sırtlanıyor…'), () => {
+        o.gone = true; G.carry = o.ore;
+        noise(o.cx, o.cy, 45, null);
+        say(T('Ağır: yavaş yürürsün, eğilsen bile adımın duyulur. Çıkışa bıraktığın çuval senindir.'), 4);
+    });
+}
+// set the sack down on a free tile beside you (a blow you swing drops it with a thud); with
+// nowhere to put it, it stays on your back
+function dropSack(thud) {
+    const p = G.player, kind = G.carry;
+    if(!kind) return;
+    const tx = Math.floor(p.x / TS), ty = Math.floor(p.y / TS);
+    for(const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+        const x = tx + dx, y = ty + dy, here = obj(x, y);
+        if(solidTile(x, y) || (here && !here.gone) || isExit(x, y) || ['~', 'D', 'W'].includes(tile(x, y))) continue;
+        const ch = kind === 'iron' ? 'o' : 'q';
+        G.objs[y * G.w + x] = Object.assign({ ch, x, y, cx: x * TS + 16, cy: y * TS + 16, frame: 0 }, OBJDEF[ch]);
+        G.carry = null;
+        noise(x * TS + 16, y * TS + 16, thud ? 90 : 35, null);
+        return;
+    }
+}
+function bankSack() {
+    const k = G.carry, p = G.player;
+    if(!k) return;
+    G.carry = null; G.bank[k]++;
+    floatText(p.x, p.y - 40, T('Çuval güvende'), '#9fe0a0');
+}
+function loadCart(c) {
+    busy(.6, T('Arabaya yükleniyor…'), () => {
+        if(!G.carry) return;
+        c.load[G.carry]++; G.carry = null;
+        noise(c.cx, c.cy, 60, null);
+    });
+}
+function pushCart(c) {
+    busy(.7, T('Araba itiliyor…'), () => {
+        c.rolling = true; c.seg = 0; c.noiseT = 0;
+        say(T('Araba raylarda gürleyerek yuvarlanıyor! Bütün maden duydu.'), 4);
+    });
+}
+// a rolling cart rumbles every step of the way: loud enough to wake the mine, and to pull its
+// guards to the rail, away from you; at the mouth its sacks are yours
+function updateCart(dt) {
+    const c = G.cart;
+    if(!c || !c.rolling) return;
+    const nx = c.path[c.seg + 1];
+    if(!nx) {
+        c.rolling = false; c.done = true;
+        const n = c.load.iron + c.load.coal;
+        G.bank.iron += c.load.iron; G.bank.coal += c.load.coal; c.load = { iron: 0, coal: 0 };
+        floatText(c.cx, c.cy - 30, T`${n} çuval güvende`, '#9fe0a0');
+        return;
+    }
+    const tx = nx[0] * TS + 16, ty = nx[1] * TS + 16, dx = tx - c.cx, dy = ty - c.cy, d = Math.hypot(dx, dy), step = CART_SPEED * dt;
+    if(d <= step) { c.cx = tx; c.cy = ty; c.seg++; c.x = nx[0]; c.y = nx[1]; }
+    else { c.cx += dx / d * step; c.cy += dy / d * step; }
+    if((c.noiseT -= dt) <= 0) { c.noiseT = .6; noise(c.cx, c.cy, 210, null); }
+}
+// with a sack on your back the button only does what a sack allows
+function carryInteraction(p, tx, ty) {
+    const c = G.cart, cand = [];
+    if(isExit(tx, ty)) cand.push({ label: T('Çuvalı bırak · güvende'), at: null, run: () => busy(.5, T('Çuval bırakılıyor…'), bankSack) });
+    if(c && !c.rolling && !c.done && c.load.iron + c.load.coal < CART_CAP && Math.hypot(c.cx - p.x, c.cy + 6 - p.y) < 50)
+        cand.push({ label: T`Arabaya yükle (${c.load.iron + c.load.coal}/${CART_CAP})`, at: c, run: () => loadCart(c) });
+    cand.push({ label: T('Çuvalı yere koy'), at: null, run: () => dropSack(false) });
+    if(chaser()) return { label: T('Peşindeler!'), at: cand[0].at, blocked: true, run: () => say(T('Peşinde haydutlar varken hiçbir şeyle uğraşamazsın. Önce onlardan kurtul ya da uzaklaş.')) };
+    return cand[0];
 }
 
 // ---------- guards ----------
@@ -1271,6 +1434,7 @@ function update(dt) {
         if(c.state !== 'down' && c.state !== 'ko') c.dir = dirOf(c.a);
     }
     updateAmbush();
+    updateCart(dt);
     if(G.horsesRun > 0) G.horsesRun -= dt;
     for(const h of G.horses) {
         const P = L.pen.box, run = G.horsesRun > 0;
@@ -1429,7 +1593,11 @@ function render() {
 // Everything you can use carries a green outline within a few steps and in sight; the one the
 // button would use right now pulses and says what it does. Used things lose it.
 function usable(o) {
-    return !o.gone && ((o.chest && !o.open) || (o.search && !o.searched) || (o.lever && !o.pulled) || o.purse || o.trapdoor || o.hide || (o.pen && !o.used) || (o.cage && !o.open) || (o.torch && o.lit !== false));
+    if(o.gone) return false;
+    const cart = o.cart && !o.rolling && !o.done, load = cart ? o.load.iron + o.load.coal : 0;
+    if(G.carry) return cart && load < CART_CAP;              // a sack on your back: only the cart takes it
+    return (o.chest && !o.open) || (o.search && !o.searched) || (o.lever && !o.pulled) || o.purse || o.trapdoor || o.hide || (o.pen && !o.used) || (o.cage && !o.open) || (o.torch && o.lit !== false)
+        || !!o.ore || (cart && load > 0);
 }
 // the pebble's flight, where it lands, how far it carries, and a "?" over each bandit who'll hear it;
 // greyed out while the finger is back over the button (letting go there calls the throw off)
@@ -1457,7 +1625,7 @@ function drawMarkers() {
         if(g && g[0] && g[0].width) drawOutline(...g, a);
         else {   // code-drawn things (hiding places, the pen gate, the cage door): a green frame round the tile
             const tall = o.hide && L.theme === 'house' ? 15 : 0;
-            ctx.strokeStyle = `rgba(110,255,140,${a})`; ctx.lineWidth = 2; ctx.strokeRect(o.x * TS + 1, o.y * TS + 1 - tall, TS - 2, TS - 2 + tall);
+            ctx.strokeStyle = `rgba(110,255,140,${a})`; ctx.lineWidth = 2; ctx.strokeRect(Math.round(o.cx) - 15, Math.round(o.cy) - 15 - tall, TS - 2, TS - 2 + tall);
         }
     }
     // a bandit you can take down right now, a prisoner you can free: outlined the same way
@@ -1508,6 +1676,30 @@ function drawChar(c) {
     if(c.kind === 'player' && c.hidden) return;
     if(c.elev) { ctx.save(); ctx.translate(0, -c.elev); drawCharInner(c); ctx.restore(); if(G.tower) drawTowerRail(G.tower); return; }
     drawCharInner(c);
+    if(c.kind === 'player' && G.carry) drawSack(c.x + (c.dir === 'left' ? 5 : c.dir === 'right' ? -5 : 0), c.y - (c.crouch ? 30 : 36), G.carry, .75);
+}
+// an ore sack, tied at the neck with its ore showing: rust-red iron ore or black coal
+function drawSack(X, Y, kind, k = 1) {
+    const r = (x, y, w, h) => ctx.fillRect(Math.round(X + x * k), Math.round(Y + y * k), Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+    const iron = kind === 'iron';
+    if(k === 1) { ctx.fillStyle = 'rgba(0,0,0,.3)'; r(-12, 10, 24, 4); }
+    ctx.fillStyle = '#8a7350'; r(-11, -8, 22, 19);
+    ctx.fillStyle = '#a58b62'; r(-11, -8, 22, 3);
+    ctx.fillStyle = '#6b5638'; r(-11, 8, 22, 3); r(8, -8, 3, 19);
+    ctx.fillStyle = '#5a4630'; r(-3, -12, 6, 5);
+    ctx.fillStyle = iron ? '#8a4a32' : '#1e1d22'; r(-8, -11, 4, 4); r(3, -10, 5, 3);
+    ctx.fillStyle = iron ? '#b0705a' : '#4a4a52'; r(-7, -11, 2, 1); r(4, -10, 2, 1);
+}
+function drawCart(c) {
+    const X = Math.round(c.cx), Y = Math.round(c.cy), n = c.load.iron + c.load.coal;
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X - 14, Y + 10, 28, 4);
+    ctx.fillStyle = '#5c4128'; ctx.fillRect(X - 13, Y - 10, 26, 18);
+    ctx.fillStyle = '#7a5532'; ctx.fillRect(X - 13, Y - 10, 26, 3);
+    ctx.fillStyle = '#7d8893'; ctx.fillRect(X - 13, Y - 4, 26, 2); ctx.fillRect(X - 13, Y + 4, 26, 2);
+    for(let i = 0; i < n; i++) drawSack(X - 8 + i * 8, Y - 13, i < c.load.iron ? 'iron' : 'coal', .5);   // heaped over the rim
+    const spin = c.rolling && (G.t * 12 | 0) % 2;
+    ctx.fillStyle = '#2a2016'; ctx.fillRect(X - 11, Y + 7, 6, 6); ctx.fillRect(X + 5, Y + 7, 6, 6);
+    ctx.fillStyle = '#6b5638'; ctx.fillRect(X - 9 + spin, Y + 9, 2, 2); ctx.fillRect(X + 7 + spin, Y + 9, 2, 2);
 }
 function drawCharInner(c) {
     if(c.state === 'sleep' || c.state === 'ko' || (c.state === 'grabbed' && c.wasAsleep)) {
@@ -1625,6 +1817,8 @@ function drawOutline(img, sx, sy, sw, sh, x, y, w, h, alpha) {
 }
 function drawObj(o) {
     const x = o.cx, y = o.cy;
+    if(o.ore) return drawSack(x, y, o.ore);
+    if(o.cart) return drawCart(o);
     if(o.table) {
         const tl = s => s && s.table;
         const L2 = obj(o.x - 1, o.y), R2 = obj(o.x + 1, o.y), U2 = obj(o.x, o.y - 1), D2 = obj(o.x, o.y + 1);
@@ -1702,7 +1896,8 @@ function updateHud() {
     el('lair-hp').style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
     const inWater = tile(Math.floor(p.x / TS), Math.floor(p.y / TS)) === '~';
     const stance = p.crouch || p.hidden ? 'crouch' : p.running ? 'run' : 'walk';
-    setText('lair-stance', p.hidden ? T('Saklanıyor · görünmez') : (p.crouch ? T('Eğilmiş · sessiz') : p.running ? T('Koşuyor · gürültülü') : T('Ayakta')) + (inWater ? ' · ' + T('suda') : ''));
+    setText('lair-stance', p.hidden ? T('Saklanıyor · görünmez') : (p.crouch ? (G.carry ? T('Eğilmiş') : T('Eğilmiş · sessiz')) : p.running ? T('Koşuyor · gürültülü') : T('Ayakta'))
+        + (G.carry ? ' · ' + T('çuval sırtında') : '') + (inWater ? ' · ' + T('suda') : ''));
     el('lair-stance').className = 'lchip st-' + stance;
     setText('lair-gold', String(G.gold));
     setText('lair-peb', String(G.pebbles));
@@ -1712,7 +1907,11 @@ function updateHud() {
     el('lair-prischip').hidden = !pris || (!G.freed && R.scout < INTEL.basic);
     setText('lair-pris', G.freed + '/' + pris);
     const hasPurse = G.objs.some(o => o && o.purse && !o.gone);
-    const goals = [hasPurse ? T('Reisin <b>kesesini</b> al') : T('<s>Kese</s> alındı')];
+    el('lair-orechip').hidden = !L.mine;
+    if(L.mine) { setText('lair-ore-iron', String(G.bank.iron)); setText('lair-ore-coal', String(G.bank.coal)); }
+    const goals = L.mine ? [G.carry ? T('Çuvalı <b>çıkışa</b> bırak ya da <b>arabaya</b> yükle') : T('<b>Çuvalları</b> sırtla, çıkışa taşı')] : [];
+    if(L.mine && (R.site.steel || 0) > 0) goals.push(G.steel ? T('<s>Pota çeliği</s> alındı') : T('Ustabaşının <b>sandığında</b> pota çeliği'));
+    goals.push(hasPurse ? T('Reisin <b>kesesini</b> al') : T('<s>Kese</s> alındı'));
     if(pris) goals.push(T`<b>Tutsakları</b> kurtar (${G.freed}/${pris})`);
     goals.push(T('Sonra <b>çıkışa</b> dön'));
     setHtml('lair-goal', goals.join(' · ') + (G.msgT > 0 ? '<br><span class="lmsg">' + G.msg + '</span>' : ''));
@@ -1745,6 +1944,7 @@ function build() {
                 <span class="lchip">${T('Dinar')} <b id="lair-gold">0</b></span>
                 <span class="lchip" id="lair-prischip" hidden>${T('Tutsak')} <b id="lair-pris">0</b></span>
                 <span class="lchip">${T('Çakıl')} <b id="lair-peb">3</b></span>
+                <span class="lchip" id="lair-orechip" hidden title="${T('Çıkışa bırakılan çuvallar: demir · kömür')}">⛏️ <b id="lair-ore-iron">0</b> 🪨 <b id="lair-ore-coal">0</b></span>
             </div>
             <div id="lair-goal"></div>
         </div>
@@ -1790,7 +1990,7 @@ function captiveQuest(lairId) {
 }
 
 // ---------- the scouting card ----------
-function levelOf(s) { return LAYOUTS.includes(s.layout) ? s.layout : LAYOUTS[hashStr(String(s.id)) % LAYOUTS.length]; }
+function levelOf(s) { return LEVELS[s.layout] ? s.layout : LAYOUTS[hashStr(String(s.id)) % LAYOUTS.length]; }
 function squadCap() { return Math.min(6, 1 + Math.floor(Game.profLvl('leadership') / 2)); }
 function squadPool() { return state.player.party.filter(t => !t.wounded).sort((a, b) => (b.level || 1) - (a.level || 1)); }
 // the ambush is rolled once a day per lair, so reopening the card doesn't reroll what a scout saw
@@ -1814,6 +2014,11 @@ function intelList(s) {
     }
     const cq = captiveQuest(s.id);
     if(cq) li.unshift(T`📜 <b>${T(cq.data.name)}</b> burada tutuluyor`);
+    if(lv.mine) {
+        const ore = s.ore || {};
+        li.splice(2, 1, sc >= INTEL.basic ? T`Ocakta <b>${ore.iron || 0}</b> demir, <b>${ore.coal || 0}</b> kömür çuvalı` : { unk: T('Ocakta kaç çuval kaldığını bilmiyorsun') });
+        li.push(sc >= INTEL.sketch ? ((s.steel || 0) > 0 ? T`Ustabaşının sandığında <b>${s.steel}</b> pota çeliği` : T('Ustabaşının sandığında çelik kalmamış')) : { unk: T('Ustabaşının sandığında ne olduğunu bilmiyorsun') });
+    }
     li.push(sc >= INTEL.sketch ? T('Kroki çıkarıldı: nöbetçilerin yerleri ve yolları belli.') + ' ' + T(lv.intel.traps) : { unk: T('Nöbetçilerin yerini bilmiyorsun') });
     if(sc >= INTEL.ambush) li.push(ambushToday(s) ? T`<b>Uyarı:</b> ${T(lv.ambush.where)} için pusu hazırlığı var gibi` : T('Pusu belirtisi yok'));
     li.push(sc >= INTEL.secret ? T(lv.intel.secret) : { unk: T('Gizli bir yol olup olmadığını bilmiyorsun') });
@@ -1835,7 +2040,7 @@ function drawSketch(lv, sc) {
         if(ch === ' ') continue;
         x.fillStyle = ch === '#' ? '#4a4036' : ch === '~' ? '#2a5a70' : 'OE@'.includes(ch) ? '#26331f' : ch === 'n' ? '#6a5c40' : ch === 'X' ? (sc >= INTEL.secret ? '#8a6a3a' : '#4a4036') : '#1c1814';
         x.fillRect(ox + xx * s, oy + y * s, s, s);
-        const mark = { C: '#f5d76e', c: '#e0605a', P: '#8fc8ff', $: '#f5d76e', L: sc >= INTEL.secret ? '#c9a0ff' : null, S: '#e0605a', t: '#c8b090' }[ch];
+        const mark = { C: '#f5d76e', c: '#e0605a', P: '#8fc8ff', $: '#f5d76e', L: sc >= INTEL.secret ? '#c9a0ff' : null, S: '#e0605a', t: '#c8b090', o: '#b0705a', q: '#6a6a74', M: '#a07a4e', '=': '#3a3026' }[ch];
         if(mark) { x.fillStyle = mark; x.fillRect(ox + xx * s + s * .25, oy + y * s + s * .25, s * .5, s * .5); }
     }
     for(const g of lv.guards) {
@@ -1852,7 +2057,8 @@ function brief(id) {
     Game.showModal(`<div class="lair-brief">
         <div class="lb-head"><div><div class="leyebrow">${T(lv.kind)} · ${Game.isNight() ? T('Gece') : T('Gündüz')}</div><h3>☠️ ${T(lv.name)}</h3></div>
             <button class="btn lb-help" onclick="Lair.help('${s.id}')" title="${T('Nasıl oynanır?')}" aria-label="${T('Nasıl oynanır?')}">?</button></div>
-        <p class="lb-lead">${T('Önce keşif, sonra yolunu sen seç. Sızarsan in yerinde kalır; aldığını alıp çıkışa dönmen gerekir.')}</p>
+        <p class="lb-lead">${lv.mine ? T('Haydutlar madeni ele geçirmiş. Sızarsan çuvalları sırtında ya da arabayla çıkışa taşırsın; çıkışa bıraktığın her çuval senindir, sonra yakalansan bile.')
+                                     : T('Önce keşif, sonra yolunu sen seç. Sızarsan in yerinde kalır; aldığını alıp çıkışa dönmen gerekir.')}</p>
         <div class="lb-intel"><div><b class="lb-t">${T`Keşif · Gözcülük ${sc}`}</b><ul>${li}</ul></div>
             <canvas id="lair-sketch" width="300" height="140"></canvas></div>
         <div class="lb-ways">
@@ -1867,7 +2073,8 @@ function brief(id) {
 // how to play, as a list — for the card before going in (the in-lair tour rings the real buttons)
 function help(id) {
     const touch = Game.isTouch();
-    const rows = TUTOR.filter(s => touch ? s.d : s.m).map(s => `<li><b>${T(s.t)}</b> ${T(touch ? s.d : s.m)}</li>`).join('');
+    const site = id && Game.lairs().find(x => x.id === id), mine = !!site && levelOf(site) === 'mine';
+    const rows = TUTOR.filter(s => (touch ? s.d : s.m) && (!s.mine || mine)).map(s => `<li><b>${T(s.t)}</b> ${T(touch ? s.d : s.m)}</li>`).join('');
     Game.showModal(`<div class="lair-brief"><h3>${T('❔ Haydut ini: nasıl oynanır?')}</h3><ul class="lb-howto">${rows}</ul>
         <div class="lb-foot">${id ? `<button class="btn primary" onclick="Lair.brief('${id}')">${T('← Keşfe dön')}</button>` : `<button class="btn primary" onclick="Game.closeModal()">${T('Tamam')}</button>`}</div></div>`, '720px');
 }
@@ -1909,6 +2116,9 @@ const TUTOR = [
     { el: null, t: '🏃 Peşindeler!',
       m: 'Seni kovalayan bir haydut yakındayken hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Onları yen ya da uzaklaş; alarm biterse seni aramaya başlarlar.',
       d: 'Seni kovalayan bir haydut yakındayken hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Onları yen ya da uzaklaş; alarm biterse seni aramaya başlarlar.' },
+    { el: null, t: '⛏️ Maden', mine: true,
+      m: 'Çuvalı E ile sırtlarsın: yavaşlarsın, eğilsen bile adımın duyulur, taş atamazsın; vurursan çuval yere düşer. Çıkışta E ile bırakırsın: bıraktığın çuval senindir, sonra yakalansan bile. Araba üç çuval alır; ittiğin an raylarda gürleyerek çıkışa yuvarlanır, bütün maden duyar.',
+      d: 'Çuvalı Etkileşim ile sırtlarsın: yavaşlarsın, eğilsen bile adımın duyulur, taş atamazsın; vurursan çuval yere düşer. Çıkışta Etkileşim ile bırakırsın: bıraktığın çuval senindir, sonra yakalansan bile. Araba üç çuval alır; ittiğin an raylarda gürleyerek çıkışa yuvarlanır, bütün maden duyar.' },
     { el: null, t: '⛓️ Tutsaklar ve pusu',
       m: 'Tutsağın ipini çöz, seni takip eder; dışarı çıkarırsan grubuna katılır. Bazıları heyecanlıdır, önce sus işareti ver. Bazı inlerde pusu kurulur: kapı kapanır, haydutlar saldırır — iyi bir gözcü bunu önceden görür.',
       d: 'Tutsağın ipini çöz, seni takip eder; dışarı çıkarırsan grubuna katılır. Bazıları heyecanlıdır, önce sus işareti ver. Bazı inlerde pusu kurulur: kapı kapanır, haydutlar saldırır — iyi bir gözcü bunu önceden görür.' }
@@ -1917,7 +2127,7 @@ const TUTOR_KEY = 'webband_ltutor_done';
 function tutorial() {
     overlay('');
     paused = false;
-    Game.startTutorial(true, TUTOR.filter(s => Game.isTouch() ? true : !!s.m), TUTOR_KEY);
+    Game.startTutorial(true, TUTOR.filter(s => (Game.isTouch() ? true : !!s.m) && (!s.mine || (L && L.mine))), TUTOR_KEY);
 }
 // the first time in: ask whether to see the tour (a no is remembered too)
 function offerTutorial() {
@@ -1938,6 +2148,7 @@ function enter(id, approach) {
     Game.closeModal();
     const squad = approach === 'squad' ? squadPool().slice(0, squadCap()) : [];
     R = { site: s, level: levelOf(s), time: Game.isNight() ? 'night' : 'day', scout: Game.profLvl('spotting'), approach, squad, ambush: ambushToday(s) };
+    if(LEVELS[R.level].mine && !s.ore) s.ore = { ...Game.MINE.ore };   // a site made a mine by hand (a test, an old save) starts full
     s.lairAmbush = null;          // what was waiting is sprung (or not) now; tomorrow's is new
     build();
     loadAssets().then(() => {
@@ -1966,13 +2177,24 @@ function endGame(kind) {
     fallen.forEach(c => { c.troop.wounded = Math.max(c.troop.wounded || 0, 3); });
     const rows = [];
     let title, lead, cleared = '';
+    if(L.mine) {
+        // carried out on your back counts as set down at the mouth; what's in a cart that never
+        // got there, or on your back when they caught you, stays in the mine (and in its stock)
+        if(kind !== 'lost' && G.carry) { G.bank[G.carry]++; G.carry = null; }
+        const per = Game.MINE.perSack, got = { iron: G.bank.iron * per.iron, coal: G.bank.coal * per.coal };
+        for(const k in got) if(got[k]) Game.addItem(k, got[k]);
+        s.ore.iron = Math.max(0, (s.ore.iron || 0) - G.bank.iron); s.ore.coal = Math.max(0, (s.ore.coal || 0) - G.bank.coal);
+        rows.push([T('Çıkarılan demir'), got.iron], [T('Çıkarılan kömür'), got.coal]);
+        if(kind !== 'lost' && G.steel) { Game.addItem('crucible', G.steel); s.steel = 0; rows.push([T('Pota çeliği'), G.steel]); }
+    }
     if(kind === 'lost') {
         // beaten and robbed: what you found stays inside, a quarter of the purse you carried goes too
         const lost = Math.floor(state.player.money * .25);
         state.player.money -= lost;
         state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * .2));
         s.strength = Math.min(24, (s.strength || 8) + 1);
-        title = T('Yenildin'); lead = T('Haydutlar seni yere serdi, üstünü arayıp in dışına attılar. Bulduklarını geri aldılar.');
+        title = T('Yenildin'); lead = T('Haydutlar seni yere serdi, üstünü arayıp in dışına attılar. Bulduklarını geri aldılar.')
+            + (L.mine && G.bank.iron + G.bank.coal ? ' ' + T('Çıkışa bıraktığın çuvallar ise senin kaldı.') : '');
         rows.push([T('Kaybedilen dinar'), '-' + lost]);
     } else {
         state.player.money += G.gold;
@@ -2018,7 +2240,7 @@ function leave() {
 
 const api = {
     active: false,
-    LEVELS, LAYOUTS, INTEL, TUTOR, TUTOR_KEY, ASSAULT_REINFORCE,
+    LEVELS, LAYOUTS, INTEL, TUTOR, TUTOR_KEY, ASSAULT_REINFORCE, CART_CAP,
     brief, help, enter, resume, retreat, leave, tutorial, skipTutorial, levelOf, intelList,
     alarmed() { return !!(api.active && G && !G.done && G.alarm > 0); },
     setPaused(v) { if(api.active) { paused = !!v; if(!v) last = 0; } },

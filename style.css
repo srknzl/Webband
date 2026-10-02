@@ -2197,6 +2197,7 @@ body.touch .ac-kbd { display: none; }
 .lchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: var(--r-pill); background: rgba(10,9,8,.78);
     border: 1px solid rgba(236,230,218,.1); font: 600 var(--fs-xs)/1.2 'Inter', system-ui, sans-serif; white-space: nowrap; color: var(--text-color); }
 .lchip b { color: var(--primary-hover); font-variant-numeric: tabular-nums; }
+.lchip[hidden] { display: none; }   /* its display: inline-flex would otherwise outrank the attribute */
 .lchip.st-crouch { border-color: rgba(108,201,138,.5); color: #b9ecc9; }
 .lchip.st-run { border-color: rgba(240,182,74,.6); color: #ffd99a; }
 .lhp { width: 92px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
