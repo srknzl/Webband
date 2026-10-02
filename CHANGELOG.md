@@ -18,7 +18,11 @@ başlangıç ekranının sağ alt köşesinde yazar.
   kurtulur. Vazgeçersen demir sana kalır.
 - **Yeni yetenek: Demircilik.** Her dövüşte gelişir; Çelik, Şam ve Kraliyet kademeleri için
   3, 5 ve 7 gerekir. Yükseldikçe demir daha yavaş soğur. Demirci babanın çocuğu işe +2 ile başlar.
-- Ocağın, körüğün ve çekicin kendi sesleri var; ocakta müzik çalmaz.
+- **Başlangıç ekranında 🔨 Demircilik.** Oyuna başlamadan ocağı dene: her parça açık, malzeme
+  harcanmaz; eşya, XP ve zaman yok. Bitince tekrar dene ya da başka parçaya geç.
+- **Gerçek demirci sesleri.** Sıcak demire vurmak tok bir "güm", soğumuş demire vurmak uzun bir
+  "çın" — demirin soğuduğunu kulağınla da duyarsın. Ocak çatırdar, körük her basışta nefes alır,
+  demir suda kaynar. Ocakta müzik çalmaz.
 
 ## 2.4.10 — Perde (2026-10-01)
 

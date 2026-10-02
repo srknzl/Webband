@@ -194,10 +194,21 @@ function setHtml(id, t) { if(TXT.get(id) !== t) { TXT.set(id, t); const e = el(i
 function say(t, secs) { G.msg = t; G.msgT = secs || 2.4; }
 
 // ---------- sound ----------
-// Synthesized for now, behind the calls a recorded set will take over (docs/PLAN-smithing.md):
-// a hammer blow is a short impact, a dull thud whose weight is the hot metal, and the anvil's
-// ring, which comes through more the colder the bar — you hear it going cold. The hearth is a
-// low roar that the bellows open up, with crackles. Same mute and volume as every other sound.
+// Recorded takes (forge/CREDITS.md), picked by ear. A hammer blow mixes two of them by the bar's
+// heat — a dull thud on hot metal, the long ring of cold steel — so you hear the bar going cold.
+// The open hearth is a looped fire that the heat turns up, the bellows breathe once a stroke and
+// the bar boils in the trough. Only the tongs' clank is synthesized. The files are fetched and
+// decoded on the first visit (the worker keeps them offline); until then those sounds are silent.
+// Same mute and volume as every other sound.
+const SFX = ['hit-hot', 'hit-cold', 'quench', 'fire', 'bellows'], BUF = {};
+const FIRE_LOOP = 10, BREATH = 1.3;   // forge/fire.mp3's loop and forge/bellows.mp3's breath, in s
+let sfxAsked = false;
+function loadSfx(ac) {
+    if(sfxAsked) return;
+    sfxAsked = true;
+    for(const k of SFX) fetch(`forge/${k}.mp3`).then(r => r.arrayBuffer()).then(a => ac.decodeAudioData(a))
+        .then(b => { BUF[k] = b; if(k === 'fire') Snd.fireOn(); }).catch(() => { sfxAsked = false; });
+}
 const Snd = {
     on() { return !Game.opt('muted') && Game.opt('volume') > 0; },
     start() {
@@ -206,65 +217,64 @@ const Snd = {
         const ac = Game.ac(); if(!ac) return;
         try {
             const out = this.out = ac.createGain(); out.gain.value = Math.min(1, Game.opt('volume') * 1.6); out.connect(ac.destination);
-            const len = ac.sampleRate * 2, buf2 = this.noise = ac.createBuffer(1, len, ac.sampleRate), d = buf2.getChannelData(0);
+            const len = ac.sampleRate >> 2, buf = this.noise = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
             for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-            const bed = (type, freq, q) => {
-                const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-                s.buffer = this.noise; s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = 0;
-                s.connect(f); f.connect(g); g.connect(out); s.start();
-                return { s, g };
-            };
-            this.fire = bed('lowpass', 320, 0.7);
-            this.roar = bed('bandpass', 700, 0.8);
-            this.crackT = 0;
+            this.fireG = ac.createGain(); this.fireG.gain.value = 0; this.fireG.connect(out);
+            this.breathT = 0;
+            loadSfx(ac); this.fireOn();
         } catch(e) { this.stop(); }
     },
+    // the fire loops from its first sound on, past whatever padding the MP3 decoder left in front
+    fireOn() {
+        const ac = Game.ac(), b = BUF.fire; if(!ac || !b || !this.fireG || this.fire) return;
+        const d = b.getChannelData(0); let i = 0;
+        while(i < d.length && Math.abs(d[i]) < 1e-4) i++;
+        const s = this.fire = ac.createBufferSource(), t0 = i / b.sampleRate;
+        s.buffer = b; s.loop = true; s.loopStart = t0; s.loopEnd = Math.min(b.duration, t0 + FIRE_LOOP);
+        s.connect(this.fireG); s.start(0, t0);
+    },
     stop() {
-        for(const k of ['fire', 'roar']) { try { if(this[k]) this[k].s.stop(); } catch(e) {} this[k] = null; }
+        try { if(this.fire) this.fire.stop(); } catch(e) {}
+        this.fire = null; this.fireG = null; this.breath = null;
         if(this.out) { try { this.out.disconnect(); } catch(e) {} }
         this.out = null;
     },
-    tone(f, t0, dur, type, vol, f2) {
-        const ac = Game.ac(); if(!ac || !this.out) return;
-        const o = ac.createOscillator(), g = ac.createGain();
-        o.type = type || 'sine'; o.frequency.setValueAtTime(f, t0); if(f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
-        g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + .004); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
-        o.connect(g); g.connect(this.out); o.start(t0); o.stop(t0 + dur + .02);
-    },
-    burst(t0, dur, freq, vol, type, q) {
-        const ac = Game.ac(); if(!ac || !this.out || !this.noise) return;
-        const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-        s.buffer = this.noise; s.loop = true; f.type = type || 'bandpass'; f.frequency.value = freq; f.Q.value = q || 3;
-        g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
-        s.connect(f); f.connect(g); g.connect(this.out); s.start(t0, Math.random()); s.stop(t0 + dur + .02);
+    /** One recorded take; returns its gain node, or null while the file isn't decoded yet. */
+    play(k, vol, rate) {
+        const ac = Game.ac(), b = BUF[k]; if(!ac || !b || !this.out || vol < .02) return null;
+        try {
+            const s = ac.createBufferSource(), g = ac.createGain();
+            s.buffer = b; s.playbackRate.value = rate || 1; g.gain.value = vol;
+            s.connect(g); g.connect(this.out); s.start();
+            return g;
+        } catch(e) { return null; }
     },
     strike(T, p) {
-        const ac = Game.ac(); if(!ac || !this.out) return;
+        // the same mix as the sound page's bench: all thud from 1150 °C, all ring at 650 °C
+        const hot = clamp((T - 650) / 500, 0, 1), j = rnd(.96, 1.04);
+        this.play('hit-hot', p * hot, j); this.play('hit-cold', p * (1 - hot), j);
+    },
+    clank() {
+        const ac = Game.ac(); if(!ac || !this.out || !this.noise) return;
         try {
-            const t = ac.currentTime, hot = clamp((T - 650) / 500, 0, 1), cold = 1 - hot, j = rnd(.96, 1.04);
-            this.burst(t, .035, 2400 * j, .55 * p);
-            this.tone(150 * j, t, .09 + .1 * hot, 'sine', .55 * p * (.4 + .6 * hot), 62);
-            const f0 = 1180 * j, dur = .22 + 1.1 * cold, v = (.05 + .2 * cold) * p;
-            [[1, 1], [2.76, .5], [5.4, .25], [8.93, .12]].forEach(([m, a]) => this.tone(f0 * m, t, dur / Math.sqrt(m), 'sine', v * a));
+            const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(), o = ac.createOscillator(), og = ac.createGain();
+            s.buffer = this.noise; f.type = 'bandpass'; f.frequency.value = 1600; f.Q.value = 3;
+            g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.0001, t + .07);
+            s.connect(f); f.connect(g); g.connect(this.out); s.start(t); s.stop(t + .1);
+            o.type = 'triangle'; o.frequency.value = 880;
+            og.gain.setValueAtTime(.05, t); og.gain.exponentialRampToValueAtTime(.0001, t + .18);
+            o.connect(og); og.connect(this.out); o.start(t); o.stop(t + .2);
         } catch(e) {}
     },
-    clank() { const ac = Game.ac(); if(ac && this.out) try { const t = ac.currentTime; this.burst(t, .07, 1600, .25); this.tone(880, t, .18, 'triangle', .05); } catch(e) {} },
-    quench() {
-        const ac = Game.ac(); if(!ac || !this.out) return;
-        try {
-            const t = ac.currentTime;
-            this.burst(t, 2.4, 4200, .45, 'highpass', .7);
-            this.burst(t, 1.2, 900, .2, 'bandpass', 1.2);
-            for(let i = 0; i < 9; i++) { const f = rnd(180, 460); this.tone(f, t + rnd(0, 1.4), .07, 'sine', .07, f * 1.5); }
-        } catch(e) {}
-    },
+    quench() { this.play('quench', .9); },
     tick(dt, F, pump) {
-        const ac = Game.ac(); if(!ac || !this.out || !this.fire) return;
-        const h = heat01(F), t = ac.currentTime;
-        this.fire.g.gain.setTargetAtTime(.04 + .1 * h, t, .3);
-        this.roar.g.gain.setTargetAtTime(pump ? .2 : 0, t, pump ? .12 : .25);
-        this.crackT -= dt;
-        if(this.crackT <= 0) { this.crackT = rnd(.08, .5) / (.4 + h); this.burst(t, .015, rnd(2500, 5200), .05 + .07 * h); }
+        const ac = Game.ac(); if(!ac || !this.out) return;
+        const t = ac.currentTime;
+        if(this.fireG) this.fireG.gain.setTargetAtTime(.25 + .55 * heat01(F), t, .3);
+        // a breath every stroke while the bellows are worked; letting go cuts the breath short
+        this.breathT -= dt;
+        if(pump && this.breathT <= 0) { this.breathT = BREATH; this.breath = this.play('bellows', .7); }
+        if(!pump && this.breath) { this.breath.gain.setTargetAtTime(0, t, .05); this.breath = null; this.breathT = 0; }
     }
 };
 
@@ -525,7 +535,7 @@ function update(dt) {
     if(G.msgT > 0) G.msgT -= dt;
     const pump = G.phase === 'forge' && pumping();
     if(G.phase === 'forge') {
-        if(pump) G.pumpPh += dt * 7;
+        if(pump) G.pumpPh += dt * Math.PI * 2 / BREATH;   // one stroke a breath
         const burnt = stepForge(G, dt, pump);
         if(burnt.length) say(T('Demir yanıyor! Beyaz ışıltıda fazla kaldı.'), 3);
         if(pump && Math.random() < dt * 14) puff('ember', LY.hx + rnd(10, LY.hw - 10), LY.bedY - 6, 1);
@@ -579,11 +589,14 @@ function quench() {
 }
 function finish() {
     const r = R.recipe, sc = G.score, out = outcome(G, r, sc.S);
-    if(out.kind === 'ruin') { const back = Math.floor(R.cost.iron / 2); if(back) Game.addItem('iron', back); out.iron = back; }
-    else Game.addItem(out.id, 1);
-    const xp = Math.round((40 + 40 * tierOf(r)) * (.4 + sc.S));
-    Game.addProficiencyXp('smithing', xp);
-    Game.trainAttr('str', 1);
+    const xp = R.practice ? 0 : Math.round((40 + 40 * tierOf(r)) * (.4 + sc.S));
+    if(R.practice) out.iron = 0;
+    else {
+        if(out.kind === 'ruin') { const back = Math.floor(R.cost.iron / 2); if(back) Game.addItem('iron', back); out.iron = back; }
+        else Game.addItem(out.id, 1);
+        Game.addProficiencyXp('smithing', xp);
+        Game.trainAttr('str', 1);
+    }
     G.phase = 'done';
     G.result = { out, sc, xp };
     paused = false;
@@ -791,7 +804,7 @@ function pauseMenu() {
             <button class="btn" onclick="Forge.howto()">${T('❔ Nasıl dövülür?')}</button>
             <button class="btn" onclick="Forge.abandon()">${T('🚪 Vazgeç')}</button>
         </div>
-        <p class="lnote">${T('Vazgeçersen demir sana kalır; kömür yanmış, kira ödenmiştir.')}</p>`);
+        <p class="lnote">${R.practice ? T('Deneme: malzeme harcanmaz, eşya, XP ve zaman yok.') : T('Vazgeçersen demir sana kalır; kömür yanmış, kira ödenmiştir.')}</p>`);
 }
 function howto() {
     paused = true;
@@ -810,16 +823,21 @@ function grade(sc, out) {
 }
 function showResult() {
     const { out, sc, xp } = G.result, it = ITEMS[R.recipe.id];
-    const lead = out.kind === 'item' ? T`${T(it.name)} hazır, çantanda.`
+    const lead = R.practice ? (out.kind === 'item' ? T`${T(it.name)} tuttu.` : out.kind === 'prev' ? T`Kademe tutmadı: ${T(ITEMS[out.id].name)} olurdu.` : T('Demir çatladı.'))
+        : out.kind === 'item' ? T`${T(it.name)} hazır, çantanda.`
         : out.kind === 'prev' ? T`Kademe tutmadı: ${T(ITEMS[out.id].name)} oldu, çantanda.`
         : out.iron ? T`Demir çatladı. Hurdadan ${out.iron} demir kurtardın.` : T('Demir çatladı; kurtarılacak bir şey kalmadı.');
     const pc = v => Game.pct(Math.round(v * 100));
     const rows = [[T('Şekil'), pc(sc.shape)], [T('Su verme'), pc(sc.quench)], [T('Ocak işçiliği'), pc(sc.care)], [T('Puan'), pc(sc.S)],
-                  [T('Kızdırma'), G.heats], [T('Soğuk vuruş'), G.cold], [T('Demircilik'), T`+${xp} XP`], [T('Geçen süre'), T`${R.cost.hours} saat`]];
-    overlay(`<div class="leyebrow">${T(it.name)} · ${R.own ? T('Kendi ocağın') : T('Demirhane')}</div>
+                  [T('Kızdırma'), G.heats], [T('Soğuk vuruş'), G.cold]]
+        .concat(R.practice ? [] : [[T('Demircilik'), T`+${xp} XP`], [T('Geçen süre'), T`${R.cost.hours} saat`]]);
+    const btns = R.practice ? `<button class="btn primary" onclick="Forge.practice('${R.recipe.id}')">${T('🔁 Tekrar dene')}</button>
+            <button class="btn" onclick="Forge.practice()">${T('🔨 Başka parça')}</button><button class="btn" onclick="Forge.leave()">${T('Ana menü')}</button>`
+        : `<button class="btn primary" onclick="Forge.leave()">${T('🏘️ Şehre dön')}</button>`;
+    overlay(`<div class="leyebrow">${T(it.name)} · ${where()}</div>
         <h2>${(out.kind === 'ruin' ? '' : Game.itemIco(ITEMS[out.id], true) + ' ') + grade(sc, out)}</h2><p class="llead">${lead}</p>
         <table class="lres">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
-        <div class="lrow"><button class="btn primary" onclick="Forge.leave()">${T('🏘️ Şehre dön')}</button></div>`);
+        <div class="lrow">${btns}</div>`);
 }
 
 // ---------- going in and coming out ----------
@@ -832,28 +850,66 @@ function start(locId, id) {
     take(loc, 'iron', c.iron); take(loc, 'coal', c.coal);
     state.player.money -= rent;
     Game.updateTopBar();
+    begin(r, { loc, cost: c, rent, own: own(loc) }, Game.profLvl('smithing'));
+    let seen = null; try { seen = localStorage.getItem(HELP_KEY); } catch(e) {}
+    if(!seen) howto();
+}
+const where = () => R.practice ? T('Deneme ocağı') : R.own ? T('Kendi ocağın') : T('Demirhane');
+function begin(r, run, lvl) {
     Game.closeModal();
     build();
-    R = { loc, recipe: r, cost: c, rent, own: own(loc) };
-    G = Object.assign(newBar(r, Game.profLvl('smithing')), { phase: 'forge', t: 0, pumpPh: 0, msg: '', msgT: 0, quenchT: 0,
+    R = Object.assign({ recipe: r }, run);
+    G = Object.assign(newBar(r, lvl), { phase: 'forge', t: 0, pumpPh: 0, msg: '', msgT: 0, quenchT: 0,
         hammer: { u: M.N / 2, charge: 0, drop: 0 }, result: null, score: null, coldSaid: false });
     FX.length = 0; TXT.clear(); pumpHeld = false; pressed = null; keyAim = 0;
     api.active = true; paused = false;
-    Game.showScreen('forge');
+    if(R.practice) practiceScreen(true); else Game.showScreen('forge');
     overlay('');
     resize();
-    Game.curtain(T(ITEMS[id].name), R.own ? T('Kendi ocağın') : T('Demirhane'));
+    Game.curtain(T(ITEMS[r.id].name), where());
     Snd.start();
     Game.Music.sync();
     last = 0;
     if(!loopId) loopId = requestAnimationFrame(frame);
-    let seen = null; try { seen = localStorage.getItem(HELP_KEY); } catch(e) {}
-    if(!seen) howto();
+}
+
+// ---------- practice ----------
+// From the start screen, with no game under way: the whole scene at Demircilik 1 with every piece
+// open, and nothing taken, given or passing — no iron, coal, rent, item, XP or hours. The forge
+// view lives in the game's UI, so it's shown over the start screen by hand: showScreen would set
+// up the campaign's panels for a world that isn't there.
+function practiceScreen(on) {
+    el('start-screen').classList.toggle('active', !on);
+    el('main-ui').classList.toggle('active', on);
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', on && v.id === 'forge-view'));
+    document.body.classList.toggle('in-battle', on);
+}
+function practice(id) {
+    const r = id && recipe(id);
+    if(r && ITEMS[r.id]) {
+        const again = api.active;   // "try again" from the result: the scene stays up, the how-to was read
+        begin(r, { practice: true, cost: cost(r), rent: 0, own: false, loc: null }, 1);
+        if(!again) howto();
+        return;
+    }
+    if(api.active) leave();
+    const rows = FAMILIES.map(([fam, name]) => `<h4 class="fs-fam">${T(name)}</h4><div class="fs-list">${
+        RECIPES.filter(x => x.fam === fam && ITEMS[x.id]).map(x => { const it = ITEMS[x.id];
+            return `<div class="fs-row"><span class="fs-ic">${Game.itemIco(it)}</span>
+                <span class="fs-tx"><b>${T(it.name)}</b><small>${it.attack ? T`Saldırı ${it.attack}` : T`Savunma ${it.defense}`}</small></span>
+                <button class="btn primary" onclick="Forge.practice('${x.id}')">${T('🔥 Döv')}</button></div>`; }).join('')}</div>`).join('');
+    Game.showModal(`<div class="forge-shop">
+        <div class="lb-head"><div><div class="leyebrow">${T('Deneme ocağı')}</div><h3>🔨 ${T('Demircilik Dene')}</h3></div>
+            <button class="btn lb-help" onclick="Forge.help()" title="${T('Nasıl dövülür?')}" aria-label="${T('Nasıl dövülür?')}">?</button></div>
+        <p class="lb-lead">${T('Oyuna başlamadan ocağı dene: her parça açık, malzeme harcanmaz; eşya, XP ve zaman yok.')}</p>
+        ${rows}
+        <div class="lb-foot"><button class="btn" onclick="Game.closeModal()">${T('Kapat')}</button></div>
+    </div>`, '760px');
 }
 // Giving up: the bar is drawn back into iron; the coal burnt and the rent paid stay spent
 function abandon() {
     if(!G || G.result) return;
-    Game.addItem('iron', R.cost.iron);
+    if(!R.practice) Game.addItem('iron', R.cost.iron);
     G.result = { abandoned: true };
     leave();
 }
@@ -864,7 +920,9 @@ function leave() {
     api.active = false;
     Snd.stop();
     if(loopId) { cancelAnimationFrame(loopId); loopId = null; }
+    const wasPractice = R.practice;
     G = null; R = null; pumpHeld = false; pressed = null;
+    if(wasPractice) { practiceScreen(false); Game.Music.sync(); return; }
     Game.drawTown(loc);
     Game.Music.sync();
     // the hours at the anvil pass once you're back in the town — whatever they bring arrives there
@@ -876,7 +934,7 @@ function leave() {
 const api = {
     active: false,
     MODEL: M, RECIPES, FAMILIES, HELP,
-    open, help, start, resume, howto, abandon, leave, pauseMenu,
+    open, help, start, practice, resume, howto, abandon, leave, pauseMenu,
     // the pure model, for tools/test.js
     _model: { newBar, stepForge, stepAnvil, strike, score, outcome, passMark, eff, shapeReady, shapeDone, cost, prevOf, heatRGB, stock, blockOf },
     // for the tests and the debug report: the live run, read-only by convention

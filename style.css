@@ -1802,6 +1802,8 @@ body.in-battle #battle-view { border-radius: 0; border-width: 0; }
     #march-canvas { margin-top: 0.6rem; }
     #start-screen .form-group { padding: 1rem; }
     #start-screen .start-actions, #start-screen #lang-row { margin-top: 0.8rem; }
+    /* six actions (Demircilik, 2.5.0) in two rows, not three */
+    #start-screen .start-act { padding: 0.55rem 0.75rem; gap: 0.35rem; }
     #start-screen #ver-tag { margin-top: 0.6rem; }
 }
 

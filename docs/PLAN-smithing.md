@@ -18,8 +18,8 @@ mine. A new skill, Demircilik, decides which tiers the player can forge.
   even if you lose.
 - **Two places to forge.** A town's smithy, rented by the job, and the player's own castle or
   town, free, which can also use the materials in its storage.
-- **Sound.** Real CC0 recordings are chosen by the user from an artifact page and wired in
-  later. Phase 1 synthesizes the sounds behind the same calls.
+- **Sound.** Real recordings chosen by the user from an artifact page of candidates
+  (`forge/CREDITS.md`); only the tongs' clank is synthesized.
 
 ## Phases
 

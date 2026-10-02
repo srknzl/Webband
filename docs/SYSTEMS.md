@@ -1255,9 +1255,20 @@ where there is one. A tutorial coach still up holds the forge still, as in a lai
 (`heatRGB`, cached per 10 °C). Controls: hold Space / the Körük button / the canvas to pump; E or
 the button moves the bar between hearth and anvil; on the anvil the pointer (or ←/→) aims and a
 press-hold-release strikes; Q quenches; Esc pauses. The how-to shows on the first visit
-(`localStorage webband_forge_help`). Sound is synthesized behind `Snd.strike/quench/tick` — a dull
-thud on hot metal, the anvil's ring coming through as it cools, the hearth's roar under the
-bellows — until recorded CC0 samples take those calls over. No music plays in the forge.
+(`localStorage webband_forge_help`). Sound is recorded (`forge/`, picked by ear from a page of
+candidates, credits in `forge/CREDITS.md`): a blow mixes a dull hot-iron take and a ringing
+cold-steel take linearly by the bar's heat (all thud from 1150 °C, all ring at 650 °C, ±4 %
+pitch); a 10 s open-fire loop, made seamless by crossfading its tail into its head, rises with the
+hearth; one 1.3 s bellows breath plays per stroke (the leather folds cycle at the same rate) and is
+cut short on release; the quench is one 3.2 s boil. Only the tongs' clank is synthesized. The five
+files are 224 KB, fetched on the first visit and precached by the worker. No music plays in the forge.
+
+**Practice** (`Forge.practice`, the start screen's 🔨 Demircilik): the same scene with no game
+under way — every recipe open, the model at Demircilik 1, nothing taken, given or passing (no
+materials, rent, item, XP, strength or hours). The forge view lives inside `#main-ui`, so practice
+shows it over the start screen by toggling the screen/view classes itself rather than
+`showScreen`, which would set up the campaign's panels and restart the map loop for a world that
+isn't there; leaving puts the start screen back.
 
 **Loop and cost.** Its own rAF loop (`Game.skipFrame` gate, double-start safe); the map loop stops
 while `Forge.active` (`Game.inScene`). Leaving redraws the town, then the hours pass there.

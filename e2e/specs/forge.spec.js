@@ -104,3 +104,34 @@ test('the smithy shows what a piece needs and locks the tiers above your skill',
     await (await modalBtn(page, '← Ocağa dön')).click();
     await expect(modal(page).locator('.forge-shop')).toBeVisible();
 });
+
+test('the start screen opens a practice forge: every piece, nothing taken or given, back to the menu', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => Game.setOpt('muted', true));
+    const bag = await page.evaluate(() => JSON.stringify(state.player.inventory));
+    await page.locator('.start-act', { hasText: await L(page, 'Demircilik') }).click();
+    // every piece is open, the royal sword included, at no cost
+    await expect(modal(page).locator('.fs-row button:not([disabled])')).toHaveCount(await page.evaluate(() => Forge.RECIPES.filter(r => ITEMS[r.id]).length));
+    await modal(page).locator(`[onclick="Forge.practice('sword_royal')"]`).click();
+    await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#start-screen')).not.toHaveClass(/\bactive\b/);
+    // a practice always starts with the how-to
+    await expect(page.locator('#forge-over .lb-howto li').first()).toBeVisible();
+    await page.locator('#forge-over button').click();
+    await page.evaluate(() => Forge.run().segs.forEach(s => { s.w = 0.02; s.T = 840; }));
+    await page.locator('#forge-move').click();
+    await page.locator('#forge-quench').click();
+    await expect(page.locator('#forge-over .lres')).toBeVisible({ timeout: 6000 });
+    await expect(page.locator('#forge-over .lres')).not.toContainText('XP');
+    // try again: the same piece, straight to the hearth
+    await page.locator('#forge-over').getByText(await L(page, '🔁 Tekrar dene')).click();
+    await expect(page.locator('#forge-over')).toBeHidden();
+    expect(await page.evaluate(() => ({ id: Forge.runConfig().recipe.id, phase: Forge.run().phase }))).toEqual({ id: 'sword_royal', phase: 'forge' });
+    // the pause menu leads out; the start screen is back, the bag untouched, no game loop running
+    await page.locator('#forge-pausebtn').click();
+    await page.locator('#forge-over').getByText(await L(page, '🚪 Vazgeç')).click();
+    await expect(page.locator('#start-screen')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#main-ui')).not.toHaveClass(/\bactive\b/);
+    expect(await page.evaluate(() => ({ active: Forge.active, loop: !!Game._loopId, bag: JSON.stringify(state.player.inventory) })))
+        .toEqual({ active: false, loop: false, bag });
+});
