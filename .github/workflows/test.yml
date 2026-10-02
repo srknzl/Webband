@@ -17,6 +17,8 @@ jobs:
       - run: node tools/framegate.js
       # Harita: partiler sıçramasın, takılmasın, ileri geri gitmesin, yığılmasın (tools/mapwatch.js)
       - run: node tools/mapwatch.js --seed 1-2 --days 30
+      # Savaş dengesi: her kural gerçek motorda dövüşülür, aralık dışına çıkan biri kırar (tools/balance.js)
+      - run: node tools/balance.js --check
 
   # Uçtan uca: oyun gerçek bir Chromium'da, masaüstü ve telefon düzeninde, üç dilde oynanır
   # (e2e/). npm yalnız e2e/ içinde; oyunun kendisi hâlâ derlemesiz, sayfayı Python sunar.

@@ -28,8 +28,19 @@ function rngOf(g) {
     return g._duelRng;
 }
 
+// A kingdom troop (TROOP_TYPES) or a band's row (BAND_KINDS battle/leader), in one shape
+function troopRow(g, name) {
+    if(g.TROOP_TYPES[name]) return g.TROOP_TYPES[name];
+    for(const k of Object.keys(g.BAND_KINDS)) {
+        const band = g.BAND_KINDS[k];
+        const r = band.battle.concat(band.leader ? [band.leader] : []).find(x => x[0] === name);
+        if(r) return { hp: r[2], speed: r[3], attack: r[4], defense: r[5], type: r[1], dmgType: band.dmg || 'cut', beast: !!band.beast };
+    }
+    return null;
+}
+
 function mkUnit(g, name, i, team, W, HGT) {
-    const t = g.TROOP_TYPES[name];
+    const t = troopRow(g, name);
     if(!t) throw new Error(`unknown troop: ${name}`);
     const rnd = rngOf(g);
     return {
@@ -38,7 +49,7 @@ function mkUnit(g, name, i, team, W, HGT) {
         x: team ? 60 + rnd() * 40 : W - 100 + rnd() * 40,
         y: 40 + rnd() * (HGT - 80),
         speed: t.speed, attack: t.attack, defense: t.defense,
-        type: t.type, dmgType: t.dmgType, brace: t.brace, charge: 1.3,
+        type: t.type, dmgType: t.dmgType, brace: t.brace, beast: t.beast, charge: 1.3,
         // Terrain's "mounted" rule looks at this, not `type` (same rule as battle.js) —
         // skip it and the measurement lets cavalry fight penalty-free in a forest.
         mounted: t.type === 'cavalry' || t.speed > g.Battle.FOOT_MAX,
@@ -56,15 +67,19 @@ function fight(g, a, b, n, nb = n) {
     Battle.start('Çapulcu', 1);
     const W = Battle.canvas.width, HGT = Battle.canvas.height;
     Battle.units = [];
-    for(let i = 0; i < n; i++) Battle.units.push(mkUnit(g, a, i, true, W, HGT));
-    for(let i = 0; i < nb; i++) Battle.units.push(mkUnit(g, b, i, false, W, HGT));
+    // a side is one troop name, or a roster of names its men are dealt from in turn
+    const pick = (x, i) => Array.isArray(x) ? x[i % x.length] : x;
+    for(let i = 0; i < n; i++) Battle.units.push(mkUnit(g, pick(a, i), i, true, W, HGT));
+    for(let i = 0; i < nb; i++) Battle.units.push(mkUnit(g, pick(b, i), i, false, W, HGT));
     Battle.reserves = { p: [], e: [] };
     Battle.projectiles = []; Battle.corpses = [];
 
+    const hp0 = team => Battle.units.filter(u => u.isPlayerTeam === team).reduce((a, u) => a + u.hp, 0), hp0A = hp0(true), hp0B = hp0(false);
     let t = 0;
     while(done === null && t < MAX_S) { Battle.update(DT); t += DT; }
     const alive = team => Battle.units.filter(u => u.isPlayerTeam === team && u.hp > 0).length;
-    const out = { won: done, duration: t, remainingA: alive(true), remainingB: alive(false) };
+    const hpOf = team => Battle.units.filter(u => u.isPlayerTeam === team && u.hp > 0).reduce((a, u) => a + u.hp, 0);
+    const out = { won: done, duration: t, remainingA: alive(true), remainingB: alive(false), hpLeftA: hpOf(true) / Math.max(1, hp0A), hpLeftB: hpOf(false) / Math.max(1, hp0B) };
     Battle.endBattle = end;
     return out;
 }
@@ -126,4 +141,4 @@ function main() {
 }
 
 if(require.main === module) main();
-module.exports = { duel, fight };
+module.exports = { duel, fight, troopRow };

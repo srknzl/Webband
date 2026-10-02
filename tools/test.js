@@ -58,13 +58,15 @@ test('afterArmor: type multiplier on an unarmored target (30 raw)', () => {
     assert.strictEqual(Battle.afterArmor('pierce', 30, 0), 27);
     assert.strictEqual(Battle.afterArmor('blunt', 30, 0), 24);
 });
+// 2.8.0: armour takes a share (× 20 / (20 + def × typeArmor)), no longer subtracts — so a heavy
+// armour still lets a third of a cut through instead of a sixth (the old 30-on-25 gave 5)
 test('afterArmor: as armor rises, pierce takes the lead (def 25)', () => {
-    assert.strictEqual(Battle.afterArmor('cut', 30, 12), 18);
+    assert.strictEqual(Battle.afterArmor('cut', 30, 12), 19);
     assert.strictEqual(Battle.afterArmor('pierce', 30, 12), 21);
-    assert.strictEqual(Battle.afterArmor('blunt', 30, 12), 16);
-    assert.strictEqual(Battle.afterArmor('cut', 30, 25), 5);
-    assert.strictEqual(Battle.afterArmor('pierce', 30, 25), 15);
-    assert.strictEqual(Battle.afterArmor('blunt', 30, 25), 8);
+    assert.strictEqual(Battle.afterArmor('blunt', 30, 12), 17);
+    assert.strictEqual(Battle.afterArmor('cut', 30, 25), 13);
+    assert.strictEqual(Battle.afterArmor('pierce', 30, 25), 17);
+    assert.strictEqual(Battle.afterArmor('blunt', 30, 25), 13);
 });
 test('afterArmor: floor of 1, unknown type counts as cut', () => {
     assert.strictEqual(Battle.afterArmor('cut', 5, 100), 1);
@@ -649,8 +651,24 @@ test('battle: the real-time damage pace lengthens played fights', () => {
     const src = { id:'a', x:0, y:0, dmgType:'cut', isPlayerTeam:true };
     const tgt = { id:'b', x:1, y:0, hp:100, defense:0, isPlayerTeam:false, hitFlash:0 };
     Battle.bloodStains = []; Battle.sparks = []; Battle.floatingTexts = [];
+    const roll = Battle.hitRoll; Battle.hitRoll = () => 1;     // the pace alone, not the hit's spread
     Battle.dealMelee(src, tgt, 20);
+    Battle.hitRoll = roll;
     assert.strictEqual(tgt.hp, 85, '20 raw damage was not paced to 15');
+});
+// 2.8.0: a blow lands within ±HIT_SPREAD of its mean, so a weak man's hits vary instead of all
+// reading the same small number — and never below the afterArmor floor
+test('battle: a hit varies within its spread around the paced mean', () => {
+    const src = { id:'a', x:0, y:0, dmgType:'cut', isPlayerTeam:true }, seen = new Set();
+    for(let i = 0; i < 200; i++) {
+        const tgt = { id:'b', x:1, y:0, hp:100, defense:0, isPlayerTeam:false, hitFlash:0 };
+        Battle.bloodStains = []; Battle.sparks = []; Battle.floatingTexts = [];
+        Battle.dealMelee(src, tgt, 20);
+        seen.add(100 - tgt.hp);
+    }
+    const lo = Math.min(...seen), hi = Math.max(...seen), mean = 20 * Battle.DAMAGE_PACE, k = Battle.HIT_SPREAD;
+    assert.ok(lo >= Math.round(mean * (1 - k)) && hi <= Math.round(mean * (1 + k)), `hits ${lo}–${hi} outside ±${k * 100} % of ${mean}`);
+    assert.ok(seen.size >= 4, `only ${[...seen]} — the spread isn't rolled`);
 });
 
 test('courtship: a lady only accepts one compliment every three days', () => {
@@ -2079,59 +2097,45 @@ test('kite: even if foot can\'t catch cavalry, the battle resolves', () => {
 });
 
 // --- Combat anchor matchups (Fable danisma 006) ---
-// The rock-paper-scissors triangle, measured through the real engine. Bands are wide
-// (Fable's calibration is ±8) so these guard the shape, not a knife-edge number: spears and
-// shield troops must contest cavalry, plain infantry must lose to elite cavalry, cavalry must
-// run down archers. A win-rate that leaves its band means a stat or the brace broke the triangle.
-const { duel } = require('./duel');
-const rate = (a, b, n = 1, rounds = 25) => duel(a, b, n, rounds, 2).winRateA;
+// The rock-paper-scissors triangle now lives in tools/balance.js's `counter` group (CI runs
+// `balance.js --check` on every push), six against six over 64 fights instead of 25 duels: one on
+// one the engine is decisive enough that a 10 % edge reads 75 %, and the old spear anchor set a
+// mid-tier spearman against an elite rider, which the tier rule says he must lose.
 
-slow('anchor: spearmen contest light cavalry (brace)', () => {
-    const w = rate('Rodok Mızraklısı', 'Kergit Süvarisi');
-    assert.ok(w >= 40 && w <= 72, `spear vs light cav ${w}% — anti-cav brace off band`);
-});
-slow('anchor: a shield line contests heavy cavalry', () => {
-    const w = rate('Rodok Kalkanlısı', 'Svadya Şövalyesi');
-    assert.ok(w >= 38 && w <= 72, `shield vs heavy cav ${w}% — off band`);
-});
-// A mirror sits mid-band, where 25 duels are too few: over seeds 1–5 they gave 32–72 % (the
-// band is 40–66), 100 give 43–62 %. 2.7.0's mine drew one more random per lair at world start
-// and moved seed 2 from 40 to 32 without the fight changing (200 duels: 50 → 48 %).
-slow('anchor: two same-tier infantry are an even fight', () => {
-    const w = rate('Nord Baltacısı', 'Rodok Kalkanlısı', 1, 100);
-    assert.ok(w >= 40 && w <= 66, `elite infantry mirror ${w}% — not an even fight`);
-});
-slow('anchor: plain infantry loses to elite cavalry (bring spears)', () => {
-    const w = rate('Nord Baltacısı', 'Svadya Şövalyesi');
-    assert.ok(w <= 30, `axeman vs knight ${w}% — infantry should not beat elite cavalry head-on`);
-});
-slow('anchor: cavalry runs down archers', () => {
-    const w = rate('Svadya Şövalyesi', 'Rodok Tatar Yaylısı', 6);
-    assert.ok(w >= 75, `cavalry vs archers ${w}% — horse should reach the bow line`);
-});
-
-// The encounter window's own path (party, hero, a kingdom's roster): the report's fight.
-test('odds: 21 peasants and a fresh hero against 8 kingdom soldiers is not "Kolay"', () => {
+// The encounter window's own path (party, hero, a kingdom's roster). Until 2.8.0 a kingdom's
+// soldiers were worth ~3 villagers a step and 21 peasants with a fresh hero read "Çetin" against 8
+// of them; on the fitted table (a step is worth two) 8 Swadian soldiers are ~14 villagers.
+test('odds: the encounter label reads the party, the hero and the kingdom\'s roster', () => {
     const go = H.world({ seed: 4 }), { Game: G, state: st } = go;
-    st.player.party = Array.from({ length: 21 }, (_, i) => ({ id: 'pz' + i, name: 'Svadya Köylüsü', level: 1 }));
+    const party = (n, name, level) => Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name, level }));
     st.encounterSize = null;
     const npc = { size: 8, faction: 'swadia' };
-    assert.strictEqual(G.oddsLabel(npc).name, 'Çetin', `ratio ${G.oddsRatio(npc).toFixed(2)}`);
-    st.player.party = Array.from({ length: 12 }, (_, i) => ({ id: 'pc' + i, name: 'Svadya Çavuşu', level: 20 }));
+    st.player.party = party(8, 'Svadya Köylüsü', 1);
+    assert.ok(['Zorlu', 'Çetin'].includes(G.oddsLabel(npc).name), `8 peasants and a fresh hero read ${G.oddsLabel(npc).name} (${G.oddsRatio(npc).toFixed(2)})`);
+    st.player.party = party(21, 'Svadya Köylüsü', 1);
+    assert.strictEqual(G.oddsLabel(npc).name, 'Kolay', `21 peasants and a fresh hero: ratio ${G.oddsRatio(npc).toFixed(2)}`);
+    st.player.party = party(12, 'Svadya Çavuşu', 20);
     assert.strictEqual(G.oddsLabel({ size: 6, band: 'bandit' }).name, 'Kolay', 'twelve sergeants against six looters');
 });
 
 // --- The odds label against the real engine ---
 // The encounter's "Tahmini denge" is a formula (Battle.sideStrength); these fights are the truth it
 // must match, re-measured on every push so a stat, armour or AI change that moves the battle moves
-// this test too. A "Kolay" side has to win nearly always and a "Çetin" one nearly never.
+// this test too. A "Kolay" side has to win nearly always and a "Çetin" one nearly never. A side is
+// one troop or a roster dealt in turn — a kingdom's army mixes footmen, bowmen and riders, and the
+// bowmen behind a line are what a one-troop case never shows (Battle.ARCHER_IN_MELEE).
 // The 22-peasants-on-8-sergeants case is the report: the old level-weighted headcount said
 // "Kolay", and every man died.
 slow('odds: the encounter label agrees with real-engine fights', () => {
     const go = H.world({ seed: 3 }), { Battle: B, Game: G, TROOP_TYPES: TT } = go;
-    const row = (name, n, team) => { const t = TT[name]; return { n, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: team }; };
+    const side = (names, n, team) => {
+        const count = {};
+        for(let i = 0; i < n; i++) { const x = Array.isArray(names) ? names[i % names.length] : names; count[x] = (count[x] || 0) + 1; }
+        return Object.entries(count).map(([name, m]) => { const t = TT[name];
+            return { n: m, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: team }; });
+    };
     const label = (a, na, b, nb) => {
-        const A = [row(a, na, true)], E = [row(b, nb, false)];
+        const A = side(a, na, true), E = side(b, nb, false);
         return G.ODDS.find(o => B.sideStrength(A, E) / B.sideStrength(E, A) >= o[0])[1];
     };
     const won = (a, na, b, nb, n = 20) => {
@@ -2139,21 +2143,25 @@ slow('odds: the encounter label agrees with real-engine fights', () => {
         for(let i = 0; i < n; i++) { const r = fight(go, a, b, na, nb); if(r.won === null) continue; ok++; if(r.won) w++; }
         return Math.round(w / ok * 100);
     };
+    const swadia = G.factionTroopPool('swadia'), nord = G.factionTroopPool('nord');
     const cases = [
         ['Svadya Köylüsü', 22, 'Svadya Çavuşu', 8, 'Çetin'],     // the report
-        ['Svadya Köylüsü', 20, 'Svadya Milisi', 10, 'Çetin'],
-        ['Svadya Milisi', 10, 'Svadya Çavuşu', 5, 'Çetin'],
+        ['Svadya Köylüsü', 12, 'Svadya Milisi', 10, 'Çetin'],
+        ['Svadya Milisi', 6, 'Svadya Çavuşu', 5, 'Çetin'],
         ['Svadya Köylüsü', 10, 'Nord Serfi', 10, 'Dengeli'],
         ['Svadya Köylüsü', 12, 'Svadya Köylüsü', 8, 'Kolay'],
-        ['Svadya Çavuşu', 4, 'Svadya Milisi', 8, 'Kolay'],
-        ['Svadya Çavuşu', 8, 'Svadya Milisi', 12, 'Kolay'],
-        ['Veagir Baltacısı', 5, 'Nord Savaşçısı', 8, 'Kolay'],
+        ['Svadya Çavuşu', 4, 'Svadya Milisi', 5, 'Kolay'],
+        ['Svadya Çavuşu', 8, 'Svadya Milisi', 10, 'Kolay'],
+        ['Veagir Baltacısı', 5, 'Nord Savaşçısı', 6, 'Kolay'],
+        ['Svadya Köylüsü', 21, swadia, 8, 'Kolay'],             // a kingdom's army: footmen, bowmen, riders
+        ['Svadya Köylüsü', 11, swadia, 8, 'Çetin'],
+        ['Svadya Milisi', 5, nord, 8, 'Çetin'],
     ];
     for(const [a, na, b, nb, want] of cases) {
-        const got = label(a, na, b, nb), w = won(a, na, b, nb);
-        assert.strictEqual(got, want, `${na} ${a} vs ${nb} ${b}: label ${got}, expected ${want} (won ${w} %)`);
-        if(got === 'Kolay') assert.ok(w >= 85, `${na} ${a} vs ${nb} ${b} reads Kolay but won ${w} %`);
-        if(got === 'Çetin') assert.ok(w <= 15, `${na} ${a} vs ${nb} ${b} reads Çetin but won ${w} %`);
+        const got = label(a, na, b, nb), w = won(a, na, b, nb), bn = Array.isArray(b) ? 'mixed' : b;
+        assert.strictEqual(got, want, `${na} ${a} vs ${nb} ${bn}: label ${got}, expected ${want} (won ${w} %)`);
+        if(got === 'Kolay') assert.ok(w >= 85, `${na} ${a} vs ${nb} ${bn} reads Kolay but won ${w} %`);
+        if(got === 'Çetin') assert.ok(w <= 15, `${na} ${a} vs ${nb} ${bn} reads Çetin but won ${w} %`);
     }
 });
 
@@ -2585,8 +2593,11 @@ slow('quest: the wave quests play through their own days, battles and hand-in', 
             if(id === 'merchant_convoy' && q.data.cleared && q.state === 'active') Game.enterLocation(post);
         });
         assert.strictEqual(q.state, 'awaiting', `${id}: not finished after its days (${fights} fights, data ${JSON.stringify(q.data)})`);
-        // the giver collects wherever the trail says
+        // the giver collects wherever the trail says — once his army is back on the map: a lord
+        // routed in a war while you stood guard regroups in 4–10 days (the world, not the quest)
+        for(let d = 0; d < 12 && !Nobles.partyOf(giver.id); d++) H.run(w, 1);
         const p = Nobles.partyOf(giver.id), at = LOCATIONS.find(l => l.id === q.turnInLocId);
+        assert.ok(p, `${id}: the giver's army never came back`);
         Object.assign(p, { x: at.x, y: at.y });
         const before = state.player.money;
         Game.enterLocation(at);
@@ -4352,8 +4363,9 @@ test('grindstone: a blade kept moving at the right angle keens evenly; held stil
 });
 // 2.7.1: the hero's armour is five pieces summed (leather 21, plate 65), on a scale no troop's attack
 // reaches; subtracted, a hero in a leather set took 1–3 from a sergeant's blow and cut down ten
-// armoured men alone. On the gear-armoured hero it's a share now; every other blow is unchanged.
-test('armour: the hero\'s gear takes a share of a blow, troops and the tournament kit still subtract', () => {
+// armoured men alone. On the gear-armoured hero it's a share now; since 2.8.0 every blow is, the
+// troops' and the tournament kit's on the troop scale (ARMOR_K).
+test('armour: the hero\'s gear takes a share of a blow on its own scale, troops and the tournament kit on theirs', () => {
     const { Battle, TROOP_TYPES } = H.world({ seed: 1 });
     const sgt = TROOP_TYPES['Svadya Çavuşu'], raw = sgt.attack * Battle.DAMAGE_PACE;
     const onHero = (def, r = raw) => Battle.afterArmor('cut', r, def, { isPlayerTeam: true, id: 'player', gearArmor: true });
@@ -4361,10 +4373,10 @@ test('armour: the hero\'s gear takes a share of a blow, troops and the tournamen
     assert.ok(share(21) >= .7 && share(21) <= .78, `a leather set lets ${Math.round(share(21) * 100)} % of a sergeant's blow through`);
     assert.ok(share(65) >= .44 && share(65) <= .52, `a plate set lets ${Math.round(share(65) * 100)} % through`);
     assert.ok(Math.ceil(71 / onHero(21)) <= 10, `a level-1 hero in leather (71 hp) outlasts ${Math.ceil(71 / onHero(21))} sergeant blows`);
-    // troop against troop and the tournament's fixed kit: armour still subtracts down to the floor
-    const plain = { isPlayerTeam: false };
-    assert.strictEqual(Battle.afterArmor('cut', raw, 12, plain), Math.round(raw - 12));
-    assert.strictEqual(Battle.afterArmor('cut', raw, 21, { isPlayerTeam: true, id: 'player', gearArmor: false }), Math.max(1, Math.round(raw * Battle.ARMOR_FLOOR)));
+    // troop against troop and the tournament's fixed kit: the troop scale
+    const plain = { isPlayerTeam: false }, K = Battle.ARMOR_K;
+    assert.strictEqual(Battle.afterArmor('cut', raw, 12, plain), Math.round(raw * K / (K + 12)));
+    assert.strictEqual(Battle.afterArmor('cut', raw, 21, { isPlayerTeam: true, id: 'player', gearArmor: false }), Math.round(raw * K / (K + 21)));
 });
 test('grindstone: the edge adds to the player\'s melee only, only with that weapon, and dulls battle by battle', () => {
     const w = forgeWorld(), { Game, Battle, state, ITEMS } = w;

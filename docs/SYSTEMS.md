@@ -303,42 +303,105 @@ generated from):
 
 | Faction | Villager | Branches | Character |
 |---|---|---|---|
-| Svadya | Svadya Köylüsü | Milis→Çavuş, Avcı→Keskin Nişancı, Süvari→Şövalye | balanced, strongest heavy cavalry |
+| Svadya | Svadya Köylüsü | Milis→Çavuş, Avcı→Keskin Nişancı, Süvari→Şövalye | balanced; spear militia, the most armoured knight |
 | Rodok | Rodok Köylüsü | Mızraklı→Kalkanlı, Nişancı→Tatar Yaylısı | no cavalry, best defense/archers |
 | Veagir | Veagir Köylüsü | Piyade→Baltacı, Okçu→Nişancı, Atlı→Süvari | axes, deadly archers, mediocre cavalry |
-| Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | no horses, strongest infantry |
+| Nord | Nord Serfi | Savaşçı→Baltacı, Avcı→Nişancı | no horses; fast, cutting infantry |
 | Kergit | Kergit Çobanı | Atlı→Süvari, Atlı Okçu→Han Muhafızı | all mounted, fastest, light armor |
 
 **Damage type by troop** (`u.dmgType`): axe/sword = cutting, spear/bow = piercing, a villager's
 club = blunt; cavalry counts as cutting (the charge already represents the lance).
 
-#### Balance is a range rule, not a win-rate table
-Same tier **40–60%**, one-tier gap **65–80%**, two tiers **85%+**; a unit's counter-type
-(spear→cavalry, bow→light) gets **+10**. `ARMOR_FLOOR`(0.18) means a strong hit is never reduced
-below 18% of its type-adjusted raw. **The hero's armour** (2.7.1) is a share instead:
-`× 60 / (60 + defense × typeArmor)` on the gear-armoured hero (field and lair; not the
-tournament's fixed kit). Its defense is five pieces summed (leather set 21, plate set 65), a scale
-no troop's attack reaches. Subtracted, a level-1 hero in leather took 1–3 a blow from mid and
-elite troops and died only after 24–71 of them. Measured (`afterArmor`): leather lets 74 % of a
-cut through, plate 48 %; that hero now falls to 6–11 blows from mid and elite troops. Troop
-against troop is unchanged — a global ratio was tried and broke the anchors (spear vs light
-cavalry 14–20 %, axeman vs knight 52–61 %). Anti-cavalry lives in the **brace**
-(`Battle.braceMult`), not the damage type — spear infantry ×1.5, a shield troop gets a lighter
-explicit `u.brace` so its identity doesn't leak into every matchup (`pierce` on a shield troop
-was tried and rejected — it halves armor in *every* fight, not just against horses).
+#### Balance is a range rule, fought out in the real engine (2.8.0)
+`tools/balance.js` turns every rule into real fights stepped through `Battle.update`
+(`tools/duel.js`), generated from `TROOP_TREES`, so a new troop is covered the day it is added; CI
+runs `node tools/balance.js --check` on every push and fails on a rule out of its range. Balance is
+read as **worth** — how many of one troop a troop is worth — because a group fight, a wage and an
+upgrade price all ask that. The engine is decisive (no miss chance: one on one a 1.3 edge wins ~87 %,
+six against six a 10 % edge reads 75 %), so a duel rule can only say "the better troop wins"; the
+exchange rates live in group fights, 64 per rule (a 50 % rule reads ±6).
+
+| Group | Rule (side A's win rate) | Range |
+|---|---|---|
+| tier | one step up its own tree beats the step below 1v1 / two steps up | 90–100 / 97–100 % |
+| worth | 8 of a step against 4 of the step above (a step is worth two) | 20–80 % |
+| worth | 8 villagers against 2 elites (two steps are worth four) | 20–80 % |
+| mirror | same step, same arm, every pair of kingdoms, 6 v 6 (flavour, within ~15 % worth) | 20–80 % |
+| band | a band's row against the kingdom troop it stands in for, 6 v 6 | 30–70 % |
+| counter | a braced line (spear, shield) against riders of its step, 6 v 6 | 30–70 % |
+| counter | riders against plain footmen / against bowmen, 6 v 6 | 70–100 / 75–100 % |
+| crowd | 22 villagers into 8 sergeants: they may lose, but take ≥ 25 % of the sergeants' hp | — |
+| hit | every row's blow on every row through `afterArmor`: none under 2 | — |
+
+The worth range is wide because damage types make a tree's chain intransitive: against an
+armoured sergeant a militiaman's spear (pierce) lands 11 % more than a sword would, a villager's
+club (blunt) 7 % less, so the Swadian sergeant is worth two militiamen but nearer five villagers —
+measured over 200 fights, 8 villagers vs 4 militia 59 %, 8 militia vs 4 sergeants 78 %, 8 villagers
+vs 2 sergeants 26 %; no scale of the sergeant meets the last two at once. A mirror allows a kingdom's shape: Rodok's slow, thick-armoured shieldman against Swadia's sergeant
+reads 25–40 %, the same two with identical stats 45–55 %. A spear (pierce infantry) and a shield
+troop's explicit `u.brace` both brace; Swadia's militia carries a spear, so riders against it is a
+brace rule, not a charge rule.
+
+**The table is fitted, not picked** (2.8.0). Each row's hp × attack (attack rounded, hp carrying
+the rest; defense and speed are the row's shape and stay) was scaled until the fights it is judged
+by come out even: a mid against 8 villagers, an elite against 8 mids and 8 villagers at once, bowmen
+among bowmen (a bow's worth against a charging villager is no rule), riders against the braced line of
+their step, then every row against every rule it sits in, each weighted the same. The villager is
+20 hp / 6 attack in every kingdom (a Nord serf was never stronger than a Swadian peasant). A band's
+footmen and leader were fitted to the kingdom troop each stands in for: the looter and the mountain
+bandit barely moved (24 → 20, 36 → 35 hp), the forest bandit and village watchman came down to a
+villager (28 → 18, 30 → 19), the looter chief and the mountain chief to a militiaman and a sergeant
+(52 → 39, 75 → 64) — the lair's guards with them. The kingdoms' mid and elite rows came down to their worth (sergeant 65/18 → 52/14). One shape moved: Swadia's
+militia went from defense 5 to 8 (45/12/5 → 28/9/8) — against a crowd of weak blows armour is what
+counts, and at 5 eight villagers beat four militiamen 75 % whatever his hp and attack.
+Before: a step up was worth ~3 of the step below and 22 peasants into 8 sergeants dealt 1 a blow.
+**Measured** (`balance.js`, 2.8.0, `docs/measurements/2026-10-03-balance.md`): 95/95 rules hold
+(on 2.7.1's table a step up was worth ~3 and 22 peasants dealt 1 a blow); weakest
+blow 2 (a villager's club on a knight; on a militiaman 3, before 1); the crowd takes 35 % of the
+sergeants' hp. The whole run is ~6 minutes (64 group fights a rule; each rule seeded by its own name,
+so it reads the same alone, in the full run, and with scenarios added in front of it).
+
+**Armour is a share of the blow** (2.8.0): `landed = base × K / (K + defense × typeArmor)`,
+`ARMOR_K` 20 for troops, bosses and the tournament's kit, `HERO_ARMOR_K` 60 for the gear-armoured
+hero (field and lair), whose defense is five pieces summed (leather set 21, plate set 65), a scale
+no troop's attack reaches. Subtracted (until 2.8.0, with `ARMOR_FLOOR` 0.18), a villager's club on a
+militiaman fell to the 1 floor and every armour point above a blow's size made it worth nothing; a
+share never reaches zero. Leather lets 74 % of a cut through the hero, plate 48 %; a level-1 hero
+(71 hp) in leather falls to 7–18 blows from mid and elite melee troops, in plate to 11–24. Each hit
+also rolls ±`HIT_SPREAD` (25 %) around its mean (`Battle.hitRoll`, melee and arrows), so a weak
+man's blows vary instead of reading one small number; `afterArmor` itself stays deterministic, and
+that mean is what the odds read. Bosses (defense 25–40) take a troop's 7-attack blow as 2 (before
+1) and a mid-game hero's ~18 (before ~16). Anti-cavalry lives in the **brace** (`Battle.braceMult`), not
+the damage type — spear infantry ×1.5, a shield troop gets a lighter explicit `u.brace` so its
+identity doesn't leak into every matchup (`pierce` on a shield troop was tried and rejected — it
+halves armor in *every* fight, not just against horses).
 
 **The encounter's odds label** ("Tahmini denge", `Game.oddsLabel`) compares
 `Battle.sideStrength` both ways: N^1.7 × the mean of hp × hit, where `hit` runs through
 `afterArmor` (armour, damage type, difficulty) and the brace. The rosters are `Battle.playerMix`
 (hero from `heroGear`, the unwounded with their morale debuff) and `Battle.enemyMix` (the band's
-weighted roster and leader, or the kingdom's troop pool). Until 2.7.1 it was a level-weighted
-headcount, and since level adds nothing in a fight it called 22 peasants against 8 sergeants
-"Kolay". **Measured** (real engine, `tools/test.js` 'odds:', 20–30 fights each): ratio ≥ 1.1 → the
-side won 90–100 %; ≤ 0.77 → at most 7 %; 1.0 → 30–53 %. Buckets: Kolay ≥ 1.5, Dengeli ≥ 0.8,
-Zorlu ≥ 0.55, else Çetin. 22 peasants vs 8 sergeants is 0.12 (won 0 %). Every armour model tried
-(ratio K 6–20, a 0.35–0.45 floor, half-subtracted armour) left that fight at 0 %: a sergeant is
-~10 peasants before armour, so the label, not the armour, was the bug. The tier rule above is
-**not met** today — one tier apart wins 98–100 % 1v1 in every model, the stat gap does it.
+weighted roster and leader, or the kingdom's troop pool). A bowman's hit on a non-archer counts
+`ARCHER_IN_MELEE` (0.45) × his side's archer share^1.5: alone with bowmen he shoots the whole
+approach (four villagers are even with four Swadian bowmen), behind his own footmen his line is in
+the way (4 militia ≈ 8 villagers, 4 militia + 4 bowmen ≈ 10.5). **Measured** (real engine, 40–80
+fights each): every even point — pure footmen at 4, 8 and 16 a side, militia with riders, militia
+with bowmen, the Swadian, Vaegir and Nord armies — reads 0.91–1.05; at 0.84 the side won 5–25 %,
+at 1.05 75–88 %, at 1.28 98 %. Buckets: Kolay ≥ 1.25, Dengeli ≥ 0.9, Zorlu ≥ 0.7, else Çetin.
+22 peasants vs 8 sergeants is 0.60 (won 0 %); 21 peasants vs 8 Swadian soldiers (the kingdom's
+pool) is 1.78 (won 100 %). Until 2.7.1 the label was a level-weighted headcount; 2.7.1's buckets
+(1.5 / 0.8 / 0.55) were read off the subtracted armour and the unfitted table.
+
+**Every fight the player doesn't play reads the same strength** (2.8.0): `Battle.powerRatio(a, b)`
+= (sideStrength a / sideStrength b)^(1/1.7), the two sides as a headcount ratio — linear in heads
+like the headcount it replaced, so luck and casualty numbers keep their scale. Auto-resolve
+(`Battle.autoResolve`, it summed hp × attack), its button (it appeared at 1.5× the heads), a lord
+clearing a band (`lordBanditTick`, heads × level, wolves ×1.2), two kingdoms' armies
+(`resolveFieldBattle`, heads × level), a band raiding a convoy and choosing one to chase
+(`banditTick`, heads × 1.15 caravan / × 0.5 villagers) all read the rosters through it now.
+Measured (`sim.js --days 200 --seed 1-5`, 2.8.0 against 2.7.1): conquered 9–20 (8–17), campaigns
+24–32 (20–31), wars 16–27 (14–26), peace 17–27 (15–25), caravan raids 133–333 (269–554), repelled
+277–320 (274–360), prosperity 63.2–72.1 (64.4–71.3), 0 kingdoms erased — guards are counted as the
+men they are, so fewer convoys fall.
 
 Sources: a settlement recruit comes from `Game.recruitName(loc)` (that town's own faction);
 mercenaries/enemy armies come from `Game.factionTroopPool(faction)` (2 shares mid-tier, 1 elite).
@@ -515,10 +578,11 @@ relation with every lord of that kingdom) — a wartime one is free loot. Feeds 
 prosperity on arrival (caravan +0.5, convoy +0.15).
 
 **Bandits hunt them too** (`Game.banditTick()`/`.hunting`, daily): a band within 400 units of a
-crossing convoy rolls a raid (guard resistance ×1.15 caravan / ×0.5 convoy); a repelled band is
+crossing convoy rolls a raid (the two rosters as fighting men, `Battle.powerRatio`, ±30% luck
+each — 2.8.0; it was headcount × 1.15 caravan / × 0.5 convoy); a repelled band is
 halved, a raided convoy is removed and its cargo passes to the band (whoever beats that band
 next gets it — no extra code, same loot pipeline). Idle bands within 1200 units actively chase
-the nearest trade party if it's a winnable fight. **One band per convoy** (2.4.4): a convoy
+the nearest trade party if it's a winnable fight (the convoy under 1.2× the band, same measure). **One band per convoy** (2.4.4): a convoy
 another band already hunts is skipped, a band keeps its own convoy unless another is `PREY_HOLD`
 (300) units nearer, a band skips one inside the sight of an army it would flee, and the band
 hunting a convoy is the one that raids it. Each convoy walks at its own pace (±10%): at one fixed
@@ -577,8 +641,9 @@ captivity.
 #### Fleeing, auto-resolve, and waves
 - **Flee chance** (`fleeChance`): `clamp(0.1, 0.9, (speed ratio − 0.8) × 1.2)`; halved
   (`AMBUSH_FLEE`=0.5) while ambushed.
-- **Auto-resolve** ("🎖️ Send Your Troops", available at 1.5× enemy strength): same engine, no
-  arena — `Battle.autoResolve()` feeds the normal `endBattle`. Loss rate `0.45 / strength ratio`
+- **Auto-resolve** ("🎖️ Send Your Troops", available at 1.5× enemy strength in fighting men,
+  `Battle.powerRatio`): same engine, no arena — `Battle.autoResolve()` feeds the normal
+  `endBattle`. Loss rate `0.45 / strength ratio`
   (as low as 40% with Management), ±15% luck. Player never dies here, only loses health.
 - **Waves**: at most `Battle.FIELD_CAP`(30) units/side on the field at once
   (`splitReserves`/`Battle.reserves`); once the field drops below 70% capacity, `reinforce()`
