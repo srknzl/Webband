@@ -466,6 +466,17 @@ reward is denars/renown only, failure carries no relation penalty). Accepted que
 `state.player.quests`; a refused lord won't offer again for 7–15 days; one active quest per
 lord; failure is −10 relation.
 
+**The named gang doesn't run, and is never a pack** (2.6.2). The three "find this exact gang"
+quests (Zincirdeki Kardeş, Rehin Tüccar, Kaçak Birlik) lock their target (`questLocks`), and a
+locked band weaker than you no longer notices you (`updateNPCs`): it used to sense your army from
+`sense` (~1000 units) while you see ~500 (~125 in a forest), flee for `FLEE_HOURS`, and the marker
+only names the town nearest it. They also pick from `Quests.gangs()` — bandit bands minus `beast`
+kinds: a pack outpaces a foot column (82 + sprints vs ~74), and holds no hostage. Measured
+(scratch bot that walks to the marker and chases only what it sees, 21 foot, 20 seeds, 20 days):
+before — plain gang found in 13/20, forest gang 14/19, after **~300 h**; after — **20/20** (median
+~45 h) and **19/19** (median ~30 h). Packs, even unfleeing, took up to ~160 h. `wolf_cull` still
+targets packs: any pack counts, and they come to you.
+
 ### Trade parties — caravans and convoys (#22)
 6 caravans + 8 villager convoys roam the roads (`BAND_KINDS.caravan`/`.villager`,
 `trade: true`), so map icon/battle mix/leader logic are free from the existing band machinery.

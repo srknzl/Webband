@@ -2583,6 +2583,24 @@ test('quest: a bandit gang locked by a quest survives a lost raid, and the lock 
     assert.strictEqual(b.questLocks, 0, 'the lock should be released once the quest is complete');
 });
 
+// A wolf pack smells a big army from farther than you can see it and outruns a foot column:
+// a player asked to rescue a hostage from one followed the marker for 20 days and never met it.
+test('quest: a "find this gang" quest never names a wolf pack', () => {
+    const w = H.world({ seed: 3 });
+    const { Quests, QUESTS, LORDS, Game, state } = w;
+    state.npcParties = state.npcParties.filter(n => n.type !== 'bandit');
+    const wolves = [Game.spawnBand('wolf'), Game.spawnBand('wolf')];
+    wolves[0].size = 40;   // the largest band: brother_in_chains would have picked it
+    for(const id of ['brother_in_chains', 'hostage_rescue', 'rogue_company']) {
+        if(QUESTS[id].can) assert.ok(!QUESTS[id].can(), `${id} should not be offered with only wolf packs around`);
+    }
+    const gang = Game.spawnBand('bandit');
+    for(const id of ['brother_in_chains', 'hostage_rescue', 'rogue_company']) {
+        const giver = LORDS.find(l => QUESTS[id].givers.includes(l.personality));
+        for(let i = 0; i < 10; i++) assert.strictEqual(Quests.make(id, giver.id).data.npcId, gang.id, `${id} named a wolf pack`);
+    }
+});
+
 test('quests: a finished job says so everywhere the player looks for it (#106)', () => {
     // The hand-in used to hide behind the same "any work for me?" button, and the map marked a
     // finished job exactly like an open one — the player had no cue that a reward was waiting.
@@ -3965,6 +3983,25 @@ test('a quest wave closes in where a plain band of the same size flees', () => {
     };
     assert.ok(walk(true) < 200, 'a summoned wave must come to the player');
     assert.ok(walk(false) > 200, 'an ordinary weak band still flees');
+});
+
+// The gang a quest names used to flee from beyond your sight, so following the marker found it
+// late or never (2.6.2). It doesn't run from you; it just carries on where it was going.
+test('a quest-locked band does not flee a stronger army', () => {
+    const { Game, state } = g;
+    state.player.party.length = 0;
+    for(let i = 0; i < 25; i++) state.player.party.push({ level: 10, hp: 10, maxHp: 10 });
+    const walk = (locked) => {
+        const n = Game.createNPC('Çapulcular', 'bandit', 10, '#8b0000');
+        n.x = state.player.x + 400; n.y = state.player.y;
+        n.targetX = n.x; n.targetY = n.y;
+        if(locked) n.questLocks = 1;
+        state.npcParties.length = 0; state.npcParties.push(n);
+        for(let i = 0; i < 30; i++) Game.updateNPCs(0.1);
+        return !!n.fleeLeft && n.fleeLeft > 0;
+    };
+    assert.ok(!walk(true), 'the quest target ran from the player');
+    assert.ok(walk(false), 'an ordinary weak band still flees');
 });
 
 // A hostile party that stays in view for CHASE_HOURS game hours is a chase, and a chase gets

@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.6.1', date: '2026-10-02', name: 'Kıvılcım' };  // the version name is not translated
+const VERSION = { no: '2.6.2', date: '2026-10-02', name: 'İz' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -3902,6 +3902,11 @@ const Game = {
             // only blocks a fresh lock-on while camped, not an ongoing one.
             if(this.campProtected() && might > ps && npc.playerTargetId !== 'player') notices = false;
             if(roadSafe && might > ps && (BAND_KINDS[npc.band] || {}).beast) notices = false;
+            // The gang a quest names doesn't run from you: it senses a stronger army from ~1000
+            // units, you see ~500 (~125 in a forest), and the marker names only the town nearest
+            // it — so it fled before it was ever seen, and a player following the marker found it
+            // after 12-16 days of a 20-day quest, or never (2.6.2). It keeps its own errands.
+            if(npc.questLocks && might <= ps) notices = false;
             // A quest wave was summoned to fight *you*, and it is deliberately smaller than
             // your army — so the generic "a weak band runs" rule below sent it fleeing from
             // the very fight the quest promises, and Hasat Nöbeti became a chase (#94).

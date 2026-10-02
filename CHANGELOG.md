@@ -3,6 +3,15 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.6.2 — İz (2026-10-02)
+
+- **Görevin aradığı çete artık senden kaçmıyor.** Rehin Tüccar, Kaçak Birlik ve Zincirdeki
+  Kardeş'in çetesi büyük ordunu sen onu görmeden sezip kaçıyordu. İşareti izleyen çoğu zaman
+  20 günün 12–16'sını harcıyor, bazen hiç bulamıyordu. Artık çete kendi işine bakıyor; işareti
+  izleyen bir iki günde yetişiyor.
+- **Bu görevler artık bir kurt sürüsünü hedef göstermiyor.** Sürü yaya bir ordudan hızlı, üstelik
+  rehin tutmaz: hedef hep bir insan çetesi.
+
 ## 2.6.1 — Kıvılcım (2026-10-02)
 
 - **Bileme taşının gerçek sesleri.** Taşın kolu dönerken gıcırdar, bıçak taşa değdiği an sürtünür
