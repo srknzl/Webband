@@ -1211,6 +1211,59 @@ lite mode skips the glows, casts 14 cone rays instead of 22 and caps the canvas 
   Before the quarter-res dark layer and the lite density cap: 8.3–8.9 ms desktop, 13.6–18.1 ms
   phone.
 
+## Smithing (2.5.0)
+
+`forge.js` (`Forge`): the **🔨 Demirhane** card (every city not at war with you, and your own
+castles) opens the recipe window (`Forge.open`); a piece pays its iron, coal and rent up front and
+opens the forge scene (`#forge-view`). Phase 1 of `docs/PLAN-smithing.md`: existing tiers only.
+The mechanics follow Kingdom Come: Deliverance II — the heat is read from the glow, never a number.
+
+**Recipes** (`Forge.RECIPES`): four weapon families of four tiers (sword, axe, mace, lance) and six
+armour pieces. Demircilik 1/3/5/7 opens tiers 1–4 (every skill starts at 1; the "Demirciydi"
+background gives +2, so tier 2 from day one). Cost: iron `max(1, round(price × 0.5 / 150))`, coal
+`2 + 1.5 × iron`, `2 + 2 × tier` hours, rent `10 + 10 × tier` in a town and none at your own fief,
+where the storage counts as well as the bag. A tier-1 mace or lance is little more than its one bar
+of iron (training work); from tier 2 the iron is at most 60 % of the piece. Giving up returns the
+iron and half the hours pass; the coal and the rent are spent.
+
+**The bar** is 24 segments, tang to tip, each with a heat `T` and the work left `w` (1 raw, 0 on
+the outline, below 0 overworked — thinned for good). The outline's thickness per segment comes from
+the shape (`blade`, `axe`, `mace`, `spear`, `plate`); `w0` (how many blows a segment takes) grows
+with its distance from the billet and by 15 % a tier.
+
+- **Hearth.** Bellows drive it to 1450 °C (rate 0.35/s), left alone it settles at 820 °C (0.2/s).
+  Segments take its heat at 0.2/s × 0.6 (tang) … 1.6 (tip): the tip glows first. Above 1300 °C for
+  0.8 s a segment burns (a flaw; marked on the bar).
+- **Anvil.** Cooling 0.03/s plus up to 0.04 for a finished segment and 0.03 at the tip, 30 % slower
+  for a smith 6 levels above the recipe. A blow takes `0.40 × power × eff(T) × gauss(σ 0.85) / w0`;
+  `eff` is 0 below 600 °C and 1 from 950 °C; holding the press charges power 0.35 → 1 over 0.7 s.
+  A blow of power > 0.3 on metal under 650 °C is a cold strike (a flaw). Each blow chills 8 °C.
+- **Quench** opens once every segment is within `0.10 − 0.012 × tier` of its outline. Score:
+  `S = 0.55 shape + 0.30 quench + 0.15 care`; shape = `1 − 3 × mean error` (overwork counts 1.8×),
+  quench = share of segments in 760–900 °C less a penalty for a spread over 200 °C, care loses
+  0.06 a cold strike, 0.08 a burnt segment, 0.03 for each heat past `3 + tier`. The pass mark is
+  `0.62 + 0.04 × tier − 0.05 × ease`; from 0.40 the piece comes out a tier lower (weapons only);
+  below that it cracks and half the iron is saved. Every outcome trains Demircilik
+  (`(40 + 40 × tier) × (0.4 + S)` before the focus multiplier) and strength.
+
+**The scene.** A 180-tall pixel buffer (width 180–360 by the screen's shape) scaled up whole: the
+hearth with its bellows and coals, the anvil, the quench tub. The heat colour is a blackbody ramp
+(`heatRGB`, cached per 10 °C). Controls: hold Space / the Körük button / the canvas to pump; E or
+the button moves the bar between hearth and anvil; on the anvil the pointer (or ←/→) aims and a
+press-hold-release strikes; Q quenches; Esc pauses. The how-to shows on the first visit
+(`localStorage webband_forge_help`). Sound is synthesized behind `Snd.strike/quench/tick` — a dull
+thud on hot metal, the anvil's ring coming through as it cools, the hearth's roar under the
+bellows — until recorded CC0 samples take those calls over. No music plays in the forge.
+
+**Loop and cost.** Its own rAF loop (`Game.skipFrame` gate, double-start safe); the map loop stops
+while `Forge.active` (`Game.inScene`). Leaving redraws the town, then the hours pass there.
+
+- Measured (`tools/test.js`, the scripted careful smith): every recipe forged at its own tier,
+  S 0.82–0.95, 36–56 s of game time, 3–5 heats, no flaw. The careless smith (full blows anywhere,
+  reheating only when the bar is dark) cracks every piece tried (S 0.14–0.30).
+- Measured (2.5.0, `Forge._bench`, 1024×768 at 2× on an M-series Mac): update < 0.01 ms per frame;
+  render 0.12 ms at the hearth, 0.07 ms at the anvil.
+
 ## Audio layer
 Two independent systems. **Transaction SFX** are still synthesized (WebAudio oscillator
 envelopes, `Game.SFX`, no files). **Music** is 21 recorded CC0 tracks (10 map / 3 fight / 3 lair

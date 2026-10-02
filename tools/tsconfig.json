@@ -15,6 +15,6 @@
     "globals.d.ts",
     "../i18n.js", "../lang-en.js", "../lang-id.js",
     "../app.js", "../battle.js", "../battle-gl.js", "../map-gl.js", "../map-art.js",
-    "../nobles.js", "../quests.js", "../lair.js"
+    "../nobles.js", "../quests.js", "../lair.js", "../forge.js"
   ]
 }

@@ -747,7 +747,7 @@ const MapArt = (() => {
         night: ['#0a0f26', '#121937', '#1b2349', '#26305a']
     };
     const SCENE_KIND = {
-        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'house', '🏭': 'shop', '📦': 'barn',
+        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'house', '🏭': 'shop', '🔨': 'shop', '📦': 'barn',
         '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔': 'tent', '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate', '⏳': 'fire'
     };
     const BUILD = new Map(), BASES = new Map(), ICONS = {};
