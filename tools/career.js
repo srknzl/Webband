@@ -90,7 +90,7 @@ function run(seed, lang, days = DAYS, onDay) {
             const st = state.player.stats;
             while(st.attributePoints > 0) Game.addStat(pick(['str', 'agi', 'int', 'cha', 'vit']));
             while((st.focusPoints || 0) > 0) Game.addFocus(pick(Object.keys(state.player.proficiencies)));
-            const open = g.PERKS.filter(pk => !Game.perkBlock(pk.id));
+            const open = g.PERKS.flatMap(br => br.tiers.flat()).filter(pk => !Game.perkBlock(pk.id));   // PERKS lists branches; the perks sit in their tiers
             if(open.length) Game.takePerk(pick(open).id);
         },
         gear() {
