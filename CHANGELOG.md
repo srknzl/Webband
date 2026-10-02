@@ -32,6 +32,7 @@ başlangıç ekranının sağ alt köşesinde yazar.
   bakıyordu; oysa seviye savaşta güç vermiyor. 22 köylüyle 8 çavuşa "Kolay" diyordu ve herkes
   ölüyordu. Artık iki tarafın gerçek canını, saldırısını, zırhını ve hasar türünü hesaplıyor; o savaş
   artık **Çetin** görünüyor.
+- **Savaşta düşman kim, bir bakışta belli:** her düşmanın kafasının üstünde küçük kırmızı bir nokta var.
 
 ## 2.7.0 — Damar (2026-10-02)
 

@@ -216,7 +216,7 @@ const BattleGL = {
             }),
             flash: new GLPool(L.flash, S()),
             bows: new GLPool(L.weapons, S(0, 0.5)), swords: new GLPool(L.weapons, S(0, 0.5)),
-            barBg: new GLPool(L.bars, S(0, 0)),
+            barBg: new GLPool(L.bars, S(0, 0)), foeDots: new GLPool(L.bars, S()),
             barFg: new GLPool(L.bars, () => new PIXI.NineSliceSprite({ texture: PIXI.Texture.WHITE })),
             barHi: new GLPool(L.bars, () => new PIXI.Sprite(PIXI.Texture.WHITE)),
             arrows: new GLPool(L.arrows, S()), sparks: new GLPool(L.sparks, () => { let s = new PIXI.Sprite(PIXI.Texture.WHITE); s.anchor.set(1, 0.5); return s; }),
@@ -339,6 +339,11 @@ const BattleGL = {
         });
         // Health bar: the dark back is always the same size; the fill is a nine-slice pill
         mk('barBg', 28, 5, 0, 0, x => { x.fillStyle = 'rgba(0,0,0,0.65)'; Battle.roundRect(x, 0, 0, 28, 5, 2.5); x.fill(); });
+        // The enemy marker over a foe's head (canvasGfx draws the same disc)
+        mk('foeDot', 8, 8, 0.5, 0.5, x => {
+            x.beginPath(); x.arc(4, 4, 2.6, 0, Math.PI * 2); x.fillStyle = '#ff3b30'; x.fill();
+            x.strokeStyle = 'rgba(0,0,0,0.7)'; x.lineWidth = 1; x.stroke();
+        });
         mk('pill', 6, 3, 0, 0, x => { x.fillStyle = '#fff'; Battle.roundRect(x, 0, 0, 6, 3, 1.5); x.fill(); });
         // The boiling-oil glow at a used breach (#118): alpha carries the pulse
         mk('oil', 92, 92, 0.5, 0.5, x => {
@@ -351,7 +356,7 @@ const BattleGL = {
         this.pulse.texture = sh.pulse.tex;
         const P = this.P;
         P.shadows.use(sh.shadow); P.stains.use(sh.c4); P.dust.use(sh.c4); P.flash.use(sh.c16);
-        P.bows.use(sh.bow); P.swords.use(sh.sword); P.barBg.use(sh.barBg);
+        P.bows.use(sh.bow); P.swords.use(sh.sword); P.barBg.use(sh.barBg); P.foeDots.use(sh.foeDot);
         // Nine-slice borders are in texture pixels, so the fill pills are rebuilt per scale
         P.barFg.make = () => new PIXI.NineSliceSprite({ texture: sh.pill.tex, leftWidth: 1.5 * S, rightWidth: 1.5 * S, topHeight: 0, bottomHeight: 0 });
         P.barFg.items.forEach(s => s.destroy());
@@ -583,6 +588,7 @@ const BattleGL = {
             }
             s = P.barHi.next(); s.position.set(u.x - bw/2, by); s.width = fw; s.height = 1; s.alpha = 0.25;
         }
+        if(!u.isPlayerTeam) { s = P.foeDots.next(); s.position.set(u.x, u.y - b.FOE_DOT_Y - hop); s.scale.set(inv); }
     },
 
     // Screen-space HUD: the same pieces drawHud draws, from the same Battle helpers.

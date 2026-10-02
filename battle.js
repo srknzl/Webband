@@ -2923,7 +2923,14 @@ const Battle = {
             ctx.fillStyle = 'rgba(255,255,255,0.25)';
             ctx.fillRect(u.x - bw/2, by, bw * r, 1);
         }
+        // Who's the enemy, at a glance: a small red dot over every foe's head, above the bar's slot
+        if(!u.isPlayerTeam) {
+            ctx.beginPath(); ctx.arc(u.x, u.y - this.FOE_DOT_Y - hop, 2.6, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff3b30'; ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1; ctx.stroke();
+        }
     },
+    FOE_DOT_Y: 26,   // the enemy marker's height over the feet (the health bar sits at 20)
 
     // Where the HUD sits (#65, #86): on a touch device the bottom half belongs to the sticks
     // and the log, so the command strip and status line move under the power bar instead.
