@@ -785,6 +785,7 @@ const Battle = {
     // band's weighted roster and its leader, a kingdom's troop pool); start() still rolls each unit.
     playerMix() {
         let g = this.heroGear(), mult = Math.max(0.7, Game.moraleMult());
+        /** @type {Array<Record<string, any>>} the hero, then each troop: one row shape for both */
         let rows = [{ n: 1, hp: state.player.stats.hp * (g.mounted ? 1.33 : 1), attack: 10 + Game.attr('str') + g.weaponAtk,
                       defense: g.armorDef, dmgType: this.playerDmgType(), gearArmor: true, isPlayerTeam: true,
                       type: g.mounted ? 'cavalry' : 'infantry', mounted: g.mounted, id: 'player' }];
