@@ -95,8 +95,8 @@ test('the smithy shows what a piece needs and locks the tiers above your skill',
     await page.evaluate(() => { Game.setOpt('muted', true); state.player.inventory = state.player.inventory.filter(i => i.id !== 'iron'); });
     await enter(page, await quietCity(page));
     await (await actionBtn(page, '🔨 Demirhane')).click();
-    // no iron: nothing can be forged, and the royal sword asks for more skill
-    await expect(modal(page).locator('.fs-row button:not([disabled])')).toHaveCount(0);
+    // no iron: nothing can be forged (the grindstone needs none), and the royal sword asks for more skill
+    await expect(modal(page).locator('.fs-row button:not([disabled]):not([onclick^="Forge.grind"])')).toHaveCount(0);
     const royal = modal(page).locator('.fs-row.locked', { hasText: await L(page, 'Kraliyet Kılıcı') });
     await expect(royal).toContainText(await L(page, 'Demircilik {0} gerekir', 7));
     await modal(page).locator('.lb-help').click();
@@ -111,7 +111,7 @@ test('the start screen opens a practice forge: every piece, nothing taken or giv
     const bag = await page.evaluate(() => JSON.stringify(state.player.inventory));
     await page.locator('.start-act', { hasText: await L(page, 'Demircilik') }).click();
     // every piece is open, the royal sword included, at no cost
-    await expect(modal(page).locator('.fs-row button:not([disabled])')).toHaveCount(await page.evaluate(() => Forge.RECIPES.filter(r => ITEMS[r.id]).length));
+    await expect(modal(page).locator('.fs-row button:not([disabled]):not([onclick*="grind"])')).toHaveCount(await page.evaluate(() => Forge.RECIPES.filter(r => ITEMS[r.id]).length));
     await modal(page).locator(`[onclick="Forge.practice('sword_royal')"]`).click();
     await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
     await expect(page.locator('#start-screen')).not.toHaveClass(/\bactive\b/);
@@ -134,4 +134,76 @@ test('the start screen opens a practice forge: every piece, nothing taken or giv
     await expect(page.locator('#main-ui')).not.toHaveClass(/\bactive\b/);
     expect(await page.evaluate(() => ({ active: Forge.active, loop: !!Game._loopId, bag: JSON.stringify(state.player.inventory) })))
         .toEqual({ active: false, loop: false, bag });
+});
+
+/** Sweeps the blade along the stone: press on the canvas and drag side to side for `ms`. */
+async function sweep(page, ms) {
+    const box = await page.locator('#forge-canvas').boundingBox();
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    await page.mouse.move(x, y); await page.mouse.down();
+    for(let t = 0; t < ms; t += 50) { await page.mouse.move(x + Math.sin(t / 300) * 100, y); await page.waitForTimeout(50); }
+    await page.mouse.up();
+}
+
+test('the grindstone sharpens the weapon in hand: the edge shows on it and adds to its blows', async ({ page }) => {
+    await newGame(page);
+    await page.evaluate(() => {
+        Game.setOpt('muted', true);
+        state.player.equipment.weapon = { ...ITEMS.sword, qty: 1 };
+        state.player.money = 100;
+    });
+    const city = await quietCity(page);
+    await enter(page, city);
+    await (await actionBtn(page, '🔨 Demirhane')).click();
+    await modal(page).locator('[onclick^="Forge.grind"]').click();
+    await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
+    // the first time at the stone, its own how-to
+    await expect(page.locator('#forge-over h2')).toHaveText(await L(page, '❔ Nasıl bilenir?'));
+    await page.locator('#forge-over button').click();
+    const hour = await page.evaluate(() => state.time.day * 24 + state.time.hour);
+    // the blade on the stone at the right angle, kept moving: the edge comes up
+    const keen = () => page.evaluate(() => Forge._model.grindScore(Forge.run()).mean);
+    const dull = await keen();
+    await page.evaluate(() => { Forge.run().a = Forge.GRIND.A0; });
+    await sweep(page, 2500);
+    expect(await keen()).toBeGreaterThan(dull + .05);
+    // the rest of the edge as a good grinder leaves it (a full sharpening is the model test's job)
+    await page.evaluate(() => { const g = Forge.run(); g.segs.forEach(sg => { sg.k = .9; sg.h = 0; sg.burned = false; }); g.burns = 0; });
+    await page.locator('#forge-quench').click();
+    await expect(page.locator('#forge-over .lres')).toBeVisible();
+    const s = await page.evaluate(() => ({ sharp: state.player.sharp, edge: Game.edge(), money: state.player.money }));
+    expect(s.sharp).toMatchObject({ id: 'sword', left: 3, n: 3 });
+    expect(s.edge).toBeGreaterThan(0);
+    expect(s.money).toBe(100 - await page.evaluate(() => Forge.GRIND.RENT));
+    await page.locator('#forge-over button').click();
+    await expect(page.locator('#settlement-view')).toHaveClass(/\bactive\b/);
+    expect(await page.evaluate(() => state.time.day * 24 + state.time.hour)).toBeGreaterThan(hour);
+    // the edge is on the weapon's slot
+    await page.evaluate(() => Game.showScreen('inventory'));
+    await expect(page.locator('.equip-slot[data-slot="weapon"] .eq-edge')).toBeVisible();
+});
+
+test('the stone needs an edged weapon in hand; practice sharpens without one', async ({ page }) => {
+    await newGame(page);
+    await page.evaluate(() => { Game.setOpt('muted', true); state.player.equipment.weapon = { ...ITEMS.mace, qty: 1 }; });
+    await enter(page, await quietCity(page));
+    await (await actionBtn(page, '🔨 Demirhane')).click();
+    const row = modal(page).locator('.fs-row', { has: page.locator('[onclick^="Forge.grind"]') });
+    await expect(row.locator('button')).toBeDisabled();
+    await expect(row).toContainText(await L(page, 'Kılıç, balta ya da mızrak kuşan'));
+});
+
+test('practice at the stone from the start screen: nothing is kept', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => Game.setOpt('muted', true));
+    await page.locator('.start-act', { hasText: await L(page, 'Demircilik') }).click();
+    await modal(page).locator(`[onclick="Forge.practice('axe', 'grind')"]`).click();
+    await expect(page.locator('#forge-over h2')).toHaveText(await L(page, '❔ Nasıl bilenir?'));
+    await page.locator('#forge-over button').click();
+    await sweep(page, 1000);
+    await page.locator('#forge-quench').click();
+    await expect(page.locator('#forge-over .lres')).toBeVisible();
+    await page.locator('#forge-over').getByText(await L(page, 'Ana menü')).click();
+    await expect(page.locator('#start-screen')).toHaveClass(/\bactive\b/);
+    expect(await page.evaluate(() => state.player.sharp || null)).toBeNull();
 });

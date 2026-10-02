@@ -25,7 +25,7 @@ after changing it, update the "Measured" lines.
 | `nobles.js` | `LORDS`/`LADIES`/`COMPANIONS` + `Nobles`, `Feast` |
 | `quests.js` | `QUESTS` + the `Quests` quest engine |
 | `lair.js` | `Lair` — bandit lairs you walk into (2.2.0): the scouting card, the real-time stealth levels, their sound and tour; Canvas2D on `#lair-canvas`, props in `lair/` |
-| `forge.js` | `Forge` — smithing (2.5.0): the 🔨 Demirhane recipe window and the forge scene (hearth, anvil, quench) on `#forge-canvas`, its model; its recorded sounds in `forge/` |
+| `forge.js` | `Forge` — smithing (2.5.0): the 🔨 Demirhane recipe window, the forge scene (hearth, anvil, quench) and the grindstone on `#forge-canvas`, its model; its recorded sounds in `forge/` |
 | `i18n.js` | `I18N` + global `T` |
 | `lang-en.js` / `lang-id.js` | Generated dictionaries — never hand-edited |
 | `style.css` | Glass panel theme, CSS variables |

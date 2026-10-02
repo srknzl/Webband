@@ -160,6 +160,64 @@ function outcome(g, r, S) {
     return { kind: 'ruin', id: null };
 }
 
+// ---------- the grindstone ----------
+// Sharpening (phase 2): a temporary edge on the weapon in hand, read from the sparks. The edge is
+// the outline's working part — a blade past its tang, an axe's bit, a spear's head — and each of
+// its segments has a keenness `k` (0 dull, 1 keen) and a heat `h`. Holding the blade on the
+// turning stone works the segments round the contact point `u`; the angle `a` decides how well:
+// near A0 it keens, off it barely bites, far off it rounds the edge back down. Contact heats the
+// steel faster than it cools, so a blade held still runs its temper (h reaches 1: a blue mark that
+// never takes a full edge again) and a blade kept moving doesn't. The score is the edge's mean and
+// its worst spot; it becomes a damage bonus that dulls over the next few battles (Game.edge).
+const GM = {
+    A0: 20, AW: 9,      // the angle that keens (degrees) and how far off it still bites
+    K: 1.4,             // how fast the stone keens the segment under it, at the right angle (1/s)
+    H_UP: 1.4,          // heat from contact (1/s; ×1.5 at a steep angle); held still it runs in under a second
+    H_COOL: 0.8,        // ...and the steel cools all the while (1/s)
+    SIGMA: 0.8,         // how wide the contact is (segments)
+    BURN_CAP: 0.5,      // the best a segment whose temper ran can still take
+    MAX: 20,            // % damage for a perfect edge
+    BATTLES: 3,         // battles until it's dull again
+    RENT: 5, HOURS: 1   // a town smithy's stone, by the job
+};
+const EDGE = { blade: 3, axe: 14, spear: 13 };   // the first segment of the edge, by shape
+// an edged weapon in hand: swords, axes, spears and daggers, not maces or bows
+const sharpenable = it => !!it && it.type === 'weapon' && it.weaponType !== 'bow' && (it.dmgType === 'cut' || it.dmgType === 'pierce');
+function shapeOf(it) {
+    const r = recipe(it.id);
+    return r ? r.shape : it.weaponType === 'twoHanded' ? 'axe' : it.weaponType === 'polearm' ? 'spear' : 'blade';
+}
+function newEdge(shape, lvl) {
+    const e0 = EDGE[shape] || EDGE.blade, segs = [];
+    // the edge comes in dull and nicked, unevenly
+    for(let i = 0; i < M.N; i++) segs.push({ t: SHAPES[shape](i), k: i < e0 ? 1 : .1 + .25 * hashRand(i * 7 + 3), h: 0, burned: false });
+    return { segs, e0, u: (e0 + M.N - 1) / 2, a: 32, burns: 0, ease: clamp((lvl - 1) / 6, 0, 1) };
+}
+// how well the angle bites: 1 at A0, 0 at A0 ± AW, negative (rounding the edge) beyond
+const matchOf = a => clamp(1 - ((a - GM.A0) / GM.AW) ** 2, -1, 1);
+// returns the segments whose temper ran this step
+function stepGrind(g, dt, on) {
+    const m = matchOf(g.a), steep = Math.max(0, (g.a - GM.A0) / GM.AW), burnt = [];
+    for(let i = g.e0; i < M.N; i++) {
+        const s = g.segs[i], c = on ? Math.exp(-((i - g.u) ** 2) / (2 * GM.SIGMA * GM.SIGMA)) : 0;
+        if(c > .02) {
+            const cap = s.burned ? GM.BURN_CAP : 1;
+            if(m > 0) s.k += Math.max(0, cap - s.k) * (1 - Math.exp(-GM.K * m * c * dt));
+            else s.k = Math.max(0, s.k + GM.K * .4 * m * c * dt);
+            s.h += GM.H_UP * c * (1 + .5 * Math.min(1, steep)) * (1 - .3 * g.ease) * dt;
+            if(!s.burned && s.h >= 1) { s.burned = true; s.k = Math.min(s.k, GM.BURN_CAP); g.burns++; burnt.push(i); }
+        }
+        s.h *= Math.exp(-GM.H_COOL * dt);
+    }
+    return burnt;
+}
+function grindScore(g) {
+    const ks = g.segs.slice(g.e0).map(s => Math.min(1, s.k));
+    const mean = ks.reduce((a, k) => a + k, 0) / ks.length, lo = Math.min(...ks);
+    const Q = clamp(.65 * mean + .35 * lo - .06 * g.burns, 0, 1);
+    return { mean, lo, Q, pct: Math.round(GM.MAX * Q) };
+}
+
 // ---------- the glow ----------
 // Steel's colour by its heat, the way a smith reads it: dark red, cherry, orange, yellow, white.
 // Below the glow it's grey steel; a cache keyed by 10 °C keeps it off the frame's hot path.
@@ -187,7 +245,7 @@ let G = null, R = null;   // the run (bar + scene) and its settings (recipe, pla
 let canvas = null, ctx = null, buf = null, b = null;
 let W = 320, H = 180, DPR = 1, S = 1, LY = null;
 let loopId = null, last = 0, paused = false, built = false;
-let pumpHeld = false, pressed = null, keyAim = 0;
+let pumpHeld = false, pressed = null, keyAim = 0, keyTilt = 0, drag = null;
 const TXT = new Map();
 function setText(id, t) { if(TXT.get(id) !== t) { TXT.set(id, t); const e = el(id); if(e) e.textContent = t; } }
 function setHtml(id, t) { if(TXT.get(id) !== t) { TXT.set(id, t); const e = el(id); if(e) e.innerHTML = t; } }
@@ -197,7 +255,7 @@ function say(t, secs) { G.msg = t; G.msgT = secs || 2.4; }
 // Recorded takes (forge/CREDITS.md), picked by ear. A hammer blow mixes two of them by the bar's
 // heat — a dull thud on hot metal, the long ring of cold steel — so you hear the bar going cold.
 // The open hearth is a looped fire that the heat turns up, the bellows breathe once a stroke and
-// the bar boils in the trough. Only the tongs' clank is synthesized. The files are fetched and
+// the bar boils in the trough. The tongs' clank and the grindstone's hiss are synthesized. The files are fetched and
 // decoded on the first visit (the worker keeps them offline); until then those sounds are silent.
 // Same mute and volume as every other sound.
 const SFX = ['hit-hot', 'hit-cold', 'quench', 'fire', 'bellows'], BUF = {};
@@ -217,9 +275,13 @@ const Snd = {
         const ac = Game.ac(); if(!ac) return;
         try {
             const out = this.out = ac.createGain(); out.gain.value = Math.min(1, Game.opt('volume') * 1.6); out.connect(ac.destination);
-            const len = ac.sampleRate >> 2, buf = this.noise = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+            const len = ac.sampleRate, buf = this.noise = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
             for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
             this.fireG = ac.createGain(); this.fireG.gain.value = 0; this.fireG.connect(out);
+            // the grindstone: noise through a band that rises with a good angle, faded in while the blade is on
+            const gs = ac.createBufferSource(), gf = this.gritF = ac.createBiquadFilter(), gg = this.gritG = ac.createGain();
+            gs.buffer = this.noise; gs.loop = true; gf.type = 'bandpass'; gf.Q.value = 1.4; gf.frequency.value = 2500; gg.gain.value = 0;
+            gs.connect(gf); gf.connect(gg); gg.connect(out); gs.start(); this.gritS = gs;
             this.breathT = 0;
             loadSfx(ac); this.fireOn();
         } catch(e) { this.stop(); }
@@ -234,8 +296,8 @@ const Snd = {
         s.connect(this.fireG); s.start(0, t0);
     },
     stop() {
-        try { if(this.fire) this.fire.stop(); } catch(e) {}
-        this.fire = null; this.fireG = null; this.breath = null;
+        for(const k of ['fire', 'gritS']) { try { if(this[k]) this[k].stop(); } catch(e) {} this[k] = null; }
+        this.fireG = null; this.breath = null; this.gritG = null; this.gritF = null;
         if(this.out) { try { this.out.disconnect(); } catch(e) {} }
         this.out = null;
     },
@@ -267,9 +329,13 @@ const Snd = {
         } catch(e) {}
     },
     quench() { this.play('quench', .9); },
-    tick(dt, F, pump) {
+    tick(dt, F, pump, grind) {
         const ac = Game.ac(); if(!ac || !this.out) return;
         const t = ac.currentTime;
+        if(this.gritG) {
+            this.gritG.gain.setTargetAtTime(grind == null ? 0 : .12 + .1 * Math.max(0, grind), t, .04);
+            if(grind != null) this.gritF.frequency.setTargetAtTime(1600 + 2600 * Math.max(0, grind), t, .05);
+        }
         if(this.fireG) this.fireG.gain.setTargetAtTime(.25 + .55 * heat01(F), t, .3);
         // a breath every stroke while the bellows are worked; letting go cuts the breath short
         this.breathT -= dt;
@@ -404,12 +470,21 @@ function puff(kind, x, y, n) {
         else if(kind === 'steam') FX.push({ kind, x, y, vx: rnd(-10, 10), vy: rnd(-34, -14), life: rnd(1, 2), max: 2, r: rnd(2, 4) });
     }
 }
+// Sparks off the grindstone, thrown along the stone's turn: how they fly is the angle's tell. At
+// the right angle a long bright shower; too steep, short red spits; too shallow, a few faint ones.
+function grit(x, y, m, steep) {
+    if(FX.length > 260) FX.shift();
+    const good = m > .5, len = good ? 1 : steep ? .45 : .8;
+    FX.push({ kind: 'grit', x, y, vx: rnd(50, 150) * len, vy: rnd(-25, 35) * len, life: rnd(.2, .55) * len, max: .55,
+              col: good ? (Math.random() < .5 ? '#fff0a8' : '#ffa53a') : steep ? '#ff5a24' : '#b8783c' });
+}
 function stepFx(dt) {
     for(let i = FX.length - 1; i >= 0; i--) {
         const p = FX[i];
         p.life -= dt; if(p.life <= 0) { FX.splice(i, 1); continue; }
         p.x += p.vx * dt; p.y += p.vy * dt;
         if(p.kind === 'spark' || p.kind === 'scale') p.vy += 260 * dt;
+        else if(p.kind === 'grit') p.vy += 180 * dt;
         if(p.kind === 'steam') p.r += 4 * dt;
     }
 }
@@ -417,6 +492,7 @@ function drawFx() {
     for(const p of FX) {
         const a = p.life / p.max;
         if(p.kind === 'spark') { b.fillStyle = a > .5 ? '#fff2b0' : '#ff9a30'; b.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+        else if(p.kind === 'grit') { b.fillStyle = p.col; b.fillRect(Math.round(p.x), Math.round(p.y), a > .4 ? 2 : 1, 1); }
         else if(p.kind === 'scale') { b.fillStyle = '#2a2420'; b.fillRect(Math.round(p.x), Math.round(p.y), 2, 1); }
         else if(p.kind === 'ember') { b.fillStyle = a > .5 ? '#ffb040' : '#c04018'; b.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
         else { b.globalAlpha = a * .45; b.fillStyle = '#d8dde0'; const r = Math.round(p.r); b.fillRect(Math.round(p.x) - r, Math.round(p.y) - r, r * 2, r * 2); b.globalAlpha = 1; }
@@ -486,11 +562,75 @@ function drawQuench() {
     b.fillStyle = '#2f4650'; b.fillRect(Math.round(W * .12) + 3, sy + 124, Math.round(W * .76) - 6, 1);
     drawFx();
 }
+const STONE_R = 30;
+function grindBg() {
+    return bake('grind', W, H, x => {
+        wall(x);
+        const { cx, sy } = LY, gy = sy + 136;
+        // the trough under the stone and the frame's two legs
+        x.fillStyle = '#3b2617'; x.fillRect(cx - 40, gy + 6, 80, 18);
+        x.fillStyle = '#4c3220'; for(let y = gy + 8; y < gy + 24; y += 5) x.fillRect(cx - 40, y, 80, 1);
+        x.fillStyle = '#1b2a30'; x.fillRect(cx - 37, gy + 8, 74, 4);
+        x.fillStyle = '#4a3220'; x.fillRect(cx - 46, gy - 6, 5, LY.floorY - gy + 6); x.fillRect(cx + 41, gy - 6, 5, LY.floorY - gy + 6);
+        x.fillStyle = '#5a5a5e'; x.fillRect(cx - 46, gy - 2, 92, 3);
+        // the stone (only its flecks turn, drawn each frame)
+        disc(x, cx, gy, STONE_R + 1, '#57534c'); disc(x, cx, gy, STONE_R - 1, '#7a756c'); disc(x, cx, gy, STONE_R - 9, '#736e65');
+        // the hearth's light from off to the left
+        x.globalCompositeOperation = 'lighter';
+        x.globalAlpha = .3; x.drawImage(glowSprite(255, 120, 40), -90, sy + 20, 200, 200); x.globalAlpha = 1;
+        x.globalCompositeOperation = 'source-over';
+    });
+}
+// the edge's keenness as a colour: dull grey to bright steel; a run temper is blue
+function edgeRGB(sg) {
+    if(sg.burned) return '#4a6cb0';
+    const v = Math.round(lerp(70, 245, clamp(sg.k, 0, 1)));
+    return `rgb(${v},${v + 4},${Math.min(255, v + 10)})`;
+}
+// a filled circle in whole pixels, row by row, so it stays as crisp as the rest of the scene
+function disc(c, x, y, r, col) {
+    c.fillStyle = col;
+    for(let dy = -r; dy <= r; dy++) { const h = Math.round(Math.sqrt(r * r - dy * dy)); c.fillRect(x - h, y + dy, h * 2 + 1, 1); }
+}
+function drawGrind(t) {
+    b.drawImage(grindBg(), 0, 0);
+    const { cx, sy, segW } = LY, gy = sy + 136, r = STONE_R, top = gy - r;
+    // the stone, turning
+    b.fillStyle = '#6a655d';
+    for(let k = 0; k < 6; k++) { const a = G.t * (G.grinding ? 7 : 4) + k * Math.PI / 3; b.fillRect(Math.round(cx + Math.cos(a) * (r - 7)) - 1, Math.round(gy + Math.sin(a) * (r - 7)) - 1, 3, 3); }
+    b.fillStyle = '#3c3d42'; b.fillRect(cx - 3, gy - 3, 6, 6);
+    // the blade laid along the stone, the contact segment over its top; it slides as you move it
+    const lift = G.grinding ? 0 : 2;
+    G.segs.forEach((sg, i) => {
+        const x = Math.round(cx + (i - G.u - .5) * segW), hp = Math.max(2, Math.round(sg.t * LY.hScale));
+        if(x + segW < 0 || x > W) return;
+        const ey = top - lift;
+        if(i < G.e0 && R.recipe.shape === 'blade') { b.fillStyle = '#5b3a1e'; b.fillRect(x, ey - hp, segW, hp); return; }   // the grip
+        b.fillStyle = '#8d939b'; b.fillRect(x, ey - hp, segW, hp);
+        b.fillStyle = '#b4bac2'; b.fillRect(x, ey - hp, segW, 1);
+        if(i >= G.e0) {
+            // heat creeping in shows as a straw then bronze tint above the edge — the warning
+            if(sg.h > .45 && !sg.burned) { b.fillStyle = sg.h > .75 ? '#a0562c' : '#c8a050'; b.fillRect(x, ey - 4, segW, 2); }
+            b.fillStyle = edgeRGB(sg); b.fillRect(x, ey - 2, segW, 2);
+        }
+    });
+    // the angle the blade meets the stone at, drawn small beside it
+    const ax = cx + r + 22, ay = sy + 84, ar = G.a * Math.PI / 180;
+    b.fillStyle = '#57534c'; b.fillRect(ax - 12, ay, 24, 2);
+    b.fillStyle = '#c9ced6';
+    for(let i = 0; i < 18; i++) b.fillRect(Math.round(ax - Math.cos(ar) * i), Math.round(ay - 1 - Math.sin(ar) * i), 1, 1);
+    if(G.grinding && !blocked()) {
+        const m = matchOf(G.a), n = m > .5 ? 3 : m > 0 ? 2 : 1;
+        for(let k = 0; k < n; k++) if(Math.random() < .85) grit(cx + 1, top, m, G.a > GM.A0);
+    }
+    drawFx();
+}
 function render() {
     if(!G || !ctx) return;
     const t = G.t;
     b.imageSmoothingEnabled = false;
-    if(G.phase === 'forge') drawForge(t);
+    if(G.phase === 'grind' || G.job === 'grind') drawGrind(t);
+    else if(G.phase === 'forge') drawForge(t);
     else if(G.phase === 'quench' || G.phase === 'done') drawQuench();
     else drawAnvil();
     ctx.imageSmoothingEnabled = false;
@@ -547,6 +687,12 @@ function update(dt) {
         hm.charge = pressed ? clamp((performance.now() - pressed.t0) / 700, 0, 1) : 0;
         const hot = G.segs.reduce((a, s) => Math.max(a, s.T), 0);
         if(hot < M.EFF_LO && !G.coldSaid) { G.coldSaid = true; say(T('Kızıllık gitti: demir soğudu, ocağa geri koy.'), 3.5); }
+    } else if(G.phase === 'grind') {
+        G.grinding = grindHeld();
+        if(keyAim) G.u = clamp(G.u + keyAim * dt * 6, G.e0, M.N - 1);
+        if(keyTilt) G.a = clamp(G.a + keyTilt * dt * 18, 0, 45);
+        const burnt = stepGrind(G, dt, G.grinding);
+        if(burnt.length) say(T('Tavı kaçtı! Çeliği bir yerde fazla tuttun; orası artık tam bilenmez.'), 3);
     } else if(G.phase === 'quench') {
         G.quenchT += dt;
         const k = 1 - Math.exp(-2.6 * dt);
@@ -555,8 +701,9 @@ function update(dt) {
         if(G.quenchT > 1.9) finish();
     }
     stepFx(dt);
-    Snd.tick(dt, G.F, pump);
+    Snd.tick(dt, G.F, pump, G.phase === 'grind' && G.grinding ? matchOf(G.a) : null);
 }
+function grindHeld() { return !!(pressed && pressed.grind) || !!Input.keys[' '] && !blocked(); }
 
 // ---------- actions ----------
 function toAnvil() {
@@ -586,6 +733,19 @@ function quench() {
     G.phase = 'quench'; G.quenchT = 0;
     Snd.quench();
     puff('steam', W / 2, LY.sy + 122, 18);
+}
+function act() { if(G && G.phase === 'grind') finishGrind(); else quench(); }
+function finishGrind() {
+    if(!G || G.result || G.phase !== 'grind') return;
+    const sc = grindScore(G), it = ITEMS[R.recipe.id], xp = R.practice ? 0 : Math.round(15 * (.4 + sc.Q));
+    if(!R.practice) {
+        state.player.sharp = sc.pct > 0 ? { id: it.id, pct: sc.pct, left: GM.BATTLES, n: GM.BATTLES } : null;
+        Game.addProficiencyXp('smithing', xp);
+    }
+    G.grinding = false; G.phase = 'done';
+    G.result = { grind: true, sc, xp };
+    paused = false;
+    showResult();
 }
 function finish() {
     const r = R.recipe, sc = G.score, out = outcome(G, r, sc.S);
@@ -632,6 +792,37 @@ function blockOf(loc, r) {
     return null;
 }
 
+// the grindstone in a town or your own fief: the weapon in hand, why it can't be sharpened now, or null
+const grindRent = loc => own(loc) ? 0 : GM.RENT;
+function grindBlock(loc) {
+    if(!sharpenable(state.player.equipment.weapon)) return T('Kılıç, balta ya da mızrak kuşan');
+    if(state.player.money < grindRent(loc)) return T('Taşın kirasına paran yetmiyor');
+    return null;
+}
+function grind(locId) {
+    const loc = LOCATIONS.find(l => l.id === locId), w = loc && state.player.equipment.weapon;
+    if(!loc) return;
+    const why = grindBlock(loc);
+    if(why) return alert(why);
+    const rent = grindRent(loc);
+    state.player.money -= rent;
+    Game.updateTopBar();
+    begin({ id: w.id, shape: shapeOf(w) }, { loc, job: 'grind', cost: { hours: GM.HOURS }, rent, own: own(loc) }, Game.profLvl('smithing'));
+    let seen = null; try { seen = localStorage.getItem(GRIND_KEY); } catch(e) {}
+    if(!seen) howto();
+}
+const GRIND_KEY = 'webband_grind_help';
+// the grindstone's row at the top of the smithy's window
+function grindRow(loc) {
+    const w = state.player.equipment.weapon, why = grindBlock(loc), rent = grindRent(loc), edge = Game.edge();
+    return `<h4 class="fs-fam">${T('Bileme taşı')}</h4><div class="fs-list"><div class="fs-row">
+        <span class="fs-ic">${w ? Game.itemIco(w) : '🪨'}</span>
+        <span class="fs-tx"><b>${w ? T(w.name) : T('Elinde silah yok')}</b><small>${edge ? T`Şu an keskin: +%${edge} hasar` : T`Bilenmiş ağız: en çok +%${GM.MAX} hasar`}${why ? ` · <em>${why}</em>` : ''}</small></span>
+        <span class="fs-cost"><span>⏳ ${T`${GM.HOURS} saat`}</span>${rent ? ` <span class="${state.player.money < rent ? 'fs-short' : ''}">💰 ${rent}</span>` : ''}</span>
+        <button class="btn${why ? '' : ' primary'}" ${why ? 'disabled' : ''} onclick="Forge.grind('${loc.id}')">${T('🪨 Bile')}</button>
+    </div></div>`;
+}
+
 // ---------- the recipe window ----------
 function open(loc) {
     if(!loc) return;
@@ -657,7 +848,7 @@ function open(loc) {
             <button class="btn lb-help" onclick="Forge.help('${loc.id}')" title="${T('Nasıl dövülür?')}" aria-label="${T('Nasıl dövülür?')}">?</button></div>
         <p class="lb-lead">${mine ? T('Kira yok; depodaki demir ve kömürü de kullanırsın.') : T('Ocağı iş başına kiralarsın. Demir ve kömür pazardan alınır.')}</p>
         <div class="lchips">${chip(T`Demircilik <b>${lvl}</b>`)}${chip(T`⛏️ Demir <b>${stock(loc, 'iron')}</b>`)}${chip(T`🪨 Kömür <b>${stock(loc, 'coal')}</b>`)}${chip(`💰 <b>${Math.floor(state.player.money)}</b>`)}</div>
-        ${rows}
+        ${grindRow(loc)}${rows}
         <div class="lb-foot"><button class="btn" onclick="Game.closeModal()">${T('Kapat')}</button></div>
     </div>`, '760px');
 }
@@ -668,6 +859,12 @@ const HELP = [
     ['🌡️ Yeniden ısıt', 'İnce yerler ve uç önce soğur. Kızıllık gidince ocağa geri koy; soğuk demire sert vurmak çatlatır. Her kızdırma başarısızlık değildir ama çok kızdırmak işçiliği düşürür.'],
     ['💧 Su ver', 'Şekil tutunca Su ver açılır. Demir baştan uca kiraz-turuncuyken daldır; bir yeri karardıysa ya da hâlâ sarıysa iş zayıf çıkar.'],
     ['🏅 Sonuç', 'Şekil, su verme ve ocak işçiliği birlikte puanlanır. İyi iş istediğin kademeyi verir; zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı kurtulur. Demircilik yükseldikçe demir daha yavaş soğur.']
+];
+const GRIND_HELP = [
+    ['🪨 Taşa bas', 'Bas ve basılı tut: bıçak dönen taşa değer. Sağa sola sürükle: bıçak taşın üstünde kayar, ağzın her yeri bilenir.'],
+    ['📐 Açıyı kıvılcımdan oku', 'Yukarı-aşağı sürükle: açı değişir. Kıvılcım bol, uzun ve parlaksa açı doğru. Kısa, kırmızı kıvılcım fazla dik; seyrek, sönük kıvılcım fazla yatık. Çok yanlış açı ağzı köreltir.'],
+    ['🔥 Bir yerde durma', 'Taş çeliği ısıtır. Ağzın üstü saman sarısına, sonra bronza döner: orayı bırak. Tavı kaçan yer maviye döner ve bir daha tam bilenmez.'],
+    ['⚔️ Sonuç', 'Ağzın tamamı ve en kör yeri puanlanır. Bilenmiş silah sonraki 3 savaşta daha sert vurur, her savaşta biraz körelir. Silahı değiştirirsen bileme o silahta kalır.']
 ];
 function help(locId) {
     const rows = HELP.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('');
@@ -689,15 +886,15 @@ function build() {
             <div class="lchips">
                 <span class="lchip" id="forge-item"></span>
                 <span class="lchip" id="forge-phase"></span>
-                <span class="lchip">${T('Kızdırma')} <b id="forge-heats">1</b></span>
-                <span class="lchip">${T('Şekil')} <b id="forge-shape">0</b></span>
+                <span class="lchip"><span id="forge-heats-l"></span> <b id="forge-heats">1</b></span>
+                <span class="lchip"><span id="forge-shape-l"></span> <b id="forge-shape">0</b></span>
             </div>
             <div id="forge-hint"></div>
             <div id="forge-legend">${legend}</div>
         </div>
         <button id="forge-pausebtn" translate="no" aria-label="${T('Duraklat')}" title="${T('Duraklat')}">II</button>
         <div id="forge-msg" hidden></div>
-        <div id="forge-keys"><kbd>${T('Boşluk')}</kbd> ${T('körük / vur')} · <kbd>←</kbd><kbd>→</kbd> ${T('çekiç')} · <kbd>E</kbd> ${T('ocak ↔ örs')} · <kbd>Q</kbd> ${T('su ver')} · <kbd>Esc</kbd> ${T('duraklat')}</div>
+        <div id="forge-keys"></div>
         <div id="forge-btns">
             <button class="fbtn" id="forge-pump">${T('Körük')}</button>
             <button class="fbtn" id="forge-move"></button>
@@ -709,11 +906,20 @@ function build() {
     bindInput();
 }
 function overlay(html) { const o = el('forge-over'); o.innerHTML = html ? `<div class="lpanel">${html}</div>` : ''; o.hidden = !html; }
-const PHASE = { forge: 'Ocak', anvil: 'Örs', quench: 'Su verme', done: 'Su verme' };
+const PHASE = { forge: 'Ocak', anvil: 'Örs', quench: 'Su verme', done: 'Su verme', grind: 'Bileme taşı' };
+function keysHelp() {
+    return R.job === 'grind'
+        ? `<kbd>${T('Boşluk')}</kbd> ${T('taşa bas')} · <kbd>←</kbd><kbd>→</kbd> ${T('kaydır')} · <kbd>↑</kbd><kbd>↓</kbd> ${T('açı')} · <kbd>Q</kbd> ${T('bitir')} · <kbd>Esc</kbd> ${T('duraklat')}`
+        : `<kbd>${T('Boşluk')}</kbd> ${T('körük / vur')} · <kbd>←</kbd><kbd>→</kbd> ${T('çekiç')} · <kbd>E</kbd> ${T('ocak ↔ örs')} · <kbd>Q</kbd> ${T('su ver')} · <kbd>Esc</kbd> ${T('duraklat')}`;
+}
 function updateHud() {
-    const ready = G.phase === 'anvil' && shapeReady(G);
     setHtml('forge-item', `${Game.itemIco(ITEMS[R.recipe.id])} ${T(ITEMS[R.recipe.id].name)}`);
+    setHtml('forge-keys', keysHelp());
+    if(R.job === 'grind') return grindHud();
+    const ready = G.phase === 'anvil' && shapeReady(G);
     setText('forge-phase', T(PHASE[G.phase]));
+    setText('forge-heats-l', T('Kızdırma')); setText('forge-shape-l', T('Şekil'));
+    el('forge-legend').style.display = '';
     setText('forge-heats', String(G.heats));
     setText('forge-shape', Game.pct(Math.round(shapeDone(G) * 100)));
     const touch = Game.isTouch();
@@ -732,13 +938,30 @@ function updateHud() {
     const q = el('forge-quench');
     q.hidden = G.phase !== 'anvil';
     q.disabled = !ready;
+    setText('forge-quench', T('Su ver'));
+}
+function grindHud() {
+    const sc = grindScore(G), hot = G.segs.reduce((a, sg) => Math.max(a, sg.burned ? 0 : sg.h), 0);
+    setText('forge-phase', T(PHASE.grind));
+    setText('forge-heats-l', T('Isı')); setText('forge-heats', Game.pct(Math.round(hot * 100)));
+    setText('forge-shape-l', T('Keskinlik')); setText('forge-shape', Game.pct(Math.round(sc.mean * 100)));
+    el('forge-legend').style.display = 'none';
+    setText('forge-hint', Game.isTouch()
+        ? T('Parmağını bas ve sağa sola kaydır: bıçak taşın üstünde gider. Yukarı-aşağı sürükle: açı değişir. Kıvılcım bol ve parlaksa açı doğru. Bir yerde durma, tavı kaçar.')
+        : T('Bas ve sürükle: sağa sola bıçağı taşta gezdirir, yukarı-aşağı açıyı değiştirir. Kıvılcım bol ve parlaksa açı doğru; kısa kırmızıysa fazla dik, seyrekse fazla yatık. Bir yerde durma, tavı kaçar.'));
+    const m = el('forge-msg');
+    if(G.msgT > 0) { m.hidden = false; setText('forge-msg', G.msg); } else m.hidden = true;
+    el('forge-pump').hidden = true; el('forge-move').hidden = true;
+    const q = el('forge-quench');
+    q.hidden = G.phase !== 'grind'; q.disabled = false;
+    setText('forge-quench', T('Bitir'));
 }
 
 // ---------- input ----------
 // a pause, a window, a tutorial coach still up (as in a lair) or the result: the metal waits
 const blocked = () => paused || Game.tutor != null || !el('modal-overlay').classList.contains('hidden') || !!(G && G.result);
 function bindInput() {
-    const KEYS = new Set([' ', 'e', 'q', 'arrowleft', 'arrowright', 'a', 'd', 'escape']);
+    const KEYS = new Set([' ', 'e', 'q', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', 'w', 's', 'escape']);
     window.addEventListener('keydown', e => {
         if(!api.active || !G) return;
         const k = e.key === ' ' ? ' ' : Input.letter(e);
@@ -747,7 +970,9 @@ function bindInput() {
         if(e.key === 'Escape') { if(!G.result) paused ? resume() : pauseMenu(); return; }
         if(blocked() || e.repeat) return;
         if(k === 'e') swap();
-        else if(k === 'q') quench();
+        else if(k === 'q') act();
+        else if(e.key === 'ArrowUp' || k === 'w') keyTilt = 1;
+        else if(e.key === 'ArrowDown' || k === 's') keyTilt = -1;
         else if(e.key === 'ArrowLeft' || k === 'a') keyAim = -1;
         else if(e.key === 'ArrowRight' || k === 'd') keyAim = 1;
         else if(k === ' ' && G.phase === 'anvil') pressed = { t0: performance.now(), key: true };
@@ -756,6 +981,7 @@ function bindInput() {
         if(!api.active || !G) return;
         const k = e.key === ' ' ? ' ' : Input.letter(e);
         if(e.key === 'ArrowLeft' || k === 'a' || e.key === 'ArrowRight' || k === 'd') keyAim = 0;
+        if(e.key === 'ArrowUp' || k === 'w' || e.key === 'ArrowDown' || k === 's') keyTilt = 0;
         if(k === ' ') {
             e.preventDefault();
             if(pressed && pressed.key) { const p = power(); pressed = null; blow(G.hammer.u, p); }
@@ -766,27 +992,38 @@ function bindInput() {
         e.preventDefault();
         try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
         if(G.phase === 'forge') { pumpHeld = true; pressed = { t0: performance.now(), pump: true }; return; }
+        if(G.phase === 'grind') { pressed = { t0: performance.now(), grind: true }; drag = { x: e.clientX, y: e.clientY }; return; }
         if(G.phase !== 'anvil') return;
         G.hammer.u = segAt(e.clientX);
         pressed = { t0: performance.now() };
     });
-    canvas.addEventListener('pointermove', e => { if(G && G.phase === 'anvil' && (pressed || e.pointerType === 'mouse')) G.hammer.u = segAt(e.clientX); });
+    canvas.addEventListener('pointermove', e => {
+        if(G && G.phase === 'anvil' && (pressed || e.pointerType === 'mouse')) G.hammer.u = segAt(e.clientX);
+        // on the stone the blade follows the hand: sideways slides it along, up and down tilts it
+        if(G && G.phase === 'grind' && pressed && pressed.grind && drag && !blocked()) {
+            const k = DPR / S;
+            G.u = clamp(G.u - (e.clientX - drag.x) * k / LY.segW, G.e0, M.N - 1);
+            G.a = clamp(G.a - (e.clientY - drag.y) * k * .5, 0, 45);
+            drag = { x: e.clientX, y: e.clientY };
+        }
+    });
     const up = () => {
         if(!pressed) return;
         const p = pressed;
         pressed = null;
         if(p.pump) { pumpHeld = false; return; }
+        if(p.grind) { drag = null; return; }
         if(!p.key && G && G.phase === 'anvil') blow(G.hammer.u, power(p));
     };
     canvas.addEventListener('pointerup', up);
-    canvas.addEventListener('pointercancel', () => { pressed = null; pumpHeld = false; });
+    canvas.addEventListener('pointercancel', () => { pressed = null; pumpHeld = false; drag = null; });
     // the bellows button is held, like the bellows; the others are pressed and let go of focus,
     // so Space never "clicks" a button that kept it
     const pump = el('forge-pump');
     pump.addEventListener('pointerdown', e => { e.preventDefault(); pumpHeld = true; try { pump.setPointerCapture(e.pointerId); } catch(err) {} });
     for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) pump.addEventListener(ev, () => { pumpHeld = false; });
     /** @type {[string, () => void][]} */
-    const BTNS = [['forge-move', swap], ['forge-quench', quench], ['forge-pausebtn', pauseMenu]];
+    const BTNS = [['forge-move', swap], ['forge-quench', act], ['forge-pausebtn', pauseMenu]];
     for(const [id, fn] of BTNS) {
         const btn = el(id);
         btn.addEventListener('click', () => { btn.blur(); fn(); });
@@ -804,16 +1041,17 @@ function pauseMenu() {
             <button class="btn" onclick="Forge.howto()">${T('❔ Nasıl dövülür?')}</button>
             <button class="btn" onclick="Forge.abandon()">${T('🚪 Vazgeç')}</button>
         </div>
-        <p class="lnote">${R.practice ? T('Deneme: malzeme harcanmaz, eşya, XP ve zaman yok.') : T('Vazgeçersen demir sana kalır; kömür yanmış, kira ödenmiştir.')}</p>`);
+        <p class="lnote">${R.practice ? T('Deneme: malzeme harcanmaz, eşya, XP ve zaman yok.') : R.job === 'grind' ? T('Vazgeçersen silah olduğu gibi kalır; kira ödenmiştir.') : T('Vazgeçersen demir sana kalır; kömür yanmış, kira ödenmiştir.')}</p>`);
 }
 function howto() {
     paused = true;
-    overlay(`<h2>${T('❔ Demir nasıl dövülür?')}</h2><ul class="lb-howto">${HELP.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('')}</ul>
+    const grind = R && R.job === 'grind', list = grind ? GRIND_HELP : HELP;
+    overlay(`<h2>${grind ? T('❔ Nasıl bilenir?') : T('❔ Demir nasıl dövülür?')}</h2><ul class="lb-howto">${list.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('')}</ul>
         <div class="lrow"><button class="btn primary" onclick="Forge.resume()">${T('Başla')}</button></div>`);
 }
 function resume() {
     paused = false; overlay(''); last = 0;
-    try { localStorage.setItem(HELP_KEY, '1'); } catch(e) {}
+    try { localStorage.setItem(R && R.job === 'grind' ? GRIND_KEY : HELP_KEY, '1'); } catch(e) {}
 }
 const HELP_KEY = 'webband_forge_help';
 function grade(sc, out) {
@@ -821,7 +1059,24 @@ function grade(sc, out) {
     if(out.kind === 'prev') return T('Bir alt kademe');
     return sc.S >= .85 ? T('Ustalık işi') : sc.S >= .72 ? T('İyi iş') : T('Kabul edilir');
 }
+function grindGrade(Q) { return Q >= .85 ? T('Jilet gibi') : Q >= .6 ? T('Keskin') : Q >= .3 ? T('İdare eder') : T('Kör kaldı'); }
+function againBtns() {
+    return `<button class="btn primary" onclick="Forge.practice('${R.recipe.id}'${R.job === 'grind' ? ", 'grind'" : ''})">${T('🔁 Tekrar dene')}</button>
+            <button class="btn" onclick="Forge.practice()">${T('🔨 Başka parça')}</button><button class="btn" onclick="Forge.leave()">${T('Ana menü')}</button>`;
+}
+function showGrindResult() {
+    const { sc, xp } = G.result, it = ITEMS[R.recipe.id], pc = v => Game.pct(Math.round(v * 100));
+    const lead = R.practice ? T`Keskinlik: +%${sc.pct} hasar.`
+        : sc.pct > 0 ? T`${T(it.name)} bilendi: ${GM.BATTLES} savaş boyunca +%${sc.pct} hasar, her savaşta biraz körelir.` : T('Ağız tutmadı; silah olduğu gibi kaldı.');
+    const rows = [[T('Keskinlik'), pc(sc.mean)], [T('En kör yer'), pc(sc.lo)], [T('Tavı kaçan yer'), G.burns], [T('Puan'), pc(sc.Q)]]
+        .concat(R.practice ? [] : [[T('Demircilik'), T`+${xp} XP`], [T('Geçen süre'), T`${R.cost.hours} saat`]]);
+    overlay(`<div class="leyebrow">${T(it.name)} · ${where()}</div>
+        <h2>${Game.itemIco(it, true)} ${grindGrade(sc.Q)}</h2><p class="llead">${lead}</p>
+        <table class="lres">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
+        <div class="lrow">${R.practice ? againBtns() : `<button class="btn primary" onclick="Forge.leave()">${T('🏘️ Şehre dön')}</button>`}</div>`);
+}
 function showResult() {
+    if(G.result.grind) return showGrindResult();
     const { out, sc, xp } = G.result, it = ITEMS[R.recipe.id];
     const lead = R.practice ? (out.kind === 'item' ? T`${T(it.name)} tuttu.` : out.kind === 'prev' ? T`Kademe tutmadı: ${T(ITEMS[out.id].name)} olurdu.` : T('Demir çatladı.'))
         : out.kind === 'item' ? T`${T(it.name)} hazır, çantanda.`
@@ -831,9 +1086,7 @@ function showResult() {
     const rows = [[T('Şekil'), pc(sc.shape)], [T('Su verme'), pc(sc.quench)], [T('Ocak işçiliği'), pc(sc.care)], [T('Puan'), pc(sc.S)],
                   [T('Kızdırma'), G.heats], [T('Soğuk vuruş'), G.cold]]
         .concat(R.practice ? [] : [[T('Demircilik'), T`+${xp} XP`], [T('Geçen süre'), T`${R.cost.hours} saat`]]);
-    const btns = R.practice ? `<button class="btn primary" onclick="Forge.practice('${R.recipe.id}')">${T('🔁 Tekrar dene')}</button>
-            <button class="btn" onclick="Forge.practice()">${T('🔨 Başka parça')}</button><button class="btn" onclick="Forge.leave()">${T('Ana menü')}</button>`
-        : `<button class="btn primary" onclick="Forge.leave()">${T('🏘️ Şehre dön')}</button>`;
+    const btns = R.practice ? againBtns() : `<button class="btn primary" onclick="Forge.leave()">${T('🏘️ Şehre dön')}</button>`;
     overlay(`<div class="leyebrow">${T(it.name)} · ${where()}</div>
         <h2>${(out.kind === 'ruin' ? '' : Game.itemIco(ITEMS[out.id], true) + ' ') + grade(sc, out)}</h2><p class="llead">${lead}</p>
         <table class="lres">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
@@ -854,14 +1107,15 @@ function start(locId, id) {
     let seen = null; try { seen = localStorage.getItem(HELP_KEY); } catch(e) {}
     if(!seen) howto();
 }
-const where = () => R.practice ? T('Deneme ocağı') : R.own ? T('Kendi ocağın') : T('Demirhane');
+const where = () => R.practice ? T('Deneme ocağı') : R.job === 'grind' ? T('Bileme taşı') : R.own ? T('Kendi ocağın') : T('Demirhane');
 function begin(r, run, lvl) {
     Game.closeModal();
     build();
-    R = Object.assign({ recipe: r }, run);
-    G = Object.assign(newBar(r, lvl), { phase: 'forge', t: 0, pumpPh: 0, msg: '', msgT: 0, quenchT: 0,
-        hammer: { u: M.N / 2, charge: 0, drop: 0 }, result: null, score: null, coldSaid: false });
-    FX.length = 0; TXT.clear(); pumpHeld = false; pressed = null; keyAim = 0;
+    R = Object.assign({ recipe: r, job: 'forge' }, run);
+    const scene = { t: 0, pumpPh: 0, msg: '', msgT: 0, quenchT: 0, job: R.job, result: null, score: null, coldSaid: false, hammer: { u: M.N / 2, charge: 0, drop: 0 } };
+    G = R.job === 'grind' ? Object.assign(newEdge(r.shape, lvl), scene, { phase: 'grind', F: M.F_IDLE, heats: 1, grinding: false })
+        : Object.assign(newBar(r, lvl), scene, { phase: 'forge' });
+    FX.length = 0; TXT.clear(); pumpHeld = false; pressed = null; keyAim = 0; keyTilt = 0; drag = null;
     api.active = true; paused = false;
     if(R.practice) practiceScreen(true); else Game.showScreen('forge');
     overlay('');
@@ -884,16 +1138,22 @@ function practiceScreen(on) {
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', on && v.id === 'forge-view'));
     document.body.classList.toggle('in-battle', on);
 }
-function practice(id) {
-    const r = id && recipe(id);
-    if(r && ITEMS[r.id]) {
+function practice(id, job) {
+    const it = id && ITEMS[id], r = it && (job === 'grind' ? sharpenable(it) && { id, shape: shapeOf(it) } : recipe(id));
+    if(r) {
         const again = api.active;   // "try again" from the result: the scene stays up, the how-to was read
-        begin(r, { practice: true, cost: cost(r), rent: 0, own: false, loc: null }, 1);
+        begin(r, job === 'grind' ? { practice: true, job, cost: { hours: GM.HOURS }, rent: 0, own: false, loc: null }
+            : { practice: true, cost: cost(r), rent: 0, own: false, loc: null }, 1);
         if(!again) howto();
         return;
     }
     if(api.active) leave();
-    const rows = FAMILIES.map(([fam, name]) => `<h4 class="fs-fam">${T(name)}</h4><div class="fs-list">${
+    // the grindstone first: it's the quick one
+    const rows = `<h4 class="fs-fam">${T('Bileme taşı')}</h4><div class="fs-list">${['sword', 'axe', 'lance'].map(id => { const it = ITEMS[id];
+            return `<div class="fs-row"><span class="fs-ic">${Game.itemIco(it)}</span>
+                <span class="fs-tx"><b>${T(it.name)}</b><small>${T`Bilenmiş ağız: en çok +%${GM.MAX} hasar`}</small></span>
+                <button class="btn primary" onclick="Forge.practice('${id}', 'grind')">${T('🪨 Bile')}</button></div>`; }).join('')}</div>`
+        + FAMILIES.map(([fam, name]) => `<h4 class="fs-fam">${T(name)}</h4><div class="fs-list">${
         RECIPES.filter(x => x.fam === fam && ITEMS[x.id]).map(x => { const it = ITEMS[x.id];
             return `<div class="fs-row"><span class="fs-ic">${Game.itemIco(it)}</span>
                 <span class="fs-tx"><b>${T(it.name)}</b><small>${it.attack ? T`Saldırı ${it.attack}` : T`Savunma ${it.defense}`}</small></span>
@@ -909,7 +1169,7 @@ function practice(id) {
 // Giving up: the bar is drawn back into iron; the coal burnt and the rent paid stay spent
 function abandon() {
     if(!G || G.result) return;
-    if(!R.practice) Game.addItem('iron', R.cost.iron);
+    if(!R.practice && R.cost.iron) Game.addItem('iron', R.cost.iron);
     G.result = { abandoned: true };
     leave();
 }
@@ -933,10 +1193,11 @@ function leave() {
 
 const api = {
     active: false,
-    MODEL: M, RECIPES, FAMILIES, HELP,
-    open, help, start, practice, resume, howto, abandon, leave, pauseMenu,
+    MODEL: M, GRIND: GM, RECIPES, FAMILIES, HELP,
+    open, help, start, grind, practice, resume, howto, abandon, leave, pauseMenu,
     // the pure model, for tools/test.js
-    _model: { newBar, stepForge, stepAnvil, strike, score, outcome, passMark, eff, shapeReady, shapeDone, cost, prevOf, heatRGB, stock, blockOf },
+    _model: { newBar, stepForge, stepAnvil, strike, score, outcome, passMark, eff, shapeReady, shapeDone, cost, prevOf, heatRGB, stock, blockOf,
+        newEdge, stepGrind, grindScore, matchOf, sharpenable, shapeOf },
     // for the tests and the debug report: the live run, read-only by convention
     run() { return G; }, runConfig() { return R; },
     // world setup for the e2e tests: where segment i sits on screen, in client pixels
@@ -948,7 +1209,7 @@ const api = {
     // the measured numbers in docs/SYSTEMS.md: ms per update and per render, averaged over n frames
     _bench(n = 120) { let u = 0, r = 0; for(let i = 0; i < n; i++) { let t = performance.now(); update(1 / 60); u += performance.now() - t; t = performance.now(); render(); r += performance.now() - t; } return { update: +(u / n).toFixed(3), render: +(r / n).toFixed(3) }; },
     // the strings the tables show, for the i18n gate (tools/test.js)
-    strings() { return [...FAMILIES.map(f => f[1]), ...HELP.flat(), ...Object.values(PHASE), 'Koyu kırmızı', 'Kiraz', 'Turuncu', 'Sarı', 'Beyaz']; }
+    strings() { return [...FAMILIES.map(f => f[1]), ...HELP.flat(), ...GRIND_HELP.flat(), ...Object.values(PHASE), 'Koyu kırmızı', 'Kiraz', 'Turuncu', 'Sarı', 'Beyaz']; }
 };
 return api;
 })();

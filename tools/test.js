@@ -4205,6 +4205,51 @@ function forgeBot(F, r, careless, seed = 1) {
     const sc = m.score(g);
     return { g, sc, t, out: m.outcome(g, r, sc.S) };
 }
+// A grinder at the stone (phase 2): sweeps the blade along at `speed` segments/s at angle `a`, or
+// (speed 0) holds it still on random spots for `dwell` s each. Stops once the edge is keen all along.
+function grindBot(F, shape, { speed = 6, a = 20, dwell = 0 } = {}, seed = 1) {
+    const m = F._model, g = m.newEdge(shape, 1), dt = 1 / 30;
+    let x = seed, t = 0, dir = 1, hold = 0;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647, end = F.MODEL.N - 1;
+    g.a = a;
+    while(t < 60) {
+        if(dwell) { if((hold -= dt) <= 0) { g.u = g.e0 + rnd() * (end - g.e0); hold = dwell; } }
+        else { g.u += dir * speed * dt; if(g.u > end) { g.u = end; dir = -1; } if(g.u < g.e0) { g.u = g.e0; dir = 1; } }
+        m.stepGrind(g, dt, true); t += dt;
+        const sc = m.grindScore(g);
+        if(sc.mean > .97 && sc.lo > .9) break;
+    }
+    return { g, t, sc: m.grindScore(g) };
+}
+test('grindstone: a blade kept moving at the right angle keens evenly; held still it runs its temper; a wrong angle dulls it', () => {
+    const { Forge: F } = forgeWorld();
+    for(const shape of ['blade', 'axe', 'spear']) {
+        const good = grindBot(F, shape);
+        assert.ok(good.sc.Q > .85 && good.g.burns === 0 && good.t < 35, `${shape}: a careful grinder got ${good.sc.Q.toFixed(2)} in ${Math.round(good.t)} s, ${good.g.burns} burns`);
+        const slow = grindBot(F, shape, { speed: 2 });
+        assert.ok(slow.g.burns > 0 && slow.sc.Q < .7, `${shape}: a slow sweep never ran the temper (${slow.sc.Q.toFixed(2)})`);
+        const still = grindBot(F, shape, { a: 32, dwell: 3 });
+        assert.ok(still.sc.Q < .1, `${shape}: holding still at a steep angle scored ${still.sc.Q.toFixed(2)}`);
+    }
+    // what can go on the stone: edged weapons in hand, not maces, bows or armour
+    const { sharpenable } = F._model, I = forgeWorld().ITEMS;
+    assert.deepStrictEqual(['sword', 'axe', 'lance', 'mace', 'bow', 'mail'].map(id => sharpenable(I[id])), [true, true, true, false, false, false]);
+});
+test('grindstone: the edge adds to the player\'s melee only, only with that weapon, and dulls battle by battle', () => {
+    const w = forgeWorld(), { Game, Battle, state, ITEMS } = w;
+    state.player.equipment.weapon = { ...ITEMS.sword, qty: 1 };
+    state.player.sharp = { id: 'sword', pct: 15, left: 3, n: 3 };
+    const plain = Battle.afterArmor('cut', 30, 0);
+    assert.strictEqual(Battle.afterArmor('cut', 30, 0, null, { id: 'player' }), Math.round(plain * 1.15));
+    assert.strictEqual(Battle.afterArmor('cut', 30, 0, null, { id: 'npc1' }), plain, 'someone else\'s blow took the player\'s edge');
+    state.player.equipment.weapon = { ...ITEMS.axe, qty: 1 };
+    assert.strictEqual(Game.edge(), 0, 'the edge followed the player to another weapon');
+    state.player.equipment.weapon = { ...ITEMS.sword, qty: 1 };
+    const seen = [];
+    for(let i = 0; i < 4; i++) { seen.push(Game.edge()); Game.dullEdge(); }
+    assert.deepStrictEqual(seen, [15, 10, 5, 0]);
+    assert.strictEqual(state.player.sharp, null);
+});
 test('forge: tables are in both dictionaries and every recipe is a real item with a sane cost', () => {
     const d = require('./i18n-keys').dicts(), { Forge: F, ITEMS } = forgeWorld();
     const missing = F.strings().filter(t => !(t in d.en) || !(t in d.id));
