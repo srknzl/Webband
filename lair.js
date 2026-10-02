@@ -449,7 +449,7 @@ function heroStats() {
     const eq = state.player.equipment || {};
     const def = ['shield', 'armor', 'helmet', 'gloves', 'boots'].reduce((n, s) => n + ((eq[s] || {}).defense || 0), 0);
     return { hp: state.player.stats.hp, maxHp: state.player.stats.maxHp, attack: 10 + Game.attr('str') + (eq.weapon && eq.weapon.weaponType !== 'bow' ? eq.weapon.attack || 0 : 0),
-             defense: def, dmgType: eq.weapon && eq.weapon.weaponType !== 'bow' ? eq.weapon.dmgType || 'cut' : 'cut' };
+             defense: def, gearArmor: true, dmgType: eq.weapon && eq.weapon.weaponType !== 'bow' ? eq.weapon.dmgType || 'cut' : 'cut' };
 }
 
 function newGame() {

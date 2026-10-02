@@ -3,6 +3,41 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.7.1 — Tav (2026-10-02)
+
+- **Dövmek artık adil.** Şekil puanı neredeyse hep sıfır çıkıyordu: fazla dövdüğün yer ekranda
+  görünmüyor ama ağır cezalanıyordu. Artık demir çizgiye gelince sertleşir; bir kaçık vuruş bitmiş
+  yeri az inceltir, ama orayı dövmeye devam edersen yine incelir. Çekiç komşu yerlere daha az
+  yayılır.
+- **Çizgi ne durumda olduğunu söylüyor.** İş bitince kesik çizgi altın sarısı olur, fazla
+  dövdüğün yerde kırmızıya döner.
+- **Demir daha geç soğur.** Örste her kızdırmada 15–20 saniye işlenebilir kalır (önceden 4–7).
+  Soğuma artık Demircilik'e bağlı değil; Demircilik kademeyi daha kolay tutturur.
+- **Örs dalında iki perk değişti:** Sabırlı Ateş artık **Sabit El** (çekiç daha az yayılır). Usta
+  İşi de soğuma yerine çekiç isabeti verir. Bu perkleri almış olan, yeni etkisini hemen alır.
+- **Zırh artık kahramanı ölümsüz yapmıyor.** Deri setle bile askerlerin vuruşu 1–3 hasara iniyordu;
+  tek başına on zırhlı adamı kesebiliyordun. Artık zırhın vuruşun bir kısmını durdurur: deri
+  dörtte birini, plaka yarısını. Seviye 1'de deri giyen kahraman bir çavuşun 8 vuruşunda düşer.
+  Askerlerin birbirine vuruşu değişmedi.
+- **Savaş sonucunun Ayrıntı sekmesinde** kayıpların tarafı artık savaş alanındaki renkle yazıyor:
+  dost mavi, düşman kırmızı. Önceden dost kırmızı, düşman yeşildi.
+- **İn görevleri artık ini gösteriyor.** "İndeki Soylu" ve "İni Bas" görevlerinin haritadaki
+  işareti ve 📍 satırı ine en yakın kaleyi gösteriyordu. Artık inin kendisini gösteriyor.
+- **Bira, bal ve lonca malı teslim edince** elinde tam istenen kadar varsa çantada "0 adet"
+  satırı kalmıyor (#167).
+- **Hedefler artık seçilmeden sayılıyor.** Görevler sekmesindeki 🎯 hedeflerden önce birini seçmen
+  gerekiyordu; grubun 10 kişi olsa bile seçmeden ödül gelmiyordu. Artık açık hedeflerin hepsi aynı
+  anda sayılır, şartı tuttuğun an ödülü gelir.
+- **"Tahmini denge" artık doğru söylüyor.** Karşılaşma penceresindeki tahmin askerlerin seviyesine
+  bakıyordu; oysa seviye savaşta güç vermiyor. 22 köylüyle 8 çavuşa "Kolay" diyordu ve herkes
+  ölüyordu. Artık iki tarafın gerçek canını, saldırısını, zırhını ve hasar türünü hesaplıyor; o savaş
+  artık **Çetin** görünüyor.
+- **Şehir binaları birbirinden ayrılıyor.** Han, Demirhane, İşletme ve Köle Tüccarı aynı evdi;
+  Gönüllü Topla ile Kuşat! aynı çadırdı. Artık han iki katlı, tabelalı ve fıçılı; demirhanenin taş
+  bacası ve közü var, örs önünde duruyor; işletmenin tentesi ve sandıkları var; köle tüccarı
+  parmaklıklı bir kafes; Kuşat! tekerlekli bir koçbaşı.
+- **Savaşta düşman kim, bir bakışta belli:** her düşmanın kafasının üstünde küçük kırmızı bir nokta var.
+
 ## 2.7.0 — Damar (2026-10-02)
 
 - **Haydut madeni geldi.** Haritadaki inlerden biri artık haydutların ele geçirdiği bir demir madeni.

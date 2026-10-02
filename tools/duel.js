@@ -8,6 +8,7 @@
 //
 //   node tools/duel.js --a "Nord Baltacısı" --b "Rodok Kalkanlısı" --n 200
 //   node tools/duel.js --a "Svadya Milisi" --b "Rodok Kalkanlısı" --count 5
+//   node tools/duel.js --a "Svadya Köylüsü" --b "Svadya Çavuşu" --count 22 --countb 8   # uneven sides
 //   node tools/duel.js --list                   # print troop names
 //   node tools/duel.js --report                 # default matchup table → docs/measurements
 // ============================================================
@@ -47,7 +48,7 @@ function mkUnit(g, name, i, team, W, HGT) {
 }
 
 /** One fight: did team A win, how many seconds, how many were left standing. */
-function fight(g, a, b, n) {
+function fight(g, a, b, n, nb = n) {
     const { Battle } = g;
     let done = null;
     const end = Battle.endBattle;
@@ -56,7 +57,7 @@ function fight(g, a, b, n) {
     const W = Battle.canvas.width, HGT = Battle.canvas.height;
     Battle.units = [];
     for(let i = 0; i < n; i++) Battle.units.push(mkUnit(g, a, i, true, W, HGT));
-    for(let i = 0; i < n; i++) Battle.units.push(mkUnit(g, b, i, false, W, HGT));
+    for(let i = 0; i < nb; i++) Battle.units.push(mkUnit(g, b, i, false, W, HGT));
     Battle.reserves = { p: [], e: [] };
     Battle.projectiles = []; Battle.corpses = [];
 
@@ -68,18 +69,18 @@ function fight(g, a, b, n) {
     return out;
 }
 
-function duel(a, b, n, rounds, seed) {
+function duel(a, b, n, rounds, seed, nb = n) {
     const g = H.world({ seed });
     let winA = 0, sum = 0, remaining = 0, stalemates = 0;
     for(let i = 0; i < rounds; i++) {
-        const r = fight(g, a, b, n);
+        const r = fight(g, a, b, n, nb);
         if(r.won === null) { stalemates++; continue; }
         if(r.won) { winA++; remaining += r.remainingA; }
         sum += r.duration;
     }
     const ok = rounds - stalemates;
     return {
-        a, b, count: n, rounds,
+        a, b, count: n, countB: nb, rounds,
         winRateA: ok ? +(winA / ok * 100).toFixed(1) : 0,
         avgDuration: ok ? +(sum / ok).toFixed(1) : 0,
         avgRemainingA: winA ? +(remaining / winA).toFixed(1) : 0,
@@ -106,9 +107,10 @@ function main() {
     if(a.list || a.liste) return console.log(Object.keys(g0.TROOP_TYPES).join('\n'));
 
     const n = Number(a.count || a.sayi || 1), rounds = Number(a.n || a.tur || 50), seed = Number(a.seed || a.tohum || 1);
-    const pairs = a.a && a.b ? [[String(a.a), String(a.b)]] : PAIRS;
-    const rows = pairs.map(([x, y, cnt]) => {
-        const r = duel(x, y, cnt || n, rounds, seed);
+    const nb = Number(a.countb || n);
+    const pairs = a.a && a.b ? [[String(a.a), String(a.b), n, nb]] : PAIRS;
+    const rows = pairs.map(([x, y, cnt, cntB]) => {
+        const r = duel(x, y, cnt || n, rounds, seed, cntB || cnt || n);
         console.error(`${x} vs ${y}: %${r.winRateA} / ${r.avgDuration} s`);
         return r;
     });

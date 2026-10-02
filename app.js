@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.7.0', date: '2026-10-02', name: 'Damar' };  // the version name is not translated
+const VERSION = { no: '2.7.1', date: '2026-10-02', name: 'Tav' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -771,7 +771,6 @@ const state = {
         currentRaid: null,         // the village being raided: { locId }
         wait: null,                // camping: { until } — time flows ×4, an encounter cuts it short (#53/1.1)
         honor: 0,                  // honor −100..100; the negative side is the old "raider mark" (#53/1.5)
-        ambition: null,            // the selected goal: { id, day }
         ambitionsDone: [],         // ids of completed goals
         currentEncounterNpcId: null,
         prisoner: null,  // { npcId, daysLeft, ransomRequired, ransomRefusals }
@@ -1127,13 +1126,13 @@ const PERKS = [
         [{ id:'smith_bellows_a', name:'Körükçü',         desc:'Dövmede kömür daha az yanar.',          mod:{ coalSave:25 } },
          { id:'smith_whet_b',    name:'Bileyici',        desc:'Bileme taşı daha keskin ağız verir.',   mod:{ edgeBonus:4 } }],
         [{ id:'smith_thrift_a',  name:'Tutumlu Örs',     desc:'Bir parça daha az demir ister.',        mod:{ ironSave:10 } },
-         { id:'smith_patient_b', name:'Sabırlı Ateş',    desc:'Demir örste daha yavaş soğur.',         mod:{ forgeCool:15 } }],
+         { id:'smith_patient_b', name:'Sabit El',        desc:'Çekiç daha az yayılır; bitmiş komşu yer incelmez.', mod:{ blowFocus:20 } }],
         [{ id:'smith_scrap_a',   name:'Hurdacı',         desc:'Eritilen parçadan daha çok demir çıkar.',mod:{ scrapYield:40 } },
          { id:'smith_eye_b',     name:'Usta Gözü',       desc:'Kademe daha kolay tutar.',              mod:{ passEase:3 } }],
         [{ id:'smith_quick_a',   name:'Seri El',         desc:'Dövme daha kısa sürer.',                mod:{ forgeHours:25 } },
          { id:'smith_oilstone_b',name:'Yağ Taşı',        desc:'Bileme taşı daha da keskin ağız verir.',mod:{ edgeBonus:6 } }],
         [{ id:'smith_master_a',  name:'Demirhane Ağası', desc:'Demir ve kömür birlikte daha az gider.', mod:{ ironSave:15, coalSave:15 } },
-         { id:'smith_grand_b',   name:'Usta İşi',        desc:'Örsün zirvesi: kolay tutan, yavaş soğuyan demir.',mod:{ passEase:4, forgeCool:15 } }]
+         { id:'smith_grand_b',   name:'Usta İşi',        desc:'Örsün zirvesi: kolay tutan kademe, isabetli çekiç.',mod:{ passEase:4, blowFocus:15 } }]
     ] }
 ];
 const PERK_BY_ID = {};
@@ -3139,9 +3138,10 @@ const Game = {
     },
 
     // --- HEDEFLER (#53 madde 1.4) ---
-    // Battle Brothers' "ambition": a SINGLE active goal at a time, a reward on completion
-    // and new goals unlock. It's all data; conditions read the state, they don't listen for events —
-    // the daily tick and the Quests tab call the same `check`.
+    // Battle Brothers' "ambition", minus the picking: every open goal counts at once, a reward on
+    // completion and new goals unlock. Having to pick one first meant a goal you'd already met
+    // (a party of ten) sat unrewarded until you clicked it. It's all data; conditions read the
+    // state, they don't listen for events — the daily tick and the Quests tab call the same `check`.
     AMBITIONS: [
         { id: 'band',      title: 'Küçük bir bölük', desc: 'Grubunu 10 kişiye çıkar.',
           check: p => p.party.length >= 10, renown: 5, opens: ['champion', 'friend'] },
@@ -3158,7 +3158,6 @@ const Game = {
         { id: 'fief',      title: 'Toprak sahibi', desc: 'Bir tımarın olsun.',
           check: () => LOCATIONS.some(l => l.owner === 'player'), renown: 20, opens: [] }
     ],
-    ambition() { return this.AMBITIONS.find(a => a.id === (state.player.ambition || {}).id); },
     // Open goals: the head of the chain before any goal is finished, then whatever completed ones unlock
     openAmbitions() {
         let done = state.player.ambitionsDone || [];
@@ -3168,41 +3167,37 @@ const Game = {
         }, ['band']);
         return this.AMBITIONS.filter(a => done.indexOf(a.id) === -1 && opened.indexOf(a.id) !== -1);
     },
-    pickAmbition(id) {
-        if(!id) state.player.ambition = null;
-        else if(!this.AMBITIONS.some(a => a.id === id)) return;
-        else state.player.ambition = { id, day: state.time.day };
-        if(typeof Quests !== 'undefined') Quests.render();
-    },
-    // Daily fallback plus immediate event hooks: if the selected goal's condition is met,
-    // give the reward and open the chain. Tournament wins call this in the result hook itself.
+    // Daily fallback plus immediate event hooks: every open goal whose condition is met pays and
+    // opens its chain — and a goal it opens that already holds pays in the same pass.
+    // Tournament wins call this in the result hook itself.
     ambitionTick() {
         if(this.grudgeList().length) state.player.hadGrudge = true;   // "kan bedeli" kapanabilsin (kayda girer)
-        let a = this.ambition();
-        if(!a || !a.check(state.player)) return;
-        state.player.ambitionsDone = (state.player.ambitionsDone || []).concat(a.id);
-        state.player.ambition = null;
-        state.player.renown += a.renown;
-        if(a.money) state.player.money += a.money;
-        if(a.honor) this.addHonor(a.honor);
+        let met = [], ready;
+        while((ready = this.openAmbitions().filter(a => a.check(state.player))).length) {
+            ready.forEach(a => {
+                state.player.ambitionsDone = (state.player.ambitionsDone || []).concat(a.id);
+                state.player.renown += a.renown;
+                if(a.money) state.player.money += a.money;
+                if(a.honor) this.addHonor(a.honor);
+            });
+            met = met.concat(ready);
+        }
+        if(!met.length) return;
         this.updateTopBar();
-        alert(T`🎯 Hedefe ulaştın: ${T(a.title)}\n+${a.renown} nam${a.money ? T`, +${a.money} dinar` : ''}.`
+        let renown = met.reduce((n, a) => n + a.renown, 0), money = met.reduce((n, a) => n + (a.money || 0), 0);
+        alert(T`🎯 Hedefe ulaştın: ${met.map(a => T(a.title)).join(', ')}\n+${renown} nam${money ? T`, +${money} dinar` : ''}.`
             + (this.openAmbitions().length ? T('\n\nGörevler sekmesinde yeni hedefler açıldı.') : ''));
     },
     ambitionHtml() {
-        let a = this.ambition(), open = this.openAmbitions();
+        let open = this.openAmbitions();
         let done = (state.player.ambitionsDone || []).length;
         return `<div style="background:rgba(0,0,0,0.3);border:1px solid var(--panel-border);border-left:4px solid #e0b062;
                 border-radius:var(--r-md);padding:1rem;margin-bottom:1rem">
-            <b style="font-size:1.1rem">${T`🎯 Hedefin`}</b>
+            <b style="font-size:1.1rem">${T`🎯 Hedefler`}</b>
             <span style="float:right;color:var(--text-muted);font-size:var(--fs-sm)">${T`${done} hedef tamamlandı`}</span>
-            ${a ? `<div style="margin-top:0.5rem"><b>${T(a.title)}</b> — ${T(a.desc)}</div>
-                   <button class="btn" style="margin-top:0.6rem;font-size:var(--fs-sm);padding:0.3rem 0.8rem"
-                           onclick="Game.pickAmbition('');Quests.render()">${T`Vazgeç`}</button>`
-                : open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">${T`Aynı anda tek hedef seçilir.`}</div>`
-                   + open.map(o => `<button class="btn" style="display:block;width:100%;text-align:left;margin-top:0.4rem"
-                        onclick="Game.pickAmbition('${o.id}')"><b>${T(o.title)}</b> — <span style="color:var(--text-muted)">${T(o.desc)}</span>
-                        <span style="color:#e0b062">${T`+${o.renown} nam`}</span></button>`).join('')
+            ${open.length ? `<div style="color:var(--text-muted);margin:0.4rem 0">${T`Hepsi aynı anda sayılır: şartı tuttuğunda ödülü kendiliğinden gelir.`}</div>`
+                   + open.map(o => `<div style="margin-top:0.4rem"><b>${T(o.title)}</b> — <span style="color:var(--text-muted)">${T(o.desc)}</span>
+                        <span style="color:#e0b062">${T`+${o.renown} nam`}</span></div>`).join('')
                 : `<div style="color:var(--text-muted);margin-top:0.4rem">${T`Bütün hedefleri kapattın.`}</div>`}
         </div>`;
     },
@@ -3844,22 +3839,19 @@ const Game = {
     // Who actually steps onto the field: the leader plus the unwounded (#116). `Battle.start`
     // filters the wounded out, so every announcement has to ask this and not `party.length`.
     fieldSize() { return state.player.party.filter(t => !t.wounded).length + 1; },
-    // Force score (#7): one weighted-strength gate so "how strong are we" is a veteran-aware
-    // number, not raw headcount — a promoted troop counts as more than one green recruit. Kept
-    // as "effective men" (a lvl-1 unit = 1.0) so it reads next to the roster counts and both
-    // sides use the same scale. The hostility/flee heuristics stay on headcount on purpose
-    // (sim-verified); this drives the player-facing odds label (#10), not world AI.
-    UNIT_TIER: lvl => 1 + (Math.max(1, lvl || 1) - 1) * 0.12,
-    forceScore(party = state.player.party, includeSelf = true) {
-        let s = party.filter(t => !t.wounded).reduce((a, t) => a + this.UNIT_TIER(t.level), 0);
-        if(includeSelf) s += this.UNIT_TIER(state.player.stats.level);
-        return s;
+    // The odds label (#10): both sides' real fighting strength — class stats, armour, damage type,
+    // the brace (Battle.sideStrength). It used to count heads weighted by level, and since #124 a
+    // level adds nothing in a fight: 22 peasants met 8 sergeants as "Kolay" and lost every man.
+    // The buckets are on the strength ratio and were read off real-engine fights (tools/test.js
+    // 'odds:'): the engine is decisive — at 1.1 and up the stronger side won 90–100 %, at 0.77 and
+    // down it won at most 7 %. Names line up with the difficulty menu's vocabulary.
+    ODDS: [[1.5, 'Kolay', '#7bd88f'], [0.8, 'Dengeli', '#d9d2c5'], [0.55, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
+    oddsRatio(npc) {
+        let mine = Battle.playerMix(), theirs = Battle.enemyMix(npc, state.encounterSize || npc.size);
+        return Battle.sideStrength(mine, theirs) / Math.max(1e-6, Battle.sideStrength(theirs, mine));
     },
-    npcForce(npc) { return (npc.size || 1) * this.UNIT_TIER(npc.level || 1); },
-    // Odds label buckets the force ratio. Names line up with the difficulty menu's vocabulary.
-    ODDS: [[1.5, 'Kolay', '#7bd88f'], [1.0, 'Dengeli', '#d9d2c5'], [0.62, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
     oddsLabel(npc) {
-        let r = this.forceScore() / Math.max(0.5, this.npcForce(npc));
+        let r = this.oddsRatio(npc);
         let row = this.ODDS.find(o => r >= o[0]) || this.ODDS[this.ODDS.length - 1];
         return { name: row[1], color: row[2] };
     },
@@ -4955,6 +4947,14 @@ const Game = {
     addItem(id, qty) {
         let ex = state.player.inventory.find(i => i.id === id);
         if(ex) ex.qty += qty; else state.player.inventory.push({ ...ITEMS[id], qty });
+    },
+    // addItem's other half: an emptied stack leaves the bag (#167 — a stack left at 0 broke the bag's invariant)
+    takeItem(id, qty) {
+        let i = state.player.inventory.findIndex(x => x.id === id);
+        if(i < 0) return;
+        let it = state.player.inventory[i];
+        it.qty -= qty;
+        if(it.qty <= 0) state.player.inventory.splice(i, 1);
     },
     takeFood(n) {
         let left = n, got = 0;
@@ -6555,6 +6555,7 @@ const Game = {
     // discovery sites, parties and route are on show, how they're labelled and coloured. `art` is
     // MapArt, handed in by MapArt.render (map-art.js loads after app.js and isn't in Node at all).
     drawMapSites(ctx, art) {
+        const questMarks = typeof Quests !== 'undefined' ? Quests.targets() : {};
         // Discovery sites (#58): smaller and dimmer than a settlement — draws attention without crowding
         (state.sites || []).forEach(site => {
             if(!this.lairSeen(site)) return;    // an undiscovered lair isn't on the map (#68)
@@ -6567,8 +6568,12 @@ const Game = {
             art.site(ctx, site, big);
             ctx.globalAlpha = 1;
             // Only label when zoomed in: 14 long names crowded out settlement names at the continent view
-            if(!((fresh || k.boss) && this.camera.zoom > 0.18)) return;
-            art.label(site.x, site.y + 12, T(site.name || k.name), { prio: 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5 });
+            // — but a quest's lair is named and pinned like a settlement (the same edge and 📜 line)
+            const qm = questMarks[site.id];
+            if(!((fresh || k.boss || qm) && this.camera.zoom > 0.18)) return;
+            art.label(site.x, site.y + 12, T(site.name || k.name), { prio: qm ? 3 : 6, color: k.boss ? '#e0b0b0' : '#cbbf9a', dot: k.boss ? '#b04040' : '#8a7b52', up: big * 0.9, down: 8, side: big * 0.5,
+                      must: !!qm, edge: qm ? 'rgba(224,176,98,0.85)' : null });
+            if(qm) art.label(site.x, site.y + 12, qm.map(q => '📜 ' + q.title).join(' · '), { prio: 4, color: '#e0b062', up: big * 0.9 + 26 / this.camera.zoom, down: 8 + 26 / this.camera.zoom, side: big * 0.5 });
         });
     },
     drawMapParties(ctx, art) {
@@ -11597,7 +11602,7 @@ const Game = {
                 healChance:'şifa', mapSpeed:'harita hız', vision:'görüş', tradeEdge:'ticaret', loot:'ganimet',
                 trainXp:'talim', maxHpBonus:'can', hpRegen:'yenilenme', wageReduce:'maaş−', renownGain:'nam',
                 blockAngle:'savuşturma', coalSave:'kömür−', ironSave:'demir−', forgeHours:'süre−', scrapYield:'hurda',
-                forgeCool:'soğuma−', passEase:'kademe', edgeBonus:'bileme' };
+                blowFocus:'isabet', passEase:'kademe', edgeBonus:'bileme' };
             let v = m[k]; let plus = v > 0 ? '+' : '';
             return `${T(names[k] || k)} ${plus}${v}`;
         }).join(', ');
@@ -12557,6 +12562,7 @@ const Save = {
         if(pl && !Array.isArray(pl.perks)) pl.perks = [];
         if(pl && typeof pl.relics !== 'object') pl.relics = {};   // #37: relics
         if(pl && pl.currentBoss === undefined) pl.currentBoss = null;
+        if(pl) delete pl.ambition;                      // 2.7.1: goals aren't picked any more, every open one counts
         // #124: an elite troop's level no longer climbs past its tree step; saves from before
         // carry veterans at 21–50 whose level would otherwise keep costing wage and food.
         let lvlFix = t => { if(Game.isEliteTroop(t) && t.level > 20) { t.level = 20; t.xp = 0; } };

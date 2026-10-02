@@ -315,10 +315,30 @@ club = blunt; cavalry counts as cutting (the charge already represents the lance
 #### Balance is a range rule, not a win-rate table
 Same tier **40–60%**, one-tier gap **65–80%**, two tiers **85%+**; a unit's counter-type
 (spear→cavalry, bow→light) gets **+10**. `ARMOR_FLOOR`(0.18) means a strong hit is never reduced
-below 18% of its type-adjusted raw. Anti-cavalry lives in the **brace**
+below 18% of its type-adjusted raw. **The hero's armour** (2.7.1) is a share instead:
+`× 60 / (60 + defense × typeArmor)` on the gear-armoured hero (field and lair; not the
+tournament's fixed kit). Its defense is five pieces summed (leather set 21, plate set 65), a scale
+no troop's attack reaches. Subtracted, a level-1 hero in leather took 1–3 a blow from mid and
+elite troops and died only after 24–71 of them. Measured (`afterArmor`): leather lets 74 % of a
+cut through, plate 48 %; that hero now falls to 6–11 blows from mid and elite troops. Troop
+against troop is unchanged — a global ratio was tried and broke the anchors (spear vs light
+cavalry 14–20 %, axeman vs knight 52–61 %). Anti-cavalry lives in the **brace**
 (`Battle.braceMult`), not the damage type — spear infantry ×1.5, a shield troop gets a lighter
 explicit `u.brace` so its identity doesn't leak into every matchup (`pierce` on a shield troop
 was tried and rejected — it halves armor in *every* fight, not just against horses).
+
+**The encounter's odds label** ("Tahmini denge", `Game.oddsLabel`) compares
+`Battle.sideStrength` both ways: N^1.7 × the mean of hp × hit, where `hit` runs through
+`afterArmor` (armour, damage type, difficulty) and the brace. The rosters are `Battle.playerMix`
+(hero from `heroGear`, the unwounded with their morale debuff) and `Battle.enemyMix` (the band's
+weighted roster and leader, or the kingdom's troop pool). Until 2.7.1 it was a level-weighted
+headcount, and since level adds nothing in a fight it called 22 peasants against 8 sergeants
+"Kolay". **Measured** (real engine, `tools/test.js` 'odds:', 20–30 fights each): ratio ≥ 1.1 → the
+side won 90–100 %; ≤ 0.77 → at most 7 %; 1.0 → 30–53 %. Buckets: Kolay ≥ 1.5, Dengeli ≥ 0.8,
+Zorlu ≥ 0.55, else Çetin. 22 peasants vs 8 sergeants is 0.12 (won 0 %). Every armour model tried
+(ratio K 6–20, a 0.35–0.45 floor, half-subtracted armour) left that fight at 0 %: a sergeant is
+~10 peasants before armour, so the label, not the armour, was the bug. The tier rule above is
+**not met** today — one tier apart wins 98–100 % 1v1 in every model, the stat gap does it.
 
 Sources: a settlement recruit comes from `Game.recruitName(loc)` (that town's own faction);
 mercenaries/enemy armies come from `Game.factionTroopPool(faction)` (2 shares mid-tier, 1 elite).
@@ -447,6 +467,9 @@ drivers emit events themselves, so they prove the engine, not the game — `tool
 reads every `Quests.emit('x', { … })` literal in the game against every `on()` body and fails on
 an event nobody sends or a `d.field` no send of that event carries. Keep emits as plain object
 literals so the scan can read them.
+**Where** (`where(q)`) is a settlement id or a map site's: the lair quests pin the lair itself
+(`Quests.place` reads both; the 📍 line, its day count and the 📜 map label all follow it). They
+used to pin the nearest settlement, which named a castle while the text sent you to the lair.
 
 A quest definition has 4 hooks (only `desc`/`where` mandatory): `setup(q, giver)` (assume the
 precondition — `can` already filtered), `can(giver)` (is it currently offerable), `desc(q)`
@@ -1093,9 +1116,11 @@ nearest caravan, or ransoming them opens a feud (releasing with honor clears it)
 instead of going home.
 
 ### The goal chain — `AMBITIONS`
-Battle Brothers-style: one active goal at a time, completing it rewards renown/honor and opens
-the next (party≥10 → tournament win / a friend lord → sworn oath → blood price / a landholder).
-Pure data + a daily `check()`, shown at the top of the Quests tab.
+Battle Brothers-style chain, without the picking (2.7.1): every open goal counts at once;
+completing one rewards renown/honor and opens the next (party≥10 → tournament win / a friend lord →
+sworn oath → blood price / a landholder), and a goal it opens that already holds pays in the same
+`ambitionTick`. Until 2.7.1 one goal had to be picked first, so a party of ten sat unrewarded until
+the player clicked it. Pure data + a daily `check()`, shown at the top of the Quests tab.
 
 ### Achievements
 50 one-time milestones (`ACHIEVEMENTS`), swept daily and on the Quests tab
@@ -1245,11 +1270,18 @@ with its distance from the billet and by 15 % a tier.
 - **Hearth.** Bellows drive it to 1450 °C (rate 0.35/s), left alone it settles at 820 °C (0.2/s).
   Segments take its heat at 0.2/s × 0.6 (tang) … 1.6 (tip): the tip glows first. Above 1300 °C for
   0.8 s a segment burns (a flaw; marked on the bar).
-- **Anvil.** Cooling 0.03/s plus up to 0.04 for a finished segment and 0.03 at the tip, 30 % slower
-  for a smith 6 levels above the recipe. A blow takes `0.40 × power × eff(T) × gauss(σ 0.85) / w0`;
+- **Anvil** (2.7.1). Cooling 0.009/s plus up to 0.012 for a finished segment and 0.009 at the tip,
+  the same for every smith: from 1000 °C the tip stays workable (above 720 °C) for 14 s, the middle
+  17 s, the tang 23 s (before 2.7.1: 4/5/7 s, a little longer with Demircilik). A blow takes
+  `0.30 × power × eff(T) × gauss(σ 0.6) / w0` (a neighbour gets a quarter; σ was 0.85, half), and
+  past the outline only a quarter of that moves the metal (`OVER`): a stray blow barely thins a
+  finished spot, hammering on there still does;
   `eff` is 0 below 600 °C and 1 from 950 °C; holding the press charges power 0.35 → 1 over 0.7 s.
-  A blow of power > 0.3 on metal under 650 °C is a cold strike (a flaw). Each blow chills 8 °C.
-- **Quench** opens once every segment is within `0.10 − 0.012 × tier` of its outline. Score:
+  A blow of power > 0.3 on metal under 650 °C is a cold strike (a flaw). Each blow chills 4 °C.
+  On screen the outline is dashed while there's work left, solid gold once the segment is within
+  tolerance, red with a notch where it was hammered past.
+- **Quench** opens once every segment is within `0.10 − 0.012 × tier + 0.04 × ease` of its outline
+  (`ease` 0–1 for a smith 0–6 levels above the recipe). Score:
   `S = 0.55 shape + 0.30 quench + 0.15 care`; shape = `1 − 3 × mean error` (overwork counts 1.8×),
   quench = share of segments in 760–900 °C less a penalty for a spread over 200 °C, care loses
   0.06 a cold strike, 0.08 a burnt segment, 0.03 for each heat past `3 + tier`. The pass mark is
@@ -1284,9 +1316,14 @@ isn't there; leaving puts the start screen back.
 **Loop and cost.** Its own rAF loop (`Game.skipFrame` gate, double-start safe); the map loop stops
 while `Forge.active` (`Game.inScene`). Leaving redraws the town, then the hours pass there.
 
-- Measured (`tools/test.js`, the scripted careful smith): every recipe forged at its own tier,
-  S 0.82–0.95, 36–56 s of game time, 3–5 heats, no flaw. The careless smith (full blows anywhere,
-  reheating only when the bar is dark) cracks every piece tried (S 0.14–0.30).
+- Measured (2.7.1, `tools/test.js`, the scripted careful smith): every recipe, masterworks
+  included, forged at its own tier, S 0.95–0.99, 34–57 s of game time, 2–3 heats, no flaw. The
+  careless smith (full blows anywhere, reheating only when the bar is dark) cracks 79 of 81 tries
+  and gets the tier below in 2 (S 0.02–0.50).
+- Measured (2.7.1, `humanBot`, a smith who reads the bar in pixels and misses by up to half a
+  segment): shape 0.88–0.92, 0–1 of 24 segments overworked; missing by a whole segment, shape
+  0.78–0.89. Before 2.7.1 the same smiths scored 0.41–0.79 and 0.10–0.52, with 8–19 segments
+  overworked — the "shape is always 0" report.
 - Measured (2.5.0, `Forge._bench`, 1024×768 at 2× on an M-series Mac): update < 0.01 ms per frame;
   render 0.12 ms at the hearth, 0.07 ms at the anvil.
 
@@ -1372,7 +1409,7 @@ Dişi Hançeri (29).
 |---|---|
 | `coalSave`, `ironSave` (%) | `cost()`: coal and iron × (1 − mod), at least 1 iron |
 | `forgeHours` (%) | `cost()`: hours × (1 − mod), at least 1 |
-| `forgeCool` (%) | `newBar` → `g.cool`: anvil cooling × (1 − mod) |
+| `blowFocus` (%) | `newBar` → `g.sigma`: the blow's spread × (1 − mod) (2.7.1; was `forgeCool`) |
 | `passEase` (points) | `newBar` → `g.passEase`: the pass mark − mod/100 |
 | `edgeBonus` (points) | `newEdge` → `g.max`: the grindstone's best edge 20 + mod % |
 | `scrapYield` (%) | `meltIron`: melting yield × (1 + mod) |
@@ -1531,7 +1568,7 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
     curtain wall; a village fence with fields and a mill, or a Khergit yurt camp
   - the ground and a road
   - one building per action button, built from the map's primitives in the kingdom's style
-    (`SCENE_KIND`: tower, house, tavern, shop, barn, stall, tent, ring, fire, coop, gate)
+    (`SCENE_KIND`: tower, house, tavern, shop, smithy, pen, ram, barn, stall, tent, ring, fire, coop, gate — 2.7.1 gave the inn, forge, workshop, slaver and siege their own shapes; they had shared the house and the tent)
 
   Buttons alternate back row / front row across the width, so a back building's sign never lands
   on the front one. The still part is cached per settlement, owner, time band and button set

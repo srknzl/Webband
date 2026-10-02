@@ -1579,16 +1579,15 @@ test('tournament: eight enter, one is crowned, and the ladder pays per round (#1
     gw.state.activeTournaments[city.id] = true;
     gw.Game.joinTournament(city);
     gw.Game.startTournament();
-    gw.state.player.ambition = { id: 'champion', day: gw.state.time.day };
-    gw.state.player.ambitionsDone = (gw.state.player.ambitionsDone || []).filter(id => id !== 'champion');
+    gw.state.player.ambitionsDone = gw.Game.AMBITIONS.map(a => a.id).filter(id => id !== 'champion');   // the one goal left open
     const m0 = gw.state.player.money, r0 = gw.state.player.renown, w0 = gw.state.player.tourneyWins || 0;
     for(let i = 0; i < 3; i++) gw.Game.tourneyRoundDone(true);
     assert.ok(gw.state.tourney.champion.you, 'the player won every round and was still not crowned');
     assert.strictEqual(gw.state.player.money - m0, 1200, 'the prize ladder and ambition rewards did not arrive');
     assert.strictEqual(gw.state.player.renown - r0, 30, 'the championship and ambition paid the wrong renown');
     assert.strictEqual((gw.state.player.tourneyWins || 0) - w0, 1, 'the ambition counter did not tick');
-    assert.ok(!gw.state.player.ambition && gw.state.player.ambitionsDone.includes('champion'),
-        'winning the tournament did not immediately complete the selected ambition');
+    assert.ok(gw.state.player.ambitionsDone.includes('champion'),
+        'winning the tournament did not immediately complete the open ambition');
     gw.state.tourney = null;
 
     // The board is topped up, not rolled once: a player crossing the map should keep running
@@ -1789,15 +1788,14 @@ test('tournament: a 4v4 round spawns two complete, colour-coded teams', () => {
 test('tournament: the shared result hook completes the ambition immediately and only on a win', () => {
     const gh = H.world({ seed: 123 });
     const { Game, state } = gh;
-    state.player.ambition = { id:'champion', day:state.time.day };
-    state.player.ambitionsDone = [];
+    state.player.ambitionsDone = Game.AMBITIONS.map(a => a.id).filter(id => id !== 'champion');
     const wins = state.player.tourneyWins || 0;
     Game.tournamentFinished(false, 0);
     assert.strictEqual(state.player.tourneyWins || 0, wins, 'a tournament loss incremented the win hook');
-    assert.strictEqual(state.player.ambition.id, 'champion', 'a loss completed the champion ambition');
+    assert.ok(!state.player.ambitionsDone.includes('champion'), 'a loss completed the champion ambition');
     Game.tournamentFinished(true, 3);
     assert.strictEqual(state.player.tourneyWins, wins + 1, 'the win hook did not increment the tournament counter');
-    assert.ok(!state.player.ambition && state.player.ambitionsDone.includes('champion'),
+    assert.ok(state.player.ambitionsDone.includes('champion'),
         'the shared result hook deferred ambition completion until day end');
 });
 
@@ -2112,6 +2110,53 @@ slow('anchor: cavalry runs down archers', () => {
     assert.ok(w >= 75, `cavalry vs archers ${w}% — horse should reach the bow line`);
 });
 
+// The encounter window's own path (party, hero, a kingdom's roster): the report's fight.
+test('odds: 21 peasants and a fresh hero against 8 kingdom soldiers is not "Kolay"', () => {
+    const go = H.world({ seed: 4 }), { Game: G, state: st } = go;
+    st.player.party = Array.from({ length: 21 }, (_, i) => ({ id: 'pz' + i, name: 'Svadya Köylüsü', level: 1 }));
+    st.encounterSize = null;
+    const npc = { size: 8, faction: 'swadia' };
+    assert.strictEqual(G.oddsLabel(npc).name, 'Çetin', `ratio ${G.oddsRatio(npc).toFixed(2)}`);
+    st.player.party = Array.from({ length: 12 }, (_, i) => ({ id: 'pc' + i, name: 'Svadya Çavuşu', level: 20 }));
+    assert.strictEqual(G.oddsLabel({ size: 6, band: 'bandit' }).name, 'Kolay', 'twelve sergeants against six looters');
+});
+
+// --- The odds label against the real engine ---
+// The encounter's "Tahmini denge" is a formula (Battle.sideStrength); these fights are the truth it
+// must match, re-measured on every push so a stat, armour or AI change that moves the battle moves
+// this test too. A "Kolay" side has to win nearly always and a "Çetin" one nearly never.
+// The 22-peasants-on-8-sergeants case is the report: the old level-weighted headcount said
+// "Kolay", and every man died.
+slow('odds: the encounter label agrees with real-engine fights', () => {
+    const go = H.world({ seed: 3 }), { Battle: B, Game: G, TROOP_TYPES: TT } = go;
+    const row = (name, n, team) => { const t = TT[name]; return { n, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: team }; };
+    const label = (a, na, b, nb) => {
+        const A = [row(a, na, true)], E = [row(b, nb, false)];
+        return G.ODDS.find(o => B.sideStrength(A, E) / B.sideStrength(E, A) >= o[0])[1];
+    };
+    const won = (a, na, b, nb, n = 20) => {
+        let w = 0, ok = 0;
+        for(let i = 0; i < n; i++) { const r = fight(go, a, b, na, nb); if(r.won === null) continue; ok++; if(r.won) w++; }
+        return Math.round(w / ok * 100);
+    };
+    const cases = [
+        ['Svadya Köylüsü', 22, 'Svadya Çavuşu', 8, 'Çetin'],     // the report
+        ['Svadya Köylüsü', 20, 'Svadya Milisi', 10, 'Çetin'],
+        ['Svadya Milisi', 10, 'Svadya Çavuşu', 5, 'Çetin'],
+        ['Svadya Köylüsü', 10, 'Nord Serfi', 10, 'Dengeli'],
+        ['Svadya Köylüsü', 12, 'Svadya Köylüsü', 8, 'Kolay'],
+        ['Svadya Çavuşu', 4, 'Svadya Milisi', 8, 'Kolay'],
+        ['Svadya Çavuşu', 8, 'Svadya Milisi', 12, 'Kolay'],
+        ['Veagir Baltacısı', 5, 'Nord Savaşçısı', 8, 'Kolay'],
+    ];
+    for(const [a, na, b, nb, want] of cases) {
+        const got = label(a, na, b, nb), w = won(a, na, b, nb);
+        assert.strictEqual(got, want, `${na} ${a} vs ${nb} ${b}: label ${got}, expected ${want} (won ${w} %)`);
+        if(got === 'Kolay') assert.ok(w >= 85, `${na} ${a} vs ${nb} ${b} reads Kolay but won ${w} %`);
+        if(got === 'Çetin') assert.ok(w <= 15, `${na} ${a} vs ${nb} ${b} reads Çetin but won ${w} %`);
+    }
+});
+
 // --- Sprite sheets (#92) ---
 // kingdom_crests.jpg holds FOUR banners in a 2x2 grid; it was being cut with 3x3 maths,
 // so most crests rendered a slice of castle wall or two half banners. Any crest index
@@ -2315,9 +2360,17 @@ function questSuite() {
             const q = Quests.make(id, giverId);
             state.player.quests.push(q);
 
-            // The answer to "where" is either a real location or none at all
+            // The answer to "where" is either a real place (a settlement or a map site) or none at all
             const w = QUESTS[id].where && QUESTS[id].where(q);
-            assert.ok(!w || loc(w), `where() returned a place not on the map: ${w}`);
+            assert.ok(!w || Quests.place(w), `where() returned a place not on the map: ${w}`);
+            // a quest whose text sends you to a lair pins that lair, not the castle beside it
+            if(q.data.lairId) {
+                const lair = Quests.place(q.data.lairId);
+                assert.strictEqual(w, lair.id, 'the pin isn\'t on the lair the text names');
+                assert.ok(Quests.taskHtml(q).includes(`📍 ${Quests.locName(lair.id)}`), 'the 📍 line names another place');
+                assert.ok(Quests.daysTo(w) >= 1, 'no travel time to the lair');
+                assert.ok(Quests.targets()[lair.id], 'no map pin on the lair');
+            }
             assert.ok(QUESTS[id].desc(q).length > 10, 'desc is empty');
 
             drivers[id](q);
@@ -2333,6 +2386,9 @@ function questSuite() {
                 enter(q.turnInLocId);
             }
             assert.ok(!Quests.has(id), 'quest didn\'t finish — the driver\'s events don\'t reach the engine');
+            // #167: handing in exactly what was asked empties the stack — and it leaves the bag
+            const empty = state.player.inventory.find(i => !(i.qty > 0));
+            assert.ok(!empty, `the hand-in left ${empty && empty.id} at qty ${empty && empty.qty} in the bag`);
             assert.strictEqual(state.player.money, QUESTS[id].reward.money, 'reward wasn\'t paid');
         });
     });
@@ -2791,15 +2847,32 @@ test('ambition: honourably releasing the last feuding lord completes blood money
     const g = H.world({ seed: 34 });
     const { Game, state, LORDS } = g;
     const lord = LORDS[0];
-    state.player.ambition = { id:'feud', day:state.time.day };
-    state.player.ambitionsDone = [];
+    state.player.ambitionsDone = Game.AMBITIONS.map(a => a.id).filter(id => id !== 'feud');
     state.player.hadGrudge = false;
     state.grudges[lord.id] = state.time.day;
     state.player.prisoners = [{ id:'held_lord', name:lord.name, noble:true, lordId:lord.id,
                                 faction:lord.faction, ransom:1000 }];
     Game.releaseLord('held_lord');
-    assert.ok(!state.player.ambition && state.player.ambitionsDone.includes('feud'),
-        'releasing the feud prisoner did not complete the selected goal');
+    assert.ok(state.player.ambitionsDone.includes('feud'),
+        'releasing the feud prisoner did not complete the open goal');
+});
+
+test('ambition: every open goal counts without being picked, and one it opens that already holds pays too', () => {
+    const g = H.world({ seed: 35 });
+    const { Game, state } = g;
+    state.player.ambitionsDone = [];
+    state.player.renown = 0;
+    Game.ambitionTick();
+    assert.deepStrictEqual(state.player.ambitionsDone, [], 'a fresh hero met a goal');
+    // ten men and a lord friend at 30: the head of the chain, then the friend goal it opens
+    state.player.party = Array.from({ length: 10 }, (_, i) => ({ id: 'amb' + i, name: 'Köylü', level: 1 }));
+    state.relations = Object.assign(state.relations || {}, { [g.LORDS[0].id]: 30 });
+    Game.ambitionTick();
+    assert.deepStrictEqual(state.player.ambitionsDone.slice().sort(), ['band', 'friend'], 'met goals waited to be picked');
+    assert.strictEqual(state.player.renown, 10, 'band and friend pay 5 renown each');
+    Game.ambitionTick();
+    assert.strictEqual(state.player.renown, 10, 'a goal paid twice');
+    assert.ok(!Game.ambitionHtml().includes('pickAmbition'), 'the goals panel still asks you to pick one');
 });
 
 test('lord prisoners: released nobles return only after recovery with a small retinue', () => {
@@ -4277,6 +4350,22 @@ test('grindstone: a blade kept moving at the right angle keens evenly; held stil
     const { sharpenable } = F._model, I = forgeWorld().ITEMS;
     assert.deepStrictEqual(['sword', 'axe', 'lance', 'mace', 'bow', 'mail'].map(id => sharpenable(I[id])), [true, true, true, false, false, false]);
 });
+// 2.7.1: the hero's armour is five pieces summed (leather 21, plate 65), on a scale no troop's attack
+// reaches; subtracted, a hero in a leather set took 1–3 from a sergeant's blow and cut down ten
+// armoured men alone. On the gear-armoured hero it's a share now; every other blow is unchanged.
+test('armour: the hero\'s gear takes a share of a blow, troops and the tournament kit still subtract', () => {
+    const { Battle, TROOP_TYPES } = H.world({ seed: 1 });
+    const sgt = TROOP_TYPES['Svadya Çavuşu'], raw = sgt.attack * Battle.DAMAGE_PACE;
+    const onHero = (def, r = raw) => Battle.afterArmor('cut', r, def, { isPlayerTeam: true, id: 'player', gearArmor: true });
+    const share = def => onHero(def, 100) / 100;     // a big blow, so rounding doesn't blur the share
+    assert.ok(share(21) >= .7 && share(21) <= .78, `a leather set lets ${Math.round(share(21) * 100)} % of a sergeant's blow through`);
+    assert.ok(share(65) >= .44 && share(65) <= .52, `a plate set lets ${Math.round(share(65) * 100)} % through`);
+    assert.ok(Math.ceil(71 / onHero(21)) <= 10, `a level-1 hero in leather (71 hp) outlasts ${Math.ceil(71 / onHero(21))} sergeant blows`);
+    // troop against troop and the tournament's fixed kit: armour still subtracts down to the floor
+    const plain = { isPlayerTeam: false };
+    assert.strictEqual(Battle.afterArmor('cut', raw, 12, plain), Math.round(raw - 12));
+    assert.strictEqual(Battle.afterArmor('cut', raw, 21, { isPlayerTeam: true, id: 'player', gearArmor: false }), Math.max(1, Math.round(raw * Battle.ARMOR_FLOOR)));
+});
 test('grindstone: the edge adds to the player\'s melee only, only with that weapon, and dulls battle by battle', () => {
     const w = forgeWorld(), { Game, Battle, state, ITEMS } = w;
     state.player.equipment.weapon = { ...ITEMS.sword, qty: 1 };
@@ -4339,6 +4428,42 @@ test('forge: a careful smith forges every recipe, a careless one cracks it', () 
         const bad = forgeBot(F, F.RECIPES.find(r => r.id === id), true, seed);
         assert.strictEqual(bad.out.kind, 'ruin', `${id}#${seed}: careless smith scored ${bad.sc.S.toFixed(2)}`);
     }
+});
+// 2.7.1: the anvil as a person plays it. This smith sees the bar only in pixels (an overworked
+// spot is under a pixel thinner), hits whatever looks most above its outline, misses by up to
+// half a segment either way, holds longer for a bigger excess and reheats when the spot looks dark.
+// Before 2.7.1 the metal cooled in 4–7 s, a blow took half its neighbours' work and nothing stopped
+// at the outline: this smith overworked 8–19 of 24 segments and scored shape 0.10–0.79.
+function humanBot(F, r, seed, aim) {
+    const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+    const m = F._model, M = F.MODEL, hS = 1.4, g = m.newBar(r, r.req), dt = 1 / 30;
+    const px = s => Math.max(1, Math.round((s.t + s.w * (M.BILLET - s.t) * (s.w < 0 ? .6 : 1)) * hS));
+    let x = seed, t = 0, hot = false;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647, noise = () => (rnd() + rnd() + rnd() - 1.5) * 1.4;
+    while(t < 400) {
+        if(!hot) { m.stepForge(g, dt, true); t += dt; hot = g.segs.every(s => s.T > 950) || g.segs.some(s => s.T > 1200); continue; }
+        for(let k = 0; k < 15; k++) { m.stepAnvil(g, dt); t += dt; }      // a blow every half second
+        if(m.shapeReady(g)) break;
+        let best = -1, ex = 0;
+        g.segs.forEach((s, i) => { const e = (px(s) - Math.max(1, Math.round(s.t * hS))) * Math.sign(M.BILLET - s.t || 1); if(e > ex) { ex = e; best = i; } });
+        if(best < 0) { best = g.segs.findIndex(s => s.w > g.tol); ex = .5; }
+        if(g.segs[best].T < 720) { hot = false; g.heats++; continue; }
+        m.strike(g, clamp(best + aim * noise(), 0, M.N - 1), clamp(.35 + .65 * Math.min(1, ex / 5) + .1 * noise(), .35, 1));
+    }
+    return m.score(g);
+}
+test('forge: a smith who reads the bar by eye forges a good piece, and the metal stays workable whatever the skill', () => {
+    const { Forge: F } = forgeWorld(), m = F._model;
+    for(const id of ['sword', 'axe', 'mace', 'lance', 'plate', 'sword_wootz']) {
+        const r = F.RECIPES.find(x => x.id === id), runs = [1, 2, 3, 4, 5, 6].map(k => humanBot(F, r, k * 7919, .35));
+        const shape = runs.reduce((a, sc) => a + sc.shape, 0) / runs.length;
+        assert.ok(shape >= .8, `${id}: a careful eye scores shape ${shape.toFixed(2)}`);
+        const sloppy = [1, 2, 3].map(k => humanBot(F, r, k * 104729, .7)).reduce((a, sc) => a + sc.shape, 0) / 3;
+        assert.ok(sloppy >= .6 && sloppy < shape, `${id}: a sloppier eye scores ${sloppy.toFixed(2)} against ${shape.toFixed(2)}`);
+    }
+    // from 1000 °C the middle of the bar stays above 720 °C for 15 s or more, at Demircilik 1 and at 10 alike
+    const secs = lvl => { const g = m.newBar(F.RECIPES[0], lvl); g.segs.forEach(s => { s.T = 1000; s.w = .5; }); let t = 0; while(g.segs[12].T >= 720) { m.stepAnvil(g, 1 / 30); t += 1 / 30; } return t; };
+    assert.ok(secs(1) >= 15 && Math.abs(secs(1) - secs(10)) < 1e-9, `workable for ${secs(1).toFixed(1)} s at Demircilik 1, ${secs(10).toFixed(1)} s at 10`);
 });
 test('forge: materials come from the bag, and from the storage only at your own fief', () => {
     const { Forge: F, state, LOCATIONS } = forgeWorld(), m = F._model;
@@ -4403,7 +4528,7 @@ test('forge: masterworks need crucible steel, Örs perks bend the numbers, melti
     state.player.perks = ['smith_master_a', 'smith_grand_b', 'smith_oilstone_b', 'smith_quick_a'];
     const c1 = m.cost(sw), g1 = m.newBar(sw, 9), e1 = m.newEdge('blade', 1);
     assert.ok(c1.iron < c0.iron && c1.coal < c0.coal && c1.hours < c0.hours && c1.steel === c0.steel, `perks didn't spare: ${JSON.stringify([c0, c1])}`);
-    assert.ok(m.passMark(g1) < m.passMark(g0) && g1.cool < 1, 'the craft perks didn\'t ease the anvil');
+    assert.ok(m.passMark(g1) < m.passMark(g0) && g1.sigma < g0.sigma, 'the craft perks didn\'t ease the anvil');
     assert.strictEqual(e1.max - e0.max, 6, 'the oilstone didn\'t raise the grindstone\'s best edge');
     // melting: even with the scrapper's perk, the iron is worth at most half of what the piece costs
     state.player.perks = ['smith_scrap_a'];
