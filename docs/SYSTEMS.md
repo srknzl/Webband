@@ -1568,7 +1568,7 @@ message lives in the panel (`_mktMsg`) so a redraw keeps it.
     curtain wall; a village fence with fields and a mill, or a Khergit yurt camp
   - the ground and a road
   - one building per action button, built from the map's primitives in the kingdom's style
-    (`SCENE_KIND`: tower, house, tavern, shop, barn, stall, tent, ring, fire, coop, gate)
+    (`SCENE_KIND`: tower, house, tavern, shop, smithy, pen, ram, barn, stall, tent, ring, fire, coop, gate — 2.7.1 gave the inn, forge, workshop, slaver and siege their own shapes; they had shared the house and the tent)
 
   Buttons alternate back row / front row across the width, so a back building's sign never lands
   on the front one. The still part is cached per settlement, owner, time band and button set

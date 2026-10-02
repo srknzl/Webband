@@ -754,8 +754,8 @@ const MapArt = (() => {
         night: ['#0a0f26', '#121937', '#1b2349', '#26305a']
     };
     const SCENE_KIND = {
-        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'house', '🏭': 'shop', '🔨': 'shop', '📦': 'barn',
-        '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔': 'tent', '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate', '⏳': 'fire'
+        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'pen', '🏭': 'shop', '🔨': 'smithy', '📦': 'barn',
+        '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔': 'ram', '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate', '⏳': 'fire'
     };
     const BUILD = new Map(), BASES = new Map(), ICONS = {};
 
@@ -794,6 +794,12 @@ const MapArt = (() => {
         const S = STYLE[cul], yurtish = cul === 'khergit', snow = cul === 'vaegir';
         const g = sheet(w, h + 16), gy = h + 15, cx = w >> 1;
         g.live = true;
+        // the inn's sign: a board with a frothing mug on an iron bracket, and barrels by the door
+        const inn = y => {
+            g.px(w - 5, y - 1, 5, 1, '#3a3a40'); g.px(w - 5, y, 1, 7, '#3a3a40');
+            g.px(w - 4, y, 4, 6, '#7a5a36'); g.px(w - 3, y + 2, 2, 3, '#e0b852'); g.px(w - 3, y + 1, 2, 1, '#f4efe2');
+            for(const bx of [0, 4]) { g.px(bx, gy - 5, 4, 5, '#7a5230'); g.px(bx, gy - 4, 4, 1, '#3a2a1c'); g.px(bx, gy - 2, 4, 1, '#3a2a1c'); }
+        };
         const awning = (x0, x1, y) => { for(let x = x0; x < x1; x++) { const on = ((x - x0) >> 2) & 1; g.px(x, y, 1, 3, on ? col : '#ede4cf'); g.px(x, y + 3, 1, 1, on ? '#00000055' : '#c9bfa7'); } };
         if(kind === 'tower') {
             if(yurtish) { yurt(g, cx, gy, w - 6, S, true); tugh(g, cx + (w >> 2), gy, col); }
@@ -804,19 +810,71 @@ const MapArt = (() => {
                 flag(g, cx, Math.max(0, gy - (h - 2 - topH) - topH - 7), col);
                 gate(g, cx - 2, gy, 4, 5);
             }
+        } else if(kind === 'tavern' && !yurtish) {
+            // two storeys of half-timber, taller than any house: the inn reads from across the square
+            const hw = w - 10, hh = Math.round(h * 0.72), beam = '#5a3d22';
+            block(g, 4, gy - hh, hw, hh, S.wall);
+            for(let x = 4; x < 4 + hw; x += 6) g.px(x, gy - hh, 1, hh, beam);
+            g.px(4, gy - hh, hw, 1, beam); g.px(4, gy - (hh >> 1), hw, 1, beam);
+            gable(g, 3, gy - hh, hw + 2, S.roof, snow);
+            for(let x = 6; x < 4 + hw - 2; x += 6) { g.window(x + 1, gy - hh + 3); if(Math.abs(x + 1 - cx) > 2) g.window(x + 1, gy - (hh >> 1) + 3); }
+            g.px(cx - 2, gy - 6, 4, 6, '#3a2a1c');
+            const ct = gy - hh - Math.ceil((hw + 2) / 2) + 1;
+            g.px(4 + hw - 6, ct, 3, 7, S.wall[2]); g.fx.push({ t: 'smoke', x: 4 + hw - 5, y: ct - 1 });
+            inn(gy - hh + 4);
+        } else if(kind === 'smithy') {
+            // an open-fronted forge: a stone stack with the hearth glowing in it, a lean-to on posts, the anvil out front
+            const rf = S.roof || STYLE.nord.roof, roofY = gy - Math.round(h * 0.55), wood = '#5a3d22';
+            block(g, 3, gy - h + 1, 9, h - 1, ['#8a8478', '#6f6a60', '#55514a']);
+            for(let y = gy - h + 3; y < gy; y += 3) g.px(4 + (y % 2) * 3, y, 2, 1, '#55514a');
+            g.fx.push({ t: 'smoke', x: 7, y: gy - h });
+            g.px(5, gy - 7, 5, 5, '#2b2016'); g.px(6, gy - 5, 3, 3, '#e8742c'); g.px(7, gy - 4, 1, 1, '#ffd36a');
+            g.win.push([7, gy - 4]);
+            for(let x = 12; x < w - 2; x++) g.px(x, roofY - 3 + Math.round((x - 12) * 4 / (w - 14)), 1, 2, x % 3 ? rf[0] : rf[1]);
+            g.px(13, roofY, w - 17, gy - roofY, '#2b2016');
+            g.px(13, roofY, 1, gy - roofY, wood); g.px(w - 4, roofY + 1, 1, gy - roofY - 1, wood);
+            g.px(w - 9, roofY + 3, 1, 4, '#8a6a40'); g.px(w - 10, roofY + 3, 3, 1, '#9a9aa2');   // a hammer on the wall
+            g.px(w - 13, roofY + 3, 1, 5, '#8a6a40'); g.px(w - 14, roofY + 7, 3, 1, '#9a9aa2');  // tongs
+            g.px(cx - 1, gy - 5, 8, 2, '#5c5c66'); g.px(cx - 2, gy - 5, 1, 1, '#5c5c66'); g.px(cx - 1, gy - 5, 8, 1, '#8a8a94');
+            g.px(cx + 1, gy - 3, 4, 3, '#45454e');
+        } else if(kind === 'pen') {
+            // the slaver's yard: a barred wooden cage with a captive inside, beside a small hut
+            const hutW = Math.round(w * 0.36), x0 = hutW + 5, top = gy - Math.round(h * 0.55), wood = '#5a3d22';
+            if(yurtish) yurt(g, 3 + (hutW >> 1), gy, hutW, S); else house(g, 3, gy, hutW, Math.round(h * 0.42), S, snow);
+            g.px(x0 + 4, gy - 8, 3, 3, '#c9a27a'); g.px(x0 + 3, gy - 5, 5, 4, '#7a6a52'); g.px(x0 + 9, gy - 6, 3, 3, '#b8906a'); g.px(x0 + 8, gy - 3, 5, 3, '#6a5a44');
+            g.px(x0, top, w - 3 - x0, 2, wood); g.px(x0, gy - 1, w - 3 - x0, 1, wood);
+            for(let x = x0; x < w - 3; x += 2) g.px(x, top + 2, 1, gy - top - 3, '#3a2a1c');
+            g.px(w - 4, top, 1, gy - top, wood);
+            g.px(x0 + ((w - 3 - x0) >> 1), top + 4, 2, 2, '#9a9aa2');   // the padlock
+        } else if(kind === 'ram') {
+            // the siege: a battering ram under its hide-roofed shed, on wheels, flying the kingdom's colour
+            const top = gy - Math.round(h * 0.62), wood = '#6b4e2e';
+            g.px(6, top + 4, 1, gy - top - 7, wood); g.px(w - 7, top + 4, 1, gy - top - 7, wood);
+            gable(g, 4, top + 5, w - 8, ['#8a6a40', '#6b4e2e'], snow);
+            g.px(5, top + 4, w - 10, 1, wood);
+            g.px(4, gy - 8, w - 7, 3, '#7a5230'); g.px(4, gy - 8, w - 7, 1, '#9c7a4a');
+            g.px(1, gy - 9, 4, 5, '#55565c'); g.px(1, gy - 9, 4, 1, '#8a8a94');
+            for(const wx of [10, w - 11]) { g.px(wx - 2, gy - 4, 5, 4, '#3a2a1c'); g.px(wx - 1, gy - 3, 3, 2, wood); }
+            g.px(w - 6, top - 6, 1, 10, '#5a4a36'); g.px(w - 5, top - 6, 4, 3, col);
         } else if(kind === 'house' || kind === 'tavern' || kind === 'shop') {
             if(yurtish) { yurt(g, cx, gy, w - 8, S); g.fx.push({ t: 'smoke', x: cx, y: gy - Math.round((w - 8) * 0.55) - 1 }); if(kind === 'shop') { g.px(w - 7, gy - 12, 2, 12, '#7a5a38'); g.px(w - 8, gy - 13, 4, 2, '#b8b0a0'); } }
             else {
                 const hw = w - 8, hh = Math.round(h * 0.5);
                 house(g, 4, gy, hw, hh, S, snow);
                 for(let x = 6; x < 4 + hw - 2; x += 5) if(Math.abs(x - (4 + (hw >> 1))) > 2) g.window(x, gy - hh + 3);
-                if(kind === 'shop' || kind === 'tavern') {      // a chimney; its smoke rises per frame (sceneLife)
+                if(kind === 'shop') {      // a chimney; its smoke rises per frame (sceneLife)
                     const ct = gy - hh - Math.ceil((hw + 2) / 2) + 1;
                     g.px(w - 10, ct, 3, 7, S.wall[2]);
                     g.fx.push({ t: 'smoke', x: w - 9, y: ct - 1 });
                 }
             }
-            if(kind === 'tavern') { g.px(w - 4, gy - Math.round(h * 0.5) - 1, 1, 4, '#5a4a36'); g.px(w - 7, gy - Math.round(h * 0.5) + 2, 5, 4, '#7a5a36'); g.px(w - 6, gy - Math.round(h * 0.5) + 3, 3, 2, '#e0b852'); }
+            if(kind === 'tavern') inn(gy - Math.round(h * 0.5) + 2);
+            if(kind === 'shop') {      // a workshop: the kingdom's awning over the door, crates of goods out front
+                awning(7, w - 7, gy - 10);
+                g.px(w - 11, gy - 4, 5, 4, '#a07a48'); g.px(w - 11, gy - 4, 5, 1, '#7a5a36'); g.px(w - 9, gy - 4, 1, 4, '#7a5a36');
+                g.px(w - 9, gy - 7, 4, 3, '#b08a56'); g.px(w - 9, gy - 7, 4, 1, '#7a5a36');
+                g.px(5, gy - 4, 4, 4, '#a07a48'); g.px(5, gy - 4, 4, 1, '#7a5a36');
+            }
         } else if(kind === 'barn') {
             const bw = w - 4, bh = Math.round(h * 0.55);
             block(g, 2, gy - bh, bw, bh, cul === 'khergit' || cul === 'rhodok' ? S.wall || STYLE.rhodok.wall : ['#b0503a', '#8f3e2d', '#6e2f22']);
