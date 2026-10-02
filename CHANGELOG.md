@@ -15,6 +15,8 @@ başlangıç ekranının sağ alt köşesinde yazar.
   Soğuma artık Demircilik'e bağlı değil; Demircilik kademeyi daha kolay tutturur.
 - **Örs dalında iki perk değişti:** Sabırlı Ateş artık **Sabit El** (çekiç daha az yayılır). Usta
   İşi de soğuma yerine çekiç isabeti verir. Bu perkleri almış olan, yeni etkisini hemen alır.
+- **Savaş sonucunun Ayrıntı sekmesinde** kayıpların tarafı artık savaş alanındaki renkle yazıyor:
+  dost mavi, düşman kırmızı. Önceden dost kırmızı, düşman yeşildi.
 
 ## 2.7.0 — Damar (2026-10-02)
 

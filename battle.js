@@ -3259,9 +3259,10 @@ const Battle = {
         let typeName = { infantry: T('Piyade'), archer: T('Okçu'), cavalry: T('Süvari') };
         let tds = 'padding:0.3rem 0.5rem;border-bottom:1px solid var(--panel-border)';
 
+        // the side in the field's colours (yours blue, theirs red), not good news green / bad news red
         let casRows = log.deaths.map(d => `<tr>
             <td style="${tds}">${d.name}</td>
-            <td style="${tds};color:${d.isPlayerTeam ? '#ff8888' : '#88dd88'}">${d.isPlayerTeam ? T('Dost') : T('Düşman')}</td>
+            <td style="${tds};color:${d.isPlayerTeam ? '#8fd4ff' : '#ff9a8a'}">${d.isPlayerTeam ? T('Dost') : T('Düşman')}</td>
             <td style="${tds}">${typeName[d.type] || d.type}</td>
             <td style="${tds}">${d.level}</td>
             <td style="${tds}">${d.killerName}</td>
