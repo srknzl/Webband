@@ -755,17 +755,14 @@ const Battle = {
         // with the weapon that was sharpened in hand. Using it this battle dulls it a step at the end.
         let edge = src && src.id === 'player' ? Game.edge() : 0;
         if(edge) { raw *= 1 + edge / 100; this._edgeUsed = true; }
-        // Armor blunts a blow but never trivializes it (#8): heavy plate used to drop a strong
-        // hit to the Math.max(1) floor — "1 damage" — so an axeman could not scratch a knight.
-        // A fraction of the type-adjusted raw always lands; armor scales how much between here and full.
-        let base = raw * t.mult;
-        // The hero's armour is the sum of five pieces (a leather set 21, plate 65, a shield +10) —
-        // a scale no troop's attack (6–24) reaches. Subtracted, it left a hero in leather taking
-        // 1–3 a hit from sergeants. On the hero (gear-armoured: the field and the lair, not the
-        // tournament's fixed kit) it is a share instead: leather lets 74 % through, plate 48 %.
-        let landed = tgt && tgt.gearArmor
-            ? base * this.HERO_ARMOR_K / (this.HERO_ARMOR_K + (def || 0) * t.armor)
-            : Math.max(base - (def || 0) * t.armor, base * this.ARMOR_FLOOR);
+        // Armour takes a share of a blow, never the whole of it: a hit lands × K / (K + defense ×
+        // the type's armour). Subtracted (until 2.8.0), it dropped a villager's club on a militia
+        // man to the Math.max(1) floor — "1 damage" — and made one step up a tree worth far more
+        // than the two men it costs (tools/balance.js). The hero's armour is the sum of five pieces
+        // (a leather set 21, plate 65, a shield +10), a scale of its own, so it has its own K
+        // (gear-armoured: the field and the lair, not the tournament's fixed kit).
+        let base = raw * t.mult, K = tgt && tgt.gearArmor ? this.HERO_ARMOR_K : this.ARMOR_K;
+        let landed = base * K / (K + (def || 0) * t.armor);
         return Math.max(1, Math.round(landed * Game.dmgMult(tgt)));
     },
     // The hero's fighting numbers from the gear — one source for start() and the odds label.
@@ -811,21 +808,38 @@ const Battle = {
     // damage type and difficulty count exactly as they will, and a spear's brace against horses.
     // P sits between Lanchester's linear (1) and square (2) laws: not every man is in the fight
     // at once. Measured against the real engine (tools/test.js 'odds:'), P = 1.7.
-    // ponytail: every unit swings at the same pace and archers count as melee; add range/rate if
-    // the label is measured off on bow-heavy sides.
+    // ponytail: every unit swings at the same pace; add range/rate if a bow-heavy side reads off.
     ODDS_P: 1.7,
+    // A bowman against footmen or riders fights well under his sheet. Alone with other bowmen he
+    // shoots the whole approach and four of them are an even fight for four villagers; behind his own
+    // footmen his line is in the way and he adds little (4 militia ≈ 8 villagers, with 4 bowmen
+    // behind them ≈ 10.5). So his hit on a non-archer counts ARCHER_IN_MELEE × (his side's archer
+    // share)^1.5: 0.45 for a side of bowmen, ~0.16 at half, ~0.1 in a kingdom's army.
+    ARCHER_IN_MELEE: 0.45,
     sideStrength(side, foes) {
         let men = n => n.reduce((a, f) => a + f.n, 0);
         let N = men(side), M = men(foes) || 1;
         if(!N) return 0;
+        let bow = this.ARCHER_IN_MELEE * Math.pow(men(side.filter(u => u.type === 'archer')) / N, 1.5);
         let x = side.reduce((a, u) => {
-            let hit = foes.reduce((h, f) => h + f.n * this.afterArmor(u.dmgType, u.attack * this.DAMAGE_PACE * (f.type === 'cavalry' && !f.beast ? this.braceMult(u) : 1), f.defense, f), 0) / M;
+            let hit = foes.reduce((h, f) => h + f.n * this.afterArmor(u.dmgType, u.attack * this.DAMAGE_PACE * (f.type === 'cavalry' && !f.beast ? this.braceMult(u) : 1), f.defense, f)
+                                                     * (u.type === 'archer' && f.type !== 'archer' ? bow : 1), 0) / M;
             return a + u.n * u.hp * hit;
         }, 0) / N;
         return Math.pow(N, this.ODDS_P) * x;
     },
-    ARMOR_FLOOR: 0.18,   // min share of a type-adjusted hit that pierces any armor (#8)
-    HERO_ARMOR_K: 60,    // the hero's armour: a hit lands × K / (K + defense × the type's armor)
+    // The same strength as a headcount ratio: how many men side A is, counted in B's men (1 = an
+    // even fight). Linear in heads like the headcount it replaced, so a world battle's luck and
+    // casualty numbers keep their scale — but a sergeant now counts as the four villagers he beats.
+    powerRatio(a, b) {
+        return Math.pow(this.sideStrength(a, b) / Math.max(1e-6, this.sideStrength(b, a)), 1 / this.ODDS_P);
+    },
+    ARMOR_K: 20,         // a troop's armour: a hit lands × K / (K + defense × the type's armor)
+    HERO_ARMOR_K: 60,    // the hero's, on the scale of five pieces of gear
+    // No blow lands the same twice: ± this share, rolled per hit (2.8.0). Without it a duel was
+    // settled by the stat sheet before it began. Odds and tests read the mean (afterArmor alone).
+    HIT_SPREAD: 0.25,
+    hitRoll() { return 1 + this.HIT_SPREAD * (2 * Math.random() - 1); },
 
     // Block: an attack is cut off if it lands within the arc the shield faces (0 = full block)
     blockFactor(tgt, sx, sy) {
@@ -923,7 +937,7 @@ const Battle = {
         // the whole line (#109). Cuts both ways: the same check on the other side of dealMelee's
         // caller means a lone rider can't just charge a spear wall down for free either.
         if(tgt.type === 'cavalry' && !tgt.beast) raw *= this.braceMult(src);
-        let dmg = this.afterArmor(src.dmgType, raw * bf * this.DAMAGE_PACE, tgt.defense, tgt, src);
+        let dmg = this.afterArmor(src.dmgType, raw * bf * this.DAMAGE_PACE * this.hitRoll(), tgt.defense, tgt, src);
         tgt.hp -= dmg;
         // Attributes grow through play: strength if the player lands the hit, vitality if the player takes it.
         if(src.id === 'player') Game.trainAttr('str', 0.15);
@@ -1141,7 +1155,7 @@ const Battle = {
                 if(d < u.radius + 2) {
                     let bf = this.blockFactor(u, proj.x - proj.vx, proj.y - proj.vy);
                     if(bf === 0) { this.blockedFx(u, proj.x - proj.vx, proj.y - proj.vy); hit = true; break; }
-                    let dmg = this.afterArmor(proj.dmgType, proj.damage * bf * this.DAMAGE_PACE, u.defense, u);
+                    let dmg = this.afterArmor(proj.dmgType, proj.damage * bf * this.DAMAGE_PACE * this.hitRoll(), u.defense, u);
                     u.hp -= dmg;
                     hit = true;
                     u.hitFlash = 0.15;
@@ -3202,9 +3216,10 @@ const Battle = {
     // 10x ~4%; fighting it by hand is still cheaper. The Leadership skill reduces it by up to 40%.
     autoResolve() {
         this.reserves = { p: [], e: [] };
-        let str = team => this.units.filter(u => u.isPlayerTeam === team)
-            .reduce((a, u) => a + u.hp * (u.attack + 2), 0);
-        let q = str(true) / Math.max(1, str(false)) * (0.85 + Math.random() * 0.3);   // ±15% luck factor
+        // the field's men as they stand, through the same strength the odds label reads (2.8.0;
+        // it summed hp × attack, blind to armour, damage type and the brace)
+        let side = team => this.units.filter(u => u.isPlayerTeam === team && u.hp > 0).map(u => Object.assign({}, u, { n: 1 }));
+        let q = this.powerRatio(side(true), side(false)) * (0.85 + Math.random() * 0.3);   // ±15% luck factor
         let won = q > 1, ratio = won ? q : 1 / q;
         let loss = Math.min(0.85, 0.45 / ratio
             * (1 - Math.min(0.4, (Game.profLvl('leadership') - 1) * 0.04))

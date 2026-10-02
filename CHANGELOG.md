@@ -3,6 +3,33 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.8.0 — Terazi (2026-10-03)
+
+- **Kimse artık 1 vurmuyor.** Zırh vuruştan sabit bir sayı düşmüyor, vuruşun bir kısmını
+  durduruyor. Önceden bir köylünün sopası milis askerine 1 vuruyordu, çavuşa da 1. Şimdi milise 3,
+  en zırhlı şövalyeye bile 2 vuruyor. Oyundaki en zayıf vuruş 2.
+- **Vuruşlar artık aynı sayıyı tekrarlamıyor.** Her darbe ortalamasının %25 altı ile üstü arasında
+  değişiyor.
+- **Birlikler yeniden dengelendi, gerçek savaşlarla.** Bir kademe yukarısı alttakinin iki katı
+  ediyor: 8 köylü 4 milisle, 4 milis 2 çavuşla başa baş. Önceden bir kademe üç-dört kat ediyordu;
+  22 köylü 8 çavuşa girince hepsi ölüyordu. Krallıkların aynı kademedeki birlikleri birbirine denk,
+  farkları karakterlerinde: Rodok kalkanlısı yavaş ama zırhlı, Kergit atlısı hızlı ama ince. Köylü
+  her krallıkta aynı köylü. Svadya milisi daha zırhlı, daha az canlı.
+- **Haydutlar da aynı ölçüye oturdu.** Her haydut, denk olduğu krallık askeriyle başa baş. Çapulcu
+  ve dağ eşkıyası neredeyse aynı kaldı; çapulcu reisi, eşkıya reisi, orman haydudu ve köy bekçisi
+  biraz zayıfladı (inlerdeki muhafızlar da).
+- **Taş-kâğıt-makas yerinde.** Mızraklı ve kalkanlı hat aynı kademedeki atlıyla başa baş; atlı düz
+  piyadeyi ve okçuyu ezer.
+- **"Tahmini denge" artık okçuları doğru sayıyor.** Piyadenin arkasındaki okçu az iş görür, tek
+  başına okçu birliği daha çok. Etiketin sınırları gerçek savaşlara göre yeniden ayarlandı: "Kolay"
+  diyorsa kazanırsın, "Çetin" diyorsa kazanamazsın.
+- **"Askerlerini Gönder" gerçek güce bakıyor.** Düğme artık kafa sayısına değil ordunun gücüne
+  göre çıkıyor; sonucunu da aynı güç belirliyor. 22 köylü 8 çavuşun üstüne kendi kendine
+  gönderilemiyor.
+- **Haritadaki savaşlar da aynı ölçüyle.** Lordun haydut çetesini dağıtması, iki krallık ordusunun
+  çarpışması, çetenin kervana baskını artık kafa sayısıyla değil, iki tarafın askerlerinin gerçek
+  gücüyle çözülüyor. Kervan muhafızları baskınları daha sık püskürtüyor.
+
 ## 2.7.1 — Tav (2026-10-02)
 
 - **Dövmek artık adil.** Şekil puanı neredeyse hep sıfır çıkıyordu: fazla dövdüğün yer ekranda

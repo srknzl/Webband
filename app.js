@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.7.1', date: '2026-10-02', name: 'Tav' };  // the version name is not translated
+const VERSION = { no: '2.8.0', date: '2026-10-03', name: 'Terazi' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -591,55 +591,60 @@ const BOSSES = {
 
 // --- UPGRADE TREES & STATS ---
 // Each faction has its own troop tree: recruit -> branch -> elite.
-// Row format: [name, type, hp, speed, attack, defense, icon, upgrade cost]
+// Row format: [name, type, hp, speed, attack, defense, icon, dmgType, upgrade cost, brace?]
+// hp and attack are fitted in the real engine (2.8.0), not picked: a step up is worth two of the
+// step below (8 villagers ≈ 4 militia ≈ 2 sergeants), the same step is worth the same in every
+// kingdom, a villager is a villager everywhere; bowmen are judged among bowmen. A kingdom's
+// character lives in how a row spends its worth (Rodok shields, Kergit speed), never in more of it.
+// `node tools/balance.js` fights every rule out; CI fails when one leaves its range.
 const TROOP_TREES = {
-    swadia: {   // balanced; the strongest heavy cavalry
+    swadia: {   // balanced; spear militia, the most armoured knight
         recruit: ['Svadya Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Svadya Milisi', 'infantry', 45, 60, 12, 5, '🛡️', 'pierce', 40],
-             ['Svadya Çavuşu', 'infantry', 65, 70, 18, 12, '🏰', 'cut', 100]],
-            [['Svadya Avcısı', 'archer', 35, 55, 6, 2, '🏹', 'pierce', 50],
-             ['Svadya Keskin Nişancısı', 'archer', 45, 60, 10, 5, '🎯', 'pierce', 120]],
-            [['Svadya Süvarisi', 'cavalry', 50, 99, 12, 8, '🐴', 'cut', 70],
-             ['Svadya Şövalyesi', 'cavalry', 78, 110, 22, 15, '⚔️🐴', 'cut', 150]]
+            [['Svadya Milisi', 'infantry', 28, 60, 9, 8, '🛡️', 'pierce', 40],
+             ['Svadya Çavuşu', 'infantry', 52, 70, 14, 12, '🏰', 'cut', 100]],
+            [['Svadya Avcısı', 'archer', 34, 55, 6, 2, '🏹', 'pierce', 50],
+             ['Svadya Keskin Nişancısı', 'archer', 57, 60, 13, 5, '🎯', 'pierce', 120]],
+            [['Svadya Süvarisi', 'cavalry', 33, 99, 10, 8, '🐴', 'cut', 70],
+             ['Svadya Şövalyesi', 'cavalry', 52, 110, 15, 15, '⚔️🐴', 'cut', 150]]
         ]
     },
     rhodok: {   // no cavalry; huge shields and the Tatar bow
         recruit: ['Rodok Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Rodok Mızraklısı', 'infantry', 52, 56, 13, 8, '🛡️', 'pierce', 40],
-             ['Rodok Kalkanlısı', 'infantry', 76, 58, 19, 18, '🛡️', 'cut', 110, 1.25]],
-            [['Rodok Nişancısı', 'archer', 36, 54, 8, 3, '🏹', 'pierce', 55],
-             ['Rodok Tatar Yaylısı', 'archer', 48, 56, 16, 6, '🎯', 'pierce', 130]]
+            [['Rodok Mızraklısı', 'infantry', 30, 56, 8, 8, '🛡️', 'pierce', 40],
+             ['Rodok Kalkanlısı', 'infantry', 48, 58, 12, 18, '🛡️', 'cut', 110, 1.25]],
+            [['Rodok Nişancısı', 'archer', 30, 54, 7, 3, '🏹', 'pierce', 55],
+             ['Rodok Tatar Yaylısı', 'archer', 46, 56, 16, 6, '🎯', 'pierce', 130]]
         ]
     },
     vaegir: {   // axe infantry, deadly archers, mediocre cavalry
         recruit: ['Veagir Köylüsü', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Veagir Piyadesi', 'infantry', 44, 60, 13, 4, '🪓', 'cut', 40],
-             ['Veagir Baltacısı', 'infantry', 62, 64, 20, 9, '🪓', 'cut', 105]],
-            [['Veagir Okçusu', 'archer', 34, 56, 9, 2, '🏹', 'pierce', 55],
-             ['Veagir Nişancısı', 'archer', 44, 60, 14, 4, '🎯', 'pierce', 125]],
-            [['Veagir Atlısı', 'cavalry', 46, 95, 11, 6, '🐴', 'cut', 70],
-             ['Veagir Süvarisi', 'cavalry', 60, 100, 16, 10, '🐴', 'cut', 140]]
+            [['Veagir Piyadesi', 'infantry', 32, 60, 9, 4, '🪓', 'cut', 40],
+             ['Veagir Baltacısı', 'infantry', 49, 64, 16, 9, '🪓', 'cut', 105]],
+            [['Veagir Okçusu', 'archer', 30, 56, 7, 2, '🏹', 'pierce', 55],
+             ['Veagir Nişancısı', 'archer', 48, 60, 16, 4, '🎯', 'pierce', 125]],
+            [['Veagir Atlısı', 'cavalry', 40, 95, 9, 6, '🐴', 'cut', 70],
+             ['Veagir Süvarisi', 'cavalry', 61, 100, 16, 10, '🐴', 'cut', 140]]
         ]
     },
-    nord: {     // doesn't use horses; unrivaled in infantry combat
+    nord: {     // doesn't use horses; fast, cutting infantry
         recruit: ['Nord Serfi', 'infantry', 20, 50, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Nord Savaşçısı', 'infantry', 50, 62, 14, 6, '🛡️', 'cut', 45],
-             ['Nord Baltacısı', 'infantry', 80, 74, 24, 13, '🪓', 'cut', 140]],
-            [['Nord Avcısı', 'archer', 38, 58, 9, 3, '🏹', 'pierce', 50],
-             ['Nord Nişancısı', 'archer', 50, 60, 12, 6, '🎯', 'pierce', 115]]
+            [['Nord Savaşçısı', 'infantry', 33, 62, 8, 6, '🛡️', 'cut', 45],
+             ['Nord Baltacısı', 'infantry', 48, 74, 14, 13, '🪓', 'cut', 140]],
+            [['Nord Avcısı', 'archer', 29, 58, 7, 3, '🏹', 'pierce', 50],
+             ['Nord Nişancısı', 'archer', 54, 60, 13, 6, '🎯', 'pierce', 115]]
         ]
     },
     khergit: {  // all mounted; fast but thin armor
         recruit: ['Kergit Çobanı', 'infantry', 20, 70, 6, 0, '🪖', 'blunt'],
         branches: [
-            [['Kergit Atlısı', 'cavalry', 44, 105, 11, 4, '🐴', 'cut', 60],
-             ['Kergit Süvarisi', 'cavalry', 58, 115, 18, 8, '⚔️🐴', 'cut', 135]],
-            [['Kergit Atlı Okçusu', 'archer', 40, 108, 10, 3, '🏹', 'pierce', 65],
-             ['Kergit Han Muhafızı', 'archer', 52, 118, 15, 6, '🎯', 'pierce', 145]]
+            [['Kergit Atlısı', 'cavalry', 40, 105, 10, 4, '🐴', 'cut', 60],
+             ['Kergit Süvarisi', 'cavalry', 55, 115, 19, 8, '⚔️🐴', 'cut', 135]],
+            [['Kergit Atlı Okçusu', 'archer', 30, 108, 7, 3, '🏹', 'pierce', 65],
+             ['Kergit Han Muhafızı', 'archer', 51, 118, 15, 6, '🎯', 'pierce', 145]]
         ]
     }
 };
@@ -671,34 +676,34 @@ TROOP_UPGRADES['Acemi Asker'] = TROOP_UPGRADES['Svadya Köylüsü'];
 const BAND_KINDS = {
     bandit:   { name: 'Çapulcular', color: '#d0483a', icon: 'foot', min: 5, max: 14, speedMult: 1, dmg: 'blunt',
                 lore: '"Ya paranı, ya canını!"',
-                battle: [['Çapulcu','infantry',24,52,6,0,6], ['Çapulcu Okçu','archer',20,50,6,0,2],
+                battle: [['Çapulcu','infantry',20,52,6,0,6], ['Çapulcu Okçu','archer',20,50,6,0,2],
                          ['Atlı Çapulcu','cavalry',32,88,9,2,1]],
-                leader: ['Çapulcu Reisi','infantry',52,60,13,4] },
+                leader: ['Çapulcu Reisi','infantry',39,60,9,4] },
     forest:   { name: 'Orman Haydutları', color: '#8bd15a', icon: 'archer', min: 6, max: 12, speedMult: 1.05,
                 lore: '"Ağaçların arasından bakan gözleri ancak ok uçarken fark edersin."',
-                battle: [['Haydut Okçusu','archer',24,54,8,1,6], ['Orman Haydudu','infantry',28,58,8,1,4]],
+                battle: [['Haydut Okçusu','archer',27,54,8,1,6], ['Orman Haydudu','infantry',18,58,5,1,4]],
                 leader: ['Haydut Başı','archer',48,58,14,3] },
     mountain: { name: 'Dağ Eşkıyaları', color: '#d4a03a', icon: 'foot', min: 8, max: 16, speedMult: 0.95, dmg: 'blunt',
                 lore: '"Bu geçit bizim. Geçiş ücreti: her şeyin."',
-                battle: [['Dağ Eşkıyası','infantry',36,56,11,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
+                battle: [['Dağ Eşkıyası','infantry',35,56,10,4,6], ['Eşkıya Nişancısı','archer',30,54,10,2,2],
                          ['Atlı Eşkıya','cavalry',44,92,13,5,2]],
-                leader: ['Eşkıya Reisi','infantry',75,62,18,7] },
+                leader: ['Eşkıya Reisi','infantry',64,62,15,7] },
     // Village militia: the villagers you face during a raid. Doesn't roam the
     // map, only spawns in the Game.startRaid battle (bandKey is looked up by name).
     militia:  { name: 'Köy Milisi', color: '#c9a227', icon: 'foot', min: 4, max: 16, speedMult: 1, dmg: 'pierce',
                 lore: '"Tırpanı kap Yusuf, geliyorlar!"',
-                battle: [['Köylü','infantry',22,50,5,0,7], ['Köy Avcısı','archer',20,52,6,0,3],
-                         ['Köy Bekçisi','infantry',30,54,8,2,2]],
-                leader: ['Köy Muhtarı','infantry',44,54,10,3] },
+                battle: [['Köylü','infantry',20,50,5,0,7], ['Köy Avcısı','archer',20,52,6,0,3],
+                         ['Köy Bekçisi','infantry',19,54,5,2,2]],
+                leader: ['Köy Muhtarı','infantry',37,54,8,3] },
     // Trade parties (#22): roam the map, never attack; robbing them drops their cargo
     caravan:  { name: 'Kervan Muhafızları', color: '#e0b062', icon: 'cart', min: 6, max: 14, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Yükümüze dokunma yolcu — bu mallar loncaya yazılı."',
-                battle: [['Kervan Muhafızı','infantry',34,56,10,3,5], ['Kervan Okçusu','archer',26,54,9,1,3],
+                battle: [['Kervan Muhafızı','infantry',33,56,9,3,5], ['Kervan Okçusu','archer',26,54,9,1,3],
                          ['Atlı Muhafız','cavalry',40,90,12,4,2]],
-                leader: ['Kervanbaşı','infantry',55,58,14,5] },
+                leader: ['Kervanbaşı','infantry',32,58,9,5] },
     villager: { name: 'Köylü Kafilesi', color: '#9dbf6a', icon: 'foot', min: 3, max: 7, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Pazara gidiyoruz efendim... bizde alacak bir şey yok ki."',
-                battle: [['Köylü','infantry',22,50,5,0,8], ['Köy Avcısı','archer',20,52,6,0,2]] },
+                battle: [['Köylü','infantry',20,50,5,0,8], ['Köy Avcısı','archer',20,52,6,0,2]] },
     wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
                 lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
                 battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
@@ -2188,9 +2193,11 @@ const Game = {
             let b = raiders.find(r => r.size > 0 && r.hunting === t.id && this.dist(r, t) < 400)
                  || raiders.find(r => r.size > 0 && this.dist(r, t) < 400);
             if(!b) return;
-            let pw = p => p.size * (0.7 + Math.random() * 0.6);
-            // A caravan guard earns their pay, a villager party can't run
-            if(pw(t) * (t.trade.kind === 'caravan' ? 1.15 : 0.5) > pw(b)) {
+            // the convoy's guards (or a village's men) against the band, as fighting men (2.8.0) —
+            // the rosters carry what a ×1.15 for a caravan guard and ×0.5 for a villager used to
+            let r = Battle.powerRatio(Battle.enemyMix(t), Battle.enemyMix(b));
+            let pw = x => x * (0.7 + Math.random() * 0.6);
+            if(pw(r) > pw(1)) {
                 b.size = Math.round(b.size * (0.5 + Math.random() * 0.3));
                 t.size = Math.max(2, Math.round(t.size * (0.75 + Math.random() * 0.2)));
                 if(b.size < 4) {
@@ -2246,9 +2253,10 @@ const Game = {
                 for(let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
                 return (h >>> 0) / 4294967296;
             };
-            let lordPower = lord.size * (1 + (lord.level || 1) * 0.04) * (0.85 + roll(1) * 0.3);
-            let bandPower = band.size * ((BAND_KINDS[band.band] || {}).beast ? 1.2 : 1)
-                          * (0.85 + roll(2) * 0.3);
+            // the two rosters as fighting men (2.8.0; it was a headcount, wolves ×1.2)
+            let lordPower = Battle.powerRatio(Battle.enemyMix(lord), Battle.enemyMix(band))
+                          * (1 + (lord.level || 1) * 0.04) * (0.85 + roll(1) * 0.3);
+            let bandPower = 0.85 + roll(2) * 0.3;
             if(lordPower >= bandPower) {
                 lord.size = Math.max(5, Math.round(lord.size * (0.88 + roll(3) * 0.08)));
                 band.size = Math.round(band.size * (0.15 + roll(4) * 0.25));
@@ -3845,7 +3853,7 @@ const Game = {
     // The buckets are on the strength ratio and were read off real-engine fights (tools/test.js
     // 'odds:'): the engine is decisive — at 1.1 and up the stronger side won 90–100 %, at 0.77 and
     // down it won at most 7 %. Names line up with the difficulty menu's vocabulary.
-    ODDS: [[1.5, 'Kolay', '#7bd88f'], [0.8, 'Dengeli', '#d9d2c5'], [0.55, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
+    ODDS: [[1.25, 'Kolay', '#7bd88f'], [0.9, 'Dengeli', '#d9d2c5'], [0.7, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
     oddsRatio(npc) {
         let mine = Battle.playerMix(), theirs = Battle.enemyMix(npc, state.encounterSize || npc.size);
         return Battle.sideStrength(mine, theirs) / Math.max(1e-6, Battle.sideStrength(theirs, mine));
@@ -4047,7 +4055,8 @@ const Game = {
                     if(d2 < bd) { bd = d2; prey = t; }
                 });
                 npc.hunting = null;
-                if(prey && prey.size * (prey.trade.kind === 'caravan' ? 1.15 : 0.5) < npc.size * 1.2) {
+                // the raid's own measure (banditTick): the convoy's men against the band's
+                if(prey && Battle.powerRatio(Battle.enemyMix(prey), Battle.enemyMix(npc)) < 1.2) {
                     npc.targetX = prey.x; npc.targetY = prey.y;
                     npc.hunting = prey.id;   // the id is stored, the name is translated at display time
                 }
@@ -4341,8 +4350,10 @@ const Game = {
             // state.ambush): being surrounded is a cost, not a locked room.
             let canFlee = ambush !== 'raid';
             let flee = Math.round(this.fleeChance(npc) * 100);
-            // If your army is 1.5x the enemy's, you don't have to step into the arena for every bandit
-            let canAuto = !ambush && this.fieldSize() >= npc.size * 1.5;
+            // If your army is 1.5x the enemy's, you don't have to step into the arena for every bandit —
+            // counted in fighting men, the odds label's strength (2.8.0; it counted heads, and 22
+            // villagers could send themselves at 8 sergeants)
+            let canAuto = !ambush && Math.pow(this.oddsRatio(npc), 1 / Battle.ODDS_P) >= 1.5;
             let chat = this.troopChatter(npc);   // your men have something to say too (#35)
             let prey = this.preyWarning(npc);    // warn before the battle if the reward will be cut (#55)
             html += `<p><i>${dialog}</i></p>
@@ -10393,8 +10404,10 @@ const Game = {
         state.npcParties = state.npcParties.filter(n => !(n.lordId && n.size <= 0));
     },
     resolveFieldBattle(A, B) {
-        let pw = p => p.size * (1 + (p.level || 1) * 0.05) * (0.75 + Math.random() * 0.5);
-        let win = pw(A) >= pw(B) ? A : B, lose = win === A ? B : A;
+        // A's roster against B's, as fighting men (2.8.0; it was a headcount)
+        let r = Battle.powerRatio(Battle.enemyMix(A), Battle.enemyMix(B));
+        let pw = (p, x) => x * (1 + (p.level || 1) * 0.05) * (0.75 + Math.random() * 0.5);
+        let win = pw(A, r) >= pw(B, 1) ? A : B, lose = win === A ? B : A;
         win.size = Math.max(5, Math.round(win.size * (0.80 + Math.random() * 0.12)));
         lose.size = Math.round(lose.size * (0.25 + Math.random() * 0.25));
         // A front clash can happen several times a day: it only makes the news if a
