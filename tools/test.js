@@ -2110,6 +2110,53 @@ slow('anchor: cavalry runs down archers', () => {
     assert.ok(w >= 75, `cavalry vs archers ${w}% — horse should reach the bow line`);
 });
 
+// The encounter window's own path (party, hero, a kingdom's roster): the report's fight.
+test('odds: 21 peasants and a fresh hero against 8 kingdom soldiers is not "Kolay"', () => {
+    const go = H.world({ seed: 4 }), { Game: G, state: st } = go;
+    st.player.party = Array.from({ length: 21 }, (_, i) => ({ id: 'pz' + i, name: 'Svadya Köylüsü', level: 1 }));
+    st.encounterSize = null;
+    const npc = { size: 8, faction: 'swadia' };
+    assert.strictEqual(G.oddsLabel(npc).name, 'Çetin', `ratio ${G.oddsRatio(npc).toFixed(2)}`);
+    st.player.party = Array.from({ length: 12 }, (_, i) => ({ id: 'pc' + i, name: 'Svadya Çavuşu', level: 20 }));
+    assert.strictEqual(G.oddsLabel({ size: 6, band: 'bandit' }).name, 'Kolay', 'twelve sergeants against six looters');
+});
+
+// --- The odds label against the real engine ---
+// The encounter's "Tahmini denge" is a formula (Battle.sideStrength); these fights are the truth it
+// must match, re-measured on every push so a stat, armour or AI change that moves the battle moves
+// this test too. A "Kolay" side has to win nearly always and a "Çetin" one nearly never.
+// The 22-peasants-on-8-sergeants case is the report: the old level-weighted headcount said
+// "Kolay", and every man died.
+slow('odds: the encounter label agrees with real-engine fights', () => {
+    const go = H.world({ seed: 3 }), { Battle: B, Game: G, TROOP_TYPES: TT } = go;
+    const row = (name, n, team) => { const t = TT[name]; return { n, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: team }; };
+    const label = (a, na, b, nb) => {
+        const A = [row(a, na, true)], E = [row(b, nb, false)];
+        return G.ODDS.find(o => B.sideStrength(A, E) / B.sideStrength(E, A) >= o[0])[1];
+    };
+    const won = (a, na, b, nb, n = 20) => {
+        let w = 0, ok = 0;
+        for(let i = 0; i < n; i++) { const r = fight(go, a, b, na, nb); if(r.won === null) continue; ok++; if(r.won) w++; }
+        return Math.round(w / ok * 100);
+    };
+    const cases = [
+        ['Svadya Köylüsü', 22, 'Svadya Çavuşu', 8, 'Çetin'],     // the report
+        ['Svadya Köylüsü', 20, 'Svadya Milisi', 10, 'Çetin'],
+        ['Svadya Milisi', 10, 'Svadya Çavuşu', 5, 'Çetin'],
+        ['Svadya Köylüsü', 10, 'Nord Serfi', 10, 'Dengeli'],
+        ['Svadya Köylüsü', 12, 'Svadya Köylüsü', 8, 'Kolay'],
+        ['Svadya Çavuşu', 4, 'Svadya Milisi', 8, 'Kolay'],
+        ['Svadya Çavuşu', 8, 'Svadya Milisi', 12, 'Kolay'],
+        ['Veagir Baltacısı', 5, 'Nord Savaşçısı', 8, 'Kolay'],
+    ];
+    for(const [a, na, b, nb, want] of cases) {
+        const got = label(a, na, b, nb), w = won(a, na, b, nb);
+        assert.strictEqual(got, want, `${na} ${a} vs ${nb} ${b}: label ${got}, expected ${want} (won ${w} %)`);
+        if(got === 'Kolay') assert.ok(w >= 85, `${na} ${a} vs ${nb} ${b} reads Kolay but won ${w} %`);
+        if(got === 'Çetin') assert.ok(w <= 15, `${na} ${a} vs ${nb} ${b} reads Çetin but won ${w} %`);
+    }
+});
+
 // --- Sprite sheets (#92) ---
 // kingdom_crests.jpg holds FOUR banners in a 2x2 grid; it was being cut with 3x3 maths,
 // so most crests rendered a slice of castle wall or two half banners. Any crest index

@@ -28,6 +28,10 @@ başlangıç ekranının sağ alt köşesinde yazar.
 - **Hedefler artık seçilmeden sayılıyor.** Görevler sekmesindeki 🎯 hedeflerden önce birini seçmen
   gerekiyordu; grubun 10 kişi olsa bile seçmeden ödül gelmiyordu. Artık açık hedeflerin hepsi aynı
   anda sayılır, şartı tuttuğun an ödülü gelir.
+- **"Tahmini denge" artık doğru söylüyor.** Karşılaşma penceresindeki tahmin askerlerin seviyesine
+  bakıyordu; oysa seviye savaşta güç vermiyor. 22 köylüyle 8 çavuşa "Kolay" diyordu ve herkes
+  ölüyordu. Artık iki tarafın gerçek canını, saldırısını, zırhını ve hasar türünü hesaplıyor; o savaş
+  artık **Çetin** görünüyor.
 
 ## 2.7.0 — Damar (2026-10-02)
 

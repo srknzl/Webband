@@ -3839,22 +3839,19 @@ const Game = {
     // Who actually steps onto the field: the leader plus the unwounded (#116). `Battle.start`
     // filters the wounded out, so every announcement has to ask this and not `party.length`.
     fieldSize() { return state.player.party.filter(t => !t.wounded).length + 1; },
-    // Force score (#7): one weighted-strength gate so "how strong are we" is a veteran-aware
-    // number, not raw headcount — a promoted troop counts as more than one green recruit. Kept
-    // as "effective men" (a lvl-1 unit = 1.0) so it reads next to the roster counts and both
-    // sides use the same scale. The hostility/flee heuristics stay on headcount on purpose
-    // (sim-verified); this drives the player-facing odds label (#10), not world AI.
-    UNIT_TIER: lvl => 1 + (Math.max(1, lvl || 1) - 1) * 0.12,
-    forceScore(party = state.player.party, includeSelf = true) {
-        let s = party.filter(t => !t.wounded).reduce((a, t) => a + this.UNIT_TIER(t.level), 0);
-        if(includeSelf) s += this.UNIT_TIER(state.player.stats.level);
-        return s;
+    // The odds label (#10): both sides' real fighting strength — class stats, armour, damage type,
+    // the brace (Battle.sideStrength). It used to count heads weighted by level, and since #124 a
+    // level adds nothing in a fight: 22 peasants met 8 sergeants as "Kolay" and lost every man.
+    // The buckets are on the strength ratio and were read off real-engine fights (tools/test.js
+    // 'odds:'): the engine is decisive — at 1.1 and up the stronger side won 90–100 %, at 0.77 and
+    // down it won at most 7 %. Names line up with the difficulty menu's vocabulary.
+    ODDS: [[1.5, 'Kolay', '#7bd88f'], [0.8, 'Dengeli', '#d9d2c5'], [0.55, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
+    oddsRatio(npc) {
+        let mine = Battle.playerMix(), theirs = Battle.enemyMix(npc, state.encounterSize || npc.size);
+        return Battle.sideStrength(mine, theirs) / Math.max(1e-6, Battle.sideStrength(theirs, mine));
     },
-    npcForce(npc) { return (npc.size || 1) * this.UNIT_TIER(npc.level || 1); },
-    // Odds label buckets the force ratio. Names line up with the difficulty menu's vocabulary.
-    ODDS: [[1.5, 'Kolay', '#7bd88f'], [1.0, 'Dengeli', '#d9d2c5'], [0.62, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
     oddsLabel(npc) {
-        let r = this.forceScore() / Math.max(0.5, this.npcForce(npc));
+        let r = this.oddsRatio(npc);
         let row = this.ODDS.find(o => r >= o[0]) || this.ODDS[this.ODDS.length - 1];
         return { name: row[1], color: row[2] };
     },

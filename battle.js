@@ -366,16 +366,7 @@ const Battle = {
             this.terrain.mountains = this.terrain.mountains.filter(m => m.x < wx - 200);
         }
 
-        let weaponAtk = state.player.equipment.weapon ? state.player.equipment.weapon.attack : 0;
-        let armorDef = ['shield','armor','helmet','gloves','boots']
-            .reduce((n, slot) => n + ((state.player.equipment[slot] || {}).defense || 0), 0);
-
-        // Mount: if there's a horse the player enters as cavalry — the engine already knows cavalry (and being unhorsed)
-        let mounted = !!state.player.equipment.horse;
-        // Each horse tier carries its own speed/armor bonus (#132) instead of one shared scalar
-        let hSpd = 1 + (mounted ? (state.player.equipment.horse.hSpd || 0) / 100 : 0);
-        let hDef = 1 + (mounted ? (state.player.equipment.horse.hDef || 0) / 100 : 0);
-        armorDef = Math.round(armorDef * hDef);
+        let { weaponAtk, armorDef, mounted, hSpd } = this.heroGear();
         // The quiver fills per battle; zero if there's no bow
         // Skill tree #110: Ranger perks add flat arrows
         this.arrows = this.playerHasBow() ? 24 + this.prof('bow') * 2 + Game.perkMod('arrowCount') : 0;
@@ -776,6 +767,61 @@ const Battle = {
             ? base * this.HERO_ARMOR_K / (this.HERO_ARMOR_K + (def || 0) * t.armor)
             : Math.max(base - (def || 0) * t.armor, base * this.ARMOR_FLOOR);
         return Math.max(1, Math.round(landed * Game.dmgMult(tgt)));
+    },
+    // The hero's fighting numbers from the gear — one source for start() and the odds label.
+    heroGear() {
+        let eq = state.player.equipment;
+        let weaponAtk = eq.weapon ? eq.weapon.attack : 0;
+        let armorDef = ['shield','armor','helmet','gloves','boots'].reduce((n, slot) => n + ((eq[slot] || {}).defense || 0), 0);
+        // Mount: if there's a horse the player enters as cavalry — the engine already knows cavalry (and being unhorsed)
+        let mounted = !!eq.horse;
+        // Each horse tier carries its own speed/armor bonus (#132) instead of one shared scalar
+        let hSpd = 1 + (mounted ? (eq.horse.hSpd || 0) / 100 : 0);
+        let hDef = 1 + (mounted ? (eq.horse.hDef || 0) / 100 : 0);
+        return { weaponAtk, armorDef: Math.round(armorDef * hDef), mounted, hSpd };
+    },
+    // Who stands on each side, as stat rows weighted by expected count — read by the encounter's
+    // odds label (Game.oddsLabel). The enemy side reads the same tables start() rolls from (a
+    // band's weighted roster and its leader, a kingdom's troop pool); start() still rolls each unit.
+    playerMix() {
+        let g = this.heroGear(), mult = Math.max(0.7, Game.moraleMult());
+        let rows = [{ n: 1, hp: state.player.stats.hp * (g.mounted ? 1.33 : 1), attack: 10 + Game.attr('str') + g.weaponAtk,
+                      defense: g.armorDef, dmgType: this.playerDmgType(), gearArmor: true, isPlayerTeam: true,
+                      type: g.mounted ? 'cavalry' : 'infantry', mounted: g.mounted, id: 'player' }];
+        state.player.party.filter(p => !p.wounded).forEach(p => {
+            let t = Game.troopStats(p), d = Math.max(0.7, (p.debuff ? 0.7 : 1) * mult);   // start()'s debuff
+            rows.push({ n: 1, hp: t.hp * d, attack: t.attack * d, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: true });
+        });
+        return rows;
+    },
+    enemyMix(npc, count = npc.size) {
+        let band = BAND_KINDS[npc.band], row = (r, n, dmg) => ({ n, hp: r[2], attack: r[4], defense: r[5], dmgType: dmg || 'cut', type: r[1], beast: band.beast });
+        if(band) {
+            let lead = count >= 6 && band.leader ? 1 : 0, total = band.battle.reduce((a, r) => a + r[6], 0);
+            return (lead ? [row(band.leader, 1, band.dmg)] : [])
+                .concat(band.battle.map(r => row(r, (count - lead) * r[6] / total, band.dmg)));
+        }
+        let pool = Game.factionTroopPool(npc.faction);
+        return pool.map(name => { let t = TROOP_TYPES[name];
+            return { n: count / pool.length, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace }; });
+    },
+    // A side's fighting strength against the other: N^P × the mean of hp × hit, where `hit` is
+    // what a unit's blow does to the other side on average — through afterArmor itself, so armour,
+    // damage type and difficulty count exactly as they will, and a spear's brace against horses.
+    // P sits between Lanchester's linear (1) and square (2) laws: not every man is in the fight
+    // at once. Measured against the real engine (tools/test.js 'odds:'), P = 1.7.
+    // ponytail: every unit swings at the same pace and archers count as melee; add range/rate if
+    // the label is measured off on bow-heavy sides.
+    ODDS_P: 1.7,
+    sideStrength(side, foes) {
+        let men = n => n.reduce((a, f) => a + f.n, 0);
+        let N = men(side), M = men(foes) || 1;
+        if(!N) return 0;
+        let x = side.reduce((a, u) => {
+            let hit = foes.reduce((h, f) => h + f.n * this.afterArmor(u.dmgType, u.attack * this.DAMAGE_PACE * (f.type === 'cavalry' && !f.beast ? this.braceMult(u) : 1), f.defense, f), 0) / M;
+            return a + u.n * u.hp * hit;
+        }, 0) / N;
+        return Math.pow(N, this.ODDS_P) * x;
     },
     ARMOR_FLOOR: 0.18,   // min share of a type-adjusted hit that pierces any armor (#8)
     HERO_ARMOR_K: 60,    // the hero's armour: a hit lands × K / (K + defense × the type's armor)

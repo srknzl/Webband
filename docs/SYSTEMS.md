@@ -327,6 +327,19 @@ cavalry 14–20 %, axeman vs knight 52–61 %). Anti-cavalry lives in the **brac
 explicit `u.brace` so its identity doesn't leak into every matchup (`pierce` on a shield troop
 was tried and rejected — it halves armor in *every* fight, not just against horses).
 
+**The encounter's odds label** ("Tahmini denge", `Game.oddsLabel`) compares
+`Battle.sideStrength` both ways: N^1.7 × the mean of hp × hit, where `hit` runs through
+`afterArmor` (armour, damage type, difficulty) and the brace. The rosters are `Battle.playerMix`
+(hero from `heroGear`, the unwounded with their morale debuff) and `Battle.enemyMix` (the band's
+weighted roster and leader, or the kingdom's troop pool). Until 2.7.1 it was a level-weighted
+headcount, and since level adds nothing in a fight it called 22 peasants against 8 sergeants
+"Kolay". **Measured** (real engine, `tools/test.js` 'odds:', 20–30 fights each): ratio ≥ 1.1 → the
+side won 90–100 %; ≤ 0.77 → at most 7 %; 1.0 → 30–53 %. Buckets: Kolay ≥ 1.5, Dengeli ≥ 0.8,
+Zorlu ≥ 0.55, else Çetin. 22 peasants vs 8 sergeants is 0.12 (won 0 %). Every armour model tried
+(ratio K 6–20, a 0.35–0.45 floor, half-subtracted armour) left that fight at 0 %: a sergeant is
+~10 peasants before armour, so the label, not the armour, was the bug. The tier rule above is
+**not met** today — one tier apart wins 98–100 % 1v1 in every model, the stat gap does it.
+
 Sources: a settlement recruit comes from `Game.recruitName(loc)` (that town's own faction);
 mercenaries/enemy armies come from `Game.factionTroopPool(faction)` (2 shares mid-tier, 1 elite).
 Party screen row: class + damage type, ▲/▼ (troops with the same name move as a block), ➖
