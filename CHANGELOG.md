@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.6.1 — Kıvılcım (2026-10-02)
+
+- **Bileme taşının gerçek sesleri.** Taşın kolu dönerken gıcırdar, bıçak taşa değdiği an sürtünür
+  ve bastırdıkça taş hışırdar. Açı doğruya yaklaştıkça hışırtı parlaklaşır ve hızlanır; açı
+  kaçınca boğuklaşır.
+
 ## 2.6.0 — Bileği (2026-10-02)
 
 - **Bileme taşı geldi.** Demirhanede ve kendi ocağında elindeki kılıcı, baltayı ya da mızrağı

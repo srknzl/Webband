@@ -19,7 +19,7 @@ mine. A new skill, Demircilik, decides which tiers the player can forge.
 - **Two places to forge.** A town's smithy, rented by the job, and the player's own castle or
   town, free, which can also use the materials in its storage.
 - **Sound.** Real recordings chosen by the user from an artifact page of candidates
-  (`forge/CREDITS.md`); only the tongs' clank is synthesized.
+  (`forge/CREDITS.md`), the grindstone's too (2.6.1); only the tongs' clank is synthesized.
 
 ## Phases
 
