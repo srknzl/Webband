@@ -1374,7 +1374,16 @@ where there is one. A tutorial coach still up holds the forge still, as in a lai
 (`heatRGB`, cached per 10 °C). Controls: hold Space / the Körük button / the canvas to pump; E or
 the button moves the bar between hearth and anvil; on the anvil the pointer (or ←/→) aims and a
 press-hold-release strikes; Q quenches; Esc pauses. The how-to shows on the first visit
-(`localStorage webband_forge_help`). Sound is recorded (`forge/`, picked by ear from a page of
+(`localStorage webband_forge_help`). **The how-tos are step guides** (2.11.1, `Game.guideHtml`):
+the forge's (9 steps), the grindstone's (5), the carpenter's (7) and the kitchen's (7) show one
+step at a time — a dot strip and "Adım n/N", the move it asks for played out above one short
+sentence (a hand sliding sideways or up and down, a tap, a press-and-hold ring, a held slide), or a
+colour scale (the iron's heat, the meat's doneness, the soup's boil, a planed edge's gold and red,
+an edge's grey and white, the temper's straw, bronze and blue). Back / Next, the last step's button
+starts the work (or returns to the window), and a small "Atla, hemen başla" on every earlier step
+goes straight in. They were lists of six or seven paragraphs. A step is `{ icon, title, text,
+demo }`, raw Turkish (`Game.guideStrings` lists them for the dictionary tests); the e2e helper
+`passGuide` walks a guide to its end and checks every step shows words and a demo. Sound is recorded (`forge/`, picked by ear from a page of
 candidates, credits in `forge/CREDITS.md`): a blow mixes a dull hot-iron take and a ringing
 cold-steel take linearly by the bar's heat (all thud from 1150 °C, all ring at 650 °C, ±4 %
 pitch); a 10 s open-fire loop, made seamless by crossfading its tail into its head, rises with the

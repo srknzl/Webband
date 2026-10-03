@@ -838,27 +838,30 @@ function kitchen(loc) {
             <button class="btn primary" ${done ? 'disabled' : ''} onclick="Crafts.shift('${loc.id}')">${T('🍲 Vardiyaya gir')}</button></div>
     </div>`, '560px');
 }
-// How it's done — for the window, before going in, and from the pause menu
+// How it's done — for the window, before going in, and from the pause menu: one step at a time,
+// the move it asks for played out (Game.guideHtml, 2.11.1; it was six paragraphs)
 const HELP = [
-    ['🪚 Biç', 'Tuval üstünde sağa sola sürükle: her gidiş bir testere çekişi. Boşluk tuşu da çeker. Çok hızlı çekersen testere sıkışır ve sıçrar; sakin ve düzenli çek.'],
-    ['🧭 Damarı oku', 'Tahtadaki damarlar testereyi kendi yönüne çeker: damar aşağı kıvrılıyorsa kesik de aşağı kayar. Yukarı-aşağı sürükle (ya da ↑ ↓): testereyi damara karşı eğersin. Önündeki ince çizgi gittiği yeri gösterir.'],
-    ['✏️ Çizgiyi bırakma', 'Kurşun kalem çizgisinin altı taralı: orası fire. Kesik firede kalırsa rendelecek iş artar; çizginin üstüne kaçarsa parça eksik kalır.'],
-    ['🪵 Rendele', 'Kesilen kenar yukarı bakar. Basılı tutup sağa sola sürükle: rende en yüksek yerlere biner ve onları alır. Kesik çizgi altın sarısına dönünce orası tamam; çizginin altına inersen kırmızı olur.'],
-    ['➤ Damar yönü', 'Tahtanın yüzündeki oklar rendenin temiz kestiği yönü gösterir. Tersine sürersen lif kalkar ve orası derin oyulur.'],
-    ['🏅 Sonuç', 'Kesimin doğruluğu, kenarın düzlüğü ve işçilik puanlanır. İyi iş istediğin parçayı verir; zayıf iş bir öncekini; kötü iş odun olur ve kerestenin yarısı kurtulur. Marangozluk yükseldikçe iş kolaylaşır.']
+    { icon: '🪚', title: 'Biç', text: 'Sağa sola sürükle: her gidiş bir çekiş. Sakin çek, hızlı çekersen sıkışır.', demo: 'drag-x' },
+    { icon: '🧭', title: 'Damara karşı eğ', text: 'Damar testereyi kendine çeker. Yukarı-aşağı sürükleyip ters yöne eğ.', demo: 'drag-y' },
+    { icon: '✏️', title: 'Çizgide kal', text: 'Çizginin altı taralı: orası fire. Kesik çizgiyi izlesin.', demo: [['#c9a46a', 'Parça'], ['repeating-linear-gradient(45deg, #6b4a2c 0 3px, #2a1e14 3px 6px)', 'Fire']] },
+    { icon: '🪵', title: 'Rendele', text: 'Basılı tut ve sağa sola sür: rende en yüksek yerleri alır.', demo: 'hold-x' },
+    { icon: '➤', title: 'Okların yönünde', text: 'Tahtadaki oklar temiz kesim yönü. Tersine sürersen lif kalkar.', demo: null },
+    { icon: '✅', title: 'Bitir', text: 'Kesik çizgi baştan sona altın olunca Bitir\'e bas.', demo: [['#d6b25a', 'Tamam'], ['#7a5a3a', 'Hâlâ yüksek'], ['#c0504a', 'Çok derin']] },
+    { icon: '🏅', title: 'Sonuç', text: 'İyi iş istediğin parçayı verir, zayıf iş bir öncekini, kötü iş odun olur.', demo: null }
 ];
 const COOK_HELP = [
-    ['🧾 Siparişler', 'Üstteki fişler müşterilerin istediği: kebap ya da çorba. Altındaki çizgi sabırları; kızarınca kalkıp giderler.'],
-    ['🍢 Izgara', 'Boş yere dokun: şiş konur. Şişe dokun: çevrilir. Kömüre bakan yüz pişer; etin alt kenarı o yüzün rengini gösterir. Pembe çiğdir, altın sarısı tamdır, kahve koyulaşır, siyah yanmıştır.'],
-    ['✋ Servis', 'İki yüzü de altın olunca şişe basılı tut: kebap sıradaki müşteriye gider. Çiğ şiş inmez; yanmış şiş çöpe gider.'],
-    ['🍲 Kazan', 'Kabarcıklar ısıyı söyler: kabarcık yoksa soğuk, ufak ufak kaynıyorsa tam kıvamda, fokur fokursa çok sıcak, köpük taşıyorsa taşıyor. Ateş zamanla söner; odun at. Kazana dokun ya da Karıştır: karıştırılmayan çorba dibini tutar.'],
-    ['🥣 Çorba ver', 'Çorba pişince kazanın yanında kâseler belirir. Çorba isteyen varsa Çorba ver ile verilir. Dibi tutmuş çorba az para getirir.'],
-    ['💰 Ücret', 'Usta yevmiyeni her hâlde verir; her tabak kalitesine göre ayrıca kazandırır, iyi ve çabuk tabağa bahşiş düşer. Bir handa günde bir vardiya çalışılır. Aşçılık yükseldikçe ücret ve müşterinin sabrı artar.']
+    { icon: '🧾', title: 'Siparişler', text: 'Üstteki fişler sipariş. Altındaki çizgi kızarınca müşteri gider.', demo: null },
+    { icon: '🍢', title: 'Şiş koy, çevir', text: 'Boş yere dokun: şiş konur. Şişe dokun: çevrilir.', demo: 'tap' },
+    { icon: '🎨', title: 'Renge bak', text: 'Kömüre bakan yüz pişer. İki yüz de altın olsun.', demo: [['#c4525c', 'Çiğ'], ['#d6a04a', 'Tam'], ['#8e4e20', 'Koyu'], ['#22180f', 'Yanık']] },
+    { icon: '✋', title: 'Servis', text: 'İki yüz altınken şişe basılı tut: kebap müşteriye gider.', demo: 'hold' },
+    { icon: '🍲', title: 'Kazanı kollay', text: 'Ufak ufak kaynasın. Odun at, karıştır; karıştırılmayan çorba dibini tutar.', demo: [['#2b3440', 'Soğuk'], ['#5f7d4a', 'Tam'], ['#b5652d', 'Çok sıcak'], ['#e6e1d6', 'Taşıyor']] },
+    { icon: '🥣', title: 'Çorba ver', text: 'Çorba pişince, isteyen varsa Çorba ver\'e bas.', demo: 'tap' },
+    { icon: '💰', title: 'Ücret', text: 'Yevmiye her hâlde ödenir; iyi ve çabuk tabak ayrıca kazandırır.', demo: null }
 ];
 function help(locId, job) {
-    const list = job === 'cook' ? COOK_HELP : HELP, rows = list.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('');
-    const back = `<button class="btn primary" onclick="Crafts.${job === 'cook' ? 'kitchen' : 'open'}(LOCATIONS.find(l => l.id === '${locId}'))">${T('← Geri dön')}</button>`;
-    Game.showModal(`<div class="lair-brief"><h3>${job === 'cook' ? T('❔ Mutfakta nasıl çalışılır?') : T('❔ Tahta nasıl işlenir?')}</h3><ul class="lb-howto">${rows}</ul><div class="lb-foot">${back}</div></div>`, '640px');
+    const list = job === 'cook' ? COOK_HELP : HELP;
+    const back = { label: '← Geri dön', onclick: `Crafts.${job === 'cook' ? 'kitchen' : 'open'}(LOCATIONS.find(l => l.id === '${locId}'))` };
+    Game.showModal(`<div class="lair-brief"><h3>${job === 'cook' ? T('❔ Mutfakta nasıl çalışılır?') : T('❔ Tahta nasıl işlenir?')}</h3>${Game.guideHtml(list, back)}</div>`, '520px');
 }
 
 // ---------- the screen ----------
@@ -1042,8 +1045,7 @@ function pauseMenu() {
 function howto() {
     paused = true;
     const cook = R && R.job === 'cook', list = cook ? COOK_HELP : HELP;
-    overlay(`<h2>${cook ? T('❔ Mutfakta nasıl çalışılır?') : T('❔ Tahta nasıl işlenir?')}</h2><ul class="lb-howto">${list.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('')}</ul>
-        <div class="lrow"><button class="btn primary" onclick="Crafts.resume()">${T('Başla')}</button></div>`);
+    overlay(`<h2>${cook ? T('❔ Mutfakta nasıl çalışılır?') : T('❔ Tahta nasıl işlenir?')}</h2>${Game.guideHtml(list, { label: 'Başla', onclick: 'Crafts.resume()', skip: 'Atla, hemen başla' })}`);
 }
 const HELP_KEY = { saw: 'webband_wood_help', cook: 'webband_cook_help' };
 function resume() {
@@ -1220,7 +1222,7 @@ const api = {
     // the measured numbers in docs/SYSTEMS.md: ms per update and per render, averaged over n frames
     _bench(n = 120) { let u = 0, r = 0; for(let i = 0; i < n; i++) { let t = performance.now(); update(1 / 60); u += performance.now() - t; t = performance.now(); render(); r += performance.now() - t; } return { update: +(u / n).toFixed(3), render: +(r / n).toFixed(3) }; },
     // the strings the tables show, for the i18n gate (tools/test.js)
-    strings() { return [...HELP.flat(), ...COOK_HELP.flat(), ...Object.values(PHASE), ...TRADES.flatMap(t => [t[1], t[2]]),
+    strings() { return [...Game.guideStrings(HELP), ...Game.guideStrings(COOK_HELP), '← Geri dön', 'Başla', 'Atla, hemen başla', ...Object.values(PHASE), ...TRADES.flatMap(t => [t[1], t[2]]),
         ...['timber', ...WOODWORK.map(r => r.id)].flatMap(id => ITEMS[id] ? [ITEMS[id].name, ITEMS[id].desc] : [])]; }
 };
 return api;

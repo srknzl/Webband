@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.11.1 — Kantar (2026-10-03)
+
+- **Meslekler adım adım anlatılıyor.** Demircilik, bileği taşı, marangozluk ve han mutfağındaki
+  uzun açıklama listeleri yerine her seferinde tek adım görüyorsun: kısa bir cümle ve ne
+  yapacağını gösteren küçük bir canlandırma (sağa sola sürükle, dokun, basılı tut) ya da renk
+  ölçeği (demirin kızıllığı, etin pişmesi, çorbanın kaynaması). İleri ile geçersin; bilen
+  "Atla, hemen başla" ile doğrudan işe girer.
+
 ## 2.10.1 — Zanaat (2026-10-03)
 
 - **Nitelikler ne işe yarar?** Karakter oluştururken nitelik veren adımlarda sorunun yanında
