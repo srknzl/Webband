@@ -1226,9 +1226,10 @@ revokes them):
 Clicking it opens the **scouting card** (`Lair.brief`), not a straight battle. Measured numbers
 below come from `Lair._bench` in headless Chromium (software raster, so a real GPU is faster).
 
-**Which lair.** Three hand-drawn levels: `house` (Değirmencinin Evi, 30×13), `cave` (Yarasa İni,
-32×17), `camp` (Kurt Tepesi, 34×21), and the mine (2.7.0, below). A site's level is `s.layout` if
-set, else `hash(s.id) % 3` — fixed per lair, no save field. Day or night comes from `Game.isNight()`: at
+**Which lair.** Fifteen hand-drawn levels — `house` (Değirmencinin Evi, 30×13), `cave` (Yarasa
+İni, 32×17), `camp` (Kurt Tepesi, 34×21) and the twelve hideouts of 2.9.0 (below) — and the mine
+(2.7.0, below). A site's level is `s.layout` if set, else `hash(s.id) % 3` over the first three: a
+lair spawned before 2.9.0 keeps the level its id always gave it. Day or night comes from `Game.isNight()`: at
 night the `night: 'sleep'` guards lie on bedrolls and the ambient light drops (house .34 → .07).
 
 **The scouting card** reads `Game.profLvl('spotting')` (companions count). Thresholds
@@ -1455,6 +1456,77 @@ site; a lost run keeps the bank but not the steel.
 - Measured (2.7.0, `Lair._bench`, headless Chromium, night): render 0.36 ms at 1366×768 (the
   cave 0.33, the camp 3.4, the house 4.4); 4.5 ms on a Pixel 7 in lite mode (the house 4.3).
   Update 0.02–0.04 ms.
+
+## The hideouts (2.9.0)
+
+Twelve more levels in `Lair.LEVELS`, each built around a trick of its own. `Lair.DENS` is every
+level but the mine; `Game.LAIR_LAYOUTS` is the same list on the map side (`tools/test.js` holds
+the two equal). `Game.pickLayout` gives a new lair the layout the map has fewest of, ties broken
+by a hash of its id — no dice, so a seed still makes one world. `ensureLairs` gives a layout to an
+old save's lairs that haven't been found yet; a found one keeps its level. The card's tooltip on
+the map names the level (`🗺️ Name · Kind`).
+
+| Key | Name | Theme | Its trick |
+|---|---|---|---|
+| `swamp` | Sazlık Kulübesi | swamp, fog .6 | reeds, deep water all round, a window in the hut |
+| `dock` | Kaçakçı İskelesi | dock | keyed strongroom, a load hung over the dice, the sea |
+| `abbey` | Yıkık Manastır | stone | the bell, a keyed crypt, rubble underfoot, the tower window |
+| `crypt` | Kemikli Katakomp | stone, under | a floor of bones, the lever's rubble, bats, trapdoors |
+| `farm` | Köpekli Çiftlik | house, open | two dogs, the larder, the horse pen, a gap in the fence |
+| `tavern` | Kör Baykuş Hanı | house | sleepwort and the keg, three dice players, the cellar trapdoor |
+| `quarry` | Kırık Taş Ocağı | stone, open | ledges, a watchtower, a crane stone over the dice |
+| `keep` | Kartal Burcu | stone, open | keyed dungeon, the portcullis lever, postern, breach |
+| `tamer` | Ayıcının Kampı | camp | the bear's cage, two dogs, the larder |
+| `forest` | Kızılağaç Sığınağı | forest, fog .75 | dry leaves, brush, a deep pool, the ledge into the hollow |
+| `cistern` | Batık Sarnıç | stone, under | deep pools, the prisoners on a causeway, the sluice |
+| `caravan` | Terk Edilmiş Kervansaray | stone, open | dogs, larder, herbs and keg, keyed treasury, a window |
+
+**The new pieces** (numbers at the top of `lair.js`):
+
+- **Deep water `%`.** The hero, the squad and freed prisoners swim it at `SWIM` 0.5× pace: no
+  running, no blows, no throws, every stroke a 45-wide splash. A guard sees a swimmer only within
+  `SWIM_SEEN` 60 px. Guards, dogs and the bear can't enter it (`solidFor`), so it's also a refuge.
+- **Reeds `r`.** Walkable. Crouched in them you're seen within `REED_SEEN` 34 px only; upright
+  they rustle (noise 55, running 150).
+- **Loud floor `,`** (bones, gravel or leaves: `crunchLook`). Every step is heard: 60 crouched,
+  110 walking, 170 running. The level's `crunch` line is said the first time.
+- **Fog** (`fog`). Multiplies every guard's sight range; drawn as soft pale banks drifting down.
+- **Dogs** (`dog: true` guards). 0.7× hp, no armour, 0.7× sight, but a nose: anything within
+  `SMELL` 74 px (×1.6 if it runs or carries a sack) with a clear line, in any light. A suspicious
+  or alerted dog barks every 1.6 s (noise 170). Bites are pierce, attack + 6.
+- **Meat** (larder `m`, +2). The throw button throws meat first; where it lands the nearest dog
+  within 9 tiles that can walk there goes to eat for `MEAT_T` 25 s, deaf and blind. An eating
+  dog can be knocked out from any side.
+- **The key** (`key: true` guard, `d` doors). A keyed door stays shut to everyone; the key is
+  stolen from a sleeper or from behind (0.8 s; a waking guard gets +0.3 suspicion) or taken off
+  one who's down. With it, walking into the door opens it.
+- **The bell** (`G`). Rung once: a noise of `BELL_R` 1400, so everyone awake goes to look and
+  sleepers within 630 wake.
+- **Sleepwort** (herb shelf `i`, keg `w`). The herb in a keg: `DRUG_T` 12 s later every dice or
+  sleeping bandit within `DRUG_R` 7 tiles of it, awake and unalarmed, falls asleep.
+- **A hanging load** (cleat `Z`, load `z`). Cutting the rope drops the nearest load within 8 tiles:
+  every guard within `DROP_R` 46 px is knocked out, anyone else takes a 40 blunt blow; noise 240.
+- **The bear** (`y`). Loosed, a beast of 150 hp, attack 22, goes for the nearest bandit; every
+  guard who sees it fights it, and `chaser()` ignores guards busy with it.
+- **Ledges `J`.** Solid both ways for walking; from the tile above, E jumps two tiles down (the
+  squad and followers come along). Guards walk round.
+- **Sluice** (`lever.drains`). Pulling the lever turns the rect's deep water into shallows.
+- **Light by sky**: `sky: 'open'` levels take outside light everywhere except their `indoor`
+  rects; `'under'` levels drip.
+
+`Lair.check(key)` is a static solver run by `tools/test.js` on every level: the hero's reach is
+flooded (levers open their rubble, a reached key-carrier opens keyed doors, ledges, windows and
+trapdoors work, water is swum); everything you need must be reachable, every guard must be able
+to walk his route, an ambush spawn must stand on its room's floor, a keg needs dice near it, a
+cleat a load, dogs a larder, a loud floor a crunch line — and **nobody awake by day may see the
+start**, whichever way his post sweeps (it found seven gate sentries looking straight at it).
+
+- Measured (`e2e/specs/hideouts.spec.js`, five projects): every hideout opens from its card and
+  runs; meat, a dog's nose, a stolen and a taken key, the bell, the keg, the rope, the bear,
+  swimming, the ledge, the sluice and the bone floor each work through the real buttons.
+- Measured (2.9.0, `Lair._bench`, headless Chromium 1366×768, day and night, at the start):
+  render 0.40–4.9 ms across the twelve, in the range of the old three in the same run (house 4.4–4.7,
+  camp 3.6–3.7, cave 0.44–0.54); the fog banks cost nothing measurable. Update 0.02–0.05 ms.
 
 ## Smith's work (2.7.0)
 

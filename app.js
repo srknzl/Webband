@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.8.0', date: '2026-10-03', name: 'Terazi' };  // the version name is not translated
+const VERSION = { no: '2.9.0', date: '2026-10-03', name: 'Sığınak' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -1665,6 +1665,18 @@ const Game = {
     // shrank with the count so the share of settlements under decay stays where it was —
     // measured over 8 seeds, 5 × 1500 covered 54.5% of them, 9 × 1100 covers 52.5%.
     LAIR_COUNT: 9,
+    // The walk-in levels a lair can be (lair.js LEVELS minus the mine; tools/test.js holds the two
+    // lists equal). A lair older than 2.9.0 has no `layout` and keeps the one its id picks in lair.js.
+    LAIR_LAYOUTS: ['house', 'cave', 'camp', 'swamp', 'dock', 'abbey', 'crypt', 'farm', 'tavern',
+                   'quarry', 'keep', 'tamer', 'forest', 'cistern', 'caravan'],
+    // the layout the map has fewest of, ties broken by the id — no dice, so a seed stays a seed
+    pickLayout(l) {
+        let n = k => this.dens().filter(x => x !== l && x.layout === k).length;
+        let least = Math.min(...this.LAIR_LAYOUTS.map(n));
+        let pool = this.LAIR_LAYOUTS.filter(k => n(k) === least);
+        let h = 0; for(let c of String(l.id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+        return pool[h % pool.length];
+    },
     LAIR_RANGE: 1100,        // gnaws at prosperity within this radius (at 2500 the whole map was in lair range)
     LAIR_DECAY: 0.5,         // prosperity per day (daily recovery is 0.4/0.15 — so the lair wins)
     LAIR_PURSE: 15,          // purse accumulated per day
@@ -1682,6 +1694,8 @@ const Game = {
     ensureLairs() {
         this.ensureSites();
         for(let i = this.lairs().length; i < this.LAIR_COUNT; i++) this.spawnLair();
+        // an older save's lairs you haven't found yet become any of the hideouts (found ones keep theirs)
+        this.dens().forEach(l => { if(!l.layout && !l.seen) l.layout = this.pickLayout(l); });
         // there's always one mine: an older save gets one by turning a lair it hasn't found yet
         // into a mine (or, everything found, by opening one more)
         if(!this.lairs().some(s => this.isMine(s))) {
@@ -1709,6 +1723,7 @@ const Game = {
                       x: p.x, y: p.y, strength: 8 + Math.floor(Math.random() * 5),
                       purse: 0, foundDay: state.time.day, seen: false };
             if(mine || (mine === undefined && Math.random() < this.MINE.share)) this.makeMine(l);
+            else l.layout = this.pickLayout(l);
             state.sites.push(l);
             return l;
         }
@@ -1930,7 +1945,10 @@ const Game = {
         let k = this.SITE_KINDS[s.kind];
         if(k.boss) { let b = BOSSES[s.bossKey]; return `<i>${T(b.siteDesc)}</i><br>${T`💀 Benzersiz boss — ${T(b.special.name)}`}`; }
         if(this.isMine(s)) return `<i>${T('Haydutların ele geçirdiği bir demir madeni. Çuvallar hâlâ ocağın başında.')}</i><br>${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
-        if(k.lair) return `<i>${T(k.desc)}</i><br>${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
+        if(k.lair) {
+            let lv = typeof Lair !== 'undefined' && Lair.LEVELS[Lair.levelOf(s)];
+            return `<i>${T(k.desc)}</i><br>${lv ? `🗺️ ${T(lv.name)} · ${T(lv.kind)}<br>` : ''}${T`⚔️ Kabaca ${Math.round(s.strength)} kişi`}`;
+        }
         return `<i>${T(k.desc)}</i><br>${this.siteReady(s)
             ? T('🔍 Henüz araştırılmadı')
             : T`✔️ ${this.agoText(s.usedDay)} araştırıldı${k.renew ? T` (${k.renew} günde bir yenilenir)` : ''}`}`;

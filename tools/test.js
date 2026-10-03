@@ -4288,7 +4288,20 @@ test('i18n: lair tables and the lair tour are in both dictionaries', () => {
         if(lv.mine) assert.ok(/@/.test(map) && /o/.test(map) && /q/.test(map) && /M/.test(map) && /C/.test(map) && !/P/.test(map), `${k}: needs a start, iron and coal sacks, a cart and the foreman's chest`);
         else assert.ok(/@/.test(map) && /\$/.test(map) && /P/.test(map), `${k}: needs a start, a purse and prisoners`);
         assert.ok(lv.map.every(r => r.length === lv.map[0].length), `${k}: ragged map rows`);
+        // solvable on paper (2.9.0): everything you need is reachable, every route is walkable
+        const errs = ctx.Lair.check(k);
+        assert.strictEqual(errs.length, 0, `${k}: ${errs.join('; ')}`);
     }
+    // the map hands out exactly the levels lair.js has, and spreads them before repeating one
+    assert.deepStrictEqual([...g.Game.LAIR_LAYOUTS].sort(), [...ctx.Lair.DENS].sort());
+    const w = H.world({ seed: 4 }), G = w.Game;
+    w.state.sites = w.state.sites.filter(s => s.kind !== 'lair');
+    for(let i = 0; i < G.LAIR_LAYOUTS.length; i++) G.spawnLair(false);
+    assert.deepStrictEqual([...G.dens().map(s => s.layout)].sort(), [...G.LAIR_LAYOUTS].sort(), 'fifteen lairs, fifteen different layouts');
+    // an old save: a lair you've seen keeps the level its id picked, an unseen one gets a layout
+    const old = G.dens().slice(0, 2); old.forEach(s => delete s.layout); old[0].seen = true;
+    G.ensureLairs();
+    assert.ok(!old[0].layout && old[1].layout, 'only the unseen lair is given a layout');
 });
 
 // The forge (2.5.0): forge.js does nothing at load time, so it is evaluated into its own world and

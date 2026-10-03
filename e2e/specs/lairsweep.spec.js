@@ -1,4 +1,4 @@
-// Bug hunt: every lair layout, every way in, day and night — in and a few seconds of its loop.
+// Bug hunt: every lair layout (in two lairs), every way in, day and night — in and a few seconds of its loop.
 const { test, expect, modal, newGame } = require('../fixtures');
 test.skip(!process.env.MONKEY, 'bug-hunt run');
 test.setTimeout(10 * 60_000);
@@ -7,8 +7,11 @@ test('lair sweep', async ({ page }) => {
     await newGame(page, 'Sweeper');   // a name with no Turkish-only letter: the fixture reads it on EN/ID screens
     const found = [];
     const layouts = await page.evaluate(() => Object.keys(Lair.LEVELS));   // LAYOUTS is an array: its keys were '0', '1', '2'
-    const sites = await page.evaluate(() => Game.lairs().map((s, i) => i));
-    for(const si of sites) for(const layout of layouts) for(const way of ['solo', 'squad']) for(const hour of [12, 23]) for(const men of [4]) {
+    // every layout in two of the lairs (their bands and purses differ), turn about: all nine lairs
+    // times sixteen layouts no longer fit the run's ten minutes
+    const n = await page.evaluate(() => Game.lairs().length);
+    const runs = layouts.flatMap((layout, li) => [li % n, (li + 4) % n].map(si => [si, layout]));
+    for(const [si, layout] of runs) for(const way of ['solo', 'squad']) for(const hour of [12, 23]) for(const men of [4]) {
         const r = await page.evaluate(async ([layout, way, hour, men, si]) => {
             Debug.errors.length = 0;
             Game.setOpt('muted', true);
