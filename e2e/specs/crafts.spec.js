@@ -72,6 +72,17 @@ test('the workshop: a planed edge on the line makes the piece, with carpentry ga
     const a = await page.evaluate(() => Crafts._point('board', 2)), z = await page.evaluate(() => Crafts._point('board', 20));
     await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(z.x, z.y, { steps: 18 }); await page.mouse.up();
     expect(await page.evaluate(() => Crafts.run().h.reduce((a, h) => a + h, 0))).toBeLessThan(h0);
+    // both ends are in the hand's reach: strokes from off the board's left end to off its right
+    // (2.10.2: the pointer stopped at the first segment's middle and the left end never came down)
+    const ends = () => page.evaluate(() => { const h = Crafts.run().h; return [h[0], h[h.length - 1]]; });
+    const [l0, r0] = await ends();
+    const off = await page.evaluate(() => [Crafts._point('board', -3), Crafts._point('board', Crafts.WOOD.N + 2)]);
+    for(const [p, q] of [[off[0], off[1]], [off[1], off[0]]]) {
+        await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.mouse.move(q.x, q.y, { steps: 30 }); await page.mouse.up();
+    }
+    const [l1, r1] = await ends();
+    expect(l1, 'the plane never reached the left end').toBeLessThan(l0);
+    expect(r1, 'the plane never reached the right end').toBeLessThan(r0);
     await page.evaluate(() => { const g = Crafts.run(); g.h = g.h.map(() => 0.02); });
     await expect(page.locator('#craft-b3')).toBeEnabled();
     await page.locator('#craft-b3').click();
