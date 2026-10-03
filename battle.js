@@ -432,7 +432,7 @@ const Battle = {
         // The button that announced the encounter is authoritative. Falling back to the
         // global encounter id could select a stale wolf party while the modal said bandits.
         // A boss or a one-on-one (duel, arena, tournament) deals from no army: its lone foe is
-        // the plain defaults below, which the caller then dresses (2.10.2: it was dealt from
+        // the plain defaults below, which the caller then dresses (2.11.0: it was dealt from
         // Swadia's pool, and a rider drawn there kept `mounted` under its new infantry stats).
         let solo = bossLevel || this.isDuel || this.isArena || this.isTourney;
         let kind = solo ? {} : this.foeKind(enemyName, faction, enemyBand || (npc && npc.band));
@@ -793,16 +793,17 @@ const Battle = {
         /** @type {Array<Record<string, any>>} the hero, then each troop: one row shape for both */
         let rows = [{ n: 1, hp: state.player.stats.hp * (g.mounted ? 1.33 : 1), attack: 10 + Game.attr('str') + g.weaponAtk,
                       defense: g.armorDef, dmgType: this.playerDmgType(), gearArmor: true, isPlayerTeam: true,
-                      type: g.mounted ? 'cavalry' : 'infantry', mounted: g.mounted, id: 'player' }];
+                      type: g.mounted ? 'cavalry' : 'infantry', mounted: g.mounted, id: 'player',
+                      speed: g.mounted ? 80 + Game.attr('agi') * 0.5 : this.footSpeed() }];
         state.player.party.filter(p => !p.wounded).forEach(p => {
             let t = Game.troopStats(p), d = Math.max(0.7, (p.debuff ? 0.7 : 1) * mult);   // start()'s debuff
-            rows.push({ n: 1, hp: t.hp * d, attack: t.attack * d, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: true });
+            rows.push({ n: 1, hp: t.hp * d, attack: t.attack * d, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, speed: t.speed, isPlayerTeam: true });
         });
         return rows;
     },
     enemyMix(npc, count = npc.size) {
         let kind = this.foeKind(npc.name, npc.faction, npc.band), band = kind.band;
-        let row = (r, n, dmg) => ({ name: r[0], n, hp: r[2], attack: r[4], defense: r[5], dmgType: dmg || 'cut', type: r[1], beast: band.beast });
+        let row = (r, n, dmg) => ({ name: r[0], n, hp: r[2], attack: r[4], defense: r[5], dmgType: dmg || 'cut', type: r[1], speed: r[3], beast: band.beast });
         if(band) {
             let lead = count >= 6 && band.leader ? 1 : 0, total = band.battle.reduce((a, r) => a + r[6], 0);
             return (lead ? [row(band.leader, 1, band.dmg)] : [])
@@ -810,11 +811,11 @@ const Battle = {
         }
         let pool = kind.pool;
         return pool.map(name => { let t = TROOP_TYPES[name];
-            return { name, n: count / pool.length, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace }; });
+            return { name, n: count / pool.length, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, speed: t.speed }; });
     },
     // What an enemy side is dealt from: a band's roster or a kingdom's troop pool. One answer for
     // the odds label (enemyMix) and the battle (start), so the two can never read different armies
-    // (2.10.2: four quests' raiders had neither, and both fell through to Swadia's pool — knights
+    // (2.11.0: four quests' raiders had neither, and both fell through to Swadia's pool — knights
     // included — under a looter's name and a looter's brown).
     // A side with neither has nothing honest to deal from: that is a bug, logged where the tests
     // and the bug report see it, and dealt as looters rather than as a kingdom's army.
@@ -833,24 +834,53 @@ const Battle = {
     // The mean is (Σ (hp×hit)^(1/P))^P / N^P, not the plain one: for a single troop type the two
     // are the same number, but the plain mean let one strong man lift the whole side, and he fights
     // one foe at a time while the rest gang up. A mid-game hero (130 hp, 42 attack) with eight
-    // villagers read "Kolay" against nine Swadian regulars and won 77 % in the engine (2.10.2).
-    // ponytail: every unit swings at the same pace; add range/rate if a bow-heavy side reads off.
-    ODDS_P: 1.7,
-    // A bowman against footmen or riders fights well under his sheet. Alone with other bowmen he
-    // shoots the whole approach and four of them are an even fight for four villagers; behind his own
-    // footmen his line is in the way and he adds little (4 militia ≈ 8 villagers, with 4 bowmen
-    // behind them ≈ 10.5). So his hit on a non-archer counts ARCHER_IN_MELEE × (his side's archer
-    // share)^1.5: 0.45 for a side of bowmen, ~0.16 at half, ~0.1 in a kingdom's army.
-    ARCHER_IN_MELEE: 0.45,
+    // villagers read "Kolay" against nine Swadian regulars and won 77 % in the engine (2.11.0).
+    //
+    // How a man's blow is worth more or less than its sheet says is not guessed: the constants
+    // below are FITTED to real-engine fights (tools/oddsfit.js --fit, the record in
+    // docs/measurements/odds-data.json, scored on every push by tools/test.js 'odds:'). They
+    // stand for what the engine does that a stat sheet doesn't show:
+    //  - a bowman never closes: he shoots (always `pierce`, whatever his band's weapon) from 55–250
+    //    and backs off when reached. His worth against men who must walk up to him is
+    //    ARCHER_IN_MELEE × his cover × (ARCHER_REF_SPEED / their speed)^ARCHER_VS_SPEED: a slow
+    //    line spends longer under the arrows than riders do. His cover is
+    //    ARCHER_SCREEN + (1 − ARCHER_SCREEN) × (his side's archer share)^ARCHER_SHARE_POW.
+    //  - bowman against bowman: both shoot all fight long, ARCHER_DUEL.
+    //  - a rider's blow: × CHARGE (the engine's charge on the run-in, the weight of the horse).
+    //  - a man's worth is hp^HP_POW × hit^HIT_POW: Lanchester's square law has both at 1, the
+    //    engine's men overkill, retreat and pick targets, and the record says otherwise.
+    // Fitted 2.11.0 (600 matchups × 32 fights; held-out halves 0.455 → 0.386 and 0.498 → 0.429
+    // log-loss against the hand-set constants before). Re-fit after any change to the engine.
+    ODDS_P: 1.102,
+    HP_POW: 0.798,
+    HIT_POW: 0.525,
+    ARCHER_IN_MELEE: 0.445,
+    ARCHER_SHARE_POW: 0.562,
+    ARCHER_SCREEN: 0,
+    ARCHER_VS_SPEED: 0.484,
+    ARCHER_REF_SPEED: 60,
+    ARCHER_DUEL: 1.781,
+    CHARGE: 0.832,
+    // One man's blow on one foe, with everything above: the hit the formula weighs
+    unitHit(u, f, cover) {
+        let archer = u.type === 'archer', dmg = archer ? 'pierce' : u.dmgType;
+        let hit = this.afterArmor(dmg, u.attack * this.DAMAGE_PACE * (f.type === 'cavalry' && !f.beast ? this.braceMult(u) : 1), f.defense, f);
+        if(archer) {
+            if(f.type === 'archer') return hit * this.ARCHER_DUEL;
+            return hit * this.ARCHER_IN_MELEE * cover * Math.pow(this.ARCHER_REF_SPEED / (f.speed || 60), this.ARCHER_VS_SPEED);
+        }
+        if(u.type === 'cavalry' && !u.beast) hit *= this.CHARGE;
+        return hit;
+    },
     sideStrength(side, foes) {
         let men = n => n.reduce((a, f) => a + f.n, 0);
         let N = men(side), M = men(foes) || 1;
         if(!N) return 0;
-        let bow = this.ARCHER_IN_MELEE * Math.pow(men(side.filter(u => u.type === 'archer')) / N, 1.5);
+        let share = men(side.filter(u => u.type === 'archer')) / N;
+        let cover = this.ARCHER_SCREEN + (1 - this.ARCHER_SCREEN) * Math.pow(share, this.ARCHER_SHARE_POW);
         let x = side.reduce((a, u) => {
-            let hit = foes.reduce((h, f) => h + f.n * this.afterArmor(u.dmgType, u.attack * this.DAMAGE_PACE * (f.type === 'cavalry' && !f.beast ? this.braceMult(u) : 1), f.defense, f)
-                                                     * (u.type === 'archer' && f.type !== 'archer' ? bow : 1), 0) / M;
-            return a + u.n * Math.pow(u.hp * hit, 1 / this.ODDS_P);
+            let hit = foes.reduce((h, f) => h + f.n * this.unitHit(u, f, cover), 0) / M;
+            return a + u.n * Math.pow(Math.pow(u.hp, this.HP_POW) * Math.pow(hit, this.HIT_POW), 1 / this.ODDS_P);
         }, 0);
         return Math.pow(x, this.ODDS_P);
     },
@@ -3336,7 +3366,7 @@ const Battle = {
     // "easy prey" warning with the same formula before the battle even starts.
     // What a win pays (1 = in full), from the foe's share (Game.foeShare: the enemy's strength in
     // your own heads): it shrinks once the enemy falls below ~60 % of you. It weighed heads × level
-    // until 2.10.2, and since #124 a level adds nothing in a fight: a high-level hero with eight
+    // until 2.11.0, and since #124 a level adds nothing in a fight: a high-level hero with eight
     // villagers was promised "🪶 Kolay av" in nine Swadian regulars.
     rewardScale(share) {
         return Math.max(0.2, Math.min(1, (isFinite(share) ? share : 1) * 1.6));

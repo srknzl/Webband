@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.10.2', date: '2026-10-03', name: 'Zanaat' };  // the version name is not translated
+const VERSION = { no: '2.11.0', date: '2026-10-03', name: 'Kantar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2403,7 +2403,7 @@ const Game = {
 
     // Every bandit party is one of BAND_KINDS: its kind is the roster the battle deals its men from
     // and the one the odds label reads (Battle.foeKind). A quest's raiders keep their own name and
-    // colour and borrow a kind — four quests built theirs with a bare createNPC until 2.10.2, and a
+    // colour and borrow a kind — four quests built theirs with a bare createNPC until 2.11.0, and a
     // party with no kind and no kingdom fought as Swadia's army, knights included.
     // tools/test.js 'roster:' fails any createNPC(…, 'bandit', …) written outside this function.
     createBand(kind, size, name = BAND_KINDS[kind].name, color = BAND_KINDS[kind].color) {
@@ -3828,10 +3828,9 @@ const Game = {
 
         // Six wolves don't jump a large army: a band setting an ambush also does the math.
         // (The `backOff` branch in the encounter only runs when `!ambush`, so it must be excluded here.)
-        let mine = this.fieldSize();
         let lurker = state.npcParties.find(n => n.type === 'bandit'
             && this.dist(n, state.player) < Math.min(this.AMBUSH_RANGE, this.spotRange(n))
-            && mine < n.size * 1.5
+            && this.strengthSeen(n) < 1.5
             && this.getTerrainInfo(n.x, n.y).name === 'Orman');
         if(!lurker) return;
 
@@ -3924,10 +3923,11 @@ const Game = {
     // The odds label (#10): both sides' real fighting strength — class stats, armour, damage type,
     // the brace (Battle.sideStrength). It used to count heads weighted by level, and since #124 a
     // level adds nothing in a fight: 22 peasants met 8 sergeants as "Kolay" and lost every man.
-    // The buckets are on the strength ratio and were read off real-engine fights (tools/test.js
-    // 'odds:'): the engine is decisive — at 1.1 and up the stronger side won 90–100 %, at 0.77 and
-    // down it won at most 7 %. Names line up with the difficulty menu's vocabulary.
-    ODDS: [[1.25, 'Kolay', '#7bd88f'], [0.9, 'Dengeli', '#d9d2c5'], [0.7, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
+    // The buckets are on the strength ratio, read off the win curve fitted to 600 real-engine
+    // matchups (tools/oddsfit.js, docs/measurements/odds-data.json): Kolay where the curve gives
+    // 93 %, Dengeli 35 %, Zorlu 8 %. In the record Kolay won 98 % on average, Dengeli 70, Zorlu 19,
+    // Çetin 4. Names line up with the difficulty menu's vocabulary.
+    ODDS: [[1.36, 'Kolay', '#7bd88f'], [0.93, 'Dengeli', '#d9d2c5'], [0.75, 'Zorlu', '#e0a458'], [0, 'Çetin', '#e07a7a']],
     oddsRatio(npc) {
         let mine = Battle.playerMix(), theirs = Battle.enemyMix(npc, state.encounterSize || npc.size);
         return Battle.sideStrength(mine, theirs) / Math.max(1e-6, Battle.sideStrength(theirs, mine));
@@ -3937,6 +3937,28 @@ const Game = {
     // men's chatter, a surrender's renown. Battle.start takes the same number off the field.
     foeShare(npc) {
         return Battle.powerRatio(Battle.enemyMix(npc, state.encounterSize || npc.size), Battle.playerMix());
+    },
+    // How a party on the map reads yours: your strength counted in its own heads (the other side of
+    // foeShare, at the party's live size). Bands decide by it whether to come at you, to lie in
+    // ambush or to back off, a lord whether you're beneath him (2.11.0) — they counted heads until
+    // then, so twenty raw villagers frightened off mountain brigands and eight sergeants didn't.
+    // Asked for every party every update, so it's kept per party for an in-game hour, until the
+    // party's size or yours (the unwounded) moves.
+    strengthSeen(npc) {
+        if(npc.wanderer) return Infinity;   // never fights, has no roster: no threat either way
+        // your side's fingerprint: who stands in it (an upgrade keeps the headcount), the hero's hp
+        let print = state.player.party.reduce((a, t) => (a * 31 + (t.name || '').length * 7 + (t.level || 0) + (t.wounded ? 3 : 0)) | 0, state.player.party.length);
+        let mine = `${state.time.day * 24 + Math.floor(state.time.hour)}:${print}:${Math.round(state.player.stats.hp / 10)}`;
+        if(!this._mine || this._mine.key !== mine) this._mine = { key: mine, rows: Battle.playerMix() };
+        let key = `${mine}:${npc.size}`;
+        this._seen = this._seen || new WeakMap();
+        let c = this._seen.get(npc);
+        if(c && c.key === key) return c.v;
+        let v = Battle.powerRatio(this._mine.rows, Battle.enemyMix(npc, Math.max(1, npc.size)));
+        // a NaN would make every band neither chase nor flee, silently: say so, and read it as even
+        if(!isFinite(v)) { Debug.log('strength', `${npc.name}: strength ${v}`); v = 1; }
+        this._seen.set(npc, { key, v });
+        return v;
     },
     oddsLabel(npc) {
         let r = this.oddsRatio(npc);
@@ -3975,13 +3997,12 @@ const Game = {
     },
 
     isHostile(npc) {
-        let ps = state.player.party.length + 1;
         let dx = state.player.x - npc.x, dy = state.player.y - npc.y;
         let dist = Math.sqrt(dx*dx + dy*dy);
 
         if(npc.type === 'bandit') {
             if(dist < 120) return true; // Get right up on them and they won't forgive it!
-            if(ps > npc.size * 1.5) return false; // If we're much stronger, let them flee from us (they won't be aggressive)
+            if(this.strengthSeen(npc) > 1.5) return false; // much stronger than them, in fighting men: they keep away
             if(state.time.day <= 14) {
                 let hash = parseInt(npc.id.replace('npc_',''), 36) % 100 || 50;
                 let aggroThreshold = (state.time.day / 14) * 100;
@@ -3997,7 +4018,7 @@ const Game = {
             return this.atWar(this.playerFaction(), npc.faction);
         }
         if(npc.type === 'king' || npc.type === 'vizier' || npc.type === 'lord') {
-            if(state.player.stats.level < npc.level - 5 && ps < npc.size / 2) return false; // not aggressive toward the weak
+            if(this.strengthSeen(npc) < 0.5) return false; // not aggressive toward the weak: under half their strength
         }
         if(npc.type === 'lord' || npc.type === 'king' || npc.type === 'vizier')
             return this.atWar(this.playerFaction(), npc.faction);
@@ -4009,7 +4030,6 @@ const Game = {
     PATROL_CONTACT: 30,   // a patrolling lord this close to its band has caught it
     PREY_HOLD: 300,       // a band switches convoys only for one this much nearer than its own    // a besieger's (or campaign lord's) distance from the place it holds
     updateNPCs(dt) {
-        let ps = state.player.party.length + 1;
         // A pack shuns the roads (the wolf rules below push its every target off them), so it
         // neither locks onto nor leans toward a party standing on one: it could only circle at
         // the roadside, a ring of packs around a siege camp on the high road for weeks.
@@ -4020,11 +4040,14 @@ const Game = {
             // While captive, NPCs don't lock onto the player as a target (so the captor roams freely)
             let hostile = this.isHostile(npc) && state.player.status !== 'prisoner';
 
-            // A weak band spots a strong army from afar and flees; a pursuer notices up close
-            let sense = npc.size > ps ? 360 : 360 + Math.min(640, (ps / Math.max(1, npc.size)) * 240);
-            // A noble doesn't flee: an enemy lord will still walk toward an army a little bigger
-            // than theirs, but pulls back if you're clearly stronger (×1.5) (#48).
-            let might = npc.size * (npc.lordId ? 1.5 : 1);
+            // How strong this party reads you, in its own heads (strengthSeen, 2.11.0: it was heads
+            // to heads). A weak band spots a strong army from afar and flees; a pursuer notices up close
+            let seen = this.strengthSeen(npc);
+            let sense = seen < 1 ? 360 : 360 + Math.min(640, seen * 240);
+            // A noble doesn't flee: an enemy lord will still walk toward an army a little stronger
+            // than theirs, but pulls back if you're clearly stronger (×1.5) (#48). `bold`: it
+            // reckons it can take you.
+            let bold = seen < (npc.lordId ? 1.5 : 1);
             // Fleeing is now independent of hostility: if a band is too weak to attack you
             // anyway (isHostile false) it used to never flee, and kept wandering instead.
             // A caravan/convoy flees an army from a kingdom it's at war with (otherwise carries on)
@@ -4039,21 +4062,21 @@ const Game = {
             // (`playerTargetId` set before this tick, i.e. before or shortly after camp began)
             // keeps closing in and holds at the safety perimeter below, exactly as before — this
             // only blocks a fresh lock-on while camped, not an ongoing one.
-            if(this.campProtected() && might > ps && npc.playerTargetId !== 'player') notices = false;
-            if(roadSafe && might > ps && (BAND_KINDS[npc.band] || {}).beast) notices = false;
+            if(this.campProtected() && bold && npc.playerTargetId !== 'player') notices = false;
+            if(roadSafe && bold && (BAND_KINDS[npc.band] || {}).beast) notices = false;
             // The gang a quest names doesn't run from you: it senses a stronger army from ~1000
             // units, you see ~500 (~125 in a forest), and the marker names only the town nearest
             // it — so it fled before it was ever seen, and a player following the marker found it
             // after 12-16 days of a 20-day quest, or never (2.6.2). It keeps its own errands.
-            if(npc.questLocks && might <= ps) notices = false;
+            if(npc.questLocks && !bold) notices = false;
             // A quest wave was summoned to fight *you*, and it is deliberately smaller than
             // your army — so the generic "a weak band runs" rule below sent it fleeing from
             // the very fight the quest promises, and Hasat Nöbeti became a chase (#94).
             if(npc.questWave) {
                 npc.targetX = state.player.x; npc.targetY = state.player.y;
                 npc.playerTargetId = 'player';
-            } else if(notices && (might > ps ? hostile : true)) {
-                if(might > ps) {
+            } else if(notices && (bold ? hostile : true)) {
+                if(bold) {
                     npc.targetX = state.player.x; npc.targetY = state.player.y;
                     npc.playerTargetId = 'player';
                 } else {
@@ -4128,7 +4151,7 @@ const Game = {
                     if(state.npcParties.some(o => o !== npc && o.hunting === t.id)) return;
                     // nor one under the eyes of an army it runs from: it went for it, saw you, ran,
                     // and came back for it, all day long
-                    if(might <= ps && this.dist(t, state.player) < sense) return;
+                    if(!bold && this.dist(t, state.player) < sense) return;
                     // and it keeps the convoy it hunts: two passing on one road had it turning to
                     // whichever was nearer, back and forth, until both were gone
                     let d2 = this.dist(t, npc) - (t.id === npc.hunting ? this.PREY_HOLD : 0);
@@ -4410,7 +4433,7 @@ const Game = {
         // A band can decide it's "not worth it" and back off. An animal pack doesn't know renown
         // or reputation, it knows numbers: it jumps a small party, but weighs a large army from a distance and backs off (#79).
         let bk = BAND_KINDS[npc.band] || {};
-        let strong = this.fieldSize() >= npc.size * 1.5;
+        let strong = this.strengthSeen(npc) >= 1.5;   // in fighting men, not heads (2.11.0)
         let backOff = !ambush && npc.type === 'bandit' && (bk.beast
             ? strong && Math.random() < 0.5
             : state.time.day <= 14 && Math.random() < 0.25);
@@ -11048,7 +11071,7 @@ const Game = {
 
     // `share` is the foe's strength in your heads (foeShare / Battle.foeShare): losing to an equal
     // or stronger side burns the floor, losing to a weak one burns more. It was heads × level
-    // until 2.10.2 — a level-20 hero beaten by nine regulars was charged as if they were weak.
+    // until 2.11.0 — a level-20 hero beaten by nine regulars was charged as if they were weak.
     defeatRenown(share) {
         let r = Math.min(1, share || 0);
         let loss = 2 + Math.round(18 * (1 - r)) + Math.floor((state.player.renown || 0) * 0.02 * (1 - r));
@@ -12743,7 +12766,7 @@ const Save = {
             if(!state.questOffers[id] || !QUESTS[state.questOffers[id].id]) delete state.questOffers[id];
         });
         if(state.pendingQuest && !QUESTS[state.pendingQuest.id]) state.pendingQuest = null;
-        // A quest's raiders were saved with no band until 2.10.2 (Game.createBand); give them the
+        // A quest's raiders were saved with no band until 2.11.0 (Game.createBand); give them the
         // looters' kind they were always meant to fight as, not Swadia's army
         (state.npcParties || []).forEach(n => { if(n.type === 'bandit' && !BAND_KINDS[n.band]) n.band = 'bandit'; });
 

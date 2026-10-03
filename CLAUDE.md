@@ -38,7 +38,7 @@ after changing it, update the "Measured" lines.
 | `sw.js`, `manifest.webmanifest`, `fonts/`, `icon-*.png` | PWA: offline cache, install metadata, self-hosted Cinzel/Inter |
 | `native/` | Capacitor shell — npm lives here and in `e2e/` only. `ios/`/`android/` are generated, never committed |
 | `e2e/` | Playwright end-to-end tests: the real game in Chromium, desktop + phone layout, TR/EN/ID |
-| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/balance/economy/framegate/mapwatch/longgame`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node`; `build-swordsman.js` is a one-off asset build (needs the CraftPix pack + Playwright) that writes `troops/swordsman_*.png` and the index block in `battle.js` |
+| `tools/` | Node measurement tools (`harness.js` + `test/sim/duel/balance/economy/framegate/mapwatch/longgame/oddsfit` — `oddsfit.js` fits the strength model to real-engine fights, its record in `docs/measurements/odds-data.json`); `playtest-scenario.js` is the one exception — paste it into the browser console, not `node`; `build-swordsman.js` is a one-off asset build (needs the CraftPix pack + Playwright) that writes `troops/swordsman_*.png` and the index block in `battle.js` |
 | `docs/SYSTEMS.md` | Mechanic breakdown and measurements |
 | `docs/PLAN-*.md`, `docs/measurements/` | Design plans, dated measurement reports |
 | `CHANGELOG.md` | Change list in player-facing language |
@@ -154,6 +154,7 @@ exports: `{ load, world, run, mulberry32, args, seeds, writeReport, footprint }`
 node tools/test.js [--fast]     # everything ~80s / --fast ~3s: no thresholds, no slow() tests
 node tools/framegate.js         # frame-skip gate + #42 parity regression
 node tools/balance.js [--check] # battle balance: every rule fought out in the real engine, ~6 min
+node tools/oddsfit.js --check    # the strength model against the real-engine record (--gen re-fights it, --fit re-fits)
 node tools/sim.js --days 200 --seed 1-5 | duel.js --n 200 | economy.js --days 60 --troops 10
 ```
 
