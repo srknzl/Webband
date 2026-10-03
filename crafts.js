@@ -89,15 +89,21 @@ function toPlane(g) {
     g.h = g.dev.map((d, i) => WM.STOCK + WM.ROUGH * hashRand(g.seed + 40 + i) + (d || 0) * WM.SAW_STOCK);
     g.h0 = g.h.reduce((a, h) => a + Math.max(0, h - g.tol), 0) || 1;
 }
-// The plane pushed from u0 to u1 (segment positions) with its iron down. Every segment its middle
-// passes is cut down to `depth` under the highest point the sole stands on — so a hump goes and a
-// hollow is ridden over. Against the grain a cut can tear out below that.
+// How far the plane's middle travels: half a segment past either end, as a stroke starts off the
+// board. The one range the pointer, the keys and the tests share (2.10.2): the hand was held to
+// 0…N−1, so the plane's middle could never pass the first segment's middle — the left end stood
+// proud of the line for good, and the bots, given −0.5…N−0.5, never saw it.
+const planeTravel = u => clamp(u, -0.5, WM.N - 0.5);
+// The plane pushed from u0 to u1 (segment positions) with its iron down. Every segment whose
+// middle it reaches is cut down to `depth` under the highest point the sole stands on — so a hump
+// goes and a hollow is ridden over. Against the grain a cut can tear out below that. Each way
+// counts the middles it arrives at (u0, u1]: going left counted only the ones it left behind.
 function planeMove(g, u0, u1) {
     const out = { cut: 0, tears: [] }, dir = Math.sign(u1 - u0), half = WM.SOLE >> 1;
     if(!dir || !g.h) return out;
     const list = [];
-    for(let i = Math.floor(Math.min(u0, u1)) + 1; i <= Math.floor(Math.max(u0, u1)); i++) if(i >= 0 && i < WM.N) list.push(i);
-    if(dir < 0) list.reverse();
+    if(dir > 0) { for(let i = Math.floor(u0) + 1; i <= Math.floor(u1); i++) if(i >= 0 && i < WM.N) list.push(i); }
+    else for(let i = Math.ceil(u0) - 1; i >= Math.ceil(u1); i--) if(i >= 0 && i < WM.N) list.push(i);
     for(const i of list) {
         let top = -Infinity;
         for(let k = Math.max(0, i - half); k <= Math.min(WM.N - 1, i + half); k++) top = Math.max(top, g.h[k]);
@@ -648,7 +654,8 @@ function toBuf(e) {
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * DPR / S, y: (e.clientY - r.top) * DPR / S };
 }
-const segAt = bx => clamp((bx - LY.barX - LY.segW / 2) / LY.segW, 0, WM.N - 1);
+// the board under a point, as a segment position; the plane's own travel bounds it (planeTravel)
+const segAt = bx => planeTravel((bx - LY.barX - LY.segW / 2) / LY.segW);
 // what in the kitchen a point is on: a skewer's place, the pot, or the fire and its logs
 function kitchenHit(p) {
     const { gr, pot } = LY;
@@ -683,7 +690,7 @@ function update(dt) {
         G.sawOff += (G.sawTo - G.sawOff) * (1 - Math.exp(-18 * dt));
         if(G.y < -0.6 && !G.intoSaid) { G.intoSaid = true; say(T('Çizgiyi geçtin: testere işin içine kaçıyor!'), 2.6); }
     } else {
-        if(keyAim) moveTo(clamp(G.u + keyAim * dt * 8, 0, WM.N - 1));
+        if(keyAim) moveTo(planeTravel(G.u + keyAim * dt * 8));
     }
     stepFx(dt);
 }
@@ -1206,7 +1213,7 @@ const api = {
     WOOD: WM, KITCHEN: KM, WOODWORK, HELP, COOK_HELP,
     open, kitchen, help, start, shift, resume, howto, abandon, leave, pauseMenu, trades, practice,
     // the pure models, for tools/test.js
-    _model: { newBoard, stroke, toPlane, planeMove, planeReady, planeDone, boardScore, passMark, outcome, cost, prevOf, blockOf, stock,
+    _model: { newBoard, stroke, toPlane, planeTravel, planeMove, planeReady, planeDone, boardScore, passMark, outcome, cost, prevOf, blockOf, stock,
         newShift, stepKitchen, flip, takeOff, ladle, stir, addWood, sideQ, shiftPay, workedToday, meatRGB },
     // for the tests and the debug report: the live run, read-only by convention
     run() { return G; }, runConfig() { return R; },

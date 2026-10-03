@@ -1576,7 +1576,12 @@ caravans, price ledger and rumours only enumerate `trade`, so none of them carri
   stands on — humps go, hollows are ridden over. Each stretch of edge (2 + tier) has a grain
   direction, drawn as chevrons; going against it tears 0.3 mm deeper 40 % of the time. Finish once
   every segment is ≤ tol (0.14 + 0.06·ease − 0.015·tier). Pressing down sets the plane where the hand
-  is without cutting its way there.
+  is without cutting its way there. The plane's middle travels half a segment past either end
+  (`planeTravel`, −0.5…N−0.5 — a stroke starts off the board); a stroke counts the segment middles
+  it arrives at, either way. Until 2.10.2 the pointer and the keys stopped at 0…N−1 and a stroke
+  going left skipped the middle it landed on: the first segment could never be planed, and the
+  model tests — which planed from −0.5 — never saw it. They push the plane only as far as
+  `planeTravel` now, and the e2e spec strokes from off one end to off the other by mouse.
 - *Score* `S = 0.4·saw + 0.45·plane + 0.15·care`: saw = 1 − mean|dev|/2.5 mm, plane = 1 − mean
   error/(4·tol) (below the gauge counts 1.8×), care = 1 − 0.04·binds − 0.06·tears. Pass mark
   0.6 + 0.04·tier − 0.05·ease; from 0.4 the piece before it in `WOODWORK`, below that firewood and half
