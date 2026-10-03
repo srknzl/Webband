@@ -2076,7 +2076,7 @@ test('rout: the broken side abandons the fight and flees', () => {
 // --- Cheese gates: fleeing possible, but not infinite fleeing ---
 // duel.js steps the real engine forward; if kiting is infinite the fight runs
 // to MAX_S and returns `won: null`. A stalemate = a kiting bug.
-const { fight } = require('./duel');
+const { fight, troopRow } = require('./duel');
 
 test('kite: a mounted archer can\'t flee a melee fighter forever', () => {
     const r = fight(gw, 'Kergit Atlı Okçusu', 'Nord Baltacısı', 3);
@@ -2131,8 +2131,8 @@ slow('odds: the encounter label agrees with real-engine fights', () => {
     const side = (names, n, team) => {
         const count = {};
         for(let i = 0; i < n; i++) { const x = Array.isArray(names) ? names[i % names.length] : names; count[x] = (count[x] || 0) + 1; }
-        return Object.entries(count).map(([name, m]) => { const t = TT[name];
-            return { n: m, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, isPlayerTeam: team }; });
+        return Object.entries(count).map(([name, m]) => { const t = troopRow(go, name);   // a kingdom's troop or a band's row
+            return { n: m, hp: t.hp, attack: t.attack, defense: t.defense, dmgType: t.dmgType || 'cut', type: t.type, brace: t.brace, speed: t.speed, isPlayerTeam: team }; });
     };
     const label = (a, na, b, nb) => {
         const A = side(a, na, true), E = side(b, nb, false);
@@ -2157,12 +2157,215 @@ slow('odds: the encounter label agrees with real-engine fights', () => {
         ['Svadya Köylüsü', 11, swadia, 8, 'Çetin'],
         ['Svadya Milisi', 5, nord, 8, 'Çetin'],
     ];
+    // The hero beside eight villagers, fought as one more man of his stats (the engine has no hand
+    // on his sword). The plain mean of hp × hit let one strong man lift his whole side: the
+    // mid-game hero read "Kolay" against nine Swadian regulars and won 77 % (2.11.0's report).
+    const hero = (hp, attack, defense) => { const nm = `Kahraman ${hp}`; TT[nm] = { hp, speed: 70, attack, defense, type: 'infantry', dmgType: 'cut' }; return nm; };
+    const looters = ['Çapulcu', 'Çapulcu', 'Çapulcu', 'Çapulcu', 'Çapulcu', 'Çapulcu', 'Çapulcu Okçu', 'Çapulcu Okçu', 'Atlı Çapulcu'];
+    const withHero = h => [h].concat(Array(8).fill('Svadya Köylüsü'));
+    cases.push([withHero(hero(50, 20, 0)), 9, looters, 9, 'Kolay'],
+               [withHero(hero(130, 42, 20)), 9, swadia, 9, 'Dengeli'],   // the report: read Kolay
+               [withHero(hero(180, 55, 30)), 9, swadia, 9, 'Dengeli']);   // won 100 %: the fitted model is careful
     for(const [a, na, b, nb, want] of cases) {
         const got = label(a, na, b, nb), w = won(a, na, b, nb), bn = Array.isArray(b) ? 'mixed' : b;
-        assert.strictEqual(got, want, `${na} ${a} vs ${nb} ${bn}: label ${got}, expected ${want} (won ${w} %)`);
-        if(got === 'Kolay') assert.ok(w >= 85, `${na} ${a} vs ${nb} ${bn} reads Kolay but won ${w} %`);
-        if(got === 'Çetin') assert.ok(w <= 15, `${na} ${a} vs ${nb} ${bn} reads Çetin but won ${w} %`);
+        const an = Array.isArray(a) ? `${a[0]} + ${na - 1} villagers` : `${na} ${a}`;
+        assert.strictEqual(got, want, `${an} vs ${nb} ${bn}: label ${got}, expected ${want} (won ${w} %)`);
+        if(got === 'Kolay') assert.ok(w >= 85, `${an} vs ${nb} ${bn} reads Kolay but won ${w} %`);
+        if(got === 'Çetin') assert.ok(w <= 15, `${an} vs ${nb} ${bn} reads Çetin but won ${w} %`);
     }
+});
+
+// --- The strength model against the real-engine record (2.11.0) ---
+// docs/measurements/odds-data.json holds 600 matchups fought 32 times each in the real engine
+// (tools/oddsfit.js --gen): single troops, footmen with bowmen at every share, riders, kingdoms'
+// pools, bands' rosters, heroes with villagers. Battle's constants were fitted to it (--fit). This
+// reads the record and holds the game's own model to it — no battle is fought, so it runs on
+// every --fast too. If it fails, the formula or a troop's stats moved: re-fit, or say why not.
+test('odds: the strength model agrees with the real-engine record', () => {
+    const F = require('./oddsfit'), go = H.world({ seed: 1 });
+    F.addHeroes(go);
+    const data = F.load(), s = F.score(go, data);
+    assert.ok(data.matchups.length >= 500, `the record holds only ${data.matchups.length} matchups`);
+    assert.ok(s.loss <= 0.42, `log-loss ${s.loss.toFixed(4)} per fight against the record (fitted 0.405)`);
+    const by = name => s.cases.filter(c => s.label(c.r) === name), avg = cs => cs.reduce((a, c) => a + c.w, 0) / cs.length;
+    const [K, D, Z, C] = ['Kolay', 'Dengeli', 'Zorlu', 'Çetin'].map(by);
+    assert.ok(avg(K) >= 0.93 && avg(C) <= 0.07, `Kolay won ${Math.round(avg(K) * 100)} %, Çetin ${Math.round(avg(C) * 100)} % on average`);
+    assert.ok(avg(K) > avg(D) && avg(D) > avg(Z) && avg(Z) > avg(C), 'the labels are out of order against the record');
+    // the tails: a label is a promise, and 32 fights a matchup leave room for luck, not for a miss
+    const kLow = K.filter(c => c.w < 0.7).length, cHigh = C.filter(c => c.w > 0.3).length;
+    assert.ok(kLow <= Math.ceil(K.length * 0.03) && cHigh <= Math.ceil(C.length * 0.03),
+        `${kLow}/${K.length} Kolay matchups won under 70 %, ${cHigh}/${C.length} Çetin ones over 30 %`);
+    // bowmen read true: no side wins more or less than the model says because it has archers
+    // (before the fit a side with bowmen beat its odds by 0.5–1.3 on the logit, riders fell short)
+    const { troopRow: tr } = require('./duel');
+    const share = (side, type) => { const ex = F.expand(side); return ex.filter(x => tr(go, x).type === type).length / ex.length; };
+    const logit = w => { const p = Math.max(0.02, Math.min(0.98, w)); return Math.log(p / (1 - p)); };
+    const bias = f => { const cs = s.cases.filter(f); return cs.reduce((a, c) => a + logit(c.w) - s.beta * Math.log(c.r), 0) / cs.length; };
+    for(const [what, f, lim] of [['bowmen on the player\'s side', c => share(c.m.a, 'archer') > 0, 0.35],
+                                 ['bowmen on the other side', c => share(c.m.b, 'archer') > 0, 0.35],
+                                 ['a side of bowmen alone', c => share(c.m.a, 'archer') === 1, 0.75],
+                                 ['riders on the player\'s side', c => share(c.m.a, 'cavalry') > 0, 0.35],
+                                 ['no bowmen at all', c => !share(c.m.a, 'archer') && !share(c.m.b, 'archer'), 0.35]]) {
+        const b = bias(f);
+        assert.ok(Math.abs(b) <= lim, `${what}: the record beats the model by ${b.toFixed(2)} on the logit`);
+    }
+});
+
+// The record is only true while the engine is the one that fought it. A sample of it is fought
+// again here; if the engine moved (a troop's stats, the AI, damage, terrain), this fails first —
+// then `node tools/oddsfit.js --gen` and `--fit` bring the record and the constants back.
+slow('odds: the record still matches the engine', () => {
+    const F = require('./oddsfit'), go = H.world({ seed: 11 });
+    F.addHeroes(go);
+    const data = F.load(), sample = data.matchups.filter((_, i) => i % 20 === 7);
+    let diff = 0;
+    for(const m of sample) {
+        const a = F.expand(m.a), b = F.expand(m.b);
+        let w = 0, ok = 0;
+        for(let i = 0; i < 24; i++) { const r = fight(go, a, b, a.length, b.length); if(r.won === null) continue; ok++; if(r.won) w++; }
+        diff += Math.abs(w / Math.max(1, ok) - m.won / Math.max(1, m.fights));
+    }
+    diff /= sample.length;
+    assert.ok(diff <= 0.1, `the engine strays ${Math.round(diff * 100)} points a matchup from the record — re-run tools/oddsfit.js --gen and --fit`);
+});
+
+// Bands weigh you as fighting men too (Game.strengthSeen): eight sergeants keep looters off,
+// twenty raw villagers don't scare mountain brigands — heads to heads, both went the other way.
+test('bandits come at you or keep off by strength, not by heads', () => {
+    const go = H.world({ seed: 4 }), { Game: G, state: st } = go;
+    st.time.day = 30;   // past the first fortnight's grace
+    const party = (n, name) => Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name, level: 1 }));
+    const far = n => { n.x = st.player.x + 300; n.y = st.player.y; return n; };
+    st.player.party = party(8, 'Svadya Çavuşu');
+    const looters = far(G.createBand('bandit', 12));
+    assert.ok(G.strengthSeen(looters) > 1.5, `eight sergeants read ${G.strengthSeen(looters).toFixed(2)} to twelve looters`);
+    assert.strictEqual(G.isHostile(looters), false, 'twelve looters came at eight sergeants (they outnumber them)');
+    st.player.party = party(20, 'Svadya Köylüsü');
+    const brigands = far(G.createBand('mountain', 12));
+    assert.ok(G.strengthSeen(brigands) < 1.5, `twenty villagers read ${G.strengthSeen(brigands).toFixed(2)} to twelve brigands`);
+    assert.strictEqual(G.isHostile(brigands), true, 'twelve brigands kept off twenty raw villagers (outnumbered)');
+    // the reading follows the party: upgrade the same twenty and it changes within the hour
+    const before = G.strengthSeen(brigands);
+    st.player.party = party(20, 'Svadya Çavuşu');
+    assert.ok(G.strengthSeen(brigands) > before * 2, 'the same headcount, upgraded, still read as villagers (stale cache)');
+});
+
+// --- Who an enemy side is (2.11.0) ---
+// Four quests built their raiders with a bare createNPC: no band, no kingdom. The odds label and
+// the battle both fell through to Swadia's troop pool — militia, sergeants, knights — under a
+// looter's name and a looter's brown, and eight villagers met them as "easy". The fix is one
+// resolver (Battle.foeKind) read by both, and one door for bandits (Game.createBand); these
+// tests hold every road back to the old hole shut, including roads a future quest might open.
+test('roster: no bandit party is built outside Game.createBand', () => {
+    const fs = require('fs'), path = require('path'), bad = [], root = path.join(__dirname, '..');
+    // the game, and the tests and tools too: a bandless fixture fights as Swadia's army and hides
+    // exactly the bug it should catch
+    const dirs = d => fs.readdirSync(path.join(root, d)).filter(f => f.endsWith('.js')).map(f => path.join(d, f));
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js', 'crafts.js', ...dirs('tools'), ...dirs('e2e'), ...dirs('e2e/specs')]) {
+        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+        src.split('\n').forEach((line, i) => {
+            if(/^\s*\/\//.test(line)) return;   // prose about the rule isn't a breach of it
+            if(/createNPC\([^)]*['"]bandit['"]/.test(line) && !/^\s*let npc = this\.createNPC\(name, 'bandit', size, color, null, 1\);\s*$/.test(line))
+                bad.push(`${f}:${i + 1} ${line.trim()}`);
+        });
+    }
+    assert.deepStrictEqual(bad, [], 'a bandit party with no band fights as a kingdom\'s army — use Game.createBand(kind, size, name, color)');
+});
+
+test('roster: the odds label and the battle deal from the same army', () => {
+    const go = H.world({ seed: 6 }), { Battle: B, BAND_KINDS, TROOP_TREES, Debug, state: st } = go;
+    st.player.currentEncounterNpcId = null;
+    const foes = [
+        ...Object.keys(BAND_KINDS).map(k => ({ name: BAND_KINDS[k].name, band: k })),    // a band under its own name
+        ...Object.keys(BAND_KINDS).map(k => ({ name: 'Görev Çetesi', band: k })),        // a quest's raiders: own name, borrowed kind
+        ...Object.keys(TROOP_TREES).map(f => ({ name: 'Lord Ordusu', faction: f })),
+    ];
+    const errs = Debug.errors.length;
+    for(const npc of foes) {
+        const weighed = new Set(B.enemyMix(npc, 14).map(r => r.name));
+        B.start(npc.name, 14, null, npc.faction || '', null, false, npc.band || '');
+        const fielded = B.units.concat(B.reserves.e || []).filter(u => !u.isPlayerTeam).map(u => u.name);
+        const stray = [...new Set(fielded.filter(n => !weighed.has(n)))];
+        assert.deepStrictEqual(stray, [], `${npc.name} (${npc.band || npc.faction}): the battle fielded men the odds label never weighed`);
+    }
+    B.active = false;
+    assert.deepStrictEqual(Array.from(Debug.errors.slice(errs), e => e.msg), [], 'a real foe had nothing to deal from');
+    // A side with neither a band nor a kingdom is a bug: logged, and dealt as looters, never as an army
+    const kind = B.foeKind('Kimsesiz', null, null);
+    assert.strictEqual(kind.band, BAND_KINDS.bandit, 'a nameless side fell through to a kingdom\'s pool');
+    assert.ok(Debug.errors.slice(errs).some(e => e.kind === 'roster'), 'a side with nothing to deal from went unlogged');
+});
+
+// Generic over QUESTS: every quest is taken and its spawners are run, so a quest written next
+// year that spawns its own enemies is covered without touching this test.
+test('roster: every party a quest spawns has an army to deal from', () => {
+    const g = questWorld({ seed: 5 }), { Quests, QUESTS, LOCATIONS, Battle: B, BAND_KINDS, Debug, Game, state } = g;
+    const errs = Debug.errors.length, before = new Set(state.npcParties.map(n => n.id));
+    for(const id of Object.keys(QUESTS)) {
+        const d = QUESTS[id], giverId = giversFor(g, id)[0];
+        if(!giverId || (!d.day && !d.on)) continue;
+        const q = Quests.make(id, giverId);
+        state.player.quests = [q];
+        const at = LOCATIONS.find(l => l.id === (d.where ? d.where(q) : q.data && q.data.locId));
+        if(at) { state.player.x = at.x; state.player.y = at.y; }
+        for(let i = 0; i < 40 && !state.npcParties.some(n => n.questWave === q.id); i++) {
+            if(d.day) d.day(q);
+            if(at && d.on) d.on(q, 'entered_location', { locId: at.id, loc: at });
+        }
+        Game.closeModal();
+    }
+    const spawned = state.npcParties.filter(n => !before.has(n.id) && !n.wanderer && n.type !== 'lord' && n.lordId === undefined);
+    assert.ok(spawned.filter(n => n.questWave).length >= 4, `only ${spawned.filter(n => n.questWave).length} quest parties spawned — the test isn't reaching the spawners`);
+    for(const n of spawned) {
+        if(n.type === 'bandit') assert.ok(BAND_KINDS[n.band], `${n.name} (quest ${n.questWave}) is a bandit with no band`);
+        B.enemyMix(n, n.size || 1);
+    }
+    assert.deepStrictEqual(Array.from(Debug.errors.slice(errs).filter(e => e.kind === 'roster'), e => e.msg), [], 'a quest party had nothing to deal from');
+});
+
+// The map's hover tip reads every party on the map (Game.npcTipHtml → preyWarning → foeShare):
+// bands, convoys, lords' hosts and wanderers. A wanderer has no roster and never fights, and the
+// first 2.11.0 build weighed one there — e2e caught it, this catches it in a second.
+test('roster: every party on the map can be read, wanderers included', () => {
+    const g = H.world({ seed: 8 }), { Game, Debug, state } = g;
+    H.run(g, 5);
+    for(const w of Game.WANDERERS) { const n = Game.spawnWanderer(w.id); if(n) n.leaveDay = 1e9; }
+    const errs = Debug.errors.length, kinds = new Set();
+    for(const n of state.npcParties) { Game.npcTipHtml(n); kinds.add(n.wanderer ? 'wanderer' : n.trade ? 'trade' : n.type); }
+    assert.ok(['wanderer', 'trade', 'bandit'].every(k => kinds.has(k)), `the map held only ${[...kinds]}`);
+    assert.deepStrictEqual(Array.from(Debug.errors.slice(errs), e => e.msg), [], 'reading a map party logged an error');
+});
+
+test('roster: a one-on-one foe is dealt from no army and never rides', () => {
+    const go = H.world({ seed: 7 }), { Battle: B, Debug } = go;
+    const errs = Debug.errors.length;
+    for(let i = 0; i < 40; i++) {
+        B.startArena(i % B.ARENA_FOES.length);
+        const e = B.units.find(u => !u.isPlayerTeam);
+        // dealt from Swadia's pool until 2.11.0: a rider drawn there kept `mounted` as infantry
+        assert.strictEqual(e.mounted, false, `arena foe ${e.name} rides (dealt as a mounted troop)`);
+        assert.strictEqual(e.type, 'infantry');
+    }
+    B.isArena = B.isTourney = null; B.active = false;
+    assert.deepStrictEqual(Array.from(Debug.errors.slice(errs), e => e.msg), []);
+});
+
+test('odds: easy prey, chatter and a defeat\'s renown read the foe\'s strength, not heads × level', () => {
+    const go = H.world({ seed: 4 }), { Game: G, Battle: B, state: st } = go;
+    const party = (n, name) => Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name, level: 1 }));
+    st.encounterSize = null; st.player.renown = 500;
+    st.player.stats.level = 25;
+    st.player.party = party(8, 'Svadya Köylüsü');
+    const regulars = { name: 'Lord Ordusu', size: 9, faction: 'swadia' }, looters = { size: 4, band: 'bandit' };
+    // heads × level said a level-25 hero's band was owed only 70 % for nine regulars: "easy prey"
+    assert.strictEqual(G.preyWarning(regulars), '', 'nine Swadian regulars against eight villagers were called easy prey');
+    st.player.party = party(14, 'Svadya Çavuşu');
+    assert.ok(G.preyWarning(looters), 'four looters against fourteen sergeants are easy prey and the warning stayed silent');
+    st.player.party = party(8, 'Svadya Köylüsü');
+    assert.ok(G.defeatRenown(G.foeShare(regulars)) < G.defeatRenown(G.foeShare({ size: 3, band: 'bandit' })),
+        'losing to the stronger side burned as much renown as losing to three looters');
+    // one number under every readout: the label's ratio is the foe's share raised to −P
+    assert.ok(Math.abs(Math.pow(G.oddsRatio(regulars), -1 / B.ODDS_P) - G.foeShare(regulars)) < 1e-9, 'the label and foeShare read different sides');
 });
 
 // --- Sprite sheets (#92) ---
@@ -2249,13 +2452,13 @@ function questWorld(opts) {
     for(let i = 0; i < facs.length; i++)
         for(let j = i + 1; j < facs.length; j++) Game.declareWar(facs[i], facs[j]);
     if(!state.npcParties.some(n => n.type === 'bandit' && n.size > 0)) {
-        const b = Game.createNPC('Çapulcu Reisi', 'bandit', 6, '#8b0000');
+        const b = Game.createBand('bandit', 6, 'Çapulcu Reisi', '#8b0000');
         state.npcParties.push(b);
     }
     // An active AI siege so siege_provisions has a besieged fief to offer (its `can` gate).
     const siegeCity = LOCATIONS.find(l => l.type === 'city' && l.faction);
     if(siegeCity) {
-        const sieger = Game.createNPC('Kuşatmacı', 'lord', 30, '#333');
+        const sieger = Game.createNPC('Kuşatmacı', 'lord', 30, '#333', facs.find(f => f !== siegeCity.faction));
         sieger.siegeLocId = siegeCity.id;
         state.npcParties.push(sieger);
     }
@@ -2277,7 +2480,7 @@ function questSuite() {
     const loc = id => LOCATIONS.find(l => l.id === id);
     const enter = id => Quests.emit('entered_location', { locId: id, loc: loc(id) });
     const give = (itemId, qty) => state.player.inventory.push({ ...gq.ITEMS[itemId], qty });
-    const bandNpc = band => { const n = Game.createNPC('Çete', 'bandit', 4, '#888'); n.band = band; state.npcParties.push(n); return n; };
+    const bandNpc = band => { const n = Game.createBand(band, 4, 'Çete', '#888'); state.npcParties.push(n); return n; };
 
     const drivers = {
         butter_blockade: q => Quests.emit('bought_item', { locId: q.data.locId, itemId: 'cheese', qty: q.data.need }),
@@ -2620,7 +2823,7 @@ test('quest: a bandit gang locked by a quest survives a lost raid, and the lock 
     // brother_in_chains.setup() picks the *largest* current bandit party — clear the world's
     // own generated ones so this test's own party is unambiguously the one tracked.
     state.npcParties = state.npcParties.filter(n => n.type !== 'bandit');
-    const b = Game.createNPC('Çapulcu Reisi', 'bandit', 6, '#8b0000');
+    const b = Game.createBand('bandit', 6, 'Çapulcu Reisi', '#8b0000');
     state.npcParties.push(b);
     const giver = LORDS.find(l => QUESTS.brother_in_chains.givers.includes(l.personality));
     const q = Quests.make('brother_in_chains', giver.id);
@@ -2629,7 +2832,7 @@ test('quest: a bandit gang locked by a quest survives a lost raid, and the lock 
     assert.strictEqual(b.questLocks, 1, 'the tracked party should be locked once');
 
     // Still the exact match it always was — a win against some other bandit party doesn't count.
-    const other = Game.createNPC('Başka Çete', 'bandit', 5, '#888');
+    const other = Game.createBand('bandit', 5, 'Başka Çete', '#888');
     state.npcParties.push(other);
     Quests.emit('battle_won', { npcId: other.id });
     assert.strictEqual(q.state, 'active', 'a different bandit party should not complete the quest');
@@ -2804,7 +3007,7 @@ test('wait: map orders cannot cancel a running camp', () => {
 test('wait: a running camp is protected from map encounters', () => {
     const g = H.world({ seed: 40 });
     const { Game, state } = g;
-    const band = Game.createNPC('Çapulcular', 'bandit', 8, '#800');
+    const band = Game.createBand('bandit', 8);
     state.player.wait = { until: 99 }; state.player.status = 'waiting';
     assert.ok(Game.campProtected());
     Game.triggerEncounter(band);
@@ -2818,7 +3021,7 @@ test('wait: hostile parties hold outside the camp perimeter and cannot stack for
     state.time.day = 20;
     state.player.party = [];
     state.player.wait = { until: 99 }; state.player.status = 'waiting';
-    const band = Game.createNPC('Çapulcular', 'bandit', 20, '#800');
+    const band = Game.createBand('bandit', 20);
     band.x = state.player.x + 220; band.y = state.player.y;
     band.targetX = state.player.x; band.targetY = state.player.y;
     state.npcParties = [band];
@@ -2833,7 +3036,7 @@ test('wait: the camp perimeter repels but never attracts a band that has not not
     state.time.day = 20;
     state.player.party = [];
     state.player.wait = { until: 99 }; state.player.status = 'waiting';
-    const band = Game.createNPC('Çapulcular', 'bandit', 20, '#800');
+    const band = Game.createBand('bandit', 20);
     band.x = state.player.x + 300; band.y = state.player.y;          // inside `sense`, never noticed
     band.targetX = state.player.x + 2000; band.targetY = state.player.y;
     band.playerTargetId = null;
@@ -3017,7 +3220,7 @@ function roadSuite() {
     test('road: a pursuer keeps moving during hours lost to an event', () => {
         state.time.day = 10; state.time.hour = 6;
         state.player.x = 4500; state.player.y = 4500; state.player.party = [];
-        let n = Game.createNPC('Takipçi', 'bandit', 8, '#800');
+        let n = Game.createBand('bandit', 8, 'Takipçi', '#800');
         n.x = 4600; n.y = 4500; n.targetX = n.x; n.targetY = n.y; n.speed = 60;
         state.npcParties = [n]; state.encounterCooldown = 0;
         let before = Game.dist(n, state.player);
@@ -3408,7 +3611,7 @@ test('flee: a band that runs keeps running once out of sight, not back and forth
     const { Game, state } = w;
     state.player.party = Array.from({ length: 25 }, (_, i) => troop(4, { id: 'fl' + i }));
     Object.assign(state.player, { x: 4500, y: 4500 });
-    const band = Game.createNPC('Çapulcular', 'bandit', 5, '#000');
+    const band = Game.createBand('bandit', 5);
     band.band = 'bandit';
     Object.assign(band, { x: 4500 + 980, y: 4500, targetX: 4500 + 980, targetY: 4500 });
     // a caravan behind the player: out of sight, the band used to turn at once to hunt it
@@ -3430,7 +3633,7 @@ test('patrol: one lord per band, and a lord that catches it lets it go', () => {
     Object.assign(state.player, { x: 4500, y: -40000 });
     state.campaigns = {};
     const [a, b] = state.npcParties.filter(n => n.lordId).filter((n, i, all) => n.faction === all[0].faction);
-    const band = Game.createNPC('Çapulcular', 'bandit', 8, '#000');
+    const band = Game.createBand('bandit', 8);
     band.band = 'bandit';
     Object.assign(band, { x: 4500, y: 4500, targetX: 4500, targetY: 4500, speed: 0 });
     Object.assign(a, { x: 4800, y: 4500, bandScanCd: 0 });
@@ -3455,7 +3658,7 @@ test('wolves: a pack neither locks onto nor circles a party on the road', () => 
     assert.ok(spot, 'no road on the map');
     Object.assign(state.player, spot);
     state.time.day = 30;
-    const wolves = Game.createNPC('Kurt Sürüsü', 'bandit', 12, '#000');
+    const wolves = Game.createBand('wolf', 12);
     wolves.band = Object.keys(w.BAND_KINDS).find(k => w.BAND_KINDS[k].beast);
     Object.assign(wolves, { x: spot.x + 150, y: spot.y, targetX: spot.x + 150, targetY: spot.y });
     state.npcParties = [wolves];
@@ -4060,7 +4263,7 @@ test('a quest wave closes in where a plain band of the same size flees', () => {
     state.player.party.length = 0;
     for(let i = 0; i < 25; i++) state.player.party.push({ level: 10, hp: 10, maxHp: 10 });
     const walk = (wave) => {
-        const n = Game.createNPC('Hasat Çapulcuları', 'bandit', 10, '#8b0000');
+        const n = Game.createBand('bandit', 10, 'Hasat Çapulcuları', '#8b0000');
         n.x = state.player.x + 200; n.y = state.player.y;
         n.targetX = n.x; n.targetY = n.y;
         if(wave) n.questWave = 'harvest_watch';
@@ -4078,8 +4281,9 @@ test('a quest-locked band does not flee a stronger army', () => {
     const { Game, state } = g;
     state.player.party.length = 0;
     for(let i = 0; i < 25; i++) state.player.party.push({ level: 10, hp: 10, maxHp: 10 });
+    state.player.stats.hp = 50;   // a world loaded, never started: the hero has no hp yet, and bands weigh it
     const walk = (locked) => {
-        const n = Game.createNPC('Çapulcular', 'bandit', 10, '#8b0000');
+        const n = Game.createBand('bandit', 10);
         n.x = state.player.x + 400; n.y = state.player.y;
         n.targetX = n.x; n.targetY = n.y;
         if(locked) n.questLocks = 1;
@@ -4100,7 +4304,7 @@ test('a chase is ten visible game hours, and losing sight resets it (#131)', () 
     Game.camera.x = state.player.x; Game.camera.y = state.player.y; Game.camera.zoom = 1;
     const put = (dx, dy) => {
         state.npcParties.length = 0;
-        state.npcParties.push({ id: 'chase-test', type: 'bandit', size: 30, x: Game.camera.x + dx,
+        state.npcParties.push({ id: 'chase-test', type: 'bandit', band: 'bandit', size: 30, x: Game.camera.x + dx,
                                 y: Game.camera.y + dy, targetX: 0, targetY: 0 });
     };
     Game._chase = 0; Game._chasing = false;
