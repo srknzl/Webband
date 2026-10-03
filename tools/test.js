@@ -4590,10 +4590,13 @@ function carpenterBot(C, r, careful, seed = 1) {
     }
     m.toPlane(g);
     for(let d = 1; !m.planeReady(g) && it++ < 3000; d = -d) {
-        if(!careful) { m.planeMove(g, d > 0 ? -0.5 : N - 0.5, d > 0 ? N - 0.5 : -0.5); continue; }
+        // only as far as a hand can push it (planeTravel): the bots once planed from −0.5 while the
+        // pointer stopped at 0, and the board's left end was out of every player's reach
+        const T = m.planeTravel;
+        if(!careful) { m.planeMove(g, T(d * -Infinity), T(d * Infinity)); continue; }
         let best = 0;
         g.h.forEach((h, i) => { if(h > g.h[best]) best = i; });
-        m.planeMove(g, best - 0.5 * g.dir[best], best + 0.5 * g.dir[best]);
+        m.planeMove(g, T(best - 0.5 * g.dir[best]), T(best + 0.5 * g.dir[best]));
     }
     const sc = m.boardScore(g);
     return { g, sc, out: m.outcome(g, r, sc.S) };
@@ -4629,6 +4632,21 @@ test('carpentry: the grain pulls a straight saw off the line; the plane rides th
     assert.strictEqual(p.tears, 0, 'the plane tore going with the grain');
     for(let k = 0; k < 6; k++) m.planeMove(p, W.N - 0.5, -0.5);
     assert.ok(p.tears > 0, 'six passes against the grain never tore');
+    // both ends are in reach, each with the grain, within the travel a hand has (2.10.2: the left
+    // end could not be planed at all), and a stroke that comes back counts the middle it lands on
+    const T = m.planeTravel;
+    assert.deepStrictEqual([T(-99), T(99)], [-0.5, W.N - 0.5], 'the plane can\'t start a stroke off the board');
+    for(const grain of [1, -1]) {
+        const e = m.newBoard(r, 1, 5);
+        e.h = new Array(W.N).fill(2); e.dir = new Array(W.N).fill(grain);
+        for(let k = 0; k < 12; k++) grain > 0 ? m.planeMove(e, T(-99), T(99)) : m.planeMove(e, T(99), T(-99));
+        assert.ok(e.h[0] <= e.tol && e.h[W.N - 1] <= e.tol, `grain ${grain}: ends left at ${e.h[0].toFixed(2)} / ${e.h[W.N - 1].toFixed(2)}`);
+        assert.strictEqual(e.tears, 0, `grain ${grain}: planing with it tore`);
+    }
+    const back = m.newBoard(r, 1, 5);
+    back.h = new Array(W.N).fill(2); back.dir = new Array(W.N).fill(-1);
+    m.planeMove(back, 1, 0);
+    assert.ok(back.h[0] < 2 && back.h[1] === 2, `a stroke from 1 back to 0 cut ${back.h.slice(0, 2)}`);
     // a cut that strays into the piece leaves the edge short of the gauge before the plane touches it
     const q = m.newBoard(r, 1, 5);
     q.dev = new Array(W.N).fill(0); q.dev[4] = -3;

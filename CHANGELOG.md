@@ -3,6 +3,12 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.10.2 — Zanaat (2026-10-03)
+
+- **Rende tahtanın iki ucuna da yetişiyor.** Marangozlukta kenarın en solu hiç rendelenemiyor,
+  orası çizginin üstünde kalıyordu; bu yüzden düzgün çalışan biri bile parçayı tamamlayamıyordu.
+  Artık rende vuruşa tahtanın dışından başlayabiliyor ve iki ucu da damar yönünde alabiliyorsun.
+
 ## 2.10.1 — Zanaat (2026-10-03)
 
 - **Nitelikler ne işe yarar?** Karakter oluştururken nitelik veren adımlarda sorunun yanında
