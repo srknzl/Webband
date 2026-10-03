@@ -4339,7 +4339,9 @@ const Game = {
     // The reward cut used to be visible only in a single line after the battle; know it before deciding.
     // The calculation is Battle.rewardScale itself, on the same two sides the odds label weighs (#55 item 9).
     preyWarning(npc) {
-        if(!npc || npc.trade) return '';
+        // only for a party that can be a battle: a convoy is robbed by choice, a wanderer never fights
+        // (and has no roster for foeShare to weigh — the map tip asks this of every party)
+        if(!npc || npc.trade || npc.wanderer) return '';
         let sc = Battle.rewardScale(this.foeShare(npc));
         return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.`}` : '';
     },

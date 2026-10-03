@@ -2245,6 +2245,19 @@ test('roster: every party a quest spawns has an army to deal from', () => {
     assert.deepStrictEqual(Array.from(Debug.errors.slice(errs).filter(e => e.kind === 'roster'), e => e.msg), [], 'a quest party had nothing to deal from');
 });
 
+// The map's hover tip reads every party on the map (Game.npcTipHtml → preyWarning → foeShare):
+// bands, convoys, lords' hosts and wanderers. A wanderer has no roster and never fights, and the
+// first 2.10.2 build weighed one there — e2e caught it, this catches it in a second.
+test('roster: every party on the map can be read, wanderers included', () => {
+    const g = H.world({ seed: 8 }), { Game, Debug, state } = g;
+    H.run(g, 5);
+    for(const w of Game.WANDERERS) { const n = Game.spawnWanderer(w.id); if(n) n.leaveDay = 1e9; }
+    const errs = Debug.errors.length, kinds = new Set();
+    for(const n of state.npcParties) { Game.npcTipHtml(n); kinds.add(n.wanderer ? 'wanderer' : n.trade ? 'trade' : n.type); }
+    assert.ok(['wanderer', 'trade', 'bandit'].every(k => kinds.has(k)), `the map held only ${[...kinds]}`);
+    assert.deepStrictEqual(Array.from(Debug.errors.slice(errs), e => e.msg), [], 'reading a map party logged an error');
+});
+
 test('roster: a one-on-one foe is dealt from no army and never rides', () => {
     const go = H.world({ seed: 7 }), { Battle: B, Debug } = go;
     const errs = Debug.errors.length;
