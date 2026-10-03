@@ -754,7 +754,7 @@ const MapArt = (() => {
         night: ['#0a0f26', '#121937', '#1b2349', '#26305a']
     };
     const SCENE_KIND = {
-        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'pen', '🏭': 'shop', '🔨': 'smithy', '📦': 'barn',
+        '👑': 'tower', '🛡': 'tower', '🏆': 'tower', '🍺': 'tavern', '🧓': 'house', '⛓': 'pen', '🏭': 'shop', '🔨': 'smithy', '🪚': 'shop', '🍲': 'tavern', '📦': 'barn',
         '🛒': 'stall', '🍷': 'stall', '🪖': 'tent', '⚔': 'ram', '🤺': 'ring', '🔥': 'fire', '🐔': 'coop', '🚪': 'gate', '⏳': 'fire'
     };
     const BUILD = new Map(), BASES = new Map(), ICONS = {};
@@ -1303,7 +1303,19 @@ const MapArt = (() => {
                 velvet: () => { P(2, 4, '#6a2a8a', 12, 9); P(2, 4, '#8a4aaa', 12, 2); P(2, 8, '#4a1a6a', 12, 1); P(12, 4, '#4a1a6a', 2, 9); },
                 ale: () => { P(4, 2, '#8a5a2a', 8, 12); P(3, 4, '#8a5a2a', 10, 8); P(3, 5, '#5f646b', 10, 1); P(3, 10, '#5f646b', 10, 1); P(5, 2, '#a8743a', 2, 12); },
                 coal: () => { P(3, 8, '#2a2a2e', 5, 5); P(7, 6, '#38383e', 6, 7); P(5, 10, '#1a1a1e', 6, 3); P(8, 7, '#55555c'); P(4, 9, '#55555c'); },
-                salt: () => { P(4, 5, '#d8cfb8', 8, 9); P(3, 7, '#d8cfb8', 10, 6); P(5, 3, '#b8ad90', 6, 2); P(6, 2, '#efeae0', 4, 2); P(4, 7, '#efe9dc', 2, 5); }
+                salt: () => { P(4, 5, '#d8cfb8', 8, 9); P(3, 7, '#d8cfb8', 10, 6); P(5, 3, '#b8ad90', 6, 2); P(6, 2, '#efeae0', 4, 2); P(4, 7, '#efe9dc', 2, 5); },
+                timber: () => { for(const [y, c] of [[4, '#a8743a'], [8, '#b8844a'], [12, '#9a6a3a']]) { P(1, y, c, 14, 3); P(1, y, '#c8945a', 14, 1); P(14, y, '#e0c090', 1, 3); } }
+            }[id] || (() => P(4, 4, '#8a6a40', 8, 8)))();
+        } else if(item.type === 'craft') {                              // the carpenter's work (2.10.0)
+            ({
+                stool: () => { P(3, 4, '#a8743a', 10, 3); P(3, 4, '#c8945a', 10, 1); P(4, 7, '#7a4a1a', 2, 7); P(10, 7, '#7a4a1a', 2, 7); P(7, 7, '#8a5a2a', 2, 6); P(4, 11, '#6a3e18', 8, 1); },
+                chest_wood: () => { P(2, 5, '#8a5a2a', 12, 9); P(2, 4, '#a8743a', 12, 3); P(2, 7, '#5f646b', 12, 1); P(2, 4, '#5f646b', 1, 10); P(13, 4, '#5f646b', 1, 10); P(7, 7, '#e0b852', 2, 3); P(2, 13, '#5a3a1a', 12, 1); },
+                wheel: () => {
+                    for(let a = 0; a < 64; a++) { const t = a / 64 * 6.283; P(Math.round(7.5 + 6.5 * Math.cos(t)), Math.round(7.5 + 6.5 * Math.sin(t)), '#5f646b'); P(Math.round(7.5 + 5.4 * Math.cos(t)), Math.round(7.5 + 5.4 * Math.sin(t)), '#8a5a2a'); }
+                    for(let k = 0; k < 6; k++) { const t = k / 6 * 6.283; for(let r = 1; r < 5; r++) P(Math.round(7.5 + r * Math.cos(t)), Math.round(7.5 + r * Math.sin(t)), '#a8743a'); }
+                    P(7, 7, '#5f646b', 2, 2);
+                },
+                table: () => { P(1, 5, '#a8743a', 14, 2); P(1, 5, '#c8945a', 14, 1); P(2, 7, '#7a4a1a', 2, 7); P(12, 7, '#7a4a1a', 2, 7); P(4, 8, '#8a5a2a', 8, 1); }
             }[id] || (() => P(4, 4, '#8a6a40', 8, 8)))();
         } else if(id === 'crucible') {                                   // a crucible-steel cake, its watered face up
             P(3, 6, WOOTZ[0], 10, 6); P(4, 5, WOOTZ[0], 8, 1); P(3, 11, WOOTZ[2], 10, 1);

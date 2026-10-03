@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.9.0', date: '2026-10-03', name: 'Sığınak' };  // the version name is not translated
+const VERSION = { no: '2.10.0', date: '2026-10-03', name: 'Zanaat' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -75,7 +75,7 @@ const Debug = {
                 };
             }, T('oyun başlamamış')),
             render: {
-                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active), lairActive: g(() => typeof Lair !== 'undefined' && Lair.active), forgeActive: g(() => typeof Forge !== 'undefined' && Forge.active),
+                battleActive: g(() => Battle.active), tournamentActive: g(() => TournamentMinigame.active), lairActive: g(() => typeof Lair !== 'undefined' && Lair.active), forgeActive: g(() => typeof Forge !== 'undefined' && Forge.active), craftActive: g(() => typeof Crafts !== 'undefined' && Crafts.active),
                 mapLoopId: g(() => Game._loopId), battleLoopId: g(() => Battle.loopId),
                 targetFps: g(() => Game.targetFps()), fpsSetting: g(() => Game.opt('fps')),
                 adaptive: g(() => { let p = Game.perfState();
@@ -467,6 +467,14 @@ const ITEMS = {
     ale:    { id:'ale',    name:'Bira',          type:'trade', basePrice:50,  icon:'🍺', desc:'Fıçı fıçı köpüklü bira. Her hanın vazgeçilmezi.' },
     coal:   { id:'coal',   name:'Kömür',         type:'trade', basePrice:6,   icon:'🪨', desc:'Kışın ordunun ısınacağı tek şey. Kömürsüz bir kış, askeri hasta eder.' },
     salt:   { id:'salt',   name:'Tuz',           type:'trade', basePrice:100, icon:'🧂', desc:'Eti bozulmaktan koruyan beyaz altın. Her yerde alıcısı var.' },
+    // The carpenter's bench (2.10.0, crafts.js): timber is a trade good like any; what the bench makes
+    // is `craft` — it sells on the trade goods' supply curve, but only the bench makes it, so no
+    // market stocks it and no caravan carries it.
+    timber: { id:'timber', name:'Kereste',       type:'trade', basePrice:20,  icon:'🪵', desc:'Biçilmeye hazır meşe ve çam kalası. Marangozun ekmeği.' },
+    stool:  { id:'stool',  name:'Tabure',        type:'craft', basePrice:70,  icon:'🪑', desc:'Üç ayaklı, sağlam bir tabure. Her hanın köşesinde bir tane bulunur.' },
+    chest_wood: { id:'chest_wood', name:'Ahşap Sandık', type:'craft', basePrice:190, icon:'🧰', desc:'Demir köşebentli, kilitli bir sandık. Çeyiz de saklar, ganimet de.' },
+    wheel:  { id:'wheel',  name:'Araba Tekerleği', type:'craft', basePrice:290, icon:'🛞', desc:'Göbeği, parmakları ve demir çemberiyle bir araba tekerleği. Yolda kalan kervancının kurtarıcısı.' },
+    table:  { id:'table',  name:'Meşe Masa',     type:'craft', basePrice:400, icon:'🪑', desc:'Tek parça meşe tablalı, ağır bir masa. Lord salonlarına layık.' },
     // A smith's material (2.7.0): no market stocks it (`rare`), a bandit-held mine's foreman keeps it
     // in his chest, and the masterwork recipes need one. It sells like any good.
     crucible: { id:'crucible', name:'Pota Çeliği', type:'material', basePrice:900, icon:'💠', rare:true, desc:'Kapalı potada eritilip yavaşça soğutulmuş çelik. Desenli, sert ve esnek; ancak usta bir demirci işleyebilir.' },
@@ -762,7 +770,9 @@ const state = {
             trade:     { level: 1, xp: 0, next: 100, focus: 0 },
             looting:   { level: 1, xp: 0, next: 100, focus: 0 },
             trainer:   { level: 1, xp: 0, next: 100, focus: 0 },
-            smithing:  { level: 1, xp: 0, next: 100, focus: 0 }
+            smithing:  { level: 1, xp: 0, next: 100, focus: 0 },
+            carpentry: { level: 1, xp: 0, next: 100, focus: 0 },
+            cooking:   { level: 1, xp: 0, next: 100, focus: 0 }
         },
         skills: { fastRun: 0, wideSwing: 0, fastArrow: 0, homingArrow: 0 },
         perks: [],             // owned skill-tree perk ids (#110)
@@ -6242,7 +6252,7 @@ const Game = {
         // stayed stopped (only a battle-end restarts it) — a screen that's "active" in the DOM
         // but never drawn to. Refusing the switch here is the single choke point for every
         // caller; leaving battle only ever happens through its own end-of-battle flow (#132).
-        let scene = /^(battle|lair|forge)$/.test(screenId);
+        let scene = /^(battle|lair|forge|craft)$/.test(screenId);
         if(!scene && this.inScene()) return;
         if(this.held && (scene || screenId === 'settlement')) this.hold(false);
         this.perfGrace();   // the frames right after a switch are loading, not the device's pace
@@ -7229,6 +7239,12 @@ const Game = {
             // The forge (2.5.0): a town's smithy rents its hearth; your own castle's is yours
             if(typeof Forge !== 'undefined' && (loc.type === 'city' || (loc.type === 'castle' && loc.owner === 'player')))
                 this.addBtn(ac, T('🔨 Demirhane'), () => Forge.open(loc));
+            // The crafts (2.10.0): a carpenter's bench in every town and your own castle (a village's is
+            // with its other services below), and a city inn's kitchen that takes an apprentice for a shift
+            if(typeof Crafts !== 'undefined') {
+                if(loc.type === 'city' || (loc.type === 'castle' && loc.owner === 'player')) this.addBtn(ac, T('🪚 Marangoz Atölyesi'), () => Crafts.open(loc));
+                if(loc.type === 'city') this.addBtn(ac, T('🍲 Han Mutfağı'), () => Crafts.kitchen(loc));
+            }
             if(loc.type === 'city') {
                 this.addBtn(ac, T('🛒 Pazara Git'), () => this.openMarket(loc));
                 // Enterprise: the answer to day 20's "what do I do with this money" (#53 item 1.6)
@@ -7269,6 +7285,7 @@ const Game = {
                         this.addBtn(ac, T('🪖 Gönüllü Topla'), () => this.recruitVolunteers(loc));
                     }
                     this.addBtn(ac, T('🛒 Erzak Al'), () => this.openMarket(loc));
+                    if(typeof Crafts !== 'undefined') this.addBtn(ac, T('🪚 Marangoz Atölyesi'), () => Crafts.open(loc));
                 }
                 this.addBtn(ac, T('🔥 Köyü Yağmala'), () => this.raidVillage(loc));
                 // 300 renown: the right to rule — tribute without a siege (#69)
@@ -7303,6 +7320,8 @@ const Game = {
         '🏭': ['anvil', 'trade', 'Her gün dinar getirir'],
         '⛓': ['chain', 'trade', 'Esirlerini sat'],
         '🔨': ['hammer', 'places', 'Silah ve zırh döv'],
+        '🪚': ['tree', 'places', 'Kereste biç, rendele, eşya yap'],
+        '🍲': ['fire', 'places', 'Mutfakta çalış, yevmiye al'],
         '🍺': ['mug', 'places', 'Paralı asker, yoldaş, söylenti'],
         '🤺': ['swords', 'places', 'Talim dövüşü, ödül ve tecrübe'],
         '🏆': ['trophy', 'places', 'Turnuva meydanı'],
@@ -8225,7 +8244,7 @@ const Game = {
         { id: 'weapon', label: 'Silah',  types: ['weapon'] },
         { id: 'armor',  label: 'Zırh',   types: ['armor', 'helmet', 'gloves', 'boots', 'shield'] },
         { id: 'horse',  label: 'At',     types: ['horse'] },
-        { id: 'goods',  label: 'Mal',    types: ['trade', 'material'] },
+        { id: 'goods',  label: 'Mal',    types: ['trade', 'material', 'craft'] },
         { id: 'food',   label: 'Yiyecek',types: ['food'] },
         { id: 'special',label: 'Özel',   types: ['special'] }
     ],
@@ -8322,9 +8341,9 @@ const Game = {
     GOOD_ORIGIN: {
         swadia:  { wheat:0.70, bread:0.75, velvet:1.30, salt:1.15 },   // plains, grain basket
         rhodok:  { ale:0.65,   iron:0.80,  meat:1.25,   cheese:1.15 }, // mountains, vineyards and mines
-        vaegir:  { meat:0.70,  cheese:0.80, velvet:1.25, ale:1.20 },   // northern forest
-        nord:    { salt:0.70,  meat:0.85,  wheat:1.30,  iron:1.20 },   // coast, salt flats
-        khergit: { cheese:0.70, meat:0.75, velvet:1.35, bread:1.25 }   // steppe, herds
+        vaegir:  { meat:0.70,  cheese:0.80, velvet:1.25, ale:1.20, timber:0.65 },   // northern forest
+        nord:    { salt:0.70,  meat:0.85,  wheat:1.30,  iron:1.20, timber:0.85 },   // coast, salt flats
+        khergit: { cheese:0.70, meat:0.75, velvet:1.35, bread:1.25, timber:1.35 }   // steppe, herds
     },
     // The deviation is geography, not a hash (#77). It used to be a `loc.id + id` hash
     // giving a ±12% deviation: two neighboring cities could roll 0.88 and 1.12, and building
@@ -8358,7 +8377,7 @@ const Game = {
     // and refills and cheapens as you sell, replenishing daily in proportion to prosperity.
     // Emptying a village makes the next purchase expensive — "find the cheap village, buy it all" is now a real decision.
     STOCK_SCALE: { city: 500, village: 190, castle: 150 },   // stock scale — divided by √price
-    stocked(id) { let it = ITEMS[id]; return !!it && (it.type === 'food' || it.type === 'trade'); },
+    stocked(id) { let it = ITEMS[id]; return !!it && (it.type === 'food' || it.type === 'trade' || it.type === 'craft'); },
     stockBase(loc, id) {
         // Plentiful in the production region, scarce far from it (same `GOOD_ORIGIN` table); prosperity grows the stockpile.
         // Normalized by value: a city holds the same value of each good, not the same count.
@@ -8475,8 +8494,9 @@ const Game = {
             .map(([k, l]) => `<button type="button" role="tab" aria-selected="${m.mode === k}" class="${m.mode === k ? 'on' : ''}" onclick="Game.mktMode('${k}')">${l}</button>`).join('');
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
         let matchesCat = type => !cat.types || cat.types.includes(type);
-        // unique boss drops are earned, never bought (#38); nor is a rare material or what only a forge makes (2.7.0)
-        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && !i.rare && matchesCat(i.type))
+        // unique boss drops are earned, never bought (#38); nor is a rare material or what only a forge makes (2.7.0),
+        // nor what only the carpenter's bench makes (2.10.0)
+        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && !i.rare && i.type !== 'craft' && matchesCat(i.type))
                                     : sellable.filter(i => matchesCat(i.type));
         let grid = document.getElementById('market-buy');
         grid.innerHTML = list.length ? list.map(item => {
@@ -8500,7 +8520,7 @@ const Game = {
         let m = this._mkt, buy = m.mode === 'buy', msg = `<div id="market-msg" class="mp-msg">${this._mktMsg || ''}</div>`;
         let item = m.sel && (buy ? ITEMS[m.sel] : state.player.inventory.find(i => i.id === m.sel));
         if(!item) return `<p class="mp-hint">${buy ? T`Bir eşya seç; kaç tane alacağını burada ayarlarsın.` : T`Satmak istediğin eşyayı seç.`}</p>${msg}`;
-        let loc = this._marketLoc, stack = item.type === 'trade' || item.type === 'food';
+        let loc = this._marketLoc, stack = item.type === 'trade' || item.type === 'food' || item.type === 'craft';
         let max = buy ? (stack ? this.marketQuote(item.id, 9999, false).can : Math.min(1, this.marketQuote(item.id, 1, false).can))
                       : item.qty;
         let qty = Math.max(1, Math.min(m.qty, Math.max(1, max)));
@@ -8818,6 +8838,7 @@ const Game = {
                 : typeof Lair !== 'undefined' && Lair.active ? (Lair.alarmed() ? 'lairchase' : 'lair')
                 // The forge has its own sound: the hearth, the bellows and the hammer — no music over it
                 : typeof Forge !== 'undefined' && Forge.active ? null
+                : typeof Crafts !== 'undefined' && Crafts.active ? null
                 : document.body.classList.contains('in-battle') || Game._chasing ? 'battle' : 'map');
         }
     },
@@ -8843,10 +8864,10 @@ const Game = {
     // If the target is on your side this is the damage "taken", otherwise "dealt".
     // The single call site is `Battle.afterArmor` — melee and arrows both pass through it.
     dmgMult(tgt) { let d = this.diff(); return tgt && tgt.isPlayerTeam ? d.taken : d.dealt; },
-    // A full-screen scene that runs its own loop and owns the input: a battle, the arena, the forge (2.5.0) or a
+    // A full-screen scene that runs its own loop and owns the input: a battle, the arena, the forge (2.5.0), a craft (2.10.0) or a
     // bandit lair walked into on foot (2.2.0). The map loop, map input and the menu shortcuts
     // all step aside while one is up. `Lair` isn't loaded in the Node harness, hence typeof.
-    inScene() { return Battle.active || TournamentMinigame.active || (typeof Lair !== 'undefined' && Lair.active) || (typeof Forge !== 'undefined' && Forge.active); },
+    inScene() { return Battle.active || TournamentMinigame.active || (typeof Lair !== 'undefined' && Lair.active) || (typeof Forge !== 'undefined' && Forge.active) || (typeof Crafts !== 'undefined' && Crafts.active); },
     opt(k) { let v = (state.settings || {})[k]; return v === undefined ? this.OPTS[k] : v; },
 
     // A JS literal that survives a double-quoted inline handler: JSON.stringify('auto')
@@ -9525,6 +9546,7 @@ const Game = {
     profName(id) {
         let m = { surgery:T('Cerrahlık'), spotting:T('Gözcülük'), pathfinding:T('Yol Bulma'), trade:T('Ticaret'),
                   looting:T('Yağma'), trainer:T('Eğitim'), prisonerMgmt:T('Esir Yönetimi'), smithing:T('Demircilik'),
+                  carpentry:T('Marangozluk'), cooking:T('Aşçılık'),
                   oneHanded:T('Tek El'), twoHanded:T('Çift El'), polearm:T('Mızrak'), bow:T('Okçuluk'),
                   riding:T('Binicilik'), athletics:T('Atletizm'), leadership:T('İdare'), persuasion:T('İkna') };
         return m[id] || id;
@@ -11590,7 +11612,9 @@ const Game = {
                 return T`Alışta indirim ${this.pct(Math.round(e * 100))}, satışta prim ${this.pct(Math.round(e / 0.7 * 100))}`; } },
             { id: 'looting', name: T('Yağma'), d: () => T`Savaş ganimeti +%${((L('looting')-1)*4).toFixed(0)}` },
             { id: 'trainer', name: T('Eğitim'), d: () => T`Her gün ${Math.max(0, L('trainer')-1)} askere +1 XP` },
-            { id: 'smithing', name: T('Demircilik'), d: l => T`Dövebileceğin en iyi kılıç: ${T(ITEMS[['sword', 'sword_steel', 'sword_sham', 'sword_royal'][Math.min(3, (l - 1) >> 1)]].name)}` }
+            { id: 'smithing', name: T('Demircilik'), d: l => T`Dövebileceğin en iyi kılıç: ${T(ITEMS[['sword', 'sword_steel', 'sword_sham', 'sword_royal'][Math.min(3, (l - 1) >> 1)]].name)}` },
+            { id: 'carpentry', name: T('Marangozluk'), d: l => T`Yapabileceğin en iyi iş: ${T(ITEMS[['stool', 'chest_wood', 'wheel', 'table'][Math.min(3, (l - 1) >> 1)]].name)}` },
+            { id: 'cooking', name: T('Aşçılık'), d: l => T`Mutfak ücreti ${this.pct(5 * (l - 1), true)}, müşterinin sabrı ${this.pct(4 * (l - 1), true)}` }
         ];
 
         let profHtml = `<h3 style="color:var(--primary);margin-top:1.5rem;">${T`Yetenekler ${fp > 0 ? `<span style="color:#2d2;font-size:var(--fs-md);">${T`(${fp} Odak Puanı Dağıtılabilir)`}</span>` : ''}`}</h3>
@@ -11722,8 +11746,8 @@ const Game = {
     },
 
     addProficiencyXp(id, amount) {
-        let pData = state.player.proficiencies[id];
-        if(!pData) return;
+        // a skill newer than the save (smithing in 2.5.0, carpentry and cooking in 2.10.0) starts at level 1
+        let pData = state.player.proficiencies[id] = state.player.proficiencies[id] || { level: 1, xp: 0, next: 100, focus: 0 };
         let mult = 0.5 + (pData.focus || 0);
         pData.xp += amount * mult;
         while(pData.xp >= pData.next) {

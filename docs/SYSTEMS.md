@@ -548,7 +548,11 @@ addition; read `quests.js` directly, and `Object.keys(QUESTS)` is what `tools/te
 suite iterates to guarantee every quest has a driver.
 
 Giver is either a lord or the **guildmaster** (`giverId = 'guild_<locId>'`, no relation stake —
-reward is denars/renown only, failure carries no relation penalty). Accepted quests live in
+reward is denars/renown only, failure carries no relation penalty). **What a quest pays** (2.10.0) is
+`Quests.money(def)`: the table's `reward.money` × `MONEY_SCALE` 0.6, to the nearest 10 — one choke
+point for the offer, the card, the payout and its alert. The tables kept their old sums (400–2500);
+a hand-in was worth a month of a town enterprise (~27/day), so a quest is renown and friends
+first and money second now (240–1500). Accepted quests live in
 `state.player.quests`; a refused lord won't offer again for 7–15 days; one active quest per
 lord; failure is −10 relation.
 
@@ -1527,6 +1531,71 @@ start**, whichever way his post sweeps (it found seven gate sentries looking str
 - Measured (2.9.0, `Lair._bench`, headless Chromium 1366×768, day and night, at the start):
   render 0.40–4.9 ms across the twelve, in the range of the old three in the same run (house 4.4–4.7,
   camp 3.6–3.7, cave 0.44–0.54); the fog banks cost nothing measurable. Update 0.02–0.05 ms.
+
+## Crafts (2.10.0)
+
+Two trades that earn money, in `crafts.js` (`Crafts`): the forge's kind of scene (a 180-pixel stage
+scaled up whole, its own loop, `Game.inScene` while `Crafts.active`, `#craft-view` wearing the
+forge's CSS) and recorded sound in `crafts/` (CREDITS.md there). `tools/harness.js` doesn't load it; `tools/test.js` evaluates it
+into its own world like forge.js.
+
+**🪚 Marangoz Atölyesi** — every city, your own castle, and a village that isn't hostile or raided.
+Rent `5 + 5·tier` a job in town, free at your own fief, which also reaches into its storage (the
+forge's `stock/take`). `WOODWORK`: Tabure (Marangozluk 1, 1 timber), Ahşap Sandık (3, 3), Araba
+Tekerleği (5, 4), Meşe Masa (7, 6); `2 + tier` hours. `timber` (Kereste, 20) is a trade good like any
+(Vaegir 0.65, Nord 0.85, Khergit 1.35). The pieces are `type: 'craft'` (70/190/290/400): they sell
+on the trade goods' supply curve (`stocked`), but the market's buy list skips `craft`, and the
+caravans, price ledger and rumours only enumerate `trade`, so none of them carries one.
+- *Saw* (`newBoard/stroke`): the board's 24 segments each pull the cut sideways (`drift`, two slow
+  waves from the seed: 0.55 + 0.1·tier mm a segment), the saw's lean `aim` (−1…1) adds 0.8 mm a
+  segment. A stroke cuts 0.42 segments (×1.3 at full ease); quicker than 0.16 s it binds (a quarter
+  of the cut and a 0.5 mm jerk), slower than 0.9 s it's 0.6×. Positive `y` is the hatched waste side.
+  The board's streaks follow the grain's own line (drawn at twice its size), so the pull is read
+  before it comes. Pointer: a turn of a sideways scrub (3 px back from the furthest point, after
+  5 px) is a stroke; vertical motion leans the saw (0.05 a buffer pixel). Keys: Space, ↑/↓.
+- *Plane* (`toPlane/planeMove`): the sawn edge stands `0.7 + 0.6·rnd + 0.6·dev` mm over the gauge,
+  so a cut wandered into the piece (≲ −1.2 mm) is short before the plane touches it. Each segment
+  the plane's middle passes is cut to `depth` (1.8·tol) under the highest point its 5-segment sole
+  stands on — humps go, hollows are ridden over. Each stretch of edge (2 + tier) has a grain
+  direction, drawn as chevrons; going against it tears 0.3 mm deeper 40 % of the time. Finish once
+  every segment is ≤ tol (0.14 + 0.06·ease − 0.015·tier). Pressing down sets the plane where the hand
+  is without cutting its way there.
+- *Score* `S = 0.4·saw + 0.45·plane + 0.15·care`: saw = 1 − mean|dev|/2.5 mm, plane = 1 − mean
+  error/(4·tol) (below the gauge counts 1.8×), care = 1 − 0.04·binds − 0.06·tears. Pass mark
+  0.6 + 0.04·tier − 0.05·ease; from 0.4 the piece before it in `WOODWORK`, below that firewood and half
+  the timber back. XP `(30 + 30·tier)·(0.4 + S)` to Marangozluk, `trainAttr('agi', 1)`. Giving up
+  returns the timber; the rent stays paid, half the hours pass.
+- Sold at the market's 0.7, a piece clears its timber and rent by 12–28 dinars an hour of game time
+  (the test bounds it at 5–40).
+
+**🍲 Han Mutfağı** — a city's inn, one shift a day in each town (`state.kitchenDays[locId] = day`,
+taken on walking in, so walking out can't buy a second go). 90 s of play = 4 game hours. Three
+skewers: the side over the coals cooks 0.085/s; a side is raw under 0.5, golden 0.85–1.2, black from
+1.6; tap places/turns, holding 0.45 s serves (raw stays on, black is binned). The pot follows the
+fire (fuel burns 0.035/s, a log +0.35) at 0.45/s; the bubbles are its tell — still under 0.42,
+simmer to 0.72 (cooks a batch of 4 bowls in ~22 s, ×1.3 boiling), rolling to 0.9, over that it boils
+over and loses a bowl every 2.5 s. An unstirred pot catches (0.04/s, ×2.5 boiling, 0.15× for 6 s
+after a stir) and is dumped at 1. Orders come every 7–10 s (none in the last 8), wait 40 s
+(+4 %/Aşçılık level). Pay = wage 20 + kebap 9 / çorba 8 × quality + tip 3 for a dish of quality ≥ 0.8
+served in the first half of the patience, all × `(0.7 + 0.006·prosperity)·(1 + 0.05·(Aşçılık − 1))`.
+XP `10 + 4·dishes`.
+
+**Sound** (`Snd` in `crafts.js`, forge.js's pattern: fetched and decoded on the first visit, the
+volume setting ×1.6 capped at 1, nothing at all while muted). The bench: `saw` on every stroke
+(0.85 at 0.94–1.06 speed; a bind 0.55 at 0.8), `plane` while the iron takes wood (at most one every
+0.5 s), `hammer` when the piece comes out (not on firewood). The kitchen: three loops from their
+first sound on — `sizzle` 0.35 + 0.22 a skewer on (+0.15 and ×1.1 speed once a down side is past
+golden), `pot` by the pot's heat (0.15·h/0.42 under a simmer, 0.35–1 from there; speed 0.85 + 0.35·h),
+`crowd` 0.4 + 0.1 × orders/4 — all eased to 0 while the scene is paused or a window is open.
+
+**Measured** (`tools/test.js` bots, seeds 1–3, at each piece's own level). A careful carpenter (leans
+against the grain it can see, a stroke every 0.4 s, planes the highest spot with the grain) scores
+0.87–0.91 on every piece, 58 strokes, no binds or tears; a middling one (steers only past 1.2 mm,
+planes both ways) 0.52–0.62: a stool, a step down for the rest; a careless one (no steering,
+a stroke every 0.15 s, end-to-end sweeps) 0.09–0.35, firewood. Kitchen at prosperity 50, Aşçılık 1:
+a good shift (fire at a simmer, a stir every 5 s) serves 10 dishes and pays 115–120, an idle one 20,
+a roaring unstirred pot never serves soup (10–11 wasted). Headless 1366×768: update 0.005 ms, render
+0.17 ms a frame (phone 390×844 at ×3: 0.14 ms).
 
 ## Smith's work (2.7.0)
 

@@ -18,7 +18,7 @@ const H = require('./harness');
 const ROOT = path.join(__dirname, '..');
 const a = H.args();
 const DIRS = String(a.dir || 'e2e/test-results,.coverage-node').split(',').map(d => path.resolve(ROOT, d));
-const GAME = /^(i18n|app|battle|battle-gl|map-gl|map-art|nobles|quests|lair|forge)\.js$/;
+const GAME = /^(i18n|app|battle|battle-gl|map-gl|map-art|nobles|quests|lair|forge|crafts)\.js$/;
 const TOP = +a.top || 40;
 
 function* runs(dir) {

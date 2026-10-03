@@ -3,6 +3,26 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.10.0 — Zanaat (2026-10-03)
+
+- **Marangoz atölyesi.** Şehirlerde, köylerde ve kendi kalende 🪚 Marangoz Atölyesi var. Pazardan
+  kereste al, tabure, ahşap sandık, araba tekerleği ya da meşe masa yap ve pazarda sat. Önce
+  tahtayı biç: sağa sola sürterek çekersin; damarlar testereyi kendine çeker, sen de testereyi
+  eğip kesiği kurşun kalem çizgisinde tutarsın. Çok hızlı çekersen testere sıkışır. Sonra kesilen
+  kenarı rendele: rende yüksek yerleri alır, oklar temiz kestiği yönü gösterir, tersine sürersen
+  lif kalkar. İyi iş istediğin parçayı verir, zayıf iş bir küçüğünü, kötü iş odun olur.
+  Yeni yetenek: Marangozluk.
+- **Han mutfağında aşçı çıraklığı.** Şehirlerde 🍲 Han Mutfağı'nda dört saatlik bir vardiya
+  çalışırsın. Izgarada şişleri çevir, iki yüzü altın olunca servis et; kazandaki çorbayı
+  kabarcıklara bakarak ufak ufak kaynat, karıştır ve odun at. Müşteri bekletilmeye gelmez.
+  Yevmiyenin üstüne her tabak ve bahşiş kazandırır. Her handa günde bir vardiya. Yeni yetenek:
+  Aşçılık.
+- **Görevler daha az para veriyor.** Görev ödülleri eskisinin %60'ı. Görev artık önce ün ve
+  dostluk getiriyor, para ikinci planda.
+- **Atölyenin ve mutfağın sesleri.** Her çekişte testere, rende talaş aldıkça hışırtı, eşya
+  çatılınca çekiç. Mutfakta ızgaradaki şişler cızırdar, ateş harlandıkça çorba daha hızlı
+  fokurdar, arkada hanın uğultusu. Hepsi gerçek kayıt.
+
 ## 2.9.0 — Sığınak (2026-10-03)
 
 - **On iki yeni haydut sığınağı.** Haritadaki inler artık üç yerden ibaret değil: sazlıkta bir

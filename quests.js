@@ -1152,6 +1152,11 @@ QUESTS.mist_point = {
 
 const Quests = {
 
+    // What a quest pays (2.10.0): the tables' sums × MONEY_SCALE, to the nearest 10. A hand-in used
+    // to be worth a month of a town enterprise; a quest is renown and friends first, money second.
+    MONEY_SCALE: 0.6,
+    money(def) { return Math.round(def.reward.money * this.MONEY_SCALE / 10) * 10; },
+
     active() { return state.player.quests; },
 
     // A quest's giver can be a lord, or a city's guild master.
@@ -1227,7 +1232,7 @@ const Quests = {
         if(q.state === 'awaiting') {
             let g = this.giver(q.giverId), r = QUESTS[q.id].reward;
             return T`Görev tamam. Ödülü almak için <b>${this.giverName(g)}</b>'le konuş — en son <b>${this.locName(q.turnInLocId)}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.` +
-                `<br>${T`Ödül: <b>+${r.money} dinar, ${r.renown > 0 ? '+' : ''}${r.renown} nam</b>. Konuşma penceresinde <b>✅ Görevi teslim et</b> düğmesine bas.`}`;
+                `<br>${T`Ödül: <b>+${this.money(QUESTS[q.id])} dinar, ${r.renown > 0 ? '+' : ''}${r.renown} nam</b>. Konuşma penceresinde <b>✅ Görevi teslim et</b> düğmesine bas.`}`;
         }
         return QUESTS[q.id].desc(q);
     },
@@ -1390,7 +1395,7 @@ const Quests = {
             <p style="margin-top:1rem;line-height:1.6;font-style:italic">${def.offer(q, giver)}</p>
             ${this.taskHtml(q)}
             <div style="background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:var(--r-md);margin-top:0.6rem;font-size:var(--fs-md)">
-                ${T`Ödül:`} <b style="color:#ffcc00">${T`${def.reward.money} dinar`}</b> ·
+                ${T`Ödül:`} <b style="color:#ffcc00">${T`${this.money(def)} dinar`}</b> ·
                 <b style="color:${def.reward.renown < 0 ? 'var(--danger)' : '#3498db'}">${T`${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam`}</b>${def.reward.rel ? ` ·
                 <b style="color:#2ecc71">${T`+${def.reward.rel} ilişki`}</b>` : ''}
                 <div style="color:var(--text-muted);font-size:var(--fs-sm);margin-top:0.3rem">${
@@ -1538,7 +1543,7 @@ const Quests = {
         state.questCooldown = state.questCooldown || {};
         state.questCooldown[q.giverId] = state.time.day + 3;
 
-        state.player.money += def.reward.money;
+        state.player.money += this.money(def);
         state.player.renown = Math.max(0, state.player.renown + def.reward.renown);
         let g = this.giver(q.giverId);
         if(!g.isGuild) Nobles.addRel(q.giverId, def.reward.rel);
@@ -1553,7 +1558,7 @@ const Quests = {
 
         Game.updateTopBar();
         Game.flourish(T('Görev tamamlandı'), T(def.title), 'scroll');
-        alert(T`✅ Görev tamamlandı: ${T(def.title)}\n\n+${def.reward.money} dinar, ${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam` +
+        alert(T`✅ Görev tamamlandı: ${T(def.title)}\n\n+${this.money(def)} dinar, ${def.reward.renown > 0 ? '+' : ''}${def.reward.renown} nam` +
               (g.isGuild ? '.' : T`, ${T(g.name)} ile +${def.reward.rel} ilişki.`));
         this.render();
     },

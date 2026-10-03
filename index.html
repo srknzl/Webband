@@ -354,6 +354,8 @@
                     <div id="lair-view" class="view"></div>
                     <!-- The forge (2.5.0): forge.js builds its canvas, HUD and buttons in here -->
                     <div id="forge-view" class="view"></div>
+                    <!-- The crafts (2.10.0): crafts.js builds the carpenter's bench and the inn's kitchen in here -->
+                    <div id="craft-view" class="view"></div>
                 </main>
             </div>
         </div>
@@ -427,6 +429,7 @@
     <script src="quests.js"></script>
     <script src="lair.js"></script>
     <script src="forge.js"></script>
+    <script src="crafts.js"></script>
     <!-- Offline copy. The native app now loads the live site (capacitor.config.json's
          `server.url`), so it wants the worker too — that is what keeps it playable with
          no signal. The one case to skip is Capacitor serving its own bundled copy from

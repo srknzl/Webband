@@ -28,6 +28,7 @@ after changing it, update the "Measured" lines.
 | `quests.js` | `QUESTS` + the `Quests` quest engine |
 | `lair.js` | `Lair` — bandit lairs you walk into (2.2.0): the scouting card, the real-time stealth levels, their sound and tour; Canvas2D on `#lair-canvas`, props in `lair/` |
 | `forge.js` | `Forge` — smithing (2.5.0): the 🔨 Demirhane recipe window, the forge scene (hearth, anvil, quench) and the grindstone on `#forge-canvas`, its model; its recorded sounds in `forge/` |
+| `crafts.js` | `Crafts` — the crafts (2.10.0): the 🪚 carpenter's bench (saw, plane) and the 🍲 inn kitchen shift on `#craft-canvas`, their models; its recorded sounds in `crafts/` |
 | `i18n.js` | `I18N` + global `T` |
 | `lang-en.js` / `lang-id.js` | Generated dictionaries — never hand-edited |
 | `style.css` | Glass panel theme, CSS variables |
@@ -48,8 +49,8 @@ after changing it, update the "Measured" lines.
 checks `typeof Game`).
 
 **Script order**: `i18n.js` → `lang-en.js` → `lang-id.js` → `vendor/pixi.min.js` → `app.js` →
-`battle.js` → `battle-gl.js` → `map-gl.js` → `map-art.js` → `nobles.js` → `quests.js` → `lair.js` → `forge.js`. The order only
-prevents `const` collisions. `tools/harness.js` loads none of the Pixi files nor `map-art.js` nor `lair.js`/`forge.js` (app.js guards them with `typeof`) — in Node
+`battle.js` → `battle-gl.js` → `map-gl.js` → `map-art.js` → `nobles.js` → `quests.js` → `lair.js` → `forge.js` → `crafts.js`. The order only
+prevents `const` collisions. `tools/harness.js` loads none of the Pixi files nor `map-art.js` nor `lair.js`/`forge.js`/`crafts.js` (app.js guards them with `typeof`) — in Node
 the battle always draws through Canvas2D and the map draws nothing (`tools/test.js` loads
 `map-gl.js` on its own to test `GLCtx` and `PixCtx`).
 
@@ -84,7 +85,7 @@ are `'auto' | true | false`.
 **`touch-action` is not inherited.** The gate is `* { touch-action: pan-x pan-y }` in
 `style.css`, not `html, body` — a rule on the body leaves every button inside it on `auto`
 and the browser keeps its double-tap zoom (#91). The elements that own their own
-gestures (the canvases — `#map-gl`, `#battle-gl`, `#lair-canvas` and `#forge-canvas` included —, the forge's buttons, the battle's two sticks and block
+gestures (the canvases — `#map-gl`, `#battle-gl`, `#lair-canvas`, `#forge-canvas` and `#craft-canvas` included —, the forge's buttons, the battle's two sticks and block
 button, the lair's stick zone and buttons) override it with `none`; an id or class selector outranks `*`.
 
 **There's no single "mobile mode" switch for devices** — four separate questions, four
@@ -110,7 +111,7 @@ there, once. `ctx.pixelRatio` (1 on Canvas2D, the screen's density on WebGL) is 
 may branch on — baked label plates and the terrain level use it. `#map-gl` lies under
 `#map-canvas`, which only turns see-through (`#map-view.gl`) and stays the input surface.
 
-**The game loop** genuinely stops while `Game.inScene()` (a battle, a tournament, a lair — `Lair.active` — or the forge — `Forge.active`)
+**The game loop** genuinely stops while `Game.inScene()` (a battle, a tournament, a lair — `Lair.active` —, the forge — `Forge.active` — or a craft — `Crafts.active`)
 (`_loopId = null`); the only place that restarts it is `showScreen()`. Every rAF loop has a
 double-start guard.
 
