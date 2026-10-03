@@ -11,6 +11,29 @@ başlangıç ekranının sağ alt köşesinde yazar.
   ölçeği (demirin kızıllığı, etin pişmesi, çorbanın kaynaması). İleri ile geçersin; bilen
   "Atla, hemen başla" ile doğrudan işe girer.
 
+## 2.11.0 — Kantar (2026-10-03)
+
+- **Savaş tahmini gerçek savaşlardan öğrendi.** "Tahmini denge" artık oyunun kendi savaş motorunda
+  dövüştürülen 600 farklı eşleşmenin (19.000 savaş) sonuçlarıyla ayarlandı. Okçular olduğundan
+  zayıf, atlılar olduğundan güçlü görünmüyor; yavaş bir piyade hattının ok yağmuru altında ne kadar
+  kaldığı da hesapta. "Kolay" dediği savaşlar ortalama %98, "Çetin" dediği savaşlar %4 kazanılıyor.
+- **Haydutlar seni kafa sayısıyla değil, gücünle tartıyor.** Kalabalık ama acemi bir ordudan
+  kaçmıyor, az ama usta askerlerden uzak duruyorlar. Saldırma, pusu kurma, kovalama ve kaçma
+  kararları da buna göre; lordlar da kendilerinden çok zayıf birine saldırmıyor.
+- **Görev haydutları artık gerçekten haydut.** Hasat Nöbeti, Sınır Karakolu, Tüccar Kervanı ve
+  Sisteki Nokta görevlerinde gelen düşmanlar, çapulcu kılığında ama Svadya'nın eğitimli askerleri
+  (çavuş, keskin nişancı, hatta şövalye) olarak savaşıyordu. Artık adlarına uygun çeteden
+  geliyorlar: hasat ve karakol baskıncıları çapulcu, kervan pusucuları orman haydudu, sisteki
+  gölgeler dağ eşkıyası. Kayıtlı oyunlarda haritada bekleyen görev haydutları da düzelir.
+- **"Tahmini denge" güçlü bir kahramanı abartmıyor.** Tek başına güçlü bir kahraman, yanındaki
+  köylüleri de güçlü sayıyordu: orta seviye bir kahraman ve sekiz köylü, dokuz Svadya askerine
+  karşı "Kolay" görüyor, sonra kaybediyordu. Artık kahraman bir kişi olarak sayılıyor.
+- **"Kolay av", askerlerinin lafı ve yenilgide yanan nam da aynı ölçüye bakıyor.** Hepsi düşmanı
+  kişi sayısı ve seviyeyle ölçüyordu; yüksek seviyeli bir kahramana dokuz düzenli asker "kolay av"
+  gibi gösteriliyordu. Artık hepsi savaş tahminiyle aynı gücü okuyor.
+- **Arenada ve düelloda rakip ata binmiyor.** Rakip bazen atlı bir askerden türetildiği için
+  piyade gibi görünse de atlı sayılıyor, yarı canda "attan düşüp" yavaşlıyordu.
+
 ## 2.10.2 — Zanaat (2026-10-03)
 
 - **Rende tahtanın iki ucuna da yetişiyor.** Marangozlukta kenarın en solu hiç rendelenemiyor,
