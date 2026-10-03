@@ -920,27 +920,29 @@ function open(loc, note) {
     </div>`, '760px');
 }
 // How it's done, as a list — for the window, before going in (and from the pause menu)
+// One step at a time, the move each asks for played out (Game.guideHtml, 2.11.1)
 const HELP = [
-    ['🔥 Isıt', 'Körüğü bas: ocak beyazlaşır, demir ısınır. Rengine bak: koyu kırmızı soğuk, turuncu ve sarı dövülür, beyaz yanar. Turuncu-sarıya gelince örse al.'],
-    ['🔨 Döv', 'Çekici demirin üstüne getir; bas, basılı tut, bırak: ne kadar tutarsan o kadar sert vurur. Demir kesik çizgiye kadar dövülür; biten yerde çizgi altın sarısı olur. Çizgiyi geçersen demir sertleşir ama yine incelir, çizgi kırmızıya döner: eşit döv.'],
-    ['🌡️ Yeniden ısıt', 'İnce yerler ve uç önce soğur. Kızıllık gidince ocağa geri koy; soğuk demire sert vurmak çatlatır. Her kızdırma başarısızlık değildir ama çok kızdırmak işçiliği düşürür.'],
-    ['💧 Su ver', 'Şekil tutunca Su ver açılır. Demir baştan uca kiraz-turuncuyken daldır; bir yeri karardıysa ya da hâlâ sarıysa iş zayıf çıkar.'],
-    ['🏅 Sonuç', 'Şekil, su verme ve ocak işçiliği birlikte puanlanır. İyi iş istediğin kademeyi verir; zayıf iş bir alt kademeyi; kötü iş çatlar ve demirin yarısı kurtulur. Demircilik yükseldikçe kademe daha kolay tutar.'],
-    ['💠 Usta işi', 'Desenli parçalar Demircilik 9 ve bir pota çeliği ister; pota çeliği yalnız haydut madeninden çıkar. Tutmazsa çelik yine yanar.'],
-    ['♨️ Erit', 'Çantandaki dövülebilir bir parçayı ocağa geri atarsın: demirinin yarısı hurda olarak döner. Pazarın verdiğinden azdır; pazarı olmayan yerde işe yarar.']
+    { icon: '🔥', title: 'Isıt', text: 'Körüğe bas: ocak beyazlaşır, demir ısınır.', demo: 'tap' },
+    { icon: '🎨', title: 'Rengine bak', text: 'Turuncu-sarıyken örse al; koyu kırmızı soğuk, beyaz yanar.', demo: [['#7a1e14', 'Soğuk'], ['linear-gradient(90deg, #e8742a, #f5d24a)', 'Dövülür'], ['#f4f1e8', 'Yanar']] },
+    { icon: '🔨', title: 'Döv', text: 'Çekici demire getir; basılı tut, bırak. Ne kadar tutarsan o kadar sert.', demo: 'hold' },
+    { icon: '📏', title: 'Çizgiye kadar', text: 'Kesik çizgiye inen yer altın olur. Çizgiyi geçme.', demo: [['#d6b25a', 'Tamam'], ['#8a5a3a', 'Kalın'], ['#c0504a', 'Fazla']] },
+    { icon: '🌡️', title: 'Soğuyunca ısıt', text: 'Kızıllık gidince ocağa geri koy: soğuk demir çatlar.', demo: null },
+    { icon: '💧', title: 'Su ver', text: 'Demir baştan uca kiraz-turuncuyken Su ver\'e bas.', demo: 'tap' },
+    { icon: '🏅', title: 'Sonuç', text: 'İyi iş istediğin kademeyi verir, zayıf iş bir altını, kötü iş çatlar.', demo: null },
+    { icon: '💠', title: 'Usta işi', text: 'Desenli parça Demircilik 9 ve haydut madeninden pota çeliği ister.', demo: null },
+    { icon: '♨️', title: 'Erit', text: 'Dövülmüş bir parçayı ocağa atarsan demirinin yarısı geri döner.', demo: null }
 ];
 const GRIND_HELP = [
-    ['🪨 Taşa bas', 'Bas ve basılı tut: bıçak dönen taşa değer. Sağa sola sürükle: bıçak taşın üstünde kayar, ağzın her yeri bilenir.'],
-    ['📐 Açıyı kıvılcımdan oku', 'Yukarı-aşağı sürükle: açı değişir. Kıvılcım bol, uzun ve parlaksa açı doğru. Kısa, kırmızı kıvılcım fazla dik; seyrek, sönük kıvılcım fazla yatık. Çok yanlış açı ağzı köreltir.'],
-    ['✨ Ağız beyazlaşır', 'Bıçağın alt kenarındaki ince şerit ağzın kendisidir. Kör yer koyu gridir; taş bildikçe açılır ve bembeyaz parlar. Bembeyaz yer keskindir. Bütün ağzı aynı beyazlığa getir: puanı en kör, en koyu yer de belirler.'],
-    ['🔥 Tavı kaçmasın', 'Taş sürttükçe çelik ısınır. Isınan yerin hemen üstünde önce saman sarısı, sonra bronz bir şerit belirir: bu uyarıdır, bıçağı kaydır. Hareket ettikçe çelik soğur. Orada durmaya devam edersen çeliğin tavı kaçar, yani sertliğini kaybeder: o yer maviye döner, yumuşar ve bir daha en fazla yarıya kadar bilenir.'],
-    ['⚔️ Sonuç', 'Ağzın tamamı ve en kör yeri puanlanır. Bilenmiş silah sonraki 3 savaşta daha sert vurur, her savaşta biraz körelir. Silahı değiştirirsen bileme o silahta kalır.']
+    { icon: '🪨', title: 'Taşa bas', text: 'Basılı tut ve sağa sola sür: ağzın her yeri bilenir.', demo: 'hold-x' },
+    { icon: '📐', title: 'Açıyı tut', text: 'Yukarı-aşağı sürükle. Bol, uzun, parlak kıvılcım: açı doğru.', demo: 'drag-y' },
+    { icon: '✨', title: 'Ağzı beyazlat', text: 'Kör yer koyu gri, keskin yer bembeyaz. Hepsini beyazlat.', demo: [['#5a5f66', 'Kör'], ['#dfe6ef', 'Keskin']] },
+    { icon: '🔥', title: 'Tavı kaçırma', text: 'Sarı şerit belirince kaydır; durursan çelik maviye döner, yumuşar.', demo: [['#e6c86a', 'Kaydır'], ['#b07a3a', 'Hemen kaydır'], ['#3f6fb5', 'Tav kaçtı']] },
+    { icon: '⚔️', title: 'Sonuç', text: 'Bilenmiş silah sonraki 3 savaşta daha sert vurur.', demo: null }
 ];
 function help(locId) {
-    const rows = HELP.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('');
-    const back = locId ? `<button class="btn primary" onclick="Forge.open(LOCATIONS.find(l => l.id === '${locId}'))">${T('← Ocağa dön')}</button>`
-                       : `<button class="btn primary" onclick="Game.closeModal()">${T('Tamam')}</button>`;
-    Game.showModal(`<div class="lair-brief"><h3>${T('❔ Demir nasıl dövülür?')}</h3><ul class="lb-howto">${rows}</ul><div class="lb-foot">${back}</div></div>`, '640px');
+    const back = locId ? { label: '← Ocağa dön', onclick: `Forge.open(LOCATIONS.find(l => l.id === '${locId}'))` }
+                       : { label: 'Tamam', onclick: 'Game.closeModal()' };
+    Game.showModal(`<div class="lair-brief"><h3>${T('❔ Demir nasıl dövülür?')}</h3>${Game.guideHtml(HELP, back)}</div>`, '520px');
 }
 
 // ---------- the screen ----------
@@ -1116,8 +1118,7 @@ function pauseMenu() {
 function howto() {
     paused = true;
     const grind = R && R.job === 'grind', list = grind ? GRIND_HELP : HELP;
-    overlay(`<h2>${grind ? T('❔ Nasıl bilenir?') : T('❔ Demir nasıl dövülür?')}</h2><ul class="lb-howto">${list.map(([t, d]) => `<li><b>${T(t)}</b> ${T(d)}</li>`).join('')}</ul>
-        <div class="lrow"><button class="btn primary" onclick="Forge.resume()">${T('Başla')}</button></div>`);
+    overlay(`<h2>${grind ? T('❔ Nasıl bilenir?') : T('❔ Demir nasıl dövülür?')}</h2>${Game.guideHtml(list, { label: 'Başla', onclick: 'Forge.resume()', skip: 'Atla, hemen başla' })}`);
 }
 function resume() {
     paused = false; overlay(''); last = 0;
@@ -1281,7 +1282,7 @@ const api = {
     // the measured numbers in docs/SYSTEMS.md: ms per update and per render, averaged over n frames
     _bench(n = 120) { let u = 0, r = 0; for(let i = 0; i < n; i++) { let t = performance.now(); update(1 / 60); u += performance.now() - t; t = performance.now(); render(); r += performance.now() - t; } return { update: +(u / n).toFixed(3), render: +(r / n).toFixed(3) }; },
     // the strings the tables show, for the i18n gate (tools/test.js)
-    strings() { return [...FAMILIES.map(f => f[1]), ...HELP.flat(), ...GRIND_HELP.flat(), ...Object.values(PHASE), 'Koyu kırmızı', 'Kiraz', 'Turuncu', 'Sarı', 'Beyaz']; }
+    strings() { return [...FAMILIES.map(f => f[1]), ...Game.guideStrings(HELP), ...Game.guideStrings(GRIND_HELP), '← Ocağa dön', 'Tamam', 'Başla', 'Atla, hemen başla', ...Object.values(PHASE), 'Koyu kırmızı', 'Kiraz', 'Turuncu', 'Sarı', 'Beyaz']; }
 };
 return api;
 })();

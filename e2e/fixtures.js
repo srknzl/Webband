@@ -362,4 +362,22 @@ function quietCity(page) {
     });
 }
 
-module.exports = { test, expect, L, modal, modalBtn, okAlert, openView, newGame, enter, actionBtn, placeParty, tapWorld, quietCity, painted, audit };
+// A step guide (Game.guideHtml, 2.11.1) walked to its end: every step shows its words and the
+// move or scale it plays out, Next until the last, then its done button. Returns the step count.
+async function passGuide(page, root) {
+    const box = root.locator('#sg');
+    await expect(box).toBeVisible();
+    const total = await box.locator('.sg-dots i').count();
+    expect(total, 'a guide of one step is a paragraph again').toBeGreaterThan(1);
+    for(let i = 1; i <= total; i++) {
+        await expect(box.locator('.sg-count')).toHaveText(await L(page, 'Adım {0}/{1}', i, total));
+        await expect(box.locator('.sg-text')).not.toBeEmpty();
+        await expect(box.locator('.sg-demo > *')).toHaveCount(1);
+        if(i < total) await box.locator('[data-sg="next"]').click();
+    }
+    await expect(box.locator('[data-sg="skip"]')).toHaveCount(0);
+    await box.locator('[data-sg="done"]').click();
+    return total;
+}
+
+module.exports = { test, expect, L, modal, modalBtn, okAlert, openView, newGame, enter, actionBtn, placeParty, tapWorld, quietCity, painted, audit, passGuide };

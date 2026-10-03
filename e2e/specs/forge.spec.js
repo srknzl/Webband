@@ -3,7 +3,7 @@
 // coal put in the bag, the hero at a city gate, and for the finish the bar's shape set through the
 // run's own state — a whole forging takes a minute of held bellows, which is the model test's job
 // (tools/test.js plays it start to finish).
-const { test, expect, L, modal, modalBtn, newGame, enter, actionBtn, quietCity } = require('../fixtures');
+const { test, expect, L, modal, newGame, enter, actionBtn, quietCity, passGuide } = require('../fixtures');
 
 async function toForge(page, recipe) {
     await newGame(page);
@@ -17,9 +17,8 @@ async function toForge(page, recipe) {
     await expect(modal(page).locator('.forge-shop')).toBeVisible();
     await modal(page).locator(`[onclick*="'${recipe}'"]`).click();
     await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
-    // the first time in, the how-to is up and the clock waits for it
-    await expect(page.locator('#forge-over .lb-howto li').first()).toBeVisible();
-    await page.locator('#forge-over button').click();
+    // the first time in, the how-to is up, one step at a time, and the clock waits for it
+    await passGuide(page, page.locator('#forge-over'));
     await expect(page.locator('#forge-over')).toBeHidden();
     return city;
 }
@@ -100,8 +99,7 @@ test('the smithy shows what a piece needs and locks the tiers above your skill',
     const royal = modal(page).locator('.fs-row.locked', { hasText: await L(page, 'Kraliyet Kılıcı') });
     await expect(royal).toContainText(await L(page, 'Demircilik {0} gerekir', 7));
     await modal(page).locator('.lb-help').click();
-    await expect(modal(page).locator('.lb-howto li')).toHaveCount(7);
-    await (await modalBtn(page, '← Ocağa dön')).click();
+    expect(await passGuide(page, modal(page))).toBe(await page.evaluate(() => Forge.HELP.length));   // its last button is ← Ocağa dön
     await expect(modal(page).locator('.forge-shop')).toBeVisible();
 });
 
@@ -153,9 +151,10 @@ test('the start screen opens a practice forge: every piece, nothing taken or giv
     await modal(page).locator(`[onclick="Forge.practice('sword_royal')"]`).click();
     await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
     await expect(page.locator('#start-screen')).not.toHaveClass(/\bactive\b/);
-    // a practice always starts with the how-to
-    await expect(page.locator('#forge-over .lb-howto li').first()).toBeVisible();
-    await page.locator('#forge-over button').click();
+    // a practice always starts with the how-to; one who knows it skips straight in
+    await expect(page.locator('#forge-over #sg')).toBeVisible();
+    await page.locator('#forge-over [data-sg="skip"]').click();
+    await expect(page.locator('#forge-over')).toBeHidden();
     await page.evaluate(() => Forge.run().segs.forEach(s => { s.w = 0.02; s.T = 840; }));
     await page.locator('#forge-move').click();
     await page.locator('#forge-quench').click();
@@ -197,7 +196,7 @@ test('the grindstone sharpens the weapon in hand: the edge shows on it and adds 
     await expect(page.locator('#forge-view')).toHaveClass(/\bactive\b/);
     // the first time at the stone, its own how-to
     await expect(page.locator('#forge-over h2')).toHaveText(await L(page, '❔ Nasıl bilenir?'));
-    await page.locator('#forge-over button').click();
+    await passGuide(page, page.locator('#forge-over'));
     const hour = await page.evaluate(() => state.time.day * 24 + state.time.hour);
     // the blade on the stone at the right angle, kept moving: the edge comes up
     const keen = () => page.evaluate(() => Forge._model.grindScore(Forge.run()).mean);
@@ -238,7 +237,7 @@ test('practice at the stone from the start screen: nothing is kept', async ({ pa
     await modal(page).locator('[onclick="Forge.practice()"]').click();
     await modal(page).locator(`[onclick="Forge.practice('axe', 'grind')"]`).click();
     await expect(page.locator('#forge-over h2')).toHaveText(await L(page, '❔ Nasıl bilenir?'));
-    await page.locator('#forge-over button').click();
+    await page.locator('#forge-over [data-sg="skip"]').click();
     await sweep(page, 1000);
     await page.locator('#forge-quench').click();
     await expect(page.locator('#forge-over .lres')).toBeVisible();

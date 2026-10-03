@@ -2,7 +2,7 @@
 // the scenes and the way back to the town. The saw and the skewers are worked by pointer; world setup
 // only puts timber in the bag, finishes the cut through the run's own state (a whole board is the
 // model test's job, tools/test.js) and fast-forwards the shift's clock.
-const { test, expect, L, modal, newGame, enter, actionBtn, quietCity } = require('../fixtures');
+const { test, expect, L, modal, newGame, enter, actionBtn, quietCity, passGuide } = require('../fixtures');
 
 async function toTown(page) {
     await newGame(page);
@@ -11,11 +11,10 @@ async function toTown(page) {
     await enter(page, city);
     return city;
 }
-// the how-to is up the first time in, and the clock waits for it
+// the how-to is up the first time in, one step at a time, and the clock waits for it
 async function pastHowto(page) {
     await expect(page.locator('#craft-view')).toHaveClass(/\bactive\b/);
-    await expect(page.locator('#craft-over .lb-howto li').first()).toBeVisible();
-    await page.locator('#craft-over button').click();
+    await passGuide(page, page.locator('#craft-over'));
     await expect(page.locator('#craft-over')).toBeHidden();
 }
 const hour = page => page.evaluate(() => state.time.day * 24 + state.time.hour);

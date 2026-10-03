@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.11.0', date: '2026-10-03', name: 'Kantar' };  // the version name is not translated
+const VERSION = { no: '2.11.1', date: '2026-10-03', name: 'Kantar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -8185,6 +8185,51 @@ const Game = {
             stack: ((new Error()).stack || '').split('\n').slice(2, 5).map(l => l.trim()).join(' | ')
         });
         return false;
+    },
+
+    // ---- STEP GUIDE (2.11.1) ----
+    // A how-to shown one step at a time, each step with the move it asks for played out — the
+    // forge's, the grindstone's, the carpenter's and the kitchen's were a list of six paragraphs.
+    // A step is { icon, title, text, demo }, raw Turkish worded here. `demo` is the hand's move —
+    // 'drag-x', 'drag-y', 'tap', 'hold', 'hold-x' (held and pushed sideways) — or a colour scale,
+    // [[css colour, raw label], …]. `done` is the last button: { label, onclick, skip? }; on every
+    // step before it a small link of the same action (labelled `skip`) lets a player who knows
+    // the craft go straight in. One guide is up at a time (a modal or a scene's overlay).
+    guideHtml(steps, done) {
+        this._guide = { steps, done, i: 0 };
+        return `<div class="sg" id="sg">${this.guideCard()}</div>`;
+    },
+    guideCard() {
+        let g = this._guide, s = g.steps[g.i], last = g.i === g.steps.length - 1;
+        let dots = g.steps.map((_, k) => `<i class="${k === g.i ? 'on' : k < g.i ? 'done' : ''}"></i>`).join('');
+        return `<div class="sg-head"><span class="sg-dots" aria-hidden="true">${dots}</span>
+                <span class="sg-count">${T`Adım ${g.i + 1}/${g.steps.length}`}</span></div>
+            <div class="sg-demo" aria-hidden="true">${this.guideDemo(s)}</div>
+            <h3 class="sg-title">${s.icon} ${T(s.title)}</h3>
+            <p class="sg-text">${T(s.text)}</p>
+            <div class="sg-nav">
+                <button class="btn" data-sg="back" onclick="Game.guideGo(-1)" ${g.i ? '' : 'disabled'}>${T('← Geri')}</button>
+                ${last ? `<button class="btn primary" data-sg="done" onclick="${g.done.onclick}">${T(g.done.label)}</button>`
+                       : `<button class="btn primary" data-sg="next" onclick="Game.guideGo(1)">${T('İleri →')}</button>`}
+            </div>
+            ${last ? '' : `<button class="sg-skip" data-sg="skip" onclick="${g.done.onclick}">${T(g.done.skip || g.done.label)}</button>`}`;
+    },
+    guideDemo(s) {
+        let d = s.demo;
+        if(Array.isArray(d)) return `<span class="sg-scale">${d.map(([c, l]) => `<span><i style="background:${c}"></i>${T(l)}</span>`).join('')}</span>`;
+        let hand = `<span class="sg-hand">👆</span>`;
+        if(d === 'drag-x' || d === 'hold-x') return `<span class="sg-track x${d === 'hold-x' ? ' held' : ''}"><span class="sg-mover">${hand}</span></span>`;
+        if(d === 'drag-y') return `<span class="sg-track y"><span class="sg-mover">${hand}</span></span>`;
+        if(d === 'tap' || d === 'hold') return `<span class="sg-press ${d}">${hand}<i class="sg-ring"></i></span>`;
+        return `<span class="sg-icon">${s.icon}</span>`;
+    },
+    // every raw word a guide shows, for the dictionary tests
+    guideStrings(steps) { return steps.flatMap(s => [s.title, s.text, ...(Array.isArray(s.demo) ? s.demo.map(d => d[1]) : [])]); },
+    guideGo(d) {
+        let g = this._guide, box = document.getElementById('sg');
+        if(!g || !box) return;
+        g.i = Math.max(0, Math.min(g.steps.length - 1, g.i + d));
+        box.innerHTML = this.guideCard();
     },
 
     showModal(html, width = '600px', bgImage = null) {
