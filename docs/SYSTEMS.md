@@ -290,8 +290,8 @@ Party capacity: `12 + floor((cha−10)×3) + (Management−1)×4 + floor(renown/
 source so every UI reads the same integer.
 
 ### Starting balance
-250 denars (background shifts ±300), party capacity 12, solo. Loot from a low-level enemy is
-scaled down (`Battle.rewardScale`).
+250 denars (background shifts ±300), party capacity 12, solo. Loot from a much weaker enemy is
+scaled down (`Battle.rewardScale`, on the foe's strength — see **The foe's share** below).
 
 ### Mercenaries
 2 slots/town at the inn, refreshed every 3 days: troops at level 10–15 from that town's faction
@@ -377,7 +377,8 @@ identity doesn't leak into every matchup (`pierce` on a shield troop was tried a
 halves armor in *every* fight, not just against horses).
 
 **The encounter's odds label** ("Tahmini denge", `Game.oddsLabel`) compares
-`Battle.sideStrength` both ways: N^1.7 × the mean of hp × hit, where `hit` runs through
+`Battle.sideStrength` both ways: (Σ (hp × hit)^(1/1.7))^1.7 — N^1.7 × the 1/1.7-power mean of
+hp × hit (2.10.2; the plain mean before), where `hit` runs through
 `afterArmor` (armour, damage type, difficulty) and the brace. The rosters are `Battle.playerMix`
 (hero from `heroGear`, the unwounded with their morale debuff) and `Battle.enemyMix` (the band's
 weighted roster and leader, or the kingdom's troop pool). A bowman's hit on a non-archer counts
@@ -387,9 +388,32 @@ the way (4 militia ≈ 8 villagers, 4 militia + 4 bowmen ≈ 10.5). **Measured**
 fights each): every even point — pure footmen at 4, 8 and 16 a side, militia with riders, militia
 with bowmen, the Swadian, Vaegir and Nord armies — reads 0.91–1.05; at 0.84 the side won 5–25 %,
 at 1.05 75–88 %, at 1.28 98 %. Buckets: Kolay ≥ 1.25, Dengeli ≥ 0.9, Zorlu ≥ 0.7, else Çetin.
-22 peasants vs 8 sergeants is 0.60 (won 0 %); 21 peasants vs 8 Swadian soldiers (the kingdom's
-pool) is 1.78 (won 100 %). Until 2.7.1 the label was a level-weighted headcount; 2.7.1's buckets
-(1.5 / 0.8 / 0.55) were read off the subtracted armour and the unfitted table.
+22 peasants vs 8 sergeants is 0.59 (won 0 %); 21 peasants vs 8 Swadian soldiers (the kingdom's
+pool) is 1.59 (won 100 %), 11 of them 0.53 (won 0 %). Until 2.7.1 the label was a level-weighted
+headcount; 2.7.1's buckets (1.5 / 0.8 / 0.55) were read off the subtracted armour and the unfitted
+table.
+
+**The hero is one man** (2.10.2). For a single troop type the power mean and the plain mean are
+the same number, so every calibration case above kept its value; what changed is a side of mixed
+quality. The plain mean let one strong man lift the whole side, but he fights one foe at a time
+while the rest gang up. **Measured** (real engine, the hero fought as one more man of his stats
+beside eight villagers, 30 fights each): against nine Swadian regulars a 130 hp / 42 attack hero
+read **Kolay 1.80** and won 77 % (2.10.2's report: "it said easy, we lost"), now **Dengeli 1.09**;
+90 / 32 read Dengeli 1.03 and won 0 %, now Zorlu 0.76; 180 / 55 reads Kolay either way and wins
+100 %; a fresh hero (50 / 20) with eight villagers against nine looters reads Kolay 1.94 and wins
+93 %. A side of bowmen still reads off (`ARCHER_IN_MELEE` is a share, not a rate of fire): a fresh
+hero and eight villagers against six Swadians dealt three footmen and three bowmen read Kolay 1.40
+and won 47 % — `enemyMix` weighs a kingdom's whole pool, so the label itself never sees that hand.
+
+**The foe's share** (2.10.2): `Game.foeShare(npc)` = `Battle.powerRatio(enemy, you)`, the enemy's
+strength counted in your own heads (1 = even; the label's ratio is it raised to −1.7). Every
+pre-battle readout reads it: the odds label, the easy-prey cut (`preyWarning` →
+`Battle.rewardScale(share)` = clamp(share × 1.6, 0.2, 1)), your men's chatter (`troopChatter`:
+scared at ≥ 1.3, bold at ≤ 0.6) and a surrender's renown (`defeatRenown(share)`). `Battle.start`
+takes the same number off the field as it lines up (`Battle.foeShare`, reserves included) for the
+win's pay and a defeat's renown. All four weighed heads × level (or raw heads) until 2.10.2, and
+since #124 a level adds nothing in a fight: a level-25 hero with eight villagers was told nine
+Swadian regulars were "🪶 Kolay av" (paid at 70 %).
 
 **Every fight the player doesn't play reads the same strength** (2.8.0): `Battle.powerRatio(a, b)`
 = (sideStrength a / sideStrength b)^(1/1.7), the two sides as a headcount ratio — linear in heads
@@ -402,6 +426,11 @@ Measured (`sim.js --days 200 --seed 1-5`, 2.8.0 against 2.7.1): conquered 9–20
 24–32 (20–31), wars 16–27 (14–26), peace 17–27 (15–25), caravan raids 133–333 (269–554), repelled
 277–320 (274–360), prosperity 63.2–72.1 (64.4–71.3), 0 kingdoms erased — guards are counted as the
 men they are, so fewer convoys fall.
+Measured again with 2.10.2's power mean (same command, against 2.10.0): conquered 6–20 (9–20),
+campaigns 19–32 (24–32), wars 14–26 (16–27), peace 15–25 (17–27), caravan raids 176–407 (133–333),
+repelled 293–377 (277–320), prosperity 64.6–72.1 (63.2–72.1), 0 kingdoms erased, 0 errors — a
+convoy's guards are a mixed roster (footmen, bowmen, a rider, a leader) and no longer read as
+strong as their best man, so bands try more convoys and take more of them.
 
 Sources: a settlement recruit comes from `Game.recruitName(loc)` (that town's own faction);
 mercenaries/enemy armies come from `Game.factionTroopPool(faction)` (2 shares mid-tier, 1 elite).
@@ -682,6 +711,20 @@ you walk into — see **Bandit lairs (2.2.0)** below.
 | Dağ Eşkıyaları | armored/tough, from day 20 |
 | Kurt Sürüsü | very fast (104–112), `beast`: lunges from sight range ×1.6, never captured |
 
+**Every bandit party is one of these kinds** (2.10.2): `Game.createBand(kind, size, name, color)` is
+the only door — a quest's raiders keep their own name and colour and borrow a kind (Hasat
+Çapulcuları and Karakol Baskıncıları are `bandit`, Kervan Baskıncıları `forest`, Sisteki Gölgeler
+`mountain`). Those four were built with a bare `createNPC` until 2.10.2: no band, no kingdom, and
+both the odds label and the battle fell through to Swadia's troop pool — a third of it sergeants,
+sharpshooters and knights — dressed as looters. `Battle.foeKind(name, faction, band)` is the one
+resolver `enemyMix` (the label) and `start` (the fight) read; a side with neither a band nor a
+kingdom is logged (`Debug`, kind `roster`) and dealt as looters. A one-on-one (duel, arena,
+tournament) and a boss deal from no army at all. `Save.apply` gives a saved bandless bandit the
+`bandit` kind. Tests (`tools/test.js 'roster:'`): no `createNPC(…, 'bandit', …)` outside
+`createBand`; for every band kind (under its own name and a quest's) and every kingdom the battle
+fields no man the label didn't weigh; every quest in `QUESTS` is taken and its spawners run, and
+every party they make has an army to deal from; forty arena foes, none mounted.
+
 **No enemy scales with the calendar or your own strength** (#99, #132): every non-boss enemy —
 bandit, faction soldier, boss guard — is a fixed level forever; only its `TROOP_TREES`/band-row
 stats decide the fight. (It used to scale with `threatLevel()`, a wealth-proxy formula that
@@ -796,9 +839,10 @@ dies mid-battle, they're knocked out (not eliminated) and the fight continues at
 a win.
 
 **Victory**: `(10 + level×5)` loot per enemy × Looting skill, +3 renown, XP; **reward shrinks
-with the strength ratio** (`Battle.rewardScale`, exempt for bosses) so farming weak enemies
-stops paying past a point. **Defeat**: party scatters, 60–90% of money lost, HP→30%, taken
-prisoner, renown burns (`Game.defeatRenown`, scaled by how outmatched you were).
+with the strength ratio** (`Battle.rewardScale` on the foe's share, exempt for bosses) so farming
+weak enemies stops paying past a point. **Defeat**: party scatters, 60–90% of money lost, HP→30%,
+taken prisoner, renown burns (`Game.defeatRenown`, scaled by how outmatched you were — the same
+foe's share, 2.10.2).
 
 ### Taking prisoners (the player's own prisoners)
 45% of downed enemies are captured in a won battle (not the boss fight). Capacity `5 +

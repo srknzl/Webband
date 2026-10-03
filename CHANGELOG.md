@@ -3,6 +3,22 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.10.2 — Zanaat (2026-10-03)
+
+- **Görev haydutları artık gerçekten haydut.** Hasat Nöbeti, Sınır Karakolu, Tüccar Kervanı ve
+  Sisteki Nokta görevlerinde gelen düşmanlar, çapulcu kılığında ama Svadya'nın eğitimli askerleri
+  (çavuş, keskin nişancı, hatta şövalye) olarak savaşıyordu. Artık adlarına uygun çeteden
+  geliyorlar: hasat ve karakol baskıncıları çapulcu, kervan pusucuları orman haydudu, sisteki
+  gölgeler dağ eşkıyası. Kayıtlı oyunlarda haritada bekleyen görev haydutları da düzelir.
+- **"Tahmini denge" güçlü bir kahramanı abartmıyor.** Tek başına güçlü bir kahraman, yanındaki
+  köylüleri de güçlü sayıyordu: orta seviye bir kahraman ve sekiz köylü, dokuz Svadya askerine
+  karşı "Kolay" görüyor, sonra kaybediyordu. Artık kahraman bir kişi olarak sayılıyor.
+- **"Kolay av", askerlerinin lafı ve yenilgide yanan nam da aynı ölçüye bakıyor.** Hepsi düşmanı
+  kişi sayısı ve seviyeyle ölçüyordu; yüksek seviyeli bir kahramana dokuz düzenli asker "kolay av"
+  gibi gösteriliyordu. Artık hepsi savaş tahminiyle aynı gücü okuyor.
+- **Arenada ve düelloda rakip ata binmiyor.** Rakip bazen atlı bir askerden türetildiği için
+  piyade gibi görünse de atlı sayılıyor, yarı canda "attan düşüp" yavaşlıyordu.
+
 ## 2.10.0 — Zanaat (2026-10-03)
 
 - **Marangoz atölyesi.** Şehirlerde, köylerde ve kendi kalende 🪚 Marangoz Atölyesi var. Pazardan

@@ -286,7 +286,7 @@ const QUESTS = {
             if(Math.random() < 0.5) {
                 // Two waves already make this an endurance job. Keep each one below a
                 // normal roaming warband so an early company can realistically defend it.
-                let n = Game.createNPC('Hasat Çapulcuları', 'bandit', 5 + Math.floor(Math.random() * 8), '#8b0000');
+                let n = Game.createBand('bandit', 5 + Math.floor(Math.random() * 8), 'Hasat Çapulcuları', '#8b0000');
                 n.x = v.x + (Math.random() - 0.5) * 300;
                 n.y = v.y + (Math.random() - 0.5) * 300;
                 n.targetX = state.player.x; n.targetY = state.player.y;
@@ -927,7 +927,7 @@ QUESTS.outpost_defense = {
         let v = LOCATIONS.find(l => l.id === q.data.locId);
         if(Game.dist(state.player, v) > 500) return;
         if(Math.random() < 0.5) {
-            let n = Game.createNPC('Karakol Baskıncıları', 'bandit', 6 + Math.floor(Math.random() * 9), '#8b0000');
+            let n = Game.createBand('bandit', 6 + Math.floor(Math.random() * 9), 'Karakol Baskıncıları', '#8b0000');
             n.x = v.x + (Math.random() - 0.5) * 300;
             n.y = v.y + (Math.random() - 0.5) * 300;
             n.targetX = state.player.x; n.targetY = state.player.y;
@@ -1042,7 +1042,8 @@ QUESTS.merchant_convoy = {
         if(q.data.ambushed || q.data.cleared) return;
         if(Math.random() < 0.15) {
             q.data.ambushed = true;
-            let n = Game.createNPC('Kervan Baskıncıları', 'bandit', 5 + Math.floor(Math.random() * 6), '#8b0000');
+            // a road ambush: the forest's bowmen, the band that lies in wait
+            let n = Game.createBand('forest', 5 + Math.floor(Math.random() * 6), 'Kervan Baskıncıları', '#8b0000');
             n.x = state.player.x + (Math.random() - 0.5) * 200;
             n.y = state.player.y + (Math.random() - 0.5) * 200;
             n.targetX = state.player.x; n.targetY = state.player.y;
@@ -1130,7 +1131,8 @@ QUESTS.mist_point = {
     on(q, ev, d) {
         if(q.data.stage === 'seek' && ev === 'entered_location' && d.locId === q.data.locId) {
             q.data.stage = 'encounter';
-            let n = Game.createNPC('Sisteki Gölgeler', 'bandit', 6 + Math.floor(Math.random() * 4), '#6a5acd');
+            // the hardest of the four (a relation-20 quest): mountain brigands, the toughest band
+            let n = Game.createBand('mountain', 6 + Math.floor(Math.random() * 4), 'Sisteki Gölgeler', '#6a5acd');
             n.x = q.data.px; n.y = q.data.py;
             n.targetX = state.player.x; n.targetY = state.player.y;
             n.questWave = q.id;

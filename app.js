@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.10.0', date: '2026-10-03', name: 'Zanaat' };  // the version name is not translated
+const VERSION = { no: '2.10.2', date: '2026-10-03', name: 'Zanaat' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2071,8 +2071,7 @@ const Game = {
         let earlyMax = Math.min(k.max, 8 + Math.floor(state.time.day / 2));
         let low = Math.min(k.min, earlyMax);
         let size = low + Math.floor(Math.random() * (earlyMax - low + 1));
-        let npc = this.createNPC(k.name, 'bandit', size, k.color, null, 1);
-        npc.band = kind;
+        let npc = this.createBand(kind, size);
         // A band comes out of its lair: place it around the lair, and if that's too
         // close to the player, leave it at the random spot createNPC gave it (SPAWN_SAFE is the one rule).
         if(lair) {
@@ -2402,6 +2401,16 @@ const Game = {
     // without noticing. This is the single gate — it applies both at world setup (spawnNPCs) and daily respawn (spawnBand).
     SPAWN_SAFE: 1500,
 
+    // Every bandit party is one of BAND_KINDS: its kind is the roster the battle deals its men from
+    // and the one the odds label reads (Battle.foeKind). A quest's raiders keep their own name and
+    // colour and borrow a kind — four quests built theirs with a bare createNPC until 2.10.2, and a
+    // party with no kind and no kingdom fought as Swadia's army, knights included.
+    // tools/test.js 'roster:' fails any createNPC(…, 'bandit', …) written outside this function.
+    createBand(kind, size, name = BAND_KINDS[kind].name, color = BAND_KINDS[kind].color) {
+        let npc = this.createNPC(name, 'bandit', size, color, null, 1);
+        npc.band = kind;
+        return npc;
+    },
     createNPC(name, type, size, color, faction = null, level = 1) {
         let x, y;
         for(let i = 0; i < 40; i++) {
@@ -3886,6 +3895,12 @@ const Game = {
         let mine = Battle.playerMix(), theirs = Battle.enemyMix(npc, state.encounterSize || npc.size);
         return Battle.sideStrength(mine, theirs) / Math.max(1e-6, Battle.sideStrength(theirs, mine));
     },
+    // The enemy's strength counted in your own heads (1 = an even fight): the one number every
+    // "how hard is this" readout before a battle reads — the odds label, the easy-prey cut, your
+    // men's chatter, a surrender's renown. Battle.start takes the same number off the field.
+    foeShare(npc) {
+        return Battle.powerRatio(Battle.enemyMix(npc, state.encounterSize || npc.size), Battle.playerMix());
+    },
     oddsLabel(npc) {
         let r = this.oddsRatio(npc);
         let row = this.ODDS.find(o => r >= o[0]) || this.ODDS[this.ODDS.length - 1];
@@ -4273,7 +4288,7 @@ const Game = {
     troopChatter(npc) {
         let party = state.player.party;
         if(!party.length) return null;
-        let ratio = npc.size / Math.max(1, this.fieldSize());
+        let ratio = this.foeShare(npc);   // in fighting men, not heads: nine regulars aren't nine villagers
         let fs = this.foodStock(), lead = this.profLvl('leadership'), mo = this.morale();
         let pool = ratio >= 1.3 + (lead - 1) * 0.08 || mo < 25 ? 'scared'
                  : fs.total < fs.need ? 'hungry'
@@ -4285,10 +4300,10 @@ const Game = {
     },
 
     // The reward cut used to be visible only in a single line after the battle; know it before deciding.
-    // The calculation is Battle.rewardScale itself — enemy strength is estimated from the npc (#55 item 9).
+    // The calculation is Battle.rewardScale itself, on the same two sides the odds label weighs (#55 item 9).
     preyWarning(npc) {
         if(!npc || npc.trade) return '';
-        let sc = Battle.rewardScale(npc.size * ((npc.level || 1) + 1));
+        let sc = Battle.rewardScale(this.foeShare(npc));
         return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.`}` : '';
     },
 
@@ -4407,7 +4422,7 @@ const Game = {
         state.player.lastDefeatDay = state.time.day;
         // Surrendering is a defeat too: the weaker your opponent, the more renown you burn
         let foe = state.npcParties.find(n => n.id === npcId);
-        let renownLost = this.defeatRenown(foe ? foe.size * ((foe.level || 1) + 1) : 0);
+        let renownLost = this.defeatRenown(foe ? this.foeShare(foe) : 0);
         state.player.renown = Math.max(0, state.player.renown - renownLost);
         let daysLost = 3 + Math.floor(Math.random() * 5); // 3-7 days captive
         let ratio = this.defeatLootRatio();   // cuts a share from the coffers (#53/1.2)
@@ -10992,10 +11007,11 @@ const Game = {
         return (p.maxRenown = Math.max(p.maxRenown || 0, p.renown || 0));
     },
 
-    defeatRenown(pow) {
-        let mine = state.player.stats.level +
-                   state.player.party.reduce((a, t) => a + (t.level || 1) + 1, 0);
-        let r = Math.min(1, pow / Math.max(1, mine));
+    // `share` is the foe's strength in your heads (foeShare / Battle.foeShare): losing to an equal
+    // or stronger side burns the floor, losing to a weak one burns more. It was heads × level
+    // until 2.10.2 — a level-20 hero beaten by nine regulars was charged as if they were weak.
+    defeatRenown(share) {
+        let r = Math.min(1, share || 0);
         let loss = 2 + Math.round(18 * (1 - r)) + Math.floor((state.player.renown || 0) * 0.02 * (1 - r));
         return Math.min(state.player.renown || 0, loss);
     },
@@ -12688,6 +12704,9 @@ const Save = {
             if(!state.questOffers[id] || !QUESTS[state.questOffers[id].id]) delete state.questOffers[id];
         });
         if(state.pendingQuest && !QUESTS[state.pendingQuest.id]) state.pendingQuest = null;
+        // A quest's raiders were saved with no band until 2.10.2 (Game.createBand); give them the
+        // looters' kind they were always meant to fight as, not Swadia's army
+        (state.npcParties || []).forEach(n => { if(n.type === 'bandit' && !BAND_KINDS[n.band]) n.band = 'bandit'; });
 
         let legacyLocs = false;
         (d.locations || []).forEach(sl => {
