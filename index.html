@@ -127,7 +127,7 @@
             <div class="start-actions">
                 <button class="btn start-act" onclick="Game.showLore('lords')"><svg class="i"><use href="#i-horse"/></svg> Lordlar</button>
                 <button class="btn start-act" onclick="Game.showLore('kingdoms')"><svg class="i"><use href="#i-castle"/></svg> Krallıklar</button>
-                <button class="btn start-act" onclick="Forge.practice()"><svg class="i"><use href="#i-hammer"/></svg> Demircilik</button>
+                <button class="btn start-act" onclick="Crafts.trades()"><svg class="i"><use href="#i-hammer"/></svg> Meslekler</button>
                 <button class="btn start-act" onclick="Save.continueGame()"><svg class="i"><use href="#i-scroll"/></svg> Kayıttan Devam</button>
                 <button class="btn start-act" onclick="Save.open()"><svg class="i"><use href="#i-save"/></svg> Kayıtlar</button>
                 <!-- Install button (#93): hidden until the browser says the game is
@@ -354,6 +354,8 @@
                     <div id="lair-view" class="view"></div>
                     <!-- The forge (2.5.0): forge.js builds its canvas, HUD and buttons in here -->
                     <div id="forge-view" class="view"></div>
+                    <!-- The crafts (2.10.0): crafts.js builds the carpenter's bench and the inn's kitchen in here -->
+                    <div id="craft-view" class="view"></div>
                 </main>
             </div>
         </div>
@@ -427,6 +429,7 @@
     <script src="quests.js"></script>
     <script src="lair.js"></script>
     <script src="forge.js"></script>
+    <script src="crafts.js"></script>
     <!-- Offline copy. The native app now loads the live site (capacitor.config.json's
          `server.url`), so it wants the worker too — that is what keeps it playable with
          no signal. The one case to skip is Capacitor serving its own bundled copy from

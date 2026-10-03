@@ -21,7 +21,7 @@ function pinOffer(page, id, giverId) {
         const q = Quests.make(id, giverId);
         (state.questOffers = state.questOffers || {})[giverId] = q;
         const d = QUESTS[id];
-        return { data: q.data, title: d.title, reward: d.reward };
+        return { data: q.data, title: d.title, reward: Object.assign({}, d.reward, { money: Quests.money(d) }) };   // what it pays, scaled
     }, [id, giverId]);
 }
 
@@ -187,7 +187,8 @@ test('bitmiş görev, verenin bulunduğu şehre girince kendiliğinden teslim ed
         state.player.quests.push(q);
         Quests.markDone(q);
         const d = QUESTS.butter_blockade;
-        return { title: d.title, reward: d.reward, money: d.reward.money, at: q.turnInLocId };
+        const money = Quests.money(d);   // what it pays, scaled
+        return { title: d.title, reward: Object.assign({}, d.reward, { money }), money, at: q.turnInLocId };
     }, lord.id);
     await okAlert(page);
     expect(q.at).toBe(lord.home);

@@ -2275,25 +2275,26 @@ body.touch #lair-touch { display: block; }
 
 /* ============ THE FORGE (2.5.0) ============
    A full-screen scene like the lair: #forge-view covers the viewport while it is up. forge.js
-   builds everything inside it; the canvas holds a small pixel buffer scaled up whole. */
-#forge-view { padding: 0; }
-#forge-view.active { position: fixed; inset: 0; z-index: 30; display: block; background: #050407; overflow: hidden; border-radius: 0; animation: none; }
-#forge-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; image-rendering: pixelated; }
-#forge-hud { position: absolute; left: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px 0; display: flex; flex-direction: column;
+   builds everything inside it; the canvas holds a small pixel buffer scaled up whole. The crafts'
+   #craft-view (2.10.0, crafts.js) is the same scene and wears the same rules. */
+#forge-view, #craft-view { padding: 0; }
+#forge-view.active, #craft-view.active { position: fixed; inset: 0; z-index: 30; display: block; background: #050407; overflow: hidden; border-radius: 0; animation: none; }
+#forge-canvas, #craft-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; image-rendering: pixelated; }
+#forge-hud, #craft-hud { position: absolute; left: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px 0; display: flex; flex-direction: column;
     gap: 6px; align-items: flex-start; pointer-events: none; z-index: 5; max-width: calc(100% - 60px); }
-#forge-hint { font: 500 var(--fs-xs)/1.35 'Inter', system-ui, sans-serif; color: var(--text-muted); max-width: 420px; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+#forge-hint, #craft-hint { font: 500 var(--fs-xs)/1.35 'Inter', system-ui, sans-serif; color: var(--text-muted); max-width: 420px; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
 #forge-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font: 500 10px/1.2 'Inter', sans-serif; color: var(--text-muted); text-shadow: 0 1px 2px #000; }
 #forge-legend span { display: inline-flex; align-items: center; gap: 4px; }
 #forge-legend i { width: 14px; height: 6px; border-radius: 2px; }
-#forge-pausebtn { position: absolute; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 6; width: 36px; height: 36px; border-radius: 50%;
+#forge-pausebtn, #craft-pausebtn { position: absolute; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 6; width: 36px; height: 36px; border-radius: 50%;
     border: 1px solid var(--panel-border); background: rgba(10,9,8,.8); color: var(--primary-hover); display: grid; place-items: center; cursor: pointer; font-weight: 700; }
-#forge-msg { position: absolute; left: 50%; top: 42%; transform: translateX(-50%); z-index: 6; max-width: calc(100% - 32px); text-align: center;
+#forge-msg, #craft-msg { position: absolute; left: 50%; top: 42%; transform: translateX(-50%); z-index: 6; max-width: calc(100% - 32px); text-align: center;
     padding: 7px 16px; border-radius: var(--r-sm); background: rgba(70,24,16,.88); border: 1px solid #ff9a6a; color: #fff; font: 600 13px/1.3 'Inter', sans-serif; pointer-events: none; }
-#forge-msg[hidden] { display: none; }
-#forge-keys { position: absolute; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); z-index: 5; font: 500 11px/1.6 'Inter', sans-serif; color: #736c61; pointer-events: none; max-width: calc(100% - 330px); }
-#forge-keys kbd { font: 700 10px/1 'Inter', sans-serif; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(236,230,218,.12); color: var(--text-muted); }
-body.touch #forge-keys { display: none; }
-#forge-btns { position: absolute; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); z-index: 5; display: flex; gap: 10px; align-items: flex-end; }
+#forge-msg[hidden], #craft-msg[hidden] { display: none; }
+#forge-keys, #craft-keys { position: absolute; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); z-index: 5; font: 500 11px/1.6 'Inter', sans-serif; color: #736c61; pointer-events: none; max-width: calc(100% - 330px); }
+#forge-keys kbd, #craft-keys kbd { font: 700 10px/1 'Inter', sans-serif; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(236,230,218,.12); color: var(--text-muted); }
+body.touch #forge-keys, body.touch #craft-keys { display: none; }
+#forge-btns, #craft-btns { position: absolute; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); z-index: 5; display: flex; gap: 10px; align-items: flex-end; }
 .fbtn { min-width: 84px; min-height: 52px; padding: 6px 12px; border-radius: var(--r-sm); border: 2px solid var(--panel-border); background: rgba(12,11,9,.8);
     color: var(--text-color); font: 700 13px/1.1 'Inter', sans-serif; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
 .fbtn[hidden] { display: none; }
@@ -2303,14 +2304,14 @@ body.touch #forge-keys { display: none; }
 #forge-pump { min-width: 96px; min-height: 64px; }
 /* touch: one action bar along the bottom, equal buttons a thumb can't miss (right-aligned and
    capped when the phone lies sideways, so it stays off the anvil) */
-body.touch #forge-btns { left: 12px; right: 12px; max-width: 520px; margin-left: auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+body.touch #forge-btns, body.touch #craft-btns { left: 12px; right: 12px; max-width: 520px; margin-left: auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
 body.touch .fbtn { min-height: 64px; font-size: 16px; border-radius: 16px; background: rgba(16,12,10,.88); }
 body.touch #forge-pump { min-width: 0; border-color: rgba(240,150,70,.65); }
-@media (orientation: landscape) { body.touch #forge-btns { max-width: 380px; } }
+@media (orientation: landscape) { body.touch #forge-btns, body.touch #craft-btns { max-width: 380px; } }
 body.touch .fbtn.on { background: rgba(150,70,20,.85); }
-#forge-over { position: absolute; inset: 0; z-index: 20; overflow-y: auto; display: grid; place-items: center; padding: 18px 16px;
+#forge-over, #craft-over { position: absolute; inset: 0; z-index: 20; overflow-y: auto; display: grid; place-items: center; padding: 18px 16px;
     background: radial-gradient(ellipse at 50% 0%, rgba(42,33,22,.94) 0%, rgba(13,12,11,.96) 70%); }
-#forge-over[hidden] { display: none; }
+#forge-over[hidden], #craft-over[hidden] { display: none; }
 @media (max-width: 820px) { #forge-legend { display: none; } }
 /* the recipe window */
 .forge-shop { display: grid; gap: 10px; }

@@ -2397,7 +2397,7 @@ function questSuite() {
             // #167: handing in exactly what was asked empties the stack — and it leaves the bag
             const empty = state.player.inventory.find(i => !(i.qty > 0));
             assert.ok(!empty, `the hand-in left ${empty && empty.id} at qty ${empty && empty.qty} in the bag`);
-            assert.strictEqual(state.player.money, QUESTS[id].reward.money, 'reward wasn\'t paid');
+            assert.strictEqual(state.player.money, Quests.money(QUESTS[id]), 'reward wasn\'t paid');
         });
     });
 }
@@ -2602,7 +2602,7 @@ slow('quest: the wave quests play through their own days, battles and hand-in', 
         const before = state.player.money;
         Game.enterLocation(at);
         assert.ok(!Quests.has(id), `${id}: not handed in at ${at.id}`);
-        assert.ok(state.player.money >= before + QUESTS[id].reward.money, `${id}: reward not paid`);
+        assert.ok(state.player.money >= before + Quests.money(QUESTS[id]), `${id}: reward not paid`);
         played[id] = fights;
     }
     assert.ok(played.harvest_watch >= 2 && played.outpost_defense >= 3 && played.merchant_convoy >= 1, JSON.stringify(played));
@@ -3860,7 +3860,7 @@ test('i18n: no Turkish prose reaches the screen outside T()', () => {
     const fs = require('fs'), path = require('path');
     const K = require('./i18n-keys');
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js'])
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js', 'crafts.js'])
         K.rawUiText(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'))
             .forEach(h => bad.push(`${f}:${h.line} ${JSON.stringify(h.text.slice(0, 60))}`));
     assert.ok(bad.length === 0, `${bad.length} untranslated UI string(s), first: ${bad[0]}`);
@@ -3873,7 +3873,7 @@ test('i18n: no hand-written %${…} outside T() (#134)', () => {
     const fs = require('fs'), path = require('path');
     const K = require('./i18n-keys');
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js']) {
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js', 'crafts.js']) {
         const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), spans = K.keysIn(src, true), re = /%\$\{/g;
         let m;
         while((m = re.exec(src))) {
@@ -3914,7 +3914,7 @@ test('i18n: no translation written into state or baked into an onclick', () => {
     assert.deepStrictEqual(rules("`<b onclick=\"Game.go('${T(l.name)}')\">`"), ['onclick']);
     assert.deepStrictEqual(rules("`<b onclick=\"Nobles.marry('${id}', T('Şölen'))\">`"), []);
     const bad = [];
-    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js'])
+    for(const f of ['app.js', 'battle.js', 'nobles.js', 'quests.js', 'lair.js', 'forge.js', 'crafts.js'])
         K.leakedT(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).forEach(h => bad.push(`${f}:${h.line} [${h.rule}] ${h.text}`));
     assert.ok(bad.length === 0, `${bad.length} translation(s) leaking into logic, first: ${bad[0]}`);
 });
@@ -4566,6 +4566,136 @@ test('forge: masterworks need crucible steel, Örs perks bend the numbers, melti
     assert.strictEqual(state.player.inventory[0].qty, iron + m.meltIron(F.RECIPES.find(r => r.id === 'sword_steel')));
     assert.strictEqual(state.time.day * 24 + state.time.hour, hour + F.MELT.HOURS, 'melting took no time');
     w.Game.closeModal();
+});
+
+// The crafts (2.10.0): crafts.js does nothing at load time either, so it gets the forge's treatment —
+// its own world, and scripted hands. A careful carpenter leans the saw against the grain it can see
+// coming, strokes at an even pace, and planes the highest spot each time in the grain's direction; a
+// careless one scrubs as fast as it can, never steers, and sweeps the plane end to end both ways.
+function craftsWorld(seed = 3) {
+    const fs = require('fs'), path = require('path'), vm = require('vm');
+    const w = H.world({ seed });
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'crafts.js'), 'utf8') + ';this.Crafts = Crafts;', w._ctx);
+    w.Crafts = w._ctx.Crafts;
+    return w;
+}
+function carpenterBot(C, r, careful, seed = 1) {
+    const m = C._model, N = C.WOOD.N, g = m.newBoard(r, r.req, seed);
+    let t = 0, it = 0;
+    while(g.x < N) {
+        const i = Math.min(N - 1, Math.floor(g.x));
+        g.aim = careful ? Math.max(-1, Math.min(1, (-g.drift[i] - (g.y - 0.3) * 0.8) / C.WOOD.AIM)) : 0;
+        t += careful ? 0.4 : 0.15;
+        m.stroke(g, t);
+    }
+    m.toPlane(g);
+    for(let d = 1; !m.planeReady(g) && it++ < 3000; d = -d) {
+        if(!careful) { m.planeMove(g, d > 0 ? -0.5 : N - 0.5, d > 0 ? N - 0.5 : -0.5); continue; }
+        let best = 0;
+        g.h.forEach((h, i) => { if(h > g.h[best]) best = i; });
+        m.planeMove(g, best - 0.5 * g.dir[best], best + 0.5 * g.dir[best]);
+    }
+    const sc = m.boardScore(g);
+    return { g, sc, out: m.outcome(g, r, sc.S) };
+}
+test('carpentry: a careful carpenter makes every piece at its level, a careless one makes firewood', () => {
+    const { Crafts: C } = craftsWorld();
+    for(const r of C.WOODWORK) for(const seed of [1, 2, 3]) {
+        const good = carpenterBot(C, r, true, seed), bad = carpenterBot(C, r, false, seed);
+        assert.strictEqual(good.out.kind, 'item', `${r.id} #${seed}: a careful carpenter scored ${good.sc.S.toFixed(2)}`);
+        assert.ok(good.g.binds === 0 && good.g.tears === 0 && good.sc.saw > .8, `${r.id} #${seed}: careful work ${JSON.stringify(good.sc)}`);
+        assert.strictEqual(bad.out.kind, 'ruin', `${r.id} #${seed}: careless work scored ${bad.sc.S.toFixed(2)}`);
+        assert.ok(bad.g.binds > 20, `${r.id} #${seed}: scrubbing at ${(1 / 0.15).toFixed(1)} strokes/s never bound the saw`);
+    }
+    // the step below: a stool's has none, a table falls back to a wheel
+    const m = C._model, ww = id => C.WOODWORK.find(r => r.id === id), g = m.newBoard(ww('table'), 7, 1);
+    assert.deepStrictEqual({ ...m.outcome(g, ww('table'), C.WOOD.PREV) }, { kind: 'prev', id: 'wheel' });
+    assert.strictEqual(m.outcome(m.newBoard(ww('stool'), 1, 1), ww('stool'), .5).kind, 'ruin');
+});
+test('carpentry: the grain pulls a straight saw off the line; the plane rides the hollows and tears against the grain', () => {
+    const { Crafts: C } = craftsWorld(), m = C._model, W = C.WOOD, r = C.WOODWORK[3];
+    // a saw held straight wanders with the grain, as far as the grain's own line says
+    const g = m.newBoard(r, 1, 5);
+    for(let t = 0; g.x < W.N; t += .4) m.stroke(g, t);
+    assert.ok(Math.max(...g.dev.map(Math.abs)) > 1, `the grain moved a straight saw only ${Math.max(...g.dev.map(Math.abs)).toFixed(2)} mm`);
+    // the plane: a hump comes down, a hollow next to it is ridden over
+    const p = m.newBoard(r, 1, 5);
+    p.h = new Array(W.N).fill(1); p.h[10] = 2; p.h[12] = 0.2; p.dir = new Array(W.N).fill(1);
+    m.planeMove(p, 9.5, 12.5);
+    assert.ok(p.h[10] < 2 && p.h[11] === 1 && p.h[12] === 0.2, `one pass over a hump: ${p.h.slice(9, 13).map(h => h.toFixed(2))}`);
+    // planing with the grain never tears; against it, it does
+    p.h = new Array(W.N).fill(3);
+    for(let k = 0; k < 6; k++) m.planeMove(p, -0.5, W.N - 0.5);
+    assert.strictEqual(p.tears, 0, 'the plane tore going with the grain');
+    for(let k = 0; k < 6; k++) m.planeMove(p, W.N - 0.5, -0.5);
+    assert.ok(p.tears > 0, 'six passes against the grain never tore');
+    // a cut that strays into the piece leaves the edge short of the gauge before the plane touches it
+    const q = m.newBoard(r, 1, 5);
+    q.dev = new Array(W.N).fill(0); q.dev[4] = -3;
+    m.toPlane(q);
+    assert.ok(q.h[4] < -q.tol && q.h.filter((h, i) => i !== 4).every(h => h > q.tol), 'a stray cut didn\'t mark the edge');
+});
+function cookBot(C, mode, seed) {
+    const m = C._model, g = m.newShift(1, 50, seed), dt = 1 / 30;
+    let stirAt = 0;
+    while(!g.ended) {
+        m.stepKitchen(g, dt);
+        if(mode === 'idle') continue;
+        const p = g.pot, want = g.orders.filter(o => o.kind === 'kebap').length;
+        g.skew.forEach((s, i) => {
+            if(!s) { if(g.skew.filter(Boolean).length < want) m.flip(g, i); return; }
+            const dn = s[s.down], up = s.down === 'a' ? s.b : s.a;
+            if(dn >= .95 && up < .95) m.flip(g, i);
+            else if(dn >= .95) m.takeOff(g, i);
+        });
+        if(mode === 'good') { if(p.fuel < .35) m.addWood(g); if(g.t - stirAt > 5) { m.stir(g); stirAt = g.t; } }
+        else if(p.fuel < .8) m.addWood(g);   // 'hot': the fire kept roaring, the pot never stirred
+        if(p.portions && g.orders.some(o => o.kind === 'corba')) m.ladle(g);
+    }
+    return { g, pay: m.shiftPay(g) };
+}
+test('kitchen: a good shift pays several times an idle one; a pot kept roaring spills and burns', () => {
+    const { Crafts: C } = craftsWorld(), K = C.KITCHEN;
+    for(const seed of [1, 2, 3]) {
+        const good = cookBot(C, 'good', seed), idle = cookBot(C, 'idle', seed), hot = cookBot(C, 'hot', seed);
+        assert.strictEqual(idle.pay.total, K.WAGE, 'an idle apprentice got more than the wage');
+        assert.ok(idle.g.missed >= 5, `${idle.g.missed} orders went unserved by an idle apprentice`);
+        assert.ok(good.pay.total >= 4 * idle.pay.total && good.g.missed === 0 && good.g.served.corba > 0, `a good shift: ${JSON.stringify(good.pay)}, ${good.g.missed} missed`);
+        assert.ok(hot.g.served.corba === 0 && hot.g.wasted >= 3, `a roaring pot served ${hot.g.served.corba} bowls, wasted ${hot.g.wasted}`);
+        between(good.pay.total, 70, 160, 'a good shift\'s pay');
+    }
+    // a raw skewer stays on the grill, a black one goes in the bin
+    const m = C._model, g = m.newShift(1, 50, 1);
+    m.flip(g, 0); g.skew[0].a = 1; g.skew[0].b = .3;
+    assert.strictEqual(m.takeOff(g, 0).kind, 'raw');
+    g.skew[0].b = 1.7;
+    assert.strictEqual(m.takeOff(g, 0).kind, 'burnt');
+    assert.strictEqual(g.skew[0], null);
+});
+test('crafts: tables are in both dictionaries, pieces are real items that pay for their timber, the market and caravans never stock them', () => {
+    const d = require('./i18n-keys').dicts(), w = craftsWorld(), { Crafts: C, ITEMS, Game, state, LOCATIONS } = w;
+    const missing = C.strings().filter(t => !(t in d.en) || !(t in d.id));
+    assert.strictEqual(missing.length, 0, `crafts text with no dictionary entry: ${missing.slice(0, 3).join(' | ')}`);
+    for(const r of C.WOODWORK) {
+        const it = ITEMS[r.id], c = C._model.cost(r);
+        assert.ok(it && it.type === 'craft', `${r.id}: not a craft item`);
+        // sold at the market's 0.7 it beats its timber and rent, but by no more than a trade route an hour
+        const perHour = (it.basePrice * 0.7 - c.timber * ITEMS.timber.basePrice - c.rent) / c.hours;
+        between(perHour, 5, 40, `${r.id}'s profit an hour`);
+    }
+    assert.ok(Game.stocked('table') && Game.stocked('timber'), 'crafted goods and timber have no supply curve');
+    assert.ok(!Object.values(ITEMS).some(i => i.type === 'trade' && C.WOODWORK.some(r => r.id === i.id)), 'a crafted good is a trade good: caravans would carry it');
+    // one shift a day in each town, and a skill newer than the save starts at level 1
+    const loc = LOCATIONS.find(l => l.type === 'city');
+    assert.ok(!C._model.workedToday(loc));
+    state.kitchenDays = { [loc.id]: state.time.day };
+    assert.ok(C._model.workedToday(loc));
+    state.time.day++;
+    assert.ok(!C._model.workedToday(loc), 'the kitchen stayed shut the next day');
+    delete state.player.proficiencies.cooking;
+    Game.addProficiencyXp('cooking', 10);
+    assert.strictEqual(state.player.proficiencies.cooking.level, 1);
+    assert.ok(state.player.proficiencies.cooking.xp > 0, 'a skill missing from an old save gained nothing');
 });
 
 test('i18n: top-level data tables are language-independent', () => {

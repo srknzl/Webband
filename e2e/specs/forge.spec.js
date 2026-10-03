@@ -146,7 +146,8 @@ test('the start screen opens a practice forge: every piece, nothing taken or giv
     await page.goto('/');
     await page.evaluate(() => Game.setOpt('muted', true));
     const bag = await page.evaluate(() => JSON.stringify(state.player.inventory));
-    await page.locator('.start-act', { hasText: await L(page, 'Demircilik') }).click();
+    await page.locator('.start-act', { hasText: await L(page, 'Meslekler') }).click();
+    await modal(page).locator('[onclick="Forge.practice()"]').click();
     // every piece is open, the royal sword included, at no cost
     await expect(modal(page).locator('.fs-row button:not([disabled]):not([onclick*="grind"])')).toHaveCount(await page.evaluate(() => Forge.RECIPES.filter(r => ITEMS[r.id]).length));
     await modal(page).locator(`[onclick="Forge.practice('sword_royal')"]`).click();
@@ -233,7 +234,8 @@ test('the stone needs an edged weapon in hand; practice sharpens without one', a
 test('practice at the stone from the start screen: nothing is kept', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => Game.setOpt('muted', true));
-    await page.locator('.start-act', { hasText: await L(page, 'Demircilik') }).click();
+    await page.locator('.start-act', { hasText: await L(page, 'Meslekler') }).click();
+    await modal(page).locator('[onclick="Forge.practice()"]').click();
     await modal(page).locator(`[onclick="Forge.practice('axe', 'grind')"]`).click();
     await expect(page.locator('#forge-over h2')).toHaveText(await L(page, '❔ Nasıl bilenir?'));
     await page.locator('#forge-over button').click();
