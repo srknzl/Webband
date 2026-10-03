@@ -9,6 +9,9 @@ to `~/git/serkanozelme/blog/public/webband/` and push that repo (auto-deploy fir
 `.github/workflows/deploy.yml` does this by itself after every green push to main (and by hand
 via `workflow_dispatch`).
 
+**Pull requests**: right after opening a PR, enable GitHub auto-merge on it with the **squash**
+method (standing instruction from the owner — no need to ask each time).
+
 **Detail lives in `docs/SYSTEMS.md`** — every mechanic's design decision and measured number.
 Only invariant rules live here. Before changing a mechanic, read its section there;
 after changing it, update the "Measured" lines.

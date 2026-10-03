@@ -2452,6 +2452,7 @@ const Game = {
         if(err) err.hidden = true;
         state.player.name = n;
         this.creation = { step: 0, sel: {} };
+        this._crHelpOpen = false;
         this.renderCreation();
     },
 
@@ -2475,10 +2476,44 @@ const Game = {
         return `<div class="cr-steps" aria-hidden="true">${out}</div>`;
     },
     // An option's effects as chips: red for a cost, green for a gain, grey for "nothing extra".
+    // An attribute chip carries what the attribute does as its hover text (desktop's half of the "?").
     bonusChips(o) {
         let parts = (this.bonusText(o) || '').split(' · ').filter(Boolean);
         if(!parts.length) return `<span class="cr-fx"><span>${T('ek bir getirisi yok')}</span></span>`;
-        return `<span class="cr-fx">${parts.map(p => `<span class="${/(^|\s)[-−]\d/.test(p) ? 'neg' : /\+\d/.test(p) ? 'pos' : ''}">${p}</span>`).join('')}</span>`;
+        return `<span class="cr-fx">${parts.map(p => {
+            let k = Object.keys(this.ATTRS).find(k => p.startsWith(this.ATTRS[k].icon + ' '));
+            return `<span class="${/(^|\s)[-−]\d/.test(p) ? 'neg' : /\+\d/.test(p) ? 'pos' : ''}"${k ? ` title="${this.attrHelpText(k)}"` : ''}>${p}</span>`;
+        }).join('')}</span>`;
+    },
+    // What the five attributes do, for a player who has never met them (2.10.1): the step's "?"
+    // opens it as a panel (a tap works where a hover tooltip can't), and it stays open across
+    // steps until closed. Worded from the formulas in attrEffect / getPartyCapacity / maxHp.
+    attrHelpText(k) {
+        switch(k) {
+            case 'str': return T('Her puan yakın dövüş saldırına +1 ekler. Kılıç Ustalığı ve Örs yetenek dallarını açar.');
+            case 'agi': return T('Haritada daha hızlı yol alırsın; savaşta daha çabuk koşar, atını daha hızlı sürersin. Süvari ve Okçu dalını açar.');
+            case 'int': return T('Haritada daha uzağı görürsün: her puan +30 birim görüş. Sıhhiye ve Zindan ile İz Sürme dallarını açar.');
+            case 'cha': return T('Her puan grubuna 3 asker daha sığdırır. Komuta ile Çapul ve Ticaret dallarını açar.');
+            case 'vit': return T('Her puan +5 en yüksek can; her iki puanda yaraların bir saat daha çabuk kapanır.');
+        }
+        return '';
+    },
+    attrHelpBtn() {
+        return `<button class="cr-help" type="button" onclick="Game.toggleAttrHelp()" aria-controls="cr-attr-help"
+            aria-expanded="${this._crHelpOpen ? 'true' : 'false'}" title="${T('Nitelikler ne işe yarar?')}" aria-label="${T('Nitelikler ne işe yarar?')}">?</button>`;
+    },
+    attrHelpPanel() {
+        return `<div class="cr-attr-help" id="cr-attr-help"${this._crHelpOpen ? '' : ' hidden'}>
+            <b>${T('Nitelikler ne işe yarar?')}</b>
+            <ul>${Object.keys(this.ATTRS).map(k => `<li><span>${this.ATTRS[k].icon}</span><div><b>${T(this.ATTRS[k].name)}</b> — ${this.attrHelpText(k)}</div></li>`).join('')}</ul>
+            <p>${T("Hepsi 10'dan başlar. Seviye atladıkça puan dağıtırsın; puan hedefi yükseltir, nitelik o işe uygun oynadıkça hedefe yaklaşır.")}</p>
+        </div>`;
+    },
+    toggleAttrHelp() {
+        this._crHelpOpen = !this._crHelpOpen;
+        let p = document.getElementById('cr-attr-help'), b = document.querySelector('.cr-help');
+        if(p) p.hidden = !this._crHelpOpen;
+        if(b) b.setAttribute('aria-expanded', this._crHelpOpen ? 'true' : 'false');
     },
     renderCreation() {
         let step = this.creation.step;
@@ -2487,8 +2522,10 @@ const Game = {
         if(step === BACKGROUND.length) return this.renderBannerStep();
 
         let q = BACKGROUND[step], sel = this.creation.sel[q.key];
-        let html = `${this.creationSteps(step)}${this.heroHead(`<h3>${T(q.q)}</h3>
+        let help = q.opts.some(o => o.attr);
+        let html = `${this.creationSteps(step)}${this.heroHead(`<h3>${T(q.q)}${help ? this.attrHelpBtn() : ''}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-sm)">${T`Adım ${step+1}/${BACKGROUND.length+2} — ${T(q.hint)}`}</p>`)}
+            ${help ? this.attrHelpPanel() : ''}
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">`;
         q.opts.forEach(o => {
             html += `<button class="btn cr-opt${sel === o.id ? ' sel' : ''}"

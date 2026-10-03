@@ -50,6 +50,12 @@ Choice effects are data (`attr{}`, `prof{}`, `money`, `renown`, `item`, `relAll`
 `relFaction{id,n}`); `Game.bonusText(o)` turns this into text for both the choice card and the
 summary. Answers live in `state.player.background`.
 
+A question whose choices hand out attributes carries a **?** beside it (2.10.1): `attrHelpBtn()`
+toggles `attrHelpPanel()`, one line per attribute from `attrHelpText(k)` (what a point does and
+which perk branches it gates, worded from `attrEffect`/`getPartyCapacity`/`maxHp`), and
+`Game._crHelpOpen` keeps it open across steps until closed. On desktop the same text is the
+`title` of each attribute chip. The gender step has no attributes and no **?**.
+
 | Question | Choices (summary) |
 |---|---|
 | Gender | Male / Female (**−5** relation with every lord, different marriage path) |

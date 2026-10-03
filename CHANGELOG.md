@@ -19,6 +19,14 @@ başlangıç ekranının sağ alt köşesinde yazar.
 - **Arenada ve düelloda rakip ata binmiyor.** Rakip bazen atlı bir askerden türetildiği için
   piyade gibi görünse de atlı sayılıyor, yarı canda "attan düşüp" yavaşlıyordu.
 
+## 2.10.1 — Zanaat (2026-10-03)
+
+- **Nitelikler ne işe yarar?** Karakter oluştururken nitelik veren adımlarda sorunun yanında
+  küçük bir **?** var. Dokununca Güç, Çeviklik, Zekâ, Liderlik ve Dirayet'in ne işe yaradığını,
+  hangi yetenek dallarını açtığını anlatan bir kutu açılır; kapatana kadar sonraki adımlarda da
+  açık kalır. Masaüstünde seçeneklerdeki nitelik etiketlerinin üstüne gelince de aynı açıklama
+  çıkar.
+
 ## 2.10.0 — Zanaat (2026-10-03)
 
 - **Marangoz atölyesi.** Şehirlerde, köylerde ve kendi kalende 🪚 Marangoz Atölyesi var. Pazardan
