@@ -1376,7 +1376,7 @@ hearth; one 1.3 s bellows breath plays per stroke (the leather folds cycle at th
 cut short on release; the quench is one 3.2 s boil. Only the tongs' clank is synthesized. The five
 files are 224 KB, fetched on the first visit and precached by the worker. No music plays in the forge.
 
-**Practice** (`Forge.practice`, the start screen's 🔨 Demircilik): the same scene with no game
+**Practice** (`Forge.practice`, the start screen's 🧰 Meslekler → Demircilik since 2.10.0): the same scene with no game
 under way — every recipe open, the model at Demircilik 1, nothing taken, given or passing (no
 materials, rent, item, XP, strength or hours). The forge view lives inside `#main-ui`, so practice
 shows it over the start screen by toggling the screen/view classes itself rather than
@@ -1420,8 +1420,10 @@ in calls `Game.dullEdge()` once in `endBattle`: 3 battles, +20 → 13 → 7 → 
 
 **Scene.** The stone turns under the blade, which slides so the contact segment sits on its top;
 pointer drag moves it (sideways) and tilts it (up/down, 0.5° a buffer pixel), keys ←→/↑↓ and Space
-do the same. The edge strip goes from dull grey to bright steel, straw then bronze above it as heat
-builds, blue where the temper ran; a small cross-section beside the stone shows the angle. Sparks
+do the same. The edge strip goes from dull grey to bright steel, straw (heat over `GM.WARM` 0.45)
+then bronze (0.75) above it as heat builds, blue where the temper ran; the first straw of a run says
+so once, and the how-to spells both out — the whitening edge is the keenness, losing the temper is
+the steel going soft, blue, capped at half (2.10.0, in all three languages); a small cross-section beside the stone shows the angle. Sparks
 are the angle's tell: a long bright shower at the right angle, short red spits too steep, a few
 faint ones too flat. The sound is recorded (2.6.1, picked from a page of candidates): the stone's
 crank loops under the scene, a scrape plays once as the blade touches, and the grinding loops while
@@ -1594,7 +1596,18 @@ against the grain it can see, a stroke every 0.4 s, planes the highest spot with
 planes both ways) 0.52–0.62: a stool, a step down for the rest; a careless one (no steering,
 a stroke every 0.15 s, end-to-end sweeps) 0.09–0.35, firewood. Kitchen at prosperity 50, Aşçılık 1:
 a good shift (fire at a simmer, a stir every 5 s) serves 10 dishes and pays 115–120, an idle one 20,
-a roaring unstirred pot never serves soup (10–11 wasted). Headless 1366×768: update 0.005 ms, render
+a roaring unstirred pot never serves soup (10–11 wasted).
+
+**Practice** (`Crafts.trades`, the start screen's 🧰 Meslekler): the three trades — Demircilik opens
+`Forge.practice`, Marangozluk lists every piece, Aşçılık starts a shift — at skill 1 with nothing
+taken, given or passing (no timber, rent, item, pay, XP, `kitchenDays` or hours); shown over the
+start screen as the forge's practice is. The result offers the same again, another trade, or the menu.
+
+**Sound after the background** (`Game.ac`, 2.10.0): the game never suspends its one AudioContext,
+so any state but running is the browser's — a phone backgrounding the page (iOS: 'interrupted')
+left it stopped until the next one-shot. `Game.keepAwake` resumes it on visibilitychange, pageshow,
+focus and the first press after (some phones only allow it in a gesture), so the forge's and the
+kitchen's loops come back on their own. Headless 1366×768: update 0.005 ms, render
 0.17 ms a frame (phone 390×844 at ×3: 0.14 ms).
 
 ## Smith's work (2.7.0)

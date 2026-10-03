@@ -116,3 +116,53 @@ test('the inn kitchen: skewers go on and come off by hand, the shift pays, once 
     await (await actionBtn(page, '🍲 Han Mutfağı')).click();
     await expect(modal(page).locator('[onclick^="Crafts.shift"]')).toBeDisabled();
 });
+
+test('Meslekler on the start screen: carpentry and the kitchen practised, nothing kept, back to the menu', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => Game.setOpt('muted', true));
+    const before = await page.evaluate(() => JSON.stringify({ bag: state.player.inventory, money: state.player.money, prof: state.player.proficiencies, days: state.kitchenDays || null }));
+    await page.locator('.start-act', { hasText: await L(page, 'Meslekler') }).click();
+    await expect(modal(page).locator('.fs-row')).toHaveCount(3);
+    await modal(page).locator(`[onclick="Crafts.practice('saw')"]`).click();
+    // every piece open at skill 1, the table included
+    await expect(modal(page).locator('.fs-row button:not([disabled])')).toHaveCount(await page.evaluate(() => Crafts.WOODWORK.filter(r => ITEMS[r.id]).length));
+    await modal(page).locator(`[onclick="Crafts.practice('saw', 'table')"]`).click();
+    await expect(page.locator('#craft-view')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#start-screen')).not.toHaveClass(/\bactive\b/);
+    // a practice always starts with the how-to
+    await pastHowto(page);
+    await page.evaluate(() => { const g = Crafts.run(); for(let t = 1; g.x < Crafts.WOOD.N; t += .4) Crafts._model.stroke(g, t); Crafts._model.toPlane(g); g.phase = 'plane'; g.u = 0; g.h = g.h.map(() => 0.02); });
+    await page.locator('#craft-b3').click();
+    await expect(page.locator('#craft-over .lres')).toBeVisible();
+    await expect(page.locator('#craft-over .lres')).not.toContainText('XP');
+    // try again: the same piece, straight to the saw
+    await page.locator('#craft-over').getByText(await L(page, '🔁 Tekrar dene')).click();
+    await expect(page.locator('#craft-over')).toBeHidden();
+    expect(await page.evaluate(() => ({ id: Crafts.runConfig().recipe.id, phase: Crafts.run().phase }))).toEqual({ id: 'table', phase: 'saw' });
+    // another trade: the kitchen, its shift run out
+    await page.locator('#craft-pausebtn').click();
+    await page.locator('#craft-over').getByText(await L(page, '🚪 Vazgeç')).click();
+    await expect(page.locator('#start-screen')).toHaveClass(/\bactive\b/);
+    await page.locator('.start-act', { hasText: await L(page, 'Meslekler') }).click();
+    await modal(page).locator(`[onclick="Crafts.practice('cook')"]`).click();
+    await pastHowto(page);
+    await page.evaluate(() => { Crafts.run().t = Crafts.KITCHEN.SHIFT - .05; });
+    await expect(page.locator('#craft-over .lres')).toBeVisible();
+    await expect(page.locator('#craft-over .lres')).not.toContainText('XP');
+    await page.locator('#craft-over').getByText(await L(page, 'Ana menü')).click();
+    await expect(page.locator('#start-screen')).toHaveClass(/\bactive\b/);
+    await expect(page.locator('#main-ui')).not.toHaveClass(/\bactive\b/);
+    expect(await page.evaluate(() => ({ active: Crafts.active, loop: !!Game._loopId }))).toEqual({ active: false, loop: false });
+    expect(await page.evaluate(() => JSON.stringify({ bag: state.player.inventory, money: state.player.money, prof: state.player.proficiencies, days: state.kitchenDays || null }))).toBe(before);
+});
+
+// A phone sends the page to the background and leaves the sound stopped on the way back; the game
+// wakes its one context the moment the page is visible again, not at the next sound
+test('the sound comes back after a trip to another app', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => Game.setOpt('muted', true));
+    await page.locator('#char-name').click();   // a gesture, so the context is allowed to run
+    expect(await page.evaluate(async () => { const ac = Game.ac(); await ac.resume(); await ac.suspend(); return ac.state; })).toBe('suspended');
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect.poll(() => page.evaluate(() => Game._audio.state)).toBe('running');
+});

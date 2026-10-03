@@ -729,10 +729,14 @@ function moveTo(u) {
 function finishBoard() {
     if(!G || G.result || G.phase !== 'plane' || !planeReady(G)) return;
     const r = R.recipe, sc = boardScore(G), out = outcome(G, r, sc.S), xp = Math.round((30 + 30 * tierOf(r)) * (.4 + sc.S));
-    if(out.kind === 'ruin') { const back = Math.floor(R.cost.timber / 2); if(back) Game.addItem('timber', back); out.timber = back; }
-    else { Game.addItem(out.id, 1); Snd.done(); }
-    Game.addProficiencyXp('carpentry', xp);
-    Game.trainAttr('agi', 1);
+    if(out.kind !== 'ruin') Snd.done();
+    if(R.practice) out.timber = 0;
+    else {
+        if(out.kind === 'ruin') { const back = Math.floor(R.cost.timber / 2); if(back) Game.addItem('timber', back); out.timber = back; }
+        else Game.addItem(out.id, 1);
+        Game.addProficiencyXp('carpentry', xp);
+        Game.trainAttr('agi', 1);
+    }
     planeHeld = false; pressed = null;
     G.result = { out, sc, xp };
     paused = false;
@@ -760,9 +764,8 @@ function doStir() { if(G && !G.result && R.job === 'cook' && !blocked()) { stir(
 function doWood() { if(G && !G.result && R.job === 'cook' && !blocked()) { addWood(G); puff('spark', LY.pot.x, LY.pot.y + 30, 6); } }
 function tapSlot(k) { if(G && !G.result && !blocked()) flip(G, k); }
 function finishShift() {
-    const pay = shiftPay(G), dishes = G.served.kebap + G.served.corba, xp = 10 + 4 * dishes;
-    state.player.money += pay.total;
-    Game.addProficiencyXp('cooking', xp);
+    const pay = shiftPay(G), dishes = G.served.kebap + G.served.corba, xp = R.practice ? 0 : 10 + 4 * dishes;
+    if(!R.practice) { state.player.money += pay.total; Game.addProficiencyXp('cooking', xp); }
     pressed = null;
     G.result = { pay, xp, dishes };
     paused = false;
@@ -1034,7 +1037,7 @@ function pauseMenu() {
             <button class="btn" onclick="Crafts.howto()">${cook ? T('❔ Mutfakta nasıl çalışılır?') : T('❔ Tahta nasıl işlenir?')}</button>
             <button class="btn" onclick="Crafts.abandon()">${T('🚪 Vazgeç')}</button>
         </div>
-        <p class="lnote">${cook ? T('Vazgeçersen vardiyanın parası ödenmez; bugün bu handa yine çalışamazsın.') : T('Vazgeçersen kereste sana kalır; kira ödenmiştir.')}</p>`);
+        <p class="lnote">${R.practice ? (cook ? T('Deneme: para, XP ve zaman yok.') : T('Deneme: kereste harcanmaz; eşya, XP ve zaman yok.')) : cook ? T('Vazgeçersen vardiyanın parası ödenmez; bugün bu handa yine çalışamazsın.') : T('Vazgeçersen kereste sana kalır; kira ödenmiştir.')}</p>`);
 }
 function howto() {
     paused = true;
@@ -1054,25 +1057,30 @@ function grade(sc, out) {
 }
 function showResult() {
     const pc = v => Game.pct(Math.round(v * 100)), table = rows => `<table class="lres">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
-    const back = `<div class="lrow"><button class="btn primary" onclick="Crafts.leave()">${T('🏘️ Şehre dön')}</button></div>`;
+    // a practice keeps nothing and goes on: the same again, another trade, or back to the menu
+    const back = `<div class="lrow">${R.practice ? `<button class="btn primary" onclick="Crafts.practice('${R.job}'${R.recipe ? `, '${R.recipe.id}'` : ''})">${T('🔁 Tekrar dene')}</button>
+            <button class="btn" onclick="Crafts.trades()">${T('🧰 Başka meslek')}</button><button class="btn" onclick="Crafts.leave()">${T('Ana menü')}</button>`
+        : `<button class="btn primary" onclick="Crafts.leave()">${T('🏘️ Şehre dön')}</button>`}</div>`;
+    const kept = rows => R.practice ? [] : rows;
     if(R.job === 'cook') {
         const { pay, xp, dishes } = G.result;
         const head = dishes >= 8 && !G.missed ? T('Usta memnun') : dishes >= 4 ? T('Fena değil') : T('Usta söyleniyor');
-        overlay(`<div class="leyebrow">${T('Han Mutfağı')} · ${T(R.loc.name)}</div>
-            <h2>🍲 ${head}</h2><p class="llead">${T`Vardiya bitti: eline ${pay.total} dinar geçti.`}</p>
+        overlay(`<div class="leyebrow">${T('Han Mutfağı')} · ${where()}</div>
+            <h2>🍲 ${head}</h2><p class="llead">${R.practice ? T`Vardiya bitti: ${pay.total} dinar kazanırdın.` : T`Vardiya bitti: eline ${pay.total} dinar geçti.`}</p>
             ${table([[T('Kebap'), G.served.kebap], [T('Çorba'), G.served.corba], [T('Kaçan sipariş'), G.missed], [T('Çöpe giden'), G.wasted],
-                [T('Yevmiye'), pay.wage], [T('Tabak parası'), pay.dishes], [T('Bahşiş'), pay.tips], [T('Toplam'), `💰 ${pay.total}`],
-                [T('Aşçılık'), T`+${xp} XP`], [T('Geçen süre'), T`${KM.HOURS} saat`]])}${back}`);
+                [T('Yevmiye'), pay.wage], [T('Tabak parası'), pay.dishes], [T('Bahşiş'), pay.tips], [T('Toplam'), `💰 ${pay.total}`]]
+                .concat(kept([[T('Aşçılık'), T`+${xp} XP`], [T('Geçen süre'), T`${KM.HOURS} saat`]])))}${back}`);
         return;
     }
     const { out, sc, xp } = G.result, it = ITEMS[R.recipe.id];
-    const lead = out.kind === 'item' ? T`${T(it.name)} hazır, çantanda.`
+    const lead = R.practice ? (out.kind === 'item' ? T`${T(it.name)} tuttu.` : out.kind === 'prev' ? T`İş tutmadı: ${T(ITEMS[out.id].name)} olurdu.` : T('Tahta odun oldu.'))
+        : out.kind === 'item' ? T`${T(it.name)} hazır, çantanda.`
         : out.kind === 'prev' ? T`İş tutmadı; artan tahtadan ${T(ITEMS[out.id].name)} çıkardın, çantanda.`
         : out.timber ? T`Tahta odun oldu. ${out.timber} kereste kurtardın.` : T('Tahta odun oldu; kurtarılacak bir şey kalmadı.');
-    overlay(`<div class="leyebrow">${T(it.name)} · ${R.own ? T('Kendi atölyen') : T('Marangoz Atölyesi')}</div>
+    overlay(`<div class="leyebrow">${T(it.name)} · ${where()}</div>
         <h2>${(out.kind === 'ruin' ? '' : Game.itemIco(ITEMS[out.id], true) + ' ') + grade(sc, out)}</h2><p class="llead">${lead}</p>
         ${table([[T('Kesim'), pc(sc.saw)], [T('Rende'), pc(sc.plane)], [T('İşçilik'), pc(sc.care)], [T('Puan'), pc(sc.S)],
-            [T('Testere sıkıştı'), G.binds], [T('Lif kalkması'), G.tears], [T('Marangozluk'), T`+${xp} XP`], [T('Geçen süre'), T`${R.cost.hours} saat`]])}${back}`);
+            [T('Testere sıkıştı'), G.binds], [T('Lif kalkması'), G.tears]].concat(kept([[T('Marangozluk'), T`+${xp} XP`], [T('Geçen süre'), T`${R.cost.hours} saat`]])))}${back}`);
 }
 
 // ---------- going in and coming out ----------
@@ -1095,6 +1103,7 @@ function shift(locId) {
     (state.kitchenDays = state.kitchenDays || {})[loc.id] = state.time.day;
     begin({ job: 'cook', loc, cost: { hours: KM.HOURS } }, Object.assign(newShift(Game.profLvl('cooking'), loc.prosperity, Math.floor(Math.random() * 1e6)), { bubbles: [] }));
 }
+const where = () => R.practice ? (R.job === 'cook' ? T('Deneme mutfağı') : T('Deneme tezgâhı')) : R.job === 'cook' ? T(R.loc.name) : R.own ? T('Kendi atölyen') : T('Marangoz Atölyesi');
 function begin(run, g) {
     Game.closeModal();
     build();
@@ -1103,21 +1112,72 @@ function begin(run, g) {
     if(R.job !== 'cook') G.t = 0;
     FX.length = 0; TXT.clear(); pressed = null; keyAim = 0; keyTilt = 0; planeHeld = false;
     api.active = true; paused = false;
-    Game.showScreen('craft');
+    if(R.practice) practiceScreen(true); else Game.showScreen('craft');
     overlay('');
     resize();
-    Game.curtain(R.job === 'cook' ? T('Han Mutfağı') : T(ITEMS[R.recipe.id].name), R.job === 'cook' ? T(R.loc.name) : R.own ? T('Kendi atölyen') : T('Marangoz Atölyesi'));
+    Game.curtain(R.job === 'cook' ? T('Han Mutfağı') : T(ITEMS[R.recipe.id].name), where());
     Game.Music.sync();
     Snd.start(R.job);
     last = 0;
     if(!loopId) loopId = requestAnimationFrame(frame);
     let seen = null; try { seen = localStorage.getItem(HELP_KEY[R.job]); } catch(e) {}
-    if(!seen) howto();
+    if(!seen && !R.practice) howto();
+}
+// ---------- practice ----------
+// From the start screen's Meslekler, with no game under way: every trade's whole scene at skill 1
+// with every piece open, and nothing taken, given or passing — no timber, rent, item, pay, XP or
+// hours. The forge's own practice (Forge.practice) is the third trade on the list. The view lives
+// in the game's UI, so it's shown over the start screen by hand, as the forge does.
+function practiceScreen(on) {
+    el('start-screen').classList.toggle('active', !on);
+    el('main-ui').classList.toggle('active', on);
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', on && v.id === 'craft-view'));
+    document.body.classList.toggle('in-battle', on);
+}
+const TRADES = [
+    ['🔨', 'Demircilik', 'Ocakta demir döv, su ver, taşta bile.', 'Forge.practice()'],
+    ['🪚', 'Marangozluk', 'Tahtayı damarına karşı biç, kenarını rendele.', "Crafts.practice('saw')"],
+    ['🍲', 'Aşçılık', 'Han mutfağında bir vardiya: şişler ve çorba kazanı.', "Crafts.practice('cook')"]
+];
+function trades() {
+    if(api.active) leave();
+    if(Forge.active) Forge.leave();   // "another trade" from the forge's practice result
+    Game.showModal(`<div class="forge-shop">
+        <div class="lb-head"><div><div class="leyebrow">${T('Zanaat')}</div><h3>🧰 ${T('Meslekler')}</h3></div></div>
+        <p class="lb-lead">${T('Oyuna başlamadan bir zanaatı dene: malzeme harcanmaz; eşya, para, XP ve zaman yok.')}</p>
+        <div class="fs-list">${TRADES.map(([ic, name, desc, go]) => `<div class="fs-row">
+            <span class="fs-ic">${ic}</span><span class="fs-tx"><b>${T(name)}</b><small>${T(desc)}</small></span>
+            <button class="btn primary" onclick="${go}">${T('Dene')}</button></div>`).join('')}</div>
+        <div class="lb-foot"><button class="btn" onclick="Game.closeModal()">${T('Kapat')}</button></div>
+    </div>`, '600px');
+}
+function practice(job, id) {
+    const r = id && work(id), again = api.active;   // "try again" from the result: the how-to was read
+    if(job === 'cook' || r) {
+        const seed = Math.floor(Math.random() * 1e6);
+        begin(job === 'cook' ? { job, practice: true, loc: null, cost: { hours: KM.HOURS } }
+                : { job: 'saw', practice: true, recipe: r, loc: null, cost: cost(r), rent: 0, own: false },
+            job === 'cook' ? Object.assign(newShift(1, 50, seed), { bubbles: [] })
+                : Object.assign(newBoard(r, 1, seed), { phase: 'saw', u: 0, sawOff: 0, sawTo: 6 }));
+        if(!again) howto();
+        return;
+    }
+    if(api.active) leave();
+    const rows = WOODWORK.filter(x => ITEMS[x.id]).map(x => { const it = ITEMS[x.id];
+        return `<div class="fs-row"><span class="fs-ic">${Game.itemIco(it)}</span>
+            <span class="fs-tx"><b>${T(it.name)}</b><small>${T`Değeri ${it.basePrice} dinar`} · ${T`Marangozluk ${x.req}`}</small></span>
+            <button class="btn primary" onclick="Crafts.practice('saw', '${x.id}')">${T('🪚 Yap')}</button></div>`; }).join('');
+    Game.showModal(`<div class="forge-shop">
+        <div class="lb-head"><div><div class="leyebrow">${T('Deneme tezgâhı')}</div><h3>🪚 ${T('Marangozluk Dene')}</h3></div></div>
+        <p class="lb-lead">${T('Her parça açık, kereste harcanmaz; eşya, XP ve zaman yok.')}</p>
+        <div class="fs-list">${rows}</div>
+        <div class="lb-foot"><button class="btn" onclick="Crafts.trades()">${T('← Geri dön')}</button></div>
+    </div>`, '700px');
 }
 // Giving up: the timber comes back (the rent stays paid); a shift walked out of pays nothing
 function abandon() {
     if(!G || G.result) return;
-    if(R.job === 'saw') Game.addItem('timber', R.cost.timber);
+    if(R.job === 'saw' && !R.practice) Game.addItem('timber', R.cost.timber);
     G.result = { abandoned: true };
     leave();
 }
@@ -1127,8 +1187,10 @@ function leave() {
     overlay('');
     api.active = false;
     if(loopId) { cancelAnimationFrame(loopId); loopId = null; }
+    const wasPractice = R.practice;
     G = null; R = null; pressed = null; planeHeld = false;
     Snd.stop();
+    if(wasPractice) { practiceScreen(false); Game.Music.sync(); return; }
     Game.drawTown(loc);
     Game.Music.sync();
     // the hours at the bench or the grill pass once you're back in the town
@@ -1140,7 +1202,7 @@ function leave() {
 const api = {
     active: false,
     WOOD: WM, KITCHEN: KM, WOODWORK, HELP, COOK_HELP,
-    open, kitchen, help, start, shift, resume, howto, abandon, leave, pauseMenu,
+    open, kitchen, help, start, shift, resume, howto, abandon, leave, pauseMenu, trades, practice,
     // the pure models, for tools/test.js
     _model: { newBoard, stroke, toPlane, planeMove, planeReady, planeDone, boardScore, passMark, outcome, cost, prevOf, blockOf, stock,
         newShift, stepKitchen, flip, takeOff, ladle, stir, addWood, sideQ, shiftPay, workedToday, meatRGB },
@@ -1158,7 +1220,7 @@ const api = {
     // the measured numbers in docs/SYSTEMS.md: ms per update and per render, averaged over n frames
     _bench(n = 120) { let u = 0, r = 0; for(let i = 0; i < n; i++) { let t = performance.now(); update(1 / 60); u += performance.now() - t; t = performance.now(); render(); r += performance.now() - t; } return { update: +(u / n).toFixed(3), render: +(r / n).toFixed(3) }; },
     // the strings the tables show, for the i18n gate (tools/test.js)
-    strings() { return [...HELP.flat(), ...COOK_HELP.flat(), ...Object.values(PHASE),
+    strings() { return [...HELP.flat(), ...COOK_HELP.flat(), ...Object.values(PHASE), ...TRADES.flatMap(t => [t[1], t[2]]),
         ...['timber', ...WOODWORK.map(r => r.id)].flatMap(id => ITEMS[id] ? [ITEMS[id].name, ITEMS[id].desc] : [])]; }
 };
 return api;

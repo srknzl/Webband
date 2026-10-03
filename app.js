@@ -8612,10 +8612,29 @@ const Game = {
     ac() {
         try {
             let AC = window.AudioContext || window.webkitAudioContext;
-            let ac = this._audio || (this._audio = new AC());
-            if(ac.state === 'suspended') ac.resume();
+            let ac = this._audio || (this._audio = this.keepAwake(new AC()));
+            this.wakeAudio();
             return ac;
         } catch(e) { return null; }   // no Web Audio: the game runs silently
+    },
+    // The game never suspends its context itself, so any state but running (or closed) is the
+    // browser's doing: autoplay, or a phone sending the page to the background — iOS calls that
+    // 'interrupted' — which leaves it stopped after coming back. The forge's and the crafts' loops
+    // and every one-shot ride this one context, so it is woken here, not by each scene.
+    wakeAudio() {
+        let ac = this._audio;
+        if(!ac || document.hidden || ac.state === 'running' || ac.state === 'closed') return;
+        try { let p = ac.resume(); if(p && p.catch) p.catch(() => {}); } catch(e) {}
+    },
+    // Woken the moment the page is back (some phones only allow it inside a touch, hence the
+    // first press after it too), not at the next sound, so a scene's loops come back on their own
+    keepAwake(ac) {
+        let wake = () => this.wakeAudio();
+        document.addEventListener('visibilitychange', wake);
+        for(let k of ['pageshow', 'focus']) window.addEventListener(k, wake);
+        for(let k of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(k, wake, true);
+        if(ac.addEventListener) ac.addEventListener('statechange', wake);
+        return ac;
     },
     toggleMute() { this.setOpt('muted', !this.opt('muted')); this.updateTopBar(); if(!this.opt('muted')) this.sfx('buy'); this.Music.sync(); },
 

@@ -189,6 +189,7 @@ const GM = {
     H_COOL: 0.8,        // ...and the steel cools all the while (1/s)
     SIGMA: 0.8,         // how wide the contact is (segments)
     BURN_CAP: 0.5,      // the best a segment whose temper ran can still take
+    WARM: 0.45,         // heat at which the straw tint shows above the edge — the warning (bronze from 0.75)
     MAX: 20,            // % damage for a perfect edge
     BATTLES: 3,         // battles until it's dull again
     RENT: 5, HOURS: 1   // a town smithy's stone, by the job
@@ -637,7 +638,7 @@ function drawGrind(t) {
         b.fillStyle = '#b4bac2'; b.fillRect(x, ey - hp, segW, 1);
         if(i >= G.e0) {
             // heat creeping in shows as a straw then bronze tint above the edge — the warning
-            if(sg.h > .45 && !sg.burned) { b.fillStyle = sg.h > .75 ? '#a0562c' : '#c8a050'; b.fillRect(x, ey - 4, segW, 2); }
+            if(sg.h > GM.WARM && !sg.burned) { b.fillStyle = sg.h > .75 ? '#a0562c' : '#c8a050'; b.fillRect(x, ey - 4, segW, 2); }
             b.fillStyle = edgeRGB(sg); b.fillRect(x, ey - 2, segW, 2);
         }
     });
@@ -719,7 +720,8 @@ function update(dt) {
         if(keyAim) G.u = clamp(G.u + keyAim * dt * 6, G.e0, M.N - 1);
         if(keyTilt) G.a = clamp(G.a + keyTilt * dt * 18, 0, 45);
         const burnt = stepGrind(G, dt, G.grinding);
-        if(burnt.length) say(T('Tavı kaçtı! Çeliği bir yerde fazla tuttun; orası artık tam bilenmez.'), 3);
+        if(burnt.length) say(T('Tavı kaçtı: çelik fazla ısınıp sertliğini yitirdi! Orası mavi kaldı, artık en fazla yarıya kadar bilenir. Bir yerde durma.'), 3.5);
+        else if(!G.warmSaid && G.segs.some(sg => !sg.burned && sg.h > GM.WARM)) { G.warmSaid = true; say(T('Çelik ısınıyor: ağzın üstü sarardı. Bıçağı kaydır!'), 3); }
     } else if(G.phase === 'quench') {
         G.quenchT += dt;
         const k = 1 - Math.exp(-2.6 * dt);
@@ -930,7 +932,8 @@ const HELP = [
 const GRIND_HELP = [
     ['🪨 Taşa bas', 'Bas ve basılı tut: bıçak dönen taşa değer. Sağa sola sürükle: bıçak taşın üstünde kayar, ağzın her yeri bilenir.'],
     ['📐 Açıyı kıvılcımdan oku', 'Yukarı-aşağı sürükle: açı değişir. Kıvılcım bol, uzun ve parlaksa açı doğru. Kısa, kırmızı kıvılcım fazla dik; seyrek, sönük kıvılcım fazla yatık. Çok yanlış açı ağzı köreltir.'],
-    ['🔥 Bir yerde durma', 'Taş çeliği ısıtır. Ağzın üstü saman sarısına, sonra bronza döner: orayı bırak. Tavı kaçan yer maviye döner ve bir daha tam bilenmez.'],
+    ['✨ Ağız beyazlaşır', 'Bıçağın alt kenarındaki ince şerit ağzın kendisidir. Kör yer koyu gridir; taş bildikçe açılır ve bembeyaz parlar. Bembeyaz yer keskindir. Bütün ağzı aynı beyazlığa getir: puanı en kör, en koyu yer de belirler.'],
+    ['🔥 Tavı kaçmasın', 'Taş sürttükçe çelik ısınır. Isınan yerin hemen üstünde önce saman sarısı, sonra bronz bir şerit belirir: bu uyarıdır, bıçağı kaydır. Hareket ettikçe çelik soğur. Orada durmaya devam edersen çeliğin tavı kaçar, yani sertliğini kaybeder: o yer maviye döner, yumuşar ve bir daha en fazla yarıya kadar bilenir.'],
     ['⚔️ Sonuç', 'Ağzın tamamı ve en kör yeri puanlanır. Bilenmiş silah sonraki 3 savaşta daha sert vurur, her savaşta biraz körelir. Silahı değiştirirsen bileme o silahta kalır.']
 ];
 function help(locId) {
@@ -1014,8 +1017,8 @@ function grindHud() {
     setText('forge-shape-l', T('Keskinlik')); setText('forge-shape', Game.pct(Math.round(sc.mean * 100)));
     el('forge-legend').style.display = 'none';
     setText('forge-hint', Game.isTouch()
-        ? T('Parmağını bas ve sağa sola kaydır: bıçak taşın üstünde gider. Yukarı-aşağı sürükle: açı değişir. Kıvılcım bol ve parlaksa açı doğru. Bir yerde durma, tavı kaçar.')
-        : T('Bas ve sürükle: sağa sola bıçağı taşta gezdirir, yukarı-aşağı açıyı değiştirir. Kıvılcım bol ve parlaksa açı doğru; kısa kırmızıysa fazla dik, seyrekse fazla yatık. Bir yerde durma, tavı kaçar.'));
+        ? T('Parmağını bas ve sağa sola kaydır: bıçak taşın üstünde gider. Yukarı-aşağı sürükle: açı değişir. Kıvılcım bol ve parlaksa açı doğru. Ağız beyazladıkça keskinleşir; sararan yerde durma, tavı kaçar.')
+        : T('Bas ve sürükle: sağa sola bıçağı taşta gezdirir, yukarı-aşağı açıyı değiştirir. Kıvılcım bol ve parlaksa açı doğru; kısa kırmızıysa fazla dik, seyrekse fazla yatık. Ağız beyazladıkça keskinleşir; sararan yerde durma, tavı kaçar.'));
     const m = el('forge-msg');
     if(G.msgT > 0) { m.hidden = false; setText('forge-msg', G.msg); } else m.hidden = true;
     el('forge-pump').hidden = true; el('forge-move').hidden = true;
@@ -1129,7 +1132,7 @@ function grade(sc, out) {
 function grindGrade(Q) { return Q >= .85 ? T('Jilet gibi') : Q >= .6 ? T('Keskin') : Q >= .3 ? T('İdare eder') : T('Kör kaldı'); }
 function againBtns() {
     return `<button class="btn primary" onclick="Forge.practice('${R.recipe.id}'${R.job === 'grind' ? ", 'grind'" : ''})">${T('🔁 Tekrar dene')}</button>
-            <button class="btn" onclick="Forge.practice()">${T('🔨 Başka parça')}</button><button class="btn" onclick="Forge.leave()">${T('Ana menü')}</button>`;
+            <button class="btn" onclick="Forge.practice()">${T('🔨 Başka parça')}</button><button class="btn" onclick="Crafts.trades()">${T('🧰 Başka meslek')}</button><button class="btn" onclick="Forge.leave()">${T('Ana menü')}</button>`;
 }
 function showGrindResult() {
     const { sc, xp } = G.result, it = ITEMS[R.recipe.id], pc = v => Game.pct(Math.round(v * 100));
@@ -1231,7 +1234,7 @@ function practice(id, job) {
             <button class="btn lb-help" onclick="Forge.help()" title="${T('Nasıl dövülür?')}" aria-label="${T('Nasıl dövülür?')}">?</button></div>
         <p class="lb-lead">${T('Oyuna başlamadan ocağı dene: her parça açık, malzeme harcanmaz; eşya, XP ve zaman yok.')}</p>
         ${rows}
-        <div class="lb-foot"><button class="btn" onclick="Game.closeModal()">${T('Kapat')}</button></div>
+        <div class="lb-foot"><button class="btn" onclick="Crafts.trades()">${T('← Geri dön')}</button></div>
     </div>`, '760px');
 }
 // Giving up: the bar is drawn back into iron (the crucible steel too); the coal burnt and the rent paid stay spent

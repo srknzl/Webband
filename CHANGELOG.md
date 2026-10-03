@@ -17,6 +17,13 @@ başlangıç ekranının sağ alt köşesinde yazar.
   kabarcıklara bakarak ufak ufak kaynat, karıştır ve odun at. Müşteri bekletilmeye gelmez.
   Yevmiyenin üstüne her tabak ve bahşiş kazandırır. Her handa günde bir vardiya. Yeni yetenek:
   Aşçılık.
+- **Meslekler menüsü.** Başlangıç ekranındaki 🧰 Meslekler'den oyuna başlamadan demircilik,
+  marangozluk ve aşçılığı dene: malzeme harcanmaz; eşya, para, XP ve zaman yok.
+- **Bileme daha açık anlatılıyor.** Nasıl bilenir penceresi artık ağzın beyazlaşmasını (beyaz =
+  keskin) ve tavın kaçmasını (fazla ısınan yer önce sararır, sonra maviye döner, yumuşar ve en
+  fazla yarıya kadar bilenir) açıkça anlatıyor; çelik sararmaya başlayınca oyun da uyarıyor. Üç dilde.
+- **Uygulamadan çıkıp dönünce ses kesilmiyor.** Telefonda başka uygulamaya geçip geri gelince
+  ocağın, mutfağın ve atölyenin sesi kendiliğinden geri geliyor; menüde de oyunda da.
 - **Görevler daha az para veriyor.** Görev ödülleri eskisinin %60'ı. Görev artık önce ün ve
   dostluk getiriyor, para ikinci planda.
 - **Atölyenin ve mutfağın sesleri.** Her çekişte testere, rende talaş aldıkça hışırtı, eşya
