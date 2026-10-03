@@ -89,6 +89,37 @@ test('karakter sihirbazı haritaya indirir', async ({ page }) => {
     expect(hard).toBe(await page.evaluate(() => Object.keys(Game.DIFFS).pop()));
 });
 
+test('sihirbazdaki ? nitelikleri anlatır ve adımlar boyunca açık kalır', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#char-name').fill('Deneme');
+    await page.locator('#start-btn').click();
+
+    // The gender step hands out no attributes, so it has no "?"
+    const help = modal(page).locator('.cr-help'), panel = modal(page).locator('#cr-attr-help');
+    await expect(help).toHaveCount(0);
+    await modal(page).locator('[onclick^="Game.pickCreation"]').first().click();
+
+    await expect(help).toHaveAttribute('aria-label', await L(page, 'Nitelikler ne işe yarar?'));
+    await expect(panel).toBeHidden();
+    await help.click();
+    await expect(panel).toBeVisible();
+    await expect(help).toHaveAttribute('aria-expanded', 'true');
+    const names = await page.evaluate(() => Object.values(Game.ATTRS).map(a => T(a.name)));
+    await expect(panel.locator('li')).toHaveCount(names.length);
+    for(const n of names) await expect(panel).toContainText(n);
+    await expect(panel).toContainText(await L(page, 'Her puan +5 en yüksek can; her iki puanda yaraların bir saat daha çabuk kapanır.'));
+
+    // An attribute chip says the same on hover
+    await expect(modal(page).locator('.cr-fx span[title]').first()).toHaveAttribute('title', /\S/);
+
+    // Picking an answer keeps it open; the "?" closes it
+    await modal(page).locator('[onclick^="Game.pickCreation"]').first().click();
+    await expect(panel).toBeVisible();
+    await help.click();
+    await expect(panel).toBeHidden();
+    await expect(help).toHaveAttribute('aria-expanded', 'false');
+});
+
 test('harita çiziliyor ve oyun döngüsü dönüyor', async ({ page }) => {
     await newGame(page);
     const canvas = page.locator('#map-canvas');

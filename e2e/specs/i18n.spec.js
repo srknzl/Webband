@@ -48,6 +48,8 @@ test('çeviri taraması: İngilizce/Endonezce ekranlarda Türkçe kaynak metin k
     await page.locator('#start-btn').click();
     const steps = await page.evaluate(() => BACKGROUND.length);
     for(let i = 0; i < steps; i++) {
+        // the attribute guide stays open once opened, so every later step is swept with it
+        if(i === 1) await modal(page).locator('.cr-help').click();
         await look(`yaratma ${i + 1}`);
         await modal(page).locator('[onclick^="Game.pickCreation"]').first().click();
     }
