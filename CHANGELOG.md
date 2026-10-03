@@ -3,6 +3,30 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.9.0 — Sığınak (2026-10-03)
+
+- **On iki yeni haydut sığınağı.** Haritadaki inler artık üç yerden ibaret değil: sazlıkta bir
+  balıkçı kulübesi, kaçakçı iskelesi, yıkık manastır, kemikli katakomp, köpekli çiftlik, Kör Baykuş
+  Hanı, taş ocağı, Kartal Burcu, ayıcının kampı, sisli bir orman sığınağı, batık sarnıç ve terk
+  edilmiş kervansaray. Her birinin kendi numarası var. Yeni çıkan inler önce haritada en az
+  bulunan yeri seçer, böylece aynı yer üst üste gelmez. Daha önce bulduğun inler oldukları gibi
+  kalır, henüz bulmadıkların yeni yerlerden biri olabilir. Haritada ini işaret edince adı görünür.
+- **Bekçi köpekleri.** Seni karanlıkta da, köşenin ardından da koklarlar ve havlayınca haydutlar
+  gelir. Kilerden et al: taş düğmesi önce eti atar, köpek yemeye koşar ve bir süre başka şeyle
+  ilgilenmez. Yerken arkasından bayıltabilirsin.
+- **Anahtarlı kapılar.** Kırmızı çizgili kapının anahtarı kemeri parlayan haydutta. Uyurken ya da
+  arkasından çalabilir, yere serip alabilirsin. Anahtar sendeyse kapıya yürümen yeter.
+- **Derin su ve sazlık.** Koyu suda yüzersin: yavaşsın, dövüşemezsin ama başın ancak yakından
+  görünür ve haydutlar yüzemez. Sazlıkta eğilirsen dibine gelmedikçe seni görmezler.
+- **Gürültülü zemin ve sis.** Kemik, çakıl, kuru yaprak eğilsen de ses çıkarır. Siste nöbetçiler
+  uzağı göremez.
+- **Çan, uyku otu, asılı yük, ayı, kaya kenarı, savak.** Çanı çal, bütün in kuleye koşsun. Uyku
+  otunu zarcıların fıçısına kat, uyusunlar. Halatı kes, yük altındakilerin üstüne düşsün.
+  Kafesteki ayıyı sal, haydutlar onunla uğraşsın. Kaya kenarından aşağı atla, kestirmeden git ama
+  geri çıkamazsın. Sarnıcın savağını aç, havuz boşalsın.
+- **Saklanılacak yeni yerler.** Lahit, boş fıçı ve kovuk kütük.
+- **İn kartının yardımı ve tanıtım turu** yalnızca o inde olan şeyleri anlatıyor.
+
 ## 2.8.0 — Terazi (2026-10-03)
 
 - **Kimse artık 1 vurmuyor.** Zırh vuruştan sabit bir sayı düşmüyor, vuruşun bir kısmını

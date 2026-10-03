@@ -45,6 +45,11 @@ function loadAssets() {
 // s sack · k table · h stool · T torch · F fire · C chest · c trapped chest · L lever · t trapdoor (pairs)
 // P prisoner · $ the lair's purse · S hidden spikes · v bats · H hiding place · A pen gate · K cage door
 // = rail (floor) · o iron sack · q coal sack · M the mine cart (on a rail) · @ start (also an exit). Guards live in the list, not in the map. Every string shown goes through T().
+// Hideouts (2.9.0): % deep water (you swim, they can't) · r reeds or brush (crouched in it you're
+// hard to see) · , a loud floor (bones, gravel, dry leaves) · d a locked door (a guard carries
+// the key) · J a ledge you can jump down. Objects: G a bell · m a larder (meat for the dogs) ·
+// i a herb shelf (sleeping herb) · w a keg (the herb goes in it) · Z a rope cleat that drops the
+// nearest z (a hanging load) · y a bear's cage.
 const LEVELS = {
     house: {
         name: 'Değirmencinin Evi', kind: 'Haydut evi', theme: 'house',
@@ -214,9 +219,571 @@ const LEVELS = {
             leader: { day: 'Ustabaşı odasında, sandığının başında defter tutuyor.', night: 'Ustabaşı odasında uyuyor.' },
             traps: 'Tuzak yok. Ray boyunca itilen araba bütün madeni ayağa kaldırır.'
         }
+    },
+    // ---- the hideouts (2.9.0): twelve more places, each with its own trick ----
+    swamp: {
+        name: 'Sazlık Kulübesi', kind: 'Bataklık', theme: 'swamp', sky: 'open', fog: .6, hide: 'log', indoor: [[10, 3, 19, 7]],
+        map: [
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'O%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%O',
+            'O%rrr%%%%%%%%%%%%%%%%%%%%%%%rrr%%O',
+            'O%r..r%%%%##########%%%%%%%%r.Hr%O',
+            'O%rbsr%%%%#k.h.#.P.Wr%%%%%%%rrrr%O',
+            'O%%rr%%%%%#kk..D..P#%%%%%%%%%%%%%O',
+            'O%%%%%%%%%#.$..#c..#%%%%%rrrr%%%%O',
+            'O%%%%%%%%%###D######%%%rr..rr%%%%O',
+            'O%%%%%rrr%%%%.%%%%%%%%rr.C..r%%%%O',
+            'O%%%%rr.rr%%%.%%%%%%%%%rr..rr%%%%O',
+            'O%%%rr..Fr%%%.%%rrrr%%%%rrrr%%%%%O',
+            'O%%%%rr.rr%%%.%rr..r%%%%%%%%%%%%%O',
+            'O%%%%%rr%%%%%.%%r.Hr%%%%%%rrr%%%%O',
+            'O%%%%%%%%%%%%.%%%rr%%%%%%rr.rr%%%O',
+            'O%%rrrr%%%%%%.%%%%%%%%%%%r..sr%%%O',
+            'O%rr..rr%%%%%.%%%%%%%%%%%%rrr%%%%O',
+            'O%%rrrr%%%%%%.%%%%%%%%%%%%%%%%%%%O',
+            'OOOOOOOOOOOOO@OOOOOOOOOOOOOOOOOOOO',
+            'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE'],
+        ambient: { day: .3, night: .06 }, outside: { day: .85, night: .16 },
+        lights: [{ x: 12.5, y: 5, r: 100, i: .7, kind: 'candle' }], dayLights: [],
+        guards: [
+            { x: 13, y: 9, type: 'post', face: 'down', sweep: .8 },
+            { x: 13, y: 12, type: 'patrol', route: [[13, 12], [13, 10]] },
+            { x: 7, y: 9, type: 'dice', face: 'down', night: 'sleep' },
+            { x: 7, y: 11, type: 'dice', face: 'up', night: 'sleep' },
+            { x: 29, y: 3, type: 'post', face: 'left', sweep: 1.2 },
+            { x: 17, y: 6, type: 'post', face: 'left', night: 'sleep' },
+            { x: 13, y: 5, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [11, 4, 14, 6], doors: [[13, 7], [15, 5]], spawns: [[14, 4], [11, 6]], where: 'reisin odası' },
+        chests: { C: [60, 100], c: [130, 180] }, loot: 'bow_hunter',
+        news: 'Balıkçı: "Sağ ol! Ateşin başındakiler gece uyur; reis keseyi masasının dibinde tutar."',
+        intel: {
+            entrances: 'Kıyıdan kulübeye uzanan tahta yol; bataklığın her yerinden yüzerek',
+            entrance1: 'Kıyıdan kulübeye uzanan tahta yol',
+            secret: 'Kulübenin doğu duvarında bir pencere var: sazlıktan yüzüp oradan girersen tahta yolu hiç görmezsin.',
+            leader: { day: 'Reis kulübede, masasının başında keseyle oyalanıyor.', night: 'Reis kulübede uyuyor.' },
+            traps: 'Sis var: nöbetçiler uzağı görmez. Sazlıkta eğilirsen neredeyse görünmezsin, derin suda yüzerken de. Haydutlar yüzemez.'
+        }
+    },
+    dock: {
+        name: 'Kaçakçı İskelesi', kind: 'Liman', theme: 'dock', sky: 'open', hide: 'barrel', indoor: [[5, 10, 26, 16]],
+        map: [
+            '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%',
+            '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%',
+            '%%%.b.s%%%%%%%%%%%%%%%%%%%%%.s.b%%%%',
+            '%%%....%%%%%%%%%%%%%%%%%%%%%..k.%%%%',
+            '%%%.H..%%%%%%%%%%%%%%%%%%%%%..z.%%%%',
+            '%%%....%%%%%%%%%%%%%%%%%%%%%....%%%%',
+            '%%%....%%%%%%%%%%%%%%%%%%%%%Z...%%%%',
+            '%%%....%%%%%%%%%%%%%%%%%%%%%....%%%%',
+            '%..................................%',
+            '%..T.....b......B.......T.....b....%',
+            '%....######D###############........%',
+            '%.s..#b.s.......b#..P..c..#..b.....%',
+            '%....#.........k.#.....P..#........%',
+            '%.H..#.T....h..k.d....$...#....T...%',
+            '%....#....bb.....#C.......#..s.....%',
+            '%..b.#B.........H#....B...#........%',
+            '%....#######D##############........%',
+            '%..................................%',
+            '%OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO%',
+            '%EEEEEEEEEEEEEEEEE@EEEEEEEEEEEEEEEE%'],
+        ambient: { day: .32, night: .06 }, outside: { day: .9, night: .2 },
+        lights: [{ x: 22, y: 12.5, r: 100, i: .75, kind: 'candle' }], dayLights: [],
+        guards: [
+            { x: 2, y: 8, type: 'patrol', route: [[2, 8], [33, 8], [33, 9], [2, 9]] },
+            { x: 12, y: 17, type: 'post', face: 'left', sweep: .8 },
+            { x: 13, y: 13, type: 'post', face: 'left', key: true, night: 'sleep' },
+            { x: 7, y: 12, type: 'patrol', route: [[7, 12], [14, 12], [14, 14], [7, 14]] },
+            { x: 29, y: 4, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 31, y: 4, type: 'dice', face: 'left', night: 'sleep' },
+            { x: 4, y: 3, type: 'post', face: 'down', sweep: 1.2 },
+            { x: 21, y: 13, type: 'leader', face: 'left', night: 'sleep', leader: true }],
+        ambush: { room: [18, 11, 25, 15], doors: [[17, 13]], spawns: [[19, 12], [24, 14]], where: 'kasa odası' },
+        chests: { C: [80, 130], c: [160, 220] }, loot: 'shield',
+        news: 'Kayıkçı: "Sağ ol! Liman ağası kasanın anahtarını kemerinde taşır; vinçteki yük bir halata asılı, bir kesik yeter."',
+        intel: {
+            entrances: 'Karadan rıhtıma inen yol; denizden yüzerek iskelelere',
+            entrance1: 'Karadan rıhtıma inen yol',
+            secret: 'Kıyı boyunca yüzersen rıhtımın nöbetçisine hiç görünmeden iskelelere çıkarsın.',
+            leader: { day: 'Reis kilitli kasa odasında keseyi sayıyor; anahtar liman ağasında.', night: 'Reis kasa odasında uyuyor; anahtar liman ağasının kemerinde.' },
+            traps: 'Vincin altında zar oynayanlar var; yük bir halata asılı. Kasa odasındaki sandık tuzaklı.'
+        }
+    },
+    abbey: {
+        name: 'Yıkık Manastır', kind: 'Manastır', theme: 'stone', hide: 'tomb', crunchLook: 'gravel', crunch: 'Kırık taşlar ayağının altında çıtırdadı!',
+        indoor: [[0, 0, 33, 7], [24, 7, 33, 19], [0, 15, 24, 19]],
+        map: [
+            '##################################',
+            '#C.T..k$k..T....b.#..G..#h.k..h..#',
+            '#.................#.....#........#',
+            '#.hh..hh..hh..hh..D.....W........#',
+            '#.................#s...b#........#',
+            '#.hh..hh..hh..hh.H#.....#b.....s.#',
+            '#b...............B#.....#........#',
+            '#########D###########D#######D####',
+            '#.......................#..h...k.#',
+            '#....,,,,,,,,,,,,,,,....#........#',
+            '#....,,,,,,,,,,,,,,,....####D#####',
+            '#....,,,,,B..b,,,,,,....D.b.P....#',
+            '#....,,,H,,,,,,,,,,,....#........#',
+            '#....,,,,,,,,,,,,,,,....#....s...#',
+            '#.......................######D###',
+            '################D########..P.....#',
+            '#H,,,,,H,,c#T.........bs#s.......#',
+            '#,,P,,,,,,,d............#........#',
+            '#H,,,,,,,,C#b..........B#....c..C#',
+            '################.#################',
+            'EEEEEEEEEEEEEEEE@EEEEEEEEEEEEEEEEE'],
+        ambient: { day: .3, night: .06 }, outside: { day: .85, night: .18 },
+        lights: [{ x: 7, y: 2, r: 130, i: .8, kind: 'candle' }, { x: 29, y: 8.5, r: 90, i: .6, kind: 'candle' }], dayLights: [],
+        guards: [
+            { x: 13, y: 17, type: 'post', face: 'right', sweep: .6 },
+            { x: 2, y: 8, type: 'patrol', route: [[2, 8], [22, 8], [22, 14], [2, 14]] },
+            { x: 13, y: 10, type: 'dice', face: 'left', night: 'sleep' },
+            { x: 9, y: 4, type: 'patrol', route: [[2, 4], [16, 4], [16, 2], [2, 2]] },
+            { x: 26, y: 9, type: 'post', face: 'right', key: true, night: 'sleep' },
+            { x: 27, y: 3, type: 'sleep', face: 'left' },
+            { x: 7, y: 2, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [25, 15, 32, 18], doors: [[30, 14]], spawns: [[26, 17], [31, 16]], where: 'arka hücre' },
+        chests: { C: [70, 110], c: [140, 190] }, loot: 'mace_steel',
+        news: 'Rahip: "Tanrı razı olsun! Çanı kim çalarsa bütün manastır kuleye koşar."',
+        intel: {
+            entrances: 'Güneydeki kapı evi; çan kulesinin penceresi hücrelerin damına açılıyor',
+            entrance1: 'Güneydeki kapı evi',
+            secret: 'Çanı çalarsan bütün manastır kuleye koşar; o sırada mahzene ya da kiliseye geçersin. Kulenin penceresinden kaçabilirsin.',
+            leader: { day: 'Reis kilisede, sunağın başında keseyle.', night: 'Reis kilisede uyuyor.' },
+            traps: 'Avluda ve mahzende kırık taş ve kemik var: eğilsen de ses çıkar. Mahzen kilitli, anahtar hücrelerdeki bekçide.'
+        }
+    },
+    crypt: {
+        name: 'Kemikli Katakomp', kind: 'Katakomp', theme: 'stone', sky: 'under', hide: 'tomb', crunchLook: 'bones', crunch: 'Kemikler ayağının altında çatırdadı!',
+        map: [
+            '##################################',
+            '#.P..P..##.C...k$k...c.###########',
+            '#b.....t##.............####B,,,,##',
+            '####D#####.H.........H.####,,,L,##',
+            '###...####T...........T####,,,,,##',
+            '###...##########X##########,,,,,##',
+            '###H,,##B...........,,,,.##,,,,,##',
+            '###,,,##.h..........,,,,.##,,,,,##',
+            '###,,,##........F........##,,,,H##',
+            '###.......................v,,,,,##',
+            '###..H##.,,,,,.........s.##,,,,,##',
+            '###...##.,,,,,..........B##,,,,,##',
+            '###H..#########....########s,,,,##',
+            '###...#########...,,,,,####,,,,,##',
+            '###.S.#########...,H.c,####,,t,,##',
+            '###...#########...,,,,,####,,,,B##',
+            '###############...,,,,b###########',
+            '###############...################',
+            '###############E@E################'],
+        ambient: { day: .04, night: .03 }, outside: { day: .5, night: .12 },
+        lights: [{ x: 16, y: 2, r: 110, i: .75, kind: 'candle' }], dayLights: [{ x: 16, y: 17, r: 120, i: .5, kind: 'mouth' }],
+        guards: [
+            { x: 16, y: 10, type: 'post', face: 'down', sweep: .8 },
+            { x: 15, y: 8, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 17, y: 8, type: 'dice', face: 'left', night: 'sleep' },
+            { x: 16, y: 7, type: 'dice', face: 'down', night: 'sleep' },
+            { x: 4, y: 4, type: 'patrol', route: [[4, 4], [4, 15], [4, 9], [8, 9]] },
+            { x: 25, y: 9, type: 'patrol', route: [[25, 9], [29, 9], [29, 4], [29, 13], [29, 9]] },
+            { x: 16, y: 3, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [27, 2, 31, 15], doors: [], block: [[26, 9]], spawns: [[28, 4], [30, 13]], where: 'kemiklik' },
+        chests: { C: [70, 120], c: [150, 210] }, loot: 'axe_steel',
+        lever: { opens: [[16, 5]] },
+        news: 'Mezarcı: "Sağ ol! Kemikliğin dibinde bir kol var; sunağın önündeki taşları indiriyor."',
+        intel: {
+            entrances: 'Mezarlıktan inen merdiven; kemikliğe kadar uzanan eski bir kapak',
+            entrance1: 'Mezarlıktan inen merdiven',
+            secret: 'Kemikliğin dibindeki kol sunağa giden taşları indirir. Tutsakların hücresinden kemikliğe bir kapak var.',
+            leader: { day: 'Reis taşların ardındaki sunakta, keseyle.', night: 'Reis sunakta uyuyor.' },
+            traps: 'Yerler kemik dolu: eğilsen de ses çıkar. Batı galerisinde gizli diken, tünelde yarasalar var. Sunağın sağındaki sandık tuzaklı.'
+        }
+    },
+    farm: {
+        name: 'Köpekli Çiftlik', kind: 'Çiftlik', theme: 'house', sky: 'open', hide: 'hay', indoor: [[3, 3, 13, 9], [22, 3, 33, 10]],
+        map: [
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'OffffffffffffffffffffffffffffffffffO',
+            'OfOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOfO',
+            'OfO###########OOOOOOOO############fO',
+            'OfO#m.h..#..$#OOOOOOOO#.P.P......#fO',
+            'OfO#.kk..#...#OOOOOOOO#........H.#fO',
+            'OfOW.....D...#OOOOOHOO#s.........#fO',
+            'OfO#B...s#...#OOOOOOOO#..........#fO',
+            'OfO#.....#H.C#OOOOOOOO#b.......H.#fO',
+            'OfO####D######OOOOOOOO#........c.#fO',
+            'OfOOOOOOOOOOOOOOOOOOOO#####DD#####OO',
+            'OfOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOfO',
+            'OfOOOOOOOOOOOOOHOOOOOOOOOOOOOOOOOOfO',
+            'OfOOOOOOOOOOOOOOOOOOOOOffffAffffOOfO',
+            'OfOOOOOOOOOObbOOOOOOOOOfOOOOOOOfOOfO',
+            'OfOOHOOOOOOOOOOOOOOOOOOfOOOOOOOfOOfO',
+            'OfOOOOOOOOOOOOOOOOOOsOOfffffffffOOfO',
+            'OfOOOOOOOOOOOOOOOOOOOOOOOOOOOOOHOOfO',
+            'OfffffffffffffffOOOffffffffffffffffO',
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'EEEEEEEEEEEEEEEEE@EEEEEEEEEEEEEEEEEE'],
+        ambient: { day: .32, night: .06 }, outside: { day: .95, night: .2 },
+        lights: [{ x: 6.5, y: 5, r: 110, i: .8, kind: 'candle' }, { x: 11, y: 5, r: 90, i: .6, kind: 'candle' }], dayLights: [{ x: 2, y: 6, r: 140, i: .5, kind: 'window' }],
+        guards: [
+            { x: 15, y: 11, type: 'patrol', dog: true, route: [[15, 11], [21, 11], [21, 17], [15, 17]] },
+            { x: 27, y: 11, type: 'post', face: 'down', dog: true },
+            { x: 17, y: 13, type: 'post', face: 'down', sweep: .9 },
+            { x: 5, y: 12, type: 'patrol', route: [[5, 12], [12, 12], [12, 16], [5, 16]] },
+            { x: 5, y: 6, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 8, y: 5, type: 'dice', face: 'left', night: 'sleep' },
+            { x: 11, y: 6, type: 'leader', face: 'left', night: 'sleep', leader: true }],
+        ambush: { room: [23, 4, 32, 9], doors: [[27, 10], [28, 10]], spawns: [[23, 9], [32, 4]], where: 'ahır' },
+        pen: { horses: [[25, 14], [28, 15], [30, 14]], box: [24, 14, 30, 15] },
+        chests: { C: [60, 100], c: [130, 180] }, loot: 'gloves',
+        news: 'Çiftçi: "Sağ ol! Köpekler mutfaktaki ete bayılır; birini atarsan peşinden koşarlar."',
+        intel: {
+            entrances: 'Güneydeki çit kapısı; doğu çitinde bir gedik',
+            entrance1: 'Güneydeki çit kapısı',
+            secret: 'Doğu çitindeki gedikten girersen kapı nöbetçisine görünmezsin. Mutfaktaki kilerde köpekleri oyalayacak et var.',
+            leader: { day: 'Reis evin yatak odasında, keseyle.', night: 'Reis yatak odasında uyuyor.' },
+            traps: 'İki bekçi köpeği var: seni karanlıkta da koklarlar ve havlarlar. Ahırdaki sandık tuzaklı.'
+        }
+    },
+    tavern: {
+        name: 'Kör Baykuş Hanı', kind: 'Han', theme: 'house',
+        map: [
+            '##################################',
+            '#B.P.P...b.....T....s.s.B.########',
+            '#.........................########',
+            '#BB...s....H..............########',
+            '#.......S.......B....t....########',
+            '#c.....b.......s......C...########',
+            '##################################',
+            '#F...........w....#h.k...i#..$...#',
+            '#.................#.......#......#',
+            '#.......kkk.......#.......D....k.#',
+            '#.............h...D.......#......#',
+            '#.............kk..#.......#......#',
+            '#.kkkk........h...#.....t.#H....C#',
+            '#B...........H....#B.....s#......#',
+            '#########D############D###########',
+            'OOOOOOOOO@OOOOOOOOOOOOOOOOOOOOOOOO',
+            'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE'],
+        ambient: { day: .34, night: .08 }, outside: { day: .95, night: .26 },
+        lights: [{ x: 9, y: 9, r: 120, i: .8, kind: 'candle' }, { x: 29, y: 8, r: 100, i: .7, kind: 'candle' }, { x: 22, y: 8, r: 90, i: .6, kind: 'candle' }],
+        dayLights: [],
+        guards: [
+            { x: 8, y: 8, type: 'dice', face: 'down' },
+            { x: 10, y: 10, type: 'dice', face: 'up' },
+            { x: 11, y: 9, type: 'dice', face: 'left' },
+            { x: 3, y: 10, type: 'patrol', route: [[3, 10], [16, 10], [16, 13], [3, 13]] },
+            { x: 21, y: 9, type: 'post', face: 'right', night: 'sleep' },
+            { x: 12, y: 2, type: 'post', face: 'left', night: 'sleep' },
+            { x: 30, y: 10, type: 'leader', face: 'left', night: 'sleep', leader: true }],
+        ambush: { room: [27, 7, 32, 13], doors: [[26, 9]], spawns: [[27, 13], [32, 8]], where: 'hancının odası' },
+        chests: { C: [70, 110], c: [140, 190] }, loot: 'cap',
+        news: 'Hancı: "Tanrı senden razı olsun! Mutfakta uyku otu kurur; fıçıya katarsan zar oynayanlar sızar."',
+        intel: {
+            entrances: 'Hanın ön kapısı; arka avludan mutfak kapısı',
+            entrance1: 'Hanın ön kapısı',
+            secret: 'Mutfaktaki zemin kapağı mahzene iner; tutsaklar orada. Mutfakta kurumaya asılmış uyku otu var.',
+            leader: { day: 'Reis hancının odasında keseyi sayıyor.', night: 'Reis hancının odasında uyuyor.' },
+            traps: 'Salonda üç haydut fıçının başında zar oynuyor, gece bile. Mahzende gizli diken var.'
+        }
+    },
+    quarry: {
+        name: 'Kırık Taş Ocağı', kind: 'Taş Ocağı', theme: 'stone', sky: 'open', crunchLook: 'gravel', crunch: 'Çakıllar ayağının altında kaydı!', indoor: [[3, 14, 10, 18]],
+        map: [
+            '##################################',
+            'E.....,,,,,,,,,...........s......#',
+            '@.....,,,,,,,,,..................#',
+            'E...................bb...........#',
+            '#...........H....................#',
+            '##JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ..#',
+            '#................................#',
+            '#.......,,,,,,,,,,,,,.....YY..B..#',
+            '#....H..,,,,,,,,,,,,,.....YY.....#',
+            '#.......,,,,,,,,,,,,,............#',
+            '#...............Z.....s..........#',
+            '#................................#',
+            '#..JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ#',
+            '#............b.....b.............#',
+            '#..####D###............|||K||||..#',
+            '#..#C...$.#.....z......|.....c|..#',
+            '#..#......#,,,,,k,,,,..|.P..P.|..#',
+            '#..#h.k...#,,,,,,,,,,..|......|..#',
+            '#..########,,,,,,,,,,..||||||||..#',
+            '###############...################',
+            '###############EEE################'],
+        ambient: { day: .3, night: .06 }, outside: { day: .9, night: .16 },
+        lights: [{ x: 7, y: 16, r: 100, i: .7, kind: 'candle' }], dayLights: [],
+        guards: [
+            { x: 8, y: 3, type: 'patrol', route: [[8, 3], [31, 3], [31, 4]] },
+            { x: 27, y: 8, type: 'tower', face: 'left', sweep: 1.1, dx: 16 },
+            { x: 4, y: 9, type: 'patrol', route: [[4, 9], [24, 9], [24, 7], [4, 7]] },
+            { x: 2, y: 11, type: 'post', face: 'down', night: 'sleep' },
+            { x: 15, y: 15, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 17, y: 15, type: 'dice', face: 'left', night: 'sleep' },
+            { x: 16, y: 18, type: 'post', face: 'up', sweep: 1 },
+            { x: 6, y: 16, type: 'leader', face: 'right', night: 'sleep', leader: true }],
+        ambush: { room: [4, 15, 9, 17], doors: [[7, 14]], spawns: [[4, 16], [9, 16]], where: 'ustanın kulübesi' },
+        chests: { C: [70, 110], c: [140, 200] }, loot: 'gauntlets',
+        news: 'Taşçı: "Sağ ol! Orta sekideki halat vincin taşını tutuyor; kesersen altındakiler bayılır."',
+        intel: {
+            entrances: 'Batı yamacındaki patika (ocağın tepesine çıkar); güneydeki taş yolu',
+            entrance1: 'Batı yamacındaki patika',
+            secret: 'Sekilerden aşağı atlayabilirsin ama geri tırmanamazsın; haydutlar uzun rampalardan dolaşır. Çıkış güneyde.',
+            leader: { day: 'Reis aşağıda, ustanın kulübesinde keseyle.', night: 'Reis kulübede uyuyor.' },
+            traps: 'Çakıllı yerler gürültülü. Orta sekide bir gözcü kulesi var. Vincin taşı zar oynayanların tam üstünde asılı. Tutsakların kafesindeki sandık tuzaklı.'
+        }
+    },
+    keep: {
+        name: 'Kartal Burcu', kind: 'Kale', theme: 'stone', sky: 'open', hide: 'barrel', indoor: [[2, 1, 31, 6], [18, 12, 24, 16]],
+        map: [
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'OO##############################OO',
+            'OO#.s.b.#C.T..k$k...T..b.#P..cP#OO',
+            'OO#.....D................#.....#OO',
+            'OO#.....#F...............W.....#OO',
+            'OO#b...s#H..............B#b....#OO',
+            'OO###D##########D###########d###OO',
+            'OO#............................#OO',
+            'OO#............................#OO',
+            'OO#H......BB...................#OO',
+            'OOD............................#OO',
+            'OO#............................#OO',
+            'OO#S..YY..........###D###......#OO',
+            'OO#...YY..........#.L.b.#.......OO',
+            'OO#...........B...#.....#...H..#OO',
+            'OO#.........H.....#s....#......#OO',
+            'OO##############XX##############OO',
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'EEEEEEEEEEEEEEEE@EEEEEEEEEEEEEEEEE'],
+        ambient: { day: .3, night: .06 }, outside: { day: .9, night: .18 },
+        lights: [{ x: 16, y: 3, r: 130, i: .8, kind: 'candle' }, { x: 28, y: 3, r: 80, i: .5, kind: 'candle' }], dayLights: [],
+        guards: [
+            { x: 3, y: 10, type: 'post', face: 'right', sweep: .8 },
+            { x: 7, y: 13, type: 'tower', face: 'right', sweep: 1.2, dx: 16 },
+            { x: 4, y: 8, type: 'patrol', route: [[4, 8], [29, 8], [29, 11], [10, 11], [10, 8]] },
+            { x: 28, y: 8, type: 'post', face: 'down', key: true, night: 'sleep' },
+            { x: 4, y: 3, type: 'sleep', face: 'right' },
+            { x: 6, y: 4, type: 'sleep', face: 'left' },
+            { x: 20, y: 14, type: 'post', face: 'up', night: 'sleep' },
+            { x: 15, y: 3, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [9, 2, 24, 5], doors: [[16, 6], [8, 3]], spawns: [[10, 5], [24, 2]], where: 'büyük salon' },
+        chests: { C: [80, 130], c: [160, 220] }, loot: 'greaves',
+        lever: { opens: [[16, 16], [17, 16]] },
+        news: 'Kale kâtibi: "Sağ ol! Kapı odasındaki kol demir parmaklığı kaldırır; çıkış oradan dümdüz."',
+        intel: {
+            entrances: 'Batı duvarında küçük bir arka kapı; doğu duvarında yıkık bir gedik',
+            entrance1: 'Batı duvarında küçük bir arka kapı',
+            secret: 'Doğu duvarındaki gedik avluya açılır. Kapı odasındaki kol ana kapının parmaklığını kaldırır. Salonun doğu penceresi zindana çıkar.',
+            leader: { day: 'Reis büyük salonda, ocağın yanında keseyle.', night: 'Reis salonda uyuyor.' },
+            traps: 'Avluda bir gözcü kulesi var. Zindan kilitli, anahtar zindan kapısındaki bekçide. Arka kapının içinde gizli diken.'
+        }
+    },
+    tamer: {
+        name: 'Ayıcının Kampı', kind: 'Kamp', theme: 'camp', hide: 'hay',
+        map: [
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'O##################################O',
+            'O#................................#O',
+            'O#.|||||||..s.............nnnnnnn.#O',
+            'O#.|.....|...T......T...c.n$..C.n.#O',
+            'O#.|P...P|................n.....n.#O',
+            'O#.|.....|................n.h...n.#O',
+            'O#.|||K|||...fffffffff....nnn.nnn.#O',
+            'O#...........f.......f............#O',
+            'O#H..........f...y...f...........H#O',
+            'O#...........f.b.....f.............O',
+            'O#.nnnn......f.......f......nnnn..#O',
+            'O#.nnnn......ffff.ffff......nnnn..#O',
+            'O#.nnnn...m.................nnnn..#O',
+            'O#.....................fAff.......#O',
+            'O#.nnnn.F..............f..f.nnnn..#O',
+            'O#.nnnn....B...........f..f.nnnn..#O',
+            'O#.nnnn................f..f.nnnn..#O',
+            'O#...................H.ffff.......#O',
+            'O#................................#O',
+            'O################DD################O',
+            'EEEEEEEEEEEEEEEEE@EEEEEEEEEEEEEEEEEE'],
+        ambient: { day: .7, night: .1 }, outside: { day: .9, night: .15 },
+        lights: [], dayLights: [],
+        guards: [
+            { x: 16, y: 19, type: 'post', face: 'down' },
+            { x: 19, y: 19, type: 'post', face: 'down' },
+            { x: 8, y: 14, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 8, y: 16, type: 'dice', face: 'up', night: 'sleep' },
+            { x: 12, y: 9, type: 'patrol', dog: true, route: [[12, 9], [12, 14], [22, 14], [22, 9]] },
+            { x: 7, y: 9, type: 'post', face: 'up', dog: true },
+            { x: 23, y: 8, type: 'patrol', route: [[23, 8], [32, 8], [32, 10], [23, 10]] },
+            { x: 29, y: 5, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [27, 4, 31, 6], doors: [], spawns: [[27, 6], [31, 5]], where: 'reisin çadırı' },
+        pen: { horses: [[24, 15], [25, 17]], box: [24, 15, 25, 17] },
+        chests: { C: [70, 120], c: [150, 210] }, loot: 'mail',
+        news: 'Ayı oynatıcısı: "Sağ ol! Ayımı kafesinden salarsan haydutlara saldırır; köpekler de ete gelir."',
+        intel: {
+            entrances: 'Güneydeki kamp kapısı (iki nöbetçi); doğu çitinde bir gedik',
+            entrance1: 'Güneydeki kamp kapısı (iki nöbetçi)',
+            secret: 'Arenadaki kafeste bir ayı var: salarsan haydutlara saldırır, onlar ayıyla uğraşırken sen işini görürsün. Doğu çitinde gedik.',
+            leader: { day: 'Reis kendi çadırında keseyle.', night: 'Reis çadırında uyuyor.' },
+            traps: 'İki bekçi köpeği koku alır. Tutsak kafesi kilitli. Kafesin yanındaki sandık tuzaklı.'
+        }
+    },
+    forest: {
+        name: 'Kızılağaç Sığınağı', kind: 'Orman', theme: 'forest', sky: 'open', fog: .75, hide: 'log', crunchLook: 'leaves', crunch: 'Kuru yapraklar ayağının altında hışırdadı!',
+        map: [
+            '####################################',
+            '##.................................#',
+            '##...........~~~################...#',
+            '##.,,,,,,,s,.~~~.rrr...............#',
+            '##.,,,,,,,,,.~~~.rrr....nnnnn.c....#',
+            '##...........~~~.rrr....n$.Cn......#',
+            '##...........%%%.rrr....nn.nn......#',
+            '##..H........%%%...................#',
+            '##...........%%%....nnn............#',
+            '##...........%%%.H..nnn......nnn...#',
+            '#######.#####%%%.......F.....nnnJJJ#',
+            '##...........~~~.................###',
+            '##.rrrr......~~~...P..,,,,,.H....###',
+            '##.rrrr......~~~......,,,,,......###',
+            '##......,,,,.~~~...P..,,,,,..rrr.###',
+            '##......,,,,.~~~......,,,,,..rrr.###',
+            '##....#######~~~rrrrrb.......rrr.###',
+            '##....#######~~~rrrrr........rrr.###',
+            '##....#######~~~####################',
+            '##....##############################',
+            'EEE@EEE#############################'],
+        ambient: { day: .6, night: .08 }, outside: { day: .85, night: .14 },
+        lights: [], dayLights: [],
+        guards: [
+            { x: 15, y: 13, type: 'post', face: 'left', sweep: 1 },
+            { x: 22, y: 10, type: 'dice', face: 'right', night: 'sleep' },
+            { x: 24, y: 11, type: 'dice', face: 'up', night: 'sleep' },
+            { x: 18, y: 8, type: 'patrol', route: [[18, 8], [30, 8], [30, 16], [22, 16], [21, 12]] },
+            { x: 8, y: 6, type: 'patrol', route: [[8, 6], [8, 2], [30, 1], [8, 2]] },
+            { x: 27, y: 12, type: 'post', face: 'left', night: 'sleep' },
+            { x: 26, y: 5, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [22, 12, 26, 15], doors: [], spawns: [[22, 15], [26, 12]], where: 'çukur' },
+        chests: { C: [60, 100], c: [130, 180] }, loot: 'bow_steel',
+        news: 'Oduncu: "Sağ ol! Doğudaki kayadan çukura atlarsan derenin nöbetçisini hiç görmezsin."',
+        intel: {
+            entrances: 'Güneybatıdan gelen patika ve dereden geçen sığ geçit; kuzeydeki eski kömürcü yolu',
+            entrance1: 'Güneybatıdan gelen patika',
+            secret: 'Kuzeydeki kömürcü yolu doğudaki kayaya çıkar; oradan çukura atlarsın. Derenin derin göleti yüzülerek geçilir.',
+            leader: { day: 'Reis çadırında keseyle.', night: 'Reis çadırında uyuyor.' },
+            traps: 'Sis var. Kuru yapraklar hışırdar. Çalılıkta eğilirsen zor görünürsün. Doğudaki sandık tuzaklı.'
+        }
+    },
+    cistern: {
+        name: 'Batık Sarnıç', kind: 'Sarnıç', theme: 'stone', sky: 'under', hide: 'tomb',
+        map: [
+            '##################################',
+            '##............C.$k.c............##',
+            '##.%%%%%%%%%%%%%..%%%%%%%%%%%%%.##',
+            '##.%%%%%%%%%%%%%..%%%%%%%%%%%%%.##',
+            '##.%%#%%%#%%%#%%..%%%#%%%#%%%#%.##',
+            '##.%%%%%%%%%%%%%..%%%%H.....%%%.##',
+            '##.%%%%%%%%%%%%%..%%%%.P..P.%%%.##',
+            '##.%%#%%%#%%%#%%..%%%#......%#%.##',
+            '##.%%%%%%%%%%%%%..%%%%.....B%%%.##',
+            '##.%%%%%%%%%%%%%..%%%%%%%%%%%%%.##',
+            '##.%%#%%%#%%%#%%..%%%#%%%#%%%#%.##',
+            '##.%%%%%%%%%%%%%..%%%%%%%%%%%%%.##',
+            '#L.%%%%%%%%%%%%%..%%%%%%%%%%%%%.##',
+            '##..............................##',
+            '###########################...####',
+            '###########################.v.####',
+            '###########################...####',
+            '###########################...####',
+            '###########################E@E####'],
+        ambient: { day: .06, night: .04 }, outside: { day: .5, night: .12 },
+        lights: [{ x: 16.5, y: 1, r: 140, i: .8, kind: 'candle' }, { x: 2, y: 6, r: 130, i: .8, kind: 'torch' }, { x: 31, y: 6, r: 130, i: .8, kind: 'torch' }], dayLights: [{ x: 28, y: 16, r: 120, i: .5, kind: 'mouth' }, { x: 9, y: 6, r: 120, i: .45, kind: 'mouth' }, { x: 24, y: 7, r: 120, i: .45, kind: 'mouth' }],
+        guards: [
+            { x: 24, y: 13, type: 'post', face: 'right', sweep: .8 },
+            { x: 2, y: 12, type: 'patrol', route: [[2, 12], [15, 13], [2, 13], [2, 2]] },
+            { x: 17, y: 9, type: 'patrol', route: [[17, 12], [17, 2], [16, 2], [16, 12]] },
+            { x: 31, y: 2, type: 'patrol', route: [[31, 2], [31, 12], [31, 2], [20, 1]] },
+            { x: 24, y: 8, type: 'post', face: 'left', night: 'sleep' },
+            { x: 17, y: 2, type: 'leader', face: 'down', night: 'sleep', leader: true }],
+        ambush: { room: [22, 5, 27, 8], doors: [], spawns: [[22, 8], [27, 5]], where: 'su içindeki set' },
+        chests: { C: [70, 120], c: [150, 210] }, loot: 'shoes',
+        lever: { opens: [], drains: [2, 2, 15, 12] },
+        news: 'Sucu: "Sağ ol! Batı köşedeki savak kolu batı havuzunu boşaltır; ama o zaman haydutlar da yürür."',
+        intel: {
+            entrances: 'Doğudaki yıkık merdiven',
+            entrance1: 'Doğudaki yıkık merdiven',
+            secret: 'Tutsaklar doğu havuzunun ortasındaki sette; oraya ancak yüzerek varılır. Batı köşedeki savak kolu batı havuzunun suyunu boşaltır.',
+            leader: { day: 'Reis kuzeydeki sekide, eski kuyunun altında keseyle.', night: 'Reis sekide uyuyor.' },
+            traps: 'Merdivende yarasalar var. Haydutlar yüzemez; suda yüzerken seni zor görürler. Sekideki sandık tuzaklı.'
+        }
+    },
+    caravan: {
+        name: 'Terk Edilmiş Kervansaray', kind: 'Kervansaray', theme: 'stone', sky: 'open', hide: 'barrel', indoor: [[1, 1, 34, 6], [1, 6, 6, 18], [29, 6, 34, 18]],
+        map: [
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'O##################################O',
+            'O#i.s..b....#....w.....#P..P..c.$.#O',
+            'O#..........D.kkk......#..........#O',
+            'O#..........#..........#..........#O',
+            'O#B.....b...#h.........#C.......b.#O',
+            'O###D############D##########d######O',
+            'O#....#......................#....#O',
+            'O#m...#......................#....#O',
+            'O#....D.B........H........s..#.fff#O',
+            'O#....#......................#.f.f#O',
+            'O#....#......................#.A.f#O',
+            'OW....#......................#.f.f#O',
+            'O#....#......................#.fff#O',
+            'O#....#..b...............b...#....#O',
+            'O#B..s#......................D....#O',
+            'O#....#....T............T....#....#O',
+            'O#....#......................#....#O',
+            'O###############...################O',
+            'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO',
+            'EEEEEEEEEEEEEEEEE@EEEEEEEEEEEEEEEEEE'],
+        ambient: { day: .3, night: .06 }, outside: { day: .95, night: .2 },
+        lights: [{ x: 15, y: 3, r: 110, i: .75, kind: 'candle' }, { x: 28, y: 3, r: 90, i: .6, kind: 'candle' }], dayLights: [{ x: 2, y: 12, r: 120, i: .5, kind: 'window' }],
+        guards: [
+            { x: 11, y: 15, type: 'post', face: 'right', dog: true },
+            { x: 22, y: 15, type: 'post', face: 'left', sweep: .8 },
+            { x: 8, y: 8, type: 'patrol', route: [[8, 8], [27, 8], [27, 13], [8, 13]] },
+            { x: 14, y: 4, type: 'dice', face: 'up' },
+            { x: 16, y: 4, type: 'dice', face: 'up' },
+            { x: 17, y: 3, type: 'dice', face: 'left' },
+            { x: 28, y: 7, type: 'post', face: 'down', key: true, night: 'sleep' },
+            { x: 30, y: 16, type: 'patrol', dog: true, route: [[30, 16], [30, 8], [33, 8], [33, 15]] },
+            { x: 30, y: 3, type: 'leader', face: 'left', night: 'sleep', leader: true }],
+        ambush: { room: [24, 2, 33, 5], doors: [[28, 6]], spawns: [[24, 3], [33, 4]], where: 'hazine odası' },
+        pen: { horses: [[32, 10], [32, 12]], box: [32, 10, 32, 12] },
+        chests: { C: [90, 140], c: [170, 230] }, loot: 'axe',
+        news: 'Kervancı: "Sağ ol! Ambarda uyku otu var; çay odasındaki fıçıya katarsan zarcılar sızar. Anahtar kâhyanın kemerinde."',
+        intel: {
+            entrances: 'Güneydeki büyük kapı (köpekli nöbet); mutfağın batı penceresi',
+            entrance1: 'Güneydeki büyük kapı',
+            secret: 'Mutfağın penceresinden girersen kapıdaki köpeğe görünmezsin. Ambardaki uyku otu, çay odasının fıçısına katılabilir.',
+            leader: { day: 'Reis kilitli hazine odasında keseyle; anahtar kâhyada.', night: 'Reis hazine odasında uyuyor.' },
+            traps: 'Kapıda ve ahırda birer köpek var. Hazine odası kilitli. Hazine odasının sandığı tuzaklı.'
+        }
     }
 };
+// A lair spawned before 2.9.0 carries no `layout`: its id picks one of the first three, as it
+// always did, so a place you'd seen doesn't change. A newer lair is given its layout when it's
+// made (Game.pickLayout, from DENS: every level but the mine).
 const LAYOUTS = ['house', 'cave', 'camp'];
+const DENS = Object.keys(LEVELS).filter(k => !LEVELS[k].mine);
+// what a level has that needs explaining: the tour and the card's help show those steps only
+function feats(lv) {
+    const m = lv.map.join(''), f = new Set();
+    if(lv.guards.some(g => g.dog)) f.add('dog');
+    if(/d/.test(m)) f.add('key');
+    if(/[%r]/.test(m)) f.add('water');
+    if(/G/.test(m)) f.add('bell');
+    if(/w/.test(m)) f.add('herb');
+    if(/Z/.test(m)) f.add('drop');
+    if(/y/.test(m)) f.add('bear');
+    if(/J/.test(m)) f.add('ledge');
+    if(/,/.test(m)) f.add('loud');
+    if(lv.mine) f.add('mine');
+    return f;
+}
 // what Gözcülük (spotting) tells you: numbers and entrances, then the sketch and the traps,
 // then a laid ambush, then the secret way in and the leader's habits
 const INTEL = { basic: 2, sketch: 4, ambush: 5, secret: 7 };
@@ -233,7 +800,10 @@ let loopId = null, last = 0, paused = false, built = false;
 const WALLS = new Set(['#', ' ']);
 function tile(x, y) { if(y < 0 || y >= G.h || x < 0 || x >= G.w) return ' '; return G.grid[y][x]; }
 function obj(x, y) { return G.objs[y * G.w + x]; }
-const SOLID_T = new Set(['n', 'f', '|', 'Y']);
+const SOLID_T = new Set(['n', 'f', '|', 'Y', 'J']);
+// deep water: the hero, the squad and freed prisoners swim it; bandits, dogs and the bear won't
+const swims = c => !c || c.kind === 'player' || c.kind === 'squad' || c.kind === 'prisoner';
+function solidFor(c, x, y) { return solidTile(x, y) || (tile(x, y) === '%' && !swims(c)); }
 function solidTile(x, y) {
     const c = tile(x, y);
     if(WALLS.has(c) || c === 'W' || SOLID_T.has(c)) return true;
@@ -262,6 +832,9 @@ function los(ax, ay, bx, by, ignoreEnd) {
     return true;
 }
 const isOutside = (x, y) => { const c = tile(x, y); return c === 'O' || c === 'E' || c === '@'; };
+// under the open sky: the outside ground, or (a level that names its roofed parts) anything not under one
+const roofed = (x, y) => !!L.indoor && L.indoor.some(([a, b, c, d]) => x >= a && x <= c && y >= b && y <= d);
+const skyAt = (x, y) => isOutside(x, y) || (!!L.indoor && !roofed(x, y) && !WALLS.has(tile(x, y)));
 function isExit(tx, ty) { const c = tile(tx, ty); return c === 'E' || c === '@'; }
 
 // ---------- lighting ----------
@@ -270,7 +843,7 @@ function buildLight() {
     G.light = new Float32Array(G.w * G.h);
     const lights = G.lights.filter(l => !l.off);
     for(let y = 0; y < G.h; y++) for(let x = 0; x < G.w; x++) {
-        let v = isOutside(x, y) ? out : amb;
+        let v = skyAt(x, y) ? out : amb;     // a level out under the sky names its roofed parts (`indoor`)
         const cx = x * TS + 16, cy = y * TS + 16;
         for(const l of lights) {
             const d = Math.hypot(cx - l.px, cy - l.py);
@@ -305,35 +878,56 @@ function glowSprite(kind) {
 }
 
 // ---------- baking the ground ----------
+// A theme is a floor, a wall and the ground outside: `floor` planks | dirt | rock | flags | mud,
+// `wall` beams | palisade | rock | blocks | trees, `out` the grass (or sand, or marsh) round it
 const PAL = {
-    house: { f: ['#6a4a30', '#5d412a', '#74523a', '#65462e'], seam: '#3b2819', nail: '#2a1c12', top: '#2a1f18', topHi: '#3c2d22',
-             face: '#7a6754', faceHi: '#8c7862', faceLo: '#5b4b3c', beam: '#46311f' },
-    camp:  { f: ['#5e4d37', '#554430', '#66543c', '#4f3f2c'], seam: '#3e3222', nail: '#6e5c44', top: '#3a2718', topHi: '#5a3f26',
-             face: '#6e4e30', faceHi: '#8a6440', faceLo: '#3e2a18', beam: '#2a1c10' },
-    cave:  { f: ['#2f2b28', '#292522', '#35302c', '#26221f'], seam: '#1d1a18', nail: '#3d3833', top: '#141211', topHi: '#221e1b',
-             face: '#3a342e', faceHi: '#4a423a', faceLo: '#27221e', beam: '#1d1916' }
+    house: { floor: 'planks', wall: 'beams', f: ['#6a4a30', '#5d412a', '#74523a', '#65462e'], seam: '#3b2819', nail: '#2a1c12', top: '#2a1f18', topHi: '#3c2d22',
+             face: '#7a6754', faceHi: '#8c7862', faceLo: '#5b4b3c', beam: '#46311f', out: ['#3d5a2c', '#48673a', '#334c25'] },
+    camp:  { floor: 'dirt', wall: 'palisade', f: ['#5e4d37', '#554430', '#66543c', '#4f3f2c'], seam: '#3e3222', nail: '#6e5c44', top: '#3a2718', topHi: '#5a3f26',
+             face: '#6e4e30', faceHi: '#8a6440', faceLo: '#3e2a18', beam: '#2a1c10', out: ['#3d5a2c', '#48673a', '#334c25'], grass: '#4a6a35' },
+    cave:  { floor: 'rock', wall: 'rock', f: ['#2f2b28', '#292522', '#35302c', '#26221f'], seam: '#1d1a18', nail: '#3d3833', top: '#141211', topHi: '#221e1b',
+             face: '#3a342e', faceHi: '#4a423a', faceLo: '#27221e', beam: '#1d1916', out: ['#3a3f2c', '#48673a', '#334c25'] },
+    // 2.9.0: dressed stone (a monastery, a keep, a crypt), a marsh, a harbour, a wood
+    stone: { floor: 'flags', wall: 'blocks', f: ['#4a4744', '#43403d', '#504d49', '#3f3c39'], seam: '#2a2826', nail: '#5a5652', top: '#1c1b1d', topHi: '#2a292c',
+             face: '#5e5a55', faceHi: '#77726b', faceLo: '#3e3b38', beam: '#33302d', out: ['#3a5230', '#465f3a', '#2f4427'] },
+    swamp: { floor: 'mud', wall: 'trees', f: ['#3b3a26', '#34331f', '#423f2a', '#2e2d1c'], seam: '#24231a', nail: '#4c4a30', top: '#16261a', topHi: '#22381f',
+             face: '#2a2618', faceHi: '#3a3420', faceLo: '#1c190f', beam: '#1a1a10', out: ['#2f4429', '#3a5233', '#26391f'], grass: '#3f5a2e' },
+    dock:  { floor: 'planks', wall: 'beams', f: ['#6b604f', '#615646', '#756a57', '#5a5040'], seam: '#3a342a', nail: '#2a2620', top: '#262320', topHi: '#36322c',
+             face: '#6e6556', faceHi: '#857b6a', faceLo: '#4e473c', beam: '#3a332a', out: ['#b8a676', '#c7b685', '#a8966a'] },
+    forest:{ floor: 'dirt', wall: 'trees', f: ['#4a3d2a', '#423625', '#524430', '#3b3022'], seam: '#2e261b', nail: '#5c4c34', top: '#17301a', topHi: '#234524',
+             face: '#2e2416', faceHi: '#3e3020', faceLo: '#1e170e', beam: '#1a140c', out: ['#35532a', '#406336', '#2b4521'], grass: '#4f7a36' }
 };
 function bakeGround() {
     const c = document.createElement('canvas'); c.width = G.w * 16; c.height = G.h * 16;   // 16 px per tile, drawn at 2x
     const x = c.getContext('2d'), P = PAL[L.theme];
     const px = (X, Y, col) => { x.fillStyle = col; x.fillRect(X, Y, 1, 1); };
+    const isWall = ch => ch === '#' || ch === ' ' || ch === 'W';
     seed = 7;
     for(let ty = 0; ty < G.h; ty++) for(let tx = 0; tx < G.w; tx++) {
         const ch = tile(tx, ty), X = tx * 16, Y = ty * 16;
         if(ch === ' ') { x.fillStyle = '#060508'; x.fillRect(X, Y, 16, 16); continue; }
         if(ch === 'O' || ch === 'E' || ch === '@') {
             const road = ch !== 'O';
-            x.fillStyle = road ? '#6d5a3e' : (L.theme === 'cave' ? '#3a3f2c' : '#3d5a2c'); x.fillRect(X, Y, 16, 16);
-            for(let i = 0; i < 22; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), road ? (srand() < .5 ? '#7c6747' : '#5f4d35') : (srand() < .5 ? '#48673a' : '#334c25'));
+            x.fillStyle = road ? '#6d5a3e' : P.out[0]; x.fillRect(X, Y, 16, 16);
+            for(let i = 0; i < 22; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), road ? (srand() < .5 ? '#7c6747' : '#5f4d35') : P.out[1 + (srand() < .5 ? 0 : 1)]);
             continue;
         }
-        if(ch === '~') {
-            x.fillStyle = '#16323f'; x.fillRect(X, Y, 16, 16);
-            for(let i = 0; i < 10; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), srand() < .5 ? '#1c3d4c' : '#122a35');
+        if(ch === '~' || ch === '%') {                                    // shallow water, and deep water (darker, no bottom showing)
+            const deep = ch === '%';
+            x.fillStyle = deep ? '#0d2230' : '#16323f'; x.fillRect(X, Y, 16, 16);
+            for(let i = 0; i < 10; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), deep ? (srand() < .5 ? '#123040' : '#0a1a26') : (srand() < .5 ? '#1c3d4c' : '#122a35'));
+            if(deep) for(const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) if(tile(tx + dx, ty + dy) === '~') { x.fillStyle = 'rgba(40,90,110,.35)'; x.fillRect(X + (dx > 0 ? 14 : 0), Y + (dy > 0 ? 14 : 0), dx ? 2 : 16, dy ? 2 : 16); }
             continue;
         }
-        if(L.theme === 'camp' && ch === '#') {                            // the palisade: sharpened logs
-            x.fillStyle = '#3d5a2c'; x.fillRect(X, Y, 16, 16);
+        if(ch === 'J') {                                                   // a ledge: a lip of rock, then the drop
+            x.fillStyle = P.faceLo; x.fillRect(X, Y, 16, 16);
+            x.fillStyle = P.faceHi; x.fillRect(X, Y, 16, 3);
+            x.fillStyle = P.face; for(let i = 1; i < 16; i += 4) x.fillRect(X + i, Y + 4 + (i % 3), 2, 9);
+            x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(X, Y + 13, 16, 3);
+            continue;
+        }
+        if(P.wall === 'palisade' && ch === '#') {                          // the palisade: sharpened logs
+            x.fillStyle = P.out[0]; x.fillRect(X, Y, 16, 16);
             for(let i = 0; i < 3; i++) {
                 const lx = X + i * 5 + 1;
                 x.fillStyle = '#2a1c10'; x.fillRect(lx - 1, Y + 1, 6, 15);
@@ -341,6 +935,13 @@ function bakeGround() {
                 x.fillStyle = '#8a6440'; x.fillRect(lx, Y + 2, 1, 14);
                 x.fillStyle = '#a07a4e'; x.fillRect(lx + 1, Y, 2, 2);
             }
+            continue;
+        }
+        if(P.wall === 'trees' && ch === '#') {                             // a thicket: canopy blobs, trunks where it meets open ground
+            x.fillStyle = P.top; x.fillRect(X, Y, 16, 16);
+            for(let i = 0; i < 5; i++) { const bx = X + (srand() * 12 | 0), by = Y + (srand() * 12 | 0); x.fillStyle = srand() < .5 ? P.topHi : '#2c5a2a'; x.fillRect(bx, by, 4 + (srand() * 3 | 0), 3 + (srand() * 3 | 0)); }
+            for(let i = 0; i < 4; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), '#3f7238');
+            if(!isWall(tile(tx, ty + 1))) { x.fillStyle = P.face; x.fillRect(X + 3, Y + 11, 3, 5); x.fillRect(X + 10, Y + 12, 3, 4); x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(X, Y + 14, 16, 2); }
             continue;
         }
         if(ch === 'n' || ch === 'f' || ch === '|' || ch === 'Y') {          // floor under tents, fences, bars, tower
@@ -366,13 +967,14 @@ function bakeGround() {
             x.fillStyle = P.top; x.fillRect(X, Y, 16, 16);
             for(let i = 0; i < 8; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.topHi);
             const below = tile(tx, ty + 1);
-            if(below !== '#' && below !== ' ' && below !== 'W') {           // the wall's face toward the room
+            if(!isWall(below)) {                                           // the wall's face toward the room
                 x.fillStyle = P.face; x.fillRect(X, Y + 9, 16, 7);
                 x.fillStyle = P.faceHi; x.fillRect(X, Y + 9, 16, 1);
                 x.fillStyle = P.faceLo; x.fillRect(X, Y + 15, 16, 1);
-                if(L.theme === 'house') { x.fillStyle = P.beam; x.fillRect(X, Y + 8, 16, 1); if(tx % 3 === 0) x.fillRect(X + 7, Y + 9, 2, 7); }
+                if(P.wall === 'beams') { x.fillStyle = P.beam; x.fillRect(X, Y + 8, 16, 1); if(tx % 3 === 0) x.fillRect(X + 7, Y + 9, 2, 7); }
+                else if(P.wall === 'blocks') { x.fillStyle = P.faceLo; x.fillRect(X, Y + 12, 16, 1); x.fillRect(X + ((tx % 2) ? 4 : 11), Y + 9, 1, 3); x.fillRect(X + ((tx % 2) ? 10 : 2), Y + 13, 1, 3); }
                 else for(let i = 0; i < 6; i++) px(X + (srand() * 16 | 0), Y + 10 + (srand() * 5 | 0), srand() < .5 ? P.faceHi : P.faceLo);
-                if(L.theme === 'cave') for(let i = 0; i < 16; i += 2) if(srand() < .5) px(X + i, Y + 8, P.face);
+                if(P.wall === 'rock') for(let i = 0; i < 16; i += 2) if(srand() < .5) px(X + i, Y + 8, P.face);
                 if(L.mine && tx % 4 === 1) { x.fillStyle = '#5c4128'; x.fillRect(X + 6, Y + 8, 4, 8); x.fillStyle = '#7a5532'; x.fillRect(X + 6, Y + 8, 1, 8); x.fillRect(X + 2, Y + 8, 12, 2); }
             }
             if(ch === 'W') {
@@ -383,21 +985,34 @@ function bakeGround() {
             continue;
         }
         // floor
-        if(L.theme === 'camp') {
+        if(P.floor === 'dirt' || P.floor === 'mud') {
             x.fillStyle = P.f[0]; x.fillRect(X, Y, 16, 16);
             for(let i = 0; i < 20; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.f[1 + (srand() * 3 | 0)]);
-            if(srand() < .3) { x.fillStyle = '#4a6a35'; x.fillRect(X + (srand() * 14 | 0), Y + (srand() * 14 | 0), 2, 1); }
-        } else if(L.theme === 'house') {
+            if(P.grass && srand() < .3) { x.fillStyle = P.grass; x.fillRect(X + (srand() * 14 | 0), Y + (srand() * 14 | 0), 2, 1); }
+            if(P.floor === 'mud' && srand() < .25) { x.fillStyle = 'rgba(20,40,40,.5)'; x.fillRect(X + (srand() * 10 | 0), Y + (srand() * 12 | 0), 5, 2); }
+        } else if(P.floor === 'planks') {
             for(let r = 0; r < 4; r++) {
                 x.fillStyle = P.f[(r + tx * 3 + ty) % 4]; x.fillRect(X, Y + r * 4, 16, 4);
                 x.fillStyle = P.seam; x.fillRect(X, Y + r * 4 + 3, 16, 1);
                 const cut = ((tx * 7 + ty * 3 + r * 5) % 16); x.fillRect(X + cut, Y + r * 4, 1, 3);
                 if(srand() < .4) px(X + (cut + 3) % 16, Y + r * 4 + 1, P.nail);
             }
+        } else if(P.floor === 'flags') {                                    // flagstones, two to a tile, offset by row
+            x.fillStyle = P.f[(tx + ty) % 4]; x.fillRect(X, Y, 16, 16);
+            x.fillStyle = P.f[(tx + ty + 2) % 4]; x.fillRect(X + (ty % 2 ? 0 : 8), Y, 8, 8); x.fillRect(X + (ty % 2 ? 8 : 0), Y + 8, 8, 8);
+            x.fillStyle = P.seam; x.fillRect(X, Y + 7, 16, 1); x.fillRect(X + (ty % 2 ? 7 : 15), Y, 1, 7); x.fillRect(X + (ty % 2 ? 15 : 7), Y + 8, 1, 8);
+            for(let i = 0; i < 6; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.nail);
         } else {
             x.fillStyle = P.f[0]; x.fillRect(X, Y, 16, 16);
             for(let i = 0; i < 26; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), P.f[1 + (srand() * 3 | 0)]);
             if(srand() < .25) { const a = srand() * 12 | 0, b = srand() * 12 | 0; x.fillStyle = P.seam; x.fillRect(X + a, Y + b, 3, 1); }
+        }
+        // reeds' roots: a wetter, greener patch (the stalks themselves stand up, drawn with the people)
+        if(ch === 'r') { x.fillStyle = 'rgba(40,70,30,.55)'; x.fillRect(X, Y, 16, 16); for(let i = 0; i < 8; i++) px(X + (srand() * 16 | 0), Y + (srand() * 16 | 0), '#4f6a34'); }
+        // a loud floor: bones, gravel or dry leaves strewn over it
+        if(ch === ',') {
+            const k = L.crunchLook || 'gravel', cols = { bones: ['#d8d0bc', '#b8b09c'], gravel: ['#8a857c', '#6a665e'], leaves: ['#a8642a', '#c88a3a', '#7a4a20'] }[k];
+            for(let i = 0; i < 14; i++) { x.fillStyle = cols[i % cols.length]; x.fillRect(X + (srand() * 15 | 0), Y + (srand() * 15 | 0), k === 'bones' && i % 3 === 0 ? 3 : 2, 1); }
         }
         // a rail: sleepers across the way it runs, two iron rails along it
         if(ch === '=') {
@@ -407,7 +1022,7 @@ function bakeGround() {
             if(h) { x.fillStyle = '#4a3420'; for(let i = 1; i < 16; i += 4) x.fillRect(X + i, Y + 2, 2, 12); x.fillStyle = '#7d8893'; x.fillRect(X, Y + 4, 16, 1); x.fillRect(X, Y + 11, 16, 1); }
         }
         // a wall above casts a short shadow onto the floor
-        if(WALLS.has(tile(tx, ty - 1)) || tile(tx, ty - 1) === 'W') { x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(X, Y, 16, 3); }
+        if(isWall(tile(tx, ty - 1))) { x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(X, Y, 16, 3); }
     }
     G.ground = c;
 }
@@ -426,8 +1041,16 @@ const OBJDEF = {
     F: { fire: true, solid: true, light: { r: 250, i: 1.1 } }, C: { chest: true, solid: true }, c: { chest: true, trapped: true, solid: true },
     L: { lever: true, solid: true }, t: { trapdoor: true }, $: { purse: true }, S: { spikes: true }, v: { bats: true },
     H: { hide: true, solid: true, cover: true }, A: { pen: true, solid: true }, K: { cage: true, solid: true },
-    o: { ore: 'iron', solid: true, cover: true }, q: { ore: 'coal', solid: true, cover: true }, M: { cart: true }
+    o: { ore: 'iron', solid: true, cover: true }, q: { ore: 'coal', solid: true, cover: true }, M: { cart: true },
+    G: { bell: true, solid: true }, m: { larder: true, solid: true, cover: true }, i: { herbs: true, solid: true, cover: true },
+    w: { keg: true, img: 'barrel', solid: true, cover: true }, Z: { cleat: true, solid: true }, z: { load: true }, y: { bearCage: true, solid: true }
 };
+// the hideouts' numbers (2.9.0): a dog smells you within SMELL px (×1.6 running or carrying a
+// sack) whatever the light, and barks; meat keeps one eating for MEAT_T s; the bell carries over
+// the whole place; the herb in a keg puts its drinkers to sleep DRUG_T s later; a dropped load
+// knocks out whoever stands within DROP_R px of it; you swim deep water at SWIM × your pace and
+// are seen there within SWIM_SEEN px only; crouched in reeds within REED_SEEN
+const SMELL = 74, MEAT_T = 25, BELL_R = 1400, DRUG_T = 12, DRUG_R = 7 * TS, DROP_R = 46, SWIM = .5, SWIM_SEEN = 60, REED_SEEN = 34;
 // the mine's numbers: how many sacks the cart takes and how fast it rolls (px/s); the stock, and
 // what a sack is worth, live on the map side (Game.MINE) so a site keeps them between visits
 const CART_CAP = 3, CART_SPEED = 64;
@@ -459,11 +1082,13 @@ function newGame() {
     G = { w, h, grid: map.map(r => r.split('')), objs: new Array(w * h).fill(null), doors: {}, opened: new Set(), lights: [], t: 0,
           chars: [], fx: [], texts: [], gold: 0, items: [], freed: 0, kos: 0, downs: 0, alarms: 0, alarm: 0,
           approach: R.approach, seen: new Uint8Array(w * h), ambushOn: R.ambush, ambushState: 0, done: false, trapdoors: [], stepAcc: 0,
-          pebbles: 3, band: BS, purseTaken: false, carry: null, bank: { iron: 0, coal: 0 }, steel: 0, cart: null };
+          pebbles: 3, band: BS, purseTaken: false, carry: null, bank: { iron: 0, coal: 0 }, steel: 0, cart: null,
+          meat: 0, draught: 0, key: false, crunchTold: false, meats: [] };
     seed = 3 + (hashStr(R.site.id) % 97);
     for(let y = 0; y < h; y++) for(let x = 0; x < w; x++) {
         const ch = G.grid[y][x];
         if(ch === 'D') G.doors[x + ',' + y] = { x, y, open: false, locked: false };
+        if(ch === 'd') { G.grid[y][x] = 'D'; G.doors[x + ',' + y] = { x, y, open: false, locked: true, keyed: true }; }
         if(OBJDEF[ch]) {
             const d = OBJDEF[ch], o = Object.assign({ ch, x, y, cx: x * TS + 16, cy: y * TS + 16, frame: 0 }, d);
             if(ch === 't') G.trapdoors.push(o);
@@ -507,9 +1132,9 @@ function newGame() {
     L.guards.forEach((gd, i) => {
         let type = gd.type;
         if(R.time === 'night' && gd.night) type = gd.night;
-        const st = gd.leader ? BS.leader : BS.foot;
+        const st = gd.leader ? BS.leader : gd.dog ? { hp: Math.round(BS.foot.hp * .7), attack: BS.foot.attack, defense: 0 } : BS.foot;
         const g = makeChar('guard', gd.x, gd.y, { look: gd.leader ? LOOKS.leader : LOOKS.bandit(i), hp: st.hp, maxHp: st.hp, attack: st.attack, defense: st.defense,
-            role: type, face: gd.face || 'down', route: gd.route, sweep: gd.sweep || 0, leader: !!gd.leader });
+            role: type, face: gd.face || 'down', route: gd.route, sweep: gd.sweep || 0, leader: !!gd.leader, dog: !!gd.dog, key: !!gd.key });
         if(gd.dx) g.x += gd.dx;
         if(type === 'tower') { g.y -= 2; g.elev = 30; }                 // up on the platform
         g.home = { x: g.x, y: g.y, a: g.a };
@@ -563,7 +1188,7 @@ const RAD = 9;
 function moveChar(c, dx, dy) {
     const tryAxis = (nx, ny) => {
         const x0 = Math.floor((nx - RAD) / TS), x1 = Math.floor((nx + RAD) / TS), y0 = Math.floor((ny - RAD * .6) / TS), y1 = Math.floor((ny + RAD * .4) / TS);
-        for(let y = y0; y <= y1; y++) for(let x = x0; x <= x1; x++) if(solidTile(x, y)) return false;
+        for(let y = y0; y <= y1; y++) for(let x = x0; x <= x1; x++) if(solidFor(c, x, y)) return false;
         return true;
     };
     if(dx && tryAxis(c.x + dx, c.y)) c.x += dx;
@@ -574,15 +1199,16 @@ function moveChar(c, dx, dy) {
 // walking into a shut door opens it (with a creak)
 function bump(c, tx, ty) {
     const d = G.doors[tx + ',' + ty];
-    if(d && !d.open && !d.locked) { d.open = true; noise(tx * TS + 16, ty * TS + 16, 70, T('Kapı gıcırdadı')); buildLight(); }
-    else if(d && d.locked && !c.lockedToldT) { say(T('Kapı kilitli!')); c.lockedToldT = 1.5; }
+    if(d && d.keyed && G.key) { d.keyed = d.locked = false; d.open = true; noise(tx * TS + 16, ty * TS + 16, 30, null); floatText(tx * TS + 16, ty * TS - 4, T('Kilit açıldı'), '#9fe0a0'); buildLight(); }
+    else if(d && !d.open && !d.locked) { d.open = true; noise(tx * TS + 16, ty * TS + 16, 70, T('Kapı gıcırdadı')); buildLight(); }
+    else if(d && d.locked && !c.lockedToldT) { say(d.keyed ? T('Kapı kilitli. Anahtar haydutlardan birinin kemerinde.') : T('Kapı kilitli!')); c.lockedToldT = 1.5; }
 }
 // grid path (BFS, 4-way; doors are passable — guards open them)
 function path(from, to) {
     const W = G.w, sx = Math.floor(from.x / TS), sy = Math.floor(from.y / TS), ex = Math.floor(to.x / TS), ey = Math.floor(to.y / TS);
     if(sx === ex && sy === ey) return [];
     const prev = new Int32Array(W * G.h).fill(-1), q = [sy * W + sx]; prev[sy * W + sx] = sy * W + sx;
-    const pass = (x, y) => { const c = tile(x, y); if(c === 'D') { const d = G.doors[x + ',' + y]; return !d.locked; } return !solidTile(x, y); };
+    const pass = (x, y) => { const c = tile(x, y); if(c === 'D') { const d = G.doors[x + ',' + y]; return !d.locked; } return !solidFor(from, x, y); };
     for(let qi = 0; qi < q.length; qi++) {
         const cur = q[qi], cx = cur % W, cy = cur / W | 0;
         if(cx === ex && cy === ey) break;
@@ -620,10 +1246,10 @@ function followPath(c, target, speed, dt) {
 }
 
 // ---------- noise, alarm, messages ----------
-function noise(x, y, r, label) {
+function noise(x, y, r, label, from) {
     G.fx.push({ kind: 'ring', x, y, r, t: 0 });
     for(const g of G.chars) {
-        if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down') continue;
+        if(g.kind !== 'guard' || g === from || g.state === 'ko' || g.state === 'down' || g.state === 'eat') continue;
         const d = Math.hypot(g.x - x, g.y - y), rr = g.state === 'sleep' ? r * .45 : r;
         if(d > rr) continue;
         if(g.state === 'sleep') { g.state = 'calm'; g.role = g.role === 'sleep' || g.role === 'dice' ? 'post' : g.role; floatText(g.x, g.y - 40, T('Uyandı'), '#ffb36b'); }
@@ -633,19 +1259,23 @@ function noise(x, y, r, label) {
     }
     if(label && r > 60) say(label);
 }
-function raiseAlarm(by, silent) {
+// `at` is what they run at: the hero, or a bear let loose among them
+function raiseAlarm(by, silent, at) {
     if(!G.alarm) { G.alarms++; Snd.alarm(); }
     G.alarm = 12;
-    const p = G.player;
+    const p = at || G.player;
     for(const g of G.chars) {
         if(g.kind !== 'guard' || g.state === 'ko' || g.state === 'down') continue;
         const d = by ? Math.hypot(g.x - by.x, g.y - by.y) : 0;
         if(!by || d < 11 * TS || g.state === 'alert') {
             if(g.state === 'sleep') g.wakeT = .9;
+            if(g.state === 'eat') continue;          // a dog at its meat doesn't care
             g.state = g.state === 'sleep' ? 'sleep' : 'alert'; g.lastSeen = { x: p.x, y: p.y }; g.sus = 1;
+            if(at) g.target = at;
         }
     }
-    if(!silent) say(T('Fark edildin! Alarm!'));
+    if(at && at.kind === 'beast' && !G.bearTold) { G.bearTold = true; say(T('Haydutlar ayıyla boğuşuyor!')); }
+    else if(!silent) say(T('Fark edildin! Alarm!'));
 }
 function say(t, secs) { G.msg = t; G.msgT = secs || 2.6; }
 function floatText(x, y, t, col) { G.texts.push({ x, y, t, col: col || '#fff', life: 1.1 }); }
@@ -658,6 +1288,8 @@ function floatText(x, y, t, col) { G.texts.push({ x, y, t, col: col || '#fff', l
 // cave, where a few drips fall instead) and faded out while they're chasing you. The small
 // effects (a pebble's clack, a thud, coins, a hit, the alarm stab) are generated. Everything is
 // under the same mute and volume as every other sound, through Game.ac().
+// open sky (crickets all over at night), underground (drips), or a building (crickets by the doors and windows)
+function skyOf() { return L.sky || (L.theme === 'camp' ? 'open' : L.theme === 'cave' ? 'under' : 'roof'); }
 const Snd = {
     on() { return !Game.opt('muted') && Game.opt('volume') > 0; },
     start() {
@@ -668,7 +1300,7 @@ const Snd = {
             const out = this.out = ac.createGain(); out.gain.value = Math.min(1, Game.opt('volume') * 1.6); out.connect(ac.destination);
             const len = ac.sampleRate, buf = this.noiseBuf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
             for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-            if(L.theme === 'cave') this.dripT = 1;
+            if(skyOf() === 'under') this.dripT = 1;
             else if(R.time === 'night') this.crickets(ac);
             this.openT = 0;
         } catch(e) { this.stop(); }
@@ -708,6 +1340,7 @@ const Snd = {
             else if(kind === 'thud') { this.tone(120, t, .18, 'sine', .5, 50); this.burst(t, .08, 400, .3, 'lowpass'); }
             else if(kind === 'hit') { this.burst(t, .07, 1500, .45); this.tone(180, t, .1, 'square', .08, 90); }
             else if(kind === 'coin') { this.tone(1320, t, .09, 'triangle', .12); this.tone(1760, t + .07, .12, 'triangle', .1); }
+            else if(kind === 'bell') for(let i = 0; i < 3; i++) for(const [f, v] of [[392, .14], [784, .06], [1046, .04]]) this.tone(f, t + i * 1.1, 2.4, 'sine', v);
         } catch(e) {}
     },
     alarm() {
@@ -716,10 +1349,10 @@ const Snd = {
     },
     // how much open sky is round the hero: the share of outdoor tiles within four (the camp is all sky)
     openness() {
-        if(L.theme === 'camp') return 1;
+        if(skyOf() === 'open') return 1;
         const p = G.player, px = Math.floor(p.x / TS), py = Math.floor(p.y / TS);
         let n = 0, o = 0;
-        for(let y = py - 4; y <= py + 4; y++) for(let x = px - 4; x <= px + 4; x++) { n++; if(isOutside(x, y) || tile(x, y) === 'W') o++; }
+        for(let y = py - 4; y <= py + 4; y++) for(let x = px - 4; x <= px + 4; x++) { n++; if(skyAt(x, y) || tile(x, y) === 'W') o++; }
         return o / n;
     },
     tick(dt) {
@@ -822,7 +1455,7 @@ function updatePlayer(dt) {
         return;
     }
     if(crouchToggle) { p.crouch = !p.crouch; crouchToggle = false; }
-    if(throwPressed) { throwPressed = false; if(G.carry) say(T('Sırtında çuval varken taş atamazsın.')); else if(!p.busy) throwPebble(); }
+    if(throwPressed) { throwPressed = false; if(G.carry) say(T('Sırtında çuval varken taş atamazsın.')); else if(p.swim) say(T('Yüzerken bir şey atamazsın.')); else if(!p.busy) throwPebble(); }
     if(p.busy && chaser()) { p.busy = null; say(T('Peşindeler! Yarım kaldı.')); }
     if(p.busy) { p.busy.t -= dt; if(p.busy.t <= 0) { const b = p.busy; p.busy = null; b.done(); } return; }
     let mx = 0, my = 0, run = false;
@@ -831,10 +1464,11 @@ function updatePlayer(dt) {
     run = held('shift');
     if(touchMove.mag) { mx = touchMove.x; my = touchMove.y; run = touchMove.mag > .92; }
     const m = Math.hypot(mx, my);
-    const inWater = tile(Math.floor(p.x / TS), Math.floor(p.y / TS)) === '~';
+    const under = tile(Math.floor(p.x / TS), Math.floor(p.y / TS)), inWater = under === '~', deep = under === '%';
     if(run && p.crouch) p.crouch = false;
     let speed = p.crouch ? 46 : run ? 128 : 78;
     if(inWater) speed *= .55;
+    if(deep) { speed = 78 * SWIM; run = false; }
     if(G.carry) speed *= .7;
     if(p.atkT > 0) speed *= .35;
     p.running = run && m > 0;
@@ -846,7 +1480,13 @@ function updatePlayer(dt) {
         G.stepAcc += speed * dt;
         if(G.stepAcc > 38) {
             G.stepAcc = 0;
-            if(inWater) noise(p.x, p.y, p.crouch ? 70 : 115, null);
+            if(deep) noise(p.x, p.y, 45, null);                                   // a stroke: a soft splash
+            else if(under === ',') {                                              // bones, gravel, dry leaves: even a crouch is heard
+                noise(p.x, p.y, p.running ? 170 : p.crouch ? 60 : 110, null);
+                if(!G.crunchTold) { G.crunchTold = true; say(T(L.crunch)); }   // said even crouched: noise() only names the loud ones
+            }
+            else if(under === 'r' && !p.crouch) noise(p.x, p.y, p.running ? 150 : 55, null);   // upright in reeds: they rustle
+            else if(inWater) noise(p.x, p.y, p.crouch ? 70 : 115, null);
             else if(G.carry) noise(p.x, p.y, p.running ? 180 : p.crouch ? 35 : 85, null);   // a sack on the back is never silent
             else if(p.running) noise(p.x, p.y, 150, null);
             else if(!p.crouch) noise(p.x, p.y, 40, null);
@@ -862,6 +1502,8 @@ function updatePlayer(dt) {
     if(o && o.spikes && !o.sprung) { o.sprung = true; o.known = true; hurtBy(p, 'pierce', 26, null); noise(o.cx, o.cy, 110, T('Diken tuzağı!')); }
     if(o && o.bats && !o.flown) { o.flown = true; noise(o.cx, o.cy, p.crouch ? 90 : 170, T('Yarasalar havalandı!')); G.fx.push({ kind: 'bats', x: o.cx, y: o.cy, t: 0 }); }
     p.cd -= dt; p.atkT -= dt;
+    p.swim = deep;
+    if(deep) { if(atkPressed) say(T('Yüzerken dövüşemezsin.')); atkPressed = false; G.ctx = null; actPressed = false; return; }
     if(atkPressed && p.cd <= 0) { atkPressed = false; if(G.carry) dropSack(true); playerAttack(); }
     atkPressed = false;
     G.ctx = findInteraction();
@@ -892,7 +1534,7 @@ function hurt(c, dmg, by, dmgType) {
     c.hp -= dmg; c.hurtT = .25;
     floatText(c.x, c.y - 34, '-' + dmg, c.kind === 'guard' ? '#ffd28a' : '#ff8a7a');
     if(by) { const a = Math.atan2(c.y - by.y, c.x - by.x); moveChar(c, Math.cos(a) * 6, Math.sin(a) * 6); }
-    if(c.kind === 'guard' && c.state !== 'alert' && c.hp > 0) { c.state = 'alert'; c.lastSeen = by ? { x: by.x, y: by.y } : c.lastSeen; raiseAlarm(c); }
+    if(c.kind === 'guard' && c.state !== 'alert' && c.hp > 0) { const bear = by && by.kind === 'beast' ? by : undefined; c.state = 'alert'; c.lastSeen = by ? { x: by.x, y: by.y } : c.lastSeen; if(bear) c.target = bear; raiseAlarm(c, false, bear); }
     if(c.hp <= 0) {
         c.hp = 0;
         // a blunt weapon knocks out rather than kills, as it does on the field (DMG_TYPES.blunt.knock)
@@ -906,7 +1548,7 @@ function hurt(c, dmg, by, dmgType) {
 
 // an alert bandit within 8 tiles: while one is on you nothing can be used — no chest, no lever, no
 // hiding, no door out. Get rid of him or get away first
-function chaser() { const p = G.player; return G.chars.find(g => g.kind === 'guard' && g.state === 'alert' && Math.hypot(g.x - p.x, g.y - p.y) < 8 * TS); }
+function chaser() { const p = G.player; return G.chars.find(g => g.kind === 'guard' && g.state === 'alert' && !(g.target && g.target.kind === 'beast') && Math.hypot(g.x - p.x, g.y - p.y) < 8 * TS); }
 
 // what the action button would do right now: every candidate in reach, the nearest wins, and
 // what you face counts as nearer than what's behind you
@@ -924,7 +1566,13 @@ function findInteraction() {
         const d = Math.hypot(g.x - p.x, g.y - p.y);
         if(d > 36) continue;
         const behind = Math.abs(angDiff(Math.atan2(p.y - g.y, p.x - g.x), g.a)) > 1.6;
-        if(g.state === 'sleep' || behind || (g.role === 'dice' && g.state === 'calm')) add(d - 12, T('Bayılt'), g, () => takedown(g));
+        if(g.state === 'sleep' || behind || (g.role === 'dice' && g.state === 'calm') || g.state === 'eat') add(d - 12, g.dog ? T('Köpeği bayılt') : T('Bayılt'), g, () => takedown(g));
+        if(g.key && !G.key && (g.state === 'sleep' || behind)) add(d - 14, T('Anahtarı çal'), g, () => pickKey(g));
+    }
+    // the key off a bandit who's down
+    for(const g of G.chars) if(g.kind === 'guard' && g.key && !G.key && (g.state === 'ko' || g.state === 'down')) {
+        const d = Math.hypot(g.x - p.x, g.y - p.y);
+        if(d < 36) add(d - 8, T('Anahtarı al'), g, () => pickKey(g));
     }
     for(const c of G.chars) if(c.kind === 'prisoner' && c.tied) {
         const d = Math.hypot(c.x - p.x, c.y - p.y);
@@ -949,7 +1597,15 @@ function findInteraction() {
         if(o.trapdoor) add(d + 2, T('Kapaktan geç'), o, () => busy(.9, T('Kapaktan geçiliyor…'), () => useTrapdoor(o)));
         if(o.ore) add(d, o.ore === 'iron' ? T('Demir çuvalını sırtla') : T('Kömür çuvalını sırtla'), o, () => shoulder(o));
         if(o.cart && !o.rolling && !o.done && o.load.iron + o.load.coal > 0) add(d, T('Arabayı it'), o, () => pushCart(o));
+        if(o.bell && !o.rung) add(d, T('Çanı çal'), o, () => busy(.5, T('Çan ipi çekiliyor…'), () => ringBell(o)));
+        if(o.larder && !o.taken) add(d, T('Et al'), o, () => busy(.7, T('Et alınıyor…'), () => takeMeat(o)));
+        if(o.herbs && !o.taken) add(d, T('Uyku otu topla'), o, () => busy(1.1, T('Ot toplanıyor…'), () => takeHerb(o)));
+        if(o.keg && G.draught > 0 && !o.drugged) add(d - 2, T('Fıçıya uyku otu kat'), o, () => busy(1.3, T('Ot fıçıya karıştırılıyor…'), () => drugKeg(o)));
+        if(o.cleat && !o.cut && loadOf(o)) add(d, T('Halatı kes'), o, () => busy(.8, T('Halat kesiliyor…'), () => cutRope(o)));
+        if(o.bearCage && !o.open) add(d, T('Ayının kafesini aç'), o, () => busy(1.6, T('Kafesin sürgüsü çekiliyor…'), () => freeBear(o)));
     }
+    // a ledge underfoot: jump down to the tile below it (one way: from below it's a wall)
+    if(tile(tx, ty + 1) === 'J' && !solidTile(tx, ty + 2)) add(Math.abs(tx * TS + 16 - p.x) + 6, T('Aşağı atla'), { cx: tx * TS + 16, cy: (ty + 1) * TS + 16 }, () => busy(.6, T('Atlanıyor…'), () => jumpDown(tx, ty + 2)));
     for(const [dx] of [[1], [-1]]) if(tile(tx + dx, ty) === 'W')
         add(Math.abs((tx + dx) * TS + 16 - p.x), T('Pencereden geç'), { cx: (tx + dx) * TS + 16, cy: ty * TS + 16 }, () => busy(1.1, T('Pencereden geçiliyor…'), () => { p.x += dx * TS * 2; noise(p.x, p.y, 45, null); }));
     if(isExit(tx, ty)) add(20, T('İnden ayrıl'), null, () => endGame('out'));
@@ -985,8 +1641,18 @@ function hide(o) {
     p.hidden = o; p.hideFrom = { x: p.x, y: p.y }; p.crouch = true;
     p.x = o.cx; p.y = o.cy + 6;                                         // inside it: noise and sight start from there
     o.shakeT = .4;
-    say(L.theme === 'camp' ? T('Samanın içine gömüldün. Yanına gelmedikçe seni göremezler.') : L.theme === 'cave' ? T('Kayanın gölgesine sindin. Yanına gelmedikçe seni göremezler.') : T('Dolaba girdin. Kapağı açmadıkça seni göremezler.'));
+    say(T(HIDES[hideKind()]));
 }
+// what a hiding place is, by level (or by theme): drawn in drawObj, named when you get in
+const HIDES = {
+    hay: 'Samanın içine gömüldün. Yanına gelmedikçe seni göremezler.',
+    niche: 'Kayanın gölgesine sindin. Yanına gelmedikçe seni göremezler.',
+    wardrobe: 'Dolaba girdin. Kapağı açmadıkça seni göremezler.',
+    tomb: 'Kapağı kayık bir lahdin içine girdin. Yanına gelmedikçe seni göremezler.',
+    barrel: 'Boş bir fıçının içine girdin. Yanına gelmedikçe seni göremezler.',
+    log: 'Kovuk bir kütüğün içine sindin. Yanına gelmedikçe seni göremezler.'
+};
+function hideKind() { return L.hide || (L.theme === 'camp' ? 'hay' : L.theme === 'cave' ? 'niche' : 'wardrobe'); }
 function unhide() {
     const p = G.player, o = p.hidden;
     if(!o) return;
@@ -1011,13 +1677,28 @@ function pebbleLanding(tx, ty) {
     for(; r < d; r += 6) { const x = p.x + ux * r, y = p.y - 10 + uy * r; if(solidTile(Math.floor(x / TS), Math.floor(y / TS)) && r > 20) { r -= 10; break; } }
     return { x: p.x + ux * r, y: p.y - 4 + uy * r, ux, uy };
 }
+// with meat in hand the throw is the meat (for the dogs); the pebbles wait until it's gone
 function throwPebble() {
-    const p = G.player;
-    if(G.pebbles <= 0) { say(T('Atacak taşın kalmadı. Çuvallarda, sandıklarda bulabilirsin.')); return; }
+    const p = G.player, meat = G.meat > 0;
+    if(!meat && G.pebbles <= 0) { say(T('Atacak taşın kalmadı. Çuvallarda, sandıklarda bulabilirsin.')); return; }
     const tgt = aimFinal || aimTarget(); aimFinal = null;
     const { x: lx, y: ly, ux, uy } = pebbleLanding(tgt.x, tgt.y);
-    G.pebbles--; p.a = Math.atan2(uy, ux); p.atkT = .2;
-    G.fx.push({ kind: 'stone', x0: p.x, y0: p.y - 20, x: lx, y: ly, t: 0, land: true });
+    if(meat) G.meat--; else G.pebbles--;
+    p.a = Math.atan2(uy, ux); p.atkT = .2;
+    G.fx.push({ kind: meat ? 'meat' : 'stone', x0: p.x, y0: p.y - 20, x: lx, y: ly, t: 0, land: true });
+}
+// meat on the floor: a soft thud for the bandits, a dinner for every dog within nine tiles that
+// isn't already after you — the nearest one runs to it and eats for MEAT_T seconds
+function meatLands(x, y) {
+    noise(x, y, 50, null);
+    const dogs = G.chars.filter(g => g.dog && !['ko', 'down', 'alert', 'eat', 'grabbed'].includes(g.state) && Math.hypot(g.x - x, g.y - y) < 9 * TS && path(g, { x, y }))
+        .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+    const dog = dogs[0];
+    if(!dog) { floatText(x, y - 16, T('Pat'), '#e8e0cc'); return; }
+    if(dog.state === 'sleep') dog.role = 'post';
+    Object.assign(dog, { state: 'eat', meat: { x, y }, eatT: MEAT_T, sus: 0, path: null, goLook: false });
+    floatText(dog.x, dog.y - 30, T('Eti kokladı'), '#ffd28a');
+    say(T('Köpek etin peşine düştü. Yerken başka bir şeyle ilgilenmez.'));
 }
 function spookHorses(o) {
     o.used = true;
@@ -1065,10 +1746,13 @@ function pullLever(o) {
         const opens = (L.lever && L.lever.opens) || [];
         for(const [x, y] of opens) G.opened.add(x + ',' + y);
         for(const k of G.ambushBlock || []) G.opened.add(k);          // the lever also lifts an ambush's rockfall
+        // a sluice lever lets the deep water out of its box: what you swam, they now wade
+        const dr = L.lever && L.lever.drains;
+        if(dr) { for(let y = dr[1]; y <= dr[3]; y++) for(let x = dr[0]; x <= dr[2]; x++) if(G.grid[y][x] === '%') G.grid[y][x] = '~'; bakeGround(); say(T('Savak açıldı: su çekiliyor, artık haydutlar da geçebilir.')); }
         buildLight();
         const at = opens[0] ? { x: opens[0][0] * TS + 16, y: opens[0][1] * TS + 16 } : { x: o.cx, y: o.cy };
         G.fx.push({ kind: 'dust', x: at.x, y: at.y, t: 0 });
-        noise(at.x, at.y, 160, T('Taşlar gürültüyle yuvarlandı!'));
+        noise(at.x, at.y, 160, dr ? null : T('Taşlar gürültüyle yuvarlandı!'));   // a sluice's own line is said above
     });
 }
 function useTrapdoor(o) {
@@ -1078,6 +1762,85 @@ function useTrapdoor(o) {
     p.x = spot.x; p.y = spot.y;
     for(const c of G.chars) if((c.kind === 'squad' && c.state !== 'down') || (c.kind === 'prisoner' && c.following)) { c.x = spot.x + rnd(-6, 6); c.y = spot.y + rnd(-4, 4); }
     G.trail = [];
+}
+
+// ---------- the hideouts' things (2.9.0) ----------
+// the key off a belt: a sleeper, a bandit with his back to you, or one who's down. Lifting it
+// from a man on his feet is a brush he may half feel
+function pickKey(g) {
+    busy(.8, T('Anahtar alınıyor…'), () => {
+        if(!g.key) return;
+        g.key = false; G.key = true;
+        if(g.state === 'calm' || g.state === 'return') g.sus = Math.min(.9, g.sus + .3);
+        floatText(g.x, g.y - 40, T('Anahtar sende'), '#f5d76e'); say(T('Anahtar sende: kilitli kapıya yürü, açılır.'));
+    });
+}
+// the bell carries over the whole place: everyone awake walks over to see who rang it, the
+// sleepers near it wake up. Ring it and be somewhere else when they come
+function ringBell(o) {
+    o.rung = true; o.swingT = 3;
+    noise(o.cx, o.cy, BELL_R, T('Çan bütün inde yankılandı! Herkes çana koşuyor.'));
+    for(const g of G.chars) if(g.kind === 'guard' && g.state === 'suspicious') { g.investigate = 14; g.lastSeen = { x: o.cx, y: o.cy + 28 }; }
+    Snd.fx('bell');
+}
+function takeMeat(o) { o.taken = true; G.meat += 2; floatText(o.cx, o.cy - 24, T('+2 et'), '#ffb38a'); say(T('Et elinde: attığında köpek peşinden gider.')); }
+function takeHerb(o) { o.taken = true; G.draught++; floatText(o.cx, o.cy - 24, T('+1 uyku otu'), '#9fe0a0'); say(T('Uyku otu: içtikleri fıçıya katarsan zar başındakiler uyur.')); }
+// the herb in the keg: a while later every bandit at the dice table near it drinks and nods off
+function drugKeg(o) {
+    G.draught--; o.drugged = true;
+    G.drug = { x: o.cx, y: o.cy, t: DRUG_T };
+    floatText(o.cx, o.cy - 30, T('Fıçıya karıştı'), '#9fe0a0'); say(T`Biraz bekle: ${DRUG_T} saniye içinde içenler uyuyacak.`);
+}
+function updateDrug(dt) {
+    const d = G.drug;
+    if(!d || (d.t -= dt) > 0) return;
+    G.drug = null;
+    let n = 0;
+    for(const g of G.chars) if(g.kind === 'guard' && !g.dog && (g.role === 'dice' || g.role === 'sleep') && ['calm', 'suspicious', 'return'].includes(g.state) && Math.hypot(g.x - d.x, g.y - d.y) < DRUG_R) {
+        g.state = 'sleep'; g.role = 'sleep'; g.sus = 0; n++;
+        floatText(g.x, g.y - 40, T('Uyudu'), '#cfe8ff');
+    }
+    say(n ? T`Fıçıdan içen ${n} haydut uyuyakaldı.` : T('Fıçıdan içen olmadı.'));
+}
+// the cleat's load is the nearest hanging z within eight tiles that hasn't come down yet
+function loadOf(o) {
+    let best = null, bd = 8 * TS;
+    for(const z of G.objs) if(z && z.load && !z.down) { const d = Math.hypot(z.cx - o.cx, z.cy - o.cy); if(d < bd) { bd = d; best = z; } }
+    return best;
+}
+// cut: the load comes down. Whoever stands under it is knocked senseless (a friend too), and the
+// crash is heard far off — the guards come to look at the heap
+function cutRope(o) {
+    const z = loadOf(o);
+    o.cut = true;
+    if(!z) return;
+    z.down = true; z.solid = false;
+    G.fx.push({ kind: 'crash', x: z.cx, y: z.cy, t: 0 });
+    let n = 0;
+    for(const c of G.chars) {
+        if(c.state === 'down' || c.state === 'ko' || Math.hypot(c.x - z.cx, c.y - 6 - z.cy) > DROP_R) continue;
+        if(c.kind === 'guard') { c.state = 'ko'; c.body = true; c.hp = Math.min(c.hp, 1); G.kos++; n++; floatText(c.x, c.y - 36, T('Baygın'), '#cfe8ff'); }
+        else hurtBy(c, 'blunt', 40, null);
+    }
+    Snd.fx('thud');
+    noise(z.cx, z.cy, 240, n ? T`Yük çöktü: altındaki ${n} haydut baygın!` : T('Yük gürültüyle yere çöktü!'));
+}
+// the bear comes out of its cage roaring and goes for the nearest bandit; they turn on it
+function freeBear(o) {
+    o.open = true; o.solid = false;
+    const sp = freeSpotNear(o.x, o.y);
+    const b = makeChar('beast', 0, 0, { x: sp.x, y: sp.y, hp: 150, maxHp: 150, attack: 22, defense: 3, face: 'down' });
+    G.chars.push(b);
+    floatText(sp.x, sp.y - 40, T('GRRAAH!'), '#ff9a6a');
+    noise(sp.x, sp.y, 260, T('Ayı kafesinden çıktı! Haydutlara saldırıyor.'));
+}
+function jumpDown(tx, ty) {
+    const p = G.player, x = tx * TS + 16, y = ty * TS + 20;
+    p.x = x; p.y = y; p.a = Math.PI / 2;
+    for(const c of G.chars) if((c.kind === 'squad' && c.state !== 'down') || (c.kind === 'prisoner' && c.following)) { c.x = x + rnd(-8, 8); c.y = y + rnd(0, 6); }
+    G.trail = [];
+    noise(x, y, 100, null);
+    G.fx.push({ kind: 'dust', x, y: y - 6, t: 0 });
 }
 
 // ---------- the mine ----------
@@ -1187,8 +1950,11 @@ function canSee(g, c) {
     if(c.state === 'down' && !c.body) return false;
     const dx = c.x - g.x, dy = (c.y - 10) - (g.y - 14), d = Math.hypot(dx, dy);
     if(c.hidden) return d < 22 ? { d, range: 40, light: 1 } : false;
+    const under = c.kind ? tile(Math.floor(c.x / TS), Math.floor(c.y / TS)) : '';
+    if(under === '%' && d > SWIM_SEEN) return false;                    // a head in dark water
+    if(under === 'r' && c.crouch && d > REED_SEEN) return false;        // crouched in the reeds
     const s = guardSight(g), light = lightAt(c.x, c.y);
-    const range = BASE_RANGE * s.range * (.3 + .7 * Math.min(1, light)) * (c.crouch ? .78 : 1);
+    const range = BASE_RANGE * s.range * (.3 + .7 * Math.min(1, light)) * (c.crouch ? .78 : 1) * (L.fog || 1) * (g.dog ? .7 : 1);
     if(d > range) return false;
     if(d > 26 && Math.abs(angDiff(Math.atan2(dy, dx), g.a)) > s.fov) return false;
     if(!los(g.x, g.y - 14, c.x, c.y - 10, false)) return false;
@@ -1199,19 +1965,31 @@ function updateGuard(g, dt) {
     if(g.state === 'grabbed') { g.anim = 'Hurt'; return; }
     if(g.wakeT) { g.wakeT -= dt; if(g.wakeT <= 0) { g.wakeT = 0; g.state = 'alert'; floatText(g.x, g.y - 40, T('Uyandı!'), '#ffb36b'); } return; }
     if(g.state === 'sleep') { g.anim = 'Idle'; return; }
+    if(g.state === 'eat') return updateEating(g, dt);
     const p = G.player;
     g.sees = null;
-    // eyes: the hero, the squad, freed prisoners — and fallen friends
+    // eyes: the hero, the squad, freed prisoners, a loose bear — and fallen friends. A dog's nose
+    // finds what its eyes miss: close by, through the dark, round a corner it can't (walls stop it)
     let best = null;
     for(const c of G.chars) {
-        if(!(c.kind === 'player' || c.kind === 'squad' || (c.kind === 'prisoner' && c.following)) || c.state === 'down') continue;
-        const v = canSee(g, c);
+        if(!(c.kind === 'player' || c.kind === 'squad' || c.kind === 'beast' || (c.kind === 'prisoner' && c.following)) || c.state === 'down') continue;
+        let v = canSee(g, c);
+        if(!v && g.dog && c.kind !== 'beast' && !c.hidden && !c.swim) {
+            const d = Math.hypot(c.x - g.x, c.y - g.y), r = SMELL * (c.running || (c.kind === 'player' && G.carry) ? 1.6 : 1);
+            if(d < r && los(g.x, g.y - 6, c.x, c.y - 6, false)) v = { d, range: r * 1.2, light: 1 };
+        }
         if(v && (!best || v.d < best.v.d)) best = { c, v };
+    }
+    // a suspicious or angry dog barks, and the bark brings the bandits to the dog
+    if(g.dog && (g.state === 'suspicious' || g.state === 'alert') && (g.barkT = (g.barkT || 0) - dt) <= 0) {
+        g.barkT = 1.6; floatText(g.x, g.y - 30, T('Hav! Hav!'), '#ffb36b');
+        noise(g.x, g.y, 170, g.state === 'alert' ? null : T('Bir köpek havlıyor!'), g);
     }
     if(best) {
         g.sees = { player: best.c === p };
         g.lastSeen = { x: best.c.x, y: best.c.y }; g.target = best.c;
-        if(g.state !== 'alert') {
+        if(best.c.kind === 'beast' && g.state !== 'alert') { g.state = 'alert'; g.sus = 1; raiseAlarm(g, true, best.c); }
+        else if(g.state !== 'alert') {
             const moving = best.c.kind === 'player' ? (best.c.anim !== 'Idle') : true;
             const rate = 4.2 * (.45 + Math.min(1, best.v.light)) * (1.35 - best.v.d / best.v.range) * (best.c.crouch ? .6 : 1) * (moving ? 1 : .7)
                 * (best.c.kind === 'player' ? 1 : .75) * (best.v.d < 48 ? 2.5 : 1);
@@ -1226,7 +2004,7 @@ function updateGuard(g, dt) {
         if(canSee(g, { x: c.x, y: c.y, crouch: false, state: 'x' })) { c.foundBy = g; g.state = 'alert'; g.lastSeen = { x: c.x, y: c.y }; say(T('Bir haydut yerde yatan arkadaşını buldu!')); raiseAlarm(g, true); }
     }
 
-    const walk = 44, runS = 108;
+    const walk = g.dog ? 56 : 44, runS = g.dog ? 135 : 108;
     if(g.role === 'tower') {
         if(g.state === 'alert') { const t = nearestFoe(g); if(t) g.a = Math.atan2(t.y - g.y, t.x - g.x); if(best) G.alarm = Math.max(G.alarm, 8); }
         else if(g.state !== 'suspicious') g.a = g.home.a + Math.sin(G.t * .5) * g.sweep;
@@ -1243,7 +2021,7 @@ function updateGuard(g, dt) {
         const seesT = canSee(g, t);
         if(!seesT && g.lastSeen && Math.hypot(g.lastSeen.x - g.x, g.lastSeen.y - g.y) < 20 && G.alarm <= 0) { g.state = 'search'; g.searchT = 6; }
         // fairness: only so many of them press in at once
-        const engaged = g.engaged = hasToken(g);
+        const engaged = g.engaged = t.kind === 'beast' || hasToken(g);
         const goal = seesT ? t : (g.lastSeen || t);
         if(engaged) {
             if(d > 30) { followPath(g, goal, runS, dt); g.anim = 'Run'; }
@@ -1261,7 +2039,7 @@ function updateGuard(g, dt) {
                 g.cd = g.ambusher && G.solo ? 1.6 : 1.2;
                 const dd = Math.hypot(t.x - g.x, t.y - g.y);
                 // a lair bandit's blow is a real one (his attack plus a flat 12) — then armour decides
-                if(dd < 40 && Math.abs(angDiff(Math.atan2(t.y - g.y, t.x - g.x), g.a)) < 1.2) { hurtBy(t, G.band.dmg, (g.attack + 12) * rnd(.85, 1.15) * (g.leader ? 1.3 : 1) * (g.weak ? .7 : 1), g); Snd.fx('hit'); }
+                if(dd < 40 && Math.abs(angDiff(Math.atan2(t.y - g.y, t.x - g.x), g.a)) < 1.2) { hurtBy(t, g.dog ? 'pierce' : G.band.dmg, (g.attack + (g.dog ? 6 : 12)) * rnd(.85, 1.15) * (g.leader ? 1.3 : 1) * (g.weak ? .7 : 1), g); Snd.fx('hit'); }
             }
         } else if(engaged && d < 34 && g.cd <= 0 && (g.react || 0) <= 0) { g.windup = .45; g.animT = 0; }
         g.react -= dt;
@@ -1311,9 +2089,38 @@ function updateGuard(g, dt) {
         if(g.sweep) g.a = g.home.a + Math.sin(G.t * .6) * g.sweep;
     }
 }
+// a dog at its meat: trots over, eats, and only a blow or the end of the meat stops it
+function updateEating(g, dt) {
+    const m = g.meat;
+    if(!m) { g.state = 'return'; return; }
+    if(Math.hypot(m.x - g.x, m.y + 4 - g.y) > 14) { followPath(g, { x: m.x, y: m.y + 4 }, 135, dt); g.anim = 'Run'; return; }
+    g.anim = 'Idle'; g.a = Math.atan2(m.y - g.y, m.x - g.x);
+    if((g.eatT -= dt) <= 0) {
+        G.meats = G.meats.filter(x => Math.hypot(x.x - m.x, x.y - m.y) > 4);
+        g.meat = null; g.state = 'return'; g.sus = 0;
+        floatText(g.x, g.y - 30, T('Eti bitirdi'), '#ffd28a');
+    }
+}
+// the bear: after the nearest bandit it can reach, mauling; with none left it paces by its cage
+function updateBeast(b, dt) {
+    if(b.state === 'down') return;
+    b.retarget = (b.retarget || 0) - dt;
+    if(b.retarget <= 0 || !b.foe || ['down', 'ko'].includes(b.foe.state)) {
+        b.retarget = .6;
+        b.foe = G.chars.filter(g => g.kind === 'guard' && !['down', 'ko'].includes(g.state) && Math.hypot(g.x - b.x, g.y - b.y) < 16 * TS)
+            .sort((x, y) => Math.hypot(x.x - b.x, x.y - b.y) - Math.hypot(y.x - b.x, y.y - b.y)).find(g => Math.hypot(g.x - b.x, g.y - b.y) < 40 || path(b, g)) || null;
+    }
+    const t = b.foe;
+    b.cd -= dt; b.atkT -= dt;
+    if(!t) { b.anim = 'Idle'; return; }
+    const d = Math.hypot(t.x - b.x, t.y - b.y);
+    if(d > 30) { followPath(b, t, 96, dt); b.anim = 'Run'; return; }
+    b.a = Math.atan2(t.y - b.y, t.x - b.x); b.anim = b.atkT > 0 ? 'attack' : 'Idle';
+    if(b.cd <= 0) { b.cd = 1.1; b.atkT = .4; hurtBy(t, 'cut', b.attack * rnd(.85, 1.15) * Battle.DAMAGE_PACE * 1.2, b); Snd.fx('hit'); }
+}
 function nearestFoe(g) {
     let best = null, bd = 1e9;
-    for(const c of G.chars) if((c.kind === 'player' || c.kind === 'squad') && c.state !== 'down') { const d = Math.hypot(c.x - g.x, c.y - g.y); if(d < bd) { bd = d; best = c; } }
+    for(const c of G.chars) if((c.kind === 'player' || c.kind === 'squad' || c.kind === 'beast') && c.state !== 'down') { const d = Math.hypot(c.x - g.x, c.y - g.y); if(d < bd) { bd = d; best = c; } }
     return best;
 }
 // alone: three press in at once (two in an ambush, whose bandits hit softer); each soldier with you adds one
@@ -1420,7 +2227,9 @@ function update(dt) {
     for(const c of G.chars) {
         c.animT += dt * 1000; c.hurtT = Math.max(0, c.hurtT - dt);
         if(c.lockedToldT) c.lockedToldT = Math.max(0, c.lockedToldT - dt);
+        if(c.kind !== 'guard' && c.kind !== 'beast') c.swim = c.state !== 'down' && tile(Math.floor(c.x / TS), Math.floor(c.y / TS)) === '%';
         if(c.kind === 'guard') updateGuard(c, dt);
+        else if(c.kind === 'beast') updateBeast(c, dt);
         else if(c.kind === 'squad' || (c.kind === 'prisoner' && c.following)) updateFollower(c, dt, fi++);
         else if(c.kind === 'prisoner' && c.loud && c.tied && !c.shushed) {
             // an excited prisoner calls out if you hang about near him without hushing him
@@ -1435,6 +2244,8 @@ function update(dt) {
     }
     updateAmbush();
     updateCart(dt);
+    updateDrug(dt);
+    for(const o of G.objs) if(o && o.swingT > 0) o.swingT -= dt;
     if(G.horsesRun > 0) G.horsesRun -= dt;
     for(const h of G.horses) {
         const P = L.pen.box, run = G.horsesRun > 0;
@@ -1465,9 +2276,13 @@ function update(dt) {
     for(const f of G.fx) {
         f.t += dt;
         // a pebble lands: a clack, and whoever hears it comes to look
-        if(f.land && f.t >= .42) { f.land = false; Snd.fx('pebble'); noise(f.x, f.y, PEBBLE_NOISE, null); floatText(f.x, f.y - 16, T('Tık!'), '#e8e0cc'); }
+        if(f.land && f.t >= .42) {
+            f.land = false;
+            if(f.kind === 'meat') { meatLands(f.x, f.y); G.meats.push({ x: f.x, y: f.y }); }
+            else { Snd.fx('pebble'); noise(f.x, f.y, PEBBLE_NOISE, null); floatText(f.x, f.y - 16, T('Tık!'), '#e8e0cc'); }
+        }
     }
-    G.fx = G.fx.filter(f => f.t < (f.kind === 'bats' ? 1.6 : f.kind === 'dust' ? 1.2 : f.kind === 'stone' ? .45 : .7) || f.land);
+    G.fx = G.fx.filter(f => f.t < (f.kind === 'bats' ? 1.6 : f.kind === 'dust' || f.kind === 'crash' ? 1.2 : f.kind === 'stone' || f.kind === 'meat' ? .45 : .7) || f.land);
     for(const x of G.texts) { x.life -= dt; x.y -= 18 * dt; } G.texts = G.texts.filter(x => x.life > 0);
     if(G.msgT > 0) G.msgT -= dt;
     if(G.banner) { G.banner.t -= dt; if(G.banner.t <= 0) G.banner = null; }
@@ -1513,8 +2328,12 @@ function render() {
         if(o.spikes) { if(o.known) { const f = o.sprung ? Math.min(5, ((G.t * 12) | 0) % 6) : 0; drawSprite(IMG.spikes, f * 17, 0, 17, 17, o.cx - 17, o.cy - 17, 34, 34); } continue; }
         if(o.trapdoor) { drawSprite(IMG.trapdoor, 0, 0, 17, 17, o.cx - 17, o.cy - 17, 34, 34); continue; }
         if(o.bats) continue;
-        sprites.push(o);
+        sprites.push(o.load && !o.down ? { obj: o, cy: o.cy + 70 } : o);       // a hanging load is over the heads under it
     }
+    // reeds stand up round whoever wades through them; meat thrown for the dogs lies on the floor
+    const vx0 = Math.max(0, camX / TS | 0), vx1 = Math.min(G.w, (camX + VW) / TS + 1), vy0 = Math.max(0, camY / TS | 0), vy1 = Math.min(G.h, (camY + VH) / TS + 2);
+    for(let y = vy0; y < vy1; y++) for(let x = vx0; x < vx1; x++) if(tile(x, y) === 'r') sprites.push({ reeds: true, x, y, cy: y * TS + 26 });
+    for(const m of G.meats) drawMeat(m.x, m.y);
     for(const k in G.doors) sprites.push({ door: G.doors[k], cy: G.doors[k].y * TS + 30 });
     for(let y = 0; y < G.h; y++) for(let x = 0; x < G.w; x++) if(tile(x, y) === 'X' && !G.opened.has(x + ',' + y)) sprites.push({ rubble: true, x, y, cy: y * TS + 28 });
     // vision cones under the people
@@ -1529,7 +2348,8 @@ function render() {
         else if(s.tower) drawTower(s.tower);
         else if(s.door) drawDoor(s.door);
         else if(s.rubble) drawSprite(IMG.rubble, 0, 0, 16, 16, s.x * TS, s.y * TS, 32, 32);
-        else drawObj(s);
+        else if(s.reeds) drawReeds(s.x, s.y);
+        else drawObj(s.obj || s);
     }
     // darkness, with the hero's own eyes cutting a small hole (sight only — it doesn't light you up)
     // The dark is soft by nature, so its layer is a quarter of the screen's resolution, stretched
@@ -1548,6 +2368,16 @@ function render() {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(dk, 0, 0, dw * DS, dh * DS);
     ctx.imageSmoothingEnabled = false;
+    // fog: slow pale bands drifting over everything (it shortens their sight, not yours)
+    if(L.fog) {
+        const W = canvas.width, Hh = canvas.height, band = fogBand();
+        ctx.globalAlpha = (R.time === 'day' ? .16 : .1) * (1.4 - L.fog); ctx.imageSmoothingEnabled = true;
+        for(let i = 0; i < 5; i++) {
+            const yy = ((i * .23 + G.t * .012 * (1 + i % 2)) % 1.4 - .3) * Hh;
+            ctx.drawImage(band, 0, yy, W, Hh * .26);
+        }
+        ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = false;
+    }
     cam();
     // warm glow on the lights
     if(!Game.lite()) {
@@ -1564,6 +2394,8 @@ function render() {
     for(const f of G.fx) {
         if(f.kind === 'ring') { ctx.strokeStyle = `rgba(245,215,110,${.35 * (1 - f.t / .7)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * Math.min(1, f.t / .5), 0, 7); ctx.stroke(); }
         if(f.kind === 'dust') { ctx.fillStyle = `rgba(180,170,150,${.5 * (1 - f.t / 1.2)})`; for(let i = 0; i < 12; i++) { const a = i * .52, r = 8 + f.t * 40; ctx.fillRect(f.x + Math.cos(a) * r, f.y + Math.sin(a) * r * .6, 4, 4); } }
+        if(f.kind === 'meat' && f.t < .42) { const u = f.t / .42, x = f.x0 + (f.x - f.x0) * u, y = f.y0 + (f.y - f.y0) * u - Math.sin(u * Math.PI) * 28; drawMeat(x, y + 4); }
+        if(f.kind === 'crash') { ctx.fillStyle = `rgba(190,170,140,${.6 * (1 - f.t / 1.2)})`; for(let i = 0; i < 16; i++) { const a = i * .4, r = 6 + f.t * 55; ctx.fillRect(f.x + Math.cos(a) * r, f.y + Math.sin(a) * r * .5, 5, 4); } }
         if(f.kind === 'stone' && f.t < .42) { const u = f.t / .42, x = f.x0 + (f.x - f.x0) * u, y = f.y0 + (f.y - f.y0) * u - Math.sin(u * Math.PI) * 28; ctx.fillStyle = '#d8d0c0'; ctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 4, 4); ctx.fillStyle = '#6a6258'; ctx.fillRect(Math.round(x), Math.round(y), 2, 2); }
         if(f.kind === 'smoke') { ctx.fillStyle = `rgba(160,160,160,${.45 * (1 - f.t / .7)})`; for(let i = 0; i < 4; i++) ctx.fillRect(f.x - 3 + Math.sin(i + f.t * 5) * 4, f.y - f.t * 30 - i * 5, 5, 5); }
         if(f.kind === 'bats') { ctx.fillStyle = '#0c0a0e'; for(let i = 0; i < 7; i++) { const a = i * .9 + f.t * 3, r = f.t * 70 + i * 6; const bx = f.x + Math.cos(a) * r, by = f.y - f.t * 50 + Math.sin(a * 2) * 10; ctx.fillRect(bx - 4, by, 8, 2); ctx.fillRect(bx - 1, by - 1, 2, 3); } }
@@ -1597,21 +2429,22 @@ function usable(o) {
     const cart = o.cart && !o.rolling && !o.done, load = cart ? o.load.iron + o.load.coal : 0;
     if(G.carry) return cart && load < CART_CAP;              // a sack on your back: only the cart takes it
     return (o.chest && !o.open) || (o.search && !o.searched) || (o.lever && !o.pulled) || o.purse || o.trapdoor || o.hide || (o.pen && !o.used) || (o.cage && !o.open) || (o.torch && o.lit !== false)
-        || !!o.ore || (cart && load > 0);
+        || !!o.ore || (cart && load > 0) || (o.bell && !o.rung) || ((o.larder || o.herbs) && !o.taken) || (o.keg && G.draught > 0 && !o.drugged)
+        || (o.cleat && !o.cut && !!loadOf(o)) || (o.bearCage && !o.open);
 }
 // the pebble's flight, where it lands, how far it carries, and a "?" over each bandit who'll hear it;
 // greyed out while the finger is back over the button (letting go there calls the throw off)
 function drawAim() {
-    const p = G.player, t = aimTarget(), l = pebbleLanding(t.x, t.y), x0 = p.x, y0 = p.y - 20, off = aim.cancel;
+    const p = G.player, t = aimTarget(), l = pebbleLanding(t.x, t.y), x0 = p.x, y0 = p.y - 20, off = aim.cancel, meat = G.meat > 0;
     ctx.fillStyle = off ? 'rgba(150,140,130,.45)' : 'rgba(232,224,204,.8)';
     for(let i = 1; i < 12; i++) { const u = i / 12, x = x0 + (l.x - x0) * u, y = y0 + (l.y - y0) * u - Math.sin(u * Math.PI) * 28; ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); }
     if(off) return;
-    ctx.strokeStyle = 'rgba(245,215,110,.28)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(l.x, l.y, PEBBLE_NOISE, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(245,215,110,.28)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(l.x, l.y, meat ? 9 * TS : PEBBLE_NOISE, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(l.x, l.y, 6, 0, 7); ctx.stroke();
     ctx.font = 'bold 12px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#f5d76e';
     for(const g of G.chars) {
-        if(g.kind !== 'guard' || ['ko', 'down', 'alert'].includes(g.state)) continue;
-        if(Math.hypot(g.x - l.x, g.y - l.y) <= (g.state === 'sleep' ? PEBBLE_NOISE * .45 : PEBBLE_NOISE)) ctx.fillText('?', g.x, g.y - (g.state === 'sleep' ? 22 : 46));
+        if(g.kind !== 'guard' || ['ko', 'down', 'alert', 'eat'].includes(g.state) || (meat && !g.dog)) continue;
+        if(Math.hypot(g.x - l.x, g.y - l.y) <= (meat ? 9 * TS : g.state === 'sleep' ? PEBBLE_NOISE * .45 : PEBBLE_NOISE)) ctx.fillText(meat ? '♨' : '?', g.x, g.y - (g.state === 'sleep' || g.dog ? 22 : 46));
     }
 }
 function drawMarkers() {
@@ -1624,13 +2457,13 @@ function drawMarkers() {
         const g = objGeom(o), a = o === at ? pulse : clamp(1.2 - d / (6 * TS), .35, .75);
         if(g && g[0] && g[0].width) drawOutline(...g, a);
         else {   // code-drawn things (hiding places, the pen gate, the cage door): a green frame round the tile
-            const tall = o.hide && L.theme === 'house' ? 15 : 0;
+            const tall = o.hide && hideKind() === 'wardrobe' ? 15 : 0;
             ctx.strokeStyle = `rgba(110,255,140,${a})`; ctx.lineWidth = 2; ctx.strokeRect(Math.round(o.cx) - 15, Math.round(o.cy) - 15 - tall, TS - 2, TS - 2 + tall);
         }
     }
     // a bandit you can take down right now, a prisoner you can free: outlined the same way
     if(at && at.kind) {
-        const fr = at.state === 'sleep' ? null : Swordsman.art(at.look, at.anim === 'attack' ? 'Idle' : at.anim, at.dir, at.animT);
+        const fr = at.state === 'sleep' || at.dog || at.kind === 'beast' || at.state === 'ko' || at.state === 'down' ? null : Swordsman.art(at.look, at.anim === 'attack' ? 'Idle' : at.anim, at.dir, at.animT);
         if(fr) drawOutline(fr, 0, 0, fr.width, fr.height, at.x - fr._ax * fr.width, at.y - fr._ay * fr.height * (at.crouch ? .84 : 1), fr.width, Math.round(fr.height * (at.crouch ? .84 : 1)), pulse);
         else { ctx.strokeStyle = `rgba(110,255,140,${pulse})`; ctx.lineWidth = 1.5; ctx.strokeRect(Math.round(at.x - 18), Math.round(at.y - 18), 36, 22); }
     }
@@ -1678,6 +2511,31 @@ function drawChar(c) {
     drawCharInner(c);
     if(c.kind === 'player' && G.carry) drawSack(c.x + (c.dir === 'left' ? 5 : c.dir === 'right' ? -5 : 0), c.y - (c.crouch ? 30 : 36), G.carry, .75);
 }
+function drawMeat(x, y) {
+    x = Math.round(x); y = Math.round(y);
+    ctx.fillStyle = '#9a4a3a'; ctx.fillRect(x - 5, y - 4, 9, 6); ctx.fillStyle = '#b8604a'; ctx.fillRect(x - 5, y - 4, 9, 2);
+    ctx.fillStyle = '#e8d8c0'; ctx.fillRect(x + 3, y - 3, 4, 2);
+}
+// a clump of reeds or brush, swaying a little; drawn in depth order so it hides the legs of whoever's in it
+function drawReeds(tx, ty) {
+    const X = tx * TS, Y = ty * TS, sw = Math.sin(G.t * 1.3 + tx * .7 + ty) * 1.5;
+    for(let i = 0; i < 7; i++) {
+        const bx = X + 2 + i * 4.3 + ((tx * 7 + i * 3) % 3), hgt = 18 + ((tx * 3 + ty * 5 + i * 7) % 9);
+        ctx.fillStyle = i % 2 ? '#5e7a3a' : '#4a6a2e'; ctx.fillRect(Math.round(bx), Y + 30 - hgt, 2, hgt);
+        ctx.fillStyle = '#7a9a4a'; ctx.fillRect(Math.round(bx + sw), Y + 30 - hgt - 3, 2, 4);
+        if(i % 3 === 0) { ctx.fillStyle = '#6a4a2a'; ctx.fillRect(Math.round(bx + sw) - 1, Y + 30 - hgt - 6, 3, 5); }   // a cattail head
+    }
+}
+// someone in deep water: head and shoulders over the surface, a ring of ripples round them
+function drawSwimmer(c) {
+    const fr = Swordsman.art(c.look, 'Idle', c.dir, c.animT);
+    if(!fr) return;
+    const w = fr.width, h = fr.height, x = Math.round(c.x - fr._ax * w), y = Math.round(c.y - fr._ay * h) + 12, keep = Math.round(h * .5);
+    ctx.drawImage(fr, 0, 0, w, keep, x, y, w, keep);
+    const s = (G.t * 2 + c.x * .05) % 1;
+    ctx.strokeStyle = `rgba(150,200,220,${.5 - s * .4})`; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(Math.round(c.x), y + keep, 10 + s * 8, 3 + s * 2, 0, 0, 7); ctx.stroke();
+}
 // an ore sack, tied at the neck with its ore showing: rust-red iron ore or black coal
 function drawSack(X, Y, kind, k = 1) {
     const r = (x, y, w, h) => ctx.fillRect(Math.round(X + x * k), Math.round(Y + y * k), Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
@@ -1701,7 +2559,54 @@ function drawCart(c) {
     ctx.fillStyle = '#2a2016'; ctx.fillRect(X - 11, Y + 7, 6, 6); ctx.fillRect(X + 5, Y + 7, 6, 6);
     ctx.fillStyle = '#6b5638'; ctx.fillRect(X - 9 + spin, Y + 9, 2, 2); ctx.fillRect(X + 7 + spin, Y + 9, 2, 2);
 }
+// a dog or the bear, side on, in pixel blocks: body, head and snout toward where it faces, four
+// legs that scissor when it moves; lying flat (asleep, out cold, dead) with its legs out
+const BEASTS = {
+    dog:  { len: 22, h: 9, leg: 7, head: 8, coat: '#7a5a3a', hi: '#9a7a52', lo: '#4e3a26', ear: '#3e2c1c' },
+    bear: { len: 36, h: 16, leg: 9, head: 13, coat: '#4a3020', hi: '#6a4630', lo: '#2e1e14', ear: '#2a1a10' }
+};
+// a fog bank's soft edge, baked once: pale in the middle, nothing at the top and bottom
+let fogCanvas = null;
+function fogBand() {
+    if(fogCanvas) return fogCanvas;
+    fogCanvas = document.createElement('canvas'); fogCanvas.width = 1; fogCanvas.height = 64;
+    const x = fogCanvas.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64);
+    gr.addColorStop(0, 'rgba(200,210,205,0)'); gr.addColorStop(.5, 'rgba(200,210,205,1)'); gr.addColorStop(1, 'rgba(200,210,205,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 1, 64);
+    return fogCanvas;
+}
+function drawBeast(c, k) {
+    const B = BEASTS[k], flip = Math.cos(c.a) < 0 ? -1 : 1, X = Math.round(c.x), Y = Math.round(c.y);
+    const r = (x, y, w, h) => ctx.fillRect(flip > 0 ? X + x : X - x - w, Y + y, w, h);
+    ctx.globalAlpha = .4; drawSprite(IMG.shadow, 0, 0, IMG.shadow.width, IMG.shadow.height, X - B.len / 2 - 4, Y - 5, B.len + 8, 10); ctx.globalAlpha = 1;
+    const flat = ['sleep', 'ko', 'down', 'grabbed'].includes(c.state);
+    if(flat) {
+        ctx.fillStyle = B.lo; r(-B.len / 2, -4, B.len, 2);
+        ctx.fillStyle = B.coat; r(-B.len / 2, -B.h / 2 - 3, B.len, B.h / 2 + 1); r(B.len / 2 - 2, -B.h / 2 - 2, B.head, B.head * .6);
+        ctx.fillStyle = B.hi; r(-B.len / 2, -B.h / 2 - 3, B.len, 2);
+        ctx.fillStyle = B.ear; r(B.len / 2, -B.h / 2 - 4, 3, 2);
+        return;
+    }
+    const moving = c.anim === 'Run' || c.anim === 'Walk' || c.anim === 'attack';
+    const ph = moving ? Math.sin(G.t * (c.anim === 'Run' ? 18 : 10) + c.x * .1) * 2.5 : 0;
+    const by = -B.leg - B.h, lunge = c.anim === 'attack' ? 4 : 0;
+    ctx.fillStyle = B.lo;                                                         // legs: the far pair darker
+    r(-B.len / 2 + 2 - ph, -B.leg, 3, B.leg); r(B.len / 2 - 6 + ph, -B.leg, 3, B.leg);
+    ctx.fillStyle = B.coat; r(-B.len / 2 + 4 + ph, -B.leg, 3, B.leg); r(B.len / 2 - 4 - ph, -B.leg, 3, B.leg);
+    r(-B.len / 2, by, B.len, B.h);                                                // body
+    ctx.fillStyle = B.hi; r(-B.len / 2, by, B.len, 2);
+    ctx.fillStyle = B.coat; r(B.len / 2 - 3 + lunge, by - B.head * .45, B.head, B.head);   // head
+    ctx.fillStyle = B.lo; r(B.len / 2 - 3 + B.head + lunge, by - B.head * .45 + B.head * .45, B.head * .45, B.head * .45);   // snout
+    ctx.fillStyle = B.ear; r(B.len / 2 - 2 + lunge, by - B.head * .45 - 3, 3, 3);
+    ctx.fillStyle = '#100c08'; r(B.len / 2 + B.head - 5 + lunge, by - B.head * .2, 2, 2);  // the eye
+    if(k === 'dog') { ctx.fillStyle = B.coat; r(-B.len / 2 - 5, by - 3 + (moving ? Math.round(ph) : 0), 6, 2); }  // the tail
+    if(c.hurtT > 0) { ctx.globalAlpha = .45; ctx.fillStyle = '#fff'; r(-B.len / 2, by, B.len, B.h); ctx.globalAlpha = 1; }
+    if(k === 'bear' && c.hp < c.maxHp) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(X - 14, Y + by - 18, 28, 3); ctx.fillStyle = '#d0905a'; ctx.fillRect(X - 14, Y + by - 18, Math.round(28 * Math.max(0, c.hp) / c.maxHp), 3); }
+}
 function drawCharInner(c) {
+    if(c.dog) return drawBeast(c, 'dog');
+    if(c.kind === 'beast') return drawBeast(c, 'bear');
+    if(c.swim) return drawSwimmer(c);
     if(c.state === 'sleep' || c.state === 'ko' || (c.state === 'grabbed' && c.wasAsleep)) {
         drawLying(c, c.state === 'sleep' || c.wasAsleep);
         const hx = c.x - 14;
@@ -1728,8 +2633,11 @@ function drawCharInner(c) {
     }
 }
 function drawGuardMark(g) {
+    // the key on a belt glints, so you know whose to lift (on a body too)
+    if(g.key && (G.revealAll || Math.hypot(g.x - G.player.x, g.y - G.player.y) < 6 * TS)) { const k = (G.t * 3 | 0) % 4 === 0; ctx.fillStyle = k ? '#fff6c8' : '#f5d76e'; ctx.fillRect(Math.round(g.x) + 6, Math.round(g.y) - 22, 3, 3); ctx.fillRect(Math.round(g.x) + 8, Math.round(g.y) - 20, 4, 1); }
     if(g.state === 'down' || g.state === 'ko' || g.state === 'sleep') return;
-    const x = Math.round(g.x), y = Math.round(g.y - 44 - (g.elev || 0));
+    const x = Math.round(g.x), y = Math.round(g.y - (g.dog ? 30 : 44) - (g.elev || 0));
+    if(g.state === 'eat') { ctx.fillStyle = '#ffb38a'; ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('♨', x, y); return; }
     if(g.state === 'alert') { ctx.fillStyle = '#ff5a4a'; ctx.font = 'bold 14px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', x, y); }
     else if(g.sus > .02) {
         ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(x - 9, y - 10, 18, 4);
@@ -1765,7 +2673,7 @@ function drawTowerRail(t) {
 }
 function drawDoor(d) {
     // a plank door filling the doorway when shut; open, a dark gap with the leaf swung back
-    const X = d.x * TS, Y = d.y * TS, cave = L.theme === 'cave';
+    const X = d.x * TS, Y = d.y * TS, cave = PAL[L.theme].wall === 'rock' || PAL[L.theme].wall === 'blocks';
     ctx.fillStyle = cave ? '#241f1b' : '#3b2a1c'; ctx.fillRect(X, Y + 4, 3, 28); ctx.fillRect(X + TS - 3, Y + 4, 3, 28);
     if(!d.open) {
         ctx.fillStyle = '#7a5232'; ctx.fillRect(X + 3, Y + 6, TS - 6, 26);
@@ -1837,21 +2745,87 @@ function drawObj(o) {
     }
     if(o.hide) {
         const sh = o.shakeT > 0 ? Math.sin(G.t * 60) * 1.5 : 0, X = o.x * TS + sh, Y = o.y * TS;
-        if(L.theme === 'camp') {       // a haystack
+        const kind = hideKind();
+        if(kind === 'hay') {           // a haystack
             ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X + 2, Y + 26, 28, 5);
             ctx.fillStyle = '#b8923e'; ctx.beginPath(); ctx.ellipse(X + 16, Y + 18, 16, 13, 0, Math.PI, 0); ctx.lineTo(X + 32, Y + 28); ctx.lineTo(X, Y + 28); ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#d4ac52'; for(let i = 0; i < 9; i++) ctx.fillRect(X + 4 + i * 3, Y + 8 + (i % 3) * 5, 1, 12);
             ctx.fillStyle = '#8a6a2a'; ctx.fillRect(X, Y + 26, 32, 2);
-        } else if(L.theme === 'cave') { // a dark niche in the rock
+        } else if(kind === 'niche') {  // a dark niche in the rock
             ctx.fillStyle = '#1a1715'; ctx.beginPath(); ctx.ellipse(X + 16, Y + 18, 15, 14, 0, 0, 7); ctx.fill();
             ctx.fillStyle = '#0a0908'; ctx.beginPath(); ctx.ellipse(X + 16, Y + 20, 10, 10, 0, 0, 7); ctx.fill();
             ctx.fillStyle = '#3a342e'; ctx.fillRect(X + 3, Y + 8, 4, 3); ctx.fillRect(X + 24, Y + 6, 5, 3);
+        } else if(kind === 'tomb') {   // a stone sarcophagus, its lid pushed askew
+            ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X + 1, Y + 26, 30, 4);
+            ctx.fillStyle = '#5e5a55'; ctx.fillRect(X + 2, Y + 8, 28, 19);
+            ctx.fillStyle = '#77726b'; ctx.fillRect(X + 2, Y + 8, 28, 2);
+            ctx.fillStyle = '#0c0b0a'; ctx.fillRect(X + 4, Y + 11, 10, 4);
+            ctx.fillStyle = '#8a857c'; ctx.fillRect(X + 9, Y + 3, 22, 8); ctx.fillStyle = '#a39d93'; ctx.fillRect(X + 9, Y + 3, 22, 2);
+            ctx.fillStyle = '#6a665e'; ctx.fillRect(X + 18, Y + 5, 2, 5); ctx.fillRect(X + 16, Y + 6, 6, 1);
+        } else if(kind === 'barrel') { // a big cask on its side, the end knocked in
+            ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X + 2, Y + 26, 28, 4);
+            ctx.fillStyle = '#6a4428'; ctx.fillRect(X + 2, Y + 6, 28, 21);
+            ctx.fillStyle = '#8a5a34'; for(let i = 0; i < 28; i += 5) ctx.fillRect(X + 2 + i, Y + 6, 3, 21);
+            ctx.fillStyle = '#4a4a52'; ctx.fillRect(X + 7, Y + 6, 2, 21); ctx.fillRect(X + 23, Y + 6, 2, 21);
+            ctx.fillStyle = '#0c0a08'; ctx.beginPath(); ctx.ellipse(X + 16, Y + 16, 6, 8, 0, 0, 7); ctx.fill();
+        } else if(kind === 'log') {    // a hollow fallen trunk
+            ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X, Y + 25, 32, 4);
+            ctx.fillStyle = '#4a3420'; ctx.fillRect(X, Y + 10, 32, 16);
+            ctx.fillStyle = '#5e4429'; for(let i = 0; i < 32; i += 3) ctx.fillRect(X + i, Y + 11 + (i % 2), 2, 13);
+            ctx.fillStyle = '#7a5a36'; ctx.beginPath(); ctx.ellipse(X + 28, Y + 18, 5, 8, 0, 0, 7); ctx.fill();
+            ctx.fillStyle = '#0c0a08'; ctx.beginPath(); ctx.ellipse(X + 28, Y + 18, 3, 6, 0, 0, 7); ctx.fill();
+            ctx.fillStyle = '#3f7238'; ctx.fillRect(X + 6, Y + 9, 5, 2); ctx.fillRect(X + 15, Y + 8, 3, 2);
         } else {                        // a tall wardrobe
             ctx.fillStyle = '#3e2816'; ctx.fillRect(X + 3, Y - 14, 26, 42);
             ctx.fillStyle = '#6a4428'; ctx.fillRect(X + 5, Y - 12, 11, 38); ctx.fillRect(X + 17, Y - 12, 10, 38);
             ctx.fillStyle = '#c9b07a'; ctx.fillRect(X + 14, Y + 6, 2, 3); ctx.fillRect(X + 17, Y + 6, 2, 3);
             ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X + 3, Y + 28, 26, 3);
         }
+        return;
+    }
+    if(o.bell) {                        // a bell under a little timber frame; it swings for a while after it's rung
+        const X = Math.round(x), Y = Math.round(y), sw = o.swingT > 0 ? Math.sin(G.t * 9) * 3 * Math.min(1, o.swingT) : 0;
+        ctx.fillStyle = '#4a321e'; ctx.fillRect(X - 14, Y - 30, 3, 44); ctx.fillRect(X + 11, Y - 30, 3, 44); ctx.fillRect(X - 15, Y - 32, 30, 4);
+        ctx.fillStyle = '#8a6a2a'; ctx.beginPath(); ctx.moveTo(X - 7 + sw, Y - 26); ctx.lineTo(X + 7 + sw, Y - 26); ctx.lineTo(X + 10 + sw * 1.4, Y - 6); ctx.lineTo(X - 10 + sw * 1.4, Y - 6); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#c9a44a'; ctx.fillRect(X - 6 + sw, Y - 25, 2, 17); ctx.fillStyle = '#5a4418'; ctx.fillRect(X - 10 + sw * 1.4, Y - 7, 20, 2);
+        ctx.fillStyle = '#c9b07a'; ctx.fillRect(X - 1 + sw * 1.6, Y - 6, 2, 16);   // the rope
+        return;
+    }
+    if(o.larder || o.herbs) {           // a shelf: hams and a string of sausages, or bundles of drying herbs
+        const X = o.x * TS, Y = o.y * TS;
+        ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X + 2, Y + 27, 28, 4);
+        ctx.fillStyle = '#4a321e'; ctx.fillRect(X + 2, Y - 6, 3, 34); ctx.fillRect(X + 27, Y - 6, 3, 34);
+        ctx.fillStyle = '#6e4e30'; for(const sy of [-4, 10, 24]) ctx.fillRect(X + 2, Y + sy, 28, 3);
+        if(!o.taken) {
+            if(o.larder) { ctx.fillStyle = '#9a4a3a'; ctx.fillRect(X + 7, Y - 2, 8, 11); ctx.fillRect(X + 18, Y + 12, 8, 11); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(X + 9, Y - 2, 4, 2); ctx.fillStyle = '#7a3a2a'; for(let i = 0; i < 4; i++) ctx.fillRect(X + 6 + i * 4, Y + 14, 3, 5); }
+            else { ctx.fillStyle = '#5e8a3a'; for(let i = 0; i < 4; i++) ctx.fillRect(X + 6 + i * 5, Y - 1, 3, 10); ctx.fillStyle = '#9a7ab8'; for(let i = 0; i < 3; i++) ctx.fillRect(X + 8 + i * 6, Y + 13, 3, 8); ctx.fillStyle = '#c9b07a'; ctx.fillRect(X + 5, Y - 1, 22, 1); }
+        }
+        return;
+    }
+    if(o.cleat) {                       // a post with the rope made fast round it
+        const X = Math.round(x), Y = Math.round(y);
+        ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X - 7, Y + 10, 14, 4);
+        ctx.fillStyle = '#4a321e'; ctx.fillRect(X - 4, Y - 18, 8, 30); ctx.fillStyle = '#6e4e30'; ctx.fillRect(X - 4, Y - 18, 2, 30);
+        if(!o.cut) { ctx.fillStyle = '#c9b07a'; ctx.fillRect(X - 6, Y - 6, 12, 3); ctx.fillRect(X - 6, Y - 1, 12, 3); ctx.fillRect(X - 1, Y - 30, 2, 24); }
+        else { ctx.fillStyle = '#c9b07a'; ctx.fillRect(X - 6, Y - 1, 12, 3); ctx.fillRect(X + 5, Y + 2, 2, 8); }
+        return;
+    }
+    if(o.load) {                        // up: a net of crates over a dark shadow; down: the wreck of them
+        const X = Math.round(x), Y = Math.round(y);
+        if(o.down) { ctx.fillStyle = '#5c4128'; ctx.fillRect(X - 14, Y - 2, 12, 8); ctx.fillRect(X + 2, Y + 2, 13, 7); ctx.fillStyle = '#7a5532'; ctx.fillRect(X - 6, Y - 8, 10, 8); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(X - 13, Y + 5, 26, 3); return; }
+        ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(X, Y + 6, 16, 6, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#c9b07a'; ctx.fillRect(X - 1, Y - 120, 2, 70);
+        ctx.fillStyle = '#5c4128'; ctx.fillRect(X - 13, Y - 52, 26, 20); ctx.fillStyle = '#7a5532'; ctx.fillRect(X - 13, Y - 52, 26, 3);
+        ctx.strokeStyle = '#a08a5a'; ctx.lineWidth = 1; for(let i = -12; i <= 12; i += 6) { ctx.beginPath(); ctx.moveTo(X + i, Y - 52); ctx.lineTo(X, Y - 60); ctx.stroke(); }
+        return;
+    }
+    if(o.bearCage) {                    // a heavy timber cage, the bear's eyes in the dark behind the bars
+        const X = o.x * TS, Y = o.y * TS;
+        ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(X - 2, Y + 27, 36, 4);
+        ctx.fillStyle = '#2a1c10'; ctx.fillRect(X - 2, Y - 10, 36, 38);
+        if(!o.open) { ctx.fillStyle = '#4a3020'; ctx.beginPath(); ctx.ellipse(X + 16, Y + 14, 11, 9, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#ffcf6a'; ctx.fillRect(X + 11, Y + 9, 2, 2); ctx.fillRect(X + 19, Y + 9, 2, 2); }
+        ctx.fillStyle = '#6e4e30'; for(let i = 0; i < 36; i += 7) if(!o.open || i < 4 || i > 30) ctx.fillRect(X - 2 + i, Y - 10, 3, 38);
+        ctx.fillStyle = '#4a321e'; ctx.fillRect(X - 2, Y - 10, 36, 4); ctx.fillRect(X - 2, Y + 24, 36, 4);
         return;
     }
     if(o.pen) { const X = o.x * TS, Y = o.y * TS; ctx.fillStyle = '#4a321e'; ctx.fillRect(X + 13, Y + 2, 6, 28); ctx.fillStyle = o.used ? '#5a4030' : '#8a6440'; ctx.fillRect(X + 2, Y + 8, 28, 3); ctx.fillRect(X + 2, Y + 18, 28, 3); ctx.fillStyle = '#c9b07a'; ctx.fillRect(X + 20, Y + 12, 3, 4); return; }
@@ -1876,14 +2850,14 @@ function drawMini() {
         if(!G.revealAll && !G.seen[y * G.w + xx]) continue;
         const c = tile(xx, y);
         if(c === ' ') continue;
-        x.fillStyle = c === '#' ? '#4a4036' : c === 'n' ? '#6a5c40' : c === 'f' || c === '|' || c === 'Y' ? '#3a3026' : c === '~' ? '#2a5a70' : isOutside(xx, y) ? '#34452a' : c === 'X' && !G.opened.has(xx + ',' + y) ? '#6a5f52' : '#211d18';
+        x.fillStyle = c === '#' ? '#4a4036' : c === 'n' ? '#6a5c40' : c === 'f' || c === '|' || c === 'Y' || c === 'J' ? '#3a3026' : c === '~' ? '#2a5a70' : c === '%' ? '#1a3a50' : c === 'r' ? '#2e4424' : isOutside(xx, y) ? '#34452a' : c === 'X' && !G.opened.has(xx + ',' + y) ? '#6a5f52' : '#211d18';
         x.fillRect(ox + xx * s, oy + y * s, s, s);
     }
     for(const c of G.chars) {
         if(c.state === 'down' && c.kind !== 'guard') continue;
         const vis = c.kind !== 'guard' || G.revealAll || G.seen[(c.y / TS | 0) * G.w + (c.x / TS | 0)];
         if(!vis) continue;
-        x.fillStyle = c.kind === 'player' ? '#f5d76e' : c.kind === 'squad' ? '#9fe0a0' : c.kind === 'prisoner' ? '#8fc8ff' : c.state === 'alert' ? '#ff5a4a' : c.state === 'ko' || c.state === 'down' ? '#6a5a50' : '#e0a080';
+        x.fillStyle = c.kind === 'player' ? '#f5d76e' : c.kind === 'squad' ? '#9fe0a0' : c.kind === 'prisoner' ? '#8fc8ff' : c.kind === 'beast' ? '#d0905a' : c.state === 'alert' ? '#ff5a4a' : c.state === 'ko' || c.state === 'down' ? '#6a5a50' : '#e0a080';
         x.fillRect(ox + (c.x / TS) * s - 1.5, oy + (c.y / TS) * s - 1.5, 3, 3);
     }
 }
@@ -1896,12 +2870,16 @@ function updateHud() {
     el('lair-hp').style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
     const inWater = tile(Math.floor(p.x / TS), Math.floor(p.y / TS)) === '~';
     const stance = p.crouch || p.hidden ? 'crouch' : p.running ? 'run' : 'walk';
-    setText('lair-stance', p.hidden ? T('Saklanıyor · görünmez') : (p.crouch ? (G.carry ? T('Eğilmiş') : T('Eğilmiş · sessiz')) : p.running ? T('Koşuyor · gürültülü') : T('Ayakta'))
+    const ground = tile(Math.floor(p.x / TS), Math.floor(p.y / TS));
+    setText('lair-stance', p.hidden ? T('Saklanıyor · görünmez') : p.swim ? T('Yüzüyor · zor görünür') : ground === 'r' && p.crouch ? T('Sazlıkta · zor görünür') : (p.crouch ? (G.carry ? T('Eğilmiş') : T('Eğilmiş · sessiz')) : p.running ? T('Koşuyor · gürültülü') : T('Ayakta'))
         + (G.carry ? ' · ' + T('çuval sırtında') : '') + (inWater ? ' · ' + T('suda') : ''));
     el('lair-stance').className = 'lchip st-' + stance;
     setText('lair-gold', String(G.gold));
     setText('lair-peb', String(G.pebbles));
-    setText('lair-throw', T`Taş (${G.pebbles})`);
+    setText('lair-throw', G.meat > 0 ? T`Et (${G.meat})` : T`Taş (${G.pebbles})`);
+    el('lair-meatchip').hidden = !G.meat; setText('lair-meat', String(G.meat));
+    el('lair-herbchip').hidden = !G.draught; setText('lair-herb', String(G.draught));
+    el('lair-keychip').hidden = !G.key;
     if(aim && aim.cancel) setText('lair-throw', T('İptal'));
     const pris = G.chars.filter(c => c.kind === 'prisoner').length;
     el('lair-prischip').hidden = !pris || (!G.freed && R.scout < INTEL.basic);
@@ -1944,6 +2922,9 @@ function build() {
                 <span class="lchip">${T('Dinar')} <b id="lair-gold">0</b></span>
                 <span class="lchip" id="lair-prischip" hidden>${T('Tutsak')} <b id="lair-pris">0</b></span>
                 <span class="lchip">${T('Çakıl')} <b id="lair-peb">3</b></span>
+                <span class="lchip" id="lair-meatchip" hidden>🍖 <b id="lair-meat">0</b></span>
+                <span class="lchip" id="lair-herbchip" hidden>🌿 <b id="lair-herb">0</b></span>
+                <span class="lchip" id="lair-keychip" hidden>🔑 ${T('Anahtar')}</span>
                 <span class="lchip" id="lair-orechip" hidden title="${T('Çıkışa bırakılan çuvallar: demir · kömür')}">⛏️ <b id="lair-ore-iron">0</b> 🪨 <b id="lair-ore-coal">0</b></span>
             </div>
             <div id="lair-goal"></div>
@@ -2000,11 +2981,12 @@ function ambushToday(s) {
 }
 function intelList(s) {
     const lv = LEVELS[levelOf(s)], sc = Game.profLvl('spotting'), night = Game.isNight(), tk = night ? 'night' : 'day';
-    const guards = lv.guards.length, pris = lv.map.join('').split('P').length - 1;
+    const guards = lv.guards.filter(g => !g.dog).length, dogs = lv.guards.length - guards, pris = lv.map.join('').split('P').length - 1;
     const sleepers = lv.guards.filter(g => g.type === 'sleep' || (night && g.night === 'sleep')).length;
     const li = [];
     if(sc >= INTEL.basic) {
         li.push(T`<b>${guards}</b> haydut nöbette` + (sleepers ? ', ' + (night ? T`gece olduğu için <b>${sleepers}</b> tanesi uyuyor olmalı` : T`<b>${sleepers}</b> tanesi uyuyor olmalı`) : ''));
+        if(dogs) li.push(T`<b>${dogs}</b> bekçi köpeği: koku alırlar, karanlık onları durdurmaz`);
         li.push(T`Girişler: ${T(lv.intel.entrances)}`);
         li.push(pris ? T`<b>${pris}</b> tutsak tutuluyor` : T('Tutsak yok'));
     } else {
@@ -2038,13 +3020,14 @@ function drawSketch(lv, sc) {
     for(let y = 0; y < h; y++) for(let xx = 0; xx < w; xx++) {
         const ch = map[y][xx];
         if(ch === ' ') continue;
-        x.fillStyle = ch === '#' ? '#4a4036' : ch === '~' ? '#2a5a70' : 'OE@'.includes(ch) ? '#26331f' : ch === 'n' ? '#6a5c40' : ch === 'X' ? (sc >= INTEL.secret ? '#8a6a3a' : '#4a4036') : '#1c1814';
+        x.fillStyle = ch === '#' ? '#4a4036' : ch === '~' ? '#2a5a70' : ch === '%' ? '#1a3a50' : ch === 'r' ? '#2e4424' : ch === 'd' ? '#b3413a' : 'OE@'.includes(ch) ? '#26331f' : ch === 'n' ? '#6a5c40' : ch === 'X' ? (sc >= INTEL.secret ? '#8a6a3a' : '#4a4036') : '#1c1814';
         x.fillRect(ox + xx * s, oy + y * s, s, s);
-        const mark = { C: '#f5d76e', c: '#e0605a', P: '#8fc8ff', $: '#f5d76e', L: sc >= INTEL.secret ? '#c9a0ff' : null, S: '#e0605a', t: '#c8b090', o: '#b0705a', q: '#6a6a74', M: '#a07a4e', '=': '#3a3026' }[ch];
+        const mark = { C: '#f5d76e', c: '#e0605a', P: '#8fc8ff', $: '#f5d76e', L: sc >= INTEL.secret ? '#c9a0ff' : null, S: '#e0605a', t: '#c8b090', o: '#b0705a', q: '#6a6a74', M: '#a07a4e', '=': '#3a3026',
+                       G: '#e8c860', m: '#ff9a7a', i: '#9fe0a0', w: '#a07a4e', Z: '#c9b07a', y: '#d0905a' }[ch];
         if(mark) { x.fillStyle = mark; x.fillRect(ox + xx * s + s * .25, oy + y * s + s * .25, s * .5, s * .5); }
     }
     for(const g of lv.guards) {
-        x.fillStyle = '#ff7a5a'; x.fillRect(ox + g.x * s + 1, oy + g.y * s + 1, s - 2, s - 2);
+        x.fillStyle = g.dog ? '#d0a070' : g.key ? '#f5d76e' : '#ff7a5a'; x.fillRect(ox + g.x * s + 1, oy + g.y * s + 1, s - 2, s - 2);
         if(g.route) { x.strokeStyle = 'rgba(255,122,90,.6)'; x.setLineDash([3, 3]); x.beginPath(); g.route.forEach(([a, b], i) => i ? x.lineTo(ox + a * s + s / 2, oy + b * s + s / 2) : x.moveTo(ox + a * s + s / 2, oy + b * s + s / 2)); x.stroke(); x.setLineDash([]); }
     }
 }
@@ -2073,8 +3056,9 @@ function brief(id) {
 // how to play, as a list — for the card before going in (the in-lair tour rings the real buttons)
 function help(id) {
     const touch = Game.isTouch();
-    const site = id && Game.lairs().find(x => x.id === id), mine = !!site && levelOf(site) === 'mine';
-    const rows = TUTOR.filter(s => (touch ? s.d : s.m) && (!s.mine || mine)).map(s => `<li><b>${T(s.t)}</b> ${T(touch ? s.d : s.m)}</li>`).join('');
+    const site = id && Game.lairs().find(x => x.id === id);
+    const f = site ? feats(LEVELS[levelOf(site)]) : new Set();
+    const rows = TUTOR.filter(s => (touch ? s.d : s.m) && (!s.feat || f.has(s.feat))).map(s => `<li><b>${T(s.t)}</b> ${T(touch ? s.d : s.m)}</li>`).join('');
     Game.showModal(`<div class="lair-brief"><h3>${T('❔ Haydut ini: nasıl oynanır?')}</h3><ul class="lb-howto">${rows}</ul>
         <div class="lb-foot">${id ? `<button class="btn primary" onclick="Lair.brief('${id}')">${T('← Keşfe dön')}</button>` : `<button class="btn primary" onclick="Game.closeModal()">${T('Tamam')}</button>`}</div></div>`, '720px');
 }
@@ -2116,9 +3100,37 @@ const TUTOR = [
     { el: null, t: '🏃 Peşindeler!',
       m: 'Seni kovalayan bir haydut yakındayken hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Onları yen ya da uzaklaş; alarm biterse seni aramaya başlarlar.',
       d: 'Seni kovalayan bir haydut yakındayken hiçbir şey kullanılamaz: sandık, saklanma yeri, çıkış. Onları yen ya da uzaklaş; alarm biterse seni aramaya başlarlar.' },
-    { el: null, t: '⛏️ Maden', mine: true,
+    { el: null, t: '⛏️ Maden', feat: 'mine',
       m: 'Çuvalı E ile sırtlarsın: yavaşlarsın, eğilsen bile adımın duyulur, taş atamazsın; vurursan çuval yere düşer. Çıkışta E ile bırakırsın: bıraktığın çuval senindir, sonra yakalansan bile. Araba üç çuval alır; ittiğin an raylarda gürleyerek çıkışa yuvarlanır, bütün maden duyar.',
       d: 'Çuvalı Etkileşim ile sırtlarsın: yavaşlarsın, eğilsen bile adımın duyulur, taş atamazsın; vurursan çuval yere düşer. Çıkışta Etkileşim ile bırakırsın: bıraktığın çuval senindir, sonra yakalansan bile. Araba üç çuval alır; ittiğin an raylarda gürleyerek çıkışa yuvarlanır, bütün maden duyar.' },
+    // the hideouts' own things (2.9.0), shown only where the level has them
+    { el: null, t: '🐕 Bekçi köpekleri', feat: 'dog',
+      m: 'Köpekler seni karanlıkta da koklar, köşeden bile; havlayınca haydutlar gelir. Kilerden et al: Q ile önce et atılır, köpek koşup yer ve bir süre başka şeyle ilgilenmez. Yerken arkasından bayıltabilirsin.',
+      d: 'Köpekler seni karanlıkta da koklar, köşeden bile; havlayınca haydutlar gelir. Kilerden et al: Taş düğmesi önce eti atar, köpek koşup yer ve bir süre başka şeyle ilgilenmez. Yerken arkasından bayıltabilirsin.' },
+    { el: null, t: '🔑 Anahtar', feat: 'key',
+      m: 'Kırmızı çizgili kapı kilitli. Anahtar kemerinde parlayan haydutta: arkasından ya da uyurken sokulup E ile çal, ya da onu yere serip al. Anahtar sendeyse kapıya yürümen yeter.',
+      d: 'Kırmızı çizgili kapı kilitli. Anahtar kemerinde parlayan haydutta: arkasından ya da uyurken sokulup Etkileşim ile çal, ya da onu yere serip al. Anahtar sendeyse kapıya yürümen yeter.' },
+    { el: null, t: '🌊 Derin su ve sazlık', feat: 'water',
+      m: 'Koyu suda yüzersin: yavaşsın, dövüşemezsin ama başın ancak yakından görünür ve haydutlar yüzemez. Sazlıkta eğilirsen dibine gelmedikçe seni görmezler; ayakta yürürsen sazlar hışırdar.',
+      d: 'Koyu suda yüzersin: yavaşsın, dövüşemezsin ama başın ancak yakından görünür ve haydutlar yüzemez. Sazlıkta eğilirsen dibine gelmedikçe seni görmezler; ayakta yürürsen sazlar hışırdar.' },
+    { el: null, t: '🦴 Gürültülü zemin', feat: 'loud',
+      m: 'Kemik, çakıl ya da kuru yaprak saçılmış yerde eğilsen bile ses çıkar. Ya dolaş ya da hızlı geç.',
+      d: 'Kemik, çakıl ya da kuru yaprak saçılmış yerde eğilsen bile ses çıkar. Ya dolaş ya da hızlı geç.' },
+    { el: null, t: '🔔 Çan', feat: 'bell',
+      m: 'Çanı çalarsan uyanık olan herkes çana koşar, yakında uyuyanlar uyanır. Çalıp hemen başka yere geç: onlar kulede ararken sen işini görürsün.',
+      d: 'Çanı çalarsan uyanık olan herkes çana koşar, yakında uyuyanlar uyanır. Çalıp hemen başka yere geç: onlar kulede ararken sen işini görürsün.' },
+    { el: null, t: '🌿 Uyku otu', feat: 'herb',
+      m: 'Raftaki uyku otunu topla, zar oynayanların içtiği fıçıya kat. Biraz sonra fıçının çevresindeki zarcılar uyuyakalır.',
+      d: 'Raftaki uyku otunu topla, zar oynayanların içtiği fıçıya kat. Biraz sonra fıçının çevresindeki zarcılar uyuyakalır.' },
+    { el: null, t: '🪢 Asılı yük', feat: 'drop',
+      m: 'Bir direğe bağlı halat, yerinde gölgesi görünen bir yükü tutuyor. Halatı kes: yük düşer, altındaki herkes bayılır. Gürültüsü uzaktan duyulur.',
+      d: 'Bir direğe bağlı halat, yerinde gölgesi görünen bir yükü tutuyor. Halatı kes: yük düşer, altındaki herkes bayılır. Gürültüsü uzaktan duyulur.' },
+    { el: null, t: '🐻 Ayı', feat: 'bear',
+      m: 'Kafesteki ayıyı salarsan en yakın haydudun üstüne yürür; haydutlar ayıyla boğuşurken seni kovalamazlar.',
+      d: 'Kafesteki ayıyı salarsan en yakın haydudun üstüne yürür; haydutlar ayıyla boğuşurken seni kovalamazlar.' },
+    { el: null, t: '🪨 Kaya kenarı', feat: 'ledge',
+      m: 'Kaya kenarının üstünde E ile aşağı atlarsın: kestirme ama tek yönlü, geri çıkamazsın. Haydutlar uzun yoldan dolaşır.',
+      d: 'Kaya kenarının üstünde Etkileşim ile aşağı atlarsın: kestirme ama tek yönlü, geri çıkamazsın. Haydutlar uzun yoldan dolaşır.' },
     { el: null, t: '⛓️ Tutsaklar ve pusu',
       m: 'Tutsağın ipini çöz, seni takip eder; dışarı çıkarırsan grubuna katılır. Bazıları heyecanlıdır, önce sus işareti ver. Bazı inlerde pusu kurulur: kapı kapanır, haydutlar saldırır — iyi bir gözcü bunu önceden görür.',
       d: 'Tutsağın ipini çöz, seni takip eder; dışarı çıkarırsan grubuna katılır. Bazıları heyecanlıdır, önce sus işareti ver. Bazı inlerde pusu kurulur: kapı kapanır, haydutlar saldırır — iyi bir gözcü bunu önceden görür.' }
@@ -2127,7 +3139,8 @@ const TUTOR_KEY = 'webband_ltutor_done';
 function tutorial() {
     overlay('');
     paused = false;
-    Game.startTutorial(true, TUTOR.filter(s => (Game.isTouch() ? true : !!s.m) && (!s.mine || (L && L.mine))), TUTOR_KEY);
+    const f = L ? feats(L) : new Set();
+    Game.startTutorial(true, TUTOR.filter(s => (Game.isTouch() ? true : !!s.m) && (!s.feat || f.has(s.feat))), TUTOR_KEY);
 }
 // the first time in: ask whether to see the tour (a no is remembered too)
 function offerTutorial() {
@@ -2238,9 +3251,95 @@ function leave() {
     Game.autosave && Game.autosave();
 }
 
+// A level, read off its table alone (no run): can the hero do everything it offers and get out,
+// can every guard walk his post and round? The hero's moves are the game's: doors open, a
+// lever lifts its rubble, a cage door can be forced, the keyed doors open once a key-carrier
+// can be reached, a ledge drops one way, a window and a trapdoor pair carry you across, deep
+// water is swum. Guards don't swim, jump or pass a keyed door. Returns what's wrong, [] if
+// nothing (tools/test.js runs it on every level).
+function check(key) {
+    const lv = LEVELS[key], map = lv.map, h = map.length, w = map[0].length, errs = [];
+    const at = (x, y) => (y < 0 || y >= h || x < 0 || x >= w) ? ' ' : map[y][x];
+    const SOLIDO = new Set(Object.keys(OBJDEF).filter(c => OBJDEF[c].solid && c !== 'K'));
+    const wallish = c => WALLS.has(c) || c === 'W' || SOLID_T.has(c) || SOLIDO.has(c);
+    const opens = new Set(((lv.lever && lv.lever.opens) || []).map(([x, y]) => x + ',' + y));
+    const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+    const find = ch => { const o = []; map.forEach((r, y) => [...r].forEach((c, x) => { if(c === ch) o.push([x, y]); })); return o; };
+    const reach = (x, y, R) => R.has(x + ',' + y) || N8.some(([dx, dy]) => R.has((x + dx) + ',' + (y + dy)));
+    // the hero's reach, grown until nothing new opens (a lever's rubble, a key's doors)
+    const flood = (lever, key, guard) => {
+        const R = new Set(), st = guard || find('@')[0], q = [st];
+        if(!st) return R;
+        R.add(st[0] + ',' + st[1]);
+        const tds = find('t');
+        const ok = (x, y) => {
+            const c = at(x, y);
+            if(c === 'X') return lever && opens.has(x + ',' + y);
+            if(c === 'd') return key && !guard;
+            if(c === '%') return !guard;
+            return !wallish(c);
+        };
+        for(let i = 0; i < q.length; i++) {
+            const [x, y] = q[i], nxt = [];
+            for(const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if(ok(x + dx, y + dy)) nxt.push([x + dx, y + dy]);
+            if(!guard) {
+                if(at(x, y + 1) === 'J' && ok(x, y + 2)) nxt.push([x, y + 2]);
+                for(const dx of [1, -1]) if(at(x + dx, y) === 'W' && ok(x + 2 * dx, y)) nxt.push([x + 2 * dx, y]);
+                if(at(x, y) === 't') for(const [a, b] of tds) for(const [ex, ey] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) if(ok(a + ex, b + ey)) nxt.push([a + ex, b + ey]);
+            }
+            for(const [a, b] of nxt) { const k = a + ',' + b; if(!R.has(k)) { R.add(k); q.push([a, b]); } }
+        }
+        return R;
+    };
+    let lever = false, keyed = false, R = flood(false, false);
+    for(let n = 0; n < 3; n++) {
+        lever = lever || find('L').some(([x, y]) => reach(x, y, R));
+        keyed = keyed || lv.guards.some(g => g.key && reach(g.x, g.y, R));
+        R = flood(lever, keyed);
+    }
+    if(!find('@').length) errs.push('no start (@)');
+    if(map.some(r => r.length !== w)) errs.push('ragged rows');
+    if(!find('E').concat(find('@')).length) errs.push('no exit');
+    const must = lv.mine ? ['o', 'q', 'C'] : ['$', 'P', 'C'];
+    for(const ch of must) if(!find(ch).length) errs.push(`nothing marked ${ch}`);
+    for(const ch of ['$', 'P', 'C', 'c', 'o', 'q', 'L', 'G', 'm', 'i', 'Z', 'y', 'H']) for(const [x, y] of find(ch)) if(!reach(x, y, R)) errs.push(`${ch} at ${x},${y} can't be reached`);
+    if(find('d').length && !lv.guards.some(g => g.key)) errs.push('a locked door and no key-carrier');
+    if(find('Z').length && !find('z').length) errs.push('a rope cleat with no load');
+    if(find('w').length && !find('i').length) errs.push('a keg with no herb shelf');
+    if(lv.guards.some(g => g.dog) && !find('m').length) errs.push('dogs and no larder');
+    // the herb in the keg is worth something only if bandits drink from it
+    for(const [x, y] of find('w')) if(!lv.guards.some(g => g.type === 'dice' && Math.hypot(g.x - x, g.y - y) * TS < DRUG_R)) errs.push(`keg at ${x},${y} has no dice table near it`);
+    for(const g of lv.guards) {
+        if(g.type === 'tower') continue;                               // up on the platform
+        if(wallish(at(g.x, g.y)) || at(g.x, g.y) === '%') { errs.push(`guard on a wall at ${g.x},${g.y}`); continue; }
+        const GR = flood(true, false, [g.x, g.y]);
+        for(const [rx, ry] of g.route || []) if(!GR.has(rx + ',' + ry)) errs.push(`guard ${g.x},${g.y} can't walk to ${rx},${ry}`);
+    }
+    // a fair start: nobody awake by day sees the spot you come in at (whichever way he's facing)
+    const [sx, sy] = find('@')[0] || [0, 0], dark = c => WALLS.has(c) || c === 'D' || c === 'd' || c === 'X' || c === 'n';
+    for(const g of lv.guards) {
+        if(g.type === 'sleep') continue;
+        const r = BASE_RANGE * (lv.fog || 1) * (g.type === 'tower' ? 1.75 : 1), d = Math.hypot(g.x - sx, g.y - sy) * TS;
+        if(d > r) continue;
+        // a post's cone, swept: a patrol or a dog on the move may face anywhere
+        const FACE = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
+        if(g.type !== 'patrol' && !g.dog && g.face in FACE && Math.abs(angDiff(Math.atan2(sy - g.y, sx - g.x), FACE[g.face])) > (g.type === 'tower' ? .95 : FOV) + (g.sweep || 0)) continue;
+        const n = Math.ceil(d / 8);
+        let clear = true;
+        for(let i = 1; i < n && clear; i++) { const tx = Math.floor(g.x + .5 + (sx - g.x) * i / n), ty = Math.floor(g.y + .5 + (sy - g.y) * i / n); if(dark(at(tx, ty))) clear = false; }
+        if(clear) errs.push(`guard ${g.x},${g.y} sees the start`);
+    }
+    if(find(',').length && !lv.crunch) errs.push('a loud floor with no crunch line');
+    const A = lv.ambush;
+    if(!A) errs.push('no ambush'); else for(const [x, y] of A.spawns) if(wallish(at(x, y)) || x < A.room[0] || x > A.room[2] || y < A.room[1] || y > A.room[3]) errs.push(`ambush spawn ${x},${y} off the room's floor`);
+    if(!(find('E').length + find('@').length) || !find('E').concat(find('@')).some(([x, y]) => R.has(x + ',' + y))) errs.push('the way out is cut off');
+    if(lv.loot && typeof ITEMS !== 'undefined' && !ITEMS[lv.loot]) errs.push(`loot ${lv.loot} is no item`);
+    return errs;
+}
+
 const api = {
-    active: false,
-    LEVELS, LAYOUTS, INTEL, TUTOR, TUTOR_KEY, ASSAULT_REINFORCE, CART_CAP,
+    active: false, check,
+    LEVELS, LAYOUTS, DENS, INTEL, TUTOR, TUTOR_KEY, ASSAULT_REINFORCE, CART_CAP, feats,
     brief, help, enter, resume, retreat, leave, tutorial, skipTutorial, levelOf, intelList,
     alarmed() { return !!(api.active && G && !G.done && G.alarm > 0); },
     setPaused(v) { if(api.active) { paused = !!v; if(!v) last = 0; } },
@@ -2255,8 +3354,9 @@ const api = {
     strings() {
         const out = [];
         for(const lv of Object.values(LEVELS)) {
-            out.push(lv.name, lv.kind, lv.news, lv.ambush.where, lv.intel.entrances, lv.intel.entrance1, lv.intel.secret, lv.intel.traps, lv.intel.leader.day, lv.intel.leader.night);
+            out.push(lv.name, lv.kind, lv.news, lv.ambush.where, lv.intel.entrances, lv.intel.entrance1, lv.intel.secret, lv.intel.traps, lv.intel.leader.day, lv.intel.leader.night, lv.crunch);
         }
+        out.push(...Object.values(HIDES));
         for(const s of TUTOR) out.push(s.t, s.m, s.d);
         return out.filter(Boolean);
     }
