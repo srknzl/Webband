@@ -300,8 +300,9 @@ source so every UI reads the same integer.
 scaled down (`Battle.rewardScale`, on the foe's strength — see **The foe's share** below).
 
 ### Mercenaries
-2 slots/town at the inn, refreshed every 3 days: troops at level 10–15 from that town's faction
-tree, `60 + level×12` denars.
+2 slots/town at the inn, refreshed every 3 days, 3–8 men each: a branch's mid or elite troop from that
+town's faction tree (the mid one twice as likely), at its tree level (`tierLevel`: mid 10, elite 20),
+`60 + level×12` denars — 180 or 300, scaled by dishonor.
 
 ### Party & troops
 **Faction troop trees** (`TROOP_TREES`, the single source `TROOP_UPGRADES`/`TROOP_TYPES` are
