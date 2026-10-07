@@ -106,6 +106,25 @@ test('a chest opened in a lair pays out on the map', async ({ page }) => {
     expect(await page.evaluate(() => Game.lairs().length)).toBe(await page.evaluate(() => Game.LAIR_COUNT));
 });
 
+test('a hero a trapped chest fells can\'t walk out with the loot while falling', async ({ page }) => {
+    await newGame(page);
+    await openCard(page, 'house');
+    await goIn(page);
+    await skipOffer(page);
+    const before = await page.evaluate(() => state.player.money);
+    await page.evaluate(() => { const o = Lair.run().objs.find(o => o && o.chest && o.trapped); Lair._place(o.x, o.y); Lair.run().player.hp = 1; });
+    await page.waitForFunction(() => Lair.run().ctx && Lair.run().ctx.at && Lair.run().ctx.at.chest);
+    await act(page);
+    await page.waitForFunction(() => Lair.run().player.state === 'down');
+    // the fall lasts a moment: neither the pause menu nor a retreat turns it into a way out
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => Lair.retreat());
+    await expect(page.locator('#lair-over .lres')).toBeVisible();
+    expect(await page.evaluate(() => state.player.money)).toBe(before - Math.floor(before * .25));
+    await page.locator('#lair-over .btn.primary').click();
+    await page.waitForFunction(() => Game._loopId && !Lair.active);
+});
+
 test('a noble carried out of the lair finishes the lord\'s quest', async ({ page }) => {
     await newGame(page);
     const lord = await page.evaluate(() => LORDS.find(l => l.rank === 'lord').id);

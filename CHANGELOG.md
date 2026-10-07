@@ -9,6 +9,10 @@ başlangıç ekranının sağ alt köşesinde yazar.
   zaman akmaya devam ediyordu. Bu sırada bir karşılaşma çıkarsa penceresi inin üstünde açılıyor,
   ağıldaki atlar çizilemiyor ve in donup kalıyordu. Artık yükleme bitene kadar harita saati
   duruyor; ağıldaki atlar da ilk anda bile düzgün çiziliyor.
+- **Tuzak seni yere serdiyse geri çekilemezsin.** Diken tuzağı ya da tuzaklı bir sandık seni
+  devirdiğinde, düşüşün sürdüğü o bir saniyede duraklatıp "Geri çekil"e basmak yenilgiyi
+  kaçışa çeviriyordu: ganimet senin kalıyor, keseden hiçbir şey gitmiyordu. Artık düşen
+  kahraman yenilmiş sayılıyor.
 
 ## 2.11.1 — Kantar (2026-10-03)
 

@@ -2951,7 +2951,7 @@ function build() {
 function overlay(html) { const o = el('lair-over'); o.innerHTML = html ? `<div class="lpanel">${html}</div>` : ''; o.hidden = !html; }
 
 function pauseMenu() {
-    if(!G || G.done) return;
+    if(!G || G.done || G.player.state === 'down') return;
     paused = true;
     const ch = chaser();
     overlay(`<div class="leyebrow">${T('Duraklatıldı')}</div><h2>${T(L.name)}</h2>
@@ -3181,7 +3181,8 @@ function enter(id, approach) {
         setTimeout(offerTutorial, 900);
     });
 }
-function retreat() { if(!G || G.done || chaser()) return; overlay(''); paused = false; endGame('out'); }
+// a downed hero has already lost (endGame('lost') waits only for the fall): no walking out with the loot
+function retreat() { if(!G || G.done || G.player.state === 'down' || chaser()) return; overlay(''); paused = false; endGame('out'); }
 // What a sneak brings home is booked the moment it ends; the panel only reports it
 function endGame(kind) {
     if(G.done) return;

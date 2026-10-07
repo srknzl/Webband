@@ -42,7 +42,7 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         battle: Battle.active, lair: typeof Lair !== 'undefined' && Lair.active,
         modal: !document.getElementById('modal-overlay').classList.contains('hidden'),
         view: (document.querySelector('.view.active') || {}).id || '?',
-        typing: !!Game._type
+        typing: !!Game._type, coach: !!document.getElementById('coach-box')
     }));
     const snapshot = async () => page.evaluate(() => ({
         debug: Debug.errors.slice(-3).map(e => `${e.kind}: ${e.msg}${e.stack ? ' @ ' + e.stack : ''}`),
@@ -76,7 +76,11 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         if(!s) break;
         const before = s;
         let did;
-        if(s.lair) {
+        // a window over a lair (the tour offer on a first visit) is answered first, and the tour it
+        // starts is walked: under either every lair click missed, and the rest of the run was spent
+        // stuck there
+        if(s.coach && !s.modal) did = 'coach: ' + (await clickIn('#coach-box'));
+        else if(s.lair && !s.modal) {
             const k = rnd();
             if(k < 0.5) { const key = pick(['w', 'a', 's', 'd', 'e', ' ', 'c']); await page.keyboard.down(key); await page.waitForTimeout(250); await page.keyboard.up(key); did = `lair key ${key}`; }
             else if(k < 0.8) did = 'lair: ' + (await clickIn('#lair-view'));
