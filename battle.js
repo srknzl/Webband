@@ -3659,6 +3659,10 @@ const Battle = {
                         cargoTxt += `${it.icon} ${T(it.name)} ×${c.qty} · `;
                     });
                     if(beaten.purse) { state.player.money += beaten.purse; cargoTxt += T`💰 ${beaten.purse} dinar kese`; }
+                    // a robbed caravan's load can be several times what the party carries: say so here,
+                    // not when the map crawls
+                    let load = Game.cargoLoad(), cap = Game.cargoCap();
+                    if(load > cap) cargoTxt += `<br>${T`🎒 Çanta taşıyor (${load}/${cap}): hız ${Game.pct((Game.cargoMult() - 1) * 100, true)}. Fazlasını Envanter'den bırakabilir ya da satabilirsin.`}`;
                 }
 
                 // A defeated noble is taken prisoner: either collect the ransom or release them with honor

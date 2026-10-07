@@ -13,6 +13,11 @@ başlangıç ekranının sağ alt köşesinde yazar.
 - **Turnuva sürerken oyun kaydediliyor.** Yarı finale kalan turnuvaların aşağı yukarı dörtte birinde
   kayıt yazılamıyordu: turnuva bitene kadar ne elle kayıt ne günlük otomatik kayıt tutuyordu, o
   arada sayfa kapanırsa ilerleme gidiyordu.
+- **Taşıyamadığın yükü yolda bırakabilirsin.** Bir kervanı soymuş çeteyi yenince onun bütün yükü
+  çantana giriyordu: bir oyunda 302 kömür geldi, çanta 441/75 doldu ve grup neredeyse yerinden
+  kıpırdayamadı (en yakın şehre 50 günden fazla). Bir şey atmanın yolu da yoktu. Artık zafer
+  ekranı çantanın taştığını söylüyor, çanta taşarken Envanter'deki her yükün altında bir
+  **Bırak** düğmesi var. Eşsiz eşyalar ve görev eşyaları bırakılamıyor.
 - **Kurtlar esir almıyor.** Bir kurt sürüsüne yenilen oyuncu günlerce "zincirde" tutuluyor,
   kesesinin büyük kısmını kaybediyor, sonunda kurtlar ondan fidye istiyordu. Artık sürü grubunu
   dağıtıyor ve seni yaralı bırakıyor; kesen yerinde, esaret ve fidye yok. Karnı doyan sürü bir gün

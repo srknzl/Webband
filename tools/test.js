@@ -3061,6 +3061,28 @@ test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band
     assert.ok(/Kalan süre: <b>4<\/b>/.test(g._sandbox.document.getElementById('prisoner-info').innerHTML), 'the countdown on the panel did not move');
 });
 
+// A band that robbed a caravan carries its load (302 coal in a playtest): winning it put the party at
+// six times its pack, 1.4% speed, ~54 days from the nearest town, and nothing could be left behind.
+test('loot: an overflowing win says so, and the bag can leave a stack on the road', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state } = g;
+    const npc = state.npcParties.find(n => n.type === 'bandit');
+    npc.cargo = [{ id: 'iron', qty: Game.cargoCap() * 6 }];
+    Object.assign(state.player, { currentEncounterNpcId: npc.id, status: 'idle', inventory: [] });
+    Battle.start(npc.name, npc.size, null, '', null, false, npc.band);
+    Battle.endBattle(true);
+    assert.ok(Game.cargoMult() < 0.05, 'the load did not overflow');
+    assert.ok(/🎒 Çanta taşıyor/.test(g._sandbox.document.getElementById('modal-body').innerHTML), 'the victory screen kept quiet about the load');
+    Game.closeModal();
+    state.player.inventory.push({ ...g.ITEMS.kurt_disi_hancer, qty: 1 });
+    Game.renderInventoryScreen();
+    const html = g._sandbox.document.getElementById('inventory-content').innerHTML;
+    assert.ok(html.includes('Game.dropItem(0)') && !html.includes('Game.dropItem(1)'), 'the goods have no drop button, or the unique blade has one');
+    Game.dropItem(1, true);
+    assert.strictEqual(state.player.inventory.length, 2, 'a unique item was left behind');
+    Game.dropItem(0, true);
+    assert.strictEqual(Game.cargoMult(), 1, 'the bag is still overloaded after leaving the iron');
+});
+
 // The raid's two records: currentRaid marks the militia fight, raid the storehouse phase after it.
 // Debug.invariants once held 'raiding' to the first and flagged every won raid (monkey 9606).
 test('raid: a won militia fight starts the raid phase, and leaving it frees the map', () => {

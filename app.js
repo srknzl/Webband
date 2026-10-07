@@ -12488,6 +12488,7 @@ const Game = {
         if(state.player.inventory.length === 0) html += `<p>${T('Envanterin boş.')}</p>`;
         else {
             html += '<div class="inv-grid">';
+            let over = this.cargoLoad() > this.cargoCap();   // a load you can't carry can be left behind
             state.player.inventory.forEach((item,i) => {
                 let canEquip = ['weapon','shield','armor','helmet','gloves','boots','horse'].includes(item.type);
                 let isUse = item.type === 'special' && item.id === 'boss_map';
@@ -12499,6 +12500,7 @@ const Game = {
                 ${this.itemNote(item) ? `<div style="font-size:var(--fs-xs);color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
                 ${canEquip ? `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">${T`Kuşan`}</button>` : ''}
                 ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">${T`Kullan`}</button>` : ''}
+                ${over && this.canDrop(item) ? `<button class="btn" style="font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.dropItem(${i})">${T`Bırak`}</button>` : ''}
                 </div>`;
             });
             html += '</div>';
@@ -12592,6 +12594,22 @@ const Game = {
         if(item.qty <= 0) state.player.inventory.splice(idx, 1);
         this.updateStatsFromEquip();
         this.renderInventoryScreen();
+    },
+    // Loot and quest rewards can overload the bag (#98) — a won fight once brought six times what a
+    // party carries and left it crawling for weeks. Leaving a stack on the road is how you choose to
+    // walk on. Unique and special items stay: the boss gate and the quests look for them.
+    canDrop(item) { return !item.unique && !item.unsellable && item.type !== 'special'; },
+    dropItem(idx, sure) {
+        let item = state.player.inventory[idx];
+        if(!item || !this.canDrop(item)) return;
+        if(!sure) return this.showModal(`<h3>${this.itemIco(item)} ${T(item.name)} ×${item.qty}</h3>
+            <p>${T`Bu yük yolda bırakılsın mı? Geri alınamaz.`}</p>
+            <button class="btn primary" onclick="Game.dropItem(${idx}, true)">${T`Bırak`}</button>
+            <button class="btn" onclick="Game.closeModal()">${T`İptal`}</button>`, '380px');
+        state.player.inventory.splice(idx, 1);
+        this.closeModal();
+        this.renderInventoryScreen();
+        this.updateTopBar();
     },
     useItem(idx) {
         let item = state.player.inventory[idx];
