@@ -3165,6 +3165,20 @@ test('mid game: a village fief at 150 renown, a castle still at 300; quests pay 
     assert.ok(LOCATIONS.every(l => Game.dist(l, near) >= Game.dist(at, near)), 'the marker is not the settlement nearest the band');
 });
 
+// A 10-man trader lost 16₺ a day: the 30 % spread ate every route (economy.js since September)
+test('trade: goods carried far sell for more; the market they were bought in pays no premium', () => {
+    const { Game, state, LOCATIONS } = H.world({ seed: 5 });
+    const cities = LOCATIONS.filter(l => l.type === 'city');
+    const a = cities[0], b = cities.reduce((x, l) => Game.dist(l, a) > Game.dist(x, a) ? l : x);
+    state.player.money = 5000;
+    Game._marketLoc = a;
+    Game.buyItem('salt', 5);
+    const held = state.player.inventory.find(i => i.id === 'salt');
+    assert.strictEqual(Game.farPremium(held, a), 0, 'the home market pays a premium');
+    assert.ok(Game.marketPrice('salt', true) < Game.marketPrice('salt'), 'buy-then-sell pays in one market');
+    assert.ok(Math.abs(Game.farPremium(held, b) - Game.FAR_PREMIUM * Math.min(1, Game.dist(a, b) / Game.FAR_SPAN)) < 1e-9);
+});
+
 // Packs stood at 24–43 % of the map's bands and nearly every one had the Alfa (playtest 2.11.3)
 test('wolves: the Alfa leads only a big pack; while packs hold a quarter of the bands, dens wait', () => {
     const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;

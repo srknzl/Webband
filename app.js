@@ -8628,6 +8628,16 @@ const Game = {
     // ponytail: at the 0.40 cap the spread is 0.3 − 2 × 0.3 × 0.4 = 6 %; raise k for a stronger
     // skill, but keep 2 × k × 0.40 below 0.3 or a buy-then-sell turns a profit again
     TRADE_EDGE_K: 0.3,
+    // Goods carried far fetch more (2.12.0): a trade good remembers where it was bought (weighted by
+    // quantity, `fromX/fromY`), and a market up to FAR_SPAN away adds up to FAR_PREMIUM to the sell
+    // side — the 30 % spread a route had to beat narrows to 15 % on a long haul. The market you bought
+    // in adds nothing, so a buy-then-sell still never pays. A 10-man trader lost 16₺ a day (economy.js).
+    FAR_PREMIUM: 0.15,
+    FAR_SPAN: 4000,
+    farPremium(held, loc) {
+        if(!held || !loc || held.type !== 'trade' || held.fromX === undefined) return 0;
+        return this.FAR_PREMIUM * Math.min(1, this.dist({ x: held.fromX, y: held.fromY }, loc) / this.FAR_SPAN);
+    },
     marketPrice(id, selling = false) {
         let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
         if(!it) return null;
@@ -8637,7 +8647,8 @@ const Game = {
         // and buy-then-sell printed money (bug hunt: +175 dinars per five swords, at 0.40 +63 %).
         let edge = Math.min(0.40, (this.profLvl('trade') - 1) * 0.02 + this.perkMod('tradeEdge') / 100 + this.relicMod('tradeEdge') / 100);
         let loc = this._marketLoc, k = this.TRADE_EDGE_K;
-        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 + k * edge : 1 - k * edge);
+        let far = selling ? this.farPremium(state.player.inventory.find(i => i.id === id), loc) : 0;
+        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 + k * edge + far : 1 - k * edge);
         // A village that has heard what you do to villages doesn't haggle kindly (#104)
         if(loc && loc.type === 'village' && this.infamyPenalty() > 0) mult *= selling ? 0.9 : 1.1;
         return Math.max(1, Math.floor(it.basePrice * mult));
@@ -8680,7 +8691,8 @@ const Game = {
             let st = m.mode === 'buy' && loc ? Math.floor(this.stock(loc, item.id)) : Infinity, empty = st <= 0;
             let have = state.player.inventory.find(i => i.id === item.id);
             let badges = (isFinite(st) ? `<span style="color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${empty ? T`tükendi` : T`stok ${st}`}</span>` : '')
-                + (have && have.qty > 0 ? `<span style="color:#7ddc8a">${m.mode === 'buy' ? T`sende ${have.qty}` : '×' + have.qty}</span>` : '');
+                + (have && have.qty > 0 ? `<span style="color:#7ddc8a">${m.mode === 'buy' ? T`sende ${have.qty}` : '×' + have.qty}</span>` : '')
+                + (m.mode === 'sell' && this.farPremium(have, loc) >= 0.01 ? `<span style="color:#e0b062" title="${T`Uzaktan getirilen mal daha iyi satılır`}">🐪 ${this.pct(Math.round(this.farPremium(have, loc) / 0.7 * 100), true)}</span>` : '');
             let on = m.sel === item.id;
             return `<button type="button" class="mkt-tile${on ? ' sel' : ''}${empty ? ' out' : ''}" id="mrow-${m.mode}-${item.id}" aria-pressed="${on}" onclick="Game.mktSelect('${item.id}')">
                 <span class="mt-ic">${this.itemIco(item, true)}</span><span class="mt-nm">${T(item.name)}</span>
@@ -9559,7 +9571,13 @@ const Game = {
         }
         state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
-        if(ex) ex.qty += can; else state.player.inventory.push({...ITEMS[id], qty:can});
+        if(!ex) state.player.inventory.push(ex = {...ITEMS[id], qty:0});
+        if(loc && ex.type === 'trade') {   // where it came from (farPremium), the load's weighted middle
+            let had = ex.fromX === undefined ? 0 : ex.qty;
+            ex.fromX = ((ex.fromX || 0) * had + loc.x * can) / (had + can);
+            ex.fromY = ((ex.fromY || 0) * had + loc.y * can) / (had + can);
+        }
+        ex.qty += can;
         this.addProficiencyXp('trade', 4 * can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
