@@ -3,6 +3,30 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.11.3 — Kantar (2026-10-07)
+
+- **Kaçtıktan ya da bir çete seni salıverdikten sonra pencereler kilitlenmiyor.** Bir karşılaşmadan
+  savaşmadan çıkınca ("Uzaklaş", başarılı bir kaçış) oyun karşılaşmanın hâlâ sürdüğünü sanıyordu:
+  ondan sonra açılan hiçbir pencere Esc ya da × ile kapanmıyordu. Kendi düğmesi olmayan bir
+  pencere, örneğin köy yaşlısıyla konuşma, hiç kapanmıyor ve oyunu yeniden açmak gerekiyordu.
+  Artık her savaşsız çıkış karşılaşmayı kapatıyor.
+- **Turnuva sürerken oyun kaydediliyor.** Yarı finale kalan turnuvaların aşağı yukarı dörtte birinde
+  kayıt yazılamıyordu: turnuva bitene kadar ne elle kayıt ne günlük otomatik kayıt tutuyordu, o
+  arada sayfa kapanırsa ilerleme gidiyordu.
+- **Taşıyamadığın yükü yolda bırakabilirsin.** Bir kervanı soymuş çeteyi yenince onun bütün yükü
+  çantana giriyordu: bir oyunda 302 kömür geldi, çanta 441/75 doldu ve grup neredeyse yerinden
+  kıpırdayamadı (en yakın şehre 50 günden fazla). Bir şey atmanın yolu da yoktu. Artık zafer
+  ekranı çantanın taştığını söylüyor, çanta taşarken Envanter'deki her yükün altında bir
+  **Bırak** düğmesi var. Eşsiz eşyalar ve görev eşyaları bırakılamıyor.
+- **Kurtlar esir almıyor.** Bir kurt sürüsüne yenilen oyuncu günlerce "zincirde" tutuluyor,
+  kesesinin büyük kısmını kaybediyor, sonunda kurtlar ondan fidye istiyordu. Artık sürü grubunu
+  dağıtıyor ve seni yaralı bırakıyor; kesen yerinde, esaret ve fidye yok. Karnı doyan sürü bir gün
+  boyunca sana saldırmıyor.
+- **Şehirdeyken dili değiştirince** şehrin kartları da yeni dile geçiyor; önceden bir sonraki
+  ziyarete kadar eski dilde kalıyordu.
+- **Esaret panelindeki kalan gün sayısı** her gün güncelleniyor; önceden ilk gördüğün sayıda
+  takılı kalıyordu.
+
 ## 2.11.2 — Kantar (2026-10-07)
 
 - **At ağıllı bir haydut inine girerken oyun takılmıyor.** İnin çizimleri yüklenirken haritada

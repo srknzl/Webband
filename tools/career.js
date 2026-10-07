@@ -20,7 +20,9 @@ const seeds = H.seeds(a.seed, [1, 2, 3, 4, 5]);
 // in every e2e test, and here after every scripted action
 const invariants = g => g.Debug.invariants();
 
-function run(seed, lang, days = DAYS, onDay) {
+// `from`: a save (the parsed file) to go on from instead of a new character — it goes in the way
+// the game loads one, through Save.migrate and Save.apply
+function run(seed, lang, days = DAYS, onDay, from) {
     const g = H.world({ seed, lang });
     // the harness has no media element; a load syncs the music through one
     g._sandbox.Audio = function() { return { play: () => Promise.resolve(), pause() {}, load() {}, addEventListener() {}, removeEventListener() {}, volume: 1 }; };
@@ -29,9 +31,14 @@ function run(seed, lang, days = DAYS, onDay) {
     const pick = arr => arr[Math.floor(rnd() * arr.length)];
     const problems = [];
     let day = 0, action = 'start';
-    state.player.name = 'Kariyer';   // typed at creation in the game; the same in every language
-    state.player.money = 2000;
-    state.player.stats.hp = state.player.stats.maxHp;
+    if(from) {
+        const d = JSON.parse(JSON.stringify(from));
+        Save.migrate(d); Save.apply(d); Game.closeModal();
+    } else {
+        state.player.name = 'Kariyer';   // typed at creation in the game; the same in every language
+        state.player.money = 2000;
+        state.player.stats.hp = state.player.stats.maxHp;
+    }
     const seen = new Set(), worlds = [];
     const note = (msg) => { const k = msg.replace(/\d+(\.\d+)?/g, '#'); if(seen.has(k)) return; seen.add(k); problems.push(`seed ${seed} day ${day} [${action}] ${msg}`); };
     const go = loc => { Object.assign(state.player, { x: loc.x, y: loc.y, status: 'idle', targetLocation: null }); Game.enterLocation(loc); };

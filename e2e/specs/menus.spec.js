@@ -1,6 +1,6 @@
 // Menus: every screen opens and has something on it, the keyboard map works, pause stops
 // the clock, every menu entry is reachable on both layouts, and a save survives a reload.
-const { test, expect, L, modal, modalBtn, okAlert, openView, newGame } = require('../fixtures');
+const { test, expect, L, modal, modalBtn, okAlert, openView, newGame, enter, quietCity, actionBtn } = require('../fixtures');
 
 /** Clicks a sidebar entry (desktop) or its "⋯ Daha" twin (phone) — both call the same `onclick`. */
 async function openExtra(page, call) {
@@ -114,6 +114,15 @@ test('ayarlar: ses aç/kapa ve oyun içinde dil değiştirme', async ({ page, la
     await modal(page).locator(`button[onclick="Game.setLang('${lang}')"]`).click();
     await expect(page.locator('html')).toHaveAttribute('lang', lang);
     await page.evaluate(() => Game.closeModal());
+
+    // Inside a town too: its cards are drawn on the way in, and they kept the old language until
+    // the next visit (#150 redrew every screen but the settlement one)
+    await enter(page, await quietCity(page));
+    await openExtra(page, 'Game.showSettings()');
+    await modal(page).locator(`button[onclick="Game.setLang('${other}')"]`).click();
+    await expect(await actionBtn(page, '🛒 Pazara Git')).toBeVisible();
+    await modal(page).locator(`button[onclick="Game.setLang('${lang}')"]`).click();
+    await page.evaluate(() => { Game.closeModal(); Game.showScreen('map'); });
 
     // Mute: the label and the stored setting follow the button
     const before = await page.evaluate(() => Game.opt('muted'));

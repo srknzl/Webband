@@ -19,7 +19,7 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
     const rnd = () => { r ^= r << 13; r >>>= 0; r ^= r >> 17; r ^= r << 5; r >>>= 0; return r / 4294967296; };
     const pick = a => a[Math.floor(rnd() * a.length)];
     const log = [], found = [], reported = new Set();
-    let step = 0, last = 'start';
+    let step = 0, last = 'start', missed = 0, lastOver = '';
     page.on('pageerror', e => found.push(`#${step} [${last}] pageerror: ${e.message} @ ${(e.stack || '').split('\n')[1] || ''}`));
     page.on('console', m => { if(m.type() === 'error') found.push(`#${step} [${last}] console.error: ${m.text()}`); });
 
@@ -51,31 +51,46 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
 
     // Clicks one of the visible, enabled buttons under `root`; returns what it pressed
     const clickIn = async root => {
-        const n = await page.evaluate(([root, never]) => {
+        const [n, any] = await page.evaluate(([root, never]) => {
             document.querySelectorAll('[data-mk]').forEach(e => e.removeAttribute('data-mk'));
             const re = new RegExp(never);
-            const els = [...document.querySelectorAll(root + ' button, ' + root + ' [onclick]')].filter(e => {
+            const reach = e => {
                 const b = e.getBoundingClientRect(), st = getComputedStyle(e);
-                return b.width > 2 && b.height > 2 && !e.disabled && st.visibility !== 'hidden' && st.pointerEvents !== 'none'
-                    && !re.test(e.getAttribute('onclick') || '') && !re.test(e.id || '');
-            });
+                if(!(b.width > 2 && b.height > 2 && !e.disabled && st.visibility !== 'hidden' && st.pointerEvents !== 'none'
+                    && !re.test(e.getAttribute('onclick') || '') && !re.test(e.id || ''))) return false;
+                // what a player can't reach isn't offered: a button under a window or a scene's
+                // overlay (one scrolled out of sight is: the click scrolls to it)
+                const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+                if(cx < 0 || cy < 0 || cx >= innerWidth || cy >= innerHeight) return true;
+                const t = document.elementFromPoint(cx, cy);
+                return !!t && (t === e || e.contains(t));
+            };
+            const all = sel => [...document.querySelectorAll(sel + ' button, ' + sel + ' [onclick]')].filter(reach);
+            const els = all(root);
             els.forEach((e, i) => e.setAttribute('data-mk', i));
-            return els.length;
+            // nothing here, and nothing anywhere else a player could press either?
+            return [els.length, els.length || all('body').length];
         }, [root, NEVER.source]);
-        if(!n) return null;
+        // a page with nothing a player could press anywhere is a stuck one; an empty corner of a
+        // screen the sidebar still leads out of is not
+        if(!n) { if(!any) { missed++; lastOver = 'nothing to press anywhere'; } return null; }
         const i = Math.floor(rnd() * n), el = page.locator(`[data-mk="${i}"]`);
         const what = ((await el.getAttribute('onclick').catch(() => '')) || (await el.innerText().catch(() => '')) || '?').slice(0, 70).replace(/\s+/g, ' ');
         // a typed line eats the first press (typeIn); the player reads it first
         await page.waitForFunction(() => !Game._type, null, { timeout: 5000 }).catch(() => {});
         // a failed click names what lay on top of the button: a screen stuck under a stray layer
         // reads as a string of these
+        let hit = true;
         await el.click({ timeout: 3000 }).catch(async () => {
+            hit = false;
             const over = await el.evaluate(e => {
                 const r = e.getBoundingClientRect(), t = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
                 return !t ? 'off screen' : t === e || e.contains(t) ? 'itself' : t.tagName.toLowerCase() + (t.id ? '#' + t.id : '') + (typeof t.className === 'string' && t.className ? '.' + t.className.split(' ')[0] : '');
             }).catch(() => 'gone');
             log.push(`  (click failed: ${what} — under ${over})`);
+            lastOver = over;
         });
+        missed = hit ? 0 : missed + 1;
         return what;
     };
 
@@ -111,7 +126,11 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
             did = 'town: ' + (await clickIn(rnd() < 0.85 ? '#settlement-actions' : '#settlement-view'));
         } else if(s.view === 'map-view') {
             const k = rnd();
-            if(k < 0.3) {          // walk up to a party on the map and meet it
+            if(k < 0.7) missed = 0;   // a meeting, a gate, the clock: the map moved on
+            // a captive goes where his captors go: the teleports below would walk him into a town
+            // in chains (the escape panel then sits over every scene)
+            if(k < 0.6 && await page.evaluate(() => !!state.player.prisoner)) { await page.evaluate(() => Game.advanceTime(6)); did = 'time passes (captive)'; }
+            else if(k < 0.3) {          // walk up to a party on the map and meet it
                 did = 'meet ' + await page.evaluate(() => {
                     const n = state.npcParties[Math.floor(Math.random() * state.npcParties.length)];
                     if(!n) return '-';
@@ -174,6 +193,13 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
             return null;
         }).catch(() => null);
         if(over && !reported.has('over ' + over.slice(0, 40))) { reported.add('over ' + over.slice(0, 40)); found.push(`#${step} [${did}] overflow — ${over}`); }
+        // Stuck: a run of presses that all missed is a screen the player can't get out of (a lair
+        // under a window it never answered, #171) — said once per screen, not once per press
+        if(missed >= 8 && !reported.has('stuck ' + s.view + s.modal)) {
+            reported.add('stuck ' + s.view + s.modal);
+            const win = s.modal ? await page.evaluate(() => document.getElementById('modal-body').innerText.replace(/\s+/g, ' ').slice(0, 120)).catch(() => '?') : '';
+            found.push(`#${step} [${did}] stuck — ${missed} presses in a row went nowhere on ${s.view}${s.lair ? ' (lair)' : ''}${s.modal ? `, under the window "${win}"` : ''}, the last: ${lastOver}`);
+        }
         const after = await inPage().catch(() => null);
         if(after && (after.debug > before.debug || after.missing > before.missing || after.issues > before.issues)) {
             const snap = await snapshot();

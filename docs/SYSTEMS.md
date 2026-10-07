@@ -300,8 +300,9 @@ source so every UI reads the same integer.
 scaled down (`Battle.rewardScale`, on the foe's strength — see **The foe's share** below).
 
 ### Mercenaries
-2 slots/town at the inn, refreshed every 3 days: troops at level 10–15 from that town's faction
-tree, `60 + level×12` denars.
+2 slots/town at the inn, refreshed every 3 days, 3–8 men each: a branch's mid or elite troop from that
+town's faction tree (the mid one twice as likely), at its tree level (`tierLevel`: mid 10, elite 20),
+`60 + level×12` denars — 180 or 300, scaled by dishonor.
 
 ### Party & troops
 **Faction troop trees** (`TROOP_TREES`, the single source `TROOP_UPGRADES`/`TROOP_TYPES` are
@@ -500,7 +501,12 @@ old `(1−edge)` / `0.7×(1+edge)` crossed at edge 0.18, and a buy-5/sell-5 roun
 paid up to +175 dinars (swords); now no item in any town pays a round trip, at the full edge. **Weapon tiers**: 5 base weapons × 4 quality tiers each (T1 base → T4, price growing
 faster than attack). Carry capacity (`Game.cargoCap()` = `20 + 5×heads + 4×mounted`) gates
 purchases (`buyItem` stops at whichever of money/stock/room runs out first) and speed
-(`cargoMult()` = `max(0.5, 1 − overload/capacity×0.5)`). Everything sellable can be sold back
+(`cargoMult()` = `1 / (1 + 3×over²)`, `over` = (load − cap)/cap, no floor: 50 % over walks at ~0.57,
+twice the cap at ~0.25, three times at ~0.08) and morale (−2 a day per capacity over). Loot isn't
+capped — a band that robbed a caravan carries its load, and a playtest win against one brought 302
+coal: 441/75, 1.4 % speed, ~54 days to the nearest town. So the victory screen says when the loot
+overflows, and while the bag is over its cap every stack but unique/special items gets a **Bırak**
+button (`Game.dropItem`) that leaves it on the road. Everything sellable can be sold back
 except `unique`/`unsellable`/`type:'special'` items; equipped gear never appears in the sell
 list (it lives in `equipment`, not `inventory`).
 
@@ -899,6 +905,10 @@ Single model: `Game.beginCaptivity(npc, days)` → `state.player.prisoner`. Lock
 location; the captor's party is the only one that moves (the player's own icon isn't drawn).
 "Plan an escape" ramps escape chance 0→80 on a slowing curve; one attempt/day, failure costs −60
 and resets the plan. At the deadline: 40% free escape, else a ransom modal (75–90% of money).
+A lost fight against a `beast` band (a wolf pack) is no captivity (2.11.3): the men scatter, the hero
+wakes at 30% hp, renown and morale drop as usual, but the purse stays and there is no ransom. The
+pack is then fed (`PACK_FED_HOURS` 24): not hostile, no scent or pounce, so it can't jump the wounded
+hero again and again; the player can still attack it.
 
 ### Diplomacy — war between kingdoms (#20)
 `state.wars = { 'a|b': start day }`. **An independent player has a banner too**

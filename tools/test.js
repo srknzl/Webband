@@ -1783,12 +1783,11 @@ test('tournament: a 4v4 round spawns two complete, colour-coded teams', () => {
     const fighter = (name, lv) => ({ name, lv });
     const foe = fighter('Rakip Kaptan', 5);
     foe.round = Game.TOURNEY_ROUNDS[0];
-    foe.teamFight = {
+    Battle.startTourneyFight(foe, {
         size:4, player:pair[0], enemy:pair[1],
         allies:[fighter('M1', 3), fighter('M2', 4), fighter('M3', 5)],
         enemies:[fighter('K1', 3), fighter('K2', 4), fighter('K3', 5)]
-    };
-    Battle.startTourneyFight(foe);
+    });
     const blue = Battle.units.filter(u => u.isPlayerTeam);
     const red = Battle.units.filter(u => !u.isPlayerTeam);
     assert.strictEqual(blue.length, 4, 'the player tournament team is not 4 fighters');
@@ -3001,6 +3000,138 @@ test('wait: map orders cannot cancel a running camp', () => {
     Game.setTarget({ x:state.player.x + 500, y:state.player.y + 500 });
     assert.strictEqual(state.player.status, 'waiting');
     assert.strictEqual(state.player.targetLocation, null, 'a map order escaped the camp lock');
+});
+
+// A round's team line-up was hung on the opponent inside state.tourney, holding other fighters of
+// the same bracket; by the semi-final two of them pointed at each other and every save failed until
+// the tournament ended (monkey 9605: "Converting circular structure to JSON").
+test('tournament: a bracket played through its rounds still saves', () => {
+    const { Game, Battle, Save, state, LOCATIONS } = H.world({ seed: 42 });
+    const city = LOCATIONS.find(l => l.type === 'city');
+    // the line-ups are shuffled: one bracket in four closed the circle, twenty make it certain
+    for(let bracket = 0; bracket < 20; bracket++) {
+        state.activeTournaments[city.id] = true;
+        Game.joinTournament(city);
+        Game.startTournament();
+        for(let round = 0; round < 3; round++) {
+            Game.tourneyFight();
+            assert.ok(Battle.active, `round ${round} did not start a fight`);
+            assert.doesNotThrow(() => JSON.stringify(Save.snapshot()), `bracket ${bracket}: no save in round ${round}`);
+            Battle.active = false;
+            Battle.endBattle(true);
+            Game.closeModal();
+        }
+        assert.ok(state.tourney.champion && state.tourney.champion.you, 'the player won every round and was not crowned');
+        Game.tourneyClose();
+    }
+});
+
+// Losing to a pack once ran the whole captivity: wolves guarding you in chains for days, taking
+// 60-90% of the purse and asking a ransom. A band still takes you, and the panel's countdown follows the days.
+test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band takes you', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;
+    const lose = band => {
+        const npc = state.npcParties.find(n => n.type === 'bandit' && n.band === band);
+        assert.ok(npc, `no ${band} band in the world`);
+        Object.assign(state.player, { money: 1000, currentEncounterNpcId: npc.id, status: 'idle', prisoner: null });
+        Battle.start(npc.name, npc.size, null, '', null, false, npc.band);
+        Battle.endBattle(false);
+        Game.closeModal();
+    };
+    const pack = Object.keys(BAND_KINDS).find(k => BAND_KINDS[k].beast);
+    lose(pack);
+    assert.strictEqual(state.player.prisoner, null, 'the pack took a prisoner');
+    assert.strictEqual(state.player.money, 1000, 'the pack took money');
+    assert.strictEqual(state.player.party.length, 0);
+    // ...and has had its fill: standing right beside the wounded hero it doesn't jump him again
+    // (without captivity it did, over and over), until a day has gone by
+    const wolves = state.npcParties.find(n => n.band === pack && n.fedLeft > 0);
+    assert.ok(wolves, 'the pack that won was not marked fed');
+    const beside = () => Object.assign(state.player, { x: wolves.x + 10, y: wolves.y, targetLocation: null, currentEncounterNpcId: null });
+    beside();
+    assert.ok(!Game.npcCanInitiateEncounter(wolves), 'the fed pack jumps the hero again at once');
+    for(let h = 0; h < 25; h++) Game.updateNPCs(1);
+    beside();
+    assert.ok(Game.npcCanInitiateEncounter(wolves), 'a day later the pack is still fed');
+    lose('bandit');
+    assert.ok(state.player.prisoner && state.player.money < 1000, 'a band no longer takes you');
+    state.player.prisoner.daysLeft = 5;
+    Game.renderPrisonerUI();
+    Game.dailyUpdate();
+    assert.ok(/Kalan süre: <b>4<\/b>/.test(g._sandbox.document.getElementById('prisoner-info').innerHTML), 'the countdown on the panel did not move');
+});
+
+// A band that robbed a caravan carries its load (302 coal in a playtest): winning it put the party at
+// six times its pack, 1.4% speed, ~54 days from the nearest town, and nothing could be left behind.
+test('loot: an overflowing win says so, and the bag can leave a stack on the road', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state } = g;
+    const npc = state.npcParties.find(n => n.type === 'bandit');
+    npc.cargo = [{ id: 'iron', qty: Game.cargoCap() * 6 }];
+    Object.assign(state.player, { currentEncounterNpcId: npc.id, status: 'idle', inventory: [] });
+    Battle.start(npc.name, npc.size, null, '', null, false, npc.band);
+    Battle.endBattle(true);
+    assert.ok(Game.cargoMult() < 0.05, 'the load did not overflow');
+    assert.ok(/🎒 Çanta taşıyor/.test(g._sandbox.document.getElementById('modal-body').innerHTML), 'the victory screen kept quiet about the load');
+    Game.closeModal();
+    state.player.inventory.push({ ...g.ITEMS.kurt_disi_hancer, qty: 1 });
+    Game.renderInventoryScreen();
+    const html = g._sandbox.document.getElementById('inventory-content').innerHTML;
+    assert.ok(html.includes('Game.dropItem(0)') && !html.includes('Game.dropItem(1)'), 'the goods have no drop button, or the unique blade has one');
+    Game.dropItem(1, true);
+    assert.strictEqual(state.player.inventory.length, 2, 'a unique item was left behind');
+    Game.dropItem(0, true);
+    assert.strictEqual(Game.cargoMult(), 1, 'the bag is still overloaded after leaving the iron');
+});
+
+// The raid's two records: currentRaid marks the militia fight, raid the storehouse phase after it.
+// Debug.invariants once held 'raiding' to the first and flagged every won raid (monkey 9606).
+test('raid: a won militia fight starts the raid phase, and leaving it frees the map', () => {
+    const { Game, Battle, state, LOCATIONS, Debug } = H.world({ seed: 42 });
+    const loc = LOCATIONS.find(l => l.type === 'village');
+    Game.startRaid(loc.id, 3);
+    Battle.endBattle(true);
+    assert.strictEqual(state.player.status, 'raiding');
+    assert.ok(state.player.raid && !state.player.currentRaid, 'the raid phase did not take over from the fight');
+    assert.deepStrictEqual([...Debug.invariants()], []);
+    Game.abortRaid(true);
+    assert.strictEqual(state.player.status, 'idle');
+    assert.deepStrictEqual([...Debug.invariants()], []);
+});
+
+test('encounter: every way out without a fight closes it, and the windows after it close again', () => {
+    const vm = require('vm'), g = H.world({ seed: 42 });
+    const { Game, state, LOCATIONS } = g;
+    const body = () => g._sandbox.document.getElementById('modal-body').innerHTML;
+    const press = label => {
+        const m = new RegExp(`onclick="([^"]*)"[^>]*>[^<]*${label}`).exec(body());
+        assert.ok(m, `no "${label}" button`);
+        vm.runInContext(m[1].replace(/&quot;/g, '"'), g._ctx);
+    };
+    const elder = LOCATIONS.find(l => l.type === 'village');
+    g._sandbox.__rnd0 = vm.runInContext('Math.random', g._ctx);
+    try {
+        vm.runInContext('Math.random = () => 0', g._ctx);   // the band backs off, the flight works
+        // a band that thinks you aren't worth it: walk away
+        state.time.day = 2;
+        Game.triggerEncounter(Game.createBand('bandit', 6));
+        press('Uzaklaş');
+        assert.strictEqual(state.player.currentEncounterNpcId, null, 'walking away from a band left the encounter open');
+        // a convoy let go on its way
+        const convoy = state.npcParties.find(n => n.trade);
+        Game.triggerEncounter(convoy);
+        press('Yoluna Bırak');
+        assert.strictEqual(state.player.currentEncounterNpcId, null, 'a convoy let go left the encounter open');
+        // outrun
+        state.time.day = 30;
+        const band = Game.createBand('bandit', 6);
+        Game.triggerEncounter(band);
+        Game.fleeEncounter(band.id);
+        Game.alertOk();
+        assert.strictEqual(state.player.currentEncounterNpcId, null, 'a flight that worked left the encounter open');
+    } finally { vm.runInContext('Math.random = __rnd0', g._ctx); }
+    // what the player saw: the elder's words, a window with no button of its own, can be closed
+    Game.talkToElder(elder);
+    assert.ok(Game.canDismiss() && /Game\.closeModal\(\)/.test(body()), 'the elder\'s window has no way out');
 });
 
 test('wait: a running camp is protected from map encounters', () => {
@@ -5138,6 +5269,19 @@ function midScene() {
         assert.ok(!w.FACTIONS.player_kingdom, 'the kingdom founded after the save is gone');
     });
 }
+
+// A returning player: a save an old release wrote (tools/saves/, played by that release's own
+// tools) goes in through Save.migrate/apply and is played on — shopping, fights, quests, days —
+// with the invariants checked after every action. Everything added since is missing from it.
+// e2e/specs/oldsaves.spec.js opens the newer windows from the same saves in the browser.
+slow('old saves: a save from an earlier release loads and plays 15 days clean', () => {
+    const { run } = require('./career'), fs = require('fs'), path = require('path');
+    const dir = path.join(__dirname, 'saves');
+    for(const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
+        const r = run(3, undefined, 15, null, JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
+        assert.deepStrictEqual(r.problems, [], `the ${f} save: ${r.problems[0]}`);
+    }
+});
 
 // ---------- Output ----------
 if(!FAST) { thresholds(); midScene(); }

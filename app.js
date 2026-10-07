@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.11.2', date: '2026-10-07', name: 'Kantar' };  // the version name is not translated
+const VERSION = { no: '2.11.3', date: '2026-10-07', name: 'Kantar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -151,6 +151,10 @@ const Debug = {
         fin(p.stats.hp, 'hp'); fin(p.stats.maxHp, 'maxHp');
         if(p.stats.hp > p.stats.maxHp + 1e-6) bad.push(`hp ${p.stats.hp} > maxHp ${p.stats.maxHp}`);
         if(p.stats.hp <= 0 && !p.prisoner) bad.push(`hp ${p.stats.hp} while free`);
+        // a status is a promise the map keeps: each one is held by its own record, and a status
+        // left without it locks the map in a state there is no panel to leave
+        let holds = { raiding: p.raid, waiting: p.wait, besieging: p.siege, prisoner: p.prisoner };
+        if(p.status in holds && !holds[p.status]) bad.push(`status ${p.status} with nothing behind it`);
         fin(p.renown, 'renown'); fin(p.x, 'x'); fin(p.y, 'y'); fin(Game.morale(), 'morale');
         if(p.party.length > Game.getPartyCapacity() + 5) bad.push(`party ${p.party.length} over capacity ${Game.getPartyCapacity()}`);
         let ids = new Set();
@@ -2186,7 +2190,7 @@ const Game = {
               : `<p style="color:var(--danger)">${T`Soyarsan eşkıyalık sayılır: ${this.factionName(npc.faction)} lordları <b>−4</b>, namın <b>−5</b>.`}</p>`}
         <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
         <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.robTrader('${npc.id}')">${T`🗡️ Soy`}</button>
-        <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 6; state.player.currentEncounterNpcId = null;">${T`🚪 Yoluna Bırak`}</button>
+        <button class="btn primary" onclick="Game.leaveEncounter(6)">${T`🚪 Yoluna Bırak`}</button>
         </div>`);
     },
     robTrader(npcId) {
@@ -3972,12 +3976,21 @@ const Game = {
         let base = Math.max(0.1, Math.min(0.9, (this.getPlayerSpeed().value / his - 0.8) * 1.2));
         return state.ambush ? base * this.AMBUSH_FLEE : base;
     },
+    // An encounter left without a fight — the band waved you off, the convoy went its way, you
+    // outran them — ends here. The open encounter is what locks a window (canDismiss): an exit that
+    // left its id behind took Esc and × off every window after it, and one with no button of its
+    // own (the village elder's) could not be closed at all.
+    leaveEncounter(cooldown) {
+        this.closeModal();
+        state.encounterCooldown = cooldown;
+        state.player.currentEncounterNpcId = null;
+    },
     fleeEncounter(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
         this.closeModal();
         let chance = this.fleeChance(npc);
         if(Math.random() < chance) {
-            state.encounterCooldown = 6;
+            this.leaveEncounter(6);
             state.ambush = false;   // you slipped away: being surrounded doesn't carry over to the next battle
             state.player.status = 'idle'; state.player.targetLocation = null;
             alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
@@ -3991,7 +4004,7 @@ const Game = {
     // "Send your troops": let the engine itself resolve the battle without opening the arena (#30)
     autoBattle(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
-        if(!npc) return this.closeModal();
+        if(!npc) return this.leaveEncounter(2);
         this.closeModal();
         Battle.start(npc.name, state.encounterSize || npc.size, null, npc.faction || '', null, true, npc.band || null);
     },
@@ -4001,6 +4014,7 @@ const Game = {
         let dist = Math.sqrt(dx*dx + dy*dy);
 
         if(npc.type === 'bandit') {
+            if(npc.fedLeft > 0) return false;   // a pack that has just beaten you (PACK_FED_HOURS)
             if(dist < 120) return true; // Get right up on them and they won't forgive it!
             if(this.strengthSeen(npc) > 1.5) return false; // much stronger than them, in fighting men: they keep away
             if(state.time.day <= 14) {
@@ -4026,6 +4040,10 @@ const Game = {
     },
 
     FLEE_HOURS: 4,     // how long a party that fled keeps running once out of sight
+    // A pack that has beaten you has had its fill: for a day it neither hunts nor jumps you. It
+    // used to keep no captive and stand right there, so the wounded hero walked into it again and
+    // again, a lost fight and lost renown each time (2.11.3). You can still go at it yourself.
+    PACK_FED_HOURS: 24,
     SIEGE_RING: 90,
     PATROL_CONTACT: 30,   // a patrolling lord this close to its band has caught it
     PREY_HOLD: 300,       // a band switches convoys only for one this much nearer than its own    // a besieger's (or campaign lord's) distance from the place it holds
@@ -4142,7 +4160,8 @@ const Game = {
 
             // A bandit hunts caravans (#38): heads for the nearest convoy in range; banditTick
             // resolves the raid itself. A band that isn't strong enough doesn't give chase.
-            let fleeing = npc.fleeLeft > 0;
+            if(npc.fedLeft > 0) npc.fedLeft -= dt;
+            let fleeing = npc.fleeLeft > 0 || npc.fedLeft > 0;   // a fed pack doesn't lean in or pounce either
             if(npc.type === 'bandit' && !notices && !fleeing && !(BAND_KINDS[npc.band] || {}).beast) {
                 let prey = null, bd = 1200;
                 state.npcParties.forEach(t => {
@@ -4446,7 +4465,7 @@ const Game = {
                 ? T`${this.npcName(npc)} sayınızı tartıyor, üstünüze gelmiyor.`
                 : T`${this.npcName(npc)} seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
-            <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">${T`Uzaklaş`}</button>
+            <button class="btn primary" onclick="Game.leaveEncounter(5)">${T`Uzaklaş`}</button>
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}', null, false, '${npc.band || ''}')">${T`⚔️ Yine De Savaş!`}</button>
             </div>`;
         } else {
@@ -5796,6 +5815,7 @@ const Game = {
         Save.auto();   // ring-buffer autosave at the start of the day (#55 item 1)
         if(state.player.prisoner) {
             state.player.prisoner.daysLeft--;
+            this.renderPrisonerUI();   // the countdown on the panel, which nothing else redraws
             if(state.player.prisoner.daysLeft <= 0) {
                 let escapeChance = Math.random();
                 if(escapeChance <= 0.40) {
@@ -7028,7 +7048,9 @@ const Game = {
         // behind it kept the old language until something redrew it (#150)
         const open = document.querySelector('.view.active');
         if(open && document.getElementById('main-ui').classList.contains('active')) {
-            this.showScreen(open.id.replace('-view', ''));
+            // a town's cards are drawn on the way in, not by showScreen: the town is drawn again
+            if(open.id === 'settlement-view') this.redrawTown(LOCATIONS.find(l => l.id === this._enteredLoc));
+            else this.showScreen(open.id.replace('-view', ''));
             this.updateTopBar();
         }
         if(document.getElementById('settings-panel')) this.showSettings();
@@ -10075,13 +10097,15 @@ const Game = {
         foe.round = this.TOURNEY_ROUNDS[t.round];   // raw name; the battle log translates it
         let size = [4, 2, 1][t.round], pool = t.rounds[0].filter(f => !f.you && f !== foe)
             .slice().sort(() => Math.random() - 0.5);
-        foe.teamFight = {
+        // The line-up goes to the battle, not onto the fighter: hung on a bracket entry it held other
+        // entries, two of them came to point at each other and no save could be written (2.11.3)
+        let match = {
             size,
             player: this.TOURNEY_TEAMS[t.round][0], enemy: this.TOURNEY_TEAMS[t.round][1],
             allies: pool.slice(0, size - 1), enemies: pool.slice(size - 1, (size - 1) * 2)
         };
         this.closeModal();
-        Battle.startTourneyFight(foe);
+        Battle.startTourneyFight(foe, match);
     },
     // Called by `Battle.endBattle` once the player's own match is decided.
     tourneyRoundDone(won) {
@@ -12464,6 +12488,7 @@ const Game = {
         if(state.player.inventory.length === 0) html += `<p>${T('Envanterin boş.')}</p>`;
         else {
             html += '<div class="inv-grid">';
+            let over = this.cargoLoad() > this.cargoCap();   // a load you can't carry can be left behind
             state.player.inventory.forEach((item,i) => {
                 let canEquip = ['weapon','shield','armor','helmet','gloves','boots','horse'].includes(item.type);
                 let isUse = item.type === 'special' && item.id === 'boss_map';
@@ -12475,6 +12500,7 @@ const Game = {
                 ${this.itemNote(item) ? `<div style="font-size:var(--fs-xs);color:#cbb26b;line-height:1.2;margin-top:0.2rem">${this.itemNote(item)}</div>` : ''}
                 ${canEquip ? `<button class="btn primary" style="font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.equipItem(${i})">${T`Kuşan`}</button>` : ''}
                 ${isUse ? `<button class="btn" style="border-color:#ffaa00;color:#ffaa00;font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.useItem(${i})">${T`Kullan`}</button>` : ''}
+                ${over && this.canDrop(item) ? `<button class="btn" style="font-size:var(--fs-xs);padding:0.2rem 0.4rem;margin-top:0.3rem" onclick="Game.dropItem(${i})">${T`Bırak`}</button>` : ''}
                 </div>`;
             });
             html += '</div>';
@@ -12568,6 +12594,22 @@ const Game = {
         if(item.qty <= 0) state.player.inventory.splice(idx, 1);
         this.updateStatsFromEquip();
         this.renderInventoryScreen();
+    },
+    // Loot and quest rewards can overload the bag (#98) — a won fight once brought six times what a
+    // party carries and left it crawling for weeks. Leaving a stack on the road is how you choose to
+    // walk on. Unique and special items stay: the boss gate and the quests look for them.
+    canDrop(item) { return !item.unique && !item.unsellable && item.type !== 'special'; },
+    dropItem(idx, sure) {
+        let item = state.player.inventory[idx];
+        if(!item || !this.canDrop(item)) return;
+        if(!sure) return this.showModal(`<h3>${this.itemIco(item)} ${T(item.name)} ×${item.qty}</h3>
+            <p>${T`Bu yük yolda bırakılsın mı? Geri alınamaz.`}</p>
+            <button class="btn primary" onclick="Game.dropItem(${idx}, true)">${T`Bırak`}</button>
+            <button class="btn" onclick="Game.closeModal()">${T`İptal`}</button>`, '380px');
+        state.player.inventory.splice(idx, 1);
+        this.closeModal();
+        this.renderInventoryScreen();
+        this.updateTopBar();
     },
     useItem(idx) {
         let item = state.player.inventory[idx];
