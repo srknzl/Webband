@@ -3003,6 +3003,21 @@ test('wait: map orders cannot cancel a running camp', () => {
     assert.strictEqual(state.player.targetLocation, null, 'a map order escaped the camp lock');
 });
 
+// The raid's two records: currentRaid marks the militia fight, raid the storehouse phase after it.
+// Debug.invariants once held 'raiding' to the first and flagged every won raid (monkey 9606).
+test('raid: a won militia fight starts the raid phase, and leaving it frees the map', () => {
+    const { Game, Battle, state, LOCATIONS, Debug } = H.world({ seed: 42 });
+    const loc = LOCATIONS.find(l => l.type === 'village');
+    Game.startRaid(loc.id, 3);
+    Battle.endBattle(true);
+    assert.strictEqual(state.player.status, 'raiding');
+    assert.ok(state.player.raid && !state.player.currentRaid, 'the raid phase did not take over from the fight');
+    assert.deepStrictEqual([...Debug.invariants()], []);
+    Game.abortRaid(true);
+    assert.strictEqual(state.player.status, 'idle');
+    assert.deepStrictEqual([...Debug.invariants()], []);
+});
+
 test('encounter: every way out without a fight closes it, and the windows after it close again', () => {
     const vm = require('vm'), g = H.world({ seed: 42 });
     const { Game, state, LOCATIONS } = g;

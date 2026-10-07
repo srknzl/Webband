@@ -153,7 +153,7 @@ const Debug = {
         if(p.stats.hp <= 0 && !p.prisoner) bad.push(`hp ${p.stats.hp} while free`);
         // a status is a promise the map keeps: each one is held by its own record, and a status
         // left without it locks the map in a state there is no panel to leave
-        let holds = { raiding: p.currentRaid, waiting: p.wait, besieging: p.siege, prisoner: p.prisoner };
+        let holds = { raiding: p.raid, waiting: p.wait, besieging: p.siege, prisoner: p.prisoner };
         if(p.status in holds && !holds[p.status]) bad.push(`status ${p.status} with nothing behind it`);
         fin(p.renown, 'renown'); fin(p.x, 'x'); fin(p.y, 'y'); fin(Game.morale(), 'morale');
         if(p.party.length > Game.getPartyCapacity() + 5) bad.push(`party ${p.party.length} over capacity ${Game.getPartyCapacity()}`);
