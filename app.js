@@ -997,10 +997,12 @@ const Input = {
 // One-time reward per tier (#132) — a milestone used to pay nothing but a toast. Money-only for
 // bronze/silver, gold adds renown and doubles as a title (the achievement's own name) shown on
 // the character screen — no stacking permanent bonus, that's what relics are for.
+// Halved-ish in 2.12.0 (bronze 200, silver 650, gold 2000): three early milestones paid 1500₺ in a
+// playtest's first month, against ~200₺ from nine won fights — the medals were the economy.
 const ACH_TIERS = {
-    bronze: { ico: '🥉', col: '#cd7f32', money: 200, renown: 0 },
-    silver: { ico: '🥈', col: '#c0c0c0', money: 650, renown: 0 },
-    gold:   { ico: '🥇', col: '#ffd700', money: 2000, renown: 20 }
+    bronze: { ico: '🥉', col: '#cd7f32', money: 100, renown: 0 },
+    silver: { ico: '🥈', col: '#c0c0c0', money: 300, renown: 0 },
+    gold:   { ico: '🥇', col: '#ffd700', money: 1000, renown: 20 }
 };
 const ACHIEVEMENTS = [
     { id: 'renown_100',  tier: 'bronze', name: 'Adı Duyulan',        desc: 'İtibarın 100\'e ulaştı.',                    cond: () => state.player.renown >= 100 },
@@ -8741,6 +8743,7 @@ const Game = {
         error:   { f: [196, 131],       t: 'square',   d: 0.16 },
         recruit: { f: [392, 523, 659],  t: 'triangle', d: 0.11 },
         upgrade: { f: [523, 659, 880],  t: 'triangle', d: 0.13 },
+        fanfare: { f: [523, 659, 784, 1047], t: 'triangle', d: 0.16 },   // an achievement
         // Two short-envelope knocks, not tonal like the others (#132) — a "clop-clop" rather
         // than a beep. Battle.drawUnit calls this once per hoof-fall of the player's own mount.
         hoofbeat:{ f: [130, 90],        t: 'triangle', d: 0.05 }
@@ -9205,7 +9208,12 @@ const Game = {
                 earned.push(a);
             }
         });
-        if(earned.length) { this.achToast(earned); this.updateTopBar(); }
+        if(earned.length) {
+            // the toast fades in five seconds: a fanfare and a line in the news say it happened
+            earned.forEach(a => this.news(Tx`🏅 Başarım: ${Tx(a.name)} (+${ACH_TIERS[a.tier].money} dinar)`));
+            this.sfx('fanfare');
+            this.achToast(earned); this.updateTopBar();
+        }
     },
     // A non-modal toast, so a milestone earned on the same day as a road event doesn't
     // clobber the event's modal. Stacks bottom-right, fades itself out.

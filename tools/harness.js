@@ -199,7 +199,7 @@ function load(opts = {}) {
     const names = ['VERSION', 'Debug', 'Input', 'Anim', 'Game', 'Save', 'state', 'Battle', 'TournamentMinigame', 'I18N', 'T', 'Tx',
                    'Nobles', 'Feast', 'Quests', 'FACTIONS', 'LOCATIONS', 'ITEMS', 'TROOP_TYPES',
                    'TROOP_TREES', 'TROOP_UPGRADES', 'BAND_KINDS', 'LORDS', 'LADIES', 'COMPANIONS', 'QUESTS', 'BANNERS',
-                   'PERKS', 'PERK_BY_ID', 'RELICS', 'BOSSES', 'ACHIEVEMENTS'];
+                   'PERKS', 'PERK_BY_ID', 'RELICS', 'BOSSES', 'ACHIEVEMENTS', 'ACH_TIERS'];
     const out = { _ctx: ctx, _sandbox: sandbox, alerts, seed, reseed: s => vm.runInContext('Math.random = __rng;', ctx) };
     for(const n of names) {
         try { out[n] = vm.runInContext(`typeof ${n} !== 'undefined' ? ${n} : undefined`, ctx); }

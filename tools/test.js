@@ -2927,6 +2927,21 @@ test('achievements: Bir Dalda Usta counts earned levels, not the background\'s h
     assert.ok(got(), 'four earned levels on top of the head start did not count');
 });
 
+// The medals were the early economy (1500₺ in a month against ~200₺ from fights), and the toast
+// that announced them faded in five seconds (playtest 2.11.3)
+test('achievements: a medal pays its tier once and leaves a line in the news', () => {
+    const { Game, state, ACH_TIERS } = H.world({ seed: 3 });
+    Game.ensureAchievements();
+    state.player.prisoners = Array.from({ length: 5 }, (_, i) => ({ id: 'p' + i, name: 'Çapulcu', level: 1 }));
+    const m0 = state.player.money;
+    Game.checkAchievements();
+    assert.strictEqual(state.player.money - m0, ACH_TIERS.bronze.money);
+    assert.ok(state.warLog.some(e => /🏅/.test(JSON.stringify(e.msg))), 'no news line for the medal');
+    Game.checkAchievements();
+    assert.strictEqual(state.player.money - m0, ACH_TIERS.bronze.money, 'a medal paid twice');
+    assert.ok(ACH_TIERS.bronze.money <= 100 && ACH_TIERS.silver.money <= 300, 'the medals pay more than the fights again');
+});
+
 test('achievements: fifty of them, each new one reachable through its own hook (#127)', () => {
     const g = H.world({ seed: 12 });
     const { Game, Battle, state, ITEMS, LOCATIONS, ACHIEVEMENTS } = g;

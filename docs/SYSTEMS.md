@@ -1292,9 +1292,12 @@ the player clicked it. Pure data + a daily `check()`, shown at the top of the Qu
 50 one-time milestones (`ACHIEVEMENTS`), swept daily and on the Quests tab
 (`Game.checkAchievements`). State-based conditions plus a `state.career` tally
 (`Game.tally`/`careerBattle`) for things state alone can't answer (kill counts, best winning
-odds, a no-losses win, etc). Each tier pays once (bronze 200₺, silver 650₺, gold 2000₺+20
+odds, a no-losses win, etc). Each tier pays once (bronze 100₺, silver 300₺, gold 1000₺+20
 renown) — deliberately not a stacking permanent bonus (that's what `RELICS` is for). A gold
-achievement's name becomes a cosmetic title shown on the character screen.
+achievement's name becomes a cosmetic title shown on the character screen. The payouts were
+200/650/2000 until 2.12.0: three early milestones paid 1500₺ in a playtest's first month against
+~200₺ from nine won fights. An earned medal toasts (5 s), plays `sfx('fanfare')` and leaves a line in
+the news feed, so a missed toast is still on record.
 
 ### Enterprise and the fief treasury
 **Enterprise** (`Game.buyEnterprise`, 3000₺; asks first — the card and the scene's building
