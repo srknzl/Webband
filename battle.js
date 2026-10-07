@@ -145,10 +145,16 @@ const Battle = {
     // The rig behind both the arena and the tournament (#122): the party steps out, one
     // wooden-weapon opponent steps in. `foe.lv` is an absolute level, `foe.dLv` one relative
     // to the player — a fixed ladder is written the second way, a drawn bracket the first.
+    // The sand (arena, tournament) is wood on padding: the hero steps in fresh and walks out with the
+    // wounds they came with (2.12.0) — a bout began at current hp, and a wounded hero lost a day for
+    // nothing to the novice (playtest 2.11.3)
     soloFoe(foe, color) {
         this._duelParty = state.player.party;
         state.player.party = [];
+        this._sandHp = state.player.stats.hp;
         this.start(foe.name, 1);
+        let me = this.units.find(u => u.id === 'player');
+        if(me) { me.hp = me.maxHp; me.dismountFloor = me.baseMaxHp; }
         let e = this.units.find(u => !u.isPlayerTeam);
         if(!e) return;
         let lv = Math.max(1, foe.lv || state.player.stats.level + (foe.dLv || 0));
@@ -3468,8 +3474,7 @@ const Battle = {
             this.isArena = this.isTourney = null;
             state.player.party = this._duelParty || [];
             this._duelParty = null;
-            let aUnit = this.units[0];
-            state.player.stats.hp = Math.max(5, this.hpAfter(aUnit));
+            state.player.stats.hp = this._sandHp;   // bruises from wood, not wounds (soloFoe)
             Game.showScreen('map');
             if(bracket) Game.tourneyRoundDone(won); else Game.finishArena(foe, won);
             return;

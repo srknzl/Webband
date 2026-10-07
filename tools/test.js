@@ -1657,6 +1657,22 @@ test('chicken: a goose costs a bird, and the closing seconds shrink the birds (#
     M.active = false;
 });
 
+// A bout began at current hp: a wounded hero lost a day for nothing to the novice (playtest 2.11.3)
+test('arena: the hero fights fresh and walks out with the wounds they came with', () => {
+    const g = H.world({ seed: 9 }), { Game, Battle, state, LOCATIONS } = g;
+    state.arenaLocId = LOCATIONS.find(l => l.type === 'city').id;
+    state.player.stats.hp = 12;
+    Battle.startArena(0);
+    const me = Battle.units.find(u => u.id === 'player');
+    assert.strictEqual(me.hp, me.maxHp, 'the hero stepped onto the sand wounded');
+    me.hp = 3;   // knocked about
+    Game.advanceTime = () => {};   // the day a loss costs heals a little on its own
+    Battle.active = false;
+    Battle.endBattle(false);
+    Game.closeModal();
+    assert.strictEqual(state.player.stats.hp, 12, 'the bout changed the hero\'s real wounds');
+});
+
 test('arena: a bout pays, and the streak bonus starts over at five (#115)', () => {
     const gw = H.world({ seed: 9 });
     const { Game, state, LOCATIONS } = gw;
