@@ -3755,7 +3755,7 @@ const Battle = {
             } else if(beast) {
                 alert(T`Sürü grubunu dağıttı. Yaralı halde kendine geldin; adamların dört bir yana kaçmış ama kesen yerinde.`
                     + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : '')
-                    + (horseTxt ? `<br>${horseTxt}` : ''));
+                    + (horseTxt ? `<br>${horseTxt}` : '') + `<br>${Game.startGrace()}`);
             } else if(this.isBossFight) {
                 alert(T('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.')
                     + (horseTxt ? `<br>${horseTxt}` : ''));

@@ -3051,6 +3051,7 @@ test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band
     beside();
     assert.ok(!Game.npcCanInitiateEncounter(wolves), 'the fed pack jumps the hero again at once');
     for(let h = 0; h < 25; h++) Game.updateNPCs(1);
+    state.player.graceLeft = 0;   // the hero's own grace day after a defeat has its own test
     beside();
     assert.ok(Game.npcCanInitiateEncounter(wolves), 'a day later the pack is still fed');
     lose('bandit');
@@ -3059,6 +3060,47 @@ test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band
     Game.renderPrisonerUI();
     Game.dailyUpdate();
     assert.ok(/Kalan süre: <b>4<\/b>/.test(g._sandbox.document.getElementById('prisoner-info').innerHTML), 'the countdown on the panel did not move');
+});
+
+// A defeat used to cost ~98 % of the purse (60–90 % on the field, a 75–90 % ransom of the rest), the
+// freed hero lost to the next band in sight, and healing took ~18 days (playtest 2.11.3).
+test('defeat: a capture costs at most ~2/3 of the purse, the freed hero has a day of grace, rest heals 3×', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state } = g;
+    state.player.money = 1000;
+    assert.ok(Math.abs(Game.defeatLootRatio() - 0.4) < 1e-9, 'no treasury: 40 % is the field loss');
+    const band = state.npcParties.find(n => n.type === 'bandit' && !g.BAND_KINDS[n.band].beast);
+    Object.assign(state.player, { currentEncounterNpcId: band.id, status: 'idle', prisoner: null });
+    Battle.start(band.name, band.size, null, '', null, false, band.band);
+    Battle.endBattle(false);
+    Game.closeModal();
+    assert.strictEqual(state.player.money, 600);
+    const ransom = state.player.prisoner.ransomRequired;
+    assert.ok(ransom >= 0.3 && ransom <= 0.45, `ransom ${ransom}`);
+    for(let i = 0; i < 5; i++) Game.refuseRansom(0);   // refusals raise it, up to the cap
+    assert.ok(!state.player.prisoner || state.player.prisoner.ransomRequired <= Game.RANSOM_MAX);
+    if(state.player.prisoner) Game.payRansom(Math.floor(state.player.money * state.player.prisoner.ransomRequired));
+    Game.closeModal();
+    assert.ok(state.player.money >= 600 * (1 - Game.RANSOM_MAX) - 1, `the ransom took ${600 - state.player.money}`);
+    // free, and nobody jumps the hero for a day — not even a band standing next to them
+    assert.strictEqual(state.player.graceLeft, Game.DEFEAT_GRACE_HOURS);
+    const other = state.npcParties.find(n => n.type === 'bandit' && n.id !== band.id);
+    const beside = () => Object.assign(state.player, { x: other.x + 10, y: other.y, targetLocation: null });
+    beside();
+    assert.ok(!Game.npcCanInitiateEncounter(other) && !Game.menaces(other), 'a band jumped the hero in the grace day');
+    state.player.targetLocation = { isNpc: true, id: other.id };
+    assert.ok(Game.npcCanInitiateEncounter(other), 'the hero could not attack in the grace day');
+    Game.advanceTime(Game.DEFEAT_GRACE_HOURS + 1);
+    beside();
+    assert.ok(Game.npcCanInitiateEncounter(other), 'the grace never ended');
+    // three times the healing while waiting in a town
+    const heal = wait => {
+        Object.assign(state.player.stats, { hp: 10, regenAcc: 0 }); state.player.wasHungry = false;
+        state.player.wait = wait ? { until: 1e9 } : null;
+        for(let h = 0; h < 24; h++) Game.regenTick();
+        state.player.wait = null;
+        return state.player.stats.hp - 10;
+    };
+    assert.strictEqual(heal(true), 3 * heal(false));
 });
 
 // A band that robbed a caravan carries its load (302 coal in a playtest): winning it put the party at

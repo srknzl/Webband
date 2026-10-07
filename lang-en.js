@@ -2328,6 +2328,7 @@ I18N.dicts.en = {
   "Evet, dön": "Yes, go back",
   "🗼 ÇEVREYİ GÖZLÜYORSUN · {0}s": "🗼 SCANNING THE COUNTRY · {0}s",
   "🎒 Çanta taşıyor ({0}/{1}): hız {2}. Fazlasını Envanter'den bırakabilir ya da satabilirsin.": "🎒 Your pack is overflowing ({0}/{1}): speed {2}. You can leave the excess behind from the Inventory, or sell it.",
+  "🩹 Perişan hâlini görenler bir gün boyunca sana bulaşmaz.": "🩹 Seeing the state you're in, no one will trouble you for a day.",
   "🎒 Yük: {0} / {1}": "🎒 Load: {0} / {1}",
   "hız {0}": "speed {0}",
   "🍞 Yiyecek: {0} gün": "🍞 Food: {0} days",

@@ -2328,6 +2328,7 @@ I18N.dicts.id = {
   "Evet, dön": "Ya, kembali",
   "🗼 ÇEVREYİ GÖZLÜYORSUN · {0}s": "🗼 MENGAMATI SEKITAR · {0}d",
   "🎒 Çanta taşıyor ({0}/{1}): hız {2}. Fazlasını Envanter'den bırakabilir ya da satabilirsin.": "🎒 Ranselmu kelebihan muatan ({0}/{1}): kecepatan {2}. Kelebihannya bisa kamu tinggalkan dari Inventaris, atau kamu jual.",
+  "🩹 Perişan hâlini görenler bir gün boyunca sana bulaşmaz.": "🩹 Melihat keadaanmu yang babak belur, tak seorang pun akan mengusikmu selama sehari.",
   "🎒 Yük: {0} / {1}": "🎒 Muatan: {0} / {1}",
   "hız {0}": "kecepatan {0}",
   "🍞 Yiyecek: {0} gün": "🍞 Makanan: {0} hari",

@@ -3099,13 +3099,17 @@ const Game = {
     // HP fills 1 at a time at the interval Vitality sets, not in jumps of 5.
     // The cap is explicit: maxHp. It works while captive too — you heal in the cell.
     HUNGER_HP: 3,          // HP cost of a day spent hungry (#75)
+    // Waiting in a town heals three times as fast (2.12.0): 3 hp a day at Vitality 10 left a
+    // beaten hero ~18 days from full health, and nothing but the inn's paid bed was quicker
+    REST_REGEN: 3,
     regenTick() {
         if(state.player.wasHungry) return;     // a hungry man doesn't heal (#75)
         let s2 = state.player.stats;
-        s2.regenAcc = (s2.regenAcc || 0) + 1;
-        if(s2.regenAcc < this.hpRegenHours()) return;
-        s2.regenAcc = 0;
-        if(s2.hp < s2.maxHp) s2.hp = Math.min(s2.maxHp, s2.hp + 1);
+        s2.regenAcc = (s2.regenAcc || 0) + (state.player.wait ? this.REST_REGEN : 1);
+        let every = this.hpRegenHours(), n = Math.floor(s2.regenAcc / every);
+        if(!n) return;
+        s2.regenAcc -= n * every;
+        if(s2.hp < s2.maxHp) s2.hp = Math.min(s2.maxHp, s2.hp + n);
     },
 
     wageDebtTick() {
@@ -3754,6 +3758,10 @@ const Game = {
     // `triggerEncounter` directly on arrival. Trade is still one click away, it just no
     // longer happens *to* you.
     npcCanInitiateEncounter(npc) {
+        if(state.player.graceLeft > 0) {   // only the fight you walk into yourself (DEFEAT_GRACE_HOURS)
+            let mine = state.player.targetLocation;
+            return !!(mine && mine.isNpc && mine.id === npc.id);
+        }
         return this.isHostile(npc) || this.partiesTargetEachOther(npc);
     },
 
@@ -4056,7 +4064,7 @@ const Game = {
             let dxP = state.player.x - npc.x, dyP = state.player.y - npc.y;
             let dp = Math.sqrt(dxP*dxP + dyP*dyP);
             // While captive, NPCs don't lock onto the player as a target (so the captor roams freely)
-            let hostile = this.isHostile(npc) && state.player.status !== 'prisoner';
+            let hostile = this.menaces(npc) && state.player.status !== 'prisoner';
 
             // How strong this party reads you, in its own heads (strengthSeen, 2.11.0: it was heads
             // to heads). A weak band spots a strong army from afar and flees; a pursuer notices up close
@@ -4527,6 +4535,19 @@ const Game = {
         this.updateTopBar();
     },
 
+    // The ransom is a share of what the defeat left you (2.12.0: was 75–90 %, up to 95 %)
+    RANSOM_MIN: 0.3,
+    RANSOM_MAX: 0.6,
+    // A beaten hero who comes to free (a pack, a release, an escape) has a day before anyone jumps
+    // them again: alone at 30 % hp, the hero lost to the next band in sight over and over (2.12.0).
+    // Nobody hunts or pounces; the player can still attack.
+    DEFEAT_GRACE_HOURS: 24,
+    startGrace() {
+        state.player.graceLeft = this.DEFEAT_GRACE_HOURS;
+        return T`🩹 Perişan hâlini görenler bir gün boyunca sana bulaşmaz.`;
+    },
+    menaces(npc) { return !(state.player.graceLeft > 0) && this.isHostile(npc); },
+
     // --- CAPTIVITY (single data model) ---
     // However you end up captured, it goes through here: the captor party (the one side that
     // moves on the map), the other prisoners alongside you, and the escape state all live here.
@@ -4542,7 +4563,7 @@ const Game = {
             troops: npc ? npc.size : 0,          // the captor's own troops
             fellows: this.rollFellows(band),     // those dragged along with you
             daysLeft: days,
-            ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0,
+            ransomRequired: this.RANSOM_MIN + Math.random() * 0.15, ransomRefusals: 0,
             escapeChance: 0, isPlanning: false, lastAttemptDay: 0
         };
         state.player.status = 'prisoner';
@@ -4587,7 +4608,7 @@ const Game = {
 
         // Penalty: a few more days + the escape plan resets
         p.daysLeft = 2 + Math.floor(Math.random() * 4);
-        p.ransomRequired = Math.min(0.95, (p.ransomRequired || 0.75) + 0.05);
+        p.ransomRequired = Math.min(this.RANSOM_MAX, (p.ransomRequired || this.RANSOM_MIN) + 0.05);
         p.escapeChance = Math.max(0, (p.escapeChance || 0) - 25);
         p.isPlanning = false;
         this.renderPrisonerUI();
@@ -4601,7 +4622,7 @@ const Game = {
         this.closeModal();
         this.renderPrisonerUI();
         this.updateTopBar();
-        alert(msg);
+        alert(`${msg}<br>${this.startGrace()}`);
     },
 
     dist(a, b) { return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); },
@@ -4631,7 +4652,7 @@ const Game = {
         let cv = this.mapCanvas, cam = this.camera;
         // The visible world rect is what renderMap draws: the camera centre, half a canvas
         // each way, divided by the zoom. "On screen" means exactly that and nothing else.
-        let seen = !!cv && state.npcParties.some(n => this.isHostile(n)
+        let seen = !!cv && state.npcParties.some(n => this.menaces(n)
             && Math.abs(n.x - cam.x) < cv.width / (2 * cam.zoom)
             && Math.abs(n.y - cam.y) < cv.height / (2 * cam.zoom));
         this._chase = seen ? (this._chase || 0) + hours : 0;
@@ -4650,6 +4671,7 @@ const Game = {
         let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
         for(let i = 0; i < passed; i++) {
             this.wageDebtTick(); this.regenTick(); this.scoutTick(); this.stormTick();
+            if(state.player.graceLeft > 0) state.player.graceLeft--;
             this.bandRefillTick(Math.floor(before) + 1 + i);   // hourly band refill (#126)
         }
         while(state.time.hour >= 24) {
@@ -5777,7 +5799,7 @@ const Game = {
             left -= step;
         }
         let caught = state.npcParties
-            .filter(n => this.isHostile(n) && this.dist(n, state.player) < 45)
+            .filter(n => this.menaces(n) && this.dist(n, state.player) < 45)
             .sort((a, b) => this.dist(a, state.player) - this.dist(b, state.player))[0];
         if(caught) this._roadDelayEncounter = caught.id;
     },
@@ -5820,9 +5842,7 @@ const Game = {
                 let escapeChance = Math.random();
                 if(escapeChance <= 0.40) {
                     Quests.emit('escaped_captivity', { npcId: state.player.prisoner.npcId });
-                    state.player.prisoner = null; state.player.status = 'idle'; state.encounterCooldown = 5;
-                    this.renderPrisonerUI();
-                    alert(T('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!'));
+                    this.releaseFromCaptivity(T('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!'));
                 } else {
                     let ratio = state.player.prisoner.ransomRequired;
                     let amount = Math.floor(state.player.money * ratio);
@@ -6318,10 +6338,8 @@ const Game = {
         p.lastAttemptDay = state.time.day;
         
         if(Math.random() * 100 <= p.escapeChance) {
-            alert(T('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!'));
             Quests.emit('escaped_captivity', { npcId: p.npcId });
-            state.player.prisoner = null;
-            state.player.status = 'idle';
+            return this.releaseFromCaptivity(T('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!'));
         } else {
             alert(T('Kahretsin! Kaçış girişimin fark edildi. Tüm planların suya düştü ve ceza aldın!'));
             p.escapeChance = Math.max(0, p.escapeChance - 60);
@@ -11030,10 +11048,12 @@ const Game = {
     },
     myTreasury() { return LOCATIONS.reduce((a, l) => a + (l.owner === 'player' ? (l.treasury || 0) : 0), 0); },
     // The share of your purse lost on defeat: the bigger your treasury's share, the smaller the loot (#53/1.2)
+    // 25–40 %: it was 60–90 %, and with the ransom on top a capture took ~98 % of the purse — two
+    // defeats in a playtest month erased everything (2.12.0)
     defeatLootRatio() {
         let safe = this.myTreasury(), carried = Math.max(0, state.player.money);
         let share = safe + carried > 0 ? safe / (safe + carried) : 0;
-        return 0.6 + 0.3 * (1 - share);
+        return 0.25 + 0.15 * (1 - share);
     },
 
     moveStorage(locId, itemId, n, dir) {
