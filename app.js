@@ -10089,13 +10089,15 @@ const Game = {
         foe.round = this.TOURNEY_ROUNDS[t.round];   // raw name; the battle log translates it
         let size = [4, 2, 1][t.round], pool = t.rounds[0].filter(f => !f.you && f !== foe)
             .slice().sort(() => Math.random() - 0.5);
-        foe.teamFight = {
+        // The line-up goes to the battle, not onto the fighter: hung on a bracket entry it held other
+        // entries, two of them came to point at each other and no save could be written (2.11.3)
+        let match = {
             size,
             player: this.TOURNEY_TEAMS[t.round][0], enemy: this.TOURNEY_TEAMS[t.round][1],
             allies: pool.slice(0, size - 1), enemies: pool.slice(size - 1, (size - 1) * 2)
         };
         this.closeModal();
-        Battle.startTourneyFight(foe);
+        Battle.startTourneyFight(foe, match);
     },
     // Called by `Battle.endBattle` once the player's own match is decided.
     tourneyRoundDone(won) {

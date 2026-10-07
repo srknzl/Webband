@@ -1783,12 +1783,11 @@ test('tournament: a 4v4 round spawns two complete, colour-coded teams', () => {
     const fighter = (name, lv) => ({ name, lv });
     const foe = fighter('Rakip Kaptan', 5);
     foe.round = Game.TOURNEY_ROUNDS[0];
-    foe.teamFight = {
+    Battle.startTourneyFight(foe, {
         size:4, player:pair[0], enemy:pair[1],
         allies:[fighter('M1', 3), fighter('M2', 4), fighter('M3', 5)],
         enemies:[fighter('K1', 3), fighter('K2', 4), fighter('K3', 5)]
-    };
-    Battle.startTourneyFight(foe);
+    });
     const blue = Battle.units.filter(u => u.isPlayerTeam);
     const red = Battle.units.filter(u => !u.isPlayerTeam);
     assert.strictEqual(blue.length, 4, 'the player tournament team is not 4 fighters');
@@ -3001,6 +3000,30 @@ test('wait: map orders cannot cancel a running camp', () => {
     Game.setTarget({ x:state.player.x + 500, y:state.player.y + 500 });
     assert.strictEqual(state.player.status, 'waiting');
     assert.strictEqual(state.player.targetLocation, null, 'a map order escaped the camp lock');
+});
+
+// A round's team line-up was hung on the opponent inside state.tourney, holding other fighters of
+// the same bracket; by the semi-final two of them pointed at each other and every save failed until
+// the tournament ended (monkey 9605: "Converting circular structure to JSON").
+test('tournament: a bracket played through its rounds still saves', () => {
+    const { Game, Battle, Save, state, LOCATIONS } = H.world({ seed: 42 });
+    const city = LOCATIONS.find(l => l.type === 'city');
+    // the line-ups are shuffled: one bracket in four closed the circle, twenty make it certain
+    for(let bracket = 0; bracket < 20; bracket++) {
+        state.activeTournaments[city.id] = true;
+        Game.joinTournament(city);
+        Game.startTournament();
+        for(let round = 0; round < 3; round++) {
+            Game.tourneyFight();
+            assert.ok(Battle.active, `round ${round} did not start a fight`);
+            assert.doesNotThrow(() => JSON.stringify(Save.snapshot()), `bracket ${bracket}: no save in round ${round}`);
+            Battle.active = false;
+            Battle.endBattle(true);
+            Game.closeModal();
+        }
+        assert.ok(state.tourney.champion && state.tourney.champion.you, 'the player won every round and was not crowned');
+        Game.tourneyClose();
+    }
 });
 
 // Losing to a pack once ran the whole captivity: wolves guarding you in chains for days, taking

@@ -10,6 +10,9 @@ başlangıç ekranının sağ alt köşesinde yazar.
   ondan sonra açılan hiçbir pencere Esc ya da × ile kapanmıyordu. Kendi düğmesi olmayan bir
   pencere, örneğin köy yaşlısıyla konuşma, hiç kapanmıyor ve oyunu yeniden açmak gerekiyordu.
   Artık her savaşsız çıkış karşılaşmayı kapatıyor.
+- **Turnuva sürerken oyun kaydediliyor.** Yarı finale kalan turnuvaların aşağı yukarı dörtte birinde
+  kayıt yazılamıyordu: turnuva bitene kadar ne elle kayıt ne günlük otomatik kayıt tutuyordu, o
+  arada sayfa kapanırsa ilerleme gidiyordu.
 - **Kurtlar esir almıyor.** Bir kurt sürüsüne yenilen oyuncu günlerce "zincirde" tutuluyor,
   kesesinin büyük kısmını kaybediyor, sonunda kurtlar ondan fidye istiyordu. Artık sürü grubunu
   dağıtıyor ve seni yaralı bırakıyor; kesen yerinde, esaret ve fidye yok.

@@ -171,9 +171,9 @@ const Battle = {
     },
     // One round of the bracket (#122). Same sand, same wooden weapons; what differs is where
     // the result goes — `Game.tourneyRoundDone` puts it back on the board instead of the map.
-    startTourneyFight(foe) {
+    startTourneyFight(foe, match) {
         this.isTourney = foe;
-        let match = foe.teamFight || { size:1, player:{ name:'Mavi Takım', color:'#2497ff' },
+        match = match || { size:1, player:{ name:'Mavi Takım', color:'#2497ff' },
                                       enemy:{ name:'Kırmızı Takım', color:'#ff3b4f' }, allies:[], enemies:[] };
         this.soloFoe(foe, match.enemy.color);
         let player = this.units.find(u => u.id === 'player');
