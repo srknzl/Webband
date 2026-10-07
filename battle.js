@@ -451,7 +451,7 @@ const Battle = {
             if(!bossLevel && isBandit) {
                 // Band mix: each kind has its own units; a large band gets its leader up front
                 let row;
-                if(i === 0 && enemyCount >= 6 && band.leader) {
+                if(i === 0 && enemyCount >= (band.leaderAt || 6) && band.leader) {
                     row = band.leader;
                     tier = 2;   // the named leader always reads as the elite of the band
                 } else {
@@ -807,7 +807,7 @@ const Battle = {
         let kind = this.foeKind(npc.name, npc.faction, npc.band), band = kind.band;
         let row = (r, n, dmg) => ({ name: r[0], n, hp: r[2], attack: r[4], defense: r[5], dmgType: dmg || 'cut', type: r[1], speed: r[3], beast: band.beast });
         if(band) {
-            let lead = count >= 6 && band.leader ? 1 : 0, total = band.battle.reduce((a, r) => a + r[6], 0);
+            let lead = count >= (band.leaderAt || 6) && band.leader ? 1 : 0, total = band.battle.reduce((a, r) => a + r[6], 0);
             return (lead ? [row(band.leader, 1, band.dmg)] : [])
                 .concat(band.battle.map(r => row(r, (count - lead) * r[6] / total, band.dmg)));
         }

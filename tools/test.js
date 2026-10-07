@@ -3105,6 +3105,21 @@ test('defeat: a capture costs at most ~2/3 of the purse, the freed hero has a da
     assert.strictEqual(heal(true), 3 * heal(false));
 });
 
+// Packs stood at 24–43 % of the map's bands and nearly every one had the Alfa (playtest 2.11.3)
+test('wolves: the Alfa leads only a big pack; while packs hold a quarter of the bands, dens wait', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;
+    const alfa = n => { Battle.start('Kurt Sürüsü', n, null, '', null, false, 'wolf'); const has = Battle.units.some(u => u.name === 'Alfa Kurt'); Battle.active = false; return has; };
+    assert.ok(!alfa(BAND_KINDS.wolf.leaderAt - 1) && alfa(BAND_KINDS.wolf.leaderAt), 'the Alfa does not join at leaderAt');
+    // every band on the map a pack: the next band comes out of a den that isn't one
+    state.npcParties.filter(n => n.type === 'bandit').forEach(n => { n.band = 'wolf'; });
+    assert.ok(Game.wolfShare() >= Game.WOLF_SHARE_MAX);
+    if(Game.lairs().some(l => !BAND_KINDS[l.band].beast) && Game.lairs().some(l => BAND_KINDS[l.band].beast))
+        for(let i = 0; i < 10; i++) {
+            const npc = Game.spawnFromLair();
+            assert.ok(!npc || !BAND_KINDS[npc.band].beast, 'a den sent a pack while packs crowd the map');
+        }
+});
+
 // Sending the men paid exactly what leading them did: the hand fight was all risk (playtest 2.11.3)
 test('victory: leading from the front pays more than sending the men', () => {
     const win = auto => {

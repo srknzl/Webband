@@ -716,7 +716,9 @@ const BAND_KINDS = {
     villager: { name: 'Köylü Kafilesi', color: '#9dbf6a', icon: 'foot', min: 3, max: 7, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Pazara gidiyoruz efendim... bizde alacak bir şey yok ki."',
                 battle: [['Köylü','infantry',20,50,5,0,8], ['Köy Avcısı','archer',20,52,6,0,2]] },
-    wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
+    // leaderAt: the Alfa leads only a big pack (2.12.0) — at the bands' 6 nearly every pack had him,
+    // and a hero with 9 villagers went from 100 % against 6 wolves to 83 % (7: 100 → 33 %)
+    wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true, leaderAt: 9,
                 lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
                 battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
                 leader: ['Alfa Kurt','infantry',55,112,15,2] }
@@ -1751,8 +1753,17 @@ const Game = {
     // A band comes out of its lair. No band spawns in a lair-free region — that's the payoff of clearing it.
     // The emptiest lair sends the next band (#97): a random pick let one lair keep feeding an
     // already crowded region while another stayed quiet, so the spread never evened out.
+    // Packs outlive bands (no caravan to rob, lords leave them be): at a quarter of the spawns they
+    // stood at 24–43 % of the map's bands in a playtest. While they hold WOLF_SHARE_MAX, dens wait.
+    WOLF_SHARE_MAX: 0.25,
+    wolfShare() {
+        let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0);
+        return bands.length ? bands.filter(n => (BAND_KINDS[n.band] || {}).beast).length / bands.length : 0;
+    },
     spawnFromLair() {
         let l = this.lairs().filter(x => this.dist(x, state.player) >= this.SPAWN_SAFE);
+        if(this.wolfShare() >= this.WOLF_SHARE_MAX && l.some(x => !(BAND_KINDS[x.band] || {}).beast))
+            l = l.filter(x => !(BAND_KINDS[x.band] || {}).beast);
         if(!l.length) return null;
         let alive = x => state.npcParties.filter(n => n.lairId === x.id && n.size > 0).length;
         let least = Math.min(...l.map(alive));
