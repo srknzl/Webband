@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.11.2 — Kantar (2026-10-07)
+
+- **At ağıllı bir haydut inine girerken oyun takılmıyor.** İnin çizimleri yüklenirken haritada
+  zaman akmaya devam ediyordu. Bu sırada bir karşılaşma çıkarsa penceresi inin üstünde açılıyor,
+  ağıldaki atlar çizilemiyor ve in donup kalıyordu. Artık yükleme bitene kadar harita saati
+  duruyor; ağıldaki atlar da ilk anda bile düzgün çiziliyor.
+- **Tuzak seni yere serdiyse geri çekilemezsin.** Diken tuzağı ya da tuzaklı bir sandık seni
+  devirdiğinde, düşüşün sürdüğü o bir saniyede duraklatıp "Geri çekil"e basmak yenilgiyi
+  kaçışa çeviriyordu: ganimet senin kalıyor, keseden hiçbir şey gitmiyordu. Artık düşen
+  kahraman yenilmiş sayılıyor.
+- **Savaş rehberi haritada açılmıyor.** İlk savaşın yarım saniye içinde bittiği durumda (hemen
+  geri çekilmek, anında kazanmak) rehberin "Emirler" adımı haritanın üstünde açılıyor ve rehber
+  görülmüş sayılıyordu. Artık rehber yalnızca savaş sürerken açılıyor.
+
 ## 2.11.1 — Kantar (2026-10-03)
 
 - **Meslekler adım adım anlatılıyor.** Demircilik, bileği taşı, marangozluk ve han mutfağındaki

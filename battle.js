@@ -671,7 +671,9 @@ const Battle = {
         this.loopId = requestAnimationFrame(loop);
         // First-battle tutorial (#88): opens after the arena is set up and the first frame is
         // drawn, and pauses the battle. Its flag is its own key, separate from the map tutorial.
-        setTimeout(() => Game.startTutorial(false, Game.BATTLE_TUTOR, Game.BTUTOR_KEY), 500);
+        // A fight over by then (a retreat, an instant win) has no field to explain: its target-less
+        // steps would open over the map, and the tour would count as seen.
+        setTimeout(() => { if(this.active) Game.startTutorial(false, Game.BATTLE_TUTOR, Game.BTUTOR_KEY); }, 500);
         // Pulse check (#54): so a black screen never silently settles in again. If not even
         // one frame was drawn within 700 ms, the loop is dead — it's rebuilt once and
         // the event lands in the Debug report. (The root cause was closed in #42; this is a net, not a fix.)

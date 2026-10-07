@@ -61,7 +61,11 @@ function fakeEl(tag, doc) {
     const cls = new Set();
     const el = {
         tagName: String(tag || 'div').toUpperCase(),
-        id: '', value: '', textContent: '', innerText: '', innerHTML: '',
+        id: '', value: '', textContent: '', innerText: '', _html: '',
+        // as in a browser, new markup replaces the children: a screen rebuilt with `innerHTML = ''`
+        // and appendChild kept every old button alive, and two seeds of exploits.js ran out of heap
+        get innerHTML() { return this._html; },
+        set innerHTML(v) { this._html = v; this.children.length = 0; },
         style: {}, dataset: {}, children: [], parentNode: null,
         width: 900, height: 600,
         clientWidth: 900, clientHeight: 600, offsetWidth: 900, offsetHeight: 600,
@@ -80,7 +84,10 @@ function fakeEl(tag, doc) {
         remove() { if(this.parentNode) this.parentNode.removeChild(this); },
         addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
         setAttribute() {}, getAttribute() { return null; }, removeAttribute() {},
-        querySelector() { return null; }, querySelectorAll() { return []; },
+        querySelector() { return null; },
+        // only `:scope > tag`, the direct children the town's cards are regrouped from; any other
+        // selector finds nothing (there is no parsed markup to search)
+        querySelectorAll(sel) { const m = /^:scope > (\w+)$/.exec(sel); return m ? this.children.filter(c => c.tagName === m[1].toUpperCase()) : []; },
         getBoundingClientRect() {
             return { left: 0, top: 0, right: this.clientWidth, bottom: this.clientHeight,
                      width: this.clientWidth, height: this.clientHeight, x: 0, y: 0 };

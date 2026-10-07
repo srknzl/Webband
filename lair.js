@@ -1142,7 +1142,7 @@ function newGame() {
         G.chars.push(g);
     });
     if(L.mine) stockMine();
-    G.horses = (L.pen ? L.pen.horses : []).map(([x, y], i) => ({ x: x * TS + 16, y: y * TS + 24, coat: ['bay', 'grey', 'black'][i % 3], a: i * 2.1, face: i % 2 ? -1 : 1 }));
+    G.horses = (L.pen ? L.pen.horses : []).map(([x, y], i) => ({ x: x * TS + 16, y: y * TS + 24, coat: ['bay', 'grey', 'black'][i % 3], gait: 'stand', a: i * 2.1, face: i % 2 ? -1 : 1 }));
     buildLight();
     bakeGround();
     G.revealAll = R.scout >= INTEL.sketch;
@@ -2951,7 +2951,7 @@ function build() {
 function overlay(html) { const o = el('lair-over'); o.innerHTML = html ? `<div class="lpanel">${html}</div>` : ''; o.hidden = !html; }
 
 function pauseMenu() {
-    if(!G || G.done) return;
+    if(!G || G.done || G.player.state === 'down') return;
     paused = true;
     const ch = chaser();
     overlay(`<div class="leyebrow">${T('Duraklatıldı')}</div><h2>${T(L.name)}</h2>
@@ -3164,6 +3164,9 @@ function enter(id, approach) {
     if(LEVELS[R.level].mine && !s.ore) s.ore = { ...Game.MINE.ore };   // a site made a mine by hand (a test, an old save) starts full
     s.lairAmbush = null;          // what was waiting is sprung (or not) now; tomorrow's is new
     build();
+    // the map clock stops while the sprites load (seconds on a slow link): an encounter popping up
+    // meanwhile would open its window over the lair's first frame (#171). showScreen lifts the hold.
+    Game.hold(true);
     loadAssets().then(() => {
         api.active = true; paused = false;
         Game.showScreen('lair');
@@ -3178,7 +3181,8 @@ function enter(id, approach) {
         setTimeout(offerTutorial, 900);
     });
 }
-function retreat() { if(!G || G.done || chaser()) return; overlay(''); paused = false; endGame('out'); }
+// a downed hero has already lost (endGame('lost') waits only for the fall): no walking out with the loot
+function retreat() { if(!G || G.done || G.player.state === 'down' || chaser()) return; overlay(''); paused = false; endGame('out'); }
 // What a sneak brings home is booked the moment it ends; the panel only reports it
 function endGame(kind) {
     if(G.done) return;

@@ -42,7 +42,7 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         battle: Battle.active, lair: typeof Lair !== 'undefined' && Lair.active,
         modal: !document.getElementById('modal-overlay').classList.contains('hidden'),
         view: (document.querySelector('.view.active') || {}).id || '?',
-        typing: !!Game._type
+        typing: !!Game._type, coach: !!document.getElementById('coach-box')
     }));
     const snapshot = async () => page.evaluate(() => ({
         debug: Debug.errors.slice(-3).map(e => `${e.kind}: ${e.msg}${e.stack ? ' @ ' + e.stack : ''}`),
@@ -67,7 +67,15 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         const what = ((await el.getAttribute('onclick').catch(() => '')) || (await el.innerText().catch(() => '')) || '?').slice(0, 70).replace(/\s+/g, ' ');
         // a typed line eats the first press (typeIn); the player reads it first
         await page.waitForFunction(() => !Game._type, null, { timeout: 5000 }).catch(() => {});
-        await el.click({ timeout: 3000 }).catch(e => { log.push(`  (click failed: ${what})`); });
+        // a failed click names what lay on top of the button: a screen stuck under a stray layer
+        // reads as a string of these
+        await el.click({ timeout: 3000 }).catch(async () => {
+            const over = await el.evaluate(e => {
+                const r = e.getBoundingClientRect(), t = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+                return !t ? 'off screen' : t === e || e.contains(t) ? 'itself' : t.tagName.toLowerCase() + (t.id ? '#' + t.id : '') + (typeof t.className === 'string' && t.className ? '.' + t.className.split(' ')[0] : '');
+            }).catch(() => 'gone');
+            log.push(`  (click failed: ${what} — under ${over})`);
+        });
         return what;
     };
 
@@ -76,7 +84,11 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         if(!s) break;
         const before = s;
         let did;
-        if(s.lair) {
+        // a window over a lair (the tour offer on a first visit) is answered first, and the tour it
+        // starts is walked: under either every lair click missed, and the rest of the run was spent
+        // stuck there
+        if(s.coach && !s.modal) did = 'coach: ' + (await clickIn('#coach-box'));
+        else if(s.lair && !s.modal) {
             const k = rnd();
             if(k < 0.5) { const key = pick(['w', 'a', 's', 'd', 'e', ' ', 'c']); await page.keyboard.down(key); await page.waitForTimeout(250); await page.keyboard.up(key); did = `lair key ${key}`; }
             else if(k < 0.8) did = 'lair: ' + (await clickIn('#lair-view'));

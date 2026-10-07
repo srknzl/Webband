@@ -72,6 +72,22 @@ test('the scouting card offers three ways in and the tour opens on the first vis
     await page.waitForFunction(() => Game._loopId && !Lair.active);
 });
 
+test('the map clock holds while a lair loads, and its pen draws under a window (#171)', async ({ page }) => {
+    await newGame(page);
+    const id = await openCard(page, 'camp');
+    // a window opened before the lair's first frame (an encounter while its sprites loaded):
+    // that frame is drawn before any update has walked the horses
+    const held = await page.evaluate(id => {
+        Lair.enter(id, 'solo');
+        const held = Game.clockStopped();
+        Game.showModal(`<p>${T('Çık')}</p>`);
+        return held;
+    }, id);
+    expect(held).toBe(true);
+    await page.waitForFunction(() => Lair.active && Lair.run() && Lair.run().drawn);
+    expect(await page.evaluate(() => [Lair.run().horses.length, Game.held])).toEqual([3, false]);
+});
+
 test('a chest opened in a lair pays out on the map', async ({ page }) => {
     await newGame(page);
     await openCard(page, 'house');
@@ -88,6 +104,25 @@ test('a chest opened in a lair pays out on the map', async ({ page }) => {
     expect(await page.evaluate(() => state.player.money)).toBe(before + gold);
     // the lair is still there: a sneak doesn't break it
     expect(await page.evaluate(() => Game.lairs().length)).toBe(await page.evaluate(() => Game.LAIR_COUNT));
+});
+
+test('a hero a trapped chest fells can\'t walk out with the loot while falling', async ({ page }) => {
+    await newGame(page);
+    await openCard(page, 'house');
+    await goIn(page);
+    await skipOffer(page);
+    const before = await page.evaluate(() => state.player.money);
+    await page.evaluate(() => { const o = Lair.run().objs.find(o => o && o.chest && o.trapped); Lair._place(o.x, o.y); Lair.run().player.hp = 1; });
+    await page.waitForFunction(() => Lair.run().ctx && Lair.run().ctx.at && Lair.run().ctx.at.chest);
+    await act(page);
+    await page.waitForFunction(() => Lair.run().player.state === 'down');
+    // the fall lasts a moment: neither the pause menu nor a retreat turns it into a way out
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => Lair.retreat());
+    await expect(page.locator('#lair-over .lres')).toBeVisible();
+    expect(await page.evaluate(() => state.player.money)).toBe(before - Math.floor(before * .25));
+    await page.locator('#lair-over .btn.primary').click();
+    await page.waitForFunction(() => Game._loopId && !Lair.active);
 });
 
 test('a noble carried out of the lair finishes the lord\'s quest', async ({ page }) => {
