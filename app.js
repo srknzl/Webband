@@ -10759,7 +10759,7 @@ const Game = {
         this.showModal(`<h3>${T`🏰 Topraklarım`}</h3>
         ${mine.length ? this.fiefListHtml(true, false)
             : `<p style="color:var(--text-muted)">${T`Henüz toprağın yok. Bir şehir ya da kale fethedersen çevresindeki köyler de sana geçer;
-               bir krallığa bağlıysan kralından tımar isteyebilirsin (${this.FIEF_GATE} nam).`}</p>`}
+               bir krallığa bağlıysan kralından tımar isteyebilirsin (köy ${this.fiefGate()}, kale ya da şehir ${this.fiefGate({ type: 'castle' })} nam).`}</p>`}
         ${tri.length ? `<h3 style="margin-top:1rem">${T`👑 Haraca bağladığın köyler`}</h3>` + tri.map(l =>
             `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="min-width:150px;font-weight:600">${T(l.name)}</span>
@@ -10780,9 +10780,13 @@ const Game = {
     // Conquest was the only road to a fief, and a village can't be besieged — so a sworn vassal
     // had no way at all to be granted one. The king hands out land the kingdom already holds and
     // nobody has been given; each grant you already hold raises the bar for the next.
-    FIEF_GATE: 300,
+    // A village comes first (2.12.0): with every fief at 300, the first land was ~250 days off at a
+    // playtest's pace (+16 renown in 21 days) and the mid game was small bands for +3 renown.
+    FIEF_GATE: 300,           // a castle or a town
+    FIEF_GATE_VILLAGE: 150,
     FIEF_REL: 20,
-    fiefGate() { return this.FIEF_GATE + 200 * this.myFiefs().length; },
+    // no loc: the lowest bar there is, a village's
+    fiefGate(loc) { return (loc && loc.type !== 'village' ? this.FIEF_GATE : this.FIEF_GATE_VILLAGE) + 200 * this.myFiefs().length; },
     // Unowned settlements of your own kingdom, nearest first — the king gives away the quiet ones.
     grantableFiefs() {
         let f = state.player.vassalOf;
@@ -10797,7 +10801,7 @@ const Game = {
             return no(T`<i>"Toprak, adı duyulmuş adama verilir."</i><br><br>Gereken nam <b>${gate}</b>, sende <b>${this.peakRenown()}</b>.`);
         if(r < this.FIEF_REL)
             return no(T`<i>"Seni yeterince tanımıyorum."</i><br><br>Gereken ilişki <b>${this.FIEF_REL}</b>, aranızdaki <b>${r}</b>.`);
-        let free = this.grantableFiefs();
+        let free = this.grantableFiefs().filter(l => this.peakRenown() >= this.fiefGate(l));
         if(!free.length)
             return no(T`<i>"Dağıtacak toprağım kalmadı."</i> Krallığın elindeki her yerin sahibi var — yenisini fethetmek gerek.`);
         this.showModal(`<h3>${T`🏰 Tımar`}</h3>
@@ -10809,7 +10813,7 @@ const Game = {
     takeFief(locId, lordId) {
         let loc = LOCATIONS.find(l => l.id === locId);
         // Re-checked here, not just at the menu: the window can sit open while the world moves on.
-        if(!loc || loc.owner || loc.faction !== state.player.vassalOf || this.peakRenown() < this.fiefGate())
+        if(!loc || loc.owner || loc.faction !== state.player.vassalOf || this.peakRenown() < this.fiefGate(loc))
             return this.askFief(lordId);
         loc.owner = 'player';
         loc.capturedDay = state.time.day;

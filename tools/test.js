@@ -3105,6 +3105,35 @@ test('defeat: a capture costs at most ~2/3 of the purse, the freed hero has a da
     assert.strictEqual(heal(true), 3 * heal(false));
 });
 
+// The first land sat at 300 renown, ~250 days off at a playtest's pace (+16 renown in 21 days)
+test('mid game: a village fief at 150 renown, a castle still at 300; quests pay half again the renown and point at their bands', () => {
+    const g = H.world({ seed: 42 }), { Game, Quests, QUESTS, LOCATIONS, LORDS, state } = g;
+    const king = LORDS.find(l => l.rank === 'king');
+    state.player.vassalOf = king.faction;
+    state.relations[king.id] = 30;
+    state.player.renown = 160;
+    Game.askFief(king.id);
+    const html = g._sandbox.document.getElementById('modal-body').innerHTML;
+    const offered = [...html.matchAll(/takeFief\('([^']+)'/g)].map(m => LOCATIONS.find(l => l.id === m[1]));
+    assert.ok(offered.length && offered.every(l => l.type === 'village'), `offered: ${offered.map(l => l && l.type)}`);
+    const castle = Game.grantableFiefs().find(l => l.type !== 'village');
+    Game.takeFief(castle.id, king.id);
+    assert.ok(!castle.owner, 'a castle was granted at 160 renown');
+    Game.takeFief(offered[0].id, king.id);
+    assert.strictEqual(offered[0].owner, 'player');
+    assert.strictEqual(Game.fiefGate(), Game.FIEF_GATE_VILLAGE + 200, 'one fief held raises the next bar');
+    // quest renown: half again, a shameful quest's cost unchanged
+    assert.strictEqual(Quests.renown(QUESTS.forest_ambush), Math.round(QUESTS.forest_ambush.reward.renown * 1.5));
+    const shame = Object.values(QUESTS).find(d => d.reward.renown < 0);
+    assert.strictEqual(Quests.renown(shame), shame.reward.renown);
+    // a band hunt marks the settlement nearest the closest band of its kind
+    const forest = state.npcParties.filter(n => n.type === 'bandit' && n.band === 'forest');
+    assert.ok(forest.length, 'no forest band in the world');
+    const near = forest.reduce((a, n) => Game.dist(n, state.player) < Game.dist(a, state.player) ? n : a);
+    const at = LOCATIONS.find(l => l.id === QUESTS.forest_ambush.where({}));
+    assert.ok(LOCATIONS.every(l => Game.dist(l, near) >= Game.dist(at, near)), 'the marker is not the settlement nearest the band');
+});
+
 // Packs stood at 24–43 % of the map's bands and nearly every one had the Alfa (playtest 2.11.3)
 test('wolves: the Alfa leads only a big pack; while packs hold a quarter of the bands, dens wait', () => {
     const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;

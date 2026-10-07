@@ -162,7 +162,7 @@ I18N.dicts.en = {
   "Garnizon, depo ve işletme tımarın kendi menüsünden yönetilir — oraya git ve şehre/köye gir.": "Garrison, storehouse and enterprise are managed from the fief's own menu — travel there and enter the town or village.",
   "Geçen süre": "Time spent",
   "Harita ve erzak üstünde uzun uzun konuştunuz. Birliğin komutası daha berrak geliyor. (+35 liderlik XP)": "You talked long over maps and provisions. The command of your party feels clearer. (+35 Charisma XP)",
-  "Henüz toprağın yok. Bir şehir ya da kale fethedersen çevresindeki köyler de sana geçer; bir krallığa bağlıysan kralından tımar isteyebilirsin ({0} nam).": "You hold no land yet. Take a town or a castle and the villages around it pass to you as well; if you are sworn to a kingdom, you can ask your king for a fief ({0} renown).",
+  "Henüz toprağın yok. Bir şehir ya da kale fethedersen çevresindeki köyler de sana geçer; bir krallığa bağlıysan kralından tımar isteyebilirsin (köy {0}, kale ya da şehir {1} nam).": "You hold no land yet. Take a town or a castle and the villages around it pass to you as well; if you are sworn to a kingdom, you can ask your king for a fief (a village at {0} renown, a castle or town at {1}).",
   "Hurda": "Scrap",
   "Isı": "Heat",
   "Jilet gibi": "Razor sharp",

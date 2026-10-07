@@ -162,7 +162,7 @@ I18N.dicts.id = {
   "Garnizon, depo ve işletme tımarın kendi menüsünden yönetilir — oraya git ve şehre/köye gir.": "Garnisun, gudang dan usaha diatur dari menu wilayah itu sendiri — pergilah ke sana dan masuki kota atau desanya.",
   "Geçen süre": "Waktu berlalu",
   "Harita ve erzak üstünde uzun uzun konuştunuz. Birliğin komutası daha berrak geliyor. (+35 liderlik XP)": "Kalian berbicara panjang lebar soal peta dan perbekalan. Komando pasukanmu terasa lebih jernih. (+35 XP Karisma)",
-  "Henüz toprağın yok. Bir şehir ya da kale fethedersen çevresindeki köyler de sana geçer; bir krallığa bağlıysan kralından tımar isteyebilirsin ({0} nam).": "Kamu belum punya tanah. Rebut satu kota atau benteng, desa-desa di sekitarnya ikut menjadi milikmu; kalau kamu bersumpah pada sebuah kerajaan, kamu bisa meminta wilayah dari rajamu ({0} nama besar).",
+  "Henüz toprağın yok. Bir şehir ya da kale fethedersen çevresindeki köyler de sana geçer; bir krallığa bağlıysan kralından tımar isteyebilirsin (köy {0}, kale ya da şehir {1} nam).": "Kamu belum punya tanah. Rebut satu kota atau benteng, desa-desa di sekitarnya ikut menjadi milikmu; kalau kamu bersumpah pada sebuah kerajaan, kamu bisa meminta wilayah dari rajamu (desa {0} nama besar, benteng atau kota {1}).",
   "Hurda": "Rongsokan",
   "Isı": "Panas",
   "Jilet gibi": "Setajam silet",
