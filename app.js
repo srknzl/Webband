@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.11.3', date: '2026-10-07', name: 'Kantar' };  // the version name is not translated
+const VERSION = { no: '2.12.0', date: '2026-10-07', name: 'Pusula' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -716,7 +716,9 @@ const BAND_KINDS = {
     villager: { name: 'Köylü Kafilesi', color: '#9dbf6a', icon: 'foot', min: 3, max: 7, speedMult: 1, trade: true, dmg: 'pierce',
                 lore: '"Pazara gidiyoruz efendim... bizde alacak bir şey yok ki."',
                 battle: [['Köylü','infantry',20,50,5,0,8], ['Köy Avcısı','archer',20,52,6,0,2]] },
-    wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true,
+    // leaderAt: the Alfa leads only a big pack (2.12.0) — at the bands' 6 nearly every pack had him,
+    // and a hero with 9 villagers went from 100 % against 6 wolves to 83 % (7: 100 → 33 %)
+    wolf:     { name: 'Kurt Sürüsü', color: '#9aa4b2', icon: 'wolf', min: 6, max: 14, speedMult: 1.25, beast: true, leaderAt: 9,
                 lore: '"Uluma çok yakından geliyor. Sürü sizi çoktan çevirmiş."',
                 battle: [['Kurt','infantry',20,104,8,0,8], ['Yaşlı Kurt','infantry',30,96,10,1,2]],
                 leader: ['Alfa Kurt','infantry',55,112,15,2] }
@@ -995,10 +997,12 @@ const Input = {
 // One-time reward per tier (#132) — a milestone used to pay nothing but a toast. Money-only for
 // bronze/silver, gold adds renown and doubles as a title (the achievement's own name) shown on
 // the character screen — no stacking permanent bonus, that's what relics are for.
+// Halved-ish in 2.12.0 (bronze 200, silver 650, gold 2000): three early milestones paid 1500₺ in a
+// playtest's first month, against ~200₺ from nine won fights — the medals were the economy.
 const ACH_TIERS = {
-    bronze: { ico: '🥉', col: '#cd7f32', money: 200, renown: 0 },
-    silver: { ico: '🥈', col: '#c0c0c0', money: 650, renown: 0 },
-    gold:   { ico: '🥇', col: '#ffd700', money: 2000, renown: 20 }
+    bronze: { ico: '🥉', col: '#cd7f32', money: 100, renown: 0 },
+    silver: { ico: '🥈', col: '#c0c0c0', money: 300, renown: 0 },
+    gold:   { ico: '🥇', col: '#ffd700', money: 1000, renown: 20 }
 };
 const ACHIEVEMENTS = [
     { id: 'renown_100',  tier: 'bronze', name: 'Adı Duyulan',        desc: 'İtibarın 100\'e ulaştı.',                    cond: () => state.player.renown >= 100 },
@@ -1751,8 +1755,17 @@ const Game = {
     // A band comes out of its lair. No band spawns in a lair-free region — that's the payoff of clearing it.
     // The emptiest lair sends the next band (#97): a random pick let one lair keep feeding an
     // already crowded region while another stayed quiet, so the spread never evened out.
+    // Packs outlive bands (no caravan to rob, lords leave them be): at a quarter of the spawns they
+    // stood at 24–43 % of the map's bands in a playtest. While they hold WOLF_SHARE_MAX, dens wait.
+    WOLF_SHARE_MAX: 0.25,
+    wolfShare() {
+        let bands = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0);
+        return bands.length ? bands.filter(n => (BAND_KINDS[n.band] || {}).beast).length / bands.length : 0;
+    },
     spawnFromLair() {
         let l = this.lairs().filter(x => this.dist(x, state.player) >= this.SPAWN_SAFE);
+        if(this.wolfShare() >= this.WOLF_SHARE_MAX && l.some(x => !(BAND_KINDS[x.band] || {}).beast))
+            l = l.filter(x => !(BAND_KINDS[x.band] || {}).beast);
         if(!l.length) return null;
         let alive = x => state.npcParties.filter(n => n.lairId === x.id && n.size > 0).length;
         let least = Math.min(...l.map(alive));
@@ -2215,7 +2228,9 @@ const Game = {
     // whoever defeats that band gets the cargo too (the victory branch already writes beaten.cargo/purse to inventory).
     banditTick() {
         // Hunting behavior is in updateNPCs: the band walks onto the caravan, this is where the raid resolves
-        let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0
+        // A quest's wave was summoned to fight you (updateNPCs walks it at you): it raids no convoy
+        // on the way, or a lost raid disbanded it and left its quest waiting on a band gone (2.12.0)
+        let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0 && !n.questWave
                                                    && !(BAND_KINDS[n.band] || {}).beast);
         if(!raiders.length) return;
         state.npcParties.filter(t => t.trade && t.size > 0).forEach(t => {
@@ -3099,13 +3114,17 @@ const Game = {
     // HP fills 1 at a time at the interval Vitality sets, not in jumps of 5.
     // The cap is explicit: maxHp. It works while captive too — you heal in the cell.
     HUNGER_HP: 3,          // HP cost of a day spent hungry (#75)
+    // Waiting in a town heals three times as fast (2.12.0): 3 hp a day at Vitality 10 left a
+    // beaten hero ~18 days from full health, and nothing but the inn's paid bed was quicker
+    REST_REGEN: 3,
     regenTick() {
         if(state.player.wasHungry) return;     // a hungry man doesn't heal (#75)
         let s2 = state.player.stats;
-        s2.regenAcc = (s2.regenAcc || 0) + 1;
-        if(s2.regenAcc < this.hpRegenHours()) return;
-        s2.regenAcc = 0;
-        if(s2.hp < s2.maxHp) s2.hp = Math.min(s2.maxHp, s2.hp + 1);
+        s2.regenAcc = (s2.regenAcc || 0) + (state.player.wait ? this.REST_REGEN : 1);
+        let every = this.hpRegenHours(), n = Math.floor(s2.regenAcc / every);
+        if(!n) return;
+        s2.regenAcc -= n * every;
+        if(s2.hp < s2.maxHp) s2.hp = Math.min(s2.maxHp, s2.hp + n);
     },
 
     wageDebtTick() {
@@ -3487,7 +3506,7 @@ const Game = {
             if(loc && this.atWar(this.playerFaction(), loc.faction)) return pick([
                 T`"...Bizim lordumuzla savaştasın. Sana ne ekmek var ne asker. Yolun açık olsun — çabuk olsun."`,
                 T`"Kılıcını görüyorum yabancı. Kadınlar çoktan ambara saklandı. Ne istiyorsan al da git."`,
-                T`"Bu köy ${this.factionName(loc.faction)}'ın. Senin gibi birine kuyudan su bile vermeyiz."`
+                T`"Bu köy ${I18N.suffix(this.factionName(loc.faction), 'gen', true)}. Senin gibi birine kuyudan su bile vermeyiz."`
             ]);
             if(this.infamyTier() >= 2) return T`"Adını duyduk. Köy yakanmışsın. ...Hoşgeldin de deme bana, sadece çabuk git."`;
             if(p.party.length < 5 && p.stats.level < 5) return T`"Şu cılız delikanlıya bakın, Deli Hüsnü'ye söyleyin belki gönüllü olur, bununla giderse biz de kurtuluruz."`;
@@ -3754,6 +3773,10 @@ const Game = {
     // `triggerEncounter` directly on arrival. Trade is still one click away, it just no
     // longer happens *to* you.
     npcCanInitiateEncounter(npc) {
+        if(state.player.graceLeft > 0) {   // only the fight you walk into yourself (DEFEAT_GRACE_HOURS)
+            let mine = state.player.targetLocation;
+            return !!(mine && mine.isNpc && mine.id === npc.id);
+        }
         return this.isHostile(npc) || this.partiesTargetEachOther(npc);
     },
 
@@ -3993,7 +4016,9 @@ const Game = {
             this.leaveEncounter(6);
             state.ambush = false;   // you slipped away: being surrounded doesn't carry over to the next battle
             state.player.status = 'idle'; state.player.targetLocation = null;
-            alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
+            // most of the party rides, or most of it marches (2.12.0: a band on foot "rode away")
+            alert(this.getMountedRatio() >= 0.5 ? T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`
+                                               : T`Geride bıraktın — adımlarını sıklaştırıp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
         } else {
             alert(T`Kaçamadın, yolunu kestiler! (Kaçış şansı %${Math.round(chance*100)})`);
             // The announced count, not today's: `npc.size` may have moved since the modal (#116)
@@ -4056,7 +4081,7 @@ const Game = {
             let dxP = state.player.x - npc.x, dyP = state.player.y - npc.y;
             let dp = Math.sqrt(dxP*dxP + dyP*dyP);
             // While captive, NPCs don't lock onto the player as a target (so the captor roams freely)
-            let hostile = this.isHostile(npc) && state.player.status !== 'prisoner';
+            let hostile = this.menaces(npc) && state.player.status !== 'prisoner';
 
             // How strong this party reads you, in its own heads (strengthSeen, 2.11.0: it was heads
             // to heads). A weak band spots a strong army from afar and flees; a pursuer notices up close
@@ -4385,7 +4410,7 @@ const Game = {
         // (and has no roster for foeShare to weigh — the map tip asks this of every party)
         if(!npc || npc.trade || npc.wanderer) return '';
         let sc = Battle.rewardScale(this.foeShare(npc));
-        return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.`}` : '';
+        return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${I18N.suffix(Math.round(sc * 100), 'dat')}</b> iner.`}` : '';
     },
 
     triggerEncounter(npc, ambush) {
@@ -4527,6 +4552,19 @@ const Game = {
         this.updateTopBar();
     },
 
+    // The ransom is a share of what the defeat left you (2.12.0: was 75–90 %, up to 95 %)
+    RANSOM_MIN: 0.3,
+    RANSOM_MAX: 0.6,
+    // A beaten hero who comes to free (a pack, a release, an escape) has a day before anyone jumps
+    // them again: alone at 30 % hp, the hero lost to the next band in sight over and over (2.12.0).
+    // Nobody hunts or pounces; the player can still attack.
+    DEFEAT_GRACE_HOURS: 24,
+    startGrace() {
+        state.player.graceLeft = this.DEFEAT_GRACE_HOURS;
+        return T`🩹 Perişan hâlini görenler bir gün boyunca sana bulaşmaz.`;
+    },
+    menaces(npc) { return !(state.player.graceLeft > 0) && this.isHostile(npc); },
+
     // --- CAPTIVITY (single data model) ---
     // However you end up captured, it goes through here: the captor party (the one side that
     // moves on the map), the other prisoners alongside you, and the escape state all live here.
@@ -4542,7 +4580,7 @@ const Game = {
             troops: npc ? npc.size : 0,          // the captor's own troops
             fellows: this.rollFellows(band),     // those dragged along with you
             daysLeft: days,
-            ransomRequired: 0.75 + Math.random()*0.15, ransomRefusals: 0,
+            ransomRequired: this.RANSOM_MIN + Math.random() * 0.15, ransomRefusals: 0,
             escapeChance: 0, isPlanning: false, lastAttemptDay: 0
         };
         state.player.status = 'prisoner';
@@ -4587,7 +4625,7 @@ const Game = {
 
         // Penalty: a few more days + the escape plan resets
         p.daysLeft = 2 + Math.floor(Math.random() * 4);
-        p.ransomRequired = Math.min(0.95, (p.ransomRequired || 0.75) + 0.05);
+        p.ransomRequired = Math.min(this.RANSOM_MAX, (p.ransomRequired || this.RANSOM_MIN) + 0.05);
         p.escapeChance = Math.max(0, (p.escapeChance || 0) - 25);
         p.isPlanning = false;
         this.renderPrisonerUI();
@@ -4601,7 +4639,7 @@ const Game = {
         this.closeModal();
         this.renderPrisonerUI();
         this.updateTopBar();
-        alert(msg);
+        alert(`${msg}<br>${this.startGrace()}`);
     },
 
     dist(a, b) { return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); },
@@ -4631,7 +4669,7 @@ const Game = {
         let cv = this.mapCanvas, cam = this.camera;
         // The visible world rect is what renderMap draws: the camera centre, half a canvas
         // each way, divided by the zoom. "On screen" means exactly that and nothing else.
-        let seen = !!cv && state.npcParties.some(n => this.isHostile(n)
+        let seen = !!cv && state.npcParties.some(n => this.menaces(n)
             && Math.abs(n.x - cam.x) < cv.width / (2 * cam.zoom)
             && Math.abs(n.y - cam.y) < cv.height / (2 * cam.zoom));
         this._chase = seen ? (this._chase || 0) + hours : 0;
@@ -4650,6 +4688,7 @@ const Game = {
         let passed = Math.floor(state.time.day * 24 + state.time.hour) - Math.floor(before);
         for(let i = 0; i < passed; i++) {
             this.wageDebtTick(); this.regenTick(); this.scoutTick(); this.stormTick();
+            if(state.player.graceLeft > 0) state.player.graceLeft--;
             this.bandRefillTick(Math.floor(before) + 1 + i);   // hourly band refill (#126)
         }
         while(state.time.hour >= 24) {
@@ -4924,7 +4963,7 @@ const Game = {
             let cold = got < need;
             p.coldDays = cold ? (p.coldDays || 0) + 1 : 0;
             if(cold) p.winterColdDays = (p.winterColdDays || 0) + 1;
-            if(cold && !p.wasCold) say.push(T`🥶 <b>Kömür bitti!</b> Ordu üşüyor: moral <b>${this.COLD_MORALE_CAP}</b>'ın üstüne çıkamaz. ${this.COLD_SICK_AFTER} günden sonra askerler hastalanıp ölmeye başlar.`);
+            if(cold && !p.wasCold) say.push(T`🥶 <b>Kömür bitti!</b> Ordu üşüyor: moral <b>${I18N.suffix(this.COLD_MORALE_CAP, 'gen')}</b> üstüne çıkamaz. ${this.COLD_SICK_AFTER} günden sonra askerler hastalanıp ölmeye başlar.`);
             if(!cold && p.wasCold) say.push(T('🔥 Ateşler yeniden yandı, ordu ısındı.'));
             p.wasCold = cold;
             let troops = p.party.filter(t => !t.isCompanion && !t.isSpouse);
@@ -5023,7 +5062,7 @@ const Game = {
             }}
           ]},
         { id: 'orphan', icon: '🗡️', name: 'Kılıçlı Yetim', size: 1,
-          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${T(c.near.name)}'de bana iş yok," diyor, "savaşmayı öğrenirim."`,
+          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${I18N.suffix(T(c.near.name), 'loc', true)} bana iş yok," diyor, "savaşmayı öğrenirim."`,
           choices: [
             { label: () => T`⚔️ Al yanına`, run(c) {
                 let t = Game.addRecruit(c.near);
@@ -5502,7 +5541,7 @@ const Game = {
           ]},
 
         { id: 'wildfire', icon: '🔥', when: c => c.near && c.near.type === 'village' && !c.night,
-          text: c => T`Kuru otlar tutuşmuş, alevler ${T(c.near.name)}'e yaklaşıyor. Köylüler elleriyle söndürmeye çalışıyor.`,
+          text: c => T`Kuru otlar tutuşmuş, alevler ${I18N.suffix(T(c.near.name), 'dat', true)} yaklaşıyor. Köylüler elleriyle söndürmeye çalışıyor.`,
           choices: [
             { label: () => T`🪣 Söndürmeye yardım et (4 saat)`, run(c) {
                 Game.roadDelay(4);
@@ -5652,7 +5691,7 @@ const Game = {
         { id: 'lost_child', icon: '🧒', when: c => c.near && c.near.type === 'village',
           text: () => T`Ağlayan küçük bir kız yol kenarında kaybolmuş, ailesini arıyor.`,
           choices: [
-            { label: c => T`🏡 ${T(c.near.name)}'e götür (1 saat)`, run(c) {
+            { label: c => T`🏡 ${I18N.suffix(T(c.near.name), 'dat', true)} götür (1 saat)`, run(c) {
                 Game.roadDelay(1);
                 if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 4);
                 return T`Anası onu görünce koşarak geldi.<br>${T(c.near.name)} refahı <b>+4</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
@@ -5777,7 +5816,7 @@ const Game = {
             left -= step;
         }
         let caught = state.npcParties
-            .filter(n => this.isHostile(n) && this.dist(n, state.player) < 45)
+            .filter(n => this.menaces(n) && this.dist(n, state.player) < 45)
             .sort((a, b) => this.dist(a, state.player) - this.dist(b, state.player))[0];
         if(caught) this._roadDelayEncounter = caught.id;
     },
@@ -5820,9 +5859,7 @@ const Game = {
                 let escapeChance = Math.random();
                 if(escapeChance <= 0.40) {
                     Quests.emit('escaped_captivity', { npcId: state.player.prisoner.npcId });
-                    state.player.prisoner = null; state.player.status = 'idle'; state.encounterCooldown = 5;
-                    this.renderPrisonerUI();
-                    alert(T('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!'));
+                    this.releaseFromCaptivity(T('Şanslısın! Fırsatını bulup fidye ödemeden kaçmayı başardın!'));
                 } else {
                     let ratio = state.player.prisoner.ransomRequired;
                     let amount = Math.floor(state.player.money * ratio);
@@ -6029,8 +6066,9 @@ const Game = {
         (state.player.seenRoster || (state.player.seenRoster = {}))[kind] = this.rosterOf(kind).length;
     },
     // `11+2/16` — the new ones in a faint green, so one glance answers "did I gain anything?".
+    // The two add up to the roster: 11 old + 2 new of 16 (2.12.0 — it used to read "4+4/12" for 4).
     rosterTag(kind, cap) {
-        let n = this.rosterOf(kind).length, d = this.newCount(kind);
+        let d = this.newCount(kind), n = this.rosterOf(kind).length - d;
         return `${n}${d > 0 ? `<span style="color:#7ddc8a;font-weight:600">+${d}</span>` : ''}/${cap}`;
     },
 
@@ -6052,7 +6090,7 @@ const Game = {
         this.countTo('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
         // Consumption is never zero anymore (the player eats too, #75) — the "no army" branch is gone.
-        set('ui-food', fs.days);
+        set('ui-food', this.foodDaysLabel(fs));
         set('ui-food-sub', fs.total ? T('gün erzak') : T('erzak yok'));
         let fe = document.getElementById('chip-food');
         if(fe) fe.classList.toggle('warn', fs.days < 3);
@@ -6137,7 +6175,7 @@ const Game = {
         this.setHtml('tip-money', this.tipBox(T('Hazine'),
             R(T('Kesede'), T`${Math.floor(p.money)} dinar`, null) +
             R(T('Günlük asker maaşı'), '-' + up.wage, false) +
-            R(T('Günlük yemek'), T`-${Math.ceil(up.foodLow)} birim${up.foodHigh ? T` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
+            R(T('Günlük yemek'), T`-${Math.ceil(up.foodLow)} birim${up.foodHigh ? T` (${I18N.suffix(Math.ceil(up.foodHigh), 'poss')} et/peynir)` : ''}`, false) +
             (this.myFiefs().length ? R(T('Tımar vergisi'), T`+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
             (this.myEnterprises().length ? R(T('İşletme'), T`+${this.fiefIncome().trade} (${this.myEnterprises().length} işletme)`, true) : '') +
             (this.tributaries().length ? R(T('Haraç'), T`+${this.fiefIncome().levy} (${this.tributaries().length} köy)`, true) : '') +
@@ -6151,7 +6189,7 @@ const Game = {
             R(T('Elde'), T`${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
             R(T('Günlük tüketim'), T`-${fs.need} birim`, false) +
             (fs.spoil >= 0.05 ? R(T('Bozulma'), T`-${fs.spoil.toFixed(1)} birim/gün`, false) : '') +
-            R(T('Yeter'), T`${fs.days} gün`, fs.days >= 3) +
+            R(T('Yeter'), T`${this.foodDaysLabel(fs)} gün`, fs.days >= 3) +
             (fs.needHigh ? R(T('Seçkin asker payı'), T`${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
             R(T('Yemek çeşidi'), T`${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
             T`Erzak biterse moral −30, firar başlar ve aç geçen her gün sana −${this.HUNGER_HP} can. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).`));
@@ -6318,10 +6356,8 @@ const Game = {
         p.lastAttemptDay = state.time.day;
         
         if(Math.random() * 100 <= p.escapeChance) {
-            alert(T('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!'));
             Quests.emit('escaped_captivity', { npcId: p.npcId });
-            state.player.prisoner = null;
-            state.player.status = 'idle';
+            return this.releaseFromCaptivity(T('Harika! Gardiyanların dalgınlığından yararlanarak başarıyla kaçtın!'));
         } else {
             alert(T('Kahretsin! Kaçış girişimin fark edildi. Tüm planların suya düştü ve ceza aldın!'));
             p.escapeChance = Math.max(0, p.escapeChance - 60);
@@ -8407,6 +8443,16 @@ const Game = {
     // The market (2.0.0): pick a good first, then how many. Buy/Sell tabs over one grid of tiles;
     // the chosen tile opens a trade panel (a column on the right, pinned to the bottom on a phone)
     // with a quantity stepper and the total priced unit by unit (`marketQuote`) before you commit.
+    // What a market's stalls hold. Unique boss drops are earned, never bought (#38); nor is a rare
+    // material or what only a forge makes (2.7.0), nor what only the carpenter's bench makes (2.10.0).
+    // A village sells its goods and plain gear (2.12.0): a royal sword, a war horse or the boss map
+    // in a hamlet's stall read like a bug. Towns and castles carry the full list.
+    VILLAGE_GEAR_MAX: 800,
+    forSale(loc, it) {
+        if(!it || it.unique || it.rare || it.type === 'craft') return false;
+        if(!loc || loc.type !== 'village') return true;
+        return this.stocked(it.id) || (it.type !== 'special' && it.basePrice <= this.VILLAGE_GEAR_MAX);
+    },
     openMarket(loc) {
         this._marketCategory = 'all';
         this._mkt = { mode: 'buy', sel: null, qty: 1 };
@@ -8597,6 +8643,23 @@ const Game = {
     // ponytail: at the 0.40 cap the spread is 0.3 − 2 × 0.3 × 0.4 = 6 %; raise k for a stronger
     // skill, but keep 2 × k × 0.40 below 0.3 or a buy-then-sell turns a profit again
     TRADE_EDGE_K: 0.3,
+    // Goods carried far fetch more (2.12.0): a trade good remembers where it was bought (weighted by
+    // quantity, `fromX/fromY`), and a market up to FAR_SPAN away adds up to FAR_PREMIUM to the sell
+    // side — the 30 % spread a route had to beat narrows to 15 % on a long haul. The market you bought
+    // in adds nothing, so a buy-then-sell still never pays. A 10-man trader lost 16₺ a day (economy.js).
+    FAR_PREMIUM: 0.15,
+    FAR_SPAN: 4000,
+    farPremium(held, loc) {
+        if(!held || !loc || held.type !== 'trade' || held.fromX === undefined) return 0;
+        return this.FAR_PREMIUM * Math.min(1, this.dist({ x: held.fromX, y: held.fromY }, loc) / this.FAR_SPAN);
+    },
+    // n more of a trade good bought at loc: the stack's origin moves to the load's weighted middle
+    noteOrigin(held, loc, n) {
+        if(!loc || held.type !== 'trade') return;
+        let had = held.fromX === undefined ? 0 : held.qty;
+        held.fromX = ((held.fromX || 0) * had + loc.x * n) / (had + n);
+        held.fromY = ((held.fromY || 0) * had + loc.y * n) / (had + n);
+    },
     marketPrice(id, selling = false) {
         let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
         if(!it) return null;
@@ -8606,7 +8669,8 @@ const Game = {
         // and buy-then-sell printed money (bug hunt: +175 dinars per five swords, at 0.40 +63 %).
         let edge = Math.min(0.40, (this.profLvl('trade') - 1) * 0.02 + this.perkMod('tradeEdge') / 100 + this.relicMod('tradeEdge') / 100);
         let loc = this._marketLoc, k = this.TRADE_EDGE_K;
-        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 + k * edge : 1 - k * edge);
+        let far = selling ? this.farPremium(state.player.inventory.find(i => i.id === id), loc) : 0;
+        let mult = (loc ? this.priceMult(loc, id) : 1) * (selling ? 0.7 + k * edge + far : 1 - k * edge);
         // A village that has heard what you do to villages doesn't haggle kindly (#104)
         if(loc && loc.type === 'village' && this.infamyPenalty() > 0) mult *= selling ? 0.9 : 1.1;
         return Math.max(1, Math.floor(it.basePrice * mult));
@@ -8620,7 +8684,7 @@ const Game = {
         let chip = (txt, col, id) => `<span${id ? ` id="${id}"` : ''} style="display:inline-block;padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
         return `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;font-size:var(--fs-sm);margin-top:0.5rem">
             ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '', 'mst-bag')}
-            ${chip(T`🍞 Yiyecek: ${isFinite(fs.days) ? fs.days : '∞'} gün`, fs.days < 3 ? '#e8a13a' : '')}
+            ${chip(T`🍞 Yiyecek: ${this.foodDaysLabel(fs)} gün`, fs.days < 3 ? '#e8a13a' : '')}
             ${chip(T`💰 ${Math.floor(state.player.money)}₺`, '', 'mst-gold')}
             ${this.daysToWinter() <= 15 ? chip((this.isWinter() ? T`❄️ Kış` : T`❄️ Kışa ${this.daysToWinter()} gün`) + ` · ${T`🔥 Kömür: ${this.coalDays()} gün`}`,
                                                 this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
@@ -8638,9 +8702,7 @@ const Game = {
             .map(([k, l]) => `<button type="button" role="tab" aria-selected="${m.mode === k}" class="${m.mode === k ? 'on' : ''}" onclick="Game.mktMode('${k}')">${l}</button>`).join('');
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
         let matchesCat = type => !cat.types || cat.types.includes(type);
-        // unique boss drops are earned, never bought (#38); nor is a rare material or what only a forge makes (2.7.0),
-        // nor what only the carpenter's bench makes (2.10.0)
-        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && !i.rare && i.type !== 'craft' && matchesCat(i.type))
+        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => this.forSale(loc, i) && matchesCat(i.type))
                                     : sellable.filter(i => matchesCat(i.type));
         let grid = document.getElementById('market-buy');
         grid.innerHTML = list.length ? list.map(item => {
@@ -8649,7 +8711,8 @@ const Game = {
             let st = m.mode === 'buy' && loc ? Math.floor(this.stock(loc, item.id)) : Infinity, empty = st <= 0;
             let have = state.player.inventory.find(i => i.id === item.id);
             let badges = (isFinite(st) ? `<span style="color:${empty ? '#e0463a' : st < 6 ? '#e8a13a' : 'var(--text-muted)'}">${empty ? T`tükendi` : T`stok ${st}`}</span>` : '')
-                + (have && have.qty > 0 ? `<span style="color:#7ddc8a">${m.mode === 'buy' ? T`sende ${have.qty}` : '×' + have.qty}</span>` : '');
+                + (have && have.qty > 0 ? `<span style="color:#7ddc8a">${m.mode === 'buy' ? T`sende ${have.qty}` : '×' + have.qty}</span>` : '')
+                + (m.mode === 'sell' && this.farPremium(have, loc) >= 0.01 ? `<span style="color:#e0b062" title="${T`Uzaktan getirilen mal daha iyi satılır`}">🐪 ${this.pct(Math.round(this.farPremium(have, loc) / 0.7 * 100), true)}</span>` : '');
             let on = m.sel === item.id;
             return `<button type="button" class="mkt-tile${on ? ' sel' : ''}${empty ? ' out' : ''}" id="mrow-${m.mode}-${item.id}" aria-pressed="${on}" onclick="Game.mktSelect('${item.id}')">
                 <span class="mt-ic">${this.itemIco(item, true)}</span><span class="mt-nm">${T(item.name)}</span>
@@ -8712,6 +8775,7 @@ const Game = {
         error:   { f: [196, 131],       t: 'square',   d: 0.16 },
         recruit: { f: [392, 523, 659],  t: 'triangle', d: 0.11 },
         upgrade: { f: [523, 659, 880],  t: 'triangle', d: 0.13 },
+        fanfare: { f: [523, 659, 784, 1047], t: 'triangle', d: 0.16 },   // an achievement
         // Two short-envelope knocks, not tonal like the others (#132) — a "clop-clop" rather
         // than a beep. Battle.drawUnit calls this once per hoof-fall of the player's own mount.
         hoofbeat:{ f: [130, 90],        t: 'triangle', d: 0.05 }
@@ -9176,7 +9240,12 @@ const Game = {
                 earned.push(a);
             }
         });
-        if(earned.length) { this.achToast(earned); this.updateTopBar(); }
+        if(earned.length) {
+            // the toast fades in five seconds: a fanfare and a line in the news say it happened
+            earned.forEach(a => this.news(Tx`🏅 Başarım: ${Tx(a.name)} (+${ACH_TIERS[a.tier].money} dinar)`));
+            this.sfx('fanfare');
+            this.achToast(earned); this.updateTopBar();
+        }
     },
     // A non-modal toast, so a milestone earned on the same day as a road event doesn't
     // clobber the event's modal. Stacks bottom-right, fades itself out.
@@ -9507,8 +9576,8 @@ const Game = {
     marketOpen() { return !!document.getElementById('market-buy'); },
     buyItem(id, n = 1) {
         if(!this.marketOpen()) return;
-        if(this.marketPrice(id) === null || !ITEMS[id] || ITEMS[id].rare || ITEMS[id].unique) return alert(T('Bu eşya pazarda yok.'));
         let loc = this._marketLoc;
+        if(this.marketPrice(id) === null || !this.forSale(loc, ITEMS[id])) return alert(T('Bu eşya pazarda yok.'));
         // Priced unit by unit (marketQuote): each good bought lowers the stock and the lowered
         // stock makes the next one pricier — buying in bulk at one price would be too cheap.
         let { can, cost, full, out } = this.marketQuote(id, n, false);
@@ -9522,7 +9591,9 @@ const Game = {
         }
         state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
-        if(ex) ex.qty += can; else state.player.inventory.push({...ITEMS[id], qty:can});
+        if(!ex) state.player.inventory.push(ex = {...ITEMS[id], qty:0});
+        this.noteOrigin(ex, loc, can);   // where it came from (farPremium)
+        ex.qty += can;
         this.addProficiencyXp('trade', 4 * can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });
         let have = state.player.inventory.find(i=>i.id===id);
@@ -9832,7 +9903,7 @@ const Game = {
             }));
             if(!best || best.gap < 0.15) return null;
             let at = L(best.town);
-            return { html: T`"Buradan <b>${T(best.good.name)}</b> alıp <b>${T(at.name)}</b>'a götüren adam
+            return { html: T`"Buradan <b>${T(best.good.name)}</b> alıp <b>${I18N.suffix(T(at.name), 'dat', true)}</b> götüren adam
                 yüzde <b>${Math.round(best.gap * 100)}</b> kâr ediyor. Bunu sana ben söylemedim."` };
         }},
         { tier: 3, run(here, L) {
@@ -9841,7 +9912,7 @@ const Game = {
                 ? { html: T`"Turnuva mevsimi gelmiş. Birkaç şehirde meydan kurulmuş diyorlar ama nerede olduğunu bilen yok."` }
                 : null;
             let at = L(feast);
-            return { html: T`"<b>${T(at.name)}</b>'da şölen var, soylular oraya akıyor. Namın varsa kapıdan çevirmezler."`,
+            return { html: T`"<b>${I18N.suffix(T(at.name), 'loc', true)}</b> şölen var, soylular oraya akıyor. Namın varsa kapıdan çevirmezler."`,
                      mark: { x: at.x, y: at.y, radius: 150, name: Tx(at.name) } };
         }},
         { tier: 3, run(here, L) {
@@ -10392,7 +10463,7 @@ const Game = {
         if(!comps.length) return no(T`Gönderecek yoldaşın yok. Elçilik sıradan bir askerin işi değil.`);
 
         let atWar = this.atWar(this.playerFaction(), lord.faction);
-        let html = `<h3>${T`🕊️ ${T(lord.name)}'a Elçi Gönder`}</h3>
+        let html = `<h3>${T`🕊️ ${I18N.suffix(T(lord.name), 'dat')} Elçi Gönder`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`Yoldaşın gruptan
             ${this.ENVOY_DAYS[0]}-${this.ENVOY_DAYS[1]} gün ayrılır; yeteneği de onunla gider.
             İkna kabiliyeti ve seviyesi işin sonucunu belirler.`}</p>`;
@@ -10641,7 +10712,7 @@ const Game = {
                 lost ? Tx`${lost} kişilik garnizonun kılıçtan geçti.` : Tx('Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.')];
         }
         let mine = wasMine || [old, atk.faction].indexOf(this.playerFaction()) !== -1;
-        this.news(Tx`🏰 ${Tx(loc.name)}, ${this.factionTx(old)}'ndan alındı — artık ${this.factionTx(atk.faction)} toprağı.${lostFief}`, mine);
+        this.news(Tx`🏰 ${Tx(loc.name)}, ${{ sfx: 'abl', of: this.factionTx(old), place: true }} alındı — artık ${this.factionTx(atk.faction)} toprağı.${lostFief}`, mine);
     },
     // Diplomacy screen: who's at war with whom, who holds how much land, the latest news
     showDiplomacy() {
@@ -10730,7 +10801,7 @@ const Game = {
         this.showModal(`<h3>${T`🏰 Topraklarım`}</h3>
         ${mine.length ? this.fiefListHtml(true, false)
             : `<p style="color:var(--text-muted)">${T`Henüz toprağın yok. Bir şehir ya da kale fethedersen çevresindeki köyler de sana geçer;
-               bir krallığa bağlıysan kralından tımar isteyebilirsin (${this.FIEF_GATE} nam).`}</p>`}
+               bir krallığa bağlıysan kralından tımar isteyebilirsin (köy ${this.fiefGate()}, kale ya da şehir ${this.fiefGate({ type: 'castle' })} nam).`}</p>`}
         ${tri.length ? `<h3 style="margin-top:1rem">${T`👑 Haraca bağladığın köyler`}</h3>` + tri.map(l =>
             `<div style="display:flex;gap:0.6rem;align-items:baseline;padding:0.3rem 0;border-bottom:1px solid var(--panel-border)">
                 <span style="min-width:150px;font-weight:600">${T(l.name)}</span>
@@ -10751,9 +10822,13 @@ const Game = {
     // Conquest was the only road to a fief, and a village can't be besieged — so a sworn vassal
     // had no way at all to be granted one. The king hands out land the kingdom already holds and
     // nobody has been given; each grant you already hold raises the bar for the next.
-    FIEF_GATE: 300,
+    // A village comes first (2.12.0): with every fief at 300, the first land was ~250 days off at a
+    // playtest's pace (+16 renown in 21 days) and the mid game was small bands for +3 renown.
+    FIEF_GATE: 300,           // a castle or a town
+    FIEF_GATE_VILLAGE: 150,
     FIEF_REL: 20,
-    fiefGate() { return this.FIEF_GATE + 200 * this.myFiefs().length; },
+    // no loc: the lowest bar there is, a village's
+    fiefGate(loc) { return (loc && loc.type !== 'village' ? this.FIEF_GATE : this.FIEF_GATE_VILLAGE) + 200 * this.myFiefs().length; },
     // Unowned settlements of your own kingdom, nearest first — the king gives away the quiet ones.
     grantableFiefs() {
         let f = state.player.vassalOf;
@@ -10768,7 +10843,7 @@ const Game = {
             return no(T`<i>"Toprak, adı duyulmuş adama verilir."</i><br><br>Gereken nam <b>${gate}</b>, sende <b>${this.peakRenown()}</b>.`);
         if(r < this.FIEF_REL)
             return no(T`<i>"Seni yeterince tanımıyorum."</i><br><br>Gereken ilişki <b>${this.FIEF_REL}</b>, aranızdaki <b>${r}</b>.`);
-        let free = this.grantableFiefs();
+        let free = this.grantableFiefs().filter(l => this.peakRenown() >= this.fiefGate(l));
         if(!free.length)
             return no(T`<i>"Dağıtacak toprağım kalmadı."</i> Krallığın elindeki her yerin sahibi var — yenisini fethetmek gerek.`);
         this.showModal(`<h3>${T`🏰 Tımar`}</h3>
@@ -10780,7 +10855,7 @@ const Game = {
     takeFief(locId, lordId) {
         let loc = LOCATIONS.find(l => l.id === locId);
         // Re-checked here, not just at the menu: the window can sit open while the world moves on.
-        if(!loc || loc.owner || loc.faction !== state.player.vassalOf || this.peakRenown() < this.fiefGate())
+        if(!loc || loc.owner || loc.faction !== state.player.vassalOf || this.peakRenown() < this.fiefGate(loc))
             return this.askFief(lordId);
         loc.owner = 'player';
         loc.capturedDay = state.time.day;
@@ -10824,7 +10899,7 @@ const Game = {
         if(!sure) {
             let inc = this.enterpriseIncome(loc);
             return this.showModal(`<h3>${T`🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`}</h3>
-            <p>${T`${T(loc.name)}'da bir işletme açılsın mı? Günde +${inc} dinar getirir, kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`}</p>
+            <p>${T`${I18N.suffix(T(loc.name), 'loc', true)} bir işletme açılsın mı? Günde +${inc} dinar getirir, kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`}</p>
             <button class="btn primary" onclick="Game.closeModal(); Game.buyEnterprise(LOCATIONS.find(l => l.id === '${loc.id}'), true)">${T`Evet, aç`}</button>
             <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`, '380px');
         }
@@ -10832,7 +10907,7 @@ const Game = {
         loc.enterprise = true;
         this.updateTopBar(); this.enterLocation(loc);
         let inc = this.enterpriseIncome(loc);
-        alert(T`${T(loc.name)}'da bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
+        alert(T`${I18N.suffix(T(loc.name), 'loc', true)} bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
     },
 
     fiefTax(loc) { return Math.round((loc.prosperity || 50) * (loc.type === 'city' ? 2 : loc.type === 'castle' ? 0.7 : 1)); },
@@ -10888,9 +10963,9 @@ const Game = {
             return alert(T`${T(lord.name)} sana bağlanacak kadar güvenmiyor.\nGereken ilişki: ${this.VASSAL_REL} (şu an ${rel}).`);
         if(!free.length)
             return alert(T('Toprağı olmayan krala kimse yemin etmez. Önce bir şehir ya da kale fethet — vassal ancak tımar karşılığı gelir.'));
-        this.showModal(`<h3>${T`👑 ${T(lord.name)}'e Bağlılık Teklifi`}</h3>
+        this.showModal(`<h3>${T`👑 ${I18N.suffix(T(lord.name), 'dat')} Bağlılık Teklifi`}</h3>
             <p style="color:var(--text-muted)">${T`Hangi tımarı ona veriyorsun? Toprak onun olur:
-            vergisinin <b>%${Math.round(this.VASSAL_TRIBUTE * 100)}</b>'i haraç olarak sana gelir, kalanı ve garnizon
+            vergisinin <b>%${I18N.suffix(Math.round(this.VASSAL_TRIBUTE * 100), 'poss')}</b> haraç olarak sana gelir, kalanı ve garnizon
             derdi ona kalır. Partisi bundan sonra senin bayrağınla savaşır.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
             ${free.map(l => `<button class="btn" onclick="Game.grantFiefTo('${l.id}','${lordId}',1)">${T`🏰 ${T(l.name)} (${l.type === 'city' ? T('Şehir') : T('Kale')}) — +${this.fiefTax(l)} dinar/gün`}</button>`).join('')}
@@ -10901,7 +10976,7 @@ const Game = {
         let vs = this.vassals();
         if(!vs.length) return alert(T('Henüz vassalın yok. Lordlarla konuşup krallığına davet et.'));
         this.showModal(`<h3>${T`🏰 ${T(loc.name)} kime veriliyor?`}</h3>
-            <p style="color:var(--text-muted)">${T`Tımar vassalın olur; vergisinin %${Math.round(this.VASSAL_TRIBUTE * 100)}'i haraç
+            <p style="color:var(--text-muted)">${T`Tımar vassalın olur; vergisinin %${I18N.suffix(Math.round(this.VASSAL_TRIBUTE * 100), 'poss')} haraç
             olarak sana gelir. Buradaki <b>${(loc.garrison || []).length}</b> asker onun emrine geçer.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
             ${vs.map(v => `<button class="btn" onclick="Game.grantFiefTo('${locId}','${v.id}')">${T`👑 ${T(v.name)} — ${this.fiefsOf(v.id).length} tımar · ilişki ${Nobles.rel(v.id)}`}</button>`).join('')}
@@ -10915,7 +10990,7 @@ const Game = {
             state.vassals.push(lordId);
             this.applyVassals();
             LORDS.filter(l => l.faction === old).forEach(l => Nobles.addRel(l.id, -10));
-            this.news(Tx`👑 ${Tx(lord.name)}, ${this.factionTx(old)}'dan ayrılıp senin krallığına katıldı.`, true);
+            this.news(Tx`👑 ${Tx(lord.name)}, ${{ sfx: 'abl', of: this.factionTx(old), place: true }} ayrılıp senin krallığına katıldı.`, true);
         }
         let n = (loc.garrison || []).length;
         loc.owner = lordId;
@@ -10925,9 +11000,9 @@ const Game = {
         // The jealousy from Warband: a vassal left empty-handed while land is handed out sulks
         this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
                       .forEach(v => Nobles.addRel(v.id, -5));
-        this.news(Tx`🏰 ${Tx(loc.name)} tımarı ${Tx(lord.name)}'e verildi.`, true);
+        this.news(Tx`🏰 ${Tx(loc.name)} tımarı ${{ sfx: 'dat', of: Tx(lord.name) }} verildi.`, true);
         this.closeModal();
-        alert(T`${T(loc.name)} artık ${T(lord.name)}'in tımarı.\n+20 ilişki${n ? T`, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
+        alert(T`${T(loc.name)} artık ${I18N.suffix(T(lord.name), 'gen')} tımarı.\n+20 ilişki${n ? T`, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
         this.updateTopBar();
     },
     troopGroups(list) {
@@ -11030,10 +11105,12 @@ const Game = {
     },
     myTreasury() { return LOCATIONS.reduce((a, l) => a + (l.owner === 'player' ? (l.treasury || 0) : 0), 0); },
     // The share of your purse lost on defeat: the bigger your treasury's share, the smaller the loot (#53/1.2)
+    // 25–40 %: it was 60–90 %, and with the ransom on top a capture took ~98 % of the purse — two
+    // defeats in a playtest month erased everything (2.12.0)
     defeatLootRatio() {
         let safe = this.myTreasury(), carried = Math.max(0, state.player.money);
         let share = safe + carried > 0 ? safe / (safe + carried) : 0;
-        return 0.6 + 0.3 * (1 - share);
+        return 0.25 + 0.15 * (1 - share);
     },
 
     moveStorage(locId, itemId, n, dir) {
@@ -11568,7 +11645,7 @@ const Game = {
         this.addProficiencyXp('looting', 60);
         Quests.emit('raided', { locId: loc.id, faction: loc.faction });
         alert(T`${T(loc.name)} yağmalandı!\n\n💰 ${loot} dinar\n${food.map(([id, q]) => `${ITEMS[id].icon} ${T(ITEMS[id].name)} x${q}`).join('\n')}`
-            + T`\n\nKöyün refahı ${Math.round(loc.prosperity)}'e düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
+            + T`\n\nKöyün refahı ${I18N.suffix(Math.round(loc.prosperity), 'dat')} düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
     },
 
     talkToElder(loc) {
@@ -11711,7 +11788,7 @@ const Game = {
         return `<li>
             ${a.icon} <strong>${T(a.name)}:</strong>
             <span style="color:${done ? '#fff' : 'var(--primary)'};font-size:1.05rem">${eff.toFixed(1)}</span>
-            <span style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
+            <span id="attr-tgt-${k}" style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
             ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:var(--fs-sm);margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
             ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:var(--r-xs);height:5px;margin:0.3rem 0;max-width:220px">
                 <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:var(--r-xs)"></div></div>`}
@@ -11942,6 +12019,10 @@ const Game = {
             this.updateStatsFromEquip();
             this.renderCharacterScreen();
             this.updateTopBar();
+            // The point moves the target, not the value beside it: show where it went (2.12.0)
+            let el = document.getElementById('attr-tgt-' + type);
+            this.feedback('upgrade', el);
+            this.floatText(el, T('+1 hedef'));
         }
     },
 
@@ -12186,6 +12267,9 @@ const Game = {
 
     // Food status: what's on hand, what's consumed per day, how many days it lasts.
     // Kept in one place so the tooltip, the warning, and the inventory all use the same math.
+    // Whole days of food, as the chips print it: a bag with food in it that won't last the day is
+    // "<1", not "0" — day one's single loaf read as starving already (2.12.0)
+    foodDaysLabel(fs) { return !isFinite(fs.days) ? '∞' : fs.days === 0 && fs.nutrition > 0 ? '<1' : fs.days; },
     foodStock() {
         let inv = state.player.inventory;
         let sum = q => inv.filter(i => q.includes(i.id)).reduce((a, i) => a + i.qty, 0);
@@ -12394,7 +12478,7 @@ const Game = {
         this.ambitionTick();
         this.updateTopBar();
         this.renderPartyScreen();
-        alert(T`${T(pr.name)}'i fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
+        alert(T`${I18N.suffix(T(pr.name), 'acc')} fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
     },
 
     prisonersHtml() {

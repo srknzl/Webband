@@ -525,6 +525,18 @@ A single load's profit share shrinks as it grows (cheap goods like ale/salt scal
 scarce ones like velvet, which saturates a single town fast) — trade profits from **route
 count**, not one big haul.
 
+**Far goods sell better** (2.12.0): a trade good remembers where it was bought (`fromX/fromY`,
+quantity-weighted across buys), and a market up to `FAR_SPAN` 4000 away adds up to `FAR_PREMIUM`
+0.15 to the sell side (`0.7 + k·edge + far`); the home market adds nothing, so buy-and-sell in place
+is no pump. The sell tile shows it as 🐪. `tools/economy.js` prices a load's sale from its origin
+the same way. Measured (`economy.js --days 60 --troops 10`, seeds 1–4) trade route +114 / +91.5 /
++83.3 / +53.1 per day against a fief at +116–121; before, the route lost 13 a day. 0.10 still lost
+money; 0.12 swung from +73 to −11 by seed.
+
+**A village's stalls** (`Game.forSale`, 2.12.0) hold its goods and gear up to `VILLAGE_GEAR_MAX`
+800 base price; the boss map, royal blades and war horses stay in towns and castles. The market
+list and `buyItem` read the same gate.
+
 ### Settlements
 - **Town**: market, slave trader, inn (rest, bard's poems, mercenaries, guildmaster, hire
   companions), arena (always open), tournament (if any), lords' hall, feast, recruiting.
@@ -617,6 +629,11 @@ precondition — `can` already filtered), `can(giver)` (is it currently offerabl
 (what + progress), `where(q)` (target settlement id — the single source both the quest card's 📍
 line and the map's 📜 stamp read from). `Quests.taskHtml(q)` merges the two; `Quests.make(id,
 giverId)` generates an instance.
+
+**Quest renown** is `Quests.renown(def)` = `def.renown × RENOWN_SCALE` 1.5 (2.12.0; a negative
+renown stays as written) — shown and paid from the same call. The two hunts (`wolf_cull`,
+`forest_ambush`) point at the settlement nearest the closest band of their kind (`huntWhere`), so
+the 📍 line and the map stamp say where to look.
 
 The roster has grown well past its original handful — `quests.js` currently defines **over 40**
 quests (both hand-designed ones like the two-solution "Brother in Chains" or the lair-revealing
@@ -725,8 +742,15 @@ captivity.
   (`AMBUSH_FLEE`=0.5) while ambushed.
 - **Auto-resolve** ("🎖️ Send Your Troops", available at 1.5× enemy strength in fighting men,
   `Battle.powerRatio`): same engine, no arena — `Battle.autoResolve()` feeds the normal
-  `endBattle`. Loss rate `0.45 / strength ratio`
-  (as low as 40% with Management), ±15% luck. Player never dies here, only loses health.
+  `endBattle`. **The outcome is rolled** (2.12.0) on the engine's own curve,
+  `winChance = 1 / (1 + r^−WIN_BETA)` with `r` the side-strength ratio and `WIN_BETA` = 8.5 (the
+  slope `oddsfit` fits to real-engine fights; `tools/test.js` holds it within 0.5 of the fit) — it
+  used to be `won = ratio > 1`, a sure thing. Loss rate `0.45 / (powerRatio × luck)`
+  (as low as 40% with Management), ±15% luck. Player never dies here, only loses health. An auto
+  win teaches no weapon, riding or athletics.
+- **Leading pays** (2.12.0): a win the hero fought in person and stood through (not knocked out,
+  not a boss fight) pays `LEAD_BONUS` +25% money and xp and `LEAD_RENOWN` +2 renown on the win's 3.
+  Sending the troops used to pay exactly what leading them did, for none of the risk.
 - **Waves**: at most `Battle.FIELD_CAP`(30) units/side on the field at once
   (`splitReserves`/`Battle.reserves`); once the field drops below 70% capacity, `reinforce()`
   sends the whole reserve on at once.
@@ -759,6 +783,12 @@ you walk into — see **Bandit lairs (2.2.0)** below.
 | Orman Haydutları | archer-heavy, fast |
 | Dağ Eşkıyaları | armored/tough, from day 20 |
 | Kurt Sürüsü | very fast (104–112), `beast`: lunges from sight range ×1.6, never captured |
+
+**Wolves** (2.12.0): the Alfa Kurt leads only a pack of `leaderAt` 9+ (other bands: 6). At 6 every
+pack had him, and a pack crossed from sure loss to sure win in one wolf. Measured, 9 villagers
+against a pack without the Alfa: 5 wolves 100%, 6 83%, 7 4%; the hero beside them at 7 wolves wins
+100% without him, 33% with him. **Den cap**: while beasts are `WOLF_SHARE_MAX` 25% of the map's bands
+(`Game.wolfShare()`), `spawnFromLair` passes over beast dens. Measured share: 24–38% before, ~26% after.
 
 **Every bandit party is one of these kinds** (2.11.0): `Game.createBand(kind, size, name, color)` is
 the only door — a quest's raiders keep their own name and colour and borrow a kind (Hasat
@@ -904,7 +934,13 @@ A captured lord: demand ransom (2500–4500₺, −20 relation) or release honor
 Single model: `Game.beginCaptivity(npc, days)` → `state.player.prisoner`. Locked to the captor's
 location; the captor's party is the only one that moves (the player's own icon isn't drawn).
 "Plan an escape" ramps escape chance 0→80 on a slowing curve; one attempt/day, failure costs −60
-and resets the plan. At the deadline: 40% free escape, else a ransom modal (75–90% of money).
+and resets the plan. At the deadline: 40% free escape, else a ransom modal (`RANSOM_MIN` 30% + up to 15% of money;
+each refusal +5%, capped at `RANSOM_MAX` 60% — it was 75–90% rising to 95%, and with the defeat's
+loot a capture took ~98% of the purse, 2.12.0). A defeat loots `defeatLootRatio()` =
+`0.25 + 0.15 × (1 − treasury share)` of the purse (was `0.6 + 0.3 ×`).
+**Grace** (2.12.0): release or escape starts `DEFEAT_GRACE_HOURS` 24 in which no hostile party
+chases, pounces or opens an encounter (`Game.menaces`) — only the player's own target can be
+engaged. Waiting ("Bekle") heals `REST_REGEN` 3× as fast as marching.
 A lost fight against a `beast` band (a wolf pack) is no captivity (2.11.3): the men scatter, the hero
 wakes at 30% hp, renown and morale drop as usual, but the purse stays and there is no ransom. The
 pack is then fed (`PACK_FED_HOURS` 24): not hostile, no scent or pounce, so it can't jump the wounded
@@ -960,7 +996,9 @@ wage to `upkeep()`), and storage (`loc.storage[]`, food here doesn't spoil and i
 defeat). Stuffing a garrison with elite troops is usually a net loss — wage scales with level,
 tax doesn't. An undefended fief (garrison below the siege threshold) falls to the first passing
 enemy lord. A vassal can ask their liege for unowned land past a renown gate
-(`FIEF_GATE`=300, +200/fief already held) + relation ≥20.
+(`fiefGate(loc)`: `FIEF_GATE_VILLAGE` 150 for a village, `FIEF_GATE` 300 for a castle or town,
++200/fief already held) + relation ≥20. 150 is the mid-game goal (2.12.0): a playtest reached day
+60 at 141 renown with 300 still out of sight. `askFief` offers only what the player can afford.
 
 ### Vassals — granting fiefs as king (#40)
 Once you found your own kingdom, you grant fiefs to keep lords (no fief, no fealty, same rule as
@@ -981,6 +1019,10 @@ sand-pit arena, not the open-field terrain generator.
 click-rounds tournament mode (bet, gear draws, rounds) was removed in 2.4.2: unreachable, it still
 sent a `tournament_end` without `wins`, which would have failed the fixed-match quest on every
 entry. `Game.tournamentFinished(won, wins)` is the bracket's one result hook.
+
+**On the sand the hero fights at full health** (2.12.0, `soloFoe`): the arena and the tournament
+set the hero's unit to full hp and restore the wounds they came in with on the way out
+(`_sandHp`). A bout at 30/76 hp was lost to the novice and cost a day.
 
 **Arena** (`Battle.startArena`): always open, no party/loot/renown/prisoners — practice against
 a leveled foe, always infantry (an archer would kite a 1v1 forever). A win pays a small purse
@@ -1186,6 +1228,13 @@ differ by language). Missing translation → Turkish falls onto the screen (neve
 `lang-en.js`/`lang-id.js` are flat generated tables (currently ~2900 keys each; this grows with
 every feature — `tools/test.js`'s i18n assertions are the sync gate, not this number).
 
+**Turkish case endings** (2.12.0): never type an ending after a value (`{0}'a`). Write
+`` T`${I18N.suffix(name, 'dat')} …` `` — the key keeps a bare `{0}` and the other languages get the
+word as is. `suffix` follows vowel harmony, the y/n/s buffer, t/d after a voiceless consonant, and a
+number's spoken last word (%47'ye, %40'a). Pass `place = true` for a place or realm name: a compound
+("Tevarin Kalesi", "Svadya Krallığı", "Haydut İni") takes the n (Kalesi'ne, Krallığı'ndan); a
+person's name never does ("Jarl Skeggi'ye"). In a stored `Tx` the value is `{ sfx, of, place }`.
+
 **Raw stays, translate at display**: a `T(...)` call inside a top-level data table runs before
 `I18N.load()` and freezes to Turkish forever — tables (`BAND_KINDS`, `SITE_KINDS`, quest
 `title`s, etc.) stay raw, every **display** site calls `T()`. This also keeps name-based
@@ -1292,9 +1341,12 @@ the player clicked it. Pure data + a daily `check()`, shown at the top of the Qu
 50 one-time milestones (`ACHIEVEMENTS`), swept daily and on the Quests tab
 (`Game.checkAchievements`). State-based conditions plus a `state.career` tally
 (`Game.tally`/`careerBattle`) for things state alone can't answer (kill counts, best winning
-odds, a no-losses win, etc). Each tier pays once (bronze 200₺, silver 650₺, gold 2000₺+20
+odds, a no-losses win, etc). Each tier pays once (bronze 100₺, silver 300₺, gold 1000₺+20
 renown) — deliberately not a stacking permanent bonus (that's what `RELICS` is for). A gold
-achievement's name becomes a cosmetic title shown on the character screen.
+achievement's name becomes a cosmetic title shown on the character screen. The payouts were
+200/650/2000 until 2.12.0: three early milestones paid 1500₺ in a playtest's first month against
+~200₺ from nine won fights. An earned medal toasts (5 s), plays `sfx('fanfare')` and leaves a line in
+the news feed, so a missed toast is still on record.
 
 ### Enterprise and the fief treasury
 **Enterprise** (`Game.buyEnterprise`, 3000₺; asks first — the card and the scene's building

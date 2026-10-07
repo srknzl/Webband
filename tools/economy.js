@@ -32,13 +32,17 @@ function feed(g) {
 // and buying 30 units makes up a fantasy profit. The **average** unit price of
 // a shipment is read once stock has moved by half the shipment size — we nudge
 // stock temporarily and put it back.
-function avgPrice(g, loc, id, sell, qty) {
-    const { Game } = g;
-    const old = loc.stock[id];
+// `from`: where a load to be sold was bought — the game's far-market premium reads it off the held
+// stack (Game.farPremium), so the estimate puts a stack from there in the bag for the quote
+function avgPrice(g, loc, id, sell, qty, from) {
+    const { Game, state, ITEMS } = g;
+    const old = loc.stock[id], inv = state.player.inventory;
     loc.stock[id] = Math.max(1, old + (sell ? qty / 2 : -qty / 2));
+    if(from) state.player.inventory = [{ ...ITEMS[id], qty, fromX: from.x, fromY: from.y }];
     Game._marketLoc = loc;
     const p = Game.marketPrice(id, sell);
     loc.stock[id] = old;
+    state.player.inventory = inv;
     return p;
 }
 
@@ -92,7 +96,7 @@ const SCRIPTS = {
                     // Measure the shipment's **total** profit per day, not the per-unit
                     // margin: velvet has a high unit margin but the market only buys one
                     // bolt, so that route doesn't cover the daily expense.
-                    const profit = qty * (avgPrice(g, dst, id, true, qty) - avgPrice(g, here, id, false, qty)) / Math.max(0.5, travelDays);
+                    const profit = qty * (avgPrice(g, dst, id, true, qty, here) - avgPrice(g, here, id, false, qty)) / Math.max(0.5, travelDays);
                     if(profit > 0 && (!best || profit > best.profit)) best = { id, dst, buy, sell, profit, travelDays, qty };
                 });
             });

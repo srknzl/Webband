@@ -1556,7 +1556,8 @@ test('roster: "11+2" counts what is new, and losses move the mark (#111)', () =>
     gw.Game.markRosterSeen('party');
     assert.strictEqual(gw.Game.newCount('party'), 0, 'a party just looked at still shows arrivals');
     gw.state.player.party.push({ id: 'r2', name: 'Svadya Milisi', level: 1 });
-    assert.ok(/^2<span[^>]*>\+1<\/span>\/9$/.test(gw.Game.rosterTag('party', 9)), gw.Game.rosterTag('party', 9));
+    // old + new adds up to the roster (2.12.0): 1 seen + 1 new = 2, not "2+1"
+    assert.ok(/^1<span[^>]*>\+1<\/span>\/9$/.test(gw.Game.rosterTag('party', 9)), gw.Game.rosterTag('party', 9));
     // A wiped-out party must not owe a permanent "+N" it never earned.
     gw.state.player.party = [];
     assert.strictEqual(gw.Game.newCount('party'), 0, 'losses left the seen mark above the real count');
@@ -1655,6 +1656,22 @@ test('chicken: a goose costs a bird, and the closing seconds shrink the birds (#
     M.score = 0; click(true);
     assert.strictEqual(M.score, 0, 'a goose at zero should not push the score negative');
     M.active = false;
+});
+
+// A bout began at current hp: a wounded hero lost a day for nothing to the novice (playtest 2.11.3)
+test('arena: the hero fights fresh and walks out with the wounds they came with', () => {
+    const g = H.world({ seed: 9 }), { Game, Battle, state, LOCATIONS } = g;
+    state.arenaLocId = LOCATIONS.find(l => l.type === 'city').id;
+    state.player.stats.hp = 12;
+    Battle.startArena(0);
+    const me = Battle.units.find(u => u.id === 'player');
+    assert.strictEqual(me.hp, me.maxHp, 'the hero stepped onto the sand wounded');
+    me.hp = 3;   // knocked about
+    Game.advanceTime = () => {};   // the day a loss costs heals a little on its own
+    Battle.active = false;
+    Battle.endBattle(false);
+    Game.closeModal();
+    assert.strictEqual(state.player.stats.hp, 12, 'the bout changed the hero\'s real wounds');
 });
 
 test('arena: a bout pays, and the streak bonus starts over at five (#115)', () => {
@@ -2186,6 +2203,8 @@ test('odds: the strength model agrees with the real-engine record', () => {
     const data = F.load(), s = F.score(go, data);
     assert.ok(data.matchups.length >= 500, `the record holds only ${data.matchups.length} matchups`);
     assert.ok(s.loss <= 0.42, `log-loss ${s.loss.toFixed(4)} per fight against the record (fitted 0.405)`);
+    // auto-resolve rolls on the same curve the record draws (Battle.WIN_BETA)
+    assert.ok(Math.abs(go.Battle.WIN_BETA - s.beta) <= 0.5, `the record's curve is β ${s.beta}, auto-resolve rolls β ${go.Battle.WIN_BETA}`);
     const by = name => s.cases.filter(c => s.label(c.r) === name), avg = cs => cs.reduce((a, c) => a + c.w, 0) / cs.length;
     const [K, D, Z, C] = ['Kolay', 'Dengeli', 'Zorlu', 'Çetin'].map(by);
     assert.ok(avg(K) >= 0.93 && avg(C) <= 0.07, `Kolay won ${Math.round(avg(K) * 100)} %, Çetin ${Math.round(avg(C) * 100)} % on average`);
@@ -2909,6 +2928,21 @@ test('achievements: Bir Dalda Usta counts earned levels, not the background\'s h
     assert.ok(got(), 'four earned levels on top of the head start did not count');
 });
 
+// The medals were the early economy (1500₺ in a month against ~200₺ from fights), and the toast
+// that announced them faded in five seconds (playtest 2.11.3)
+test('achievements: a medal pays its tier once and leaves a line in the news', () => {
+    const { Game, state, ACH_TIERS } = H.world({ seed: 3 });
+    Game.ensureAchievements();
+    state.player.prisoners = Array.from({ length: 5 }, (_, i) => ({ id: 'p' + i, name: 'Çapulcu', level: 1 }));
+    const m0 = state.player.money;
+    Game.checkAchievements();
+    assert.strictEqual(state.player.money - m0, ACH_TIERS.bronze.money);
+    assert.ok(state.warLog.some(e => /🏅/.test(JSON.stringify(e.msg))), 'no news line for the medal');
+    Game.checkAchievements();
+    assert.strictEqual(state.player.money - m0, ACH_TIERS.bronze.money, 'a medal paid twice');
+    assert.ok(ACH_TIERS.bronze.money <= 100 && ACH_TIERS.silver.money <= 300, 'the medals pay more than the fights again');
+});
+
 test('achievements: fifty of them, each new one reachable through its own hook (#127)', () => {
     const g = H.world({ seed: 12 });
     const { Game, Battle, state, ITEMS, LOCATIONS, ACHIEVEMENTS } = g;
@@ -3051,6 +3085,7 @@ test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band
     beside();
     assert.ok(!Game.npcCanInitiateEncounter(wolves), 'the fed pack jumps the hero again at once');
     for(let h = 0; h < 25; h++) Game.updateNPCs(1);
+    state.player.graceLeft = 0;   // the hero's own grace day after a defeat has its own test
     beside();
     assert.ok(Game.npcCanInitiateEncounter(wolves), 'a day later the pack is still fed');
     lose('bandit');
@@ -3059,6 +3094,167 @@ test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band
     Game.renderPrisonerUI();
     Game.dailyUpdate();
     assert.ok(/Kalan süre: <b>4<\/b>/.test(g._sandbox.document.getElementById('prisoner-info').innerHTML), 'the countdown on the panel did not move');
+});
+
+// A defeat used to cost ~98 % of the purse (60–90 % on the field, a 75–90 % ransom of the rest), the
+// freed hero lost to the next band in sight, and healing took ~18 days (playtest 2.11.3).
+test('defeat: a capture costs at most ~2/3 of the purse, the freed hero has a day of grace, rest heals 3×', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state } = g;
+    state.player.money = 1000;
+    assert.ok(Math.abs(Game.defeatLootRatio() - 0.4) < 1e-9, 'no treasury: 40 % is the field loss');
+    const band = state.npcParties.find(n => n.type === 'bandit' && !g.BAND_KINDS[n.band].beast);
+    Object.assign(state.player, { currentEncounterNpcId: band.id, status: 'idle', prisoner: null });
+    Battle.start(band.name, band.size, null, '', null, false, band.band);
+    Battle.endBattle(false);
+    Game.closeModal();
+    assert.strictEqual(state.player.money, 600);
+    const ransom = state.player.prisoner.ransomRequired;
+    assert.ok(ransom >= 0.3 && ransom <= 0.45, `ransom ${ransom}`);
+    for(let i = 0; i < 5; i++) Game.refuseRansom(0);   // refusals raise it, up to the cap
+    assert.ok(!state.player.prisoner || state.player.prisoner.ransomRequired <= Game.RANSOM_MAX);
+    if(state.player.prisoner) Game.payRansom(Math.floor(state.player.money * state.player.prisoner.ransomRequired));
+    Game.closeModal();
+    assert.ok(state.player.money >= 600 * (1 - Game.RANSOM_MAX) - 1, `the ransom took ${600 - state.player.money}`);
+    // free, and nobody jumps the hero for a day — not even a band standing next to them
+    assert.strictEqual(state.player.graceLeft, Game.DEFEAT_GRACE_HOURS);
+    const other = state.npcParties.find(n => n.type === 'bandit' && n.id !== band.id);
+    const beside = () => Object.assign(state.player, { x: other.x + 10, y: other.y, targetLocation: null });
+    beside();
+    assert.ok(!Game.npcCanInitiateEncounter(other) && !Game.menaces(other), 'a band jumped the hero in the grace day');
+    state.player.targetLocation = { isNpc: true, id: other.id };
+    assert.ok(Game.npcCanInitiateEncounter(other), 'the hero could not attack in the grace day');
+    Game.advanceTime(Game.DEFEAT_GRACE_HOURS + 1);
+    beside();
+    assert.ok(Game.npcCanInitiateEncounter(other), 'the grace never ended');
+    // three times the healing while waiting in a town
+    const heal = wait => {
+        Object.assign(state.player.stats, { hp: 10, regenAcc: 0 }); state.player.wasHungry = false;
+        state.player.wait = wait ? { until: 1e9 } : null;
+        for(let h = 0; h < 24; h++) Game.regenTick();
+        state.player.wait = null;
+        return state.player.stats.hp - 10;
+    };
+    assert.strictEqual(heal(true), 3 * heal(false));
+});
+
+// The first land sat at 300 renown, ~250 days off at a playtest's pace (+16 renown in 21 days)
+test('mid game: a village fief at 150 renown, a castle still at 300; quests pay half again the renown and point at their bands', () => {
+    const g = H.world({ seed: 42 }), { Game, Quests, QUESTS, LOCATIONS, LORDS, state } = g;
+    const king = LORDS.find(l => l.rank === 'king');
+    state.player.vassalOf = king.faction;
+    state.relations[king.id] = 30;
+    state.player.renown = 160;
+    Game.askFief(king.id);
+    const html = g._sandbox.document.getElementById('modal-body').innerHTML;
+    const offered = [...html.matchAll(/takeFief\('([^']+)'/g)].map(m => LOCATIONS.find(l => l.id === m[1]));
+    assert.ok(offered.length && offered.every(l => l.type === 'village'), `offered: ${offered.map(l => l && l.type)}`);
+    const castle = Game.grantableFiefs().find(l => l.type !== 'village');
+    Game.takeFief(castle.id, king.id);
+    assert.ok(!castle.owner, 'a castle was granted at 160 renown');
+    Game.takeFief(offered[0].id, king.id);
+    assert.strictEqual(offered[0].owner, 'player');
+    assert.strictEqual(Game.fiefGate(), Game.FIEF_GATE_VILLAGE + 200, 'one fief held raises the next bar');
+    // quest renown: half again, a shameful quest's cost unchanged
+    assert.strictEqual(Quests.renown(QUESTS.forest_ambush), Math.round(QUESTS.forest_ambush.reward.renown * 1.5));
+    const shame = Object.values(QUESTS).find(d => d.reward.renown < 0);
+    assert.strictEqual(Quests.renown(shame), shame.reward.renown);
+    // a band hunt marks the settlement nearest the closest band of its kind
+    const forest = state.npcParties.filter(n => n.type === 'bandit' && n.band === 'forest');
+    assert.ok(forest.length, 'no forest band in the world');
+    const near = forest.reduce((a, n) => Game.dist(n, state.player) < Game.dist(a, state.player) ? n : a);
+    const at = LOCATIONS.find(l => l.id === QUESTS.forest_ambush.where({}));
+    assert.ok(LOCATIONS.every(l => Game.dist(l, near) >= Game.dist(at, near)), 'the marker is not the settlement nearest the band');
+});
+
+// A 10-man trader lost 16₺ a day: the 30 % spread ate every route (economy.js since September)
+test('trade: goods carried far sell for more; the market they were bought in pays no premium', () => {
+    const { Game, state, LOCATIONS } = H.world({ seed: 5 });
+    const cities = LOCATIONS.filter(l => l.type === 'city');
+    const a = cities[0], b = cities.reduce((x, l) => Game.dist(l, a) > Game.dist(x, a) ? l : x);
+    state.player.money = 5000;
+    Game._marketLoc = a;
+    Game.buyItem('salt', 5);
+    const held = state.player.inventory.find(i => i.id === 'salt');
+    assert.strictEqual(Game.farPremium(held, a), 0, 'the home market pays a premium');
+    assert.ok(Game.marketPrice('salt', true) < Game.marketPrice('salt'), 'buy-then-sell pays in one market');
+    assert.ok(Math.abs(Game.farPremium(held, b) - Game.FAR_PREMIUM * Math.min(1, Game.dist(a, b) / Game.FAR_SPAN)) < 1e-9);
+});
+
+// Small fixes from the 2.12.0 playtest: a hamlet's stall, the king's door, day one's loaf
+test('village stalls hold plain gear, a vassal walks into the hall, an under-a-day bag reads <1', () => {
+    const w = H.world({ seed: 3 });
+    const { Game, Nobles, state, LOCATIONS, ITEMS } = w;
+    const village = LOCATIONS.find(l => l.type === 'village'), city = LOCATIONS.find(l => l.type === 'city');
+    for(const id of ['sword_royal', 'horse_zirhli', 'boss_map']) {
+        assert.ok(!Game.forSale(village, ITEMS[id]), `a village sells ${id}`);
+        assert.ok(Game.forSale(city, ITEMS[id]), `a town does not sell ${id}`);
+    }
+    for(const id of ['sword', 'horse_kib', 'bread', 'velvet']) assert.ok(Game.forSale(village, ITEMS[id]), `a village lacks ${id}`);
+    // the guard turns a nobody away, and lets the realm's sworn man in at the same renown
+    const hall = LOCATIONS.find(l => l.type === 'city' && l.faction && l.faction !== 'player_kingdom');
+    let html = ''; Game.showModal = h => { html = h; };
+    state.player.renown = state.player.peakRenown = 0;
+    Nobles.openHall(hall);
+    assert.ok(/Kapıdaki muhafız/.test(html), 'a nobody walked into the hall');
+    state.player.vassalOf = hall.faction;
+    Nobles.openHall(hall);
+    assert.ok(!/Kapıdaki muhafız/.test(html), 'the guard turned away a sworn vassal of the realm');
+    // a loaf that won't last the day is "<1", not "0"; an empty bag is 0
+    assert.strictEqual(Game.foodDaysLabel({ days: 0, nutrition: 1 }), '<1');
+    assert.strictEqual(Game.foodDaysLabel({ days: 0, nutrition: 0 }), 0);
+    assert.strictEqual(Game.foodDaysLabel({ days: Infinity, nutrition: 5 }), '∞');
+});
+
+// A quest's wave raided a passing caravan, lost, disbanded — and merchant_convoy sat on "dispel the
+// attackers" with no attackers left (found by the wave-quest test when the dice moved, 2.12.0)
+test('a quest wave raids no convoy on its way to you', () => {
+    const w = H.world({ seed: 4 });
+    const { Game, state } = w;
+    const t = state.npcParties.find(n => n.trade && n.size > 0);
+    const b = Game.createBand('forest', 5, 'Kervan Baskıncıları', '#8b0000');
+    Object.assign(b, { x: t.x + 50, y: t.y, questWave: 'merchant_convoy' });
+    state.npcParties = [t, b];
+    for(let i = 0; i < 20; i++) Game.banditTick();
+    assert.strictEqual(b.size, 5, 'the wave fought the convoy');
+    assert.ok(!(b.cargo && b.cargo.length), 'the wave robbed the convoy');
+});
+
+// Packs stood at 24–43 % of the map's bands and nearly every one had the Alfa (playtest 2.11.3)
+test('wolves: the Alfa leads only a big pack; while packs hold a quarter of the bands, dens wait', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;
+    const alfa = n => { Battle.start('Kurt Sürüsü', n, null, '', null, false, 'wolf'); const has = Battle.units.some(u => u.name === 'Alfa Kurt'); Battle.active = false; return has; };
+    assert.ok(!alfa(BAND_KINDS.wolf.leaderAt - 1) && alfa(BAND_KINDS.wolf.leaderAt), 'the Alfa does not join at leaderAt');
+    // every band on the map a pack: the next band comes out of a den that isn't one
+    state.npcParties.filter(n => n.type === 'bandit').forEach(n => { n.band = 'wolf'; });
+    assert.ok(Game.wolfShare() >= Game.WOLF_SHARE_MAX);
+    if(Game.lairs().some(l => !BAND_KINDS[l.band].beast) && Game.lairs().some(l => BAND_KINDS[l.band].beast))
+        for(let i = 0; i < 10; i++) {
+            const npc = Game.spawnFromLair();
+            assert.ok(!npc || !BAND_KINDS[npc.band].beast, 'a den sent a pack while packs crowd the map');
+        }
+});
+
+// Sending the men paid exactly what leading them did: the hand fight was all risk (playtest 2.11.3)
+test('victory: leading from the front pays more than sending the men', () => {
+    const win = auto => {
+        const g = H.world({ seed: 42 }), { Game, Battle, state } = g;
+        const band = state.npcParties.find(n => n.type === 'bandit');
+        Object.assign(state.player, { currentEncounterNpcId: band.id, status: 'idle' });
+        const r0 = state.player.renown, x0 = state.player.stats.xp;
+        Battle.start(band.name, band.size, null, '', null, false, band.band);
+        if(auto) Battle.autoLoss = 0.1;
+        Battle.endBattle(true);
+        return { renown: state.player.renown - r0, xp: state.player.stats.xp - x0, html: g._sandbox.document.getElementById('modal-body').innerHTML };
+    };
+    const led = win(false), sent = win(true);
+    assert.strictEqual(led.renown - sent.renown, 2);
+    assert.ok(led.xp > sent.xp, `led ${led.xp} xp, sent ${sent.xp}`);
+    assert.ok(/Önden yürüdün/.test(led.html) && !/Önden yürüdün/.test(sent.html));
+    // auto-resolve at the button's 1.5× wins about what the field wins there, not always
+    const { Battle } = H.world({ seed: 1 });
+    const side = (name, n) => [{ name, n, hp: 30, attack: 10, defense: 5, type: 'infantry' }];
+    const p = Battle.winChance(side('a', 15), side('b', 10));
+    assert.ok(p > 0.9 && p < 0.999, `win chance at 1.5× heads ${p}`);
 });
 
 // A band that robbed a caravan carries its load (302 coal in a playtest): winning it put the party at
@@ -4564,6 +4760,27 @@ test('i18n: old news and a map mark reword after a language switch', () => {
     state.warLog.unshift({ day: 1, msg: 'Old line.' });
     assert.strictEqual(I18N.show(state.warLog[0].msg), 'Old line.');
     I18N.set('en');
+});
+
+// Case endings used to be typed after the name ("{0}'a"): "Narra'a", "%47'e", "Kalesi'ye" (2.12.0).
+test('i18n: a Turkish case ending follows the word it is put on', () => {
+    const { I18N, Tx } = H.world({ seed: 1, lang: 'tr' });
+    const sx = (w, k, p) => I18N.suffix(w, k, p);
+    const cases = [['Narra', 'dat', "Narra'ya"], ['Dhirim', 'dat', "Dhirim'e"], ['Harlaus', 'dat', "Harlaus'a"],
+        ['Uxkhal', 'loc', "Uxkhal'da"], ['Reyvadin', 'abl', "Reyvadin'den"], ['Jelkala', 'gen', "Jelkala'nın"],
+        ['Sargoth', 'loc', "Sargoth'ta"], ['Kral Ragnar', 'acc', "Kral Ragnar'ı"], ['Jarl Skeggi', 'dat', "Jarl Skeggi'ye"],
+        ['%47', 'dat', "%47'ye"], ['Lonca Ustası (Praven)', 'ins', "Lonca Ustası (Praven)'yla"], ['%40', 'dat', "%40'a"], ['%30', 'poss', "%30'u"], ['%60', 'poss', "%60'ı"], [100, 'gen', "100'ün"]];
+    cases.forEach(([w, k, want]) => assert.strictEqual(sx(w, k), want, `${w} + ${k}`));
+    // a compound place name takes the n; a person's name never does
+    [['Tevarin Kalesi', 'dat', "Tevarin Kalesi'ne"], ['Svadya Krallığı', 'abl', "Svadya Krallığı'ndan"],
+     ['Haydut İni', 'loc', "Haydut İni'nde"], ['Kergit Hanlığı', 'gen', "Kergit Hanlığı'nın"], ['Narra', 'dat', "Narra'ya"]]
+        .forEach(([w, k, want]) => assert.strictEqual(sx(w, k, true), want, `${w} + ${k} (place)`));
+    // stored: worded in the language on show when read
+    const v = Tx`${{ sfx: 'dat', of: Tx('Tevarin Kalesi'), place: true }} vardın.`;
+    assert.strictEqual(I18N.show(v), "Tevarin Kalesi'ne vardın.");
+    I18N.set('en');
+    assert.strictEqual(sx('Narra', 'dat'), 'Narra', 'English takes the word as it is');
+    I18N.set('tr');
 });
 
 // The morale breakdown's line names are object keys shown through T() on the party screen and
