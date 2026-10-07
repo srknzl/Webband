@@ -7042,7 +7042,9 @@ const Game = {
         // behind it kept the old language until something redrew it (#150)
         const open = document.querySelector('.view.active');
         if(open && document.getElementById('main-ui').classList.contains('active')) {
-            this.showScreen(open.id.replace('-view', ''));
+            // a town's cards are drawn on the way in, not by showScreen: the town is drawn again
+            if(open.id === 'settlement-view') this.redrawTown(LOCATIONS.find(l => l.id === this._enteredLoc));
+            else this.showScreen(open.id.replace('-view', ''));
             this.updateTopBar();
         }
         if(document.getElementById('settings-panel')) this.showSettings();

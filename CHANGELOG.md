@@ -16,6 +16,8 @@ başlangıç ekranının sağ alt köşesinde yazar.
 - **Kurtlar esir almıyor.** Bir kurt sürüsüne yenilen oyuncu günlerce "zincirde" tutuluyor,
   kesesinin büyük kısmını kaybediyor, sonunda kurtlar ondan fidye istiyordu. Artık sürü grubunu
   dağıtıyor ve seni yaralı bırakıyor; kesen yerinde, esaret ve fidye yok.
+- **Şehirdeyken dili değiştirince** şehrin kartları da yeni dile geçiyor; önceden bir sonraki
+  ziyarete kadar eski dilde kalıyordu.
 - **Esaret panelindeki kalan gün sayısı** her gün güncelleniyor; önceden ilk gördüğün sayıda
   takılı kalıyordu.
 
