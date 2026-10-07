@@ -4014,6 +4014,7 @@ const Game = {
         let dist = Math.sqrt(dx*dx + dy*dy);
 
         if(npc.type === 'bandit') {
+            if(npc.fedLeft > 0) return false;   // a pack that has just beaten you (PACK_FED_HOURS)
             if(dist < 120) return true; // Get right up on them and they won't forgive it!
             if(this.strengthSeen(npc) > 1.5) return false; // much stronger than them, in fighting men: they keep away
             if(state.time.day <= 14) {
@@ -4039,6 +4040,10 @@ const Game = {
     },
 
     FLEE_HOURS: 4,     // how long a party that fled keeps running once out of sight
+    // A pack that has beaten you has had its fill: for a day it neither hunts nor jumps you. It
+    // used to keep no captive and stand right there, so the wounded hero walked into it again and
+    // again, a lost fight and lost renown each time (2.11.3). You can still go at it yourself.
+    PACK_FED_HOURS: 24,
     SIEGE_RING: 90,
     PATROL_CONTACT: 30,   // a patrolling lord this close to its band has caught it
     PREY_HOLD: 300,       // a band switches convoys only for one this much nearer than its own    // a besieger's (or campaign lord's) distance from the place it holds
@@ -4155,7 +4160,8 @@ const Game = {
 
             // A bandit hunts caravans (#38): heads for the nearest convoy in range; banditTick
             // resolves the raid itself. A band that isn't strong enough doesn't give chase.
-            let fleeing = npc.fleeLeft > 0;
+            if(npc.fedLeft > 0) npc.fedLeft -= dt;
+            let fleeing = npc.fleeLeft > 0 || npc.fedLeft > 0;   // a fed pack doesn't lean in or pounce either
             if(npc.type === 'bandit' && !notices && !fleeing && !(BAND_KINDS[npc.band] || {}).beast) {
                 let prey = null, bd = 1200;
                 state.npcParties.forEach(t => {

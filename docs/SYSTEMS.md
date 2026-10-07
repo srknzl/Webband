@@ -901,7 +901,9 @@ location; the captor's party is the only one that moves (the player's own icon i
 "Plan an escape" ramps escape chance 0→80 on a slowing curve; one attempt/day, failure costs −60
 and resets the plan. At the deadline: 40% free escape, else a ransom modal (75–90% of money).
 A lost fight against a `beast` band (a wolf pack) is no captivity (2.11.3): the men scatter, the hero
-wakes at 30% hp, renown and morale drop as usual, but the purse stays and there is no ransom.
+wakes at 30% hp, renown and morale drop as usual, but the purse stays and there is no ransom. The
+pack is then fed (`PACK_FED_HOURS` 24): not hostile, no scent or pounce, so it can't jump the wounded
+hero again and again; the player can still attack it.
 
 ### Diplomacy — war between kingdoms (#20)
 `state.wars = { 'a|b': start day }`. **An independent player has a banner too**

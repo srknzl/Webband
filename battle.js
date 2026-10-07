@@ -3731,7 +3731,7 @@ const Battle = {
             // A pack scatters your men and leaves you torn on the ground: it takes no purse, keeps no
             // captive and asks no ransom — the captivity below once had wolves guarding you in chains
             let beast = !!captor && !!(BAND_KINDS[captor.band] || {}).beast;
-            if(beast) captor = null;
+            if(beast) { captor.fedLeft = Game.PACK_FED_HOURS; captor = null; }
             // The loss ratio is now a decision, not a die roll: your fief's coffer share reduces it (#53/1.2)
             let ratio = beast ? 0 : Game.defeatLootRatio();
             let moneyLost = Math.floor(state.player.money * ratio);

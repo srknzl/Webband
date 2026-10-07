@@ -3043,6 +3043,16 @@ test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band
     assert.strictEqual(state.player.prisoner, null, 'the pack took a prisoner');
     assert.strictEqual(state.player.money, 1000, 'the pack took money');
     assert.strictEqual(state.player.party.length, 0);
+    // ...and has had its fill: standing right beside the wounded hero it doesn't jump him again
+    // (without captivity it did, over and over), until a day has gone by
+    const wolves = state.npcParties.find(n => n.band === pack && n.fedLeft > 0);
+    assert.ok(wolves, 'the pack that won was not marked fed');
+    const beside = () => Object.assign(state.player, { x: wolves.x + 10, y: wolves.y, targetLocation: null, currentEncounterNpcId: null });
+    beside();
+    assert.ok(!Game.npcCanInitiateEncounter(wolves), 'the fed pack jumps the hero again at once');
+    for(let h = 0; h < 25; h++) Game.updateNPCs(1);
+    beside();
+    assert.ok(Game.npcCanInitiateEncounter(wolves), 'a day later the pack is still fed');
     lose('bandit');
     assert.ok(state.player.prisoner && state.player.money < 1000, 'a band no longer takes you');
     state.player.prisoner.daysLeft = 5;
