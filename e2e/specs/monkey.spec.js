@@ -67,7 +67,15 @@ for(const SEED of SEEDS) test(`monkey: ${STEPS} steps, seed ${SEED}`, async ({ p
         const what = ((await el.getAttribute('onclick').catch(() => '')) || (await el.innerText().catch(() => '')) || '?').slice(0, 70).replace(/\s+/g, ' ');
         // a typed line eats the first press (typeIn); the player reads it first
         await page.waitForFunction(() => !Game._type, null, { timeout: 5000 }).catch(() => {});
-        await el.click({ timeout: 3000 }).catch(e => { log.push(`  (click failed: ${what})`); });
+        // a failed click names what lay on top of the button: a screen stuck under a stray layer
+        // reads as a string of these
+        await el.click({ timeout: 3000 }).catch(async () => {
+            const over = await el.evaluate(e => {
+                const r = e.getBoundingClientRect(), t = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+                return !t ? 'off screen' : t === e || e.contains(t) ? 'itself' : t.tagName.toLowerCase() + (t.id ? '#' + t.id : '') + (typeof t.className === 'string' && t.className ? '.' + t.className.split(' ')[0] : '');
+            }).catch(() => 'gone');
+            log.push(`  (click failed: ${what} — under ${over})`);
+        });
         return what;
     };
 

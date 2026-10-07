@@ -2689,16 +2689,15 @@ test('feast: the gate\'s join button after the feast ended says so, and the gate
     Object.assign(state.player, { x: c.x, y: c.y });
     state.feast = { faction: c.faction, locId: c.id, endDay: state.time.day + 1, greeted: [] };
     state.time.hour = 22;
-    const ac = w._sandbox.document.getElementById('settlement-actions'), before = ac.children.length;
+    const ac = w._sandbox.document.getElementById('settlement-actions'), cards = () => ac.children.flatMap(sec => sec.lastChild.children);
     Game.enterLocation(c);
-    const join = ac.children.slice(before).find(b => /Şölene Katıl/.test(b.innerHTML));
+    const join = cards().find(b => /Şölene Katıl/.test(b.innerHTML));
     assert.ok(join, 'no join button while the feast is on');
     Feast.open(c); Feast.greetAll();
     assert.strictEqual(state.feast, null, 'the greeting didn\'t carry the feast past its end');
-    const drawn = ac.children.length;
     join.onclick();
     assert.ok(/Şölen sona ermiş/.test(w._sandbox.document.getElementById('modal-body').innerHTML), 'the ended feast wasn\'t announced');
-    assert.ok(!ac.children.slice(drawn).some(b => /Şölene Katıl/.test(b.innerHTML)), 'the gate still offers the ended feast');
+    assert.ok(!cards().some(b => /Şölene Katıl/.test(b.innerHTML)), 'the gate still offers the ended feast');
 });
 
 // The lords' and ladies' dialogues are a web of buttons no test walked (the coverage map: asking

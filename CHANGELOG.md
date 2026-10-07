@@ -13,6 +13,9 @@ başlangıç ekranının sağ alt köşesinde yazar.
   devirdiğinde, düşüşün sürdüğü o bir saniyede duraklatıp "Geri çekil"e basmak yenilgiyi
   kaçışa çeviriyordu: ganimet senin kalıyor, keseden hiçbir şey gitmiyordu. Artık düşen
   kahraman yenilmiş sayılıyor.
+- **Savaş rehberi haritada açılmıyor.** İlk savaşın yarım saniye içinde bittiği durumda (hemen
+  geri çekilmek, anında kazanmak) rehberin "Emirler" adımı haritanın üstünde açılıyor ve rehber
+  görülmüş sayılıyordu. Artık rehber yalnızca savaş sürerken açılıyor.
 
 ## 2.11.1 — Kantar (2026-10-03)
 
