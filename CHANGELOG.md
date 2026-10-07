@@ -3,6 +3,42 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.12.0 — Pusula (2026-10-07)
+
+Bir deneme oyununun bulgularıyla: yenilgi koşuyu bitirmiyor, öne geçmek ödüllendiriliyor, orta
+oyunun yakın bir hedefi var.
+
+- **Yenilgi daha az acıtıyor.** Yenilince kesenden yağmalanan pay %60–90 yerine %25–40. Esirlerin
+  istediği fidye kesenin %75–90'ı yerine %30–45'i (reddettikçe en çok %60'a çıkıyor). Salıverilince ya da
+  kaçınca bir gün boyunca kimse sana saldırmıyor; kendi kovaladığın hedef hariç. Beklerken ("Bekle")
+  yaralar üç kat hızlı iyileşiyor.
+- **Savaşa kendin girmek kazandırıyor.** Askerlerini gönderip sonucu beklemek, ordunun başında
+  savaşmak kadar kazandırıyordu. Artık savaşı ayakta bitirirsen dinar ve tecrübe %25 fazla, nam +2
+  fazla. Askerleri gönderince sonuç kesin değil: güçlü taraf çoğunlukla kazanır ama zar var. Silah,
+  binicilik ve atletizm tecrübesi yalnız kendi savaştığın savaştan geliyor.
+- **Kurtlar haritayı basmıyor.** Alfa Kurt artık yalnız dokuz ve daha kalabalık sürülerin başında;
+  altı-sekiz kurtluk bir sürü artık yenilebiliyor. Haritadaki çetelerin dörtte
+  birinden fazlası kurtsa inler yeni sürü çıkarmıyor.
+- **Orta oyunda yakın bir hedef.** Bir köy tımarı 150 namla istenebiliyor; kale ve şehir yine 300.
+  Görevler 1,5 kat nam veriyor. Kurt ve orman çetesi avı görevleri, en yakın sürünün ya da çetenin
+  hangi yerleşimin yakınında dolaştığını haritada gösteriyor.
+- **Arenada ve turnuvada tam canla dövüşüyorsun.** Kum yarı yaralı başlamıyor; çıkınca girerken
+  taşıdığın yaralar seninle.
+- **Başarımlar kendini duyuruyor.** Kazanınca bir fanfar çalıyor ve haber akışına bir satır düşüyor.
+  Ödülleri ekonomiyi şişirmesin diye 100 / 300 / 1000 dinar (önceden 200 / 650 / 2000).
+- **Uzak yol ticareti kazandırıyor.** Uzaktan getirdiğin mal fiyatın 15 puanına kadar daha iyi
+  satılıyor; aldığın pazara geri satınca bu ek yok. Satış listesinde 🐪 işareti bu eki gösteriyor.
+- **Türkçe ekler isme uyuyor.** "Narra'a", "%47'e", "Tevarin Kalesi'ye" gibi yazımlar düzeldi:
+  ek artık kelimenin son sesine göre seçiliyor (Narra'ya, %47'ye, Tevarin Kalesi'ne).
+- **Küçük düzeltmeler.**
+  - Üst şeritteki grup sayacı toplamı veriyor: 4 yeni askerle 4 kişilik grup `0+4/12` yazıyor, `4+4/12` değil.
+  - Köy pazarları Kraliyet Kılıcı, savaş atı ve Boss Haritası satmıyor; köyde sade teçhizat var.
+  - Nitelik puanı verince yükselen hedef parlıyor.
+  - Bir krallığın yeminli vasalı ya da kalenin kendi lordu, kralın salonunun kapısından namına
+    bakılmadan geçiyor.
+  - Yaya bir grupla kaçınca "atlarını sürüp" yazmıyor.
+  - Bir günden az yiyeceğin varsa sayaç "0 gün" değil "<1 gün" yazıyor.
+
 ## 2.11.3 — Kantar (2026-10-07)
 
 - **Kaçtıktan ya da bir çete seni salıverdikten sonra pencereler kilitlenmiyor.** Bir karşılaşmadan
