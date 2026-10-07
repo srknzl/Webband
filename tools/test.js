@@ -4769,7 +4769,7 @@ test('i18n: a Turkish case ending follows the word it is put on', () => {
     const cases = [['Narra', 'dat', "Narra'ya"], ['Dhirim', 'dat', "Dhirim'e"], ['Harlaus', 'dat', "Harlaus'a"],
         ['Uxkhal', 'loc', "Uxkhal'da"], ['Reyvadin', 'abl', "Reyvadin'den"], ['Jelkala', 'gen', "Jelkala'nın"],
         ['Sargoth', 'loc', "Sargoth'ta"], ['Kral Ragnar', 'acc', "Kral Ragnar'ı"], ['Jarl Skeggi', 'dat', "Jarl Skeggi'ye"],
-        ['%47', 'dat', "%47'ye"], ['%40', 'dat', "%40'a"], ['%30', 'poss', "%30'u"], ['%60', 'poss', "%60'ı"], [100, 'gen', "100'ün"]];
+        ['%47', 'dat', "%47'ye"], ['Lonca Ustası (Praven)', 'ins', "Lonca Ustası (Praven)'yla"], ['%40', 'dat', "%40'a"], ['%30', 'poss', "%30'u"], ['%60', 'poss', "%60'ı"], [100, 'gen', "100'ün"]];
     cases.forEach(([w, k, want]) => assert.strictEqual(sx(w, k), want, `${w} + ${k}`));
     // a compound place name takes the n; a person's name never does
     [['Tevarin Kalesi', 'dat', "Tevarin Kalesi'ne"], ['Svadya Krallığı', 'abl', "Svadya Krallığı'ndan"],

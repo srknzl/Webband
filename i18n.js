@@ -153,8 +153,10 @@ const I18N = {
     suffix(word, kind, place) {
         word = String(word);
         if(this.lang !== 'tr') return word;
-        let num = /(\d+)$/.exec(word);
-        let said = num ? this.numberWord(+num[1]) : word.toLocaleLowerCase('tr');
+        // a closing aside is not read out: "Lonca Ustası (Praven)" takes Ustası's ending, as TDK writes "Yunus Emre (1240?-1320)'nin"
+        let bare = word.replace(/\s*\([^()]*\)$/, '');
+        let num = /(\d+)$/.exec(bare);
+        let said = num ? this.numberWord(+num[1]) : bare.toLocaleLowerCase('tr');
         let vs = said.match(/[aıoueiöüâîû]/g), last = vs ? vs[vs.length - 1] : 'e';
         last = { 'â': 'a', 'î': 'i', 'û': 'u' }[last] || last;
         let vowelEnd = /[aıoueiöüâîû]$/.test(said), hard = /[fstkçşhp]$/.test(said);

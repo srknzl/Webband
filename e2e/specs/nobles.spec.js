@@ -87,8 +87,9 @@ test('feast: hosting one needs the money and the fine food, then the hall fills'
     await page.evaluate(() => state.player.inventory.push(Object.assign({}, ITEMS.meat, { qty: 30 })));
     const money = await page.evaluate(() => state.player.money);
     await host.click();
-    const kingdom = await page.evaluate(id => Game.factionName(LOCATIONS.find(l => l.id === id).faction), city);
-    expect(await okAlert(page)).toContain(await L(page, 'Şölenin başladı! {0}\'nın bütün soyluları geldi.\nHer biriyle +5 ilişki, +15 nam.', kingdom));
+    // the realm's name with its case ending, as the game words it (I18N.suffix; other languages: the name as is)
+    const kingdom = await page.evaluate(id => I18N.suffix(Game.factionName(LOCATIONS.find(l => l.id === id).faction), 'gen', true), city);
+    expect(await okAlert(page)).toContain(await L(page, 'Şölenin başladı! {0} bütün soyluları geldi.\nHer biriyle +5 ilişki, +15 nam.', kingdom));
     expect(await page.evaluate(() => [state.player.money, !!state.feast && state.feast.hostedByPlayer])).toEqual([money - 3000, true]);
     expect(await page.evaluate(() => state.player.inventory.some(i => i.id === 'meat')), 'the feast ate the meat').toBe(false);
 });
