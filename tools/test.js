@@ -1556,7 +1556,8 @@ test('roster: "11+2" counts what is new, and losses move the mark (#111)', () =>
     gw.Game.markRosterSeen('party');
     assert.strictEqual(gw.Game.newCount('party'), 0, 'a party just looked at still shows arrivals');
     gw.state.player.party.push({ id: 'r2', name: 'Svadya Milisi', level: 1 });
-    assert.ok(/^2<span[^>]*>\+1<\/span>\/9$/.test(gw.Game.rosterTag('party', 9)), gw.Game.rosterTag('party', 9));
+    // old + new adds up to the roster (2.12.0): 1 seen + 1 new = 2, not "2+1"
+    assert.ok(/^1<span[^>]*>\+1<\/span>\/9$/.test(gw.Game.rosterTag('party', 9)), gw.Game.rosterTag('party', 9));
     // A wiped-out party must not owe a permanent "+N" it never earned.
     gw.state.player.party = [];
     assert.strictEqual(gw.Game.newCount('party'), 0, 'losses left the seen mark above the real count');
@@ -3177,6 +3178,31 @@ test('trade: goods carried far sell for more; the market they were bought in pay
     assert.strictEqual(Game.farPremium(held, a), 0, 'the home market pays a premium');
     assert.ok(Game.marketPrice('salt', true) < Game.marketPrice('salt'), 'buy-then-sell pays in one market');
     assert.ok(Math.abs(Game.farPremium(held, b) - Game.FAR_PREMIUM * Math.min(1, Game.dist(a, b) / Game.FAR_SPAN)) < 1e-9);
+});
+
+// Small fixes from the 2.12.0 playtest: a hamlet's stall, the king's door, day one's loaf
+test('village stalls hold plain gear, a vassal walks into the hall, an under-a-day bag reads <1', () => {
+    const w = H.world({ seed: 3 });
+    const { Game, Nobles, state, LOCATIONS, ITEMS } = w;
+    const village = LOCATIONS.find(l => l.type === 'village'), city = LOCATIONS.find(l => l.type === 'city');
+    for(const id of ['sword_royal', 'horse_zirhli', 'boss_map']) {
+        assert.ok(!Game.forSale(village, ITEMS[id]), `a village sells ${id}`);
+        assert.ok(Game.forSale(city, ITEMS[id]), `a town does not sell ${id}`);
+    }
+    for(const id of ['sword', 'horse_kib', 'bread', 'velvet']) assert.ok(Game.forSale(village, ITEMS[id]), `a village lacks ${id}`);
+    // the guard turns a nobody away, and lets the realm's sworn man in at the same renown
+    const hall = LOCATIONS.find(l => l.type === 'city' && l.faction && l.faction !== 'player_kingdom');
+    let html = ''; Game.showModal = h => { html = h; };
+    state.player.renown = state.player.peakRenown = 0;
+    Nobles.openHall(hall);
+    assert.ok(/Kapıdaki muhafız/.test(html), 'a nobody walked into the hall');
+    state.player.vassalOf = hall.faction;
+    Nobles.openHall(hall);
+    assert.ok(!/Kapıdaki muhafız/.test(html), 'the guard turned away a sworn vassal of the realm');
+    // a loaf that won't last the day is "<1", not "0"; an empty bag is 0
+    assert.strictEqual(Game.foodDaysLabel({ days: 0, nutrition: 1 }), '<1');
+    assert.strictEqual(Game.foodDaysLabel({ days: 0, nutrition: 0 }), 0);
+    assert.strictEqual(Game.foodDaysLabel({ days: Infinity, nutrition: 5 }), '∞');
 });
 
 // Packs stood at 24–43 % of the map's bands and nearly every one had the Alfa (playtest 2.11.3)

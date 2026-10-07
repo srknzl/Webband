@@ -347,6 +347,9 @@ const Nobles = {
         let lords = this.lordsAt(loc.id);
         let ladies = this.ladiesAt(loc.id);
         let renown = Game.peakRenown();   // gates look at peak renown reached (#55)
+        // The guard knows the realm's own men (2.12.0): a sworn vassal, or the lord of this keep,
+        // walks in whatever their renown — one was turned away at their own king's door.
+        let known = state.player.vassalOf === loc.faction || loc.owner === 'player';
 
         let html = `<h3>${T`👑 Lordlar Salonu — ${T(loc.name)}`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-md)">${Game.facName(f)}${state.feast && state.feast.locId===loc.id ? T(' — <b style="color:#ffcc00">🍷 Şölen sürüyor!</b>') : ''}</p>`;
@@ -368,7 +371,7 @@ const Nobles = {
                 onunla konuş (gereken nam: ${this.HALL_RENOWN}, sende ${renown}).`}</p>`;
         } else {
         html += `<h4 style="margin-top:1.5rem;color:var(--primary)">${T`Salonun Konukları`}</h4>`;
-        if(renown < this.HALL_RENOWN) {
+        if(renown < this.HALL_RENOWN && !known) {
             html += `<p style="color:var(--danger);font-size:var(--fs-md)">${T`Kapıdaki muhafız yolunu kesiyor:
                 <i>"Kim bu üstü başı toz içindeki? Soyluların oturduğu salona her önüne gelen giremez."`}</i><br>
                 <span style="color:var(--text-muted)">${T`Gereken nam: ${this.HALL_RENOWN} (sende ${renown})`}</span></p>`;

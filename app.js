@@ -4014,7 +4014,9 @@ const Game = {
             this.leaveEncounter(6);
             state.ambush = false;   // you slipped away: being surrounded doesn't carry over to the next battle
             state.player.status = 'idle'; state.player.targetLocation = null;
-            alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
+            // most of the party rides, or most of it marches (2.12.0: a band on foot "rode away")
+            alert(this.getMountedRatio() >= 0.5 ? T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`
+                                               : T`Geride bıraktın — adımlarını sıklaştırıp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
         } else {
             alert(T`Kaçamadın, yolunu kestiler! (Kaçış şansı %${Math.round(chance*100)})`);
             // The announced count, not today's: `npc.size` may have moved since the modal (#116)
@@ -6062,8 +6064,9 @@ const Game = {
         (state.player.seenRoster || (state.player.seenRoster = {}))[kind] = this.rosterOf(kind).length;
     },
     // `11+2/16` — the new ones in a faint green, so one glance answers "did I gain anything?".
+    // The two add up to the roster: 11 old + 2 new of 16 (2.12.0 — it used to read "4+4/12" for 4).
     rosterTag(kind, cap) {
-        let n = this.rosterOf(kind).length, d = this.newCount(kind);
+        let d = this.newCount(kind), n = this.rosterOf(kind).length - d;
         return `${n}${d > 0 ? `<span style="color:#7ddc8a;font-weight:600">+${d}</span>` : ''}/${cap}`;
     },
 
@@ -6085,7 +6088,7 @@ const Game = {
         this.countTo('ui-money', Math.floor(p.money));
         let fs = this.foodStock();
         // Consumption is never zero anymore (the player eats too, #75) — the "no army" branch is gone.
-        set('ui-food', fs.days);
+        set('ui-food', this.foodDaysLabel(fs));
         set('ui-food-sub', fs.total ? T('gün erzak') : T('erzak yok'));
         let fe = document.getElementById('chip-food');
         if(fe) fe.classList.toggle('warn', fs.days < 3);
@@ -6184,7 +6187,7 @@ const Game = {
             R(T('Elde'), T`${fs.total} birim (${fs.low} tahıl/ekmek · ${fs.high} et/peynir)`, fs.total > 0) +
             R(T('Günlük tüketim'), T`-${fs.need} birim`, false) +
             (fs.spoil >= 0.05 ? R(T('Bozulma'), T`-${fs.spoil.toFixed(1)} birim/gün`, false) : '') +
-            R(T('Yeter'), T`${fs.days} gün`, fs.days >= 3) +
+            R(T('Yeter'), T`${this.foodDaysLabel(fs)} gün`, fs.days >= 3) +
             (fs.needHigh ? R(T('Seçkin asker payı'), T`${fs.needHigh} birim et/peynir`, fs.high >= fs.needHigh) : '') +
             R(T('Yemek çeşidi'), T`${fs.kinds} çeşit · moral +${fs.kinds * 5}`, fs.kinds > 1),
             T`Erzak biterse moral −30, firar başlar ve aç geçen her gün sana −${this.HUNGER_HP} can. Çeşit başına +5 moral. Ekmek çabuk bozulur (20 gün), tahıl dayanır (60 gün).`));
@@ -8438,6 +8441,16 @@ const Game = {
     // The market (2.0.0): pick a good first, then how many. Buy/Sell tabs over one grid of tiles;
     // the chosen tile opens a trade panel (a column on the right, pinned to the bottom on a phone)
     // with a quantity stepper and the total priced unit by unit (`marketQuote`) before you commit.
+    // What a market's stalls hold. Unique boss drops are earned, never bought (#38); nor is a rare
+    // material or what only a forge makes (2.7.0), nor what only the carpenter's bench makes (2.10.0).
+    // A village sells its goods and plain gear (2.12.0): a royal sword, a war horse or the boss map
+    // in a hamlet's stall read like a bug. Towns and castles carry the full list.
+    VILLAGE_GEAR_MAX: 800,
+    forSale(loc, it) {
+        if(!it || it.unique || it.rare || it.type === 'craft') return false;
+        if(!loc || loc.type !== 'village') return true;
+        return this.stocked(it.id) || (it.type !== 'special' && it.basePrice <= this.VILLAGE_GEAR_MAX);
+    },
     openMarket(loc) {
         this._marketCategory = 'all';
         this._mkt = { mode: 'buy', sel: null, qty: 1 };
@@ -8662,7 +8675,7 @@ const Game = {
         let chip = (txt, col, id) => `<span${id ? ` id="${id}"` : ''} style="display:inline-block;padding:0.15rem 0.5rem;border:1px solid ${col || 'var(--panel-border)'};border-radius:var(--r-xs);${col ? `color:${col}` : ''}">${txt}</span>`;
         return `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;font-size:var(--fs-sm);margin-top:0.5rem">
             ${chip(T`🎒 Yük: ${load} / ${cap}` + (over ? ` · ${T`hız ${this.pct((this.cargoMult() - 1) * 100, true)}`}` : ''), over ? '#e0463a' : '', 'mst-bag')}
-            ${chip(T`🍞 Yiyecek: ${isFinite(fs.days) ? fs.days : '∞'} gün`, fs.days < 3 ? '#e8a13a' : '')}
+            ${chip(T`🍞 Yiyecek: ${this.foodDaysLabel(fs)} gün`, fs.days < 3 ? '#e8a13a' : '')}
             ${chip(T`💰 ${Math.floor(state.player.money)}₺`, '', 'mst-gold')}
             ${this.daysToWinter() <= 15 ? chip((this.isWinter() ? T`❄️ Kış` : T`❄️ Kışa ${this.daysToWinter()} gün`) + ` · ${T`🔥 Kömür: ${this.coalDays()} gün`}`,
                                                 this.coalDays() < (this.isWinter() ? 3 : this.WINTER_DAYS) ? '#e8a13a' : '') : ''}
@@ -8680,9 +8693,7 @@ const Game = {
             .map(([k, l]) => `<button type="button" role="tab" aria-selected="${m.mode === k}" class="${m.mode === k ? 'on' : ''}" onclick="Game.mktMode('${k}')">${l}</button>`).join('');
         let cat = this.MARKET_CATEGORIES.find(c => c.id === (this._marketCategory || 'all')) || this.MARKET_CATEGORIES[0];
         let matchesCat = type => !cat.types || cat.types.includes(type);
-        // unique boss drops are earned, never bought (#38); nor is a rare material or what only a forge makes (2.7.0),
-        // nor what only the carpenter's bench makes (2.10.0)
-        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => !i.unique && !i.rare && i.type !== 'craft' && matchesCat(i.type))
+        let list = m.mode === 'buy' ? Object.values(ITEMS).filter(i => this.forSale(loc, i) && matchesCat(i.type))
                                     : sellable.filter(i => matchesCat(i.type));
         let grid = document.getElementById('market-buy');
         grid.innerHTML = list.length ? list.map(item => {
@@ -9556,8 +9567,8 @@ const Game = {
     marketOpen() { return !!document.getElementById('market-buy'); },
     buyItem(id, n = 1) {
         if(!this.marketOpen()) return;
-        if(this.marketPrice(id) === null || !ITEMS[id] || ITEMS[id].rare || ITEMS[id].unique) return alert(T('Bu eşya pazarda yok.'));
         let loc = this._marketLoc;
+        if(this.marketPrice(id) === null || !this.forSale(loc, ITEMS[id])) return alert(T('Bu eşya pazarda yok.'));
         // Priced unit by unit (marketQuote): each good bought lowers the stock and the lowered
         // stock makes the next one pricier — buying in bulk at one price would be too cheap.
         let { can, cost, full, out } = this.marketQuote(id, n, false);
@@ -11772,7 +11783,7 @@ const Game = {
         return `<li>
             ${a.icon} <strong>${T(a.name)}:</strong>
             <span style="color:${done ? '#fff' : 'var(--primary)'};font-size:1.05rem">${eff.toFixed(1)}</span>
-            <span style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
+            <span id="attr-tgt-${k}" style="color:var(--text-muted)"> ${T`/ ${tgt} hedef`}</span>
             ${pts > 0 ? `<button class="btn" style="padding:0 0.4rem;font-size:var(--fs-sm);margin-left:0.5rem;" onclick="Game.addStat('${k}')">+</button>` : ''}
             ${done ? '' : `<div style="background:rgba(0,0,0,0.35);border-radius:var(--r-xs);height:5px;margin:0.3rem 0;max-width:220px">
                 <div style="background:var(--primary);height:100%;width:${pct}%;border-radius:var(--r-xs)"></div></div>`}
@@ -12003,6 +12014,10 @@ const Game = {
             this.updateStatsFromEquip();
             this.renderCharacterScreen();
             this.updateTopBar();
+            // The point moves the target, not the value beside it: show where it went (2.12.0)
+            let el = document.getElementById('attr-tgt-' + type);
+            this.feedback('upgrade', el);
+            this.floatText(el, T('+1 hedef'));
         }
     },
 
@@ -12247,6 +12262,9 @@ const Game = {
 
     // Food status: what's on hand, what's consumed per day, how many days it lasts.
     // Kept in one place so the tooltip, the warning, and the inventory all use the same math.
+    // Whole days of food, as the chips print it: a bag with food in it that won't last the day is
+    // "<1", not "0" — day one's single loaf read as starving already (2.12.0)
+    foodDaysLabel(fs) { return !isFinite(fs.days) ? '∞' : fs.days === 0 && fs.nutrition > 0 ? '<1' : fs.days; },
     foodStock() {
         let inv = state.player.inventory;
         let sum = q => inv.filter(i => q.includes(i.id)).reduce((a, i) => a + i.qty, 0);

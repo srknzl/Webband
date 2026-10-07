@@ -562,6 +562,7 @@ I18N.dicts.en = {
   "Gereken şeref: {0} (sende {1})": "Honor required: {0} (you have {1})",
   "Geri": "Back",
   "Geri Çekil": "Withdraw",
+  "Geride bıraktın — adımlarını sıklaştırıp uzaklaştın. (Kaçış şansı %{0})": "You left them behind — you quickened your pace and got clear. (Escape chance {0}%)",
   "Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %{0})": "You left them behind — you spurred your horses and rode clear. (Escape chance {0}%)",
   "Getir ama giymem. Yanımda dursun, moral olur.": "Bring it, but I won't wear it. Let it sit beside me; it lifts the spirits.",
   "Getirme. Bugün keyfim yerinde, bozmayalım.": "Don't bring it. I'm in a good mood today; let's not spoil it.",
@@ -3942,5 +3943,6 @@ I18N.dicts.en = {
   "Yevmiye her hâlde ödenir; iyi ve çabuk tabak ayrıca kazandırır.": "The day's wage is paid either way; good, quick dishes earn extra.",
   "Adım {0}/{1}": "Step {0}/{1}",
   "İleri →": "Next →",
+  "+1 hedef": "+1 target",
   "Atla, hemen başla": "Skip, start now"
 };

@@ -562,6 +562,7 @@ I18N.dicts.id = {
   "Gereken şeref: {0} (sende {1})": "Kehormatan yang dibutuhkan: {0} (kamu punya {1})",
   "Geri": "Kembali",
   "Geri Çekil": "Mundur",
+  "Geride bıraktın — adımlarını sıklaştırıp uzaklaştın. (Kaçış şansı %{0})": "Kamu meninggalkan mereka — mempercepat langkah dan menjauh. (Peluang kabur {0}%)",
   "Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %{0})": "Kamu meninggalkan mereka — memacu kuda dan menjauh. (Peluang kabur {0}%)",
   "Getir ama giymem. Yanımda dursun, moral olur.": "Bawa saja, tapi aku tak akan memakainya. Letakkan di sampingku, biar semangat.",
   "Getirme. Bugün keyfim yerinde, bozmayalım.": "Jangan dibawa. Hari ini suasana hatiku baik, jangan dirusak.",
@@ -3942,5 +3943,6 @@ I18N.dicts.id = {
   "Yevmiye her hâlde ödenir; iyi ve çabuk tabak ayrıca kazandırır.": "Upah harian tetap dibayar; hidangan yang bagus dan cepat menambah penghasilan.",
   "Adım {0}/{1}": "Langkah {0}/{1}",
   "İleri →": "Lanjut →",
+  "+1 hedef": "+1 target",
   "Atla, hemen başla": "Lewati, mulai sekarang"
 };
