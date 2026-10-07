@@ -3,6 +3,14 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.11.3 — Kantar (2026-10-07)
+
+- **Kaçtıktan ya da bir çete seni salıverdikten sonra pencereler kilitlenmiyor.** Bir karşılaşmadan
+  savaşmadan çıkınca ("Uzaklaş", başarılı bir kaçış) oyun karşılaşmanın hâlâ sürdüğünü sanıyordu:
+  ondan sonra açılan hiçbir pencere Esc ya da × ile kapanmıyordu. Kendi düğmesi olmayan bir
+  pencere, örneğin köy yaşlısıyla konuşma, hiç kapanmıyor ve oyunu yeniden açmak gerekiyordu.
+  Artık her savaşsız çıkış karşılaşmayı kapatıyor.
+
 ## 2.11.2 — Kantar (2026-10-07)
 
 - **At ağıllı bir haydut inine girerken oyun takılmıyor.** İnin çizimleri yüklenirken haritada

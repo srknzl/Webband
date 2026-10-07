@@ -3003,6 +3003,42 @@ test('wait: map orders cannot cancel a running camp', () => {
     assert.strictEqual(state.player.targetLocation, null, 'a map order escaped the camp lock');
 });
 
+test('encounter: every way out without a fight closes it, and the windows after it close again', () => {
+    const vm = require('vm'), g = H.world({ seed: 42 });
+    const { Game, state, LOCATIONS } = g;
+    const body = () => g._sandbox.document.getElementById('modal-body').innerHTML;
+    const press = label => {
+        const m = new RegExp(`onclick="([^"]*)"[^>]*>[^<]*${label}`).exec(body());
+        assert.ok(m, `no "${label}" button`);
+        vm.runInContext(m[1].replace(/&quot;/g, '"'), g._ctx);
+    };
+    const elder = LOCATIONS.find(l => l.type === 'village');
+    g._sandbox.__rnd0 = vm.runInContext('Math.random', g._ctx);
+    try {
+        vm.runInContext('Math.random = () => 0', g._ctx);   // the band backs off, the flight works
+        // a band that thinks you aren't worth it: walk away
+        state.time.day = 2;
+        Game.triggerEncounter(Game.createBand('bandit', 6));
+        press('Uzaklaş');
+        assert.strictEqual(state.player.currentEncounterNpcId, null, 'walking away from a band left the encounter open');
+        // a convoy let go on its way
+        const convoy = state.npcParties.find(n => n.trade);
+        Game.triggerEncounter(convoy);
+        press('Yoluna Bırak');
+        assert.strictEqual(state.player.currentEncounterNpcId, null, 'a convoy let go left the encounter open');
+        // outrun
+        state.time.day = 30;
+        const band = Game.createBand('bandit', 6);
+        Game.triggerEncounter(band);
+        Game.fleeEncounter(band.id);
+        Game.alertOk();
+        assert.strictEqual(state.player.currentEncounterNpcId, null, 'a flight that worked left the encounter open');
+    } finally { vm.runInContext('Math.random = __rnd0', g._ctx); }
+    // what the player saw: the elder's words, a window with no button of its own, can be closed
+    Game.talkToElder(elder);
+    assert.ok(Game.canDismiss() && /Game\.closeModal\(\)/.test(body()), 'the elder\'s window has no way out');
+});
+
 test('wait: a running camp is protected from map encounters', () => {
     const g = H.world({ seed: 40 });
     const { Game, state } = g;
@@ -5138,6 +5174,19 @@ function midScene() {
         assert.ok(!w.FACTIONS.player_kingdom, 'the kingdom founded after the save is gone');
     });
 }
+
+// A returning player: a save an old release wrote (tools/saves/, played by that release's own
+// tools) goes in through Save.migrate/apply and is played on — shopping, fights, quests, days —
+// with the invariants checked after every action. Everything added since is missing from it.
+// e2e/specs/oldsaves.spec.js opens the newer windows from the same saves in the browser.
+slow('old saves: a save from an earlier release loads and plays 15 days clean', () => {
+    const { run } = require('./career'), fs = require('fs'), path = require('path');
+    const dir = path.join(__dirname, 'saves');
+    for(const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
+        const r = run(3, undefined, 15, null, JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
+        assert.deepStrictEqual(r.problems, [], `the ${f} save: ${r.problems[0]}`);
+    }
+});
 
 // ---------- Output ----------
 if(!FAST) { thresholds(); midScene(); }

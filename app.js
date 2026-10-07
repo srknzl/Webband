@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.11.2', date: '2026-10-07', name: 'Kantar' };  // the version name is not translated
+const VERSION = { no: '2.11.3', date: '2026-10-07', name: 'Kantar' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -2186,7 +2186,7 @@ const Game = {
               : `<p style="color:var(--danger)">${T`Soyarsan eşkıyalık sayılır: ${this.factionName(npc.faction)} lordları <b>−4</b>, namın <b>−5</b>.`}</p>`}
         <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
         <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.robTrader('${npc.id}')">${T`🗡️ Soy`}</button>
-        <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 6; state.player.currentEncounterNpcId = null;">${T`🚪 Yoluna Bırak`}</button>
+        <button class="btn primary" onclick="Game.leaveEncounter(6)">${T`🚪 Yoluna Bırak`}</button>
         </div>`);
     },
     robTrader(npcId) {
@@ -3972,12 +3972,21 @@ const Game = {
         let base = Math.max(0.1, Math.min(0.9, (this.getPlayerSpeed().value / his - 0.8) * 1.2));
         return state.ambush ? base * this.AMBUSH_FLEE : base;
     },
+    // An encounter left without a fight — the band waved you off, the convoy went its way, you
+    // outran them — ends here. The open encounter is what locks a window (canDismiss): an exit that
+    // left its id behind took Esc and × off every window after it, and one with no button of its
+    // own (the village elder's) could not be closed at all.
+    leaveEncounter(cooldown) {
+        this.closeModal();
+        state.encounterCooldown = cooldown;
+        state.player.currentEncounterNpcId = null;
+    },
     fleeEncounter(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
         this.closeModal();
         let chance = this.fleeChance(npc);
         if(Math.random() < chance) {
-            state.encounterCooldown = 6;
+            this.leaveEncounter(6);
             state.ambush = false;   // you slipped away: being surrounded doesn't carry over to the next battle
             state.player.status = 'idle'; state.player.targetLocation = null;
             alert(T`Geride bıraktın — atlarını sürüp uzaklaştın. (Kaçış şansı %${Math.round(chance*100)})`);
@@ -3991,7 +4000,7 @@ const Game = {
     // "Send your troops": let the engine itself resolve the battle without opening the arena (#30)
     autoBattle(npcId) {
         let npc = state.npcParties.find(n => n.id === npcId);
-        if(!npc) return this.closeModal();
+        if(!npc) return this.leaveEncounter(2);
         this.closeModal();
         Battle.start(npc.name, state.encounterSize || npc.size, null, npc.faction || '', null, true, npc.band || null);
     },
@@ -4446,7 +4455,7 @@ const Game = {
                 ? T`${this.npcName(npc)} sayınızı tartıyor, üstünüze gelmiyor.`
                 : T`${this.npcName(npc)} seninle savaşmaya değmeyeceğini düşünüyor.`}</p>
             <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
-            <button class="btn primary" onclick="Game.closeModal(); state.encounterCooldown = 5;">${T`Uzaklaş`}</button>
+            <button class="btn primary" onclick="Game.leaveEncounter(5)">${T`Uzaklaş`}</button>
             <button class="btn" style="border-color:#cc0000;color:#cc0000" onclick="Game.closeModal(); Battle.start('${npc.name.replace(/'/g,"\\'")}', ${npc.size}, null, '${npc.faction || ''}', null, false, '${npc.band || ''}')">${T`⚔️ Yine De Savaş!`}</button>
             </div>`;
         } else {
