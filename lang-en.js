@@ -3079,6 +3079,7 @@ I18N.dicts.en = {
   "🏳️ Teslim olmak mı?": "🏳️ Surrender?",
   "Bütün birliğin dağılır ve esir düşersin.": "Your whole party scatters and you are taken prisoner.",
   "Maçı kaybetmiş sayılırsın.": "The bout counts as lost.",
+  "⚔️ Önden yürüdün: dinar ve tecrübe {0}, nam +{1}.": "⚔️ You led from the front: dinars and experience {0}, renown +{1}.",
   "⚔️ Savaşa Dön": "⚔️ Back to the Fight",
   "Sıradaki parça": "Next track",
   "🧩 Harita ve savaş çizimi": "🧩 Map and battle renderer",

@@ -3272,13 +3272,23 @@ const Battle = {
     // *linear* law). The square law was tried — at 5x superiority losses dropped to 3%,
     // making auto-resolve free. With a 0.45 coefficient, 2x superiority costs ~22%, 5x ~9%,
     // 10x ~4%; fighting it by hand is still cheaper. The Leadership skill reduces it by up to 40%.
+    // The real engine's win curve: p = 1 / (1 + r^-β) over the strength ratio, β fitted by
+    // tools/oddsfit.js to 600 matchups fought in the engine (tools/test.js holds the two together).
+    // Auto-resolve rolls against it (2.12.0) — it used to win whenever ratio × ±15 % luck passed 1,
+    // a sure thing at the 1.5× the button needs, where the field wins ~98 %.
+    WIN_BETA: 8.5,
+    winChance(a, b) {
+        let r = this.sideStrength(a, b) / Math.max(1e-6, this.sideStrength(b, a));
+        return 1 / (1 + Math.pow(r, -this.WIN_BETA));
+    },
     autoResolve() {
         this.reserves = { p: [], e: [] };
         // the field's men as they stand, through the same strength the odds label reads (2.8.0;
         // it summed hp × attack, blind to armour, damage type and the brace)
         let side = team => this.units.filter(u => u.isPlayerTeam === team && u.hp > 0).map(u => Object.assign({}, u, { n: 1 }));
-        let q = this.powerRatio(side(true), side(false)) * (0.85 + Math.random() * 0.3);   // ±15% luck factor
-        let won = q > 1, ratio = won ? q : 1 / q;
+        let won = Math.random() < this.winChance(side(true), side(false));
+        let q = this.powerRatio(side(true), side(false)) * (0.85 + Math.random() * 0.3);   // the casualties' scale, ±15% luck
+        let ratio = won ? q : 1 / q;   // an upset (won below 1) is paid for in men
         let loss = Math.min(0.85, 0.45 / ratio
             * (1 - Math.min(0.4, (Game.profLvl('leadership') - 1) * 0.04))
             * (won ? Game.diff().taken : 1));   // difficulty: your own losses scale when you win
@@ -3298,6 +3308,8 @@ const Battle = {
     // of the start, it stops fighting and runs to the edge it came from. Once a fleeing unit
     // leaves the field it's removed from `units`; since loot, capture, and casualty counts already
     // run off that list, the fleeing unit's accounting comes out right with no extra branch (not dead, not looted, not captured).
+    LEAD_BONUS: 0.25,    // money and xp for a battle the hero fought in person and stood through
+    LEAD_RENOWN: 2,      // on top of a win's 3
     ROUT_AT: 0.25,       // remaining headcount / starting headcount
     ROUT_MIN: 6,         // a band of six or fewer never routs — the clash is already over by then
     ROUT_SPEED: 1.2,     // runs for dear life: a slow fugitive gets caught, a fast one gets away
@@ -3545,6 +3557,13 @@ const Battle = {
                 xpGain = Math.floor(xpGain * 0.5);
                 moneyGain = Math.floor(moneyGain * 0.5);
             }
+            // Leading from the front pays (2.12.0): sending the men paid exactly what fighting did,
+            // so the hand fight was all risk and no reward
+            let led = !this.autoLoss && !this.knockedOut && !this.isBossFight;
+            if(led) {
+                xpGain = Math.ceil(xpGain * (1 + this.LEAD_BONUS));
+                moneyGain = Math.ceil(moneyGain * (1 + this.LEAD_BONUS));
+            }
             
             if(this.isBossFight) {
                 moneyGain += 1500;
@@ -3574,17 +3593,19 @@ const Battle = {
             let spareHonor = this.spared ? Game.addHonor('spare') : 0;
 
             state.player.money += moneyGain;
-            Game.gainRenown(3);
+            Game.gainRenown(3 + (led ? this.LEAD_RENOWN : 0));
             state.player.morale = Math.min(100, Game.morale() + 5);
             state.player.stats.xp += xpGain;
 
             let enemyCount = this.units.filter(u => !u.isPlayerTeam).length;
             Game.addProficiencyXp('looting', 10 * enemyCount);
-            let wpType = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
-            if(!state.player.proficiencies[wpType]) wpType = 'oneHanded';
-            Game.addProficiencyXp(wpType, 50 * enemyCount);
-            if(state.player.equipment.horse) Game.addProficiencyXp('riding', 40 * enemyCount);
-            else Game.addProficiencyXp('athletics', 40 * enemyCount);
+            if(!this.autoLoss) {   // the sword arm learns from the fights it was in
+                let wpType = state.player.equipment.weapon ? state.player.equipment.weapon.weaponType : 'oneHanded';
+                if(!state.player.proficiencies[wpType]) wpType = 'oneHanded';
+                Game.addProficiencyXp(wpType, 50 * enemyCount);
+                if(state.player.equipment.horse) Game.addProficiencyXp('riding', 40 * enemyCount);
+                else Game.addProficiencyXp('athletics', 40 * enemyCount);
+            }
 
             // Siege
             let conquestTxt = '';
@@ -3695,9 +3716,10 @@ const Battle = {
                 ${this.autoLoss ? `<p style="color:#8fd6ff;margin-bottom:1rem">${T`Sen inmedin: adamların kendi başlarına dövüştü, beklenen kayıp %${Math.round(this.autoLoss*100)}.`}</p>` : ''}
                 ${this.knockedOut ? T('<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>') : ''}
                 ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">${T`Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.`}</p>` : ''}
+                ${led ? `<p style="color:#9fe0a0;margin-bottom:1rem">${T`⚔️ Önden yürüdün: dinar ve tecrübe ${Game.pct(this.LEAD_BONUS * 100, true)}, nam +${this.LEAD_RENOWN}.`}</p>` : ''}
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:var(--r-md);margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Dinar:`}</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>
-                    <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Şan/Nam:`}</b> <span style="color:#3498db">+3</span> 👑</p>
+                    <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Şan/Nam:`}</b> <span style="color:#3498db">+${3 + (led ? this.LEAD_RENOWN : 0)}</span> 👑</p>
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Tecrübe:`}</b> <span style="color:#e74c3c">+${xpGain}</span> 🌟</p>
                     <p><b>${T`Kayıplar:`}</b> <span style="color:#e74c3c">${T`${killed} ölü`}</span> · <span style="color:#ffaa00">${T`${saved} yaralı`}</span> 🩹</p>
                     ${captured ? `<p style="margin-top:0.8rem"><b>${T`Esir Alınan:`}</b> <span style="color:#dda0dd">${captured}</span> ⛓️ <span style="font-size:var(--fs-sm);color:var(--text-muted)">${T`(şehirdeki köle tüccarına satabilirsin)`}</span></p>` : ''}

@@ -2186,6 +2186,8 @@ test('odds: the strength model agrees with the real-engine record', () => {
     const data = F.load(), s = F.score(go, data);
     assert.ok(data.matchups.length >= 500, `the record holds only ${data.matchups.length} matchups`);
     assert.ok(s.loss <= 0.42, `log-loss ${s.loss.toFixed(4)} per fight against the record (fitted 0.405)`);
+    // auto-resolve rolls on the same curve the record draws (Battle.WIN_BETA)
+    assert.ok(Math.abs(go.Battle.WIN_BETA - s.beta) <= 0.5, `the record's curve is β ${s.beta}, auto-resolve rolls β ${go.Battle.WIN_BETA}`);
     const by = name => s.cases.filter(c => s.label(c.r) === name), avg = cs => cs.reduce((a, c) => a + c.w, 0) / cs.length;
     const [K, D, Z, C] = ['Kolay', 'Dengeli', 'Zorlu', 'Çetin'].map(by);
     assert.ok(avg(K) >= 0.93 && avg(C) <= 0.07, `Kolay won ${Math.round(avg(K) * 100)} %, Çetin ${Math.round(avg(C) * 100)} % on average`);
@@ -3101,6 +3103,29 @@ test('defeat: a capture costs at most ~2/3 of the purse, the freed hero has a da
         return state.player.stats.hp - 10;
     };
     assert.strictEqual(heal(true), 3 * heal(false));
+});
+
+// Sending the men paid exactly what leading them did: the hand fight was all risk (playtest 2.11.3)
+test('victory: leading from the front pays more than sending the men', () => {
+    const win = auto => {
+        const g = H.world({ seed: 42 }), { Game, Battle, state } = g;
+        const band = state.npcParties.find(n => n.type === 'bandit');
+        Object.assign(state.player, { currentEncounterNpcId: band.id, status: 'idle' });
+        const r0 = state.player.renown, x0 = state.player.stats.xp;
+        Battle.start(band.name, band.size, null, '', null, false, band.band);
+        if(auto) Battle.autoLoss = 0.1;
+        Battle.endBattle(true);
+        return { renown: state.player.renown - r0, xp: state.player.stats.xp - x0, html: g._sandbox.document.getElementById('modal-body').innerHTML };
+    };
+    const led = win(false), sent = win(true);
+    assert.strictEqual(led.renown - sent.renown, 2);
+    assert.ok(led.xp > sent.xp, `led ${led.xp} xp, sent ${sent.xp}`);
+    assert.ok(/Önden yürüdün/.test(led.html) && !/Önden yürüdün/.test(sent.html));
+    // auto-resolve at the button's 1.5× wins about what the field wins there, not always
+    const { Battle } = H.world({ seed: 1 });
+    const side = (name, n) => [{ name, n, hp: 30, attack: 10, defense: 5, type: 'infantry' }];
+    const p = Battle.winChance(side('a', 15), side('b', 10));
+    assert.ok(p > 0.9 && p < 0.999, `win chance at 1.5× heads ${p}`);
 });
 
 // A band that robbed a caravan carries its load (302 coal in a playtest): winning it put the party at

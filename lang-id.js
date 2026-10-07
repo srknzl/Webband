@@ -3079,6 +3079,7 @@ I18N.dicts.id = {
   "🏳️ Teslim olmak mı?": "🏳️ Menyerah?",
   "Bütün birliğin dağılır ve esir düşersin.": "Seluruh pasukanmu bubar dan kau menjadi tawanan.",
   "Maçı kaybetmiş sayılırsın.": "Pertandingan dianggap kalah.",
+  "⚔️ Önden yürüdün: dinar ve tecrübe {0}, nam +{1}.": "⚔️ Kamu memimpin dari garis depan: dinar dan pengalaman {0}, ketenaran +{1}.",
   "⚔️ Savaşa Dön": "⚔️ Kembali Bertarung",
   "Sıradaki parça": "Lagu berikutnya",
   "🧩 Harita ve savaş çizimi": "🧩 Penggambar peta dan pertempuran",
