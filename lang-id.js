@@ -204,6 +204,7 @@ I18N.dicts.id = {
   "Su ver": "Celup",
   "Su veriliyor…": "Mencelup…",
   "Su verme": "Pencelupan",
+  "Sürü grubunu dağıttı. Yaralı halde kendine geldin; adamların dört bir yana kaçmış ama kesen yerinde.": "Kawanan itu mencerai-beraikan rombonganmu. Kamu siuman dalam keadaan terluka; anak buahmu lari ke segala arah, tetapi kantongmu masih utuh.",
   "Tavı kaçan yer": "Bagian yang tempanya hilang",
   "Taşın kirasına paran yetmiyor": "Uangmu tak cukup untuk sewa batu asah",
   "Topraklarım": "Tanahku",

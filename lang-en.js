@@ -204,6 +204,7 @@ I18N.dicts.en = {
   "Su ver": "Quench",
   "Su veriliyor…": "Quenching…",
   "Su verme": "Quench",
+  "Sürü grubunu dağıttı. Yaralı halde kendine geldin; adamların dört bir yana kaçmış ama kesen yerinde.": "The pack scattered your party. You came to wounded; your men have fled in every direction, but your purse is still there.",
   "Tavı kaçan yer": "Spots where the temper ran",
   "Taşın kirasına paran yetmiyor": "You can't afford the stone's rent",
   "Topraklarım": "My Lands",

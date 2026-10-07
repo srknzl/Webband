@@ -899,6 +899,8 @@ Single model: `Game.beginCaptivity(npc, days)` → `state.player.prisoner`. Lock
 location; the captor's party is the only one that moves (the player's own icon isn't drawn).
 "Plan an escape" ramps escape chance 0→80 on a slowing curve; one attempt/day, failure costs −60
 and resets the plan. At the deadline: 40% free escape, else a ransom modal (75–90% of money).
+A lost fight against a `beast` band (a wolf pack) is no captivity (2.11.3): the men scatter, the hero
+wakes at 30% hp, renown and morale drop as usual, but the purse stays and there is no ransom.
 
 ### Diplomacy — war between kingdoms (#20)
 `state.wars = { 'a|b': start day }`. **An independent player has a banner too**

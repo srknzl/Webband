@@ -3003,6 +3003,31 @@ test('wait: map orders cannot cancel a running camp', () => {
     assert.strictEqual(state.player.targetLocation, null, 'a map order escaped the camp lock');
 });
 
+// Losing to a pack once ran the whole captivity: wolves guarding you in chains for days, taking
+// 60-90% of the purse and asking a ransom. A band still takes you, and the panel's countdown follows the days.
+test('defeat: a wolf pack scatters you but keeps no captive and no purse; a band takes you', () => {
+    const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;
+    const lose = band => {
+        const npc = state.npcParties.find(n => n.type === 'bandit' && n.band === band);
+        assert.ok(npc, `no ${band} band in the world`);
+        Object.assign(state.player, { money: 1000, currentEncounterNpcId: npc.id, status: 'idle', prisoner: null });
+        Battle.start(npc.name, npc.size, null, '', null, false, npc.band);
+        Battle.endBattle(false);
+        Game.closeModal();
+    };
+    const pack = Object.keys(BAND_KINDS).find(k => BAND_KINDS[k].beast);
+    lose(pack);
+    assert.strictEqual(state.player.prisoner, null, 'the pack took a prisoner');
+    assert.strictEqual(state.player.money, 1000, 'the pack took money');
+    assert.strictEqual(state.player.party.length, 0);
+    lose('bandit');
+    assert.ok(state.player.prisoner && state.player.money < 1000, 'a band no longer takes you');
+    state.player.prisoner.daysLeft = 5;
+    Game.renderPrisonerUI();
+    Game.dailyUpdate();
+    assert.ok(/Kalan süre: <b>4<\/b>/.test(g._sandbox.document.getElementById('prisoner-info').innerHTML), 'the countdown on the panel did not move');
+});
+
 // The raid's two records: currentRaid marks the militia fight, raid the storehouse phase after it.
 // Debug.invariants once held 'raiding' to the first and flagged every won raid (monkey 9606).
 test('raid: a won militia fight starts the raid phase, and leaving it frees the map', () => {

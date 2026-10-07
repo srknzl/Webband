@@ -5809,6 +5809,7 @@ const Game = {
         Save.auto();   // ring-buffer autosave at the start of the day (#55 item 1)
         if(state.player.prisoner) {
             state.player.prisoner.daysLeft--;
+            this.renderPrisonerUI();   // the countdown on the panel, which nothing else redraws
             if(state.player.prisoner.daysLeft <= 0) {
                 let escapeChance = Math.random();
                 if(escapeChance <= 0.40) {

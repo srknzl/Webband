@@ -3726,8 +3726,14 @@ const Battle = {
             state.player.renown = Math.max(0, state.player.renown - renownLost);
 
             let daysLost = 3 + Math.floor(Math.random() * 5);
+            let captorId = state.player.currentEncounterNpcId;
+            let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
+            // A pack scatters your men and leaves you torn on the ground: it takes no purse, keeps no
+            // captive and asks no ransom — the captivity below once had wolves guarding you in chains
+            let beast = !!captor && !!(BAND_KINDS[captor.band] || {}).beast;
+            if(beast) captor = null;
             // The loss ratio is now a decision, not a die roll: your fief's coffer share reduces it (#53/1.2)
-            let ratio = Game.defeatLootRatio();
+            let ratio = beast ? 0 : Game.defeatLootRatio();
             let moneyLost = Math.floor(state.player.money * ratio);
             state.player.money = Math.max(0, state.player.money - moneyLost);
 
@@ -3740,10 +3746,12 @@ const Battle = {
             state.player.stats.hp = Math.max(5, Math.floor(state.player.stats.maxHp * 0.3));
 
             // Captivity system
-            let captorId = state.player.currentEncounterNpcId;
-            let captor = captorId ? state.npcParties.find(n => n.id === captorId) : null;
             if(captor) {
                 Game.beginCaptivity(captor, daysLost);
+            } else if(beast) {
+                alert(T`Sürü grubunu dağıttı. Yaralı halde kendine geldin; adamların dört bir yana kaçmış ama kesen yerinde.`
+                    + (renownLost ? `<br>${T`-${renownLost} nam — <i>böyle bir düşmana yenilmek dilden dile dolaşacak.`}</i>` : '')
+                    + (horseTxt ? `<br>${horseTxt}` : ''));
             } else if(this.isBossFight) {
                 alert(T('Savaş Tanrısı seni ezdi geçti. Tüm birliğini ve paranı kaybettin.')
                     + (horseTxt ? `<br>${horseTxt}` : ''));

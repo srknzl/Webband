@@ -10,6 +10,11 @@ başlangıç ekranının sağ alt köşesinde yazar.
   ondan sonra açılan hiçbir pencere Esc ya da × ile kapanmıyordu. Kendi düğmesi olmayan bir
   pencere, örneğin köy yaşlısıyla konuşma, hiç kapanmıyor ve oyunu yeniden açmak gerekiyordu.
   Artık her savaşsız çıkış karşılaşmayı kapatıyor.
+- **Kurtlar esir almıyor.** Bir kurt sürüsüne yenilen oyuncu günlerce "zincirde" tutuluyor,
+  kesesinin büyük kısmını kaybediyor, sonunda kurtlar ondan fidye istiyordu. Artık sürü grubunu
+  dağıtıyor ve seni yaralı bırakıyor; kesen yerinde, esaret ve fidye yok.
+- **Esaret panelindeki kalan gün sayısı** her gün güncelleniyor; önceden ilk gördüğün sayıda
+  takılı kalıyordu.
 
 ## 2.11.2 — Kantar (2026-10-07)
 
