@@ -38,6 +38,8 @@ oyunun yakın bir hedefi var.
     bakılmadan geçiyor.
   - Yaya bir grupla kaçınca "atlarını sürüp" yazmıyor.
   - Bir günden az yiyeceğin varsa sayaç "0 gün" değil "<1 gün" yazıyor.
+  - Tüccar Kervanı görevinde kervanı basan çete artık yoldan geçen başka bir kervana saldırmıyor.
+    Önceden bu baskında yenilip dağılabiliyordu; görev de olmayan bir çeteyi beklerken takılı kalıyordu.
 
 ## 2.11.3 — Kantar (2026-10-07)
 

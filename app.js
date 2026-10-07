@@ -2228,7 +2228,9 @@ const Game = {
     // whoever defeats that band gets the cargo too (the victory branch already writes beaten.cargo/purse to inventory).
     banditTick() {
         // Hunting behavior is in updateNPCs: the band walks onto the caravan, this is where the raid resolves
-        let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0
+        // A quest's wave was summoned to fight you (updateNPCs walks it at you): it raids no convoy
+        // on the way, or a lost raid disbanded it and left its quest waiting on a band gone (2.12.0)
+        let raiders = state.npcParties.filter(n => n.type === 'bandit' && n.size > 0 && !n.questWave
                                                    && !(BAND_KINDS[n.band] || {}).beast);
         if(!raiders.length) return;
         state.npcParties.filter(t => t.trade && t.size > 0).forEach(t => {
@@ -8651,6 +8653,13 @@ const Game = {
         if(!held || !loc || held.type !== 'trade' || held.fromX === undefined) return 0;
         return this.FAR_PREMIUM * Math.min(1, this.dist({ x: held.fromX, y: held.fromY }, loc) / this.FAR_SPAN);
     },
+    // n more of a trade good bought at loc: the stack's origin moves to the load's weighted middle
+    noteOrigin(held, loc, n) {
+        if(!loc || held.type !== 'trade') return;
+        let had = held.fromX === undefined ? 0 : held.qty;
+        held.fromX = ((held.fromX || 0) * had + loc.x * n) / (had + n);
+        held.fromY = ((held.fromY || 0) * had + loc.y * n) / (had + n);
+    },
     marketPrice(id, selling = false) {
         let it = ITEMS[id] || state.player.inventory.find(i => i.id === id);
         if(!it) return null;
@@ -9583,11 +9592,7 @@ const Game = {
         state.player.money -= cost;
         let ex = state.player.inventory.find(i=>i.id===id);
         if(!ex) state.player.inventory.push(ex = {...ITEMS[id], qty:0});
-        if(loc && ex.type === 'trade') {   // where it came from (farPremium), the load's weighted middle
-            let had = ex.fromX === undefined ? 0 : ex.qty;
-            ex.fromX = ((ex.fromX || 0) * had + loc.x * can) / (had + can);
-            ex.fromY = ((ex.fromY || 0) * had + loc.y * can) / (had + can);
-        }
+        this.noteOrigin(ex, loc, can);   // where it came from (farPremium)
         ex.qty += can;
         this.addProficiencyXp('trade', 4 * can);
         Quests.emit('bought_item', { itemId: id, qty: can, locId: this._marketLoc ? this._marketLoc.id : null });

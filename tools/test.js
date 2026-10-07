@@ -3205,6 +3205,20 @@ test('village stalls hold plain gear, a vassal walks into the hall, an under-a-d
     assert.strictEqual(Game.foodDaysLabel({ days: Infinity, nutrition: 5 }), '∞');
 });
 
+// A quest's wave raided a passing caravan, lost, disbanded — and merchant_convoy sat on "dispel the
+// attackers" with no attackers left (found by the wave-quest test when the dice moved, 2.12.0)
+test('a quest wave raids no convoy on its way to you', () => {
+    const w = H.world({ seed: 4 });
+    const { Game, state } = w;
+    const t = state.npcParties.find(n => n.trade && n.size > 0);
+    const b = Game.createBand('forest', 5, 'Kervan Baskıncıları', '#8b0000');
+    Object.assign(b, { x: t.x + 50, y: t.y, questWave: 'merchant_convoy' });
+    state.npcParties = [t, b];
+    for(let i = 0; i < 20; i++) Game.banditTick();
+    assert.strictEqual(b.size, 5, 'the wave fought the convoy');
+    assert.ok(!(b.cargo && b.cargo.length), 'the wave robbed the convoy');
+});
+
 // Packs stood at 24–43 % of the map's bands and nearly every one had the Alfa (playtest 2.11.3)
 test('wolves: the Alfa leads only a big pack; while packs hold a quarter of the bands, dens wait', () => {
     const g = H.world({ seed: 42 }), { Game, Battle, state, BAND_KINDS } = g;
