@@ -4722,6 +4722,27 @@ test('i18n: old news and a map mark reword after a language switch', () => {
     I18N.set('en');
 });
 
+// Case endings used to be typed after the name ("{0}'a"): "Narra'a", "%47'e", "Kalesi'ye" (2.12.0).
+test('i18n: a Turkish case ending follows the word it is put on', () => {
+    const { I18N, Tx } = H.world({ seed: 1, lang: 'tr' });
+    const sx = (w, k, p) => I18N.suffix(w, k, p);
+    const cases = [['Narra', 'dat', "Narra'ya"], ['Dhirim', 'dat', "Dhirim'e"], ['Harlaus', 'dat', "Harlaus'a"],
+        ['Uxkhal', 'loc', "Uxkhal'da"], ['Reyvadin', 'abl', "Reyvadin'den"], ['Jelkala', 'gen', "Jelkala'nın"],
+        ['Sargoth', 'loc', "Sargoth'ta"], ['Kral Ragnar', 'acc', "Kral Ragnar'ı"], ['Jarl Skeggi', 'dat', "Jarl Skeggi'ye"],
+        ['%47', 'dat', "%47'ye"], ['%40', 'dat', "%40'a"], ['%30', 'poss', "%30'u"], ['%60', 'poss', "%60'ı"], [100, 'gen', "100'ün"]];
+    cases.forEach(([w, k, want]) => assert.strictEqual(sx(w, k), want, `${w} + ${k}`));
+    // a compound place name takes the n; a person's name never does
+    [['Tevarin Kalesi', 'dat', "Tevarin Kalesi'ne"], ['Svadya Krallığı', 'abl', "Svadya Krallığı'ndan"],
+     ['Haydut İni', 'loc', "Haydut İni'nde"], ['Kergit Hanlığı', 'gen', "Kergit Hanlığı'nın"], ['Narra', 'dat', "Narra'ya"]]
+        .forEach(([w, k, want]) => assert.strictEqual(sx(w, k, true), want, `${w} + ${k} (place)`));
+    // stored: worded in the language on show when read
+    const v = Tx`${{ sfx: 'dat', of: Tx('Tevarin Kalesi'), place: true }} vardın.`;
+    assert.strictEqual(I18N.show(v), "Tevarin Kalesi'ne vardın.");
+    I18N.set('en');
+    assert.strictEqual(sx('Narra', 'dat'), 'Narra', 'English takes the word as it is');
+    I18N.set('tr');
+});
+
 // The morale breakdown's line names are object keys shown through T() on the party screen and
 // the top-bar tooltip ('Aşırı yük' had no entry — bug hunt).
 test('i18n: every morale line is in both dictionaries', () => {

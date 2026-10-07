@@ -135,8 +135,45 @@ const I18N = {
     show(v) {
         if(Array.isArray(v)) return v.map(x => this.show(x)).join('');
         if(!v || typeof v !== 'object') return v == null ? '' : String(v);
+        if(v.sfx) return this.suffix(this.show(v.of), v.sfx, v.place);   // a stored name with its case ending
         const text = this.lang === 'tr' ? this.norm(v.t) : this.lookup(v.t);
         return v.a ? text.replace(/\{(\d+)\}/g, (m, i) => (v.a[+i] !== undefined ? this.show(v.a[+i]) : m)) : text;
+    },
+
+    // A Turkish case ending after a name or a number, apostrophe and all (2.12.0): the endings were
+    // typed into the text ("{0}'a"), so a name ending in a vowel or a front vowel read wrong —
+    // "Narra'a", "%47'e", "Harlaus'e". The ending now follows the word: vowel harmony, the buffer
+    // letter after a vowel (y / n / s), d→t after a voiceless consonant; a number by its spoken last
+    // word (47 → "yedi" → %47'ye). Kinds: dat (-a), loc (-da), abl (-dan), gen (-ın), acc (-ı),
+    // ins (-la), poss (-ı/-sı, "%30'u"). Other languages say it in their own words: the word as is.
+    // `place`: a place or realm name. One of two words or more whose last ends in -ı/-i/-u/-ü is a
+    // compound ("Tevarin Kalesi", "Svadya Krallığı", "Haydut İni") and its endings take an n:
+    // Kalesi'ne, Krallığı'ndan. A person's name never is ("Jarl Skeggi'ye"), hence the flag.
+    // ponytail: a multi-word place ending in a bare -i that is not a possessive would read wrong; none exists.
+    suffix(word, kind, place) {
+        word = String(word);
+        if(this.lang !== 'tr') return word;
+        let num = /(\d+)$/.exec(word);
+        let said = num ? this.numberWord(+num[1]) : word.toLocaleLowerCase('tr');
+        let vs = said.match(/[aıoueiöüâîû]/g), last = vs ? vs[vs.length - 1] : 'e';
+        last = { 'â': 'a', 'î': 'i', 'û': 'u' }[last] || last;
+        let vowelEnd = /[aıoueiöüâîû]$/.test(said), hard = /[fstkçşhp]$/.test(said);
+        let n = place && /\s\S*[ıiuü]$/.test(said) ? 'n' : '';
+        let a = 'aıou'.includes(last) ? 'a' : 'e', i = { a: 'ı', ı: 'ı', o: 'u', u: 'u', e: 'i', i: 'i', ö: 'ü', ü: 'ü' }[last];
+        let s = { dat: (n || (vowelEnd ? 'y' : '')) + a, loc: n + (hard ? 't' : 'd') + a, abl: n + (hard ? 't' : 'd') + a + 'n',
+                  gen: (vowelEnd ? 'n' : '') + i + 'n', acc: (n || (vowelEnd ? 'y' : '')) + i, ins: (vowelEnd ? 'y' : '') + 'l' + a,
+                  poss: (vowelEnd ? 's' : '') + i }[kind];
+        return s ? `${word}'${s}` : word;
+    },
+    // The word a number is read out with last: 47 → yedi, 40 → kırk, 300 → yüz
+    numberWord(n) {
+        const ones = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'];
+        const tens = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'];
+        if(!n) return 'sıfır';
+        if(n % 10) return ones[n % 10];
+        if(n % 100) return tens[(n % 100) / 10];
+        if(n % 1000) return 'yüz';
+        return n % 1e6 ? 'bin' : 'milyon';
     },
 
     // First-launch suggestion from the browser's language — the default until the player picks one

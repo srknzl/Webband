@@ -3504,7 +3504,7 @@ const Game = {
             if(loc && this.atWar(this.playerFaction(), loc.faction)) return pick([
                 T`"...Bizim lordumuzla savaştasın. Sana ne ekmek var ne asker. Yolun açık olsun — çabuk olsun."`,
                 T`"Kılıcını görüyorum yabancı. Kadınlar çoktan ambara saklandı. Ne istiyorsan al da git."`,
-                T`"Bu köy ${this.factionName(loc.faction)}'ın. Senin gibi birine kuyudan su bile vermeyiz."`
+                T`"Bu köy ${I18N.suffix(this.factionName(loc.faction), 'gen', true)}. Senin gibi birine kuyudan su bile vermeyiz."`
             ]);
             if(this.infamyTier() >= 2) return T`"Adını duyduk. Köy yakanmışsın. ...Hoşgeldin de deme bana, sadece çabuk git."`;
             if(p.party.length < 5 && p.stats.level < 5) return T`"Şu cılız delikanlıya bakın, Deli Hüsnü'ye söyleyin belki gönüllü olur, bununla giderse biz de kurtuluruz."`;
@@ -4406,7 +4406,7 @@ const Game = {
         // (and has no roster for foeShare to weigh — the map tip asks this of every party)
         if(!npc || npc.trade || npc.wanderer) return '';
         let sc = Battle.rewardScale(this.foeShare(npc));
-        return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${Math.round(sc * 100)}</b>'e iner.`}` : '';
+        return sc < 0.95 ? `${T`🪶 Kolay av: bu savaştan alacağın ganimet ve tecrübe <b>%${I18N.suffix(Math.round(sc * 100), 'dat')}</b> iner.`}` : '';
     },
 
     triggerEncounter(npc, ambush) {
@@ -4959,7 +4959,7 @@ const Game = {
             let cold = got < need;
             p.coldDays = cold ? (p.coldDays || 0) + 1 : 0;
             if(cold) p.winterColdDays = (p.winterColdDays || 0) + 1;
-            if(cold && !p.wasCold) say.push(T`🥶 <b>Kömür bitti!</b> Ordu üşüyor: moral <b>${this.COLD_MORALE_CAP}</b>'ın üstüne çıkamaz. ${this.COLD_SICK_AFTER} günden sonra askerler hastalanıp ölmeye başlar.`);
+            if(cold && !p.wasCold) say.push(T`🥶 <b>Kömür bitti!</b> Ordu üşüyor: moral <b>${I18N.suffix(this.COLD_MORALE_CAP, 'gen')}</b> üstüne çıkamaz. ${this.COLD_SICK_AFTER} günden sonra askerler hastalanıp ölmeye başlar.`);
             if(!cold && p.wasCold) say.push(T('🔥 Ateşler yeniden yandı, ordu ısındı.'));
             p.wasCold = cold;
             let troops = p.party.filter(t => !t.isCompanion && !t.isSpouse);
@@ -5058,7 +5058,7 @@ const Game = {
             }}
           ]},
         { id: 'orphan', icon: '🗡️', name: 'Kılıçlı Yetim', size: 1,
-          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${T(c.near.name)}'de bana iş yok," diyor, "savaşmayı öğrenirim."`,
+          text: c => T`Elinde babasından kalan bir kılıçla bir oğlan. "${I18N.suffix(T(c.near.name), 'loc', true)} bana iş yok," diyor, "savaşmayı öğrenirim."`,
           choices: [
             { label: () => T`⚔️ Al yanına`, run(c) {
                 let t = Game.addRecruit(c.near);
@@ -5537,7 +5537,7 @@ const Game = {
           ]},
 
         { id: 'wildfire', icon: '🔥', when: c => c.near && c.near.type === 'village' && !c.night,
-          text: c => T`Kuru otlar tutuşmuş, alevler ${T(c.near.name)}'e yaklaşıyor. Köylüler elleriyle söndürmeye çalışıyor.`,
+          text: c => T`Kuru otlar tutuşmuş, alevler ${I18N.suffix(T(c.near.name), 'dat', true)} yaklaşıyor. Köylüler elleriyle söndürmeye çalışıyor.`,
           choices: [
             { label: () => T`🪣 Söndürmeye yardım et (4 saat)`, run(c) {
                 Game.roadDelay(4);
@@ -5687,7 +5687,7 @@ const Game = {
         { id: 'lost_child', icon: '🧒', when: c => c.near && c.near.type === 'village',
           text: () => T`Ağlayan küçük bir kız yol kenarında kaybolmuş, ailesini arıyor.`,
           choices: [
-            { label: c => T`🏡 ${T(c.near.name)}'e götür (1 saat)`, run(c) {
+            { label: c => T`🏡 ${I18N.suffix(T(c.near.name), 'dat', true)} götür (1 saat)`, run(c) {
                 Game.roadDelay(1);
                 if(c.near.prosperity !== undefined) c.near.prosperity = Math.min(100, c.near.prosperity + 4);
                 return T`Anası onu görünce koşarak geldi.<br>${T(c.near.name)} refahı <b>+4</b>, şeref <b>+${Game.addHonor('roadKind')}</b>.`;
@@ -6170,7 +6170,7 @@ const Game = {
         this.setHtml('tip-money', this.tipBox(T('Hazine'),
             R(T('Kesede'), T`${Math.floor(p.money)} dinar`, null) +
             R(T('Günlük asker maaşı'), '-' + up.wage, false) +
-            R(T('Günlük yemek'), T`-${Math.ceil(up.foodLow)} birim${up.foodHigh ? T` (${Math.ceil(up.foodHigh)}'i et/peynir)` : ''}`, false) +
+            R(T('Günlük yemek'), T`-${Math.ceil(up.foodLow)} birim${up.foodHigh ? T` (${I18N.suffix(Math.ceil(up.foodHigh), 'poss')} et/peynir)` : ''}`, false) +
             (this.myFiefs().length ? R(T('Tımar vergisi'), T`+${this.fiefIncome().tax} (${this.myFiefs().length} tımar)`, true) : '') +
             (this.myEnterprises().length ? R(T('İşletme'), T`+${this.fiefIncome().trade} (${this.myEnterprises().length} işletme)`, true) : '') +
             (this.tributaries().length ? R(T('Haraç'), T`+${this.fiefIncome().levy} (${this.tributaries().length} köy)`, true) : '') +
@@ -9887,7 +9887,7 @@ const Game = {
             }));
             if(!best || best.gap < 0.15) return null;
             let at = L(best.town);
-            return { html: T`"Buradan <b>${T(best.good.name)}</b> alıp <b>${T(at.name)}</b>'a götüren adam
+            return { html: T`"Buradan <b>${T(best.good.name)}</b> alıp <b>${I18N.suffix(T(at.name), 'dat', true)}</b> götüren adam
                 yüzde <b>${Math.round(best.gap * 100)}</b> kâr ediyor. Bunu sana ben söylemedim."` };
         }},
         { tier: 3, run(here, L) {
@@ -9896,7 +9896,7 @@ const Game = {
                 ? { html: T`"Turnuva mevsimi gelmiş. Birkaç şehirde meydan kurulmuş diyorlar ama nerede olduğunu bilen yok."` }
                 : null;
             let at = L(feast);
-            return { html: T`"<b>${T(at.name)}</b>'da şölen var, soylular oraya akıyor. Namın varsa kapıdan çevirmezler."`,
+            return { html: T`"<b>${I18N.suffix(T(at.name), 'loc', true)}</b> şölen var, soylular oraya akıyor. Namın varsa kapıdan çevirmezler."`,
                      mark: { x: at.x, y: at.y, radius: 150, name: Tx(at.name) } };
         }},
         { tier: 3, run(here, L) {
@@ -10447,7 +10447,7 @@ const Game = {
         if(!comps.length) return no(T`Gönderecek yoldaşın yok. Elçilik sıradan bir askerin işi değil.`);
 
         let atWar = this.atWar(this.playerFaction(), lord.faction);
-        let html = `<h3>${T`🕊️ ${T(lord.name)}'a Elçi Gönder`}</h3>
+        let html = `<h3>${T`🕊️ ${I18N.suffix(T(lord.name), 'dat')} Elçi Gönder`}</h3>
             <p style="color:var(--text-muted);font-size:var(--fs-md)">${T`Yoldaşın gruptan
             ${this.ENVOY_DAYS[0]}-${this.ENVOY_DAYS[1]} gün ayrılır; yeteneği de onunla gider.
             İkna kabiliyeti ve seviyesi işin sonucunu belirler.`}</p>`;
@@ -10696,7 +10696,7 @@ const Game = {
                 lost ? Tx`${lost} kişilik garnizonun kılıçtan geçti.` : Tx('Garnizonsuz bıraktığın tımar bir gün bile dayanmadı.')];
         }
         let mine = wasMine || [old, atk.faction].indexOf(this.playerFaction()) !== -1;
-        this.news(Tx`🏰 ${Tx(loc.name)}, ${this.factionTx(old)}'ndan alındı — artık ${this.factionTx(atk.faction)} toprağı.${lostFief}`, mine);
+        this.news(Tx`🏰 ${Tx(loc.name)}, ${{ sfx: 'abl', of: this.factionTx(old), place: true }} alındı — artık ${this.factionTx(atk.faction)} toprağı.${lostFief}`, mine);
     },
     // Diplomacy screen: who's at war with whom, who holds how much land, the latest news
     showDiplomacy() {
@@ -10883,7 +10883,7 @@ const Game = {
         if(!sure) {
             let inc = this.enterpriseIncome(loc);
             return this.showModal(`<h3>${T`🏭 İşletme Satın Al (${this.ENTERPRISE_COST} dinar)`}</h3>
-            <p>${T`${T(loc.name)}'da bir işletme açılsın mı? Günde +${inc} dinar getirir, kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`}</p>
+            <p>${T`${I18N.suffix(T(loc.name), 'loc', true)} bir işletme açılsın mı? Günde +${inc} dinar getirir, kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`}</p>
             <button class="btn primary" onclick="Game.closeModal(); Game.buyEnterprise(LOCATIONS.find(l => l.id === '${loc.id}'), true)">${T`Evet, aç`}</button>
             <button class="btn" onclick="Game.closeModal()">${T`Vazgeç`}</button>`, '380px');
         }
@@ -10891,7 +10891,7 @@ const Game = {
         loc.enterprise = true;
         this.updateTopBar(); this.enterLocation(loc);
         let inc = this.enterpriseIncome(loc);
-        alert(T`${T(loc.name)}'da bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
+        alert(T`${I18N.suffix(T(loc.name), 'loc', true)} bir işletme açtın.\nGünde +${inc} dinar — kendini ${Math.ceil(this.ENTERPRISE_COST / inc)} günde amorti eder.`);
     },
 
     fiefTax(loc) { return Math.round((loc.prosperity || 50) * (loc.type === 'city' ? 2 : loc.type === 'castle' ? 0.7 : 1)); },
@@ -10947,9 +10947,9 @@ const Game = {
             return alert(T`${T(lord.name)} sana bağlanacak kadar güvenmiyor.\nGereken ilişki: ${this.VASSAL_REL} (şu an ${rel}).`);
         if(!free.length)
             return alert(T('Toprağı olmayan krala kimse yemin etmez. Önce bir şehir ya da kale fethet — vassal ancak tımar karşılığı gelir.'));
-        this.showModal(`<h3>${T`👑 ${T(lord.name)}'e Bağlılık Teklifi`}</h3>
+        this.showModal(`<h3>${T`👑 ${I18N.suffix(T(lord.name), 'dat')} Bağlılık Teklifi`}</h3>
             <p style="color:var(--text-muted)">${T`Hangi tımarı ona veriyorsun? Toprak onun olur:
-            vergisinin <b>%${Math.round(this.VASSAL_TRIBUTE * 100)}</b>'i haraç olarak sana gelir, kalanı ve garnizon
+            vergisinin <b>%${I18N.suffix(Math.round(this.VASSAL_TRIBUTE * 100), 'poss')}</b> haraç olarak sana gelir, kalanı ve garnizon
             derdi ona kalır. Partisi bundan sonra senin bayrağınla savaşır.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
             ${free.map(l => `<button class="btn" onclick="Game.grantFiefTo('${l.id}','${lordId}',1)">${T`🏰 ${T(l.name)} (${l.type === 'city' ? T('Şehir') : T('Kale')}) — +${this.fiefTax(l)} dinar/gün`}</button>`).join('')}
@@ -10960,7 +10960,7 @@ const Game = {
         let vs = this.vassals();
         if(!vs.length) return alert(T('Henüz vassalın yok. Lordlarla konuşup krallığına davet et.'));
         this.showModal(`<h3>${T`🏰 ${T(loc.name)} kime veriliyor?`}</h3>
-            <p style="color:var(--text-muted)">${T`Tımar vassalın olur; vergisinin %${Math.round(this.VASSAL_TRIBUTE * 100)}'i haraç
+            <p style="color:var(--text-muted)">${T`Tımar vassalın olur; vergisinin %${I18N.suffix(Math.round(this.VASSAL_TRIBUTE * 100), 'poss')} haraç
             olarak sana gelir. Buradaki <b>${(loc.garrison || []).length}</b> asker onun emrine geçer.`}</p>
             <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:1rem">
             ${vs.map(v => `<button class="btn" onclick="Game.grantFiefTo('${locId}','${v.id}')">${T`👑 ${T(v.name)} — ${this.fiefsOf(v.id).length} tımar · ilişki ${Nobles.rel(v.id)}`}</button>`).join('')}
@@ -10974,7 +10974,7 @@ const Game = {
             state.vassals.push(lordId);
             this.applyVassals();
             LORDS.filter(l => l.faction === old).forEach(l => Nobles.addRel(l.id, -10));
-            this.news(Tx`👑 ${Tx(lord.name)}, ${this.factionTx(old)}'dan ayrılıp senin krallığına katıldı.`, true);
+            this.news(Tx`👑 ${Tx(lord.name)}, ${{ sfx: 'abl', of: this.factionTx(old), place: true }} ayrılıp senin krallığına katıldı.`, true);
         }
         let n = (loc.garrison || []).length;
         loc.owner = lordId;
@@ -10984,9 +10984,9 @@ const Game = {
         // The jealousy from Warband: a vassal left empty-handed while land is handed out sulks
         this.vassals().filter(v => v.id !== lordId && !this.fiefsOf(v.id).length)
                       .forEach(v => Nobles.addRel(v.id, -5));
-        this.news(Tx`🏰 ${Tx(loc.name)} tımarı ${Tx(lord.name)}'e verildi.`, true);
+        this.news(Tx`🏰 ${Tx(loc.name)} tımarı ${{ sfx: 'dat', of: Tx(lord.name) }} verildi.`, true);
         this.closeModal();
-        alert(T`${T(loc.name)} artık ${T(lord.name)}'in tımarı.\n+20 ilişki${n ? T`, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
+        alert(T`${T(loc.name)} artık ${I18N.suffix(T(lord.name), 'gen')} tımarı.\n+20 ilişki${n ? T`, garnizondaki ${n} asker onun emrine geçti` : ''}.\nGünlük haracı: +${Math.round(this.fiefTax(loc) * this.VASSAL_TRIBUTE)} dinar.`);
         this.updateTopBar();
     },
     troopGroups(list) {
@@ -11629,7 +11629,7 @@ const Game = {
         this.addProficiencyXp('looting', 60);
         Quests.emit('raided', { locId: loc.id, faction: loc.faction });
         alert(T`${T(loc.name)} yağmalandı!\n\n💰 ${loot} dinar\n${food.map(([id, q]) => `${ITEMS[id].icon} ${T(ITEMS[id].name)} x${q}`).join('\n')}`
-            + T`\n\nKöyün refahı ${Math.round(loc.prosperity)}'e düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
+            + T`\n\nKöyün refahı ${I18N.suffix(Math.round(loc.prosperity), 'dat')} düştü. Dumanı uzaktan görülüyor; bu unutulmayacak.`);
     },
 
     talkToElder(loc) {
@@ -12455,7 +12455,7 @@ const Game = {
         this.ambitionTick();
         this.updateTopBar();
         this.renderPartyScreen();
-        alert(T`${T(pr.name)}'i fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
+        alert(T`${I18N.suffix(T(pr.name), 'acc')} fidyesiz salıverdin. Bu şerefli davranış dilden dile dolaşacak. (+3 nam)`);
     },
 
     prisonersHtml() {

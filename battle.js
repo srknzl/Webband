@@ -3720,7 +3720,7 @@ const Battle = {
                 <h2 style="color:#2ecc71;margin-bottom:1rem;font-size:2rem;text-shadow:0 0 10px rgba(46,204,113,0.5)">${this.autoLoss ? T('🎖️ Askerlerin Halletti') : this.knockedOut ? T('🩸 Pahalı Zafer') : T('⚔️ Mükemmel Zafer! ⚔️')}</h2>
                 ${this.autoLoss ? `<p style="color:#8fd6ff;margin-bottom:1rem">${T`Sen inmedin: adamların kendi başlarına dövüştü, beklenen kayıp %${Math.round(this.autoLoss*100)}.`}</p>` : ''}
                 ${this.knockedOut ? T('<p style="color:#ff8866;margin-bottom:1rem">Savaş meydanında bayıldın; ganimet ve tecrübe yarıya indi.</p>') : ''}
-                ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">${T`Kolay av: bu düşman sana denk değildi, ödüller %${Math.round(rScale*100)}'e indi.`}</p>` : ''}
+                ${rScale < 0.9 ? `<p style="color:#c9a227;margin-bottom:1rem">${T`Kolay av: bu düşman sana denk değildi, ödüller %${I18N.suffix(Math.round(rScale*100), 'dat')} indi.`}</p>` : ''}
                 ${led ? `<p style="color:#9fe0a0;margin-bottom:1rem">${T`⚔️ Önden yürüdün: dinar ve tecrübe ${Game.pct(this.LEAD_BONUS * 100, true)}, nam +${this.LEAD_RENOWN}.`}</p>` : ''}
                 <div style="background:rgba(0,0,0,0.3);padding:1.5rem;border-radius:var(--r-md);margin-bottom:1.5rem;font-size:1.2rem;line-height:1.6;text-align:left;">
                     <p style="margin-bottom:0.8rem"><b>${T`Kazanılan Dinar:`}</b> <span style="color:#ffcc00">+${moneyGain}</span> 💰</p>

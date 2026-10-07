@@ -63,7 +63,7 @@ const QUESTS = {
         desc(q) {
             let n = state.player.party.filter(t => t.level >= 20).length;
             return T`Grubunda <b>${n}/${q.data.need}</b> asker 20. seviyeyi geçti — hepsi yanındayken
-                ${T(Nobles.lord(q.giverId).name)}'ın salonuna gir (asker savaşta ve antrenmanda seviye atlar)`;
+                ${I18N.suffix(T(Nobles.lord(q.giverId).name), 'gen')} salonuna gir (asker savaşta ve antrenmanda seviye atlar)`;
         },
         where(q) { return q.data.locId; },
         on(q, ev, d) {
@@ -211,7 +211,7 @@ const QUESTS = {
                 if(l && about && l.faction === about.faction && l.id !== about.id && !q.data.told.includes(l.id)) {
                     q.data.told.push(l.id);
                     Nobles.addRel(l.id, -3);
-                    alert(T`${T(l.name)}'a ${T(about.name)}'ı yanlış yerde gördüğünü söyledin. İnandı.\n(${q.data.told.length}/${q.data.need})`);
+                    alert(T`${I18N.suffix(T(l.name), 'dat')} ${I18N.suffix(T(about.name), 'acc')} yanlış yerde gördüğünü söyledin. İnandı.\n(${q.data.told.length}/${q.data.need})`);
                     if(q.data.told.length >= q.data.need) return 'done';
                 }
             }
@@ -238,7 +238,7 @@ const QUESTS = {
                 Sen bir yabancısın, senin şerefin buna dayanır. <b>25 saniyen var, 16 tavuk yakala.
                 Kazlara dokunma, onlar Hüsnü'nün değil.`}</b>"`;
         },
-        desc(q) { return T`<b>${Quests.locName(q.data.locId)}</b>'a gir ve avluda tavuk kovala — 25 saniyede 16 tavuk.
+        desc(q) { return T`<b>${I18N.suffix(Quests.locName(q.data.locId), 'dat', true)}</b> gir ve avluda tavuk kovala — 25 saniyede 16 tavuk.
             Mavi olanlar kaz, onları yakalarsan bir tavuk kaybedersin.
             Kaçırırsan süre dolana kadar yeniden deneyebilirsin.`; },
         where(q) { return q.data.locId; },
@@ -320,13 +320,13 @@ const QUESTS = {
         },
         offer(q) {
             return `${T`"Bir ulağım ${T(q.data.pickName)} köyünde kayboldu. Üstünde mühürlü bir mektup vardı.<br><br>
-                Köye git, mektubu bul, <b>${T(q.data.toName)}</b>'a ulaştır.<br>
+                Köye git, mektubu bul, <b>${I18N.suffix(T(q.data.toName), 'dat', true)}</b> ulaştır.<br>
                 Mühür kırılırsa anlarım. Merakını yenemezsen de anlarım."`}`;
         },
         desc(q) {
             return q.data.has
-                ? T`Mektup çantanda — <b>${T(q.data.toName)}</b>'a ulaştır; onu ancak kendi salonundayken bulursun`
-                : T`<b>${T(q.data.pickName)}</b> köyüne gir ve mektubu bul, sonra <b>${T(q.data.toName)}</b>'a götür`;
+                ? T`Mektup çantanda — <b>${I18N.suffix(T(q.data.toName), 'dat', true)}</b> ulaştır; onu ancak kendi salonundayken bulursun`
+                : T`<b>${T(q.data.pickName)}</b> köyüne gir ve mektubu bul, sonra <b>${I18N.suffix(T(q.data.toName), 'dat', true)}</b> götür`;
         },
         where(q) { return q.data.has ? Quests.lordSeat(q.data.toId) : q.data.pickLoc; },
         on(q, ev, d) {
@@ -354,7 +354,7 @@ const QUESTS = {
                 Bir şehrin hanına git, ozanı bul, ondan bir şiir öğren. Sonra gelip bana oku.
                 Kötüyse, öğrendiğini bana okumadan önce iyi düşün."`}`;
         },
-        desc(q) { return T`Bir şehrin hanında ozandan şiir öğren (dinar ister), sonra ${T(Nobles.lord(q.giverId).name)}'ın
+        desc(q) { return T`Bir şehrin hanında ozandan şiir öğren (dinar ister), sonra ${I18N.suffix(T(Nobles.lord(q.giverId).name), 'gen')}
             salonuna dön ve <b>🎵 Öğrendiğin şiiri oku</b> de`; },
         where(q) { return Quests.lordSeat(q.giverId); },
         on(q, ev, d) {
@@ -393,7 +393,7 @@ const QUESTS = {
                 Bana <b>${q.data.need} esir</b> getir — soylu değil, sıradan adam. Savaşı kazandıktan sonra
                 sağ kalanları zincire vurursan olur. Nereden bulduğun benim işim değil."`}`;
         },
-        desc(q) { return T`Savaş kazanıp esir al, sonra <b>${Quests.locName(q.data.locId)}</b>'a gir —
+        desc(q) { return T`Savaş kazanıp esir al, sonra <b>${I18N.suffix(Quests.locName(q.data.locId), 'dat', true)}</b> gir —
             yanında <b>${Quests.prisonerCount()}/${q.data.need}</b> sıradan esir olmalı (soylular sayılmaz)`; },
         where(q) { return q.data.locId; },
         on(q, ev, d) {
@@ -424,7 +424,7 @@ const QUESTS = {
             q.data = { locId: v.id, locName: v.name };
         },
         offer(q) {
-            return `${T`"${T(q.data.locName)}'ın ambarı düşmanın ordusunu besliyor. O ambar yanarsa cephe de söner.<br><br>
+            return `${T`"${I18N.suffix(T(q.data.locName), 'gen', true)} ambarı düşmanın ordusunu besliyor. O ambar yanarsa cephe de söner.<br><br>
                 Git ve <b>köyü yağmala</b>. Dumanı görüp yetişen olursa kılıcını çekersin.
                 Peşin söyleyeyim: bu iş namını lekeler, kesemi değil."`}`;
         },
@@ -448,14 +448,14 @@ QUESTS.caravan_escort = {
         q.data = { locId: c.id, locName: c.name, need: 2, got: 0 };
     },
     offer(q) {
-        return `${T`"Kervanımız <b>${T(q.data.locName)}</b>'a gidecek ama yol çapulcu kaynıyor. Muhafız tutmak pahalı, tabut daha pahalı.<br><br>
-            Sen önden git: <b>${q.data.need} çapulcu grubunu</b> dağıt, sonra ${T(q.data.locName)}'a var ve oradaki adamımıza haber ver.
+        return `${T`"Kervanımız <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> gidecek ama yol çapulcu kaynıyor. Muhafız tutmak pahalı, tabut daha pahalı.<br><br>
+            Sen önden git: <b>${q.data.need} çapulcu grubunu</b> dağıt, sonra ${I18N.suffix(T(q.data.locName), 'dat', true)} var ve oradaki adamımıza haber ver.
             Lonca borcunu unutmaz."`}`;
     },
     desc(q) {
         return q.data.got >= q.data.need
-            ? T`Yol temiz — şimdi <b>${T(q.data.locName)}</b>'a gir ve loncanın adamına haber ver`
-            : T`Haritada çapulcu grubu bul ve dağıt — <b>${q.data.got}/${q.data.need}</b>, sonra <b>${T(q.data.locName)}</b>'a git`;
+            ? T`Yol temiz — şimdi <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> gir ve loncanın adamına haber ver`
+            : T`Haritada çapulcu grubu bul ve dağıt — <b>${q.data.got}/${q.data.need}</b>, sonra <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> git`;
     },
     where(q) { return q.data.got >= q.data.need ? q.data.locId : null; },
     on(q, ev, d) {
@@ -478,12 +478,12 @@ QUESTS.guild_supply = {
     },
     offer(q) {
         return `${T`"Atölyeler <b>${T(q.data.itemName)}</b> bekliyor, tedarikçim iki haftadır ortada yok.<br><br>
-            <b>${q.data.need} birim ${T(q.data.itemName)}</b> bul, ${T(q.data.locName)}'a getir. Nereden bulduğun beni ilgilendirmez —
+            <b>${q.data.need} birim ${T(q.data.itemName)}</b> bul, ${I18N.suffix(T(q.data.locName), 'dat', true)} getir. Nereden bulduğun beni ilgilendirmez —
             loncanın defterinde sadece rakamlar var."`}`;
     },
     desc(q) {
         let inv = state.player.inventory.find(i => i.id === q.data.item);
-        return T`<b>${T(q.data.locName)}</b>'a gir, çantanda <b>${inv ? inv.qty : 0}/${q.data.need}</b> birim
+        return T`<b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> gir, çantanda <b>${inv ? inv.qty : 0}/${q.data.need}</b> birim
             ${T(q.data.itemName)} olsun (herhangi bir şehrin pazarından alınır)`;
     },
     where(q) { return q.data.locId; },
@@ -760,7 +760,7 @@ QUESTS.fever_relief = {
         let v = vils[Math.floor(Math.random() * vils.length)] || LOCATIONS[0];
         q.data = { locId: v.id, locName: v.name, need: 8 };
     },
-    offer(q) { return T`${T(q.data.locName)}'da ateşli hastalık yayılıyor, ihtiyarlar bal ve kaynatılmış otla iyileşir derdi.
+    offer(q) { return T`${I18N.suffix(T(q.data.locName), 'loc', true)} ateşli hastalık yayılıyor, ihtiyarlar bal ve kaynatılmış otla iyileşir derdi.
         <b>${q.data.need} birim bal</b> lazım — <b>altı gün</b> içinde ulaşmazsan geç kalırsın.`; },
     desc(q) {
         let n = (state.player.inventory.find(i => i.id === 'honey') || {}).qty || 0;
@@ -783,9 +783,9 @@ QUESTS.lady_escort = {
         let c = pool[Math.floor(Math.random() * pool.length)] || LOCATIONS[0];
         q.data = { locId: c.id, locName: c.name };
     },
-    offer(q) { return T`Yeğenimi <b>${T(q.data.locName)}</b>'a göndermem gerekiyor ama yollar çapulcu kaynıyor.
+    offer(q) { return T`Yeğenimi <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> göndermem gerekiyor ama yollar çapulcu kaynıyor.
         Yanına birkaç muhafız takıyorum, sen önden git — kafile seni izleyecek, yol boyunca göz kulak ol.`; },
-    desc(q) { return T`Kafileyle birlikte <b>${T(q.data.locName)}</b>'a sağ salim ulaş.`; },
+    desc(q) { return T`Kafileyle birlikte <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> sağ salim ulaş.`; },
     where(q) { return q.data.locId; },
     on(q, ev, d) { if(ev === 'entered_location' && d.locId === q.data.locId) return 'done'; }
 };
@@ -861,7 +861,7 @@ QUESTS.relay_packages = {
         elindeki yenisini bir sonraki durağa taşı. Zincir kopmasın.`; },
     desc(q) {
         let l = LOCATIONS.find(x => x.id === q.data.stops[q.data.leg]);
-        return T`Durak <b>${q.data.leg + 1}/${q.data.stops.length}</b> — <b>${l ? T(l.name) : '?'}</b>'e paketi taşı.`;
+        return T`Durak <b>${q.data.leg + 1}/${q.data.stops.length}</b> — <b>${I18N.suffix(l ? T(l.name) : '?', 'dat', true)}</b> paketi taşı.`;
     },
     where(q) { return q.data.stops[q.data.leg]; },
     on(q, ev, d) {
@@ -1010,7 +1010,7 @@ QUESTS.shadow_dispatch = {
     desc(q) {
         return q.data.stage === 'infiltrate'
             ? T`<b>${T(q.data.locName)}</b> surlarına sokul ve fermanı ele geçir.`
-            : T`Ferman elinde — sınırı geçip <b>${T(q.data.homeName)}</b>'a dön, izini kaybettir.`;
+            : T`Ferman elinde — sınırı geçip <b>${I18N.suffix(T(q.data.homeName), 'dat', true)}</b> dön, izini kaybettir.`;
     },
     where(q) { return q.data.stage === 'infiltrate' ? q.data.locId : q.data.homeId; },
     on(q, ev, d) {
@@ -1033,11 +1033,11 @@ QUESTS.merchant_convoy = {
         let c = pool[Math.floor(Math.random() * pool.length)] || LOCATIONS.find(l => l.id === giver.homeLocId) || LOCATIONS[0];
         q.data = { locId: c.id, locName: c.name, ambushed: false, cleared: false };
     },
-    offer(q) { return T`Kervanım <b>${T(q.data.locName)}</b>'a mal götürecek. Yolun ortasında pusu kurulduğunu duydum ama nerede bilmiyorum.
+    offer(q) { return T`Kervanım <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> mal götürecek. Yolun ortasında pusu kurulduğunu duydum ama nerede bilmiyorum.
         Kervanla git, pusuya düşerlerse kurtar, sonunda kervanı sağ salim teslim et.`; },
     desc(q) {
         if(q.data.ambushed && !q.data.cleared) return T`Kervan pusuya düştü — saldıranları dağıt.`;
-        return T`Kervanla birlikte <b>${T(q.data.locName)}</b>'a doğru yol al; yolda pusu olabilir.`;
+        return T`Kervanla birlikte <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> doğru yol al; yolda pusu olabilir.`;
     },
     where(q) { return q.data.locId; },
     day(q) {
@@ -1081,7 +1081,7 @@ QUESTS.siege_provisions = {
         muhasara hattını yarıp içeri sok. Çabuk ol, açlık kılıçtan hızlı öldürür.`; },
     desc(q) {
         let f = Quests.foodCount();
-        return T`<b>${T(q.data.locName)}</b>'a gir, çantanda <b>${f}/${q.data.need}</b> birim yemek olsun.`;
+        return T`<b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> gir, çantanda <b>${f}/${q.data.need}</b> birim yemek olsun.`;
     },
     where(q) { return q.data.locId; },
     on(q, ev, d) {
@@ -1102,7 +1102,7 @@ QUESTS.noble_hostage_exchange = {
     },
     offer(q) { return T`Düşman elimizdeki esirleri istiyor, karşılığında bizim adamlarımızı serbest bırakacaklar.
         Soylu olmayan <b>${q.data.need} esiri</b> <b>${T(q.data.locName)}</b> kapısına götür ve değiş tokuşu yap.`; },
-    desc(q) { return T`Soylu olmayan esirlerle <b>${T(q.data.locName)}</b>'a gir — <b>${Quests.prisonerCount()}/${q.data.need}</b>.`; },
+    desc(q) { return T`Soylu olmayan esirlerle <b>${I18N.suffix(T(q.data.locName), 'dat', true)}</b> gir — <b>${Quests.prisonerCount()}/${q.data.need}</b>.`; },
     where(q) { return q.data.locId; },
     on(q, ev, d) {
         if(ev !== 'entered_location' || d.locId !== q.data.locId || Quests.prisonerCount() < q.data.need) return;
@@ -1248,7 +1248,7 @@ const Quests = {
     descFor(q) {
         if(q.state === 'awaiting') {
             let g = this.giver(q.giverId), r = QUESTS[q.id].reward;
-            return T`Görev tamam. Ödülü almak için <b>${this.giverName(g)}</b>'le konuş — en son <b>${this.locName(q.turnInLocId)}</b>'de görüldü, ama nerede rastlarsan orada teslim edebilirsin.` +
+            return T`Görev tamam. Ödülü almak için <b>${I18N.suffix(this.giverName(g), 'ins')}</b> konuş — en son <b>${I18N.suffix(this.locName(q.turnInLocId), 'loc', true)}</b> görüldü, ama nerede rastlarsan orada teslim edebilirsin.` +
                 `<br>${T`Ödül: <b>+${this.money(QUESTS[q.id])} dinar, ${r.renown > 0 ? '+' : ''}${this.renown(QUESTS[q.id])} nam</b>. Konuşma penceresinde <b>✅ Görevi teslim et</b> düğmesine bas.`}`;
         }
         return QUESTS[q.id].desc(q);
