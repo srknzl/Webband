@@ -3,6 +3,13 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.11.2 — Kantar (2026-10-07)
+
+- **At ağıllı bir haydut inine girerken oyun takılmıyor.** İnin çizimleri yüklenirken haritada
+  zaman akmaya devam ediyordu. Bu sırada bir karşılaşma çıkarsa penceresi inin üstünde açılıyor,
+  ağıldaki atlar çizilemiyor ve in donup kalıyordu. Artık yükleme bitene kadar harita saati
+  duruyor; ağıldaki atlar da ilk anda bile düzgün çiziliyor.
+
 ## 2.11.1 — Kantar (2026-10-03)
 
 - **Meslekler adım adım anlatılıyor.** Demircilik, bileği taşı, marangozluk ve han mutfağındaki

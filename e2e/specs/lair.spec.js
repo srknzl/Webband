@@ -72,6 +72,22 @@ test('the scouting card offers three ways in and the tour opens on the first vis
     await page.waitForFunction(() => Game._loopId && !Lair.active);
 });
 
+test('the map clock holds while a lair loads, and its pen draws under a window (#171)', async ({ page }) => {
+    await newGame(page);
+    const id = await openCard(page, 'camp');
+    // a window opened before the lair's first frame (an encounter while its sprites loaded):
+    // that frame is drawn before any update has walked the horses
+    const held = await page.evaluate(id => {
+        Lair.enter(id, 'solo');
+        const held = Game.clockStopped();
+        Game.showModal(`<p>${T('Çık')}</p>`);
+        return held;
+    }, id);
+    expect(held).toBe(true);
+    await page.waitForFunction(() => Lair.active && Lair.run() && Lair.run().drawn);
+    expect(await page.evaluate(() => [Lair.run().horses.length, Game.held])).toEqual([3, false]);
+});
+
 test('a chest opened in a lair pays out on the map', async ({ page }) => {
     await newGame(page);
     await openCard(page, 'house');

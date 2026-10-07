@@ -1142,7 +1142,7 @@ function newGame() {
         G.chars.push(g);
     });
     if(L.mine) stockMine();
-    G.horses = (L.pen ? L.pen.horses : []).map(([x, y], i) => ({ x: x * TS + 16, y: y * TS + 24, coat: ['bay', 'grey', 'black'][i % 3], a: i * 2.1, face: i % 2 ? -1 : 1 }));
+    G.horses = (L.pen ? L.pen.horses : []).map(([x, y], i) => ({ x: x * TS + 16, y: y * TS + 24, coat: ['bay', 'grey', 'black'][i % 3], gait: 'stand', a: i * 2.1, face: i % 2 ? -1 : 1 }));
     buildLight();
     bakeGround();
     G.revealAll = R.scout >= INTEL.sketch;
@@ -3164,6 +3164,9 @@ function enter(id, approach) {
     if(LEVELS[R.level].mine && !s.ore) s.ore = { ...Game.MINE.ore };   // a site made a mine by hand (a test, an old save) starts full
     s.lairAmbush = null;          // what was waiting is sprung (or not) now; tomorrow's is new
     build();
+    // the map clock stops while the sprites load (seconds on a slow link): an encounter popping up
+    // meanwhile would open its window over the lair's first frame (#171). showScreen lifts the hold.
+    Game.hold(true);
     loadAssets().then(() => {
         api.active = true; paused = false;
         Game.showScreen('lair');
