@@ -3,6 +3,20 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.12.1 — Pusula (2026-10-08)
+
+Bir oyuncunun şikâyetiyle: "İki çeteyi buldum, üçüncüsü hiç çıkmadı, görev battı, lordla aram bozuldu.
+İnsanlara çetelerin nerede olduğunu sorabilmeliyim."
+
+- **Haritada olmayan çeteyi avlatan görev yok.** Bazı dünyalarda hiç orman ini çıkmıyor, haritada tek
+  bir orman çetesi bulunmuyordu; Orman Pususu yine de verilebiliyordu ve sonu kesin başarısızlıktı.
+  Orman Pususu ve Kurt Sürüleri artık yalnız haritada o türden en az üç çete varken veriliyor.
+- **Handa sorabilirsin.** Bir av görevin varken söylenti dinlersen hancı o avı anlatıyor: en yakın
+  çetenin hangi yerleşimin oralarında görüldüğünü söylüyor ve haritaya işaret koyuyor. Bir handa
+  duyulan her söz gibi bu da yanlış çıkabilir; gözcülüğün yüksekse daha az.
+- **Üç Çete görevi de çetelerin yerini gösteriyor.** Kurt ve orman avları gibi haritada ve görev
+  defterinde 📍 işareti var.
+
 ## 2.12.0 — Pusula (2026-10-07)
 
 Bir deneme oyununun bulgularıyla: yenilgi koşuyu bitirmiyor, öne geçmek ödüllendiriliyor, orta

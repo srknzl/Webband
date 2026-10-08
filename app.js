@@ -5,7 +5,7 @@
 // Version stamp (#55 item 8): shown in the bug report and in the corner of the
 // start screen. The player's desktop shortcut pulls the repo to `main` on every
 // launch, so this is the only answer to "which code are we even talking about" — bumped by hand every turn.
-const VERSION = { no: '2.12.0', date: '2026-10-07', name: 'Pusula' };  // the version name is not translated
+const VERSION = { no: '2.12.1', date: '2026-10-08', name: 'Pusula' };  // the version name is not translated
 
 // --- ERROR BUFFER AND DEBUG REPORT (#52) ---
 // Give the player more than just a screenshot: errors pile up in a ring buffer,
@@ -9927,6 +9927,21 @@ const Game = {
         }}
     ],
 
+    // A hunt on the books is what you came to ask about (2.12.1): "where are the wolves?" was the
+    // one question a tavern couldn't answer — its band story was a random draw, a bare direction and
+    // no mark. With a hunt quest active the story is that hunt's nearest band, marked on the map.
+    // It is still a tavern story: the spotting skill's lie chance can pin it to the wrong place.
+    huntRumor(here, L) {
+        if(typeof Quests === 'undefined') return null;
+        let q = state.player.quests.find(x => x.state === 'active' && (QUESTS[x.id] || {}).hunt);
+        let b = q && Quests.huntBands(QUESTS[q.id].hunt).sort((a, c) => this.dist(a, here) - this.dist(c, here))[0];
+        if(!b) return null;
+        let at = L(b), near = LOCATIONS.reduce((a, l) => this.dist(l, at) < this.dist(a, at) ? l : a);
+        return { html: T`"Demek <b>${I18N.suffix(T(b.name), 'gen')}</b> peşindesin. <b>${I18N.suffix(T(near.name), 'gen', true)}</b> oralarında
+                görmüşler, ${Nobles.compass(near)} tarafta. Çabuk ol, bir yerde durmazlar."`,
+                 mark: { x: at.x, y: at.y, radius: 400, name: Tx(b.name) } };
+    },
+
     listenRumor(locId) {
         let loc = LOCATIONS.find(l => l.id === locId);
         if(!loc) return;
@@ -9949,7 +9964,7 @@ const Game = {
         this.addProficiencyXp('spotting', 25);
         this.updateTopBar();
 
-        let r = bag[Math.floor(Math.random() * bag.length)];
+        let r = this.huntRumor(loc, L) || bag[Math.floor(Math.random() * bag.length)];
         if(r && r.mark) state.knownLocations['rumor'] =
             { x: r.mark.x, y: r.mark.y, radius: r.mark.radius, day: state.time.day, label: r.mark.name };
 

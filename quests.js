@@ -654,7 +654,9 @@ QUESTS.ransom_column = {
 QUESTS.bandit_bounty = {
     title: 'Üç Çete', givers: ['martial', 'goodnatured', 'guild'], minRelation: -100, days: 20,
     reward: { money: 1450, renown: 12, rel: 12 },
+    hunt: 'any',   // any band counts, so the map always holds enough
     setup(q) { q.data = { got: 0, need: 3 }; },
+    where() { return Quests.huntWhere('any'); },
     offer(q) { return T`Yolları tutan <b>${q.data.need} ayrı haydut çetesini</b> dağıt. Hangi bayrağı taşıdıkları önemli değil.`; },
     desc(q) { return T`Haritada haydut veya çapulcu gruplarını yen — <b>${q.data.got}/${q.data.need}</b>.`; },
     on(q, ev, d) {
@@ -876,6 +878,8 @@ QUESTS.relay_packages = {
 QUESTS.wolf_cull = {
     title: 'Kurt Sürüleri', givers: ['martial', 'quarrelsome'], minRelation: 0, days: 16,
     reward: { money: 1350, renown: 11, rel: 12 },
+    hunt: 'wolf',
+    can() { return Quests.huntBands('wolf').length >= 3; },
     setup(q) { q.data = { got: 0, need: 3 }; },
     offer(q) { return T`Sürüler ağılları boşaltıyor, çobanlar geceleri uyuyamıyor.
         Haritada dolaşan <b>${q.data.need} kurt sürüsünü</b> dağıt.`; },
@@ -892,6 +896,8 @@ QUESTS.wolf_cull = {
 QUESTS.forest_ambush = {
     title: 'Orman Pususu', givers: ['martial', 'cunning'], minRelation: 0, days: 16,
     reward: { money: 1300, renown: 10, rel: 12 },
+    hunt: 'forest',
+    can() { return Quests.huntBands('forest').length >= 3; },
     setup(q) { q.data = { got: 0, need: 3 }; },
     offer(q) { return T`Tüccarlar ormanın içinden geçen kestirmeyi terk etti, orada pusu kuran çeteler var.
         <b>${q.data.need} orman çetesini</b> dağıt, yol yeniden açılsın.`; },
@@ -1164,11 +1170,19 @@ const Quests = {
     // days off at a playtest's pace. A shameful quest's renown cost stays what the table says.
     RENOWN_SCALE: 1.5,
     renown(def) { let r = def.reward.renown; return r > 0 ? Math.round(r * this.RENOWN_SCALE) : r; },
-    // A hunt with no place of its own (wolf packs, forest bands): the giver points at the settlement
-    // nearest the closest such band to you — the quest's marker on the map and 📍 in the log.
-    // Without it the bands were 3000–6600 away, unseen, and both such quests expired in a playtest.
+    // The bands a hunt (`def.hunt`) can count: free bands of that kind on the map, or any free band
+    // for 'any'. Not a lord's men, not another quest's wave. A hunt is only offered while the map
+    // holds enough of them (2.12.1): a world dealt no forest lair has no forest band at all, and
+    // Orman Pususu was offered there anyway — two found, the third never came, −10 with the giver.
+    huntBands(kind) {
+        return state.npcParties.filter(n => n.type === 'bandit' && n.size > 0 && !n.lordId && !n.questWave
+                                            && (kind === 'any' || n.band === kind));
+    },
+    // A hunt with no place of its own: the giver points at the settlement nearest the closest such
+    // band to you — the quest's marker on the map and 📍 in the log. Without it the bands were
+    // 3000–6600 away, unseen, and both such quests expired in a playtest.
     huntWhere(kind) {
-        let bands = state.npcParties.filter(n => n.type === 'bandit' && n.band === kind && n.size > 0);
+        let bands = this.huntBands(kind);
         if(!bands.length) return null;
         let b = bands.reduce((a, n) => Game.dist(n, state.player) < Game.dist(a, state.player) ? n : a);
         return LOCATIONS.reduce((a, l) => Game.dist(l, b) < Game.dist(a, b) ? l : a).id;

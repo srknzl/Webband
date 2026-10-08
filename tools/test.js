@@ -2473,6 +2473,9 @@ function questWorld(opts) {
         const b = Game.createBand('bandit', 6, 'Çapulcu Reisi', '#8b0000');
         state.npcParties.push(b);
     }
+    // Three bands of each hunted kind, so wolf_cull and forest_ambush can be offered (their `can` gate)
+    for(const kind of ['wolf', 'forest'])
+        while(gq.Quests.huntBands(kind).length < 3) state.npcParties.push(Game.createBand(kind, 6, kind === 'wolf' ? 'Kurt Sürüsü' : 'Orman Haydutları', '#555'));
     // An active AI siege so siege_provisions has a besieged fief to offer (its `can` gate).
     const siegeCity = LOCATIONS.find(l => l.type === 'city' && l.faction);
     if(siegeCity) {
@@ -3178,6 +3181,34 @@ test('trade: goods carried far sell for more; the market they were bought in pay
     assert.strictEqual(Game.farPremium(held, a), 0, 'the home market pays a premium');
     assert.ok(Game.marketPrice('salt', true) < Game.marketPrice('salt'), 'buy-then-sell pays in one market');
     assert.ok(Math.abs(Game.farPremium(held, b) - Game.FAR_PREMIUM * Math.min(1, Game.dist(a, b) / Game.FAR_SPAN)) < 1e-9);
+});
+
+// An Indonesian player: "two found, the third never came, the quest failed and the lord took it
+// out on me — let me ask people where the bands are" (2.12.1). A world dealt no forest lair has no
+// forest band, and Orman Pususu was offered there anyway.
+test('hunts: offered only while the map holds the bands, marked on the map, and the tavern answers', () => {
+    const w = H.world({ seed: 1 });
+    const { Game, Quests, QUESTS, state, LORDS } = w;
+    const giver = LORDS[0];
+    state.npcParties = state.npcParties.filter(n => n.band !== 'forest');
+    assert.ok(!QUESTS.forest_ambush.can(giver), 'a hunt was offered with no such band on the map');
+    const near = (x, y) => { const b = Game.createBand('forest', 6, 'Orman Haydutları', '#2e7d32'); Object.assign(b, { x, y }); state.npcParties.push(b); return b; };
+    const p = state.player, bands = [near(p.x + 900, p.y), near(p.x - 2500, p.y), near(p.x, p.y + 3000)];
+    assert.ok(QUESTS.forest_ambush.can(giver), 'three forest bands on the map and still no hunt');
+    // another quest's wave or a lord's men are not this hunt's prey
+    bands[2].questWave = 'merchant_convoy';
+    assert.ok(!QUESTS.forest_ambush.can(giver), 'a quest wave counted as a band to hunt');
+    delete bands[2].questWave;
+    // Üç Çete points somewhere too: any band counts
+    assert.ok(QUESTS.bandit_bounty.where(), 'the three-gangs hunt has no marker');
+    // the tavern: with the hunt on the books, the story is its nearest band, marked where it is
+    const q = Quests.make('forest_ambush', giver.id); state.player.quests.push(q);
+    const town = w.LOCATIONS.reduce((a, l) => Game.dist(l, p) < Game.dist(a, p) ? l : a);
+    Game.rumorLieChance = () => 0; Game.showModal = () => {}; state.player.money = 1000;
+    const first = bands.reduce((a, b) => Game.dist(b, town) < Game.dist(a, town) ? b : a);
+    Game.listenRumor(town.id);
+    const mark = state.knownLocations.rumor;
+    assert.ok(mark && Math.hypot(mark.x - first.x, mark.y - first.y) < 300, `the tavern marked ${JSON.stringify(mark)}, the band is at ${Math.round(first.x)},${Math.round(first.y)}`);
 });
 
 // Small fixes from the 2.12.0 playtest: a hamlet's stall, the king's door, day one's loaf
