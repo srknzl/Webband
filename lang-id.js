@@ -3944,5 +3944,6 @@ I18N.dicts.id = {
   "Adım {0}/{1}": "Langkah {0}/{1}",
   "İleri →": "Lanjut →",
   "+1 hedef": "+1 target",
+  "\"Demek <b>{0}</b> peşindesin. <b>{1}</b> oralarında görmüşler, {2} tarafta. Çabuk ol, bir yerde durmazlar.\"": "\"Jadi kau memburu <b>{0}</b>. Orang melihat mereka di sekitar <b>{1}</b>, di sebelah {2}. Cepat, mereka tak pernah diam di satu tempat.\"",
   "Atla, hemen başla": "Lewati, mulai sekarang"
 };

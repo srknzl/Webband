@@ -3944,5 +3944,6 @@ I18N.dicts.en = {
   "Adım {0}/{1}": "Step {0}/{1}",
   "İleri →": "Next →",
   "+1 hedef": "+1 target",
+  "\"Demek <b>{0}</b> peşindesin. <b>{1}</b> oralarında görmüşler, {2} tarafta. Çabuk ol, bir yerde durmazlar.\"": "\"So you're hunting the <b>{0}</b>. Folk saw them around <b>{1}</b>, out to the {2}. Be quick — they never stay put.\"",
   "Atla, hemen başla": "Skip, start now"
 };

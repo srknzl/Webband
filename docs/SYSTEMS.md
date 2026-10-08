@@ -630,6 +630,14 @@ precondition — `can` already filtered), `can(giver)` (is it currently offerabl
 line and the map's 📜 stamp read from). `Quests.taskHtml(q)` merges the two; `Quests.make(id,
 giverId)` generates an instance.
 
+**Hunts** (`def.hunt`: `bandit_bounty` 'any', `wolf_cull` 'wolf', `forest_ambush` 'forest', 2.12.1):
+`Quests.huntBands(kind)` is the one list of prey — free bands of that kind, no lord's men, no other
+quest's wave. The kind hunts are offered only while it holds 3 (`can()`): `randomBandKind` deals
+lairs at random, and a world with no forest lair (seeds 1 and 4 of 5 at day 30) has no forest band,
+yet Orman Pususu was offered there and could only fail. Measured with a bot that hunts nonstop:
+knowing where the bands are (the marker) brings three kills from 4–13 days to ~2.5 (Üç Çete, strong
+party), and wolves from 9–16 days (2 of 5 timed out with a strong party) to 4.4–7.5.
+
 **Quest renown** is `Quests.renown(def)` = `def.renown × RENOWN_SCALE` 1.5 (2.12.0; a negative
 renown stays as written) — shown and paid from the same call. The two hunts (`wolf_cull`,
 `forest_ambush`) point at the settlement nearest the closest band of their kind (`huntWhere`), so
@@ -1360,7 +1368,9 @@ insurance.
 👂 Listen at the tavern: 20₺, 2–4 hours. Spotting skill gates **which stories reach you** and
 **how often they're wrong** (tier 1 direction-only/45% lies → tier 3 numbers-and-dates/5% lies).
 A false rumor is always a true story pinned to the wrong place, not an invented one — one
-generator, one `L()` location-swap function, no duplicated prose. The guild price ledger costs
+generator, one `L()` location-swap function, no duplicated prose. **A hunt on the books is asked about** (2.12.1,
+`Game.huntRumor`): with a hunt quest active, the story is its nearest band, named by the settlement
+it roams near and marked on the map (radius 400) — the same lie chance and `L()` apply. The guild price ledger costs
 50₺/town/day (free to re-check the same day).
 
 ### Renown gates above 300
