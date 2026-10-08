@@ -1178,6 +1178,14 @@ const Quests = {
         return state.npcParties.filter(n => n.type === 'bandit' && n.size > 0 && !n.lordId && !n.questWave
                                             && (kind === 'any' || n.band === kind));
     },
+    // A hunt keeps its prey on the map (2.12.2): the gate offers it with three such bands about, but
+    // lords and other bands thin them out — with fewer left than the quest still owes, a fresh one is
+    // drawn in, out of sight (Game.createNPC's SPAWN_SAFE), so the quest can't stall on bands gone.
+    huntRefill(q, kind) {
+        let spawn = kind === 'any' ? 'bandit' : kind, k = BAND_KINDS[spawn];
+        for(let have = this.huntBands(kind).length; have < q.data.need - q.data.got; have++)
+            state.npcParties.push(Game.createBand(spawn, k.min + Math.floor(Math.random() * (k.max - k.min + 1))));
+    },
     // A hunt with no place of its own: the giver points at the settlement nearest the closest such
     // band to you — the quest's marker on the map and 📍 in the log. Without it the bands were
     // 3000–6600 away, unseen, and both such quests expired in a playtest.
@@ -1519,6 +1527,7 @@ const Quests = {
             if(q.state === 'awaiting') continue;
             let def = QUESTS[q.id];
             if(state.time.day > q.deadline) { this.fail(q, T('Süre doldu.')); continue; }
+            if(def.hunt) this.huntRefill(q, def.hunt);
             if(def.day) {
                 let r = def.day(q);
                 if(r === 'done') this.markDone(q);

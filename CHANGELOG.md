@@ -3,6 +3,17 @@
 Oyuncu diliyle, en yeniden eskiye. Sürüm numarası `app.js` içindeki `VERSION` sabitidir ve
 başlangıç ekranının sağ alt köşesinde yazar.
 
+## 2.12.2 — Pusula (2026-10-08)
+
+- **Karşılaşmanın söylediği ödül tutuyor.** "Kolay av: ganimet ve tecrübe %20'ye iner" diyen bir
+  savaşın sonunda %23 yazabiliyordu: karşılaşma çetenin ortalama kadrosunu tartıyor, savaş ise
+  sahaya o an çıkan adamları sayıyordu. Haritada karşılaştığın çeteyle savaşınca artık söylenen
+  oran geçerli. Kuşatma, köy baskını ya da bir lordun yanında girdiğin savaş sahadaki kadroya göre
+  tartılmaya devam ediyor.
+- **Av görevi yarıda kalmıyor.** Görev sürerken o türün çeteleri lordlar ya da başka çeteler
+  yüzünden haritadan silinirse, eksik kalanlar kadar yenisi gözünün erişmediği bir yerde ortaya
+  çıkıyor.
+
 ## 2.12.1 — Pusula (2026-10-08)
 
 Bir oyuncunun şikâyetiyle: "İki çeteyi buldum, üçüncüsü hiç çıkmadı, görev battı, lordla aram bozuldu.
