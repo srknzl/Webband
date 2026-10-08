@@ -437,8 +437,10 @@ strength counted in your own heads (1 = even; the label's ratio is it raised to 
 pre-battle readout reads it: the odds label, the easy-prey cut (`preyWarning` →
 `Battle.rewardScale(share)` = clamp(share × 1.6, 0.2, 1)), your men's chatter (`troopChatter`:
 scared at ≥ 1.3, bold at ≤ 0.6) and a surrender's renown (`defeatRenown(share)`). `Battle.start`
-takes the same number off the field as it lines up (`Battle.foeShare`, reserves included) for the
-win's pay and a defeat's renown. All four weighed heads × level (or raw heads) until 2.11.0, and
+keeps that number for the fight that was weighed — that party, that count, no ally — as
+`Battle.foeShare`, the win's pay and a defeat's renown (2.12.2: it was taken off the dealt field,
+a draw from the band's mix, and a fight promised at 20 % paid 23 %). Any other fight (siege, raid,
+a lord's battle you joined) takes it off the field as it lines up, reserves included. All four weighed heads × level (or raw heads) until 2.11.0, and
 since #124 a level adds nothing in a fight: a level-25 hero with eight villagers was told nine
 Swadian regulars were "🪶 Kolay av" (paid at 70 %).
 
@@ -637,6 +639,8 @@ lairs at random, and a world with no forest lair (seeds 1 and 4 of 5 at day 30) 
 yet Orman Pususu was offered there and could only fail. Measured with a bot that hunts nonstop:
 knowing where the bands are (the marker) brings three kills from 4–13 days to ~2.5 (Üç Çete, strong
 party), and wolves from 9–16 days (2 of 5 timed out with a strong party) to 4.4–7.5.
+A hunt keeps its prey (`Quests.huntRefill`, from `dailyTick`, 2.12.2): with fewer such bands on the map
+than the quest still owes, fresh ones are drawn in, out of sight (`createNPC`'s `SPAWN_SAFE`).
 
 **Quest renown** is `Quests.renown(def)` = `def.renown × RENOWN_SCALE` 1.5 (2.12.0; a negative
 renown stays as written) — shown and paid from the same call. The two hunts (`wolf_cull`,

@@ -568,10 +568,16 @@ const Battle = {
             }
         }
 
-        // The foe's share as the field lines up, reserves included — the win's pay (rewardScale)
-        // and a defeat's renown (Game.defeatRenown) read it, the same number the encounter showed
+        // The foe's share — the win's pay (rewardScale) and a defeat's renown (Game.defeatRenown) read
+        // it. A party met on the map was weighed before the fight (Game.foeShare: the encounter's odds
+        // and its 🪶 reward line), and the fight keeps that number, the one the player decided on
+        // (2.12.2): the field dealt from the band's mix read 20 % as 23 % in a playtest. Only the fight
+        // that was weighed — that party, that count, no one beside you; anything else (a siege, a raid,
+        // a lord's battle you joined) is weighed as the field lines up.
         let rows = team => this.units.filter(u => u.isPlayerTeam === team).map(u => Object.assign({}, u, { n: 1 }));
-        this.foeShare = this.powerRatio(rows(false), rows(true));
+        let weighed = npc && !solo && !state.player.assistAlly && enemyName === npc.name
+                      && enemyCount === (state.encounterSize || npc.size);
+        this.foeShare = weighed ? Game.foeShare(npc) : this.powerRatio(rows(false), rows(true));
 
         // Auto-resolve: the same units are set up but the arena never opens, the result is just computed (#30)
         if(auto) return this.autoResolve();

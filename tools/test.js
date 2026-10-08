@@ -3209,6 +3209,35 @@ test('hunts: offered only while the map holds the bands, marked on the map, and 
     Game.listenRumor(town.id);
     const mark = state.knownLocations.rumor;
     assert.ok(mark && Math.hypot(mark.x - first.x, mark.y - first.y) < 300, `the tavern marked ${JSON.stringify(mark)}, the band is at ${Math.round(first.x)},${Math.round(first.y)}`);
+    // mid-hunt the bands are wiped out (lords, other bands): the next day draws in what is still owed
+    q.data.got = 1;
+    state.npcParties = state.npcParties.filter(n => n.band !== 'forest');
+    Quests.dailyTick();
+    assert.strictEqual(Quests.huntBands('forest').length, 2, 'the hunt was left with nothing to hunt');
+    assert.ok(Quests.huntBands('forest').every(n => Game.dist(n, state.player) >= Game.SPAWN_SAFE), 'a band was drawn in on top of you');
+});
+
+// The encounter said "rewards drop to 20 %", the result said 23 %: the encounter weighs the band's
+// mix, the battle weighed the men it happened to deal (2.12.2). The fight pays what was promised.
+test('a band met on the map pays at the rate its encounter promised', () => {
+    const w = H.world({ seed: 5 });
+    const { Game, Battle, state } = w;
+    Game.checkAchievements = () => {};
+    state.player.party = Array.from({ length: 30 }, (_, i) => ({ id: 'k' + i, name: 'Svadya Şövalyesi', level: 25, xp: 0, xpNext: 999 }));
+    const band = Game.createBand('mountain', 6, 'Dağ Eşkıyaları', '#555');
+    state.npcParties.push(band);
+    state.player.currentEncounterNpcId = band.id; state.encounterSize = band.size;
+    const promised = Game.foeShare(band);
+    assert.ok(Battle.rewardScale(promised) < 0.95, 'the setup should be an easy prey');
+    Battle.start(band.name, band.size, null, '', null, true, band.band);
+    Game.closeModal();
+    assert.strictEqual(Battle.foeShare, promised, 'the fight weighed something else than the encounter showed');
+    // a fight that wasn't the one weighed (a raid, with the last encounter's id still set) is weighed as it lines up
+    state.player.currentEncounterNpcId = band.id;
+    let asked = 0; const orig = Game.foeShare; Game.foeShare = n => { asked++; return orig.call(Game, n); };
+    Battle.start('Köy Milisi', 5, null, null, null, true);
+    Game.closeModal(); Game.foeShare = orig;
+    assert.strictEqual(asked, 0, 'a raid paid by the last encounter\'s promise');
 });
 
 // Small fixes from the 2.12.0 playtest: a hamlet's stall, the king's door, day one's loaf
